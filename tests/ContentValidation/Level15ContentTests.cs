@@ -728,9 +728,13 @@ public class Level15ContentTests {
 
         AssertThat(level.ResumedMidLevel).IsTrue();
         AssertString(level.ResumedCheckpointID).IsEqual(Level15Controller.Checkpoint2);
-        AssertThat(level.HasWaveSpawned(3))
-            .OverrideFailureMessage("Waves behind checkpoint 2 must stay cleared.").IsTrue();
-        AssertThat(level.HasWaveSpawned(4)).IsFalse();
+        // GU-L12: every lock is behind checkpoint 2, so all three build Cleared.
+        foreach (EncounterLock encounterLock in level.EncounterLocks) {
+            AssertThat(encounterLock.State)
+                .OverrideFailureMessage($"'{encounterLock.LockID}' is behind checkpoint 2 and must stay cleared.")
+                .IsEqual(EncounterLockState.Cleared);
+            AssertThat(encounterLock.RestoredCleared).IsTrue();
+        }
         // The firestorm is already survived; a resume must not re-arm it behind them.
         AssertThat(level.FirestormTriggered).IsTrue();
         AssertThat(level.Firestorm.IsCompleted).IsTrue();
@@ -770,6 +774,104 @@ public class Level15ContentTests {
         AssertThat(level.PrimeAnchor.IsInserted).IsTrue();
         AssertThat(level.PrimeAnchor.IsArmed).IsTrue();
         AssertThat(level.LevelComplete).IsTrue();
+    }
+
+    // === GU-L12 (2026-10-12): the encounter locks ===
+
+    /// <summary>
+    /// The approach is three locks, one wave per manifest row: the Portico
+    /// (320–3000, wave 1), the Stacks (3020–5900, wave 2) and the mouth of the
+    /// Collapsing Hall (6420–7900, wave 3 pre-placed and the rotunda guard, wave 4,
+    /// sallying as a second wave once the defenders are down). Nothing spawns on the rotunda apron or
+    /// in the arena any more, the hall lock ends well short of the firestorm's
+    /// finish line (the run from its exit is the escape), the three pylons stay
+    /// west of the rotunda, and the anchors and the font stand outside every area,
+    /// out of swing reach of the locks they list.
+    /// </summary>
+    [TestCase]
+    public void TheApproachIsThreeEncounterLocksOneWavePerManifestRow() {
+        using var fixture = new AlexandriaFixture(null);
+        Level15Controller level = fixture.Level;
+        List<string> issues = LevelLockTestKit.LayoutIssues(level, Level15Controller.SpawnTable, new[] {
+            new LevelLockTestKit.LockLayout(Level15Controller.LockPortico, 320f, 3000f,
+                new[] { new LevelLockTestKit.WaveLayout(Level15Controller.Wave1RowID, 1, EncounterWaveTrigger.OnBuild) }),
+            new LevelLockTestKit.LockLayout(Level15Controller.LockStacks, 3020f, 5900f,
+                new[] { new LevelLockTestKit.WaveLayout(Level15Controller.Wave2RowID, 2, EncounterWaveTrigger.OnBuild) }),
+            new LevelLockTestKit.LockLayout(Level15Controller.LockCollapsingHall, 6420f, 7900f, new[] {
+                new LevelLockTestKit.WaveLayout(Level15Controller.Wave3RowID, 3, EncounterWaveTrigger.OnBuild),
+                new LevelLockTestKit.WaveLayout(Level15Controller.Wave4RowID, 4, EncounterWaveTrigger.AfterPreviousCleared)
+            })
+        });
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+
+        foreach ((string enemyID, int _, Vector2 position) in Level15Controller.SpawnTable) {
+            AssertThat(position.X < level.CollapsingHallLock.Area.End.X)
+                .OverrideFailureMessage($"'{enemyID}' at {position} spawns past the hall lock, on the escape run or in the rotunda.")
+                .IsTrue();
+        }
+        // The escape run: from the hall lock's exit past the shelves to the finish.
+        AssertThat(Level15Controller.EscapeFinishX - level.CollapsingHallLock.Area.End.X).IsGreaterEqual(1000f);
+        foreach ((string id, Vector2 position) in Level15Controller.ExtractorPlacements) {
+            AssertThat(position.X < Level15Controller.ArenaStartX)
+                .OverrideFailureMessage($"Pylon '{id}' must stay west of the rotunda (x < 9400).").IsTrue();
+        }
+        AssertThat(level.FirestormTriggered).IsFalse();
+    }
+
+    /// <summary>
+    /// The ruling's order, in real frames: walking into the hall engages its lock
+    /// and the firestorm does NOT start — the hero is never shut in with the front
+    /// at their back; it starts on the hall lock's clear (the rotunda guard's sally
+    /// included), <see cref="Level15Controller.FirestormHeadStartPixels"/> behind
+    /// the hero, and runs.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task TheFirestormStartsOnTheHallLocksClearBehindTheHeroNotBefore() {
+        using var fixture = new AlexandriaFixture(null);
+        Level15Controller level = fixture.Level;
+        try {
+            await LevelLockTestKit.Frames(2);
+            LevelLockTestKit.SkipDialogue();
+            EscapeSequenceController firestorm = level.Firestorm;
+            AssertObject(firestorm).IsNotNull();
+
+            LevelLockTestKit.PlaceHero(level.Player, 7600f, Level15Controller.FloorY - 1f);
+            await LevelLockTestKit.Frames(4);
+            LevelLockTestKit.SkipDialogue();
+            EncounterLock hall = level.CollapsingHallLock;
+            AssertThat(hall.State).IsEqual(EncounterLockState.Engaged);
+            await LevelLockTestKit.Frames(120);
+            AssertThat(level.FirestormTriggered)
+                .OverrideFailureMessage("The firestorm must wait for the hall lock's clear.").IsFalse();
+            AssertThat(firestorm.IsRunning).IsFalse();
+            AssertFloat(firestorm.FrontX).IsEqualApprox(Level15Controller.EscapeStartX, 0.01f);
+
+            AssertThat(await LevelLockTestKit.ClearByForce(hall))
+                .OverrideFailureMessage("The hall lock did not clear once its members (and the sally) fell.").IsTrue();
+            float heroX = level.Player.GlobalPosition.X;
+            AssertThat(level.FirestormTriggered).IsTrue();
+            AssertThat(firestorm.IsRunning).IsTrue();
+            AssertThat(hall.ExitBarrier.IsClosed).IsFalse();
+            AssertFloat(firestorm.StartX)
+                .OverrideFailureMessage($"The front started at {firestorm.StartX}, the hero stands at {heroX}.")
+                .IsEqualApprox(Level15Controller.FirestormStartBehind(heroX), 80f);
+            AssertThat(firestorm.StartX < heroX).IsTrue();
+            float startFront = firestorm.FrontX;
+            await LevelLockTestKit.Frames(30);
+            AssertThat(firestorm.FrontX > startFront)
+                .OverrideFailureMessage("The firestorm started but its front never advanced.").IsTrue();
+
+            // Past the finish line the run completes (it used to be only halted at
+            // the rotunda: the finish trigger refused a hero entering it short of
+            // the line, and the bot waited past the line forever).
+            LevelLockTestKit.PlaceHero(level.Player, Level15Controller.EscapeFinishX + 60f, Level15Controller.FloorY - 1f);
+            await LevelLockTestKit.Frames(3);
+            AssertThat(firestorm.IsCompleted)
+                .OverrideFailureMessage("A hero past the finish line must complete the escape.").IsTrue();
+            AssertThat(firestorm.IsRunning).IsFalse();
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+        }
     }
 
     // === Helpers ===

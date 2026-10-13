@@ -524,6 +524,12 @@ public class ArenaGeometryContentTests {
     /// (<c>LiftDescentPhysicsTests</c> plays a flush stop and a resting one), so
     /// the flush walk-on stops (the Level 12 spire lift and the Level 14 cargo
     /// lift) keep their no-step boarding.
+    ///
+    /// <para>GU-L12 (2026-10-12): a mover held at its near stop by an encounter
+    /// lock (plan §2.3, <c>Enabled</c> false at load) may have a far stop inside
+    /// that level's closed lock barrier — the barrier opens on the same clear
+    /// that releases the mover, so the two never meet (Level 13's Titanic deck
+    /// and Globe stage shards).</para>
     /// </summary>
     [TestCase]
     public void NoMovingPlatformEndpointOverlapsStaticGeometry() {
@@ -536,6 +542,7 @@ public class ArenaGeometryContentTests {
                 foreach (Rect2 solid in level.StaticGeometry) {
                     Rect2 overlap = endpoint.Intersection(solid);
                     if (IsFlushWalkOnStop(endpoint, solid)) continue;
+                    if (level.HeldMovers.Contains(mover) && level.LockBarriers.Contains(solid)) continue;
                     if (overlap.Size.X > 0.5f && overlap.Size.Y > 0.5f) {
                         issues.Add($"{level.Label}: '{mover}' stops at {endpoint}, {overlap.Size.Y:0} px " +
                             $"inside the static {solid}");
@@ -651,6 +658,10 @@ public class ArenaGeometryContentTests {
         public readonly List<Rect2> StaticGeometry = new();
         /// <summary>Every stop of every moving platform, and every trapdoor leaf (G3).</summary>
         public readonly List<(string Mover, Rect2 Endpoint)> MoverEndpoints = new();
+        /// <summary>GU-L12: the moving platforms an encounter lock holds at their near stop at load.</summary>
+        public readonly HashSet<string> HeldMovers = new();
+        /// <summary>GU-L12: every encounter-lock barrier shape closed at load (they are in <see cref="StaticGeometry"/>).</summary>
+        public readonly List<Rect2> LockBarriers = new();
         /// <summary>Every Chronal Extractor body (G6).</summary>
         public readonly List<(string ID, Rect2 Body)> Extractors = new();
         public Rect2 MirrorArena;
@@ -772,9 +783,13 @@ public class ArenaGeometryContentTests {
                 AddShapes(gate, gateRects);
                 foreach (Rect2 rect in gateRects) snapshot.Gates.Add((gate.Name.ToString(), rect));
                 break;
+            case EncounterLockBarrier lockBarrier:
+                AddShapes(lockBarrier, snapshot.LockBarriers);
+                break;
             case PathMovingPlatform mover when mover.Waypoints is { Length: > 0 }:
                 // Captured synchronously after _Ready, so no tick has moved it yet;
                 // each stop is the authored origin plus the waypoint offset.
+                if (!mover.Enabled) snapshot.HeldMovers.Add(mover.PlatformID);
                 Node2D moverParent = mover.GetParent() as Node2D;
                 foreach (Vector2 waypoint in mover.Waypoints) {
                     Vector2 stop = moverParent != null

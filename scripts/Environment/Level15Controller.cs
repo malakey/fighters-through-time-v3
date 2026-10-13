@@ -24,6 +24,18 @@ namespace FTT.Environment {
     /// garrison is <see cref="CultistEnemyID"/> with one
     /// <see cref="TechEliteEnemyID"/> and one <see cref="GuardEliteEnemyID"/>.
     ///
+    /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-L12, user
+    /// request 3): the Portico (320–3000, wave 1), the Stacks (3020–5900, wave 2)
+    /// and the mouth of the Collapsing Hall (6420–7900, wave 3 pre-placed and the
+    /// rotunda guard, wave 4, sallying out once the hall's defenders are down). The rotunda
+    /// apron west of the arena is only 350 px, narrower than a lock, so the guard
+    /// no longer waits in the arena (four of its five stood inside it). The hall
+    /// lock clears <b>before</b> the firestorm: the front starts on that clear,
+    /// <see cref="FirestormHeadStartPixels"/> behind the hero, and the run from
+    /// the lock's exit to the finish line (7900 → 9100, past the shelves and the
+    /// third pylon) is the escape. The hero is never shut in a lock with the front
+    /// at their back.</para>
+    ///
     /// <para><b>The ending chain, and why it is ordered this way.</b> Defeating the
     /// Apex Eraser is not the end. design-godot.md 3389 gates the ending cinematic
     /// on the boss dying <i>and</i> the Temporal Core being inserted into the
@@ -93,7 +105,8 @@ namespace FTT.Environment {
 
         // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, after the PreBoss
         // anchor (9180) on the rotunda floor, past the firestorm finish, 190 px short of the
-        // arena (9750); a post-wave heal (wave 4 spawns at the 9460 transition).
+        // arena (9750); a post-wave, post-escape heal (GU-L12: the rotunda guard is now
+        // fought in the hall lock, so the font stands outside every lock area).
         protected override Vector2? RestorationFontPosition => new(9560f, FloorY);
 
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
@@ -180,6 +193,20 @@ namespace FTT.Environment {
         public const float EscapeEndX = 9000f;
         public const float EscapeFinishX = 9100f;
 
+        /// <summary>
+        /// GU-L12 (<i>Provisional</i>): when the hall lock clears, the front starts
+        /// this far behind the hero (2.0 s of its 216 px/s), never west of
+        /// <see cref="EscapeStartX"/>. Starting it at <see cref="EscapeStartX"/>
+        /// regardless would hand a hero who finished the fight at the hall lock's
+        /// east end a 1,300 px lead and no escape at all; every hero still outruns
+        /// it, so only a detour (the third pylon) costs a catch.
+        /// </summary>
+        public const float FirestormHeadStartPixels = 432f;
+
+        /// <summary>Where the front starts when the hall lock clears with the hero at <paramref name="heroX"/>.</summary>
+        public static float FirestormStartBehind(float heroX) =>
+            Mathf.Clamp(heroX - FirestormHeadStartPixels, EscapeStartX, EscapeEndX);
+
         private EscapeSequenceController _escape;
         public EscapeSequenceController Firestorm => _escape;
         public bool FirestormTriggered { get; private set; }
@@ -252,9 +279,13 @@ namespace FTT.Environment {
         private const float StandY = FloorY - 50f;
 
         /// <summary>
-        /// Authored Normal-difficulty spawn table. Wave 1 is live on entry; waves
-        /// 2-4 arm on their room seams. Difficulty scaling takes a prefix of each
-        /// wave through <see cref="StoryDifficultyTuning.ScaleEncounterCount"/>.
+        /// Authored Normal-difficulty spawn table, one manifest row per wave
+        /// (<c>level_15.waveN</c>: the same IDs in the same order). Each wave is an
+        /// encounter-lock wave (GU-L12): waves 1–3 stand pre-placed and dormant
+        /// from the level's build, wave 4 sallies out of the rotunda into the hall
+        /// lock. Difficulty scaling takes the same per-row prefix through
+        /// <see cref="StoryDifficultyTuning.ScaleEncounterCount"/> the reward
+        /// ledger compiles.
         /// </summary>
         public static readonly (string EnemyID, int Wave, Vector2 Position)[] SpawnTable = {
             // Wave 1 - the burning portico.
@@ -262,20 +293,27 @@ namespace FTT.Environment {
             (CultistEnemyID, 1, new Vector2(1900f, StandY)),
             (CultistEnemyID, 1, new Vector2(2560f, StandY)),
             // Wave 2 - the stacks and the scriptorium climb, held by a Tech Enforcer.
+            // GU-L12: the east trooper moved 5900 -> 5700, inside the Stacks lock.
             (CultistEnemyID, 2, new Vector2(3450f, StandY)),
             (CultistEnemyID, 2, new Vector2(4150f, StandY)),
-            (CultistEnemyID, 2, new Vector2(5900f, StandY)),
+            (CultistEnemyID, 2, new Vector2(5700f, StandY)),
             (TechEliteEnemyID, 2, new Vector2(4900f, StandY)),
-            // Wave 3 - the collapsing hall, fought on the run.
+            // Wave 3 - the mouth of the collapsing hall. GU-L12: fought in the hall
+            // lock before the firestorm, not on the run (7900 -> 7650, 8750 -> 7250).
             (CultistEnemyID, 3, new Vector2(6850f, StandY)),
-            (CultistEnemyID, 3, new Vector2(7900f, StandY)),
-            (CultistEnemyID, 3, new Vector2(8750f, StandY)),
-            // Wave 4 - the rotunda guard, before the Eraser reveals.
-            (CultistEnemyID, 4, new Vector2(9620f, StandY)),
-            (CultistEnemyID, 4, new Vector2(9880f, StandY)),
-            (CultistEnemyID, 4, new Vector2(10150f, StandY)),
-            (GuardEliteEnemyID, 4, new Vector2(9760f, StandY)),
-            (EraserEnemyID, 4, new Vector2(10420f, StandY))
+            (CultistEnemyID, 3, new Vector2(7650f, StandY)),
+            (CultistEnemyID, 3, new Vector2(7250f, StandY)),
+            // Wave 4 - the rotunda guard. GU-L12: it no longer waits inside the
+            // boss arena (9760-10420); it sallies into the hall lock as a second
+            // wave once the hall's defenders are down, so the rotunda is the
+            // First Severed's alone.
+            (CultistEnemyID, 4, new Vector2(6980f, StandY)),
+            (CultistEnemyID, 4, new Vector2(7420f, StandY)),
+            (CultistEnemyID, 4, new Vector2(7780f, StandY)),
+            (GuardEliteEnemyID, 4, new Vector2(7600f, StandY)),
+            // The tail of the wave-4 manifest row: the ledger pays it an elite
+            // share (F05), and Easy's prefix (3 of 5) drops it as before.
+            (EraserEnemyID, 4, new Vector2(7180f, StandY))
         };
 
         /// <summary>
@@ -326,13 +364,52 @@ namespace FTT.Environment {
             ("hall_shelves", HallShelves)
         };
 
+        // === GU-L12 (2026-10-12): the encounter locks ===========================
+
+        /// <summary>The F10 encounter IDs of the three locks (they start with the level ID).</summary>
+        public const string LockPortico = AlexandriaLevelID + "_lock_portico";
+        public const string LockStacks = AlexandriaLevelID + "_lock_stacks";
+        public const string LockCollapsingHall = AlexandriaLevelID + "_lock_collapsing_hall";
+
+        /// <summary>The manifest rows the lock waves are (level_15_rewards.tres).</summary>
+        public const string Wave1RowID = "level_15.wave1";
+        public const string Wave2RowID = "level_15.wave2";
+        public const string Wave3RowID = "level_15.wave3";
+        public const string Wave4RowID = "level_15.wave4";
+
+        private const float LockBarrierWidth = EncounterLockRules.DefaultBarrierWidthPixels;
+
+        /// <summary>The Portico: everything past the entry anchor (260) to the Stacks seam.</summary>
+        public const float PorticoLockMinX = 320f;
+        public const float PorticoLockMaxX = Room2StartX;
+        /// <summary>
+        /// The Stacks and the scriptorium climb, to 220 px short of the Middle
+        /// anchor (6120), whose strike surface (6090–6150) stays past the longest
+        /// basic swing of a hero pressed against the closed exit (5880 + 156).
+        /// </summary>
+        public const float StacksLockMinX = Room2StartX + LockBarrierWidth;
+        public const float StacksLockMaxX = 5900f;
+        /// <summary>
+        /// The mouth of the Collapsing Hall: from just inside the hall seam to the
+        /// gap between the second and third shelves (7880–8090), leaving the run to
+        /// the finish line (9100) as the escape.
+        /// </summary>
+        public const float CollapsingHallLockMinX = 6420f;
+        public const float CollapsingHallLockMaxX = 7900f;
+
+        private EncounterLock _porticoLock;
+        private EncounterLock _stacksLock;
+        private EncounterLock _collapsingHallLock;
+
+        public EncounterLock PorticoLock => _porticoLock;
+        public EncounterLock StacksLock => _stacksLock;
+        public EncounterLock CollapsingHallLock => _collapsingHallLock;
+
         // === Runtime state ===
 
-        private readonly HashSet<int> _wavesSpawned = new();
         private bool _preBossShown;
 
         public bool PreBossBeatPlayed => _preBossShown;
-        public bool HasWaveSpawned(int wave) => _wavesSpawned.Contains(wave);
 
         // === Era palette: scorched marble, papyrus ash, firelight ===
 
@@ -355,6 +432,76 @@ namespace FTT.Environment {
 
             BuildWall(0f, 0f, LevelHeight);
             BuildWall(ArenaEndX, 0f, LevelHeight);
+            BuildEncounterLocks();
+        }
+
+        /// <summary>
+        /// GU-L12: the three approach locks, one wave per manifest row. Built in
+        /// <see cref="BuildLevel"/> so a resume past a lock builds it Cleared with
+        /// no member ever spawned. The hall lock's clear starts the firestorm.
+        /// </summary>
+        private void BuildEncounterLocks() {
+            _porticoLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockPortico,
+                Area = EncounterLockSpec.Span(PorticoLockMinX, PorticoLockMaxX, LevelHeight),
+                EntryBarrierX = PorticoLockMinX - LockBarrierWidth * 0.5f,
+                ExitBarrierX = PorticoLockMaxX + LockBarrierWidth * 0.5f,
+                BarrierFloorY = FloorY,
+                Waves = new[] { WaveFromTable(Wave1RowID, 1, EncounterWaveTrigger.OnBuild) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            _stacksLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockStacks,
+                Area = EncounterLockSpec.Span(StacksLockMinX, StacksLockMaxX, LevelHeight),
+                EntryBarrierX = StacksLockMinX - LockBarrierWidth * 0.5f,
+                ExitBarrierX = StacksLockMaxX + LockBarrierWidth * 0.5f,
+                BarrierFloorY = FloorY,
+                Waves = new[] { WaveFromTable(Wave2RowID, 2, EncounterWaveTrigger.OnBuild) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            _collapsingHallLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockCollapsingHall,
+                Area = EncounterLockSpec.Span(CollapsingHallLockMinX, CollapsingHallLockMaxX, LevelHeight),
+                EntryBarrierX = CollapsingHallLockMinX - LockBarrierWidth * 0.5f,
+                ExitBarrierX = CollapsingHallLockMaxX + LockBarrierWidth * 0.5f,
+                BarrierFloorY = FloorY,
+                Waves = new[] {
+                    WaveFromTable(Wave3RowID, 3, EncounterWaveTrigger.OnBuild),
+                    // The rotunda guard sallies once the hall's defenders are down.
+                    WaveFromTable(Wave4RowID, 4, EncounterWaveTrigger.AfterPreviousCleared)
+                },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            _collapsingHallLock.StateChanged += OnCollapsingHallLockStateChanged;
+        }
+
+        /// <summary>One lock wave: the authored table's entries for <paramref name="wave"/>, in table order.</summary>
+        private static EncounterLockWave WaveFromTable(string rowID, int wave, EncounterWaveTrigger trigger,
+            int aliveAtMost = 0) {
+            var spawns = new List<EncounterLockSpawn>();
+            foreach ((string enemyID, int entryWave, Vector2 position) in SpawnTable) {
+                if (entryWave == wave) spawns.Add(new EncounterLockSpawn(enemyID, position));
+            }
+            return new EncounterLockWave {
+                RowID = rowID, Spawns = spawns.ToArray(), Trigger = trigger, AliveAtMost = aliveAtMost
+            };
+        }
+
+        /// <summary>
+        /// The plan's Level 15 ruling: the hall lock clears before the firestorm,
+        /// which starts on that clear — <see cref="FirestormHeadStartPixels"/>
+        /// behind the hero. A lock rebuilt Cleared by a resume (or the test seam)
+        /// starts nothing: a resume past the hall is east of the finish line, and
+        /// <see cref="MarkWavesClearedThrough"/> settles the escape there.
+        /// </summary>
+        private void OnCollapsingHallLockStateChanged(EncounterLock encounterLock, EncounterLockState previous,
+            EncounterLockState current) {
+            if (current != EncounterLockState.Cleared || encounterLock.RestoredCleared) return;
+            float heroX = Player != null && IsInstanceValid(Player) ? Player.GlobalPosition.X : EscapeStartX;
+            BeginFirestorm(FirestormStartBehind(heroX));
         }
 
         private void BuildGallery((float X, float Y, float Width)[] rungs) {
@@ -509,6 +656,16 @@ namespace FTT.Environment {
         /// </summary>
         private void WireFirestormFinishLine() {
             if (_escape == null) return;
+            // GU-L12: the trigger below is centred on the finish line, so a hero
+            // walking in meets it 20–70 px short of FinishX, NotifyPlayerReachedFinish
+            // refuses, and BodyEntered never fires again while the hero walks
+            // through — the run was only ever halted at the rotunda, never
+            // completed (the bot idled past the line waiting for it). The front
+            // reports every advance, so the run now completes on the first tick the
+            // hero stands past the finish line.
+            _escape.FrontAdvanced += _ => {
+                if (Player != null && IsInstanceValid(Player)) _escape.NotifyPlayerReachedFinish(Player);
+            };
             if (_escape.GetNodeOrNull<Area2D>("FinishTrigger") is not Area2D finish) return;
             finish.Position = new Vector2(EscapeFinishX, -360f);
             finish.BodyEntered += body => {
@@ -529,22 +686,16 @@ namespace FTT.Environment {
             if (IsBossDefeated) ArmTemporalCore();
         }
 
-        protected override void SpawnInitialEnemies() => SpawnWave(1);
+        // GU-L12: the waves are the locks' (BuildEncounterLocks). The room seams
+        // post the level's own objective, which the base re-posts when a lock
+        // engaged on top of it clears or reverts — the escape objective lands
+        // with the firestorm on the hall lock's clear.
+        private void EnterStacks() => SetObjective("alexandria_objective_stacks");
 
-        private void EnterStacks() {
-            SetObjective("alexandria_objective_stacks");
-            SpawnWave(2);
-        }
-
-        private void EnterCollapsingHall() {
-            SetObjective("alexandria_objective_escape");
-            SpawnWave(3);
-            BeginFirestorm();
-        }
+        private void EnterCollapsingHall() => SetObjective("alexandria_objective_escape");
 
         private void EnterRotunda() {
             SetObjective("alexandria_objective_rotunda");
-            SpawnWave(4);
             // The hall is behind the player and the rotunda is stone: stop the front
             // rather than letting it grind against the arena's west wall forever.
             _escape?.Halt();
@@ -557,10 +708,19 @@ namespace FTT.Environment {
             StartPreBossDialogue(PreBossDialogueID);
         }
 
-        /// <summary>Starts the firestorm at the player's back. Idempotent.</summary>
-        public bool BeginFirestorm() {
+        /// <summary>Starts the firestorm from its authored start line. Idempotent.</summary>
+        public bool BeginFirestorm() => BeginFirestorm(EscapeStartX);
+
+        /// <summary>
+        /// Starts the firestorm at the player's back, its front at
+        /// <paramref name="frontStartX"/> (GU-L12: the hall lock's clear passes
+        /// <see cref="FirestormStartBehind"/>). Idempotent.
+        /// </summary>
+        public bool BeginFirestorm(float frontStartX) {
             if (_escape == null || FirestormTriggered || _escape.IsCompleted) return false;
             FirestormTriggered = true;
+            _escape.StartX = Mathf.Clamp(frontStartX, EscapeStartX, EscapeEndX);
+            _escape.ResetSequence();
             _escape.Begin();
             return true;
         }
@@ -577,16 +737,18 @@ namespace FTT.Environment {
             }
         }
 
-        // Package 12 W2 (GAP-13): explicit encounter baseline — waves 1+2 at the
-        // middle anchor, 1+2+3 at the PreBoss anchor, authored rather than derived.
+        // Package 12 W2 (GAP-13) explicit encounter baseline. GU-L12: the
+        // encounters are the three locks, and every anchor lists every lock whose
+        // area ends before it (a resume builds those Cleared; anything later
+        // re-arms in full).
         private static readonly IReadOnlyDictionary<string, string[]> Baselines =
-            NumberedWaveBaselines(AlexandriaLevelID, new[] { 1, 2 }, new[] { 1, 2, 3 });
+            new Dictionary<string, string[]> {
+                [Checkpoint0] = Array.Empty<string>(),
+                [Checkpoint1] = new[] { LockPortico, LockStacks },
+                [Checkpoint2] = new[] { LockPortico, LockStacks, LockCollapsingHall }
+            };
 
         protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
-
-        protected override void MarkEncounterCleared(string encounterID) {
-            if (TryParseWaveEncounter(AlexandriaLevelID, encounterID, out int wave)) _wavesSpawned.Add(wave);
-        }
 
         /// <summary>
         /// Resolved after <see cref="MarkWavesClearedThrough"/>, because the escape
@@ -731,23 +893,5 @@ namespace FTT.Environment {
         }
 
         // === end Package 11 A3b region ===
-
-        // === Encounters ===
-
-        private void SpawnWave(int wave) {
-            if (!_wavesSpawned.Add(wave)) return;
-
-            var authored = new List<(string EnemyID, Vector2 Position)>();
-            foreach ((string enemyID, int entryWave, Vector2 position) in SpawnTable) {
-                if (entryWave == wave) authored.Add((enemyID, position));
-            }
-            if (authored.Count == 0) return;
-
-            int count = StoryDifficultyTuning.ScaleEncounterCount(
-                authored.Count, StoryDifficultyTuning.CurrentStoryDifficulty);
-            for (int index = 0; index < count && index < authored.Count; index++) {
-                EnemyFactory.Spawn(authored[index].EnemyID, this, authored[index].Position);
-            }
-        }
     }
 }

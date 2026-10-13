@@ -491,17 +491,17 @@ public class Level12ContentTests {
             AssertFloat(level.Player.EnvironmentGravityScale).IsLess(1f);
             AssertThat(EnvironmentPlayerModifiers.GravitySourceCount(level.Player)).IsEqual(1);
 
-            // Waves behind the checkpoint stay cleared instead of replaying, and the
-            // thesis beat is still armed no matter where the run resumes.
-            if (checkpointID == Level12Controller.Checkpoint0) {
-                AssertThat(level.HasWaveSpawned(2)).IsFalse();
-            } else {
-                AssertThat(level.HasWaveSpawned(1)).IsTrue();
-                AssertThat(level.HasWaveSpawned(2)).IsTrue();
-            }
-            if (checkpointID == Level12Controller.Checkpoint2) {
-                AssertThat(level.HasWaveSpawned(3)).IsTrue();
-            }
+            // GU-L12: the locks behind the checkpoint build Cleared instead of
+            // replaying (the later ones re-arm in full), the spire's movers run only
+            // once the spire lock is behind the run, and the thesis beat is still
+            // armed no matter where the run resumes.
+            bool pastVentField = checkpointID != Level12Controller.Checkpoint0;
+            bool pastSpire = checkpointID == Level12Controller.Checkpoint2;
+            AssertThat(level.TranquilityLock.State == EncounterLockState.Cleared).IsEqual(pastVentField);
+            AssertThat(level.VentFieldLock.State == EncounterLockState.Cleared).IsEqual(pastVentField);
+            AssertThat(level.RelaySpireLock.State == EncounterLockState.Cleared).IsEqual(pastSpire);
+            AssertThat(level.SpireLift.Enabled).IsEqual(pastSpire);
+            AssertThat(level.HighlineFerry.Enabled).IsTrue();
             AssertThat(level.PreBossBeatPlayed).IsFalse();
         }
     }
@@ -693,6 +693,97 @@ public class Level12ContentTests {
             // Rooms narrow the level; none of them may reach outside it.
             AssertThat(trigger.CameraBounds.Position.X).IsGreaterEqual(-200f);
             AssertThat(trigger.CameraBounds.End.X).IsLessEqual(Level12Controller.LevelWidth + 200f);
+        }
+    }
+
+    // === GU-L12 (2026-10-12): the encounter locks ===
+
+    /// <summary>
+    /// The approach is three locks, one wave per manifest row: Tranquility Base
+    /// (320–3000, wave 1 pre-placed), the vent field (3020–5860, wave 2 on engage)
+    /// and the spire base (6220–7540, wave 3 pre-placed — its three dead-end
+    /// troopers moved onto the route — and the landing-pad garrison, wave 4,
+    /// arriving as a second wave once the defenders are down). The cache cul-de-sac beyond the
+    /// spire lock and the pad east of the curtain hold no member and no lock: the
+    /// Eraser is west of the arena (9800). Anchors and the font stand outside
+    /// every area, and the Middle and PreBoss strike surfaces are out of swing
+    /// reach of the locks they list.
+    /// </summary>
+    [TestCase]
+    public void TheApproachIsThreeEncounterLocksOneWavePerManifestRow() {
+        using var fixture = new LunarFixture(null);
+        Level12Controller level = fixture.Level;
+        List<string> issues = LevelLockTestKit.LayoutIssues(level, Level12Controller.SpawnTable, new[] {
+            new LevelLockTestKit.LockLayout(Level12Controller.LockTranquility, 320f, 3000f,
+                new[] { new LevelLockTestKit.WaveLayout(Level12Controller.Wave1RowID, 1, EncounterWaveTrigger.OnBuild) }),
+            new LevelLockTestKit.LockLayout(Level12Controller.LockVentField, 3020f, 5860f,
+                new[] { new LevelLockTestKit.WaveLayout(Level12Controller.Wave2RowID, 2, EncounterWaveTrigger.OnEngage) }),
+            new LevelLockTestKit.LockLayout(Level12Controller.LockRelaySpire, 6220f, 7540f, new[] {
+                new LevelLockTestKit.WaveLayout(Level12Controller.Wave3RowID, 3, EncounterWaveTrigger.OnBuild),
+                new LevelLockTestKit.WaveLayout(Level12Controller.Wave4RowID, 4, EncounterWaveTrigger.AfterPreviousCleared)
+            })
+        });
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+
+        EncounterLock spire = level.RelaySpireLock;
+        // The spire's full-height exit stands in the gap between the mast head
+        // (ends 7500) and the ferry's west stop (deck from 7580): it cuts no
+        // platform and no mover's path, so the ferry is never held.
+        Rect2 exit = spire.ExitBarrier.Footprint;
+        PathMovingPlatform ferry = level.HighlineFerry;
+        AssertThat(exit.Position.X >= 7350f + 150f).IsTrue();
+        AssertThat(exit.End.X <= ferry.AuthoredOrigin.X + ferry.Waypoints[0].X - 120f).IsTrue();
+        AssertThat(ferry.Enabled).IsTrue();
+        // No member stands in the cache cul-de-sac (the two vents and the cache
+        // Extractor) or on the pad.
+        foreach ((string enemyID, int _, Vector2 position) in Level12Controller.SpawnTable) {
+            AssertThat(position.X < Level12Controller.RelaySpireLockMaxX)
+                .OverrideFailureMessage($"'{enemyID}' at {position} spawns past the spire lock (the cul-de-sac, the pad or the arena).")
+                .IsTrue();
+        }
+        // The vent field engages to spawn; the others stand dormant at load.
+        AssertThat(level.VentFieldLock.LivingMemberCount).IsEqual(0);
+        AssertThat(level.TranquilityLock.LivingMemberCount).IsEqual(level.TranquilityLock.PlannedTotal);
+        foreach (EnemyController member in spire.LivingMembers) AssertThat(member.IsEncounterDormant).IsTrue();
+    }
+
+    /// <summary>
+    /// The ruling's lift hold, in real frames: the spire lift waits at its bottom
+    /// stop while the spire lock holds — Armed, and Engaged with the hero
+    /// fighting — so the climb to the highline does not open before the spire is
+    /// clear; the clear releases it and the lift leaves the floor.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task TheSpireLiftWaitsAtItsBottomStopUntilTheSpireIsClear() {
+        using var fixture = new LunarFixture(null);
+        Level12Controller level = fixture.Level;
+        try {
+            await LevelLockTestKit.Frames(2);
+            LevelLockTestKit.SkipDialogue();
+            PathMovingPlatform lift = level.SpireLift;
+            AssertObject(lift).IsNotNull();
+            Vector2 liftBottom = lift.GlobalPosition;
+            AssertThat(lift.Enabled).IsFalse();
+            AssertFloat(liftBottom.Y).IsEqualApprox(Level12Controller.SpireLiftBottomY, 0.5f);
+
+            // The hero walks into the spire base: the lock engages, and the lift
+            // still waits through the fight.
+            LevelLockTestKit.PlaceHero(level.Player, 6400f, Level12Controller.SurfaceY - 1f);
+            await LevelLockTestKit.Frames(6);
+            LevelLockTestKit.SkipDialogue();
+            EncounterLock spire = level.RelaySpireLock;
+            AssertThat(spire.State).IsEqual(EncounterLockState.Engaged);
+            await LevelLockTestKit.Frames(60);
+            AssertThat(lift.GlobalPosition).IsEqual(liftBottom);
+
+            AssertThat(await LevelLockTestKit.ClearByForce(spire))
+                .OverrideFailureMessage("The spire lock did not clear once its members fell.").IsTrue();
+            AssertThat(lift.Enabled).IsTrue();
+            await LevelLockTestKit.Frames(150);
+            AssertThat(lift.GlobalPosition.Y < liftBottom.Y - 10f)
+                .OverrideFailureMessage("The cleared spire's lift never left the floor.").IsTrue();
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
         }
     }
 
