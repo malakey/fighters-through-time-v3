@@ -673,16 +673,16 @@ public class Level13ContentTests {
                 .OverrideFailureMessage("Exactly one gravity field may own the player at a time.")
                 .IsEqual(1);
 
-            // Waves behind the checkpoint stay cleared instead of replaying.
-            if (checkpointID == Level13Controller.Checkpoint0) {
-                AssertThat(level.HasWaveSpawned(2)).IsFalse();
-            } else {
-                AssertThat(level.HasWaveSpawned(1)).IsTrue();
-                AssertThat(level.HasWaveSpawned(2)).IsTrue();
-            }
-            if (checkpointID == Level13Controller.Checkpoint2) {
-                AssertThat(level.HasWaveSpawned(3)).IsTrue();
-            }
+            // GU-L12: the locks behind the checkpoint build Cleared instead of
+            // replaying (the later ones re-arm in full), and the Globe stage shard
+            // runs only once the approach lock is behind the run.
+            bool pastDrift = checkpointID != Level13Controller.Checkpoint0;
+            bool pastApproach = checkpointID == Level13Controller.Checkpoint2;
+            AssertThat(level.ThresholdLock.State == EncounterLockState.Cleared).IsEqual(pastDrift);
+            AssertThat(level.DriftLock.State == EncounterLockState.Cleared).IsEqual(pastDrift);
+            AssertThat(level.ApproachLock.State == EncounterLockState.Cleared).IsEqual(pastApproach);
+            AssertThat(level.TitanicDeckShard.Enabled).IsEqual(pastDrift);
+            AssertThat(level.GlobeStageShard.Enabled).IsEqual(pastApproach);
             AssertThat(level.MirrorIntroShown).IsFalse();
         }
     }
@@ -767,6 +767,111 @@ public class Level13ContentTests {
             AssertThat(trigger.CameraBounds.Position.X).IsGreaterEqual(-200f);
             AssertThat(trigger.CameraBounds.End.X).IsLessEqual(Level13Controller.LevelWidth + 200f);
             AssertThat(trigger.CameraBounds.End.Y).IsLessEqual(Level13Controller.LevelHeight + 1f);
+        }
+    }
+
+    // === GU-L12 (2026-10-12): the encounter locks ===
+
+    /// <summary>
+    /// The approach is three locks, one wave per manifest row: the Threshold
+    /// (320–3200, wave 1 pre-placed, its conduit phantom brought down to the
+    /// shelf), the Drift (3220–5100, wave 2 pre-placed) and the arena approach
+    /// (5500–6900, wave 3 and the Eraser pair springing on engage). No lock
+    /// reaches the Mirror's arena and no member spawns in it; every ground member
+    /// and both Erasers stand on the shelf; the anchors and the font stand outside
+    /// every area, and the Middle and PreBoss surfaces are out of swing reach of
+    /// the locks they list.
+    /// </summary>
+    [TestCase]
+    public void TheApproachIsThreeEncounterLocksOneWavePerManifestRow() {
+        using var fixture = new VoidFixture(null);
+        Level13Controller level = fixture.Level;
+        List<string> issues = LevelLockTestKit.LayoutIssues(level, Level13Controller.SpawnTable, new[] {
+            new LevelLockTestKit.LockLayout(Level13Controller.LockThreshold, 320f, 3200f,
+                new[] { new LevelLockTestKit.WaveLayout(Level13Controller.Wave1RowID, 1, EncounterWaveTrigger.OnBuild) }),
+            new LevelLockTestKit.LockLayout(Level13Controller.LockDrift, 3220f, 5100f,
+                new[] { new LevelLockTestKit.WaveLayout(Level13Controller.Wave2RowID, 2, EncounterWaveTrigger.OnBuild) }),
+            new LevelLockTestKit.LockLayout(Level13Controller.LockApproach, 5500f, 6900f,
+                new[] { new LevelLockTestKit.WaveLayout(Level13Controller.Wave3RowID, 3, EncounterWaveTrigger.OnEngage) })
+        });
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+
+        foreach (EncounterLock encounterLock in level.EncounterLocks) {
+            AssertThat(encounterLock.Area.End.X <= Level13Controller.MirrorArenaBounds.Position.X)
+                .OverrideFailureMessage($"'{encounterLock.LockID}' reaches into the Mirror's arena.").IsTrue();
+            // The whole height of the rift: no shard ride passes over a lock.
+            AssertThat(encounterLock.Area.Position.Y).IsEqual(StoryGateRules.ColumnTopY);
+            AssertThat(encounterLock.ExitBarrier.TopY).IsEqual(StoryGateRules.ColumnTopY);
+        }
+        foreach ((string enemyID, int _, Vector2 position) in Level13Controller.SpawnTable) {
+            AssertFloat(position.Y)
+                .OverrideFailureMessage($"'{enemyID}' is posted off the shelf at {position}.")
+                .IsEqualApprox(Level13Controller.ShelfY - 50f, 0.5f);
+            AssertThat(position.X < Level13Controller.ArenaStartX).IsTrue();
+        }
+        // The shards whose paths cross the Drift's and the approach's exits wait at
+        // their west stops (the template deck is 240 px wide).
+        foreach ((PathMovingPlatform shard, EncounterLock encounterLock) in new[] {
+                     (level.TitanicDeckShard, level.DriftLock), (level.GlobeStageShard, level.ApproachLock) }) {
+            AssertObject(shard).IsNotNull();
+            AssertThat(shard.Enabled).IsFalse();
+            float pathEast = float.MinValue;
+            foreach (Vector2 waypoint in shard.Waypoints) pathEast = Mathf.Max(pathEast, shard.AuthoredOrigin.X + waypoint.X + 120f);
+            AssertThat(pathEast > encounterLock.ExitBarrier.Footprint.Position.X)
+                .OverrideFailureMessage($"'{shard.Name}' no longer crosses '{encounterLock.LockID}''s exit; its hold is dead code.")
+                .IsTrue();
+            AssertThat(shard.AuthoredOrigin.X + shard.Waypoints[0].X + 120f <= encounterLock.ExitBarrier.Footprint.Position.X)
+                .OverrideFailureMessage($"'{shard.Name}''s near stop is not inside '{encounterLock.LockID}'.").IsTrue();
+            AssertThat(shard.GlobalPosition.X).IsEqual(shard.AuthoredOrigin.X + shard.Waypoints[0].X);
+        }
+        // The old y-limited trigger is gone.
+        AssertObject(level.GetNodeOrNull("PreArenaTrigger")).IsNull();
+    }
+
+    /// <summary>
+    /// The ruling's skip, in real frames: riding the shards at the old trigger's
+    /// blind altitude (y 1000, above its 1150–2050 band) now engages the approach
+    /// lock all the same — it spans the rift — and the scripted ambush springs:
+    /// the whole wave, the Eraser pair with it on Normal, and Sarah's naming line.
+    /// The exit stays shut and the Globe stage shard waits until the clear.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task RidingTheShardsAboveTheOldTriggerStillSpringsTheApproachLock() {
+        using var fixture = new VoidFixture(null);
+        Level13Controller level = fixture.Level;
+        try {
+            await LevelLockTestKit.Frames(2);
+            LevelLockTestKit.SkipDialogue();
+            EncounterLock approach = level.ApproachLock;
+            AssertThat(approach.State).IsEqual(EncounterLockState.Armed);
+            AssertThat(approach.LivingMemberCount).IsEqual(0);
+            AssertThat(level.EraserPairLinePlayed).IsFalse();
+
+            // On the Titanic deck motif, 900 px above the shelf.
+            LevelLockTestKit.PlaceHero(level.Player, Level13Controller.MotifX("motif_titanic_deck"),
+                Level13Controller.MotifY("motif_titanic_deck") - 12f);
+            await LevelLockTestKit.Frames(4);
+            AssertThat(approach.State).IsEqual(EncounterLockState.Engaged);
+            AssertThat(level.EraserPairLinePlayed)
+                .OverrideFailureMessage("Sarah must name the Eraser pair as the ambush springs on Normal.").IsTrue();
+            LevelLockTestKit.SkipDialogue();
+            await LevelLockTestKit.Frames(2);
+            AssertThat(approach.PlannedTotal).IsEqual(5);
+            AssertThat(approach.LivingMemberCount).IsEqual(5);
+            int erasers = 0;
+            foreach (EnemyController member in approach.LivingMembers) {
+                if (member.Data?.EnemyID == Level13Controller.EraserEnemyID) erasers++;
+            }
+            AssertThat(erasers).IsEqual(2);
+            AssertThat(approach.ExitBarrier.IsClosed).IsTrue();
+            AssertThat(level.GlobeStageShard.Enabled).IsFalse();
+
+            AssertThat(await LevelLockTestKit.ClearByForce(approach))
+                .OverrideFailureMessage("The approach lock did not clear once its members fell.").IsTrue();
+            AssertThat(approach.ExitBarrier.IsClosed).IsFalse();
+            AssertThat(level.GlobeStageShard.Enabled).IsTrue();
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
         }
     }
 

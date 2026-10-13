@@ -67,6 +67,20 @@ namespace FTT.Environment {
     ///
     /// Encounter economy is locked by docs/DUST_ECONOMY.md: 14 standards, 2 elites,
     /// 1 boss, 3 extractors, Unbound trooper roster only.
+    ///
+    /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-L12, user
+    /// request 3): the Breach Gallery (320–2900, wave 1), the Containment Wing
+    /// (2920–5782, wave 2; its exit is the natural one — over the bulkhead, by the
+    /// beta pocket — so the exit barrier stands on the bulkhead's top) and the
+    /// Fabrication Spine (6640–9030, wave 3 pre-placed and the core garrison,
+    /// wave 4, arriving as a second wave once the defenders are down). The Security
+    /// Core apron between the PreBoss anchor and the arena is 900 px, narrower than
+    /// a lock, so the garrison no longer waits there (one of its drones stood
+    /// inside the arena). Each corridor grid runs through a lock area, so a grid is
+    /// <b>paused while its lock is engaged</b> and re-armed on its authored phases
+    /// when the lock clears or reverts: the fights happen in a quiet corridor and
+    /// the walk through the live grid comes after. The cargo lift (east of the
+    /// bulkhead) crosses no barrier and is never held.</para>
     /// </summary>
     public partial class Level14Controller : StoryLevelControllerBase {
 
@@ -100,7 +114,9 @@ namespace FTT.Environment {
         // the 90 px channel circle keeps 80 px from lane 1 and 240 px from lane 2, so a
         // mid-fight heal is not struck by a lane. The first placement (x 9480) put lane 1
         // inside the circle; west of the lane, the Beacon's 200 px leaves no room. 350 px
-        // short of the arena (10200); a post-wave heal (wave 4 spawns at the 9360 transition).
+        // short of the arena (10200); a post-wave heal (GU-L12: every wave, the core garrison
+        // included, is now fought in the Fabrication Spine lock, west of the PreBoss anchor,
+        // so the font stands outside every lock area).
         protected override Vector2? RestorationFontPosition => new(9850f, DeckY);
 
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
@@ -141,8 +157,13 @@ namespace FTT.Environment {
         private static readonly Vector2 Checkpoint0Position = new(260f, DeckY - 10f);
         /// <summary>Past the bulkhead and past the cargo lift, so a resume is never sealed out.</summary>
         private static readonly Vector2 Checkpoint1Position = new(6350f, DeckY - 10f);
-        /// <summary>Pre-boss anchor, west of the Security Core seam and clear of every beam.</summary>
-        private static readonly Vector2 Checkpoint2Position = new(9180f, DeckY - 10f);
+        /// <summary>
+        /// Pre-boss anchor, west of the Security Core seam and clear of every beam.
+        /// GU-L12: moved 9180 -> 9220 so its strike surface (9190–9250) is past the
+        /// longest basic swing of a hero pressed against the Fabrication Spine
+        /// lock's closed exit (9010 + 156).
+        /// </summary>
+        public static readonly Vector2 Checkpoint2Position = new(9220f, DeckY - 10f);
 
         // === Anti-gravity containment pockets ===
 
@@ -348,11 +369,14 @@ namespace FTT.Environment {
         private const float StandY = DeckY - 50f;
 
         /// <summary>
-        /// Authored Normal-difficulty spawn table. Wave 1 is live on entry; waves
-        /// 2-4 arm on their room seams. Difficulty scaling takes a prefix of each
-        /// wave through <see cref="StoryDifficultyTuning.ScaleEncounterCount"/>.
-        /// Archive Prime's own drone deployments are boss-driven and deliberately
-        /// outside this budget.
+        /// Authored Normal-difficulty spawn table, one manifest row per wave
+        /// (<c>level_14.waveN</c>: the same IDs in the same order). Each wave is an
+        /// encounter-lock wave (GU-L12): waves 1–3 stand pre-placed and dormant
+        /// from the level's build, wave 4 reinforces the Fabrication Spine.
+        /// Difficulty scaling takes the same per-row prefix through
+        /// <see cref="StoryDifficultyTuning.ScaleEncounterCount"/> the reward
+        /// ledger compiles. Archive Prime's own drone deployments are boss-driven
+        /// and deliberately outside this budget.
         /// </summary>
         public static readonly (string EnemyID, int Wave, Vector2 Position)[] SpawnTable = {
             // Wave 1 - Breach Gallery. The perimeter watch, before the first grid.
@@ -374,12 +398,20 @@ namespace FTT.Environment {
             // Act III pairing, legal from Level 13 on: a Warden slowing the
             // approach while an Eraser drains the meter that would have answered
             // it. This is the composition the earlier levels are forbidden.
+            // GU-L12: the tail of the wave-3 manifest row, so the ledger pays it
+            // an elite share (F05) and Easy's prefix (4 of 6) drops it as the
+            // spawn prefix always did. With the Eraser arriving in wave 4, the two
+            // now really do fight in one room, as this comment always claimed.
             (WardenEnemyID, 3, new Vector2(8480f, StandY)),
             // Wave 4 - the core garrison, fought before Archive Prime reveals.
-            (SlasherEnemyID, 4, new Vector2(9550f, StandY)),
-            (DroneEnemyID, 4, new Vector2(9950f, 1350f)),
-            (DroneEnemyID, 4, new Vector2(10450f, 1350f)),
-            (EraserEnemyID, 4, new Vector2(10150f, StandY))
+            // GU-L12: it no longer waits on the 900 px Security Core apron (one
+            // drone stood inside the arena at 10450, the Eraser 50 px short of it);
+            // it reaches the Fabrication Spine as a second wave once the spine's
+            // defenders are down.
+            (SlasherEnemyID, 4, new Vector2(7980f, StandY)),
+            (DroneEnemyID, 4, new Vector2(7420f, 1350f)),
+            (DroneEnemyID, 4, new Vector2(8620f, 1350f)),
+            (EraserEnemyID, 4, new Vector2(8300f, StandY))
         };
 
         /// <summary>
@@ -411,12 +443,73 @@ namespace FTT.Environment {
             return total;
         }
 
+        // === GU-L12 (2026-10-12): the encounter locks ===========================
+
+        /// <summary>The F10 encounter IDs of the three locks (they start with the level ID).</summary>
+        public const string LockBreachGallery = NeoEarthLevelID + "_lock_breach_gallery";
+        public const string LockContainmentWing = NeoEarthLevelID + "_lock_containment_wing";
+        public const string LockFabricationSpine = NeoEarthLevelID + "_lock_fabrication_spine";
+
+        /// <summary>The manifest rows the lock waves are (level_14_rewards.tres).</summary>
+        public const string Wave1RowID = "level_14.wave1";
+        public const string Wave2RowID = "level_14.wave2";
+        public const string Wave3RowID = "level_14.wave3";
+        public const string Wave4RowID = "level_14.wave4";
+
+        private const float LockBarrierWidth = EncounterLockRules.DefaultBarrierWidthPixels;
+
+        /// <summary>The Breach Gallery: everything past the entry anchor (260) to the wing's seam. Holds the perimeter grid.</summary>
+        public const float BreachGalleryLockMinX = 320f;
+        public const float BreachGalleryLockMaxX = Room2StartX;
+        /// <summary>
+        /// The Containment Wing, from the seam to the bulkhead's west face. Holds
+        /// the containment grid and the alpha and beta pockets; its exit barrier
+        /// stands on the bulkhead's top (y 700) and seals the high deck, the
+        /// wing's only way out.
+        /// </summary>
+        public const float ContainmentWingLockMinX = Room2StartX + LockBarrierWidth;
+        public const float ContainmentWingLockMaxX = BulkheadX + 2f;
+        /// <summary>
+        /// The Fabrication Spine, from past the Extraction Hall trigger (6540–6620,
+        /// so the reveal plays before the fight) to 190 px short of the PreBoss
+        /// anchor. Holds the core grid, the gamma pocket and its hold node.
+        /// </summary>
+        public const float FabricationSpineLockMinX = 6640f;
+        public const float FabricationSpineLockMaxX = 9030f;
+
+        private EncounterLock _breachGalleryLock;
+        private EncounterLock _containmentWingLock;
+        private EncounterLock _fabricationSpineLock;
+
+        public EncounterLock BreachGalleryLock => _breachGalleryLock;
+        public EncounterLock ContainmentWingLock => _containmentWingLock;
+        public EncounterLock FabricationSpineLock => _fabricationSpineLock;
+
+        /// <summary>
+        /// The corridor grid each lock pauses while it is engaged: the perimeter
+        /// grid runs through the Breach Gallery, the containment grid through the
+        /// wing, the core grid through the spine.
+        /// </summary>
+        public LaserGridPattern GridPausedBy(EncounterLock encounterLock) {
+            if (encounterLock == null) return null;
+            if (encounterLock == _breachGalleryLock) return PerimeterGrid;
+            if (encounterLock == _containmentWingLock) return ContainmentGrid;
+            if (encounterLock == _fabricationSpineLock) return CoreGrid;
+            return null;
+        }
+
+        /// <summary>True while <paramref name="pattern"/> is paused because its lock is engaged. Test seam.</summary>
+        public bool IsGridPaused(LaserGridPattern pattern) {
+            foreach (EncounterLock encounterLock in EncounterLocks) {
+                if (IsInstanceValid(encounterLock) && encounterLock.State == EncounterLockState.Engaged
+                    && GridPausedBy(encounterLock) == pattern) return true;
+            }
+            return false;
+        }
+
         // === Runtime state ===
 
-        private readonly HashSet<int> _wavesSpawned = new();
         private bool _eventsBound;
-
-        public bool HasWaveSpawned(int wave) => _wavesSpawned.Contains(wave);
 
         // === Era palette: metallic and cyberpunk, deliberately not another era ===
 
@@ -442,6 +535,95 @@ namespace FTT.Environment {
 
             BuildWall(0f, 0f, LevelHeight);
             BuildWall(ArenaEndX, 0f, LevelHeight);
+            BuildEncounterLocks();
+        }
+
+        /// <summary>
+        /// GU-L12: the three approach locks, one wave per manifest row. Built in
+        /// <see cref="BuildLevel"/> so a resume past a lock builds it Cleared with
+        /// no member ever spawned. Each lock pauses its corridor grid while it is
+        /// engaged (<see cref="OnEncounterLockGridState"/>).
+        /// </summary>
+        private void BuildEncounterLocks() {
+            _breachGalleryLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockBreachGallery,
+                Area = EncounterLockSpec.Span(BreachGalleryLockMinX, BreachGalleryLockMaxX, LevelHeight),
+                EntryBarrierX = BreachGalleryLockMinX - LockBarrierWidth * 0.5f,
+                ExitBarrierX = BreachGalleryLockMaxX + LockBarrierWidth * 0.5f,
+                BarrierFloorY = DeckY,
+                Waves = new[] { WaveFromTable(Wave1RowID, 1, EncounterWaveTrigger.OnBuild) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            // The wing's one way out is over the bulkhead through the beta pocket,
+            // so its exit barrier stands on the bulkhead's top and seals the high
+            // deck there; the wall below it already seals the lab deck.
+            _containmentWingLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockContainmentWing,
+                Area = EncounterLockSpec.Span(ContainmentWingLockMinX, ContainmentWingLockMaxX, LevelHeight),
+                EntryBarrierX = ContainmentWingLockMinX - LockBarrierWidth * 0.5f,
+                ExitBarrierX = ContainmentWingLockMaxX + LockBarrierWidth * 0.5f,
+                ExitBarrierYRange = new Vector2(StoryGateRules.ColumnTopY, HighDeckY),
+                BarrierFloorY = DeckY,
+                Waves = new[] { WaveFromTable(Wave2RowID, 2, EncounterWaveTrigger.OnBuild) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Up
+            });
+            _fabricationSpineLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockFabricationSpine,
+                Area = EncounterLockSpec.Span(FabricationSpineLockMinX, FabricationSpineLockMaxX, LevelHeight),
+                EntryBarrierX = FabricationSpineLockMinX - LockBarrierWidth * 0.5f,
+                ExitBarrierX = FabricationSpineLockMaxX + LockBarrierWidth * 0.5f,
+                BarrierFloorY = DeckY,
+                Waves = new[] {
+                    WaveFromTable(Wave3RowID, 3, EncounterWaveTrigger.OnBuild),
+                    // The core garrison arrives once the spine's defenders are down.
+                    WaveFromTable(Wave4RowID, 4, EncounterWaveTrigger.AfterPreviousCleared)
+                },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            foreach (EncounterLock encounterLock in new[] { _breachGalleryLock, _containmentWingLock, _fabricationSpineLock }) {
+                encounterLock.StateChanged += OnEncounterLockGridState;
+            }
+        }
+
+        /// <summary>One lock wave: the authored table's entries for <paramref name="wave"/>, in table order.</summary>
+        private static EncounterLockWave WaveFromTable(string rowID, int wave, EncounterWaveTrigger trigger,
+            int aliveAtMost = 0) {
+            var spawns = new List<EncounterLockSpawn>();
+            foreach ((string enemyID, int entryWave, Vector2 position) in SpawnTable) {
+                if (entryWave == wave) spawns.Add(new EncounterLockSpawn(enemyID, position));
+            }
+            return new EncounterLockWave {
+                RowID = rowID, Spawns = spawns.ToArray(), Trigger = trigger, AliveAtMost = aliveAtMost
+            };
+        }
+
+        /// <summary>
+        /// The plan's Level 14 ruling: a corridor grid is paused while the lock it
+        /// runs through is engaged (turn-taking makes standing in one place normal,
+        /// and a beam that fires into a fight the hero cannot leave is a tax, not a
+        /// pattern), and re-armed on its authored phase offsets when the lock
+        /// clears or reverts — so the walk through the live grid comes after the
+        /// fight. A grid that has not been collected yet (a resume restoring a lock
+        /// Cleared during the build) is armed by <see cref="OnLevelReady"/>.
+        /// </summary>
+        private void OnEncounterLockGridState(EncounterLock encounterLock, EncounterLockState previous,
+            EncounterLockState current) {
+            LaserGridPattern pattern = GridPausedBy(encounterLock);
+            if (pattern == null) return;
+            if (current == EncounterLockState.Engaged) PauseGrid(pattern);
+            else if (previous == EncounterLockState.Engaged) ArmGrid(pattern);
+        }
+
+        /// <summary>Stops one corridor grid: every beam dark and still, its cycle held in cooldown.</summary>
+        private void PauseGrid(LaserGridPattern pattern) {
+            foreach (StoryCyclicHazard beam in BeamsOf(pattern.GridID)) {
+                if (!IsInstanceValid(beam)) continue;
+                beam.Enabled = false;
+                beam.ForcePhase(HazardPhase.Cooldown, pattern.CooldownSeconds);
+            }
         }
 
         private void BuildRungs((float X, float Y, float Width)[] rungs) {
@@ -663,6 +845,8 @@ namespace FTT.Environment {
         /// exactly the pocket they were put back into.
         /// </summary>
         private void OnStoryRewind(Vector2 targetPosition) {
+            // GU-L12: a grid whose lock is still engaged stays paused; a rewind
+            // landing outside that lock reverts it, and the revert re-arms it.
             ArmCorridorGrids();
             if (ArenaGridArmedPhase > 0) {
                 ArmGrid(ArenaGridArmedPhase >= 3 ? ArenaGridPhase3 : ArenaGridPhase2);
@@ -670,16 +854,13 @@ namespace FTT.Environment {
             SyncContainmentPocketToPlayer();
         }
 
-        protected override void SpawnInitialEnemies() => SpawnWave(1);
-
-        private void EnterContainmentWing() {
-            SetObjective("neo_earth_objective_containment");
-            SpawnWave(2);
-        }
+        // GU-L12: the waves are the locks' (BuildEncounterLocks). The room seams
+        // post the level's own objective, which the base re-posts when a lock
+        // engaged on top of it clears or reverts.
+        private void EnterContainmentWing() => SetObjective("neo_earth_objective_containment");
 
         private void EnterFabricationSpine() {
             SetObjective("neo_earth_objective_core_approach");
-            SpawnWave(3);
             PlayExtractionHallReveal();
         }
 
@@ -737,10 +918,7 @@ namespace FTT.Environment {
 
         // === end Package 11 A3b region ===
 
-        private void EnterSecurityCore() {
-            SetObjective("neo_earth_objective_security_core");
-            SpawnWave(4);
-        }
+        private void EnterSecurityCore() => SetObjective("neo_earth_objective_security_core");
 
         // === Laser grids ===
 
@@ -773,8 +951,12 @@ namespace FTT.Environment {
                 ? beams
                 : Array.Empty<StoryCyclicHazard>();
 
+        /// <summary>Arms every corridor grid on its authored phases, except one its engaged lock is pausing (GU-L12).</summary>
         private void ArmCorridorGrids() {
-            foreach (LaserGridPattern pattern in CorridorGrids) ArmGrid(pattern);
+            foreach (LaserGridPattern pattern in CorridorGrids) {
+                if (IsGridPaused(pattern)) PauseGrid(pattern);
+                else ArmGrid(pattern);
+            }
         }
 
         /// <summary>
@@ -924,35 +1106,18 @@ namespace FTT.Environment {
 
         // === Checkpoint resume ===
 
-        // Package 12 W2 (GAP-13): explicit encounter baseline — waves 1+2 at the
-        // middle anchor, 1+2+3 at the PreBoss anchor, authored rather than
-        // derived. No other anchor state, so MarkWavesClearedThrough is no
-        // longer overridden.
+        // Package 12 W2 (GAP-13) explicit encounter baseline. GU-L12: the
+        // encounters are the three locks, and every anchor lists every lock whose
+        // area ends before it (a resume builds those Cleared; anything later
+        // re-arms in full). No other anchor state, so MarkWavesClearedThrough is
+        // not overridden.
         private static readonly IReadOnlyDictionary<string, string[]> Baselines =
-            NumberedWaveBaselines(NeoEarthLevelID, new[] { 1, 2 }, new[] { 1, 2, 3 });
+            new Dictionary<string, string[]> {
+                [Checkpoint0] = Array.Empty<string>(),
+                [Checkpoint1] = new[] { LockBreachGallery, LockContainmentWing },
+                [Checkpoint2] = new[] { LockBreachGallery, LockContainmentWing, LockFabricationSpine }
+            };
 
         protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
-
-        protected override void MarkEncounterCleared(string encounterID) {
-            if (TryParseWaveEncounter(NeoEarthLevelID, encounterID, out int wave)) _wavesSpawned.Add(wave);
-        }
-
-        // === Encounters ===
-
-        private void SpawnWave(int wave) {
-            if (!_wavesSpawned.Add(wave)) return;
-
-            var authored = new List<(string EnemyID, Vector2 Position)>();
-            foreach ((string enemyID, int entryWave, Vector2 position) in SpawnTable) {
-                if (entryWave == wave) authored.Add((enemyID, position));
-            }
-            if (authored.Count == 0) return;
-
-            int count = StoryDifficultyTuning.ScaleEncounterCount(
-                authored.Count, StoryDifficultyTuning.CurrentStoryDifficulty);
-            for (int index = 0; index < count && index < authored.Count; index++) {
-                EnemyFactory.Spawn(authored[index].EnemyID, this, authored[index].Position);
-            }
-        }
     }
 }

@@ -38,6 +38,22 @@ namespace FTT.Environment {
     ///
     /// Encounter economy is locked by docs/DUST_ECONOMY.md: 14 standards, 2 elites,
     /// 1 boss, 4 extractors - the largest budget in the campaign so far.
+    ///
+    /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-L12, user
+    /// request 3): every enemy is fought inside an <see cref="EncounterLock"/> —
+    /// Tranquility Base (320–3000, wave 1, pre-placed), the vent field (3020–5860,
+    /// wave 2, arriving through Severed tears on engage) and the spire base
+    /// (6220–7540, from the room seam to the gap between the mast head and the
+    /// highline ferry: wave 3 pre-placed, and the landing-pad garrison, wave 4,
+    /// arriving as a second wave once the defenders are down). The three wave-3
+    /// troopers that stood on the floor east of the lift — a dead end the lift
+    /// skipped, between two cache vents and the cache Extractor — came onto the
+    /// route, and the spire lift is held at its bottom stop until the spire is
+    /// clear, so the climb is the way out of the fight rather than around it. The
+    /// floor beyond the lock stays the optional, enemy-free detour to the cache
+    /// Extractor. The pad east of the curtain is no longer a fight — its 1216 px
+    /// between the curtain and the arena is narrower than a lock — so the PreBoss
+    /// anchor, the thesis scene and the font keep their places.</para>
     /// </summary>
     public partial class Level12Controller : StoryLevelControllerBase {
 
@@ -67,8 +83,9 @@ namespace FTT.Environment {
 
         // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, after the PreBoss
         // anchor (8940) on the landing pad, 400 px short of the arena (9800). Low-gravity
-        // exception: the whole level is low gravity (pad dampers 0.48); a post-wave heal (wave
-        // 4 spawns at the 9060 pad transition).
+        // exception: the whole level is low gravity (pad dampers 0.48); a post-wave heal
+        // (GU-L12: every wave, the pad garrison included, is fought in the spire lock west of
+        // the curtain, so the font stands outside every lock area).
         protected override Vector2? RestorationFontPosition => new(9400f, SurfaceY);
 
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
@@ -147,8 +164,9 @@ namespace FTT.Environment {
         /// <summary>
         /// P1 (2026-10-04): the landing pad arena. West edge is
         /// <see cref="BossArenaWestX"/> (spawn 10500 - 700), so the pre-boss thesis
-        /// scene at 8980 and the wave-4 garrison are fought before the Overseer
-        /// wakes; east edge is the pad wall.
+        /// scene at 8980 plays before the Overseer wakes (GU-L12: the wave-4
+        /// garrison is now fought in the spire lock, west of the curtain); east
+        /// edge is the pad wall.
         /// </summary>
         public static readonly Rect2 BossArenaBounds = new(BossArenaWestX, 0f, ArenaEndX - BossArenaWestX, LevelHeight);
 
@@ -283,9 +301,13 @@ namespace FTT.Environment {
         private const float StandY = SurfaceY - 50f;
 
         /// <summary>
-        /// Authored Normal-difficulty spawn table. Wave 1 is live on entry; waves
-        /// 2-4 arm on their room seams. Difficulty scaling takes a prefix of each
-        /// wave through <see cref="StoryDifficultyTuning.ScaleEncounterCount"/>.
+        /// Authored Normal-difficulty spawn table, one manifest row per wave
+        /// (<c>level_12.waveN</c>: the same IDs in the same order). Each wave is an
+        /// encounter-lock wave (GU-L12): waves 1 and 3 stand pre-placed and dormant
+        /// from the level's build, wave 2 arrives on the vent field's engage and
+        /// wave 4 reinforces the spire. Difficulty scaling takes the same per-row
+        /// prefix through <see cref="StoryDifficultyTuning.ScaleEncounterCount"/>
+        /// that the reward ledger compiles.
         /// </summary>
         public static readonly (string EnemyID, int Wave, Vector2 Position)[] SpawnTable = {
             // Wave 1 - Tranquility Base. Diggers only: the low-gravity teaching fight.
@@ -298,20 +320,30 @@ namespace FTT.Environment {
             (DiggerEnemyID, 2, new Vector2(4600f, StandY)),
             (CultistEnemyID, 2, new Vector2(5300f, StandY)),
             // Wave 3 - the spire base, with the first Void Enforcer holding the mast.
+            // GU-L12: the three that stood on the floor east of the lift (7600,
+            // 8220, 8400) were in a dead end the spire lift skipped, between the two
+            // cache vents and the cache Extractor; they moved onto the route, inside
+            // the spire lock (7420, 6420, 7230).
             (DiggerEnemyID, 3, new Vector2(6600f, StandY)),
             (CultistEnemyID, 3, new Vector2(6950f, StandY)),
-            (DiggerEnemyID, 3, new Vector2(7600f, StandY)),
-            (CultistEnemyID, 3, new Vector2(8220f, StandY)),
-            (EliteEnemyID, 3, new Vector2(8400f, StandY)),
-            // Wave 4 - the landing pad garrison, fought before the Overseer reveals.
-            (DiggerEnemyID, 4, new Vector2(9200f, StandY)),
-            (CultistEnemyID, 4, new Vector2(9450f, StandY)),
-            (CultistEnemyID, 4, new Vector2(9700f, StandY)),
-            (EliteEnemyID, 4, new Vector2(9350f, StandY)),
-            // The Act II finale's hunter, waiting at the pad. The low-gravity
-            // room is the cruellest place to be tethered: the counterplay is to
-            // leave the circle, and here leaving anywhere takes a long arc.
-            (EraserEnemyID, 4, new Vector2(9900f, StandY))
+            (DiggerEnemyID, 3, new Vector2(7420f, StandY)),
+            (CultistEnemyID, 3, new Vector2(6420f, StandY)),
+            (EliteEnemyID, 3, new Vector2(7230f, StandY)),
+            // Wave 4 - the landing pad garrison. GU-L12: it no longer waits on the
+            // pad (9200-9900, the Eraser inside the arena at 9900); it comes down to
+            // the spire base as a second wave once its defenders are down, so the pad between
+            // the curtain and the arena stays the breather before the boss.
+            (DiggerEnemyID, 4, new Vector2(6320f, StandY)),
+            (CultistEnemyID, 4, new Vector2(6780f, StandY)),
+            (CultistEnemyID, 4, new Vector2(7480f, StandY)),
+            (EliteEnemyID, 4, new Vector2(7330f, StandY)),
+            // The Act II finale's hunter. The low-gravity room is the cruellest
+            // place to be tethered: the counterplay is to leave the circle, and
+            // here leaving anywhere takes a long arc. GU-L12: it arrives with the
+            // garrison (west of the arena, 9900 -> 6560) and is the last entry of
+            // the wave-4 manifest row, so the ledger pays it an elite share (F05)
+            // and Easy's prefix drops it exactly as the spawn prefix always did.
+            (EraserEnemyID, 4, new Vector2(6560f, StandY))
         };
 
         /// <summary>Four extractors, each behind a real detour. 15 dust each, resource-owned.</summary>
@@ -333,9 +365,61 @@ namespace FTT.Environment {
             return total;
         }
 
+        // === GU-L12 (2026-10-12): the encounter locks ===========================
+
+        /// <summary>The F10 encounter IDs of the three locks (they start with the level ID).</summary>
+        public const string LockTranquility = LunarLevelID + "_lock_tranquility";
+        public const string LockVentField = LunarLevelID + "_lock_vent_field";
+        public const string LockRelaySpire = LunarLevelID + "_lock_relay_spire";
+
+        /// <summary>The manifest rows the lock waves are (level_12_rewards.tres).</summary>
+        public const string Wave1RowID = "level_12.wave1";
+        public const string Wave2RowID = "level_12.wave2";
+        public const string Wave3RowID = "level_12.wave3";
+        public const string Wave4RowID = "level_12.wave4";
+
+        private const float LockBarrierWidth = EncounterLockRules.DefaultBarrierWidthPixels;
+
+        /// <summary>Tranquility Base: everything past the entry anchor (260) to the vent-field seam.</summary>
+        public const float TranquilityLockMinX = 320f;
+        public const float TranquilityLockMaxX = Room2StartX;
+        /// <summary>
+        /// The vent field, from the room seam to 190 px short of the Middle anchor
+        /// (6050): the anchor's strike surface (6020–6080) stays past the longest
+        /// basic swing of a hero pressed against the closed exit barrier (5840 + 156).
+        /// </summary>
+        public const float VentFieldLockMinX = Room2StartX + LockBarrierWidth;
+        public const float VentFieldLockMaxX = 5860f;
+        /// <summary>
+        /// The spire base: from the room seam to the gap between the mast head
+        /// (its deck ends at 7500) and the highline ferry's west stop (its deck
+        /// starts at 7580), so the full-height exit barrier stands in that gap,
+        /// cuts no platform and crosses no mover's path. The floor beyond it — the
+        /// cache cul-de-sac with its two vents and Extractor — is outside the lock.
+        /// </summary>
+        public const float RelaySpireLockMinX = Room3StartX + LockBarrierWidth;
+        public const float RelaySpireLockMaxX = 7540f;
+
+        /// <summary>The scene's critical-path lift, and the highline ferry it leads to.</summary>
+        public const string SpireLiftNodeName = "LiftSpire";
+        public const string HighlineFerryNodeName = "FerryHighline";
+
+        private EncounterLock _tranquilityLock;
+        private EncounterLock _ventFieldLock;
+        private EncounterLock _relaySpireLock;
+        private PathMovingPlatform _spireLift;
+        private PathMovingPlatform _highlineFerry;
+
+        public EncounterLock TranquilityLock => _tranquilityLock;
+        public EncounterLock VentFieldLock => _ventFieldLock;
+        public EncounterLock RelaySpireLock => _relaySpireLock;
+        /// <summary>Held at its bottom stop while the spire lock holds. Test seam.</summary>
+        public PathMovingPlatform SpireLift => _spireLift;
+        /// <summary>The highline ferry: east of the spire lock's exit, never held. Test seam.</summary>
+        public PathMovingPlatform HighlineFerry => _highlineFerry;
+
         // === Runtime state ===
 
-        private readonly HashSet<int> _wavesSpawned = new();
         private bool _preBossShown;
         private bool _rewindBound;
 
@@ -365,6 +449,86 @@ namespace FTT.Environment {
 
             BuildWall(0f, 0f, LevelHeight);
             BuildWall(ArenaEndX, 0f, LevelHeight);
+            BuildEncounterLocks();
+        }
+
+        /// <summary>
+        /// GU-L12: the three approach locks, one wave per manifest row. Built in
+        /// <see cref="BuildLevel"/> so a resume past a lock builds it Cleared with
+        /// no member ever spawned. The spire lift is held at its bottom stop until
+        /// the spire lock clears (the plan's Level 12 ruling): the climb is the only
+        /// way up to the highline. The ferry stays east of the lock's exit and is
+        /// never held.
+        /// </summary>
+        private void BuildEncounterLocks() {
+            _tranquilityLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockTranquility,
+                Area = EncounterLockSpec.Span(TranquilityLockMinX, TranquilityLockMaxX, LevelHeight),
+                EntryBarrierX = TranquilityLockMinX - LockBarrierWidth * 0.5f,
+                ExitBarrierX = TranquilityLockMaxX + LockBarrierWidth * 0.5f,
+                BarrierFloorY = SurfaceY,
+                Waves = new[] { WaveFromTable(Wave1RowID, 1, EncounterWaveTrigger.OnBuild) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            // The troopers come up out of the vent field once the hero is in.
+            _ventFieldLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockVentField,
+                Area = EncounterLockSpec.Span(VentFieldLockMinX, VentFieldLockMaxX, LevelHeight),
+                EntryBarrierX = VentFieldLockMinX - LockBarrierWidth * 0.5f,
+                ExitBarrierX = VentFieldLockMaxX + LockBarrierWidth * 0.5f,
+                BarrierFloorY = SurfaceY,
+                Waves = new[] { WaveFromTable(Wave2RowID, 2, EncounterWaveTrigger.OnEngage) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            _relaySpireLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockRelaySpire,
+                Area = EncounterLockSpec.Span(RelaySpireLockMinX, RelaySpireLockMaxX, LevelHeight),
+                EntryBarrierX = RelaySpireLockMinX - LockBarrierWidth * 0.5f,
+                ExitBarrierX = RelaySpireLockMaxX + LockBarrierWidth * 0.5f,
+                BarrierFloorY = SurfaceY,
+                Waves = new[] {
+                    WaveFromTable(Wave3RowID, 3, EncounterWaveTrigger.OnBuild),
+                    // The landing-pad garrison comes down once the spire's defenders
+                    // are all down: a second wave, not a pile-on.
+                    WaveFromTable(Wave4RowID, 4, EncounterWaveTrigger.AfterPreviousCleared)
+                },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                // The way on is up: the lift starts once the spire is clear.
+                GoDirection = EncounterGoDirection.Up
+            });
+
+            _spireLift = GetNodeOrNull<PathMovingPlatform>(SpireLiftNodeName);
+            _highlineFerry = GetNodeOrNull<PathMovingPlatform>(HighlineFerryNodeName);
+            HoldMoverWhileLockHolds(_relaySpireLock, _spireLift);
+        }
+
+        /// <summary>One lock wave: the authored table's entries for <paramref name="wave"/>, in table order.</summary>
+        private static EncounterLockWave WaveFromTable(string rowID, int wave, EncounterWaveTrigger trigger,
+            int aliveAtMost = 0) {
+            var spawns = new List<EncounterLockSpawn>();
+            foreach ((string enemyID, int entryWave, Vector2 position) in SpawnTable) {
+                if (entryWave == wave) spawns.Add(new EncounterLockSpawn(enemyID, position));
+            }
+            return new EncounterLockWave {
+                RowID = rowID, Spawns = spawns.ToArray(), Trigger = trigger, AliveAtMost = aliveAtMost
+            };
+        }
+
+        /// <summary>
+        /// Plan §2.3's mover hold: <paramref name="mover"/> stands still while
+        /// <paramref name="encounterLock"/> holds (Armed or Engaged) and runs again
+        /// on its clear. A platform starts at its first waypoint and the lock is
+        /// Armed from the build, so it is held at that near stop; a resume past the
+        /// lock (restored Cleared) or the test seam releases it at once.
+        /// </summary>
+        private void HoldMoverWhileLockHolds(EncounterLock encounterLock, PathMovingPlatform mover) {
+            if (encounterLock == null || mover == null) return;
+            mover.Enabled = !encounterLock.IsHolding;
+            encounterLock.StateChanged += (_, _, _) => {
+                if (IsInstanceValid(mover) && IsInstanceValid(encounterLock)) mover.Enabled = !encounterLock.IsHolding;
+            };
         }
 
         private void BuildLadder((float X, float Y, float Width)[] rungs) {
@@ -597,22 +761,14 @@ namespace FTT.Environment {
             GravityFieldZone.SyncPlayerToField(_gravityFields, Player, GravityFieldFor(Player.Position.X));
         }
 
-        protected override void SpawnInitialEnemies() => SpawnWave(1);
+        // GU-L12: the waves are the locks' (BuildEncounterLocks). The room seams
+        // post the level's own objective, which the base re-posts when a lock
+        // engaged on top of it clears or reverts.
+        private void EnterVentField() => SetObjective("lunar_objective_vent_field");
 
-        private void EnterVentField() {
-            SetObjective("lunar_objective_vent_field");
-            SpawnWave(2);
-        }
+        private void EnterRelaySpire() => SetObjective("lunar_objective_climb_spire");
 
-        private void EnterRelaySpire() {
-            SetObjective("lunar_objective_climb_spire");
-            SpawnWave(3);
-        }
-
-        private void EnterLandingPad() {
-            SetObjective("lunar_objective_landing_pad");
-            SpawnWave(4);
-        }
+        private void EnterLandingPad() => SetObjective("lunar_objective_landing_pad");
 
         private void StartPreBossBeat() {
             if (_preBossShown) return;
@@ -623,39 +779,20 @@ namespace FTT.Environment {
 
         // === Checkpoint resume ===
 
-        // Package 12 W2 (GAP-13): explicit encounter baseline — waves 1+2 at the
-        // middle anchor, 1+2+3 at the PreBoss anchor, authored rather than
-        // derived. The pre-boss trigger stands between checkpoint 2 and the pad,
-        // so a resume there deliberately leaves it armed: the thesis scene must
-        // still land before the Overseer. Lunar has no other anchor state, so
-        // MarkWavesClearedThrough is no longer overridden.
+        // Package 12 W2 (GAP-13) explicit encounter baseline. GU-L12: the
+        // encounters are the three locks, and every anchor lists every lock whose
+        // area ends before it (a resume builds those Cleared; anything later
+        // re-arms in full). The pre-boss trigger stands between checkpoint 2 and
+        // the pad, so a resume there deliberately leaves it armed: the thesis
+        // scene must still land before the Overseer. Lunar has no other anchor
+        // state, so MarkWavesClearedThrough is not overridden.
         private static readonly IReadOnlyDictionary<string, string[]> Baselines =
-            NumberedWaveBaselines(LunarLevelID, new[] { 1, 2 }, new[] { 1, 2, 3 });
+            new Dictionary<string, string[]> {
+                [Checkpoint0] = Array.Empty<string>(),
+                [Checkpoint1] = new[] { LockTranquility, LockVentField },
+                [Checkpoint2] = new[] { LockTranquility, LockVentField, LockRelaySpire }
+            };
 
         protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
-
-        protected override void MarkEncounterCleared(string encounterID) {
-            if (TryParseWaveEncounter(LunarLevelID, encounterID, out int wave)) _wavesSpawned.Add(wave);
-        }
-
-        // === Encounters ===
-
-        public bool HasWaveSpawned(int wave) => _wavesSpawned.Contains(wave);
-
-        private void SpawnWave(int wave) {
-            if (!_wavesSpawned.Add(wave)) return;
-
-            var authored = new List<(string EnemyID, Vector2 Position)>();
-            foreach ((string enemyID, int entryWave, Vector2 position) in SpawnTable) {
-                if (entryWave == wave) authored.Add((enemyID, position));
-            }
-            if (authored.Count == 0) return;
-
-            int count = StoryDifficultyTuning.ScaleEncounterCount(
-                authored.Count, StoryDifficultyTuning.CurrentStoryDifficulty);
-            for (int index = 0; index < count && index < authored.Count; index++) {
-                EnemyFactory.Spawn(authored[index].EnemyID, this, authored[index].Position);
-            }
-        }
     }
 }

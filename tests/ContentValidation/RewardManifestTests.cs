@@ -369,6 +369,67 @@ public class RewardManifestTests {
     /// debut — and the required pool pays exactly 55 through the real
     /// issue/claim path the kill-drop system uses.
     /// </summary>
+    /// <summary>
+    /// GU-L12 (gameplay update 2026-10-12): Levels 12–15's salted hunters — the
+    /// Erasers and Level 14's Chrono-Warden — are encounter-lock members, so each
+    /// is the tail of its wave's manifest row (F05: "elite/Eraser ambushes" are
+    /// required encounters at elite weight) rather than an unledgered extra. On
+    /// every difficulty, killing exactly what the lock waves plan (the per-row
+    /// prefix of the controller's table) issues a source for every member and
+    /// pays the level's whole required pool; Easy's prefix still fields no hunter,
+    /// as the old spawn prefix never did, and Normal and Hard pay each one.
+    /// </summary>
+    [TestCase]
+    public void TheLateLevelsPayEveryPlannedLockMemberTheirSaltedHuntersIncluded() {
+        var levels = new (int Level, (string EnemyID, int Wave, Godot.Vector2 Position)[] Table)[] {
+            (12, Level12Controller.SpawnTable),
+            (13, Level13Controller.SpawnTable),
+            (14, Level14Controller.SpawnTable),
+            (15, Level15Controller.SpawnTable)
+        };
+        var issues = new List<string>();
+        foreach ((int levelIndex, (string EnemyID, int Wave, Godot.Vector2 Position)[] table) in levels) {
+            LevelRewardManifest manifest = Load(levelIndex);
+            foreach (Difficulty difficulty in Difficulties) {
+                string label = $"level {levelIndex} {difficulty}";
+                LevelRewardLedger ledger = LevelRewardDirectory.Compile(manifest, difficulty);
+                var queues = new Dictionary<string, Queue<string>>(System.StringComparer.Ordinal);
+                foreach (KeyValuePair<string, IReadOnlyList<string>> entry in ledger.EnemyQueues) {
+                    queues[entry.Key] = new Queue<string>(entry.Value);
+                }
+                var waves = new SortedDictionary<int, List<string>>();
+                foreach ((string enemyID, int wave, Godot.Vector2 _) in table) {
+                    if (!waves.TryGetValue(wave, out List<string> ids)) waves[wave] = ids = new List<string>();
+                    ids.Add(enemyID);
+                }
+                int paid = 0;
+                int hunters = 0;
+                foreach (KeyValuePair<int, List<string>> wave in waves) {
+                    int planned = EncounterLockRules.PlannedSpawnCount(wave.Value.Count, -1, true, difficulty);
+                    for (int index = 0; index < planned; index++) {
+                        string enemyID = wave.Value[index];
+                        if (!queues.TryGetValue(enemyID, out Queue<string> queue) || queue.Count == 0) {
+                            issues.Add($"{label}: killing wave {wave.Key}'s '{enemyID}' issues no source");
+                            continue;
+                        }
+                        int amount = ledger.Award(queue.Dequeue());
+                        paid += amount;
+                        if (enemyID is "unbound_eraser" or "chrono_warden") {
+                            hunters++;
+                            if (amount <= 0) issues.Add($"{label}: the hunter '{enemyID}' pays nothing");
+                        }
+                    }
+                }
+                if (paid != manifest.RequiredEncounterPool) {
+                    issues.Add($"{label}: the planned members pay {paid}, the pool is {manifest.RequiredEncounterPool}");
+                }
+                if (difficulty == Difficulty.Easy && hunters != 0) issues.Add($"{label}: Easy fields {hunters} hunters");
+                if (difficulty != Difficulty.Easy && hunters == 0) issues.Add($"{label}: no hunter is planned");
+            }
+        }
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
     [TestCase]
     public void TheTitanicsRequiredPoolPaysExactlyFiftyFiveWhenEverySpawnedSourceIsCollected() {
         StoryManager story = StoryManager.Instance;

@@ -752,15 +752,18 @@ public class Level14ContentTests {
             // The arena grid never resumes armed: only Archive Prime turns it on.
             AssertThat(level.ArenaGridArmedPhase).IsEqual(0);
 
-            if (checkpointID == Level14Controller.Checkpoint0) {
-                AssertThat(level.HasWaveSpawned(2)).IsFalse();
-            } else {
-                AssertThat(level.HasWaveSpawned(1)).IsTrue();
-                AssertThat(level.HasWaveSpawned(2)).IsTrue();
+            // GU-L12: the locks behind the checkpoint build Cleared instead of
+            // replaying, the later ones re-arm in full, and every corridor grid
+            // resumes armed (no lock is engaged on a resume).
+            bool pastWing = checkpointID != Level14Controller.Checkpoint0;
+            bool pastSpine = checkpointID == Level14Controller.Checkpoint2;
+            AssertThat(level.BreachGalleryLock.State == EncounterLockState.Cleared).IsEqual(pastWing);
+            AssertThat(level.ContainmentWingLock.State == EncounterLockState.Cleared).IsEqual(pastWing);
+            AssertThat(level.FabricationSpineLock.State == EncounterLockState.Cleared).IsEqual(pastSpine);
+            foreach (LaserGridPattern pattern in Level14Controller.CorridorGrids) {
+                AssertThat(level.IsGridPaused(pattern)).IsFalse();
+                foreach (StoryCyclicHazard beam in level.BeamsOf(pattern.GridID)) AssertThat(beam.Enabled).IsTrue();
             }
-            if (checkpointID == Level14Controller.Checkpoint2) AssertThat(level.HasWaveSpawned(3)).IsTrue();
-            else AssertThat(level.HasWaveSpawned(3)).IsFalse();
-            AssertThat(level.HasWaveSpawned(4)).IsFalse();
         }
     }
 
@@ -828,6 +831,108 @@ public class Level14ContentTests {
                 .IsEqualApprox(Level14Controller.HighDeckY, 0.5f);
         } finally {
             instance.Free();
+        }
+    }
+
+    // === GU-L12 (2026-10-12): the encounter locks ===
+
+    /// <summary>
+    /// The approach is three locks, one wave per manifest row: the Breach Gallery
+    /// (320–2900, wave 1), the Containment Wing (2920–5782, wave 2; its exit
+    /// barrier stands on the bulkhead's top, sealing the high deck — the wing's
+    /// only way out) and the Fabrication Spine (6640–9030, wave 3 pre-placed and
+    /// the core garrison, wave 4, arriving as a second wave once the defenders are down). Nothing
+    /// spawns on the Security Core apron or in the arena any more; each corridor
+    /// grid lies inside the lock that pauses it; the anchors and the font stand
+    /// outside every area, out of swing reach of the locks they list.
+    /// </summary>
+    [TestCase]
+    public void TheApproachIsThreeEncounterLocksOneWavePerManifestRow() {
+        using var fixture = new NeoEarthFixture(null);
+        Level14Controller level = fixture.Level;
+        List<string> issues = LevelLockTestKit.LayoutIssues(level, Level14Controller.SpawnTable, new[] {
+            new LevelLockTestKit.LockLayout(Level14Controller.LockBreachGallery, 320f, 2900f,
+                new[] { new LevelLockTestKit.WaveLayout(Level14Controller.Wave1RowID, 1, EncounterWaveTrigger.OnBuild) }),
+            new LevelLockTestKit.LockLayout(Level14Controller.LockContainmentWing, 2920f, 5782f,
+                new[] { new LevelLockTestKit.WaveLayout(Level14Controller.Wave2RowID, 2, EncounterWaveTrigger.OnBuild) }),
+            new LevelLockTestKit.LockLayout(Level14Controller.LockFabricationSpine, 6640f, 9030f, new[] {
+                new LevelLockTestKit.WaveLayout(Level14Controller.Wave3RowID, 3, EncounterWaveTrigger.OnBuild),
+                new LevelLockTestKit.WaveLayout(Level14Controller.Wave4RowID, 4, EncounterWaveTrigger.AfterPreviousCleared)
+            })
+        });
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+
+        // The wing's exit fills the high deck over the bulkhead, from the sky to its top.
+        EncounterLockBarrier wingExit = level.ContainmentWingLock.ExitBarrier;
+        AssertThat(wingExit.BottomY).IsEqual(Level14Controller.HighDeckY);
+        AssertThat(wingExit.TopY).IsEqual(StoryGateRules.ColumnTopY);
+        AssertThat(wingExit.Footprint.Position.X >= Level14Controller.BulkheadX
+                && wingExit.Footprint.End.X <= Level14Controller.BulkheadX + 24f)
+            .OverrideFailureMessage($"The wing's exit {wingExit.Footprint} is not over the bulkhead wall.").IsTrue();
+        foreach ((string enemyID, int _, Vector2 position) in Level14Controller.SpawnTable) {
+            AssertThat(position.X < Level14Controller.Checkpoint2Position.X)
+                .OverrideFailureMessage($"'{enemyID}' at {position} spawns on the Security Core apron or in the arena.")
+                .IsTrue();
+        }
+        // Each corridor grid runs inside the lock that pauses it.
+        foreach (EncounterLock encounterLock in level.EncounterLocks) {
+            LaserGridPattern pattern = level.GridPausedBy(encounterLock);
+            AssertObject(pattern).OverrideFailureMessage($"'{encounterLock.LockID}' pauses no grid.").IsNotNull();
+            foreach ((string beamName, float beamX, float _) in pattern.Beams) {
+                AssertThat(beamX > encounterLock.Area.Position.X && beamX < encounterLock.Area.End.X)
+                    .OverrideFailureMessage($"Beam '{beamName}' (x {beamX}) is outside '{encounterLock.LockID}'.")
+                    .IsTrue();
+            }
+        }
+    }
+
+    /// <summary>
+    /// The ruling's grid pause, in real frames: the perimeter grid goes dark the
+    /// moment the Breach Gallery lock engages, stays dark through the fight and
+    /// through a rewind while the lock still holds, and re-arms on its authored
+    /// phases when the lock clears. The other corridor grids never stop.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task ACorridorGridIsPausedWhileItsLockIsEngagedAndReArmedOnTheClear() {
+        using var fixture = new NeoEarthFixture(null);
+        Level14Controller level = fixture.Level;
+        try {
+            await LevelLockTestKit.Frames(2);
+            LevelLockTestKit.SkipDialogue();
+            IReadOnlyList<StoryCyclicHazard> perimeter = level.BeamsOf(Level14Controller.PerimeterGrid.GridID);
+            IReadOnlyList<StoryCyclicHazard> containment = level.BeamsOf(Level14Controller.ContainmentGrid.GridID);
+            AssertThat(perimeter.Count).IsEqual(3);
+            foreach (StoryCyclicHazard beam in perimeter) AssertThat(beam.Enabled).IsTrue();
+
+            LevelLockTestKit.PlaceHero(level.Player, 1000f, Level14Controller.DeckY - 1f);
+            await LevelLockTestKit.Frames(4);
+            LevelLockTestKit.SkipDialogue();
+            EncounterLock gallery = level.BreachGalleryLock;
+            AssertThat(gallery.State).IsEqual(EncounterLockState.Engaged);
+            AssertThat(level.IsGridPaused(Level14Controller.PerimeterGrid)).IsTrue();
+            foreach (StoryCyclicHazard beam in perimeter) AssertThat(beam.Enabled).IsFalse();
+            foreach (StoryCyclicHazard beam in containment) AssertThat(beam.Enabled).IsTrue();
+
+            // Longer than a whole cycle: no perimeter beam ever fires mid-fight.
+            for (int step = 0; step < 6; step++) {
+                await LevelLockTestKit.Frames(50);
+                foreach (StoryCyclicHazard beam in perimeter) AssertThat(beam.Phase).IsEqual(HazardPhase.Cooldown);
+            }
+            // A rewind re-arms the corridors, but not the one whose lock still holds.
+            EventBus.Instance.RaiseRewindTriggered(level.Player.GlobalPosition);
+            foreach (StoryCyclicHazard beam in perimeter) AssertThat(beam.Enabled).IsFalse();
+            foreach (StoryCyclicHazard beam in containment) AssertThat(beam.Enabled).IsTrue();
+
+            AssertThat(await LevelLockTestKit.ClearByForce(gallery))
+                .OverrideFailureMessage("The Breach Gallery lock did not clear once its members fell.").IsTrue();
+            AssertThat(level.IsGridPaused(Level14Controller.PerimeterGrid)).IsFalse();
+            foreach (StoryCyclicHazard beam in perimeter) AssertThat(beam.Enabled).IsTrue();
+            await LevelLockTestKit.Frames(Mathf.CeilToInt(Level14Controller.PerimeterGrid.CycleSeconds * 60f * 1.6f));
+            bool fired = false;
+            foreach (StoryCyclicHazard beam in perimeter) fired |= beam.Phase != HazardPhase.Cooldown;
+            AssertThat(fired).OverrideFailureMessage("The re-armed perimeter grid never cycled.").IsTrue();
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
         }
     }
 

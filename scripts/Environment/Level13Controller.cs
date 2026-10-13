@@ -56,6 +56,23 @@ namespace FTT.Environment {
     /// accounts for the Mirror's 50 dust, which
     /// <see cref="MirrorParadoxEncounterController"/> awards - there is deliberately
     /// no boss row here and nothing compensates for one.
+    ///
+    /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-L12, user
+    /// request 3): the Threshold (320–3200, wave 1), the Drift (3220–5100, wave 2)
+    /// and the arena approach (5500–6900, wave 3 with the Eraser pair, springing
+    /// through Severed tears as the hero engages) are each an
+    /// <see cref="EncounterLock"/> spanning the whole height of the rift, so riding
+    /// the shards over the shelf no longer skips the approach (the old pre-arena
+    /// trigger only covered y 1150–2050). The Titanic deck and the Globe stage
+    /// shards wait at their west stops while the Drift and the approach lock hold,
+    /// because their paths cross those locks' exit barriers. A rift snap that drops
+    /// the hero back across a lock line reverts that lock to Armed (the framework's
+    /// rule). The two high phantoms posted on the conduits came down to the shelf,
+    /// both Erasers moved onto the shelf and out of the Mirror's arena, the Middle
+    /// anchor moved from 5180 to the corridor between the Drift and the approach
+    /// (5290), and the font moved from the approach fight (6850) to the corridor
+    /// between the approach's exit and the PreBoss anchor (6970). The Mirror arena
+    /// itself is not a lock.</para>
     /// </summary>
     public partial class Level13Controller : StoryLevelControllerBase {
 
@@ -83,12 +100,13 @@ namespace FTT.Environment {
         // 1470) — the shard ride starts beside it; the shelf route stays on the floor.
         protected override Vector2? SecretCachePosition => new(4160f, 1375f);
 
-        // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, just before the
-        // PreBoss anchor (7100) - only 100 px of window after it before the one-shot arena
-        // lock. Low-gravity exception: the whole pre-arena route drifts
-        // (level_13.mashup_drift); the font stands grounded on the shelf, a post-wave heal
-        // (wave 3 spawns at PreArenaTriggerX 6500).
-        protected override Vector2? RestorationFontPosition => new(6850f, ShelfY);
+        // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font. GU-L12: it stood
+        // at 6850, in the middle of the approach lock's fight; it now stands in the short
+        // corridor past that lock's exit (6900–6920) and before the PreBoss anchor (7100):
+        // 130 px from the anchor, 220 px from its Warden Beacon (7190) and 230 px short of
+        // the Mirror's arena (7200). Low-gravity exception: the drift field still covers
+        // it. A post-wave heal before the duel.
+        protected override Vector2? RestorationFontPosition => new(6970f, ShelfY);
 
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
@@ -158,7 +176,15 @@ namespace FTT.Environment {
         public static readonly string[] CheckpointIDs = { Checkpoint0, Checkpoint1, Checkpoint2 };
 
         private static readonly Vector2 Checkpoint0Position = new(260f, ShelfY - 10f);
-        private static readonly Vector2 Checkpoint1Position = new(5180f, ShelfY - 10f);
+        /// <summary>
+        /// GU-L12: the Middle anchor, moved from 5180 (inside the Drift's fight) to
+        /// the corridor between the Drift lock (ends 5100) and the approach lock
+        /// (starts 5500). Its strike surface (5260–5320) is past the longest basic
+        /// swing of a hero pressed against the Drift's closed exit (5080 + 156),
+        /// and its Warden Beacon (+90, interaction 5325–5435) stays clear of the
+        /// approach lock's entry barrier (5480–5500).
+        /// </summary>
+        public static readonly Vector2 Checkpoint1Position = new(5290f, ShelfY - 10f);
         /// <summary>Pre-arena anchor, deliberately west of the seam so a resume is never locked in.</summary>
         private static readonly Vector2 Checkpoint2Position = new(7100f, ShelfY - 10f);
 
@@ -305,30 +331,40 @@ namespace FTT.Environment {
         private const float StandY = ShelfY - 50f;
 
         /// <summary>
-        /// Authored Normal-difficulty spawn table. Wave 1 is live on entry; waves 2
-        /// and 3 arm on the room seam and the pre-arena approach. Difficulty scaling
-        /// takes a prefix of each wave through
-        /// <see cref="StoryDifficultyTuning.ScaleEncounterCount"/>.
+        /// Authored Normal-difficulty spawn table, one manifest row per wave
+        /// (<c>level_13.waveN</c>: the same IDs in the same order). Each wave is an
+        /// encounter-lock wave (GU-L12): waves 1 and 2 stand pre-placed and dormant
+        /// from the level's build, wave 3 springs on the approach lock's engage.
+        /// Difficulty scaling takes the same per-row prefix through
+        /// <see cref="StoryDifficultyTuning.ScaleEncounterCount"/> the reward ledger
+        /// compiles, so Easy (3 of 5) still fields no Eraser.
         /// </summary>
         public static readonly (string EnemyID, int Wave, Vector2 Position)[] SpawnTable = {
-            // Wave 1 - the Threshold. A phantom on the shelf, a phantom guarding the
-            // first extractor's cornice, and a Unbound trooper picket in between.
+            // Wave 1 - the Threshold. Two phantoms and a Unbound trooper picket.
+            // GU-L12: the phantom that guarded the first conduit's cornice
+            // (2380/890, 950 px up, past its own 560 px aggro) came down onto the shelf.
             (PhantomEnemyID, 1, new Vector2(1180f, StandY)),
             (CultistEnemyID, 1, new Vector2(2620f, StandY)),
-            (PhantomEnemyID, 1, new Vector2(2380f, 890f)),
+            (PhantomEnemyID, 1, new Vector2(2380f, StandY)),
             // Wave 2 - the Drift. Unbound troopers hold the shelf, phantoms work the shards.
+            // GU-L12: the east trooper moved 5560 -> 4950, inside the Drift lock.
             (CultistEnemyID, 2, new Vector2(3700f, StandY)),
             (PhantomEnemyID, 2, new Vector2(4820f, StandY)),
-            (CultistEnemyID, 2, new Vector2(5560f, StandY)),
+            (CultistEnemyID, 2, new Vector2(4950f, StandY)),
             // Wave 3 - the approach to the arena, with the level's single elite.
-            (PhantomEnemyID, 3, new Vector2(5980f, 940f)),
+            // GU-L12: the phantom posted over the second conduit (5980/940) came down
+            // to the shelf, and the elite moved 7020 -> 6560, inside the approach lock.
+            (PhantomEnemyID, 3, new Vector2(5980f, StandY)),
             (CultistEnemyID, 3, new Vector2(6740f, StandY)),
-            (EliteEnemyID, 3, new Vector2(7020f, StandY)),
-            // V7.6 (A7a): the Eraser pair. They flank the approach rather than
-            // holding it - the Snare wants a clear line, and the whole point of
-            // the pair is that one tethers while the other closes.
-            (EraserEnemyID, 3, new Vector2(6900f, 940f)),
-            (EraserEnemyID, 3, new Vector2(7180f, StandY))
+            (EliteEnemyID, 3, new Vector2(6560f, StandY)),
+            // V7.6 (A7a): the Eraser pair, the tail of the wave-3 manifest row (so
+            // the ledger pays each an elite share, F05). They flank the approach
+            // rather than holding it - the Snare wants a clear line, and the whole
+            // point of the pair is that one tethers while the other closes.
+            // GU-L12: both stand on the shelf now; one was a ground unit spawned in
+            // mid-air (6900/940) and the other 20 px from the Mirror's seam (7180).
+            (EraserEnemyID, 3, new Vector2(5780f, StandY)),
+            (EraserEnemyID, 3, new Vector2(6820f, StandY))
         };
 
         /// <summary>
@@ -356,12 +392,61 @@ namespace FTT.Environment {
             return total;
         }
 
-        /// <summary>Wave 3 arms here, west of the arena seam, so the elite is fought before the lock.</summary>
-        public const float PreArenaTriggerX = 6500f;
+        // === GU-L12 (2026-10-12): the encounter locks ===========================
+
+        /// <summary>The F10 encounter IDs of the three locks (they start with the level ID).</summary>
+        public const string LockThreshold = VoidLevelID + "_lock_threshold";
+        public const string LockDrift = VoidLevelID + "_lock_drift";
+        public const string LockApproach = VoidLevelID + "_lock_approach";
+
+        /// <summary>The manifest rows the lock waves are (level_13_rewards.tres).</summary>
+        public const string Wave1RowID = "level_13.wave1";
+        public const string Wave2RowID = "level_13.wave2";
+        public const string Wave3RowID = "level_13.wave3";
+
+        private const float LockBarrierWidth = EncounterLockRules.DefaultBarrierWidthPixels;
+
+        /// <summary>The Threshold: everything past the entry anchor (260) to the Drift seam.</summary>
+        public const float ThresholdLockMinX = 320f;
+        public const float ThresholdLockMaxX = Room2StartX;
+        /// <summary>
+        /// The Drift, from the seam to 190 px short of the Middle anchor (5290).
+        /// The Titanic deck shard's path (4400–5200) crosses the exit barrier, so it
+        /// is held at its west stop while this lock holds.
+        /// </summary>
+        public const float DriftLockMinX = Room2StartX + LockBarrierWidth;
+        public const float DriftLockMaxX = 5100f;
+        /// <summary>
+        /// The arena approach, from the lunar gantry shard's west edge (5500; the
+        /// entry barrier stands just west of it) to 300 px short of the arena seam,
+        /// leaving the PreBoss anchor (7100) past the longest basic swing of a hero
+        /// pressed against the closed exit (6880 + 156). The Globe stage shard's
+        /// path (6220–6960) crosses the exit barrier, so it is held while this lock
+        /// holds.
+        /// </summary>
+        public const float ApproachLockMinX = 5500f;
+        public const float ApproachLockMaxX = 6900f;
+
+        /// <summary>The drifting shards whose paths cross the Drift's and the approach lock's exit barriers.</summary>
+        public const string TitanicDeckShardNodeName = "ShardTitanicDeck";
+        public const string GlobeStageShardNodeName = "ShardGlobeStage";
+
+        private EncounterLock _thresholdLock;
+        private EncounterLock _driftLock;
+        private EncounterLock _approachLock;
+        private PathMovingPlatform _titanicDeckShard;
+        private PathMovingPlatform _globeStageShard;
+
+        public EncounterLock ThresholdLock => _thresholdLock;
+        public EncounterLock DriftLock => _driftLock;
+        public EncounterLock ApproachLock => _approachLock;
+        /// <summary>Held at its west stop while the Drift lock holds. Test seam.</summary>
+        public PathMovingPlatform TitanicDeckShard => _titanicDeckShard;
+        /// <summary>Held at its west stop while the approach lock holds. Test seam.</summary>
+        public PathMovingPlatform GlobeStageShard => _globeStageShard;
 
         // === Runtime state ===
 
-        private readonly HashSet<int> _wavesSpawned = new();
         private MirrorParadoxEncounterController _mirrorEncounter;
         private bool _mirrorIntroShown;
         private bool _mirrorDefeated;
@@ -396,6 +481,106 @@ namespace FTT.Environment {
 
             BuildWall(0f, 0f, LevelHeight);
             BuildWall(ArenaEndX - DefaultWallThickness, 0f, LevelHeight);
+            BuildEncounterLocks();
+        }
+
+        /// <summary>
+        /// GU-L12: the three approach locks, one wave per manifest row, each the
+        /// whole height of the rift (<see cref="EncounterLockSpec.Span"/>), so no
+        /// shard ride can carry the hero past one. Built in <see cref="BuildLevel"/>
+        /// so a resume past a lock builds it Cleared with no member ever spawned.
+        /// </summary>
+        private void BuildEncounterLocks() {
+            _thresholdLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockThreshold,
+                Area = EncounterLockSpec.Span(ThresholdLockMinX, ThresholdLockMaxX, LevelHeight),
+                EntryBarrierX = ThresholdLockMinX - LockBarrierWidth * 0.5f,
+                ExitBarrierX = ThresholdLockMaxX + LockBarrierWidth * 0.5f,
+                BarrierFloorY = ShelfY,
+                Waves = new[] { WaveFromTable(Wave1RowID, 1, EncounterWaveTrigger.OnBuild) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            _driftLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockDrift,
+                Area = EncounterLockSpec.Span(DriftLockMinX, DriftLockMaxX, LevelHeight),
+                EntryBarrierX = DriftLockMinX - LockBarrierWidth * 0.5f,
+                ExitBarrierX = DriftLockMaxX + LockBarrierWidth * 0.5f,
+                BarrierFloorY = ShelfY,
+                Waves = new[] { WaveFromTable(Wave2RowID, 2, EncounterWaveTrigger.OnBuild) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            // The scripted ambush: the approach's garrison and the Eraser pair
+            // spring through Severed tears as the hero commits to the approach.
+            _approachLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockApproach,
+                Area = EncounterLockSpec.Span(ApproachLockMinX, ApproachLockMaxX, LevelHeight),
+                EntryBarrierX = ApproachLockMinX - LockBarrierWidth * 0.5f,
+                ExitBarrierX = ApproachLockMaxX + LockBarrierWidth * 0.5f,
+                BarrierFloorY = ShelfY,
+                Waves = new[] { WaveFromTable(Wave3RowID, 3, EncounterWaveTrigger.OnEngage) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            _approachLock.StateChanged += OnApproachLockStateChanged;
+
+            _titanicDeckShard = GetNodeOrNull<PathMovingPlatform>(TitanicDeckShardNodeName);
+            _globeStageShard = GetNodeOrNull<PathMovingPlatform>(GlobeStageShardNodeName);
+            HoldMoverWhileLockHolds(_driftLock, _titanicDeckShard);
+            HoldMoverWhileLockHolds(_approachLock, _globeStageShard);
+        }
+
+        /// <summary>One lock wave: the authored table's entries for <paramref name="wave"/>, in table order.</summary>
+        private static EncounterLockWave WaveFromTable(string rowID, int wave, EncounterWaveTrigger trigger,
+            int aliveAtMost = 0) {
+            var spawns = new List<EncounterLockSpawn>();
+            foreach ((string enemyID, int entryWave, Vector2 position) in SpawnTable) {
+                if (entryWave == wave) spawns.Add(new EncounterLockSpawn(enemyID, position));
+            }
+            return new EncounterLockWave {
+                RowID = rowID, Spawns = spawns.ToArray(), Trigger = trigger, AliveAtMost = aliveAtMost
+            };
+        }
+
+        /// <summary>
+        /// Plan §2.3's mover hold: <paramref name="mover"/> stands still while
+        /// <paramref name="encounterLock"/> holds (Armed or Engaged) and runs again
+        /// on its clear. A platform starts at its first waypoint and the lock is
+        /// Armed from the build, so it is held at that near stop; a resume past the
+        /// lock (restored Cleared) or the test seam releases it at once.
+        /// </summary>
+        private void HoldMoverWhileLockHolds(EncounterLock encounterLock, PathMovingPlatform mover) {
+            if (encounterLock == null || mover == null) return;
+            mover.Enabled = !encounterLock.IsHolding;
+            encounterLock.StateChanged += (_, _, _) => {
+                if (IsInstanceValid(mover) && IsInstanceValid(encounterLock)) mover.Enabled = !encounterLock.IsHolding;
+            };
+        }
+
+        /// <summary>
+        /// Package 13 W3 (S47): Sarah names the Eraser pair as it springs — on the
+        /// approach lock's engage, and only when this difficulty's prefix of the
+        /// wave actually fields an Eraser (Easy's three of five do not).
+        /// </summary>
+        private void OnApproachLockStateChanged(EncounterLock encounterLock, EncounterLockState previous,
+            EncounterLockState current) {
+            if (current != EncounterLockState.Engaged || !ApproachFieldsAnEraser()) return;
+            PlayEraserPairLine();
+        }
+
+        /// <summary>True when the approach wave's planned prefix (the lock's own plan for this difficulty) holds an Eraser.</summary>
+        public bool ApproachFieldsAnEraser() {
+            if (_approachLock == null || !IsInstanceValid(_approachLock) || _approachLock.Spec?.Waves == null) return false;
+            int planned = _approachLock.PlannedTotal;
+            int index = 0;
+            foreach (EncounterLockWave wave in _approachLock.Spec.Waves) {
+                foreach (EncounterLockSpawn spawn in wave?.Spawns ?? Array.Empty<EncounterLockSpawn>()) {
+                    if (index++ >= planned) return false;
+                    if (spawn?.EnemyID == EraserEnemyID) return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>
@@ -472,9 +657,10 @@ namespace FTT.Environment {
                 new Rect2(Room2StartX - 100f, 0f, width + 200f, LevelHeight),
                 new Rect2(0f, 0f, Room2StartX + 100f, LevelHeight),
                 _ => EnterDrift());
-
-            BuildWaveTrigger("PreArenaTrigger", new Vector2(PreArenaTriggerX, ShelfY - 300f),
-                () => SpawnWave(3), new Vector2(70f, 900f));
+            // GU-L12: the y-limited pre-arena wave trigger (x 6500, y 1150–2050)
+            // is gone — riding the Titanic deck, the Globe stage and the Florence cog
+            // kept the hero above it and skipped wave 3. The approach lock, the
+            // whole height of the rift, replaces it.
         }
 
         /// <summary>
@@ -680,12 +866,9 @@ namespace FTT.Environment {
             GravityFieldZone.SyncPlayerToField(_gravityFields, Player, GravityFieldFor(Player.Position.X));
         }
 
-        protected override void SpawnInitialEnemies() => SpawnWave(1);
-
-        private void EnterDrift() {
-            SetObjective("void_objective_drift");
-            SpawnWave(2);
-        }
+        // GU-L12: the waves are the locks' (BuildEncounterLocks); the seam posts
+        // the level's own objective, which the base re-posts when a lock clears.
+        private void EnterDrift() => SetObjective("void_objective_drift");
 
         private void EnterMirrorArena() => SetObjective("void_objective_face_mirror");
 
@@ -730,43 +913,21 @@ namespace FTT.Environment {
 
         // === Checkpoint resume ===
 
-        // Package 12 W2 (GAP-13): explicit encounter baseline — waves 1+2 at the
-        // middle anchor, 1+2+3 at the PreBoss anchor, authored rather than
-        // derived. No other anchor state, so MarkWavesClearedThrough is no
-        // longer overridden.
+        // Package 12 W2 (GAP-13) explicit encounter baseline. GU-L12: the
+        // encounters are the three locks, and every anchor lists every lock whose
+        // area ends before it (a resume builds those Cleared; anything later
+        // re-arms in full). No other anchor state, so MarkWavesClearedThrough is
+        // not overridden.
         private static readonly IReadOnlyDictionary<string, string[]> Baselines =
-            NumberedWaveBaselines(VoidLevelID, new[] { 1, 2 }, new[] { 1, 2, 3 });
+            new Dictionary<string, string[]> {
+                [Checkpoint0] = Array.Empty<string>(),
+                [Checkpoint1] = new[] { LockThreshold, LockDrift },
+                [Checkpoint2] = new[] { LockThreshold, LockDrift, LockApproach }
+            };
 
         protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
 
-        protected override void MarkEncounterCleared(string encounterID) {
-            if (TryParseWaveEncounter(VoidLevelID, encounterID, out int wave)) _wavesSpawned.Add(wave);
-        }
-
         // === Encounters ===
-
-        public bool HasWaveSpawned(int wave) => _wavesSpawned.Contains(wave);
-
-        private void SpawnWave(int wave) {
-            if (!_wavesSpawned.Add(wave)) return;
-
-            var authored = new List<(string EnemyID, Vector2 Position)>();
-            foreach ((string enemyID, int entryWave, Vector2 position) in SpawnTable) {
-                if (entryWave == wave) authored.Add((enemyID, position));
-            }
-            if (authored.Count == 0) return;
-
-            int count = StoryDifficultyTuning.ScaleEncounterCount(
-                authored.Count, StoryDifficultyTuning.CurrentStoryDifficulty);
-            bool eraserSpawned = false;
-            for (int index = 0; index < count && index < authored.Count; index++) {
-                EnemyFactory.Spawn(authored[index].EnemyID, this, authored[index].Position);
-                if (authored[index].EnemyID == EraserEnemyID) eraserSpawned = true;
-            }
-            // Package 13 W3 (S47): Sarah names the Eraser pair as it springs —
-            // only when a difficulty's prefix actually fields one.
-            if (eraserSpawned) PlayEraserPairLine();
-        }
 
         /// <summary>The Eraser-pair line (S47): "Erasers. They were built to unmake what you are."</summary>
         public const string EraserPairDialogueID = "level_13.eraser_pair";
