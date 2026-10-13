@@ -53,6 +53,17 @@ namespace FTT.Environment {
     /// Encounter economy is locked by docs/DUST_ECONOMY.md: exactly 12 standards,
     /// 1 elite, 1 boss, 3 extractors. The near-capture Eraser is a presentation
     /// silhouette (<see cref="NearCaptureBeat"/>), never a spawned enemy.
+    ///
+    /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-L8; the Level 2
+    /// pattern): the seawall (300-2860); the Lantern Watch (3150-6350), which clears
+    /// only once all three signal lines are cut <i>and</i> its watch is down (the
+    /// lanterns stay live through the fight) and whose exit fills the boarding gate
+    /// under its column; and the storm-anchor ship (6620-8560), engaged only after
+    /// the near-capture, whose exit barrier closes the gap under the flagship's
+    /// partial wall. The walkway and gantry archers moved down onto the deck, the
+    /// Middle anchor moved out of the Lantern Watch to just past the boarding gate
+    /// (6570), and the PreBoss anchor and the Font moved out of the ship's lock into
+    /// the flagship's antechamber.</para>
     /// </summary>
     public partial class Level09Controller : StoryLevelControllerBase {
 
@@ -138,32 +149,42 @@ namespace FTT.Environment {
         public const string WardenEnemyID = "chrono_warden";
 
         /// <summary>
-        /// Authored Normal-difficulty spawn table. Wave 1 is live on entry; waves 2
-        /// and 3 arm on their room's proximity trigger.
-        /// <see cref="StoryDifficultyTuning.ScaleEncounterCount"/> takes a prefix of
-        /// each wave, so the hardest concurrency is wave 3's six bodies - inside
-        /// level_09_pool_config's standard warm 14 / elite warm 4 caps even with
-        /// every earlier wave still alive.
+        /// Authored Normal-difficulty spawn table. Each wave is one encounter lock's
+        /// wave (GU-L8): wave 1 the seawall's, wave 2 the Lantern Watch's, wave 3 the
+        /// storm-anchor ship's (<see cref="BuildEncounterLocks"/>), and each is exactly
+        /// its manifest row. <see cref="StoryDifficultyTuning.ScaleEncounterCount"/>
+        /// takes a prefix of each wave, so the hardest concurrency is wave 3's six
+        /// bodies - inside level_09_pool_config's standard warm 14 / elite warm 4 caps.
+        /// <para>GU-L8 (2026-10-12) moves, all onto the route a slowest hero fights
+        /// on: the Lantern Watch trooper 4100 -> 4420 (it overlapped the west relay's
+        /// cover slab, 3960-4280, and was pushed up beside the relay); the gangway
+        /// archer (5900, 460) on the watchtower walkway, 688 px up a climb, down to the
+        /// deck at the tower's foot (5650); and the rigging archer (7350, 570) on the
+        /// mast gantry, whose patrol ran off the gantry's east end, down to the deck
+        /// under it.</para>
         /// </summary>
         public static readonly (string EnemyID, int Wave, Vector2 Position)[] SpawnTable = {
             // Wave 1 - the stone seawall. An archer on the rubble, Severed troopers on the sand.
             (CultistEnemyID, 1, new Vector2(1000f, 1150f)),
             (SentryEnemyID, 1, new Vector2(1700f, 990f)),
             (CultistEnemyID, 1, new Vector2(2450f, 1150f)),
-            // Wave 2 - the Lantern Watch. Archers hold the lanterns; one owns the gangway.
+            // Wave 2 - the Lantern Watch. Archers hold the lanterns; one guards the tower's foot.
             (SentryEnemyID, 2, new Vector2(3400f, 1150f)),
-            (CultistEnemyID, 2, new Vector2(4100f, 1150f)),
+            (CultistEnemyID, 2, new Vector2(4420f, 1150f)),
             (SentryEnemyID, 2, new Vector2(5000f, 1150f)),
-            (SentryEnemyID, 2, new Vector2(5900f, 460f)),
+            (SentryEnemyID, 2, new Vector2(5650f, 1150f)),
             (WardenEnemyID, 2, new Vector2(4600f, 1150f)),
             // Wave 3 - the storm-anchor ship. The Thunderbomb Engineer anchors the deck.
             (SentryEnemyID, 3, new Vector2(6800f, 1150f)),
             (CultistEnemyID, 3, new Vector2(7100f, 1150f)),
-            (SentryEnemyID, 3, new Vector2(7350f, 570f)),
+            (SentryEnemyID, 3, new Vector2(7350f, 1150f)),
             (EliteEnemyID, 3, new Vector2(7600f, 1150f)),
             (CultistEnemyID, 3, new Vector2(7900f, 1150f)),
             (SentryEnemyID, 3, new Vector2(8200f, 1150f))
         };
+
+        /// <summary>The patrol leg every Hakata spawn gets either side of its post.</summary>
+        public const float PatrolHalfSpanPixels = 220f;
 
         /// <summary>
         /// The three authored cover slabs in the Lantern Watch, as (centre X, width).
@@ -174,7 +195,7 @@ namespace FTT.Environment {
         public static readonly (float CenterX, float Width)[] CoverPockets = {
             (3010f, 240f),   // west of the first beam
             (4120f, 320f),   // the pocket between the two ground beams
-            (5200f, 260f)    // east of the second beam, under checkpoint 1
+            (5200f, 260f)    // east of the second beam (checkpoint 1 stood under it until GU-L8)
         };
 
         /// <summary>
@@ -211,6 +232,78 @@ namespace FTT.Environment {
             return total;
         }
 
+        // === GU-L8 (2026-10-12): the three encounter locks ====================
+
+        /// <summary>The F10 encounter IDs of the three locks (they start with the level ID).</summary>
+        public const string LockSeawall = "level_09_berlin_lock_seawall";
+        public const string LockLanternWatch = "level_09_berlin_lock_lantern_watch";
+        public const string LockStormAnchor = "level_09_berlin_lock_storm_anchor";
+
+        /// <summary>The manifest rows the three lock waves are (level_09_rewards.tres), by spawn-table wave.</summary>
+        public static string WaveRowID(int wave) => $"level_09.wave{wave}";
+
+        private const float BarrierWidth = EncounterLockRules.DefaultBarrierWidthPixels;
+
+        /// <summary>The seawall: room 1 past the entry anchor (240).</summary>
+        public const float SeawallLockMinX = 300f;
+        public const float SeawallLockMaxX = Room2StartX - BarrierWidth;
+
+        /// <summary>
+        /// The Lantern Watch, one authored room wide (3200) and ending at the boarding
+        /// gate, so it starts east of the first cover pocket (2890-3130), which stays a
+        /// breather outside every lock. It clears on "every signal line cut AND every
+        /// watchman down": the feed puzzle is a condition. The lanterns stay live.
+        /// </summary>
+        public const float LanternWatchLockMinX = 3150f;
+        public const float LanternWatchLockMaxX = RadarGateX - BarrierWidth * 0.5f;
+
+        /// <summary>
+        /// The Middle anchor, just past the boarding gate and east of the near-capture
+        /// trigger: its strike surface (6540-6600) is beyond the longest basic swing
+        /// from inside the Lantern Watch, and its respawn point is clear of the snare.
+        /// It stood at 5200, in the middle of the lantern fight.
+        /// </summary>
+        public const float MiddleCheckpointX = 6570f;
+
+        /// <summary>
+        /// The storm-anchor ship, engaged only after the near-capture: its west edge
+        /// lies past the snare's full-height trigger, so the beat always fires first.
+        /// Its exit barrier closes the gap under the flagship's partial west wall.
+        /// </summary>
+        public const float StormAnchorLockMinX = MiddleCheckpointX + 50f;
+        public const float StormAnchorLockMaxX = FlagshipWestWallX;
+
+        /// <summary>
+        /// The left face of the flagship's partial west wall (y 300-800). GU-L8: moved
+        /// 8620 -> 8560 so the storm-anchor lock's exit barrier, which fills the gap
+        /// under it, leaves room for the PreBoss anchor and the Font outside every lock
+        /// and the PreBoss strike surface beyond the longest swing from inside the ship.
+        /// </summary>
+        public const float FlagshipWestWallX = 8560f;
+        private const float FlagshipWestWallBottomY = 800f;
+
+        /// <summary>The PreBoss anchor, in the flagship's antechamber (8580-8800); it stood at 8480, inside the ship's fight.</summary>
+        public const float PreBossCheckpointX = 8740f;
+
+        private EncounterLock _seawallLock;
+        private EncounterLock _lanternWatchLock;
+        private EncounterLock _stormAnchorLock;
+
+        public EncounterLock SeawallLock => _seawallLock;
+        public EncounterLock LanternWatchLock => _lanternWatchLock;
+        public EncounterLock StormAnchorLock => _stormAnchorLock;
+
+        /// <summary>One spawn-table wave as a lock wave: its manifest row, its posts, their patrol legs.</summary>
+        public static EncounterLockWave LockWaveFor(int wave, EncounterWaveTrigger trigger) {
+            var spawns = new List<EncounterLockSpawn>();
+            foreach ((string enemyID, int waveIndex, Vector2 position) in SpawnTable) {
+                if (waveIndex != wave) continue;
+                spawns.Add(new EncounterLockSpawn(enemyID, position,
+                    position + new Vector2(-PatrolHalfSpanPixels, 0f), position + new Vector2(PatrolHalfSpanPixels, 0f)));
+            }
+            return new EncounterLockWave { RowID = WaveRowID(wave), Spawns = spawns.ToArray(), Trigger = trigger };
+        }
+
         // === Base contract ===
 
         public override string LevelID => "level_09_berlin";
@@ -234,9 +327,10 @@ namespace FTT.Environment {
         protected override Vector2? SecretCachePosition => new(2650f, 757f);
 
         // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, just before the
-        // PreBoss anchor (8480), between the rigging platforms, past the near-capture and the
-        // room 3 wave trigger.
-        protected override Vector2? RestorationFontPosition => new(8150f, GroundY);
+        // PreBoss anchor. GU-L8 (2026-10-12): moved 8150 -> 8610, out of the storm-anchor
+        // ship's lock into the flagship's antechamber, between the lock's exit barrier
+        // (8560-8580) and the PreBoss anchor (8740), its channel circle short of the arena.
+        protected override Vector2? RestorationFontPosition => new(8610f, GroundY);
 
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
@@ -294,7 +388,6 @@ namespace FTT.Environment {
         /// <summary>Times a beam has caught the player. Drives the exposure warning objective.</summary>
         public int ExposureAlarmCount { get; private set; }
 
-        private readonly HashSet<int> _wavesSpawned = new();
         private bool _resumedPastTheGate;
 
         // === Construction ===
@@ -306,6 +399,53 @@ namespace FTT.Environment {
             BuildRadarYard();
             BuildBunkerStreet();
             BuildExtractors(ExtractorPlacements);
+            BuildEncounterLocks();
+        }
+
+        /// <summary>
+        /// GU-L8: the three fights as encounter locks, one wave per manifest row.
+        /// Built in <see cref="BuildLevel"/> so a resume past a lock builds it Cleared
+        /// with no member ever spawned.
+        /// </summary>
+        private void BuildEncounterLocks() {
+            _seawallLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockSeawall,
+                Area = EncounterLockSpec.Span(SeawallLockMinX, SeawallLockMaxX, LevelHeight),
+                EntryBarrierX = SeawallLockMinX - BarrierWidth * 0.5f,
+                ExitBarrierX = SeawallLockMaxX + BarrierWidth * 0.5f,
+                BarrierFloorY = GroundY,
+                Waves = new[] { LockWaveFor(1, EncounterWaveTrigger.OnBuild) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            // The watch holds the lanterns from the start; the lock needs every signal
+            // line cut as well as its watchmen down, and its exit fills the boarding
+            // gate under the gate column. Its objective is the level's own (the cut
+            // count); the HUD counts the watch.
+            _lanternWatchLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockLanternWatch,
+                Area = EncounterLockSpec.Span(LanternWatchLockMinX, LanternWatchLockMaxX, LevelHeight),
+                EntryBarrierX = LanternWatchLockMinX - BarrierWidth * 0.5f,
+                ExitBarrierX = RadarGateX,
+                ExitBarrierYRange = new Vector2(GroundY - RadarGateHeight, GroundY),
+                BarrierFloorY = GroundY,
+                Waves = new[] { LockWaveFor(2, EncounterWaveTrigger.OnBuild) },
+                RequiredPuzzleIDs = new[] { FeedPuzzleID },
+                GoDirection = EncounterGoDirection.Right
+            });
+            // The ship's crew comes for the hero the moment it is in, after the snare
+            // lets go; the exit barrier closes the gap under the flagship's west wall.
+            _stormAnchorLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockStormAnchor,
+                Area = EncounterLockSpec.Span(StormAnchorLockMinX, StormAnchorLockMaxX, LevelHeight),
+                EntryBarrierX = StormAnchorLockMinX - BarrierWidth * 0.5f,
+                ExitBarrierX = StormAnchorLockMaxX + BarrierWidth * 0.5f,
+                ExitBarrierYRange = new Vector2(FlagshipWestWallBottomY, GroundY),
+                BarrierFloorY = GroundY,
+                Waves = new[] { LockWaveFor(3, EncounterWaveTrigger.OnEngage) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
         }
 
         /// <summary>
@@ -387,10 +527,11 @@ namespace FTT.Environment {
             // Upper walkway, swept end to end by the watchtower beam.
             BuildPlatform(5900f, 520f, 700f);
 
-            BuildCheckpoint(5200f, GroundY - 50f, CheckpointID(1), CheckpointRole.Middle);
             BuildRoomDecoration(Room2StartX, "berlin_room_death_strip", new Color(1.0f, 0.92f, 0.55f));
 
-            BuildRoomTransition("berlin_room_death_strip", new Vector2(Room2StartX, 700f),
+            // GU-L8: just past the seawall's exit barrier (2860-2880), so a hero
+            // pressed against it does not reach the trigger (it was centred on 2880).
+            BuildRoomTransition("berlin_room_death_strip", new Vector2(Room2StartX + 40f, 700f),
                 new Rect2(Room2StartX, 0f, 3520f, LevelHeight),
                 triggerSize: new Vector2(80f, LevelHeight));
 
@@ -402,8 +543,7 @@ namespace FTT.Environment {
             // seals the sky above it permanently (centred on the gate and wider than
             // it, so the gate's top is never a ledge); cutting the lines opens the gate.
             BuildGateColumn(RadarGateX, RadarGateWidth, GroundY - RadarGateHeight, RadarGateColor);
-
-            BuildWaveTrigger("Room2WaveTrigger", new Vector2(Room2StartX + 120f, 1100f), () => SpawnWave(2));
+            // GU-L8: the Lantern Watch's wave is its lock's; the proximity trigger is gone.
         }
 
         /// <summary>Room 3: the storm-anchor ship, past the boarding gate the signal lines unbar.</summary>
@@ -422,7 +562,9 @@ namespace FTT.Environment {
             BuildPlatform(7900f, 1040f, 260f, WetTimberColor);
             BuildPlatform(8300f, 920f, 240f, WetTimberColor);
 
-            BuildCheckpoint(8480f, GroundY - 50f, CheckpointID(2), CheckpointRole.PreBoss);
+            // GU-L8: the Middle anchor, just past the boarding gate and the snare,
+            // outside every lock (it stood at 5200, inside the Lantern Watch).
+            BuildCheckpoint(MiddleCheckpointX, GroundY - 50f, CheckpointID(1), CheckpointRole.Middle);
             BuildRoomDecoration(Room3StartX, "berlin_room_radar_yard", new Color(0.60f, 0.85f, 0.70f));
 
             BuildRoomTransition("berlin_room_radar_yard", new Vector2(Room3StartX + 80f, 700f),
@@ -430,17 +572,25 @@ namespace FTT.Environment {
                 triggerSize: new Vector2(80f, LevelHeight));
 
             BuildNearCapture();
-            BuildWaveTrigger("Room3WaveTrigger", new Vector2(Room3StartX + 200f, 1100f), () => SpawnWave(3));
+            // GU-L8: the ship's wave is its lock's (OnEngage); the proximity trigger is gone.
         }
 
         // === Package 13 W4 (S36): the Eraser near-capture ===
 
         /// <summary>
         /// Where the snare catches the hero: just past the boarding gate, before the
-        /// room's wave arms, in the dark after the lanterns. No Chrono-Warden shares
-        /// this room (the Act I/II salt rule), and the Eraser is a silhouette.
+        /// storm-anchor ship's lock can engage, in the dark after the lanterns. No
+        /// Chrono-Warden shares this room (the Act I/II salt rule), and the Eraser is a
+        /// silhouette.
         /// </summary>
         public const float NearCaptureTriggerX = Room3StartX + 100f;
+
+        /// <summary>
+        /// GU-L8 (2026-10-12): the snare's trigger runs the level's full height (it
+        /// was 400 px tall, centred on the deck), so no jump carries the hero over it
+        /// into the storm-anchor lock: the beat always fires before that lock engages.
+        /// </summary>
+        public static readonly Vector2 NearCaptureTriggerSize = new(60f, LevelHeight);
 
         /// <summary>The scripted beat. Built with the room.</summary>
         public NearCaptureBeat NearCapture { get; private set; }
@@ -451,8 +601,8 @@ namespace FTT.Environment {
                 StartDialogue = id => StartDialogue(id)
             };
             AddChild(NearCapture);
-            BuildWaveTrigger("NearCaptureTrigger", new Vector2(NearCaptureTriggerX, 1100f),
-                () => BeginNearCapture());
+            BuildWaveTrigger("NearCaptureTrigger", new Vector2(NearCaptureTriggerX, LevelHeight * 0.5f),
+                () => BeginNearCapture(), NearCaptureTriggerSize);
         }
 
         /// <summary>Snares the hero once. Public so tests can drive it.</summary>
@@ -480,7 +630,13 @@ namespace FTT.Environment {
             BuildPlatform(9280f, 1090f, 200f, CoverPocketColor);   // fortification
             BuildPlatform(9960f, 1090f, 200f, CoverPocketColor);   // fortification
 
-            BuildWall(Room4StartX - 20f, 300f, 500f);   // partial: the entry stays open below
+            // Partial: the entry stays open below, and (GU-L8) the storm-anchor lock's
+            // exit barrier fills that opening until the ship is cleared. Moved 8620 ->
+            // 8560 to make the antechamber for the PreBoss anchor and the Font.
+            BuildWall(FlagshipWestWallX, 300f, FlagshipWestWallBottomY - 300f);
+
+            // GU-L8: the PreBoss anchor, past the ship's lock (it stood at 8480, inside it).
+            BuildCheckpoint(PreBossCheckpointX, GroundY - 50f, CheckpointID(2), CheckpointRole.PreBoss);
             // The east boundary runs to the top of the level (2026-10-08), as Levels
             // 2 and 6 do: it used to stop at y 440, 352 px over the east castle
             // deck. Five heroes' double jumps already cleared that, and the apex
@@ -501,53 +657,35 @@ namespace FTT.Environment {
         public string CheckpointID(int index) => $"{LevelID}_checkpoint_{index}";
 
         // === Encounters ===
+        //
+        // GU-L8 (2026-10-12): every encounter is a lock wave (BuildEncounterLocks),
+        // each exactly its manifest row; the lock takes the same per-row
+        // ScaleEncounterCount prefix the reward manifest compiles.
 
-        protected override void SpawnInitialEnemies() => SpawnWave(1);
-
-        private void SpawnWave(int wave) {
-            if (!_wavesSpawned.Add(wave)) return;
-            var authored = new List<(string EnemyID, Vector2 Position)>();
-            foreach ((string enemyID, int waveIndex, Vector2 position) in SpawnTable) {
-                if (waveIndex == wave) authored.Add((enemyID, position));
-            }
-            int count = StoryDifficultyTuning.ScaleEncounterCount(
-                authored.Count, StoryDifficultyTuning.CurrentStoryDifficulty);
-            for (int index = 0; index < count && index < authored.Count; index++) {
-                (string enemyID, Vector2 position) = authored[index];
-                EnemyFactory.Spawn(enemyID, this, position,
-                    waypointA: position + new Vector2(-220f, 0f),
-                    waypointB: position + new Vector2(220f, 0f));
-            }
-        }
-
-        // Package 12 W2 (GAP-13): explicit encounter baseline. This level's numbering
-        // is NOT the old derivation: wave 1 is the initial spawn and is never
-        // restored as cleared, so the middle anchor clears wave 2 only and the
-        // PreBoss anchor clears waves 2 and 3.
+        // Package 12 W2 (GAP-13): explicit encounter baseline. GU-L8: the encounters
+        // are the three locks; every anchor lists every lock before it, and a resume
+        // builds those Cleared (the seawall wave used to respawn behind the hero on
+        // every resume).
         private const string BerlinLevelID = "level_09_berlin";
 
         private static readonly IReadOnlyDictionary<string, string[]> Baselines =
             new Dictionary<string, string[]> {
                 [BerlinLevelID + "_checkpoint_0"] = Array.Empty<string>(),
-                [BerlinLevelID + "_checkpoint_1"] = new[] { WaveEncounterID(BerlinLevelID, 2) },
-                [BerlinLevelID + "_checkpoint_2"] = new[] {
-                    WaveEncounterID(BerlinLevelID, 2), WaveEncounterID(BerlinLevelID, 3)
-                }
+                [BerlinLevelID + "_checkpoint_1"] = new[] { LockSeawall, LockLanternWatch },
+                [BerlinLevelID + "_checkpoint_2"] = new[] { LockSeawall, LockLanternWatch, LockStormAnchor }
             };
 
         protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
 
-        protected override void MarkEncounterCleared(string encounterID) {
-            if (TryParseWaveEncounter(BerlinLevelID, encounterID, out int wave)) _wavesSpawned.Add(wave);
-        }
-
-        /// <summary>The anchor's non-encounter world state; the waves come from the baseline.</summary>
+        /// <summary>The anchor's non-encounter world state; the locks come from the baseline.</summary>
         protected override void MarkWavesClearedThrough(string checkpointID) {
-            if (checkpointID == CheckpointID(2)) {
-                // Checkpoint 2 stands east of the boarding gate. A resume that lost the
-                // puzzle flag would strand the player behind a sealed gate with the
-                // gauntlet still live behind it, so the gate opens and the beams go
-                // dark structurally rather than relying on the save.
+            if (checkpointID == CheckpointID(1) || checkpointID == CheckpointID(2)) {
+                // Both mid-level anchors stand east of the boarding gate (GU-L8 moved
+                // the Middle past it, and its baseline lists the Lantern Watch, which
+                // needs every line cut). A resume that lost the puzzle flag would
+                // strand the player behind a sealed gate with the gauntlet still live
+                // behind it, so the gate opens and the beams go dark structurally
+                // rather than relying on the save.
                 _resumedPastTheGate = true;
             }
         }
@@ -622,6 +760,16 @@ namespace FTT.Environment {
 
         private void PostFeedObjective() =>
             SetObjective("berlin_objective_cut_feeds", FeedsCut, FeedLinks.Length);
+
+        /// <summary>
+        /// GU-L8: a cleared or reverted lock hands the objective back to the level's
+        /// own, recomputed from live state (the base would re-post the last one set,
+        /// which can be a stale "exposed" warning).
+        /// </summary>
+        protected override void RestoreLevelObjective() {
+            if (RadarGateOpen) SetObjective("berlin_objective_reach_bunker");
+            else PostFeedObjective();
+        }
 
         // === Searchlight footprint geometry (shared with Level09ContentTests) ===
 

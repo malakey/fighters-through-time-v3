@@ -43,6 +43,18 @@ namespace FTT.Environment {
     /// 0 elites, 1 boss, 3 extractors. The authored tables below are the single
     /// source of those counts and Level10ContentTests asserts them.
     /// </para>
+    ///
+    /// <para>
+    /// <b>Encounter locks</b> (gameplay update 2026-10-12, GU-L8; the Level 2
+    /// pattern): the Yard (300-2540); the Stage with its cellar (2560-5740), whose
+    /// walls already close the cellar's ends below the boards, so the fight runs over
+    /// the cycling trapdoors; and the Galleries (6080-8330), whose exit is the bridge
+    /// into the tiring-house. The galleries' middle-tier and upper-tier actors moved
+    /// down onto the floor and the lower tier, the Middle anchor moved out of the
+    /// stage fight to the galleries' floor (6040) and the PreBoss anchor east out of
+    /// swing reach of the yard wall (8460). While a lock is engaged the audience's
+    /// stillness clock pauses: waiting one's turn and blocking are normal in a lock.
+    /// </para>
     /// </summary>
     public partial class Level10Controller : StoryLevelControllerBase {
 
@@ -277,16 +289,22 @@ namespace FTT.Environment {
         };
 
         /// <summary>
-        /// The Galleries: two in the yard behind the stage and two posted on the
-        /// balcony tiers, so the rigging climb is contested. Four is the level's
-        /// concurrency peak, well inside level_10_pool_config's standard_enemy
-        /// warm count of 12 and its enemy_projectile warm count of 20.
+        /// The Galleries: three on the yard floor behind the stage and one posted on
+        /// the lower balcony tier, so the climb's foot is contested. Four is the level's
+        /// concurrency peak, well inside level_10_pool_config's standard_enemy warm
+        /// count of 12 and its enemy_projectile warm count of 20.
+        /// <para>GU-L8 (2026-10-12): the Galleries are an encounter lock, and a ground
+        /// mob never leaves its tier, so every actor stands where the slowest hero
+        /// fights it from the floor: the first prompt-boy moved 5960 -> 6300 into the
+        /// lock's area, the middle-tier prompt-boy (7000, 610), 468 px up, and the
+        /// upper-tier slasher (7940, 370) on the optional branch both moved down onto
+        /// the yard floor (6900 and 7400).</para>
         /// </summary>
         public static readonly (string EnemyID, Vector2 Position, Vector2 PatrolA, Vector2 PatrolB)[] Room3Spawns = {
-            ("holo_page", new Vector2(5960, EnemyGroundY), new Vector2(5840, EnemyGroundY), new Vector2(6120, EnemyGroundY)),
+            ("holo_page", new Vector2(6300, EnemyGroundY), new Vector2(6200, EnemyGroundY), new Vector2(6420, EnemyGroundY)),
             ("chrono_slasher", new Vector2(6620, 830), new Vector2(6530, 830), new Vector2(6710, 830)),
-            ("holo_page", new Vector2(7000, 610), new Vector2(6910, 610), new Vector2(7100, 610)),
-            ("chrono_slasher", new Vector2(7940, 370), new Vector2(7830, 370), new Vector2(8060, 370))
+            ("holo_page", new Vector2(6900, EnemyGroundY), new Vector2(6800, EnemyGroundY), new Vector2(7000, EnemyGroundY)),
+            ("chrono_slasher", new Vector2(7400, EnemyGroundY), new Vector2(7300, EnemyGroundY), new Vector2(7520, EnemyGroundY))
         };
 
         /// <summary>Every authored standard spawn in room order. Must total exactly 10.</summary>
@@ -311,6 +329,66 @@ namespace FTT.Environment {
         public static int AuthoredEliteCount => 0;
 
         public static int AuthoredExtractorCount => ExtractorPlacements.Length;
+
+        // === GU-L8 (2026-10-12): the three encounter locks ====================
+
+        /// <summary>The F10 encounter IDs of the three locks (they start with the level ID).</summary>
+        public const string LockYard = ID + "_lock_yard";
+        public const string LockStage = ID + "_lock_stage";
+        public const string LockGalleries = ID + "_lock_galleries";
+
+        /// <summary>The manifest rows the three lock waves are (level_10_rewards.tres).</summary>
+        public const string Room1RowID = "level_10.room1";
+        public const string Room2RowID = "level_10.room2";
+        public const string Room3RowID = "level_10.room3";
+
+        private const float BarrierWidth = EncounterLockRules.DefaultBarrierWidthPixels;
+
+        /// <summary>The Yard: the groundling pit past the entry anchor (240), up to the stage's cellar wall.</summary>
+        public const float YardLockMinX = 300f;
+        public const float YardLockMaxX = Room2StartX - BarrierWidth;
+
+        /// <summary>
+        /// The Stage, cellar included: the cellar's walls (2540 and 5740) already close
+        /// its ends below the boards. Its exit barrier stands on the east cellar wall
+        /// and runs down to that wall's top, so climbing out of the cellar by the
+        /// tiring-house stair (5560-5750) stays inside it.
+        /// </summary>
+        public const float StageLockMinX = Room2StartX;
+        public const float StageLockMaxX = 5740f;
+        /// <summary>Top of the east cellar wall: the stage lock's exit barrier runs down to it.</summary>
+        private const float CellarWallTopY = 1180f;
+
+        /// <summary>
+        /// The Middle anchor, on the galleries' floor, under the lower tier and east of
+        /// the ground-level approach step: its strike surface (6010-6070) is beyond the
+        /// longest basic swing from inside the stage, and its respawn point clears the
+        /// step overhead. It stood at 5400, in the stage fight.
+        /// </summary>
+        public const float MiddleCheckpointX = 6040f;
+
+        /// <summary>
+        /// The Galleries: the yard floor, the tiers and the rigging, to the bridging
+        /// span. Its exit barrier stands just east of the span, from the sky to the
+        /// tiring-house boards: the bridge into room 4 is the area's exit.
+        /// </summary>
+        public const float GalleriesLockMinX = MiddleCheckpointX + 40f;
+        public const float GalleriesLockMaxX = GalleryBridgeX + GalleryBridgeWidth / 2f;
+
+        /// <summary>
+        /// The PreBoss anchor, moved 8420 -> 8460 so its strike surface (8430-8490) is
+        /// beyond the longest basic swing of a hero pressed against the yard wall's west
+        /// face inside the Galleries (8260).
+        /// </summary>
+        public const float PreBossCheckpointX = 8460f;
+
+        private EncounterLock _yardLock;
+        private EncounterLock _stageLock;
+        private EncounterLock _galleriesLock;
+
+        public EncounterLock YardLock => _yardLock;
+        public EncounterLock StageLock => _stageLock;
+        public EncounterLock GalleriesLock => _galleriesLock;
 
         // === Palette: oak boards, limewash plaster, candle amber ===
 
@@ -369,8 +447,6 @@ namespace FTT.Environment {
 
         private bool _stageReached;
         private bool _galleriesReached;
-        private bool _room2WaveSpawned;
-        private bool _room3WaveSpawned;
         private bool _rewindBound;
 
         // === Construction ===
@@ -382,6 +458,59 @@ namespace FTT.Environment {
             BuildGalleries();
             BuildTiringHouseStage();
             BuildExtractors(ExtractorPlacements);
+            BuildEncounterLocks();
+        }
+
+        /// <summary>
+        /// GU-L8: the three fights as encounter locks, one wave per manifest row.
+        /// Built in <see cref="BuildLevel"/> so a resume past a lock builds it Cleared
+        /// with no member ever spawned.
+        /// </summary>
+        private void BuildEncounterLocks() {
+            _yardLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockYard,
+                Area = EncounterLockSpec.Span(YardLockMinX, YardLockMaxX, LevelHeight),
+                EntryBarrierX = YardLockMinX - BarrierWidth * 0.5f,
+                ExitBarrierX = YardLockMaxX + BarrierWidth * 0.5f,
+                BarrierFloorY = GroundY,
+                Waves = new[] { WaveFrom(Room1RowID, Room1Spawns, EncounterWaveTrigger.OnBuild) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            // The cast takes the boards once the hero is on stage, over the cycling
+            // trapdoors; the cellar below is part of the fight.
+            _stageLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockStage,
+                Area = EncounterLockSpec.Span(StageLockMinX, StageLockMaxX, LevelHeight),
+                EntryBarrierX = StageLockMinX - BarrierWidth * 0.5f,
+                ExitBarrierX = StageLockMaxX + BarrierWidth * 0.5f,
+                ExitBarrierYRange = new Vector2(StoryGateRules.ColumnTopY, CellarWallTopY),
+                BarrierFloorY = GroundY,
+                Waves = new[] { WaveFrom(Room2RowID, Room2Spawns, EncounterWaveTrigger.OnEngage) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            _galleriesLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockGalleries,
+                Area = EncounterLockSpec.Span(GalleriesLockMinX, GalleriesLockMaxX, LevelHeight),
+                EntryBarrierX = GalleriesLockMinX - BarrierWidth * 0.5f,
+                ExitBarrierX = GalleriesLockMaxX + BarrierWidth * 0.5f,
+                BarrierFloorY = GroundY,
+                Waves = new[] { WaveFrom(Room3RowID, Room3Spawns, EncounterWaveTrigger.OnBuild) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+        }
+
+        /// <summary>A lock wave from one of this level's spawn tables (their patrols are not nullable).</summary>
+        private static EncounterLockWave WaveFrom(string rowID,
+            (string EnemyID, Vector2 Position, Vector2 PatrolA, Vector2 PatrolB)[] table, EncounterWaveTrigger trigger) {
+            var spawns = new EncounterLockSpawn[table.Length];
+            for (int index = 0; index < table.Length; index++) {
+                (string enemyID, Vector2 position, Vector2 patrolA, Vector2 patrolB) = table[index];
+                spawns[index] = new EncounterLockSpawn(enemyID, position, patrolA, patrolB);
+            }
+            return new EncounterLockWave { RowID = rowID, Spawns = spawns, Trigger = trigger };
         }
 
         /// <summary>
@@ -494,14 +623,15 @@ namespace FTT.Environment {
             BuildPlatform(4400, 880, 240, GalleryColor);
             BuildPlatform(5100, 760, 220, GalleryColor);
 
-            BuildCheckpoint(5400, EnemyGroundY, Checkpoint1, CheckpointRole.Middle);
             BuildRoomDecoration(Room2StartX, "globe_room_stage", new Color(0.98f, 0.72f, 0.36f));
 
-            BuildRoomTransition("globe_room_stage", new Vector2(Room2StartX, 800), Room2CameraBounds,
+            // GU-L8: just inside the stage lock's area (it was centred on the 2560
+            // seam), so a hero pressed against the yard's exit barrier does not reach
+            // it. The stage's cast is its lock's wave (it takes the boards on engage).
+            BuildRoomTransition("globe_room_stage", new Vector2(StageLockMinX + 40f, 800), Room2CameraBounds,
                 triggerSize: new Vector2(80, LevelHeight),
                 onEntered: _ => {
                     _stageReached = true;
-                    TriggerRoom2Wave();
                     RefreshObjective();
                 });
         }
@@ -562,13 +692,15 @@ namespace FTT.Environment {
             // rises to the bridging span's underside, so no gap is left beneath it.
             BuildWall(YardWallX, YardWallTopY, GroundY + DefaultFloorThickness - YardWallTopY);
 
+            // GU-L8: the Middle anchor, past the stage lock's exit (it stood at 5400,
+            // in the stage fight).
+            BuildCheckpoint(MiddleCheckpointX, EnemyGroundY, Checkpoint1, CheckpointRole.Middle);
             BuildRoomDecoration(Room3StartX, "globe_room_galleries", new Color(0.86f, 0.66f, 0.94f));
 
             BuildRoomTransition("globe_room_galleries", new Vector2(Room3StartX + 30, 800), Room3CameraBounds,
                 triggerSize: new Vector2(80, LevelHeight),
                 onEntered: _ => {
                     _galleriesReached = true;
-                    TriggerRoom3Wave();
                     RefreshObjective();
                 });
         }
@@ -632,9 +764,11 @@ namespace FTT.Environment {
 
             BuildWall(10220, 0, LevelHeight);
 
-            BuildCheckpoint(8420, EnemyGroundY, Checkpoint2, CheckpointRole.PreBoss);
+            BuildCheckpoint(PreBossCheckpointX, EnemyGroundY, Checkpoint2, CheckpointRole.PreBoss);
             BuildRoomDecoration(Room4StartX, "globe_room_tiring_house", new Color(0.98f, 0.40f, 0.52f));
-            BuildRoomTransition("globe_room_tiring_house", new Vector2(Room4StartX + 30, 800), Room4CameraBounds,
+            // GU-L8: past the galleries' exit barrier (8330-8350), so a hero pressed
+            // against it on the bridge does not reach the trigger (it stood at 8350).
+            BuildRoomTransition("globe_room_tiring_house", new Vector2(Room4StartX + 70, 800), Room4CameraBounds,
                 triggerSize: new Vector2(80, LevelHeight));
 
             // Package 13 W4 (S35): backstage, where the prompt-book stops mid-scene.
@@ -682,38 +816,23 @@ namespace FTT.Environment {
         }
 
         // === Encounters ===
-
-        protected override void SpawnInitialEnemies() => SpawnWave(Room1Spawns);
-
-        private void TriggerRoom2Wave() {
-            if (_room2WaveSpawned) return;
-            _room2WaveSpawned = true;
-            SpawnWave(Room2Spawns);
-        }
-
-        private void TriggerRoom3Wave() {
-            if (_room3WaveSpawned) return;
-            _room3WaveSpawned = true;
-            SpawnWave(Room3Spawns);
-        }
-
-        /// <summary>
-        /// Authored counts are the Normal-difficulty truth; ScaleEncounterCount is
-        /// the only thing allowed to move them, and it never exceeds the authored
-        /// table. Concurrency peaks at 4 live standards, inside the level's warm
-        /// pool counts (standard_enemy 12, enemy_projectile 20).
-        /// </summary>
-        private void SpawnWave((string EnemyID, Vector2 Position, Vector2 PatrolA, Vector2 PatrolB)[] wave) {
-            if (wave == null) return;
-            int count = StoryDifficultyTuning.ScaleEncounterCount(
-                wave.Length, StoryDifficultyTuning.CurrentStoryDifficulty);
-            for (int index = 0; index < count && index < wave.Length; index++) {
-                (string enemyID, Vector2 position, Vector2 patrolA, Vector2 patrolB) = wave[index];
-                EnemyFactory.Spawn(enemyID, this, position, patrolA, patrolB);
-            }
-        }
+        //
+        // GU-L8 (2026-10-12): every encounter is a lock wave (BuildEncounterLocks).
+        // Authored counts are the Normal-difficulty truth; the lock takes the same
+        // per-row ScaleEncounterCount prefix the reward manifest compiles, never
+        // more than the table. Concurrency peaks at 4 live standards, inside the
+        // level's warm pool counts (standard_enemy 12, enemy_projectile 20).
 
         // === Era mechanic: the audience ===
+
+        /// <summary>
+        /// GU-L8 (2026-10-12): true while one of this level's encounter locks is
+        /// engaged. Turn-taking (the engagement director) makes standing still and
+        /// blocking normal in a lock fight, so the audience's stillness clock pauses
+        /// there: it neither builds nor resets, and resumes from where it stood once
+        /// the lock clears or reverts. A throw already telegraphed still resolves.
+        /// </summary>
+        public bool AudienceHeldByEncounterLock => ActiveEncounterLock != null;
 
         public override void _PhysicsProcess(double delta) => TickAudience((float)delta);
 
@@ -781,6 +900,11 @@ namespace FTT.Environment {
                 if (_audienceWarningTimer <= 0f) LandAudienceThrow();
                 return;
             }
+
+            // GU-L8: the stillness clock pauses while a lock is engaged (the
+            // position baseline above still follows the hero, so the first tick
+            // after the clear reads no travel as an enormous step).
+            if (AudienceHeldByEncounterLock) return;
 
             AudienceIdleSeconds = speed < AudienceIdleSpeedThreshold ? AudienceIdleSeconds + dt : 0f;
             if (AudienceIdleSeconds >= AudienceIdleArmSeconds) ArmAudience(position);
@@ -863,31 +987,23 @@ namespace FTT.Environment {
 
         // === Resume, lifecycle, and objectives ===
 
-        // Package 12 W2 (GAP-13): explicit encounter baseline.
-        public const string Room2WaveEncounter = ID + "_room2_wave";
-        public const string Room3WaveEncounter = ID + "_room3_wave";
-
+        // Package 12 W2 (GAP-13): explicit encounter baseline. GU-L8: the encounters
+        // are the three locks; every anchor lists every lock before it, and a resume
+        // builds those Cleared (the yard used to respawn behind the hero on every
+        // resume).
         private static readonly IReadOnlyDictionary<string, string[]> Baselines =
             new Dictionary<string, string[]> {
                 [Checkpoint0] = System.Array.Empty<string>(),
-                [Checkpoint1] = new[] { Room2WaveEncounter },
-                [Checkpoint2] = new[] { Room2WaveEncounter, Room3WaveEncounter }
+                [Checkpoint1] = new[] { LockYard, LockStage },
+                [Checkpoint2] = new[] { LockYard, LockStage, LockGalleries }
             };
 
         protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
 
-        protected override void MarkEncounterCleared(string encounterID) {
-            if (encounterID == Room2WaveEncounter) _room2WaveSpawned = true;
-            else if (encounterID == Room3WaveEncounter) _room3WaveSpawned = true;
-        }
+        /// <summary>GU-L8: a cleared or reverted lock hands the objective back to the level's own.</summary>
+        protected override void RestoreLevelObjective() => RefreshObjective();
 
-        /// <summary>Test seam: whether the room-2 wave latch is set (spawn suppressed).</summary>
-        public bool Room2WaveLatched => _room2WaveSpawned;
-
-        /// <summary>Test seam: whether the room-3 wave latch is set (spawn suppressed).</summary>
-        public bool Room3WaveLatched => _room3WaveSpawned;
-
-        /// <summary>The anchor's non-encounter world state; the waves come from the baseline.</summary>
+        /// <summary>The anchor's non-encounter world state; the locks come from the baseline.</summary>
         protected override void MarkWavesClearedThrough(string checkpointID) {
             if (checkpointID == Checkpoint1) {
                 _stageReached = true;

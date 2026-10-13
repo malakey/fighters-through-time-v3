@@ -430,6 +430,208 @@ public class Level08ContentTests {
         }
     }
 
+    // === GU-L8 (2026-10-12): the four encounter locks ===
+
+    [TestCase]
+    public void TheFourFightsAreEncounterLocksOneWavePerManifestRow() {
+        using var fixture = new Level08Fixture(null);
+        Level08Controller level = fixture.Level;
+        try {
+            AssertThat(level.EncounterLocks.Count).IsEqual(4);
+            EncounterLock dunes = level.DunesLock;
+            EncounterLock siegeLine = level.SiegeLineLock;
+            EncounterLock tomb = level.TombLock;
+            EncounterLock vault = level.VaultLock;
+            AssertString(dunes.LockID).IsEqual(Level08Controller.LockDunes);
+            AssertString(siegeLine.LockID).IsEqual(Level08Controller.LockSiegeLine);
+            AssertString(tomb.LockID).IsEqual(Level08Controller.LockTomb);
+            AssertString(vault.LockID).IsEqual(Level08Controller.LockVault);
+
+            // The areas: the dunes 300-3200, the siege line 3220-5460 (short of the
+            // shaft lip), the tomb 5720-7000 (the shaft and the west corridor, full
+            // height) and the vault 7020-8310 (the corridor band only, from the
+            // ceiling's underside down).
+            AssertThat(dunes.Area.Position.X).IsEqual(300f);
+            AssertThat(dunes.Area.End.X).IsEqual(3200f);
+            AssertThat(siegeLine.Area.Position.X).IsEqual(3220f);
+            AssertThat(siegeLine.Area.End.X).IsEqual(5460f);
+            AssertThat(tomb.Area.Position.X).IsEqual(5720f);
+            AssertThat(tomb.Area.End.X).IsEqual(7000f);
+            AssertThat(tomb.Area.Position.Y).IsEqual(StoryGateRules.ColumnTopY);
+            AssertThat(vault.Area.Position.X).IsEqual(7020f);
+            AssertThat(vault.Area.End.X).IsEqual(8310f);
+            AssertThat(vault.Area.Position.Y).IsEqual(Level08Controller.VaultLockTopY);
+            AssertThat(vault.Area.End.Y).IsEqual(Level08Controller.LevelHeight);
+
+            // The shaft is no escape: the siege line's exit barrier stands on the
+            // surface short of the lip, and the tomb's entry on the shaft's west wall.
+            AssertThat(siegeLine.ExitBarrier.Footprint.End.X).IsLess(Level08Controller.SurfaceEndX);
+            AssertThat(siegeLine.ExitBarrier.BottomY).IsEqual(Level08Controller.SurfaceGroundY);
+            AssertThat(tomb.EntryBarrier.Footprint.Position.X).IsEqual(Level08Controller.SurfaceEndX);
+            AssertThat(tomb.EntryBarrier.BottomY).IsEqual(Level08Controller.TombFloorY);
+            // The vault's exit fills the sealed door under its gate column.
+            AssertThat(vault.ExitBarrier.CenterX).IsEqual(Level08Controller.VaultGateX);
+            AssertThat(vault.ExitBarrier.TopY).IsEqual(1000f);
+            AssertThat(vault.ExitBarrier.BottomY).IsEqual(Level08Controller.TombFloorY);
+            AssertThat(string.Join(",", vault.Spec.RequiredPuzzleIDs)).IsEqual(Level08Controller.HieroglyphPuzzleID);
+
+            // One wave per manifest row, the authored tables, the triggers.
+            (EncounterLock Lock, string Row, int Length, EncounterWaveTrigger Trigger)[] waves = {
+                (dunes, Level08Controller.DuneRowID, Level08Controller.DuneSpawns.Length, EncounterWaveTrigger.OnBuild),
+                (siegeLine, Level08Controller.SiegeLineRowID, Level08Controller.SiegeLineSpawns.Length, EncounterWaveTrigger.OnEngage),
+                (tomb, Level08Controller.TombRowID, Level08Controller.TombSpawns.Length, EncounterWaveTrigger.OnBuild),
+                (vault, Level08Controller.VaultRowID, Level08Controller.VaultSpawns.Length, EncounterWaveTrigger.OnBuild)
+            };
+            foreach ((EncounterLock encounterLock, string row, int length, EncounterWaveTrigger trigger) in waves) {
+                AssertThat(encounterLock.Spec.Waves.Length).IsEqual(1);
+                AssertString(encounterLock.Spec.Waves[0].RowID).IsEqual(row);
+                AssertThat(encounterLock.Spec.Waves[0].Spawns.Length).IsEqual(length);
+                AssertThat(encounterLock.Spec.Waves[0].Trigger).IsEqual(trigger);
+                AssertThat(encounterLock.State).IsEqual(EncounterLockState.Armed);
+                AssertThat(encounterLock.ExitBarrier.IsClosed).IsTrue();
+                AssertThat(encounterLock.EntryBarrier.IsClosed).IsFalse();
+            }
+            AssertThat(siegeLine.LivingMemberCount).IsEqual(0);
+            AssertThat(vault.LivingMemberCount).IsEqual(vault.PlannedTotal);
+            foreach (EnemyController member in vault.LivingMembers) AssertThat(member.IsEncounterDormant).IsTrue();
+
+            // Every later anchor lists the locks before it.
+            IReadOnlyDictionary<string, string[]> baselines = level.AuthoredEncounterBaselines;
+            AssertThat(baselines[Level08Controller.Checkpoint0].Length).IsEqual(0);
+            AssertThat(string.Join(",", baselines[Level08Controller.Checkpoint1]))
+                .IsEqual($"{Level08Controller.LockDunes},{Level08Controller.LockSiegeLine}");
+            AssertThat(string.Join(",", baselines[Level08Controller.Checkpoint2]))
+                .IsEqual($"{Level08Controller.LockDunes},{Level08Controller.LockSiegeLine},"
+                    + $"{Level08Controller.LockTomb},{Level08Controller.LockVault}");
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+        }
+    }
+
+    [TestCase]
+    public void TheMiddleAndPreBossAnchorsStandOutsideEveryLockBeyondSwingReach() {
+        using var fixture = new Level08Fixture(null);
+        Level08Controller level = fixture.Level;
+        try {
+            var middle = level.GetNode<CheckpointTrigger>($"Checkpoint_{Level08Controller.Checkpoint1}");
+            var preBoss = level.GetNode<CheckpointTrigger>($"Checkpoint_{Level08Controller.Checkpoint2}");
+            AssertThat(middle.Role).IsEqual(CheckpointRole.Middle);
+            AssertThat(middle.GlobalPosition.X).IsEqual(Level08Controller.MiddleCheckpointX);
+            AssertThat(preBoss.GlobalPosition.X).IsEqual(Level08Controller.PreBossCheckpointX);
+            // The Middle stands on the surface at the shaft lip, between the siege
+            // line's exit barrier and the shaft.
+            AssertThat(middle.GlobalPosition.Y).IsLess(Level08Controller.SurfaceGroundY);
+            AssertThat(middle.GlobalPosition.X + 30f).IsLess(Level08Controller.SurfaceEndX);
+            foreach (CheckpointTrigger anchor in new[] { middle, preBoss }) {
+                foreach (EncounterLock encounterLock in level.EncounterLocks) {
+                    bool inside = anchor.GlobalPosition.X + 30f > encounterLock.Area.Position.X
+                        && anchor.GlobalPosition.X - 30f < encounterLock.Area.End.X;
+                    AssertThat(inside).OverrideFailureMessage(
+                        $"{anchor.CheckpointID} stands inside '{encounterLock.LockID}'.").IsFalse();
+                }
+            }
+            // Out of swing reach from inside the lock each one comes after.
+            float fromSiege = LevelLockSwingReach.EastwardReachFrom(level.SiegeLineLock);
+            AssertThat(fromSiege < LevelLockSwingReach.StrikeSurfaceWestEdge(middle.GlobalPosition.X))
+                .OverrideFailureMessage($"A swing from the siege line reaches x {fromSiege:0}.").IsTrue();
+            float fromVault = LevelLockSwingReach.EastwardReachFrom(level.VaultLock);
+            AssertThat(fromVault < LevelLockSwingReach.StrikeSurfaceWestEdge(preBoss.GlobalPosition.X))
+                .OverrideFailureMessage($"A swing from the vault reaches x {fromVault:0}.").IsTrue();
+            // Both are held until the locks their baselines list are cleared.
+            AssertThat(middle.IsHeldByEncounterLock).IsTrue();
+            AssertThat(preBoss.IsHeldByEncounterLock).IsTrue();
+            // The absence beat's trigger moved east of the PreBoss respawn point.
+            AssertThat(level.AbsenceTrigger.Position.X - 30f).IsGreater(preBoss.GlobalPosition.X + 20f);
+            // The carved relief is in the vault lock, west of the glyph wall.
+            Vector2 relief = Level08Controller.CarvedReliefPosition;
+            AssertThat(relief.X).IsGreater(level.VaultLock.Area.Position.X);
+            AssertThat(relief.X).IsLess(level.GlyphForOrder(2).GlobalPosition.X);
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+        }
+    }
+
+    /// <summary>
+    /// GU-L8: the tomb corridor used to end in a cliff at the shaft's west edge
+    /// (5700), with nothing under the surface west of it; a wall now closes it from
+    /// the surface top down past the corridor floor.
+    /// </summary>
+    [TestCase]
+    public void TheTombCorridorIsClosedAtItsWestEnd() {
+        using var fixture = new Level08Fixture(null);
+        Level08Controller level = fixture.Level;
+        try {
+            bool closed = false;
+            foreach (Node child in Children(level)) {
+                if (child is not StaticBody2D body || child is EncounterLockBarrier) continue;
+                if (body.GetChildCount() == 0 || body.GetChild(0) is not CollisionShape2D { Shape: RectangleShape2D rect } shape) continue;
+                Vector2 centre = body.Position + shape.Position;
+                var box = new Rect2(centre - rect.Size / 2f, rect.Size);
+                if (box.Position.X <= Level08Controller.ShaftWestWallX + 0.5f
+                    && box.End.X >= Level08Controller.SurfaceEndX - 0.5f
+                    && box.Position.Y <= Level08Controller.SurfaceGroundY + 0.5f
+                    && box.End.Y >= Level08Controller.TombFloorY + 1f) {
+                    closed = true;
+                }
+            }
+            AssertThat(closed).OverrideFailureMessage(
+                "Nothing closes the tomb corridor's west end under the surface.").IsTrue();
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+        }
+    }
+
+    /// <summary>
+    /// GU-L8, the real scene in real physics frames: a hero walking the corridor's
+    /// roof over the vault engages nothing (the vault's area is the corridor band);
+    /// in the corridor it engages the vault, which holds after its ward detail is
+    /// down until the hieroglyph seal is solved, then opens both barriers.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task TheVaultClearsOnlyOnceItsSealIsSolvedAsWellAsItsWardDown() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        using var fixture = new Level08Fixture(null);
+        Level08Controller level = fixture.Level;
+        PlayerController player = level.Player;
+        try {
+            for (int frame = 0; frame < 2; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            DialogueManager dialogue = DialogueManager.Instance;
+            for (int advance = 0; advance < 200 && dialogue != null && dialogue.IsSequenceActive; advance++) dialogue.AdvanceLine();
+            AssertThat(tree.Paused).IsFalse();
+            EncounterLock vault = level.VaultLock;
+
+            // On the corridor roof over the vault: no lock engages.
+            player.GlobalPosition = new Vector2(7500f, 1000f);
+            player.Velocity = Vector2.Zero;
+            for (int frame = 0; frame < 4; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(vault.State).IsEqual(EncounterLockState.Armed);
+            AssertObject(level.ActiveEncounterLock).IsNull();
+
+            // In the corridor: the vault engages and shuts its entry.
+            player.GlobalPosition = new Vector2(7500f, Level08Controller.TombFloorY - 1f);
+            player.Velocity = Vector2.Zero;
+            for (int frame = 0; frame < 4; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(vault.State).IsEqual(EncounterLockState.Engaged);
+            AssertThat(vault.EntryBarrier.IsClosed).IsTrue();
+            AssertThat(vault.LivingMemberCount).IsGreater(0);
+
+            foreach (EnemyController member in vault.LivingMembers) member.TakeDamage(99999);
+            for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(vault.State)
+                .OverrideFailureMessage("The vault must hold while the hieroglyph seal is unsolved.")
+                .IsEqual(EncounterLockState.Engaged);
+
+            AssertThat(level.SolveHieroglyphLockForTest()).IsTrue();
+            for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(vault.State).IsEqual(EncounterLockState.Cleared);
+            AssertThat(vault.EntryBarrier.IsClosed).IsFalse();
+            AssertThat(vault.ExitBarrier.IsClosed).IsFalse();
+            AssertThat(level.VaultDoorOpen).IsTrue();
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+        }
+    }
+
     // === Helpers ===
 
     private static float HalfWidth(Node2D zone) {

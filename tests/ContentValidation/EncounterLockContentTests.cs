@@ -98,6 +98,19 @@ public class EncounterLockContentTests {
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 
+    /// <summary>
+    /// GU-L8 (2026-10-12): a stacked area the hero enters and fights on an upper
+    /// floor, with a lower floor beneath it that is part of the same area and
+    /// reachable from it. The post rule measures from that entry floor rather than
+    /// the area's lowest surface. The Globe's stage stands over its under-stage
+    /// cellar (the cellar's own walls close the area's ends below the boards, and
+    /// trapdoors and a stair connect the two), so its cast stands on the boards, not
+    /// on posts 380 px above the cellar floor.
+    /// </summary>
+    private static readonly Dictionary<string, float> EntryFloorByLock = new(StringComparer.Ordinal) {
+        [Level10Controller.LockStage] = Level10Controller.GroundY
+    };
+
     [TestCase]
     public void EveryMemberSpawnStandsInsideItsAreaOnAFloorTheSlowestHeroReaches() {
         float rise = SlowestDoubleJumpRise();
@@ -105,7 +118,8 @@ public class EncounterLockContentTests {
         foreach (LevelSnapshot level in Snapshots()) {
             if (level.LoadError != null) { issues.Add($"{level.Label}: {level.LoadError}"); continue; }
             foreach (LockSnapshot encounterLock in level.Locks) {
-                float ground = AreaGround(level, encounterLock.Area);
+                float ground = EntryFloorByLock.TryGetValue(encounterLock.ID, out float entryFloor)
+                    ? entryFloor : AreaGround(level, encounterLock.Area);
                 foreach (SpawnSnapshot spawn in encounterLock.Spawns) {
                     string label = $"{level.Label}: '{encounterLock.ID}' {spawn.EnemyID} at {spawn.Position}";
                     if (!OverlapsX(encounterLock.Area, spawn.Position.X, 0f)) {

@@ -37,6 +37,18 @@ namespace FTT.Environment {
     /// <see cref="StoryLevelControllerBase.PostBossDialogueIDs"/> hook, which chains
     /// defeat -> postboss -> exit -> results without taking the defeat bookkeeping
     /// away from the base.
+    ///
+    /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-L8; the Level 2
+    /// pattern): every fight is an <see cref="EncounterLock"/> the hero must clear.
+    /// The dunes (300-3200); the siege line (3220-5460), whose exit barrier stands
+    /// short of the shaft lip so the burial shaft is no longer a free escape; the
+    /// tomb (5720-7000), the shaft and the west corridor; and the vault (7020-8310,
+    /// the corridor band only), whose exit fills the vault door under its gate
+    /// column and which needs the hieroglyph seal solved as well as its ward detail
+    /// killed. The Middle anchor moved out of the tomb to the shaft lip (5640), the
+    /// PreBoss anchor and the absence beat moved east out of swing reach of the vault,
+    /// and the carved relief moved into the vault so the answer is still in reach
+    /// once its lock has shut the way back. Every checkpoint lists the locks before it.</para>
     /// </summary>
     public partial class Level08Controller : StoryLevelControllerBase {
 
@@ -124,6 +136,13 @@ namespace FTT.Environment {
 
         /// <summary>East edge of the surface: past this the burial shaft opens up.</summary>
         public const float SurfaceEndX = 5700f;
+        /// <summary>
+        /// GU-L8 (2026-10-12): the left face of the wall that now closes the tomb
+        /// corridor's west end under the surface (5680-5700, y 700-1660). The tomb
+        /// floor starts at <see cref="SurfaceEndX"/> and nothing stood west of it, so
+        /// a hero walking or knocked west off the corridor floor fell out of the level.
+        /// </summary>
+        public const float ShaftWestWallX = SurfaceEndX - DefaultWallThickness;
         /// <summary>East edge of the open shaft; the tomb ceiling starts here.</summary>
         private const float ShaftEndX = 6450f;
         /// <summary>Underside of the tomb corridor ceiling slab.</summary>
@@ -145,7 +164,10 @@ namespace FTT.Environment {
         public static readonly Rect2 Room1CameraBounds = new(Room1StartX, 0, 3200, 1080);
         public static readonly Rect2 Room2CameraBounds = new(Room2StartX, 0, 2560, 1080);
         // The descent room spans both zones, so it gets the full level height.
-        public static readonly Rect2 Room3CameraBounds = new(Room3StartX, 0, 2560, LevelHeight);
+        // GU-L8 (2026-10-12): it starts at the shaft's west wall (5680), not 5760,
+        // so a hero dropping off the lip into the shaft is never left off screen
+        // by the 1.5x camera before the tomb lock takes it.
+        public static readonly Rect2 Room3CameraBounds = new(ShaftWestWallX, 0, Room4StartX - ShaftWestWallX, LevelHeight);
         // Underground: anchor the 1080 window to the lower band of the level.
         public static readonly Rect2 Room4CameraBounds = new(Room4StartX, 720, 1920, 1080);
 
@@ -189,9 +211,15 @@ namespace FTT.Environment {
             ("chrono_slasher", new Vector2(5200, SurfaceEnemyY), new Vector2(5050, SurfaceEnemyY), new Vector2(5350, SurfaceEnemyY))
         };
 
+        /// <summary>
+        /// GU-L8 (2026-10-12): the tomb lock's pair, both inside its area (5720-7000):
+        /// the slasher moved 6900 -> 6800 (its patrol pulled inside the area) and the
+        /// javelin ward 7320 -> 6450, at the foot of the shaft, from the vault end of
+        /// the corridor, which is now the vault lock's.
+        /// </summary>
         public static readonly (string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] TombSpawns = {
-            ("chrono_slasher", new Vector2(6900, TombEnemyY), new Vector2(6750, TombEnemyY), new Vector2(7050, TombEnemyY)),
-            ("plasma_spear_ward", new Vector2(7320, TombEnemyY), null, null)
+            ("chrono_slasher", new Vector2(6800, TombEnemyY), new Vector2(6680, TombEnemyY), new Vector2(6960, TombEnemyY)),
+            ("plasma_spear_ward", new Vector2(6450, TombEnemyY), null, null)
         };
 
         /// <summary>Ward detail standing over the seal itself: the lock is solved under fire.</summary>
@@ -214,15 +242,96 @@ namespace FTT.Environment {
 
         public static int AuthoredExtractorCount => ExtractorPlacements.Length;
 
+        // === GU-L8 (2026-10-12): the four encounter locks ====================
+
+        /// <summary>The F10 encounter IDs of the four locks (they start with the level ID).</summary>
+        public const string LockDunes = ID + "_lock_dunes";
+        public const string LockSiegeLine = ID + "_lock_siege_line";
+        public const string LockTomb = ID + "_lock_tomb";
+        public const string LockVault = ID + "_lock_vault";
+
+        /// <summary>The manifest rows the four lock waves are (level_08_rewards.tres).</summary>
+        public const string DuneRowID = "level_08.dune";
+        public const string SiegeLineRowID = "level_08.siege_line";
+        public const string TombRowID = "level_08.tomb";
+        public const string VaultRowID = "level_08.vault";
+
+        private const float BarrierWidth = EncounterLockRules.DefaultBarrierWidthPixels;
+
+        /// <summary>The dunes: the whole first room past the entry anchor (200).</summary>
+        public const float DuneLockMinX = 300f;
+        public const float DuneLockMaxX = Room2StartX;
+
+        /// <summary>
+        /// The siege line: room 2 on the surface. Its exit barrier (5460-5480) stands
+        /// short of the shaft lip (5700), so dropping into the burial shaft is no longer
+        /// a way past the legion; the anchor between them is the Middle.
+        /// </summary>
+        public const float SiegeLineLockMinX = Room2StartX + BarrierWidth;
+        public const float SiegeLineLockMaxX = 5460f;
+
+        /// <summary>
+        /// The Middle anchor at the shaft lip, between the siege line's exit barrier
+        /// and the tomb's entry. Its strike surface (5610-5670) is beyond the longest
+        /// basic swing from inside the siege line (Level08ContentTests measures it),
+        /// and its respawn point is clear of the room 3 trigger (5720-5800). It used
+        /// to stand at 6520, inside the tomb fight.
+        /// </summary>
+        public const float MiddleCheckpointX = 5640f;
+
+        /// <summary>
+        /// The tomb: the burial shaft and the west end of the corridor, full height
+        /// (a hero dropping off the lip engages it mid-air), from the shaft's west
+        /// wall to the vault's entry.
+        /// </summary>
+        public const float TombLockMinX = SurfaceEndX + BarrierWidth;
+        public const float TombLockMaxX = 7000f;
+
+        /// <summary>
+        /// The vault: the east end of the corridor up to the vault door, the corridor
+        /// band only (from the ceiling's underside down), so a hero walking the
+        /// corridor's roof from the shaft can never engage it out of reach of its
+        /// members. Its exit barrier fills the vault door under the gate column, and
+        /// it clears only once the hieroglyph seal is solved as well.
+        /// </summary>
+        public const float VaultLockMinX = TombLockMaxX + BarrierWidth;
+        public const float VaultLockMaxX = VaultGateX - BarrierWidth * 0.5f;
+        public const float VaultLockTopY = TombCeilingY + DefaultFloorThickness;
+
+        /// <summary>
+        /// The PreBoss anchor, moved 8420 -> 8490 so its strike surface (8460-8520)
+        /// is beyond the longest basic swing from inside the vault (a hero pressed
+        /// against the vault's exit barrier stands at 8290).
+        /// </summary>
+        public const float PreBossCheckpointX = 8490f;
+
+        /// <summary>The absence beat's trigger, moved 8500 -> 8560 so the PreBoss respawn never stands in it.</summary>
+        public const float AbsenceTriggerX = 8560f;
+
+        /// <summary>
+        /// The carved relief that spells the glyph order. GU-L8: moved from the tomb
+        /// alcove (6700, 1180) into the vault lock's area, above the vault ledge
+        /// (still west of the glyph wall): once the vault engages its entry shuts,
+        /// and a relief left behind it would leave only brute force.
+        /// </summary>
+        public static readonly Vector2 CarvedReliefPosition = new(7280f, 1360f);
+
+        private EncounterLock _dunesLock;
+        private EncounterLock _siegeLineLock;
+        private EncounterLock _tombLock;
+        private EncounterLock _vaultLock;
+
+        public EncounterLock DunesLock => _dunesLock;
+        public EncounterLock SiegeLineLock => _siegeLineLock;
+        public EncounterLock TombLock => _tombLock;
+        public EncounterLock VaultLock => _vaultLock;
+
         // === Runtime state ===
 
         private readonly List<MovementDampenerZone> _deepSand = new();
         private PuzzleManager _hieroglyphPuzzle;
         private SequenceLock _hieroglyphLock;
         private StaticBody2D _vaultDoor;
-        private bool _siegeLineWaveSpawned;
-        private bool _tombWaveSpawned;
-        private bool _vaultWaveSpawned;
         private bool _descended;
 
         public IReadOnlyList<MovementDampenerZone> DeepSandZones => _deepSand;
@@ -254,6 +363,63 @@ namespace FTT.Environment {
             BuildRoom3TombNetwork();
             BuildRoom4InnerChamber();
             BuildExtractors(ExtractorPlacements);
+            BuildEncounterLocks();
+        }
+
+        /// <summary>
+        /// GU-L8: the four fights as encounter locks, one wave per manifest row. Built
+        /// in <see cref="BuildLevel"/> so a resume past a lock builds it Cleared with
+        /// no member ever spawned.
+        /// </summary>
+        private void BuildEncounterLocks() {
+            _dunesLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockDunes,
+                Area = EncounterLockSpec.Span(DuneLockMinX, DuneLockMaxX, LevelHeight),
+                EntryBarrierX = DuneLockMinX - BarrierWidth * 0.5f,
+                ExitBarrierX = DuneLockMaxX + BarrierWidth * 0.5f,
+                BarrierFloorY = SurfaceGroundY,
+                Waves = new[] { EncounterLockWave.FromTable(DuneRowID, DuneSpawns, EncounterWaveTrigger.OnBuild) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            // The legion's line comes over the dunes once the hero is in it.
+            _siegeLineLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockSiegeLine,
+                Area = EncounterLockSpec.Span(SiegeLineLockMinX, SiegeLineLockMaxX, LevelHeight),
+                EntryBarrierX = SiegeLineLockMinX - BarrierWidth * 0.5f,
+                ExitBarrierX = SiegeLineLockMaxX + BarrierWidth * 0.5f,
+                BarrierFloorY = SurfaceGroundY,
+                Waves = new[] { EncounterLockWave.FromTable(SiegeLineRowID, SiegeLineSpawns, EncounterWaveTrigger.OnEngage) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            // The shaft and the west corridor: the entry barrier stands on the shaft's
+            // west wall, so the hero cannot climb back out onto the surface mid-fight;
+            // the exit is the corridor's split with the vault.
+            _tombLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockTomb,
+                Area = EncounterLockSpec.Span(TombLockMinX, TombLockMaxX, LevelHeight),
+                EntryBarrierX = TombLockMinX - BarrierWidth * 0.5f,
+                ExitBarrierX = TombLockMaxX + BarrierWidth * 0.5f,
+                BarrierFloorY = TombFloorY,
+                Waves = new[] { EncounterLockWave.FromTable(TombRowID, TombSpawns, EncounterWaveTrigger.OnBuild) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            // The vault: the corridor band only, its exit the sealed door under the
+            // gate column, and the seal a condition. Its objective is the level's own
+            // (the seal's progress); the HUD counts the ward detail.
+            _vaultLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockVault,
+                Area = new Rect2(VaultLockMinX, VaultLockTopY, VaultLockMaxX - VaultLockMinX, LevelHeight - VaultLockTopY),
+                EntryBarrierX = VaultLockMinX - BarrierWidth * 0.5f,
+                ExitBarrierX = VaultGateX,
+                ExitBarrierYRange = new Vector2(TombCeilingY, TombFloorY),
+                BarrierFloorY = TombFloorY,
+                Waves = new[] { EncounterLockWave.FromTable(VaultRowID, VaultSpawns, EncounterWaveTrigger.OnBuild) },
+                RequiredPuzzleIDs = new[] { HieroglyphPuzzleID },
+                GoDirection = EncounterGoDirection.Right
+            });
         }
 
         /// <summary>Room 1: the open desert approach, buried under drifting sand.</summary>
@@ -295,12 +461,17 @@ namespace FTT.Environment {
             BuildHazardSpikes(3300, 690, 140);
             BuildHazardSpikes(5000, 690, 120);
 
+            // GU-L8: the Middle anchor stands at the shaft lip, past the siege line's
+            // exit barrier (it used to stand at 6520, inside the tomb fight).
+            BuildCheckpoint(MiddleCheckpointX, SurfaceEnemyY, Checkpoint1, CheckpointRole.Middle);
+
             BuildRoomDecoration(Room2StartX, "egypt_room_siege", new Color(0.95f, 0.55f, 0.30f));
-            BuildRoomTransition("egypt_room_siege", new Vector2(Room2StartX, 500), Room2CameraBounds,
+            // GU-L8: just inside the siege line's area (it was centred on the 3200
+            // seam), so a hero pressed against the dunes' exit barrier does not reach
+            // it. The siege-line wave is the lock's; its proximity trigger is gone.
+            BuildRoomTransition("egypt_room_siege", new Vector2(SiegeLineLockMinX + 40f, 500), Room2CameraBounds,
                 new Vector2(80, 1080),
                 onEntered: _ => RefreshObjective());
-            BuildWaveTrigger("SiegeLineWaveTrigger", new Vector2(3400, 600), TriggerSiegeLineWave,
-                new Vector2(60, 900));
         }
 
         /// <summary>
@@ -318,27 +489,34 @@ namespace FTT.Environment {
 
             // Tomb corridor floor: runs unbroken beneath the shaft and the vault.
             BuildFloor(SurfaceEndX, TombFloorY, LevelWidth - SurfaceEndX, TombFloorColor);
+            // GU-L8: the corridor's west end, under the surface. The floor starts at
+            // the shaft's west edge and nothing stood west of it, so a hero walking or
+            // knocked off its end fell out of the level; the wall runs from the surface
+            // top down past the corridor floor's underside.
+            BuildWall(ShaftWestWallX, SurfaceGroundY, TombFloorY + DefaultFloorThickness - SurfaceGroundY, TombFloorColor);
             // Corridor ceiling. Starts east of the shaft so the descent stays open.
             BuildFloor(ShaftEndX, TombCeilingY, VaultGateX - ShaftEndX, TombFloorColor);
 
-            // Side alcove: the carved relief that spells the glyph order, plus the
-            // second extractor. Paying the detour twice is what makes it worth taking.
+            // Side alcove holding the second extractor. Paying the detour is what
+            // makes it worth taking.
             BuildPlatform(6420, 1460, 200, TombPlatformColor);
             BuildPlatform(6700, 1300, 260, TombPlatformColor);
-            BuildCarvedRelief(new Vector2(6700, 1180));
 
-            // Vault ledge over the corridor holding the third extractor.
+            // Vault ledge over the corridor holding the third extractor, and (GU-L8)
+            // the carved relief that spells the glyph order, inside the vault lock.
             BuildPlatform(7180, 1420, 200, TombPlatformColor);
             BuildPlatform(7600, 1260, 240, TombPlatformColor);
+            BuildCarvedRelief(CarvedReliefPosition);
 
-            BuildCheckpoint(6520, TombEnemyY, Checkpoint1, CheckpointRole.Middle);
             BuildRoomDecoration(Room3StartX, "egypt_room_tombs", new Color(0.55f, 0.80f, 0.90f));
+            // GU-L8: the tomb and vault waves are their locks'; their proximity
+            // triggers are gone. Dropping into the shaft is the descent.
             BuildRoomTransition("egypt_room_tombs", new Vector2(Room3StartX, 900), Room3CameraBounds,
-                new Vector2(80, LevelHeight));
-            BuildWaveTrigger("TombWaveTrigger", new Vector2(6600, 1450), TriggerTombWave,
-                new Vector2(60, 400));
-            BuildWaveTrigger("VaultWaveTrigger", new Vector2(7700, 1450), TriggerVaultWave,
-                new Vector2(60, 400));
+                new Vector2(80, LevelHeight),
+                onEntered: _ => {
+                    _descended = true;
+                    RefreshObjective();
+                });
 
             // The seal itself. It reaches the corridor ceiling, so the vault cannot be
             // jumped: reading the relief is the only way through.
@@ -370,14 +548,15 @@ namespace FTT.Environment {
             BuildPlatform(8880, 1420, 260, TombPlatformColor);
             BuildPlatform(9700, 1420, 260, TombPlatformColor);
 
-            BuildCheckpoint(8420, TombEnemyY, Checkpoint2, CheckpointRole.PreBoss);
+            BuildCheckpoint(PreBossCheckpointX, TombEnemyY, Checkpoint2, CheckpointRole.PreBoss);
             BuildRoomDecoration(Room4StartX, "egypt_room_chamber", new Color(0.95f, 0.35f, 0.45f));
             BuildRoomTransition("egypt_room_chamber", new Vector2(Room4StartX + 40, 1200), Room4CameraBounds,
                 new Vector2(80, 1080));
 
             // Package 13 W4 (S35): the throne room, held for a queen three nights gone.
             // Before the boss reveal (BossArenaWestX), so the two sequences never collide.
-            BuildAbsenceTrigger(new Vector2(8500, TombFloorY - 200));
+            // GU-L8: east of the moved PreBoss anchor's respawn point.
+            BuildAbsenceTrigger(new Vector2(AbsenceTriggerX, TombFloorY - 200));
 
             BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, TombEnemyY),
                 "jackal_priest_encounter", BossArenaBounds);
@@ -501,73 +680,41 @@ namespace FTT.Environment {
         }
 
         // === Encounters ===
-
-        protected override void SpawnInitialEnemies() => SpawnWave(DuneSpawns);
-
-        private void TriggerSiegeLineWave() {
-            if (_siegeLineWaveSpawned) return;
-            _siegeLineWaveSpawned = true;
-            SpawnWave(SiegeLineSpawns);
-        }
-
-        private void TriggerTombWave() {
-            if (_tombWaveSpawned) return;
-            _tombWaveSpawned = true;
-            _descended = true;
-            SpawnWave(TombSpawns);
-            RefreshObjective();
-        }
-
-        private void TriggerVaultWave() {
-            if (_vaultWaveSpawned) return;
-            _vaultWaveSpawned = true;
-            SpawnWave(VaultSpawns);
-        }
-
-        /// <summary>
-        /// Authored counts are the Normal-difficulty truth; ScaleEncounterCount is the
-        /// only thing allowed to move them, and it never exceeds the authored table.
-        /// Concurrency stays at 3 or fewer live standards, well inside the level_08
-        /// pool config's warm counts (standard_enemy 12, enemy_projectile 20).
-        /// </summary>
-        private void SpawnWave((string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] wave) {
-            if (wave == null) return;
-            int count = StoryDifficultyTuning.ScaleEncounterCount(
-                wave.Length, StoryDifficultyTuning.CurrentStoryDifficulty);
-            for (int index = 0; index < count && index < wave.Length; index++) {
-                (string enemyID, Vector2 position, Vector2? patrolA, Vector2? patrolB) = wave[index];
-                EnemyFactory.Spawn(enemyID, this, position, patrolA, patrolB);
-            }
-        }
+        //
+        // GU-L8 (2026-10-12): every encounter is a lock wave (BuildEncounterLocks).
+        // Authored counts are the Normal-difficulty truth; the lock takes the same
+        // per-row ScaleEncounterCount prefix the reward manifest compiles, never
+        // more than the table. Concurrency stays at 3 or fewer live standards, well
+        // inside the level_08 pool config's warm counts (standard_enemy 12,
+        // enemy_projectile 20).
 
         // === Resume ===
 
-        // Package 12 W2 (GAP-13): explicit encounter baseline.
-        public const string SiegeLineWaveEncounter = ID + "_siege_line_wave";
-        public const string TombWaveEncounter = ID + "_tomb_wave";
-        public const string VaultWaveEncounter = ID + "_vault_wave";
-
+        // Package 12 W2 (GAP-13): explicit encounter baseline. GU-L8: the encounters
+        // are the four locks; every anchor lists every lock before it, and a resume
+        // builds those Cleared (the dune wave used to respawn behind the hero on
+        // every resume).
         private static readonly IReadOnlyDictionary<string, string[]> Baselines =
             new Dictionary<string, string[]> {
                 [Checkpoint0] = System.Array.Empty<string>(),
-                [Checkpoint1] = new[] { SiegeLineWaveEncounter },
-                [Checkpoint2] = new[] { SiegeLineWaveEncounter, TombWaveEncounter, VaultWaveEncounter }
+                [Checkpoint1] = new[] { LockDunes, LockSiegeLine },
+                [Checkpoint2] = new[] { LockDunes, LockSiegeLine, LockTomb, LockVault }
             };
 
         protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
 
-        protected override void MarkEncounterCleared(string encounterID) {
-            switch (encounterID) {
-                case SiegeLineWaveEncounter: _siegeLineWaveSpawned = true; break;
-                case TombWaveEncounter: _tombWaveSpawned = true; break;
-                case VaultWaveEncounter: _vaultWaveSpawned = true; break;
-            }
+        /// <summary>
+        /// The anchor's non-encounter world state; the locks come from the baseline.
+        /// GU-L8: the Middle anchor now stands on the surface at the shaft lip, so only
+        /// the PreBoss anchor is past the descent (and past the vault door, which
+        /// <see cref="WireHieroglyphLock"/> opens for it).
+        /// </summary>
+        protected override void MarkWavesClearedThrough(string checkpointID) {
+            if (checkpointID == Checkpoint2) _descended = true;
         }
 
-        /// <summary>The anchor's non-encounter world state; the waves come from the baseline.</summary>
-        protected override void MarkWavesClearedThrough(string checkpointID) {
-            if (checkpointID == Checkpoint1 || checkpointID == Checkpoint2) _descended = true;
-        }
+        /// <summary>GU-L8: a cleared or reverted lock hands the objective back to the level's own.</summary>
+        protected override void RestoreLevelObjective() => RefreshObjective();
 
         // === Boss beat: defeat -> authored Cleopatra scene -> exit -> results ===
 
