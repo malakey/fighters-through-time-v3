@@ -350,8 +350,9 @@ namespace FTT.Combat {
         /// <c>FighterKnockbackScalingTests.TheFinisherSeparatesEveryKitBeyondMeleeRangeAtFullVictimHP</c>;
         /// measured 2026-10-11, the tightest is Cleopatra at 3.19 units against
         /// the 2.92 she needs).
-        /// The effective impulse is additionally scaled by the victim's missing
-        /// HP — see <see cref="LowHealthKnockbackScale"/>.
+        /// In Fighter Mode only, the effective impulse is additionally scaled by
+        /// the victim's missing HP — see <see cref="LowHealthKnockbackScale"/>;
+        /// Story knockback is static (user direction 2026-10-12).
         /// </summary>
         public static readonly float[] KnockbackMultipliers = { 1f, 1.2f, 4.5f };
 
@@ -431,15 +432,20 @@ namespace FTT.Combat {
         }
 
         /// <summary>
-        /// Low-health knockback scaling (gameplay-feel plan §2.5), shared by
-        /// every damage source in both modes: the impulse is multiplied by
-        /// <c>1 + missingHPFraction</c> of the victim measured *after* the
-        /// hit's damage is applied — a linear 1.0x at full HP to 2.0x at 0 HP.
-        /// The Fighter sim applies the same ratio in fixed point inside
-        /// <c>FighterDamageRules.ApplyFighterHit</c>, which is the single
-        /// chokepoint for basics, specials, ultimates, projectiles, zones,
-        /// constructs and hazards; Story applies it through
-        /// <c>DamageCalculator.CalculateKnockback</c>'s victim-HP overload.
+        /// Low-health knockback scaling (gameplay-feel plan §2.5), <b>Fighter
+        /// Mode only</b>: the impulse is multiplied by <c>1 + missingHPFraction</c>
+        /// of the victim measured *after* the hit's damage is applied — a linear
+        /// 1.0x at full HP to 2.0x at 0 HP. This is the float statement of the
+        /// rule; the Fighter sim applies the identical ratio in fixed point
+        /// (<c>FighterDamageRules.ScaleByMissingHP</c>) inside
+        /// <c>ApplyFighterHit</c>, the single chokepoint for basics, specials,
+        /// ultimates, projectiles, zones, constructs and hazards, and never
+        /// calls this float version. Story knockback is static (user direction
+        /// 2026-10-12, "the health effects of the knockback should only apply
+        /// to fighting mode"): <c>DamageCalculator.CalculateKnockback</c> takes
+        /// no HP, and no script under <c>scripts/</c> outside
+        /// <c>scripts/FighterSim/</c> and this file may read this helper
+        /// (<c>StoryCombatRulesTests</c> scans for it).
         /// </summary>
         public static float LowHealthKnockbackScale(float currentHP, float maxHP) {
             if (maxHP <= 0f) return 1f;

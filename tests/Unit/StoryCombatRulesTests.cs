@@ -1,4 +1,6 @@
-﻿using FTT.Characters;
+﻿using System.IO;
+using System.Linq;
+using FTT.Characters;
 using FTT.Combat;
 using FTT.Core;
 using FTT.Environment;
@@ -515,17 +517,22 @@ public class StoryCombatRulesTests {
     }
 
     [TestCase]
-    public void StoryKnockbackScalesWithTheVictimsMissingHPAfterTheHit() {
-        // Gameplay-feel plan §2.5, Story half: the same hit pushes a wounded
-        // victim further, using the post-damage HP and the shared ramp.
+    public void StoryKnockbackOnTheHeroIsStaticAtEveryHP() {
+        // User direction 2026-10-12 (request 5): Story knockback ignores the
+        // victim's HP — "the health effects of the knockback should only apply
+        // to fighting mode". The same hit writes the same impulse, weight-scaled
+        // only, at full HP, after a hit, and at a fifth of max HP. This replaces
+        // the gameplay-feel plan §2.5 Story half (the post-damage HP ramp),
+        // which the Fighter sim keeps (FighterKnockbackScalingTests).
         StaticBody2D floor = CreateFlatFloor();
         PlayerController player = CreateGroundedPlayer();
         try {
             Hurtbox hurtbox = player.GetNode<Hurtbox>("Hurtbox");
             HitPayload hit = Hit(AttackClass.Basic);
             float weight = player.Data?.Weight ?? 1f;
-            int maxHP = player.MaximumHP;
+            Vector2 expected = DamageCalculator.CalculateKnockback(hit.Knockback, weight, true) * 60f;
 
+            int hp0 = player.CurrentHP;
             hurtbox.TakeHit(hit);
             int hpAfterFirst = player.CurrentHP;
             Vector2 firstImpulse = player.Velocity;
@@ -534,23 +541,63 @@ public class StoryCombatRulesTests {
             int hpAfterSecond = player.CurrentHP;
             Vector2 secondImpulse = player.Velocity;
 
-            AssertThat(hpAfterSecond < hpAfterFirst)
-                .OverrideFailureMessage("The second hit must actually have landed.")
+            player.CurrentHP = Mathf.Max(hpAfterSecond - 1, player.MaximumHP / 5);
+            int hpBeforeThird = player.CurrentHP;
+            hurtbox.TakeHit(hit);
+            int hpAfterThird = player.CurrentHP;
+            Vector2 thirdImpulse = player.Velocity;
+
+            AssertThat(hpAfterFirst < hp0 && hpAfterSecond < hpAfterFirst && hpAfterThird < hpBeforeThird)
+                .OverrideFailureMessage(
+                    $"Every hit must actually have landed: {hp0} -> {hpAfterFirst} -> {hpAfterSecond}, {hpBeforeThird} -> {hpAfterThird}.")
                 .IsTrue();
-            Vector2 expectedFirst = DamageCalculator.CalculateKnockback(hit.Knockback, weight, true)
-                * BasicComboRules.LowHealthKnockbackScale(hpAfterFirst, maxHP) * 60f;
-            Vector2 expectedSecond = DamageCalculator.CalculateKnockback(hit.Knockback, weight, true)
-                * BasicComboRules.LowHealthKnockbackScale(hpAfterSecond, maxHP) * 60f;
-            AssertThat(firstImpulse.X).IsEqualApprox(expectedFirst.X, 0.01f);
-            AssertThat(secondImpulse.X).IsEqualApprox(expectedSecond.X, 0.01f);
-            AssertThat(secondImpulse.X > firstImpulse.X)
-                .OverrideFailureMessage("A wounded victim must be knocked back further by the same hit.")
-                .IsTrue();
+            AssertThat(hpAfterThird > 0).IsTrue();
+            // (A grounded victim of this non-launcher slides: M05 zeroes the
+            // vertical, so the horizontal carries the rule.)
+            foreach ((string label, Vector2 impulse) in new[] {
+                         ("full HP", firstImpulse), ("after a hit", secondImpulse), ("at a fifth of max HP", thirdImpulse) }) {
+                AssertThat(impulse.X).OverrideFailureMessage($"{label}: vx {impulse.X:F3}, static {expected.X:F3}.")
+                    .IsEqualApprox(expected.X, 0.001f);
+                AssertThat(impulse).OverrideFailureMessage($"{label}: {impulse}, at full HP {firstImpulse}.")
+                    .IsEqual(firstImpulse);
+            }
         } finally {
             InputManager.Instance?.ClearInputSource(player.PlayerIndex);
             player.Free();
             floor.Free();
         }
+    }
+
+    [TestCase]
+    public void NoStoryScriptReadsTheFighterOnlyLowHealthKnockbackScale() {
+        // User direction 2026-10-12: the missing-HP knockback ramp is Fighter
+        // Mode's alone. BasicComboRules states it (its float form) and the sim
+        // applies it in FP64; nothing else under scripts/ may read it.
+        string root = ProjectSettings.GlobalizePath("res://scripts");
+        string simRoot = Path.GetFullPath(Path.Combine(root, "FighterSim")) + Path.DirectorySeparatorChar;
+        const char newline = (char)10;
+        var offenders = Directory.GetFiles(root, "*.cs", SearchOption.AllDirectories)
+            .Where(file => !Path.GetFullPath(file).StartsWith(simRoot, System.StringComparison.OrdinalIgnoreCase))
+            .Where(file => Path.GetFileName(file) != "BasicComboRules.cs")
+            .Where(file => File.ReadAllText(file).Split(newline)
+                // Code, not the prose that explains the rule.
+                .Where(line => !line.TrimStart().StartsWith("//", System.StringComparison.Ordinal))
+                .Any(line => line.Contains("LowHealthKnockbackScale")))
+            .Select(Path.GetFileName)
+            .ToList();
+        if (offenders.Count > 0) AssertThat(string.Join(" | ", offenders)).IsEqual("");
+
+        // And the Story knockback chokepoint takes no HP at all: one overload,
+        // (base knockback, victim weight, attacker facing).
+        var overloads = typeof(DamageCalculator).GetMethods(
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic
+                | System.Reflection.BindingFlags.Static)
+            .Where(method => method.Name == nameof(DamageCalculator.CalculateKnockback))
+            .Select(method => string.Join(", ", method.GetParameters()
+                .Select(parameter => $"{parameter.ParameterType.Name} {parameter.Name}")))
+            .ToList();
+        AssertThat(string.Join(" | ", overloads))
+            .IsEqual("Vector2 baseKnockback, Single targetWeight, Boolean attackerFacingRight");
     }
 
     [TestCase]

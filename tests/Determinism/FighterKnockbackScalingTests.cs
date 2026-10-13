@@ -17,7 +17,8 @@ namespace FTT.Tests.Determinism;
 ///    damage — a linear 1x at full HP to 2x at 0 HP — applied once, in
 ///    <c>FighterDamageRules.ApplyFighterHit</c>, so basics, specials,
 ///    ultimates, projectiles, zones, constructs and stage hazards all inherit
-///    it without a second copy of the rule.
+///    it without a second copy of the rule. Fighter Mode only: since the user's
+///    2026-10-12 direction Story knockback is static (no HP term).
 /// 2. <b>The finisher creates separation.</b> With
 ///    <c>BasicComboRules.KnockbackMultipliers[2]</c> at 4.5x, the third hit of
 ///    the string leaves every authored kit at least 2.5 units apart (the
@@ -118,8 +119,10 @@ public class FighterKnockbackScalingTests {
 
     [TestCase]
     public void TheSharedScaleRampsFromOneAtFullHPToTwoAtZeroAndIgnoresDegenerateInputs() {
-        // The rulebook helper both modes read. Story multiplies its knockback
-        // vector by it; the sim reproduces the identical ratio in FP64.
+        // The rulebook's float statement of the Fighter-only ramp; the sim
+        // reproduces the identical ratio in FP64 (ScaleByMissingHP). Story
+        // knockback is static since 2026-10-12 and never reads it
+        // (StoryCombatRulesTests.NoStoryScriptReadsTheFighterOnlyLowHealthKnockbackScale).
         AssertThat(BasicComboRules.LowHealthKnockbackScale(100f, 100f)).IsEqual(1f);
         AssertThat(BasicComboRules.LowHealthKnockbackScale(75f, 100f)).IsEqual(1.25f);
         AssertThat(BasicComboRules.LowHealthKnockbackScale(50f, 100f)).IsEqual(1.5f);

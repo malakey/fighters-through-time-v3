@@ -1641,7 +1641,8 @@ namespace FTT.Enemies {
         /// S1 (2026-10-04): the knockback a hit wrote decays under friction while
         /// the mob is stunned instead of being zeroed on the next frame, so the
         /// string nudges a mob and the 4.5× finisher actually carries it. Ground
-        /// friction while grounded, a lighter drag while launched or flying;
+        /// friction while grounded, a lighter drag while launched or flying, and
+        /// a D6a finisher flight's own carry deceleration in place of both;
         /// flying mobs keep their stunned hover (vertical zeroed). A ground mob
         /// never slides or sails off a drop: knockback heading over a ledge (or,
         /// airborne, over a void) is cancelled at the edge.
@@ -1651,9 +1652,13 @@ namespace FTT.Enemies {
             float decel = grounded
                 ? FTT.Combat.StoryEnemyCombatRules.StunnedGroundFrictionPixelsPerSecondSquared
                 : FTT.Combat.StoryEnemyCombatRules.StunnedAirDragPixelsPerSecondSquared;
-            // D6a: a finisher flight decelerates at least as hard as its carry
-            // needs; the max never lengthens a carry S1 already ends sooner.
-            decel = Mathf.Max(decel, _finisherCarryDeceleration);
+            // D6a: a finisher flight decelerates at its carry deceleration alone,
+            // in the air and on the ground, so it stops one step out by
+            // construction (it can never overshoot the target). Since the
+            // 2026-10-12 static knockback the launch is slower, and S1's drag
+            // would cut the slowest finisher (Cleopatra's) short inside her own
+            // reach; the old max(S1, carry) is retired.
+            if (_finisherFlight && _finisherCarryDeceleration > 0f) decel = _finisherCarryDeceleration;
             float vx = Mathf.MoveToward(Velocity.X, 0f, decel * dt);
             if (vx != 0f && !IsFlying) {
                 float depth = grounded
@@ -1988,15 +1993,15 @@ namespace FTT.Enemies {
             if (knockback == Vector2.Zero) return false;
             float weight = Data?.Weight ?? 1.0f;
             // Knockback replaces velocity, matching the player and the Fighter
-            // sim — a hit imparts the same impulse regardless of prior motion —
-            // and scales with the victim's missing HP after the hit
-            // (gameplay-feel plan §2.5), the same rule both other combatants use.
+            // sim — a hit imparts the same impulse regardless of prior motion.
+            // It is static (user direction 2026-10-12): the mob's weight scales
+            // it, its HP never does, so a hit (and the D6a carry and D9 bounce
+            // that read the speed it writes) is the same at full HP and at 3 HP
+            // and on every difficulty. Crowd bowling takes this path too.
             Velocity = FTT.Combat.DamageCalculator.CalculateKnockback(
                 knockback,
                 weight,
-                attackerFacingRight,
-                CurrentHP,
-                ScaledMaxHP) * PixelsPerUnit;
+                attackerFacingRight) * PixelsPerUnit;
             // D6a / D9: a new knockback replaces the launch it overwrote, so any
             // finisher flight and bounce latch go with it; OnHurtboxHit re-arms
             // per the hit that wrote it (crowd bowling and ApplyKnockback never do).
@@ -2631,7 +2636,7 @@ namespace FTT.Enemies {
                 }
             }
             bool knockbackWritten = TryApplyKnockback(hit.Knockback, hit.AttackerFacingRight);
-            // D6a: the launch speed as this hit wrote it (low-HP scale included).
+            // D6a: the launch speed as this hit wrote it (static: weight, no HP term).
             float launchVx = Velocity.X;
             // A12 (Package 13 W1): a Down-Air slam that actually moved this mob
             // (armor windows and flying mobs refuse it) owes one ground bounce;

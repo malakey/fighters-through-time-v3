@@ -1709,15 +1709,14 @@ namespace FTT.Characters {
 				// knockback) must not replace the velocity — a zero vector
 				// would freeze the victim mid-motion.
 				if (hit.Knockback != Vector2.Zero) {
-					// Low-health knockback scaling (gameplay-feel plan §2.5): the
-					// impulse scales with the victim's missing HP *after* this
-					// hit's damage, exactly as the Fighter sim scales it.
+					// Static Story knockback (user direction 2026-10-12): the
+					// victim's weight scales it, its HP never does — the hero and
+					// the Mirror clone fly the same at any HP. The missing-HP
+					// scaling is Fighter Mode's alone.
 					Vector2 knockback = FTT.Combat.DamageCalculator.CalculateKnockback(
 						hit.Knockback,
 						Data?.Weight ?? 1f,
-						hit.AttackerFacingRight,
-						CurrentHP,
-						MaximumHP);
+						hit.AttackerFacingRight);
 					// Knockback replaces velocity, as the Fighter sim resolves it —
 					// a hit imparts the same impulse regardless of prior motion.
 					Velocity = knockback * 60f;
@@ -3577,12 +3576,12 @@ namespace FTT.Characters {
 				: new Vector2(
 					FTT.Combat.BasicComboRules.ForwardThrowKnockbackMultiplier,
 					-0.6f) * baseKnockback;
+			// Static, like every Story knockback (user direction 2026-10-12):
+			// the victim's weight, never its HP after the throw's damage.
 			Vector2 launch = FTT.Combat.DamageCalculator.CalculateKnockback(
 				impulse,
 				victim.Data?.Weight ?? 1f,
-				IsFacingRight,
-				victim.CurrentHP,
-				victim.ScaledMaxHP) * 60f;
+				IsFacingRight) * 60f;
 			int bowling = Math.Max(1, (int)MathF.Round(
 				(Data?.BasicAttackDamage ?? 10f)
 				* FTT.Combat.BasicComboRules.ThrownMobCollisionDamageMultiplier));
