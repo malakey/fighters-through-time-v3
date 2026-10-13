@@ -202,6 +202,128 @@ namespace FTT.Diagnostics {
         };
         #endregion
 
+        #region Encounter locks and the engagement director — the 2026-10-12 gameplay update's seams (GU-BOT)
+        // The only place in scripts/Diagnostics/ that names the encounter-lock
+        // framework (GU-E: EncounterLock, its group, the member hooks on
+        // EnemyController, CheckpointTrigger.IsHeldByEncounterLock) or the
+        // engagement director's per-mob state (GU-F: EnemyController.Engagement.cs).
+        // Every member read here is a plain getter: the director is never asked
+        // (asking prunes its registry), so the bots and the telemetry stay pure
+        // observers.
+
+        private readonly List<EncounterLock> _locks = new();
+        private ulong _locksPhysicsFrame = ulong.MaxValue;
+
+        /// <summary>
+        /// Every encounter lock in the tree (group <see cref="EncounterLock.Group"/>:
+        /// base levels and the standalone Level 0 / Florence locks alike), once per
+        /// physics frame.
+        /// </summary>
+        public IReadOnlyList<EncounterLock> EncounterLocks() {
+            ulong physicsFrame = Engine.GetPhysicsFrames();
+            if (physicsFrame == _locksPhysicsFrame) return _locks;
+            _locksPhysicsFrame = physicsFrame;
+            _locks.Clear();
+            Godot.Collections.Array<Node> nodes = _tree.GetNodesInGroup(EncounterLock.Group);
+            using var lifetime = nodes.AsDisposable();
+            foreach (Node node in nodes) {
+                if (node is EncounterLock encounterLock && GodotObject.IsInstanceValid(encounterLock)
+                    && encounterLock.IsInsideTree() && !encounterLock.IsQueuedForDeletion()) {
+                    _locks.Add(encounterLock);
+                }
+            }
+            return _locks;
+        }
+
+        /// <summary>The lock the hero is fighting in now (Engaged), or null.</summary>
+        public EncounterLock EngagedLock() {
+            foreach (EncounterLock encounterLock in EncounterLocks()) {
+                if (encounterLock.State == EncounterLockState.Engaged) return encounterLock;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// The nearest Armed lock whose area lies between <paramref name="fromX"/>
+        /// and <paramref name="goalX"/> (or holds <paramref name="fromX"/>), or
+        /// null: the next area the hero has to walk into and clear on the way.
+        /// </summary>
+        public EncounterLock ArmedLockOnTheWay(float fromX, float goalX) {
+            EncounterLock best = null;
+            float bestDistance = float.MaxValue;
+            float lo = Mathf.Min(fromX, goalX), hi = Mathf.Max(fromX, goalX);
+            foreach (EncounterLock encounterLock in EncounterLocks()) {
+                if (encounterLock.State != EncounterLockState.Armed) continue;
+                Rect2 area = encounterLock.Area;
+                if (area.End.X < lo || area.Position.X > hi) continue;
+                float distance = PlaytestCombatMath.HorizontalGap(fromX, area.Position.X, area.End.X);
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    best = encounterLock;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// A point well inside <paramref name="encounterLock"/>'s area, on its entry
+        /// side as seen from <paramref name="fromX"/>: where a hero walks to engage
+        /// it (past the engage inset by a comfortable margin).
+        /// </summary>
+        public static float EntryPointX(EncounterLock encounterLock, float fromX) {
+            Rect2 area = encounterLock.Area;
+            float inset = Mathf.Min(area.Size.X * 0.5f,
+                HeroPhysics.BodyHalfWidth + EncounterLockRules.EngageInsetPixels + LockEntryMarginPixels);
+            return fromX <= area.GetCenter().X ? area.Position.X + inset : area.End.X - inset;
+        }
+
+        /// <summary>How far past the engage line the bot aims when it walks into an Armed lock.</summary>
+        public const float LockEntryMarginPixels = 96f;
+
+        /// <summary>True for a lock member a lock holds dormant: it refuses every hit, so it is never a target.</summary>
+        public static bool IsDormantMember(Node2D body) => body is EnemyController enemy && enemy.IsEncounterDormant;
+
+        /// <summary>True for a woken member of <paramref name="encounterLock"/>.</summary>
+        public static bool IsActiveMemberOf(Node2D body, EncounterLock encounterLock) =>
+            encounterLock != null && body is EnemyController enemy && enemy.IsEncounterMember
+            && !enemy.IsEncounterDormant && enemy.EncounterToken == encounterLock.GetInstanceId();
+
+        /// <summary>The lock ID of a member body, or "" for a body no lock owns.</summary>
+        public static string LockIdOf(Node2D body) =>
+            body is EnemyController enemy && enemy.IsEncounterMember ? enemy.EncounterLockID ?? "" : "";
+
+        /// <summary>True while an uncleared encounter lock holds this fracture shut (FIX-E): a strike only posts a notice.</summary>
+        public static bool IsHeldByLock(CheckpointTrigger checkpoint) =>
+            checkpoint != null && GodotObject.IsInstanceValid(checkpoint) && checkpoint.IsHeldByEncounterLock;
+
+        /// <summary>A member's relocation counters (fall net + stall watchdog, and the fall net alone) since it last spawned.</summary>
+        public static (int Relocations, int FallRecoveries) MemberRelocations(EnemyController enemy) =>
+            (enemy.EncounterRelocations, enemy.EncounterFallRecoveries);
+
+        /// <summary>The mob's place in its target's rotation (GU-F).</summary>
+        public static StoryEngagementRules.EngagementRole EngagementRoleOf(EnemyController enemy) => enemy.EngagementRole;
+
+        /// <summary>True when the mob's rotation is on <paramref name="hero"/>.</summary>
+        public static bool EngagesHero(EnemyController enemy, PlayerController hero) =>
+            hero != null && enemy.EngagementRole != StoryEngagementRules.EngagementRole.None
+            && enemy.EngagementTargetId == hero.GetInstanceId();
+
+        /// <summary>A waiter holding on the wait ring (in Chase, its next attack a melee one).</summary>
+        public static bool IsRingingWaiter(EnemyController enemy) => enemy.IsRingingWaiter && !enemy.IsEngagementCrossing;
+
+        /// <summary>The side of its aim a waiter rings (−1 left, +1 right).</summary>
+        public static int RingSideOf(EnemyController enemy) => enemy.EngagementRingSide;
+
+        /// <summary>The mob's horizontal gap to its aim, pivot to pivot.</summary>
+        public static float EngagementGapOf(EnemyController enemy) => enemy.EngagementGapPixels;
+
+        /// <summary>The class of the attack an Attacking mob has in flight (or is about to throw from its reaction delay).</summary>
+        public static StoryEngagementRules.EngagementClass InFlightClassOf(EnemyController enemy) => enemy.EngagementInFlightClass;
+
+        /// <summary>A pool spawn counter: the same instance at a new generation is a new body.</summary>
+        public static int SpawnGenerationOf(EnemyController enemy) => enemy.SpawnGeneration;
+        #endregion
+
         // =================================================================
         // Enemies
         // =================================================================

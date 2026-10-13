@@ -50,6 +50,27 @@ namespace FTT.Diagnostics {
             return 0f;
         }
 
+        /// <summary>
+        /// The basic-attack family a swing's <c>HitboxID</c> belongs to (GU-BOT):
+        /// <c>string</c> (the grounded chain, <c>combo_1..3</c>), <c>air_attack</c>
+        /// (the single aerial strike since GU-A, 2026-10-12; it never chains),
+        /// <c>up_attack</c>, <c>down_air</c>, else <c>other</c>.
+        /// </summary>
+        public static string HitVariant(string hitboxID) {
+            if (string.IsNullOrEmpty(hitboxID)) return "other";
+            if (hitboxID == BasicComboRules.AirAttackHitboxID) return "air_attack";
+            if (hitboxID == BasicComboRules.UpAttackHitboxID) return "up_attack";
+            if (hitboxID == BasicComboRules.DownAirHitboxID) return "down_air";
+            return hitboxID.StartsWith("combo_", StringComparison.Ordinal) ? "string" : "other";
+        }
+
+        /// <summary>
+        /// The <c>swings.by_hit</c> key: the hit ID, with <c>_air</c> appended for an
+        /// airborne swing — except the air strike, which is airborne by definition.
+        /// </summary>
+        public static string SwingHitKey(string hitboxID, bool air) =>
+            (hitboxID ?? "") + (air && hitboxID != BasicComboRules.AirAttackHitboxID ? "_air" : "");
+
         /// <summary>The lower median <c>sorted[n / 2]</c> (the report's frames-to-kill convention); −1 when empty.</summary>
         public static int Median(List<int> values) {
             if (values == null || values.Count == 0) return -1;

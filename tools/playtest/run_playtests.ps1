@@ -10,16 +10,32 @@
     full JSON report to user://playtest/ and prints one PLAYTEST_RESULT line,
     which this script collects into summary.csv beside the reports.
 
-    Bots: bypass (runs past everything, breaks only what blocks it, fights only
-    the boss), spam (mashed 3-hit string + Special 1 + Special 2 as soon as
-    ready, never blocks), basics (string only, blocks enemy swings), play (a
-    competent player: string + specials + Ultimate, blocks, avoids projectiles
-    and hazards). Every bot navigates with the nav graph, strikes checkpoints,
-    solves the level's puzzles and seals the level. feel is the frame-exact
-    feel probe (see PlaytestFeel.cs and analyze_feel.py).
+    Bots: bypass (fights only what the run requires: the members of the
+    encounter lock it stands in, the boss, a blocker in an escape; never
+    defends, breaks only what blocks it - since the 2026-10-12 encounter locks
+    it is a lock-regression probe, not a run-past-everything probe), spam
+    (mashed 3-hit string + Special 1 + Special 2 as soon as ready, never
+    blocks), basics (string only, blocks enemy swings), play (a competent
+    player: string + specials + Ultimate, blocks, avoids projectiles and
+    hazards). Every bot navigates with the nav graph, walks into each encounter
+    lock and clears it, strikes the checkpoints no lock holds, solves the
+    level's puzzles and seals the level. A lock that makes no progress for 60 s
+    with no member the bot can reach (120 s regardless) ends the run
+    stuck_lock:<lockID>. feel is the frame-exact feel probe (see
+    PlaytestFeel.cs and analyze_feel.py).
 
     -MaxSeconds 0 sizes each run to the level's Timeline Integrity budget on
-    the chosen difficulty (par x 2.0 / 1.5 / 1.2, plus a minute).
+    the chosen difficulty: the par the clock runs on (authored par x the
+    provisional par scale 1.5, TimelineIntegrityRules.ProvisionalParScale, at
+    least 300 s) x 2.0 / 1.5 / 1.2, plus a minute.
+
+    The CSV carries the encounter-lock and crowd columns (since 2026-10-12):
+    locks / locks_cleared / lock_reverts / left_lock_alive (the hero left an
+    uncleared lock's area with members alive) / lock_relocations, and
+    atk_max / atk_mean (mobs attacking within 250 px of the hero, over the
+    engaged frames), melee_max, melee_over_slots_f (frames with more melee
+    attackers near the hero than the difficulty's slot total, slot_total),
+    handoffs (slot hand-offs), waiter_gap_med and ranged_max.
 
     The runner uses the developer direct-launch path and suppresses save
     writes, so no save slot or global save is touched. Build first:
@@ -91,6 +107,8 @@ foreach ($r in $done) {
     $e = $x.enemy_summary
     # D6d (2026-10-11): the combat summary; absent from older runners.
     $c = $x.combat
+    # GU-BOT (2026-10-12): the encounter-lock and crowd summary; absent from older runners.
+    $n = $x.encounters
     $rows += [pscustomobject]@{
         level = $x.level; character = $x.character; bot = $x.bot; difficulty = $x.difficulty
         end = ($x.end_reason -replace 'res://scenes/campaign/', '' -replace '\.tscn', '')
@@ -109,11 +127,25 @@ foreach ($r in $done) {
         policy = $(if ($c) { $c.policy } else { $null })
         # C2 (2026-10-11): the run's D5 Story meter scale (--story-meter-scale).
         meter_scale = $(if ($c) { $c.meter_scale } else { $null })
+        # GU-BOT (2026-10-12): encounter locks and the hero's crowd.
+        locks = $(if ($n) { $n.locks } else { $null })
+        locks_cleared = $(if ($n) { $n.locks_cleared } else { $null })
+        lock_reverts = $(if ($n) { $n.lock_reverts } else { $null })
+        left_lock_alive = $(if ($n) { $n.left_lock_alive } else { $null })
+        lock_relocations = $(if ($n) { $n.lock_relocations } else { $null })
+        atk_max = $(if ($n) { $n.atk_max } else { $null })
+        atk_mean = $(if ($n) { $n.atk_mean } else { $null })
+        melee_max = $(if ($n) { $n.melee_max } else { $null })
+        melee_over_slots_f = $(if ($n) { $n.melee_over_slots_f } else { $null })
+        slot_total = $(if ($n) { $n.slot_total } else { $null })
+        handoffs = $(if ($n) { $n.handoffs } else { $null })
+        waiter_gap_med = $(if ($n) { $n.waiter_gap_med } else { $null })
+        ranged_max = $(if ($n) { $n.ranged_max } else { $null })
     }
 }
 
 $rows = $rows | Sort-Object level, character, bot
-$rows | Format-Table -AutoSize | Out-String -Width 250
+$rows | Format-Table -AutoSize | Out-String -Width 400
 $csv = Join-Path $outDir "summary_$Difficulty$(if ($Tag) { "_$Tag" }).csv"
 $rows | Export-Csv -NoTypeInformation -Path $csv
 Write-Host "Reports: $outDir"

@@ -10,6 +10,14 @@ ability-press summaries; each trace line shows the Ultimate meter (m=), the
 ability lockout (lk=, when running) and, once group A lands, the Special gate
 (sg=). --swings lists the hero's swings inside --from/--to instead of the trace.
 C3 adds the mob melee swing summary (mob_swings) to the header.
+
+GU-BOT (2026-10-12) adds the encounter locks (one line per lock: state, engage
+and clear seconds, planned / killed, reverts, leaves with members alive,
+relocations) and the crowd summary (mob_engagement, without its histograms) to
+the header; each trace line shows the engaged lock (enc=<lock tail>:<enemies
+left>), the mobs attacking within 250 px of the hero (atk=) and its melee slot
+holders (slots=). A run that ended stuck_lock:<id> also prints the bot's lock
+nav notes.
 """
 import json
 import os
@@ -60,6 +68,27 @@ def main(argv):
     # C3 (2026-10-11): mob melee swings, without the per-enemy table and the log.
     if isinstance(report.get("mob_swings"), dict):
         print("mob_swings", json.dumps({k: v for k, v in report["mob_swings"].items() if k not in ("by_enemy", "log")}))
+    # GU-BOT (2026-10-12): the hero's crowd and the encounter locks.
+    if isinstance(report.get("mob_engagement"), dict):
+        print("mob_engagement", json.dumps({k: v for k, v in report["mob_engagement"].items()
+                                            if not k.endswith("histogram") and k not in ("sums", "far_waiters")}))
+        for w in (report["mob_engagement"].get("far_waiters") or [])[:8]:
+            print(f"  far waiter {w.get('f', 0) / 60:.1f}s {w.get('foe', '')}@{w.get('x')},{w.get('y')} gap={w.get('gap')}")
+    locks = report.get("locks")
+    if isinstance(locks, dict):
+        print("locks", json.dumps({k: v for k, v in locks.items() if k != "log"}))
+        for entry in locks.get("log") or []:
+            def sec(frame):
+                return f"{frame / 60:.1f}s" if frame is not None and frame >= 0 else "-"
+            print(f"  lock {entry.get('id', '')}: {entry.get('state', '')} engage={sec(entry.get('engage_frame'))} "
+                  f"clear={sec(entry.get('clear_frame'))} killed={entry.get('killed', 0)}/{entry.get('planned', 0)} "
+                  f"living={entry.get('living', 0)} reverts={entry.get('reverts', 0)} "
+                  f"left_alive={entry.get('left_with_members_alive', 0)} reloc={entry.get('member_relocations', 0)}"
+                  f"{' forced' if entry.get('force_cleared') else ''}{' restored' if entry.get('restored_cleared') else ''}")
+    if str(report.get("end_reason", "")).startswith("stuck_lock:"):
+        for event in report.get("events") or []:
+            if event.get("type") == "nav" and str(event.get("detail", "")).startswith("lock "):
+                print("  nav", event.get("detail"))
     if swings:
         for s in report.get("swing_log", []) or []:
             sec = s.get("f", 0) / 60

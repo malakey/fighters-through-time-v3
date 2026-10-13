@@ -106,7 +106,12 @@ namespace FTT.Diagnostics {
     }
 
     public enum FightStyle {
-        /// <summary>Never attacks an enemy unless the run cannot progress otherwise (bosses, a blocker).</summary>
+        /// <summary>
+        /// Fights only what the run requires (since the 2026-10-12 encounter locks):
+        /// the members of the lock it stands in, bosses, and a blocker in an
+        /// escape. Never defends. A lock-regression probe: it must still clear
+        /// every lock to finish.
+        /// </summary>
         Bypass,
         /// <summary>Mashes the 3-hit string, then Special 1 and Special 2 as soon as they are ready. Never defends.</summary>
         Spam,
@@ -140,10 +145,24 @@ namespace FTT.Diagnostics {
     /// <summary>
     /// The Story campaign bot. Every frame it picks one job, in priority order:
     /// seal an armed anchor; get out of a hot hazard; outrun an escape front;
-    /// fight (its <see cref="FightStyle"/>); work the nearest reachable level
-    /// task (strike a checkpoint, rescue, press the expected glyph, turn a coil,
-    /// weigh a plate, break a puzzle breakable); otherwise travel toward the
-    /// boss arena. Movement always goes through the <see cref="NavAgent"/>.
+    /// fight (its <see cref="FightStyle"/>); hunt the members of the encounter
+    /// lock it is engaged in that it cannot target from here; work the nearest
+    /// reachable level task (strike a checkpoint the locks do not hold, rescue,
+    /// press the expected glyph, turn a coil, weigh a plate, break a puzzle
+    /// breakable); otherwise travel toward the boss arena — walking into the
+    /// next Armed lock on the way, and holding inside an engaged one rather
+    /// than pushing at its closed barrier. Movement always goes through the
+    /// <see cref="NavAgent"/>.
+    ///
+    /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, user request 3,
+    /// plan §5 GU-BOT). The woken members of the lock the hero is engaged in get
+    /// boss-like targeting: no engage-radius cap, no line-of-sight filter and no
+    /// give-up (an unprogressing member is only deprioritized). Dormant members
+    /// refuse every hit (the lock ward), so they are never targets. A checkpoint
+    /// an uncleared lock holds is never a task. A lock that makes no progress
+    /// for <see cref="LockStallFrames"/> while no member is reachable, or for
+    /// twice that otherwise, is reported through <see cref="StuckLockID"/> and a
+    /// nav note, and the runner ends the run <c>stuck_lock:&lt;id&gt;</c>.</para>
     /// </summary>
     public sealed class StoryBot : PlaytestBot, PlaytestRouteHints.IHintDriver {
         int PlaytestRouteHints.IHintDriver.Frame => Frame;
@@ -195,15 +214,180 @@ namespace FTT.Diagnostics {
                 return;
             }
 
+            WatchEngagedLock(player);
             bool done = WorkSealAnchor(player, ref intent)
                 || EvadeHazards(player, ref intent)
                 || OutrunEscape(player, ref intent)
                 || CollectHealing(player, ref intent)
                 || FightNearby(player, ref intent)
+                || HuntLockMembers(player, ref intent)
                 || WorkTasks(player, ref intent)
                 || WorkRouteHints(player, ref intent);
             if (!done) Travel(player, ref intent);
             FilterHazards(player, ref intent);
+        }
+
+        // =================================================================
+        // Encounter locks (gameplay update 2026-10-12, plan §5 GU-BOT)
+        // =================================================================
+
+        /// <summary>
+        /// <i>Diagnostics bound.</i> An engaged lock with no progress (no member HP
+        /// lost, no member or wave count change, no required breakable hit, no
+        /// step on the bot's current task) for this many of the bot's live frames
+        /// (60 s) while none of its living members is reachable ends the run
+        /// <c>stuck_lock:&lt;id&gt;</c>; with a member reachable, or with no living
+        /// member left (waiting on a wave, a breakable or a puzzle), twice this.
+        /// </summary>
+        public const int LockStallFrames = 60 * 60;
+
+        /// <summary>A lock member the bot has not hurt for this long is fought last, never given up on.</summary>
+        private const int LockTargetDeprioritizeFrames = TargetGiveUpFrames;
+        private const float LockTargetDeprioritizedPenalty = 2000f;
+
+        /// <summary>The lock this run is stuck in (set once; the runner ends the run on it), or null.</summary>
+        public string StuckLockID { get; private set; }
+
+        private ulong _watchedLockId;
+        private int _lockProgressFrame;
+        private int _lockWatchFrame = -1;
+        private int _lockLastHp = -1;
+        private int _lockLastLiving = -1;
+        private int _lockLastRemaining = -1;
+        private int _lockLastBreakables = -1;
+        private ulong _lockLastTaskId;
+        private int _lockLastTaskProgress;
+        private bool _lockStallNoted;
+        private readonly Dictionary<ulong, int> _deprioritizedUntil = new();
+
+        /// <summary>True for a woken member of the lock the hero is engaged in: a target the run requires.</summary>
+        private bool IsLockTarget(Node2D foe, EncounterLock engaged) => PlaytestWorld.IsActiveMemberOf(foe, engaged);
+
+        /// <summary>
+        /// The stuck-lock watchdog. Frames the bot did not decide (the hero dead,
+        /// the tree paused) do not count toward a stall.
+        /// </summary>
+        private void WatchEngagedLock(PlayerController player) {
+            EncounterLock engaged = World.EngagedLock();
+            if (engaged == null) {
+                _watchedLockId = 0;
+                _lockWatchFrame = Frame;
+                return;
+            }
+            if (_lockWatchFrame >= 0 && Frame - _lockWatchFrame > 1) _lockProgressFrame += Frame - _lockWatchFrame - 1;
+            _lockWatchFrame = Frame;
+            IReadOnlyList<EnemyController> living = engaged.LivingMembers;
+            int hp = 0;
+            foreach (EnemyController member in living) hp += Math.Max(0, member.CurrentHP);
+            int remaining = engaged.RemainingCount;
+            // A lock that waits on a breakable or a puzzle progresses through it:
+            // the required breakables' HP, and the bot's own task progress
+            // (a coil turned, a glyph lit, a breakable hit).
+            int breakables = 0;
+            if (engaged.Spec?.RequiredBreakables != null) {
+                foreach (DamageableEnvironmentObject breakable in engaged.Spec.RequiredBreakables) {
+                    if (breakable != null && GodotObject.IsInstanceValid(breakable) && !breakable.IsDestroyed) breakables += Math.Max(0, breakable.CurrentHP);
+                }
+            }
+            ulong taskId = _task != null && GodotObject.IsInstanceValid(_task) ? _task.GetInstanceId() : 0UL;
+            int taskProgress = taskId != 0UL ? TaskProgress(_task) : 0;
+            bool taskAdvanced = taskId != 0UL && taskId == _lockLastTaskId && taskProgress != _lockLastTaskProgress;
+            if (engaged.GetInstanceId() != _watchedLockId) {
+                _watchedLockId = engaged.GetInstanceId();
+                _lockProgressFrame = Frame;
+                _lockStallNoted = false;
+            } else if (hp < _lockLastHp || living.Count != _lockLastLiving || remaining != _lockLastRemaining
+                       || breakables < _lockLastBreakables || taskAdvanced) {
+                _lockProgressFrame = Frame;
+                _lockStallNoted = false;
+            }
+            _lockLastHp = hp;
+            _lockLastLiving = living.Count;
+            _lockLastRemaining = remaining;
+            _lockLastBreakables = breakables;
+            _lockLastTaskId = taskId;
+            _lockLastTaskProgress = taskProgress;
+            if (StuckLockID != null) return;
+            int stalled = Frame - _lockProgressFrame;
+            if (stalled < LockStallFrames) return;
+            if (living.Count == 0) {
+                // Nothing left to fight (a wave still to come, a breakable or a
+                // puzzle the lock needs): only the longer bound applies.
+                if (stalled < LockStallFrames * 2) return;
+                StuckLockID = engaged.LockID;
+                Agent.Notes.Add($"lock {engaged.LockID}: no progress for {stalled / 60} s with no living member,"
+                    + $" {remaining} remaining (waves, a required breakable or puzzle)");
+                return;
+            }
+            string unreachable = "";
+            bool anyReachable = false;
+            foreach (EnemyController member in living) {
+                if (MemberReachable(player, member)) {
+                    anyReachable = true;
+                    break;
+                }
+                if (unreachable.Length < 200) {
+                    unreachable += $" {member.Data?.EnemyID ?? member.Name}@{Mathf.RoundToInt(member.GlobalPosition.X)},{Mathf.RoundToInt(member.GlobalPosition.Y)}";
+                }
+            }
+            if (!anyReachable || stalled >= LockStallFrames * 2) {
+                StuckLockID = engaged.LockID;
+                Agent.Notes.Add($"lock {engaged.LockID}: no progress for {stalled / 60} s, {living.Count} living,"
+                    + $" {remaining} remaining, {(anyReachable ? "a member is reachable" : "no member reachable:" + unreachable)}");
+            } else if (!_lockStallNoted) {
+                _lockStallNoted = true;
+                Agent.Notes.Add($"lock {engaged.LockID}: no progress for {stalled / 60} s though a member is reachable ({living.Count} living)");
+            }
+        }
+
+        /// <summary>A member the hero can get to: its feet, or the floor under it within a jumping strike's reach.</summary>
+        private bool MemberReachable(PlayerController player, EnemyController member) {
+            Vector2 at = member.GlobalPosition;
+            if (Reachable(player, at, 120f)) return true;
+            NavSegment under = World.Nav.SegmentUnder(at, JumpStrikeReach);
+            return under != null && Reachable(player, new Vector2(under.Clamp(at.X, 14f), under.TopAt(at.X)), 40f);
+        }
+
+        /// <summary>
+        /// Engaged in a lock whose living members none of the fight rules picked
+        /// (all far overhead, say): go to the nearest one, under it if it flies.
+        /// </summary>
+        private bool HuntLockMembers(PlayerController player, ref BotIntent intent) {
+            EncounterLock engaged = World.EngagedLock();
+            if (engaged == null) return false;
+            EnemyController nearest = null;
+            float best = float.MaxValue;
+            foreach (EnemyController member in engaged.LivingMembers) {
+                if (member.IsEncounterDormant) continue;
+                float distance = member.GlobalPosition.DistanceTo(player.GlobalPosition);
+                if (distance < best) {
+                    best = distance;
+                    nearest = member;
+                }
+            }
+            if (nearest == null) return false;
+            CurrentAction = "lock_hunt";
+            CurrentTarget = nearest;
+            Vector2 at = nearest.GlobalPosition;
+            NavSegment under = World.Nav.SegmentUnder(at, 2000f);
+            Vector2 goal = under != null ? new Vector2(under.Clamp(at.X, 14f), under.TopAt(at.X)) : at;
+            if (!Go(player, goal, ref intent, 30f, 400f)) FaceTarget(player, nearest, ref intent);
+            return true;
+        }
+
+        /// <summary>
+        /// Inside an engaged lock with nothing to fight or work (a wave still to
+        /// come, a breakable the tasks cannot reach): hold near the area's middle
+        /// instead of pushing at the closed exit.
+        /// </summary>
+        private bool HoldInEngagedLock(PlayerController player, ref BotIntent intent) {
+            EncounterLock engaged = World.EngagedLock();
+            if (engaged == null) return false;
+            CurrentAction = "lock_wait";
+            Rect2 area = engaged.Area;
+            float x = Mathf.Clamp(player.GlobalPosition.X, area.Position.X + area.Size.X * 0.3f, area.End.X - area.Size.X * 0.3f);
+            if (!Go(player, new Vector2(x, player.GlobalPosition.Y), ref intent, 60f, 300f)) intent.MoveX = 0f;
+            return true;
         }
 
         // =================================================================
@@ -308,6 +492,10 @@ namespace FTT.Diagnostics {
         private bool OutrunEscape(PlayerController player, ref BotIntent intent) {
             EscapeSequenceController escape = World.RunningEscape();
             if (escape == null) return false;
+            // An engaged encounter lock cannot be outrun (its barriers are shut):
+            // fight it first, then run (plan §5: escapes start on a lock's clear;
+            // this keeps the bot from pushing at a barrier if one does not).
+            if (World.EngagedLock() != null) return false;
             _travelDir = 1f;
             CurrentAction = "escape";
             Vector2 goal = new(escape.FinishX + 80f, player.GlobalPosition.Y - 10f);
@@ -478,6 +666,8 @@ namespace FTT.Diagnostics {
             float bestDistance = radius;
             Vector2 at = player.GlobalPosition + new Vector2(0f, -32f);
             foreach (Node2D foe in World.Foes()) {
+                // A dormant lock member refuses every hit: never a blocker to strike.
+                if (PlaytestWorld.IsDormantMember(foe)) continue;
                 Vector2 delta = foe.GlobalPosition - player.GlobalPosition;
                 if (ahead && Mathf.Sign(delta.X) != Mathf.Sign(_travelDir)) continue;
                 float distance = at.DistanceTo(foe.GlobalPosition + new Vector2(0f, -30f));
@@ -489,30 +679,49 @@ namespace FTT.Diagnostics {
             return best;
         }
 
-        /// <summary>The foe to fight now, or null. Bosses are never given up on.</summary>
+        /// <summary>
+        /// The foe to fight now, or null. Bosses are never given up on, and since
+        /// the 2026-10-12 encounter locks neither are the woken members of the
+        /// lock the hero is engaged in: they are targeted at any distance inside
+        /// the lock and through its walls (the approach navigates), and one the
+        /// bot has not hurt for a while is only deprioritized. A dormant member
+        /// (an Armed lock's, which refuses every hit) is never a target: the bot
+        /// walks into its area instead (<see cref="Travel"/>).
+        /// </summary>
         private Node2D SelectTarget(PlayerController player, float radiusOverride, out bool attacking) {
             attacking = false;
             Node2D best = null;
             float bestScore = float.MaxValue;
             Vector2 chest = player.GlobalPosition + new Vector2(0f, -36f);
+            EncounterLock engaged = World.EngagedLock();
             foreach (Node2D foe in World.Foes()) {
                 bool bossLike = PlaytestWorld.IsBossLike(foe);
                 if (foe is BossController boss && (boss.IsMechanicInvulnerable || boss.IsHistoricalRecoverySuspended)) {
                     // Guarded: fight the guardians (they are foes too), not the boss.
                     if (boss.IsGuarded) continue;
                 }
-                if (!bossLike && Ignored(foe)) continue;
-                if (_style == FightStyle.Bypass && !bossLike) continue;
-                float radius = radiusOverride > 0f ? radiusOverride : bossLike ? BossEngageRadius : EngageRadius;
+                if (PlaytestWorld.IsDormantMember(foe)) continue;
+                bool lockTarget = IsLockTarget(foe, engaged);
+                if (!bossLike && !lockTarget && Ignored(foe)) continue;
+                // Bypass fights only what the run requires: bosses and the lock it stands in.
+                if (_style == FightStyle.Bypass && !bossLike && !lockTarget) continue;
+                float radius = radiusOverride > 0f ? radiusOverride
+                    : bossLike ? BossEngageRadius
+                    : lockTarget ? float.MaxValue
+                    : EngageRadius;
                 Vector2 center = foe.GlobalPosition + new Vector2(0f, -30f);
                 float distance = chest.DistanceTo(center);
                 if (distance > radius) continue;
-                if (distance > 110f && !World.LineOfSight(chest, center)) continue;
-                // Far above with nothing to stand on under it: not reachable now.
+                if (!lockTarget && distance > 110f && !World.LineOfSight(chest, center)) continue;
+                // Far above with nothing to stand on under it: not reachable now
+                // (a lock member there is hunted from below, HuntLockMembers).
                 float dy = player.GlobalPosition.Y - foe.GlobalPosition.Y;
                 if (dy > 330f && World.Nav.SegmentUnder(foe.GlobalPosition, 360f) == null) continue;
                 float score = distance + (PlaytestWorld.IsAttacking(foe) ? -80f : 0f) + Mathf.Max(0f, dy - 120f);
                 if (foe is ArenaGuardian) score -= 200f;
+                if (lockTarget && _deprioritizedUntil.TryGetValue(foe.GetInstanceId(), out int until) && until > Frame) {
+                    score += LockTargetDeprioritizedPenalty;
+                }
                 if (score < bestScore) {
                     bestScore = score;
                     best = foe;
@@ -539,6 +748,14 @@ namespace FTT.Diagnostics {
             } else if (targetHP < _targetLastHP) {
                 _targetLastHP = targetHP;
                 _targetProgressFrame = Frame;
+            } else if (IsLockTarget(target, World.EngagedLock())) {
+                // The run cannot go on without it: never ignored, only fought
+                // after the members the bot can hurt (the stuck-lock watchdog
+                // reports one nobody can reach).
+                if (Frame - _targetProgressFrame > LockTargetDeprioritizeFrames) {
+                    _deprioritizedUntil[_targetId] = Frame + LockTargetDeprioritizeFrames;
+                    _targetProgressFrame = Frame;
+                }
             } else if (!bossLike && Frame - _targetProgressFrame > TargetGiveUpFrames) {
                 // A player who cannot reach an enemy moves on; record it so the
                 // report can tell "skipped by choice" from "skipped by necessity".
@@ -821,7 +1038,9 @@ namespace FTT.Diagnostics {
         }
 
         private bool TaskDone(Node2D task) => task switch {
-            CheckpointTrigger c => c.IsActivated,
+            // FIX-E (2026-10-13): a fracture an uncleared lock holds only posts a
+            // notice when struck; drop it until the lock clears.
+            CheckpointTrigger c => c.IsActivated || PlaytestWorld.IsHeldByLock(c),
             SequenceGlyph g => g.IsLit || g.Lock?.IsCompleted == true || g.Lock?.ExpectedGlyph != g,
             RescuableNPC n => n.IsRescued,
             DamageableEnvironmentObject d => d.IsDestroyed,
@@ -871,6 +1090,7 @@ namespace FTT.Diagnostics {
 
             foreach (CheckpointTrigger checkpoint in World.Checkpoints) {
                 if (!GodotObject.IsInstanceValid(checkpoint) || checkpoint.IsActivated || checkpoint.Inert || checkpoint.SelfActivating) continue;
+                if (PlaytestWorld.IsHeldByLock(checkpoint)) continue;
                 Consider(checkpoint, "checkpoint", -200f, 1100f);
             }
             foreach (RescuableNPC npc in World.Rescuables) {
@@ -1141,10 +1361,27 @@ namespace FTT.Diagnostics {
         }
 
         private void Travel(PlayerController player, ref BotIntent intent) {
+            // Encounter locks: never push at an engaged lock's closed barrier, and
+            // walk into the next Armed lock on the way (its exit is shut from
+            // level build, so the way on runs through its fight).
+            if (HoldInEngagedLock(player, ref intent)) return;
             CurrentAction = "travel";
             Vector2 goal = TravelGoal(player);
+            Func<NavSegment, bool> isGoal = null;
+            EncounterLock ahead = World.ArmedLockOnTheWay(player.GlobalPosition.X, goal.X);
+            if (ahead != null) {
+                // Any surface inside the area past its engage line will do (the
+                // area may sit up a climb or down a drop from here); the bot then
+                // walks to the entry point on it.
+                CurrentAction = "lock_enter";
+                goal = new Vector2(PlaytestWorld.EntryPointX(ahead, player.GlobalPosition.X), player.GlobalPosition.Y);
+                Rect2 area = ahead.Area;
+                float inset = HeroPhysics.BodyHalfWidth + EncounterLockRules.EngageInsetPixels;
+                float lo = area.Position.X + inset, hi = area.End.X - inset;
+                isGoal = segment => !segment.IsRope && segment.Right > lo && segment.Left < hi;
+            }
             _travelDir = Mathf.Sign(goal.X - player.GlobalPosition.X) == 0 ? _travelDir : Mathf.Sign(goal.X - player.GlobalPosition.X);
-            if (!Go(player, goal, ref intent, 30f, 300f)) {
+            if (!Go(player, goal, ref intent, 30f, 300f, isGoal)) {
                 // At the travel goal (or the closest reachable point to it) with
                 // nothing to do: wait for the boss / anchor, hopping now and then.
                 CurrentAction = Agent.GoalReachable ? "wait" : "stuck";
@@ -1183,9 +1420,14 @@ namespace FTT.Diagnostics {
             return new Vector2(bounds.End.X - 200f, player.GlobalPosition.Y);
         }
 
-        /// <summary>Navigate toward a point; a Break step attacks the obstacle. Returns false on arrival.</summary>
-        private bool Go(PlayerController player, Vector2 goal, ref BotIntent intent, float arriveRadius, float maxBelow) {
-            bool moving = Agent.Drive(player, goal, ref intent, arriveRadius, maxBelow);
+        /// <summary>
+        /// Navigate toward a point; a Break step attacks the obstacle. Returns false
+        /// on arrival. <paramref name="isGoal"/>, when given, names the goal
+        /// segments instead of the point's own surface.
+        /// </summary>
+        private bool Go(PlayerController player, Vector2 goal, ref BotIntent intent, float arriveRadius, float maxBelow,
+            Func<NavSegment, bool> isGoal = null) {
+            bool moving = Agent.Drive(player, goal, ref intent, arriveRadius, maxBelow, isGoal);
             if (Agent.BreakTarget is DamageableEnvironmentObject obstacle && GodotObject.IsInstanceValid(obstacle)) {
                 Rect2? area = PlaytestWorld.ShapeRect(obstacle);
                 if (area.HasValue) StrikeRect(player, area.Value, ref intent, "break_path");

@@ -28,6 +28,27 @@ The run name does not carry the policy, so compare policies under different tags
 C2 (2026-10-11) adds a "scale" column to "meter and presses": the run's D5 Story
 meter-gain scale (--story-meter-scale, "on" / "off", "-" for older reports). The
 run name does not carry it either, so an A/B uses two tags.
+
+GU-BOT (2026-10-12 gameplay update) adds two tables per tag:
+  "locks" - encounter locks per run, the share cleared, runs ended
+    stuck_lock:<id>, reverts and leaves with members alive (the 2026-10-12
+    meaning of "passed": the hero left an uncleared lock's area with members
+    alive), members planned / killed, relocations (fall net + stall watchdog),
+    force-clears, and the median frames from a lock's first engage to its clear;
+  "crowd" - the engagement director's effect on the hero's crowd: mobs in
+    Attacking within 250 px of the hero (max over runs, mean pooled over the
+    engaged frames), the melee-class ones and the share of engaged frames with
+    more of them than the difficulty's slot total, slot holders over the total
+    (the director's own invariant, should be 0), slot hand-offs per run, the
+    pooled waiter-gap medians (all waiters and the front waiter per side, from
+    8 px histograms), the share of waiter samples more than 600 px off the hero
+    (far_waiter%: still walking in across a wide area, or held off the ring by a
+    ledge, wall or barrier; the report's far_waiters log tells which) and ranged
+    attacks in flight.
+The main table gains left_lock_alive and passed_out (old-definition passes of
+mobs no lock owns). Turn-taking, the 1.5 camera, locks, the -20% speed and
+static knockback all landed together, so batches from before and after
+2026-10-12 are not comparable on any of these.
 """
 import fnmatch
 import glob
@@ -80,10 +101,16 @@ def summarize(tag_pattern):
                         std_special += 1
                 elif kind == "elite":
                     elite_ttk.append(ttk)
+        left_lock, passed_out, have_locks = 0, 0, False
         for r in runs:
             summary = r.get("enemy_summary") or {}
             passed += summary.get("passed_while_alive", 0) or 0
             hits_after_pass += summary.get("passed_then_hit_player", 0) or 0
+            # GU-BOT (2026-10-12): the lock meaning of "passed", and old passes of mobs no lock owns.
+            if "left_lock_with_members_alive" in summary:
+                have_locks = True
+                left_lock += summary.get("left_lock_with_members_alive", 0) or 0
+                passed_out += summary.get("passed_alive_outside_locks", 0) or 0
         n = len(runs)
         rows.append({
             "bot": bot,
@@ -99,6 +126,8 @@ def summarize(tag_pattern):
             "elite_ttk_med": med(elite_ttk),
             "passed_alive": passed,
             "passed_then_hit": hits_after_pass,
+            "left_lock_alive": left_lock if have_locks else "-",
+            "passed_out": passed_out if have_locks else "-",
         })
     return rows
 
@@ -321,13 +350,136 @@ def mob_rows(tag_pattern):
     return rows
 
 
+def hist_median(histogram):
+    """Lower median of a {value: count} histogram (PlaytestCombatMath's sorted[n // 2]); "-" when empty."""
+    items = sorted((int(k), v) for k, v in histogram.items() if v > 0)
+    total = sum(v for _, v in items)
+    if total == 0:
+        return "-"
+    index = total // 2
+    for value, count in items:
+        if index < count:
+            return value
+        index -= count
+    return "-"
+
+
+def lock_rows(tag_pattern):
+    """GU-BOT: one row per bot from the locks blocks (and stuck_lock end reasons)."""
+    rows = []
+    for bot, runs in by_bot(tag_pattern):
+        have = [r for r in runs if isinstance(r.get("locks"), dict)]
+        counts, cleared, reverts, left, planned, killed = [], 0, 0, 0, 0, 0
+        relocations, stall, forced, to_clear = 0, 0, 0, []
+        for r in have:
+            locks = r["locks"]
+            counts.append(num(locks.get("count"), 0))
+            cleared += num(locks.get("cleared"), 0)
+            reverts += num(locks.get("reverts"), 0)
+            left += num(locks.get("left_with_members_alive"), 0)
+            planned += num(locks.get("members_planned"), 0)
+            killed += num(locks.get("members_killed"), 0)
+            relocations += num(locks.get("member_relocations"), 0)
+            stall += num(locks.get("stall_relocations"), 0)
+            forced += num(locks.get("force_cleared"), 0)
+            for entry in locks.get("log") or []:
+                if num(entry.get("frames_to_clear")) >= 0 and not entry.get("restored_cleared"):
+                    to_clear.append(entry["frames_to_clear"])
+        total = sum(counts)
+        ok = bool(have)
+        rows.append({
+            "bot": bot,
+            "runs": len(runs),
+            "locks/run": mean(counts, 1),
+            "cleared%": pct(cleared, total) if ok else "-",
+            "stuck_lock": sum(1 for r in runs if str(r.get("end_reason", "")).startswith("stuck_lock:")),
+            "reverts": reverts if ok else "-",
+            "left_alive": left if ok else "-",
+            "planned": planned if ok else "-",
+            "killed": killed if ok else "-",
+            "relocations": relocations if ok else "-",
+            "stall_reloc": stall if ok else "-",
+            "forced": forced if ok else "-",
+            "clear_f_med": med(to_clear),
+        })
+    return rows
+
+
+def crowd_rows(tag_pattern):
+    """GU-BOT: one row per bot from the mob_engagement blocks (raw counts pooled, never medians of medians)."""
+    rows = []
+    for bot, runs in by_bot(tag_pattern):
+        have = [r for r in runs if isinstance(r.get("mob_engagement"), dict)]
+        engaged = atk_sum = melee_sum = ranged_sum = 0
+        atk_max = melee_max = holders_max = ranged_max = 0
+        over_slots = holders_over = ranged_over = 0
+        handoffs, grants, slots, waiters, front = [], [], set(), {}, {}
+        far_samples, waiter_samples = 0, 0
+        for r in have:
+            e = r["mob_engagement"]
+            frames = num(e.get("engaged_frames"), 0)
+            engaged += frames
+            # Raw sums over each run's engaged frames, so the pooled mean is exact.
+            sums = e.get("sums") or {}
+            atk_sum += num(sums.get("attacking_near"), 0)
+            melee_sum += num(sums.get("melee_attacking_near"), 0)
+            ranged_sum += num(sums.get("ranged_in_flight"), 0)
+            atk_max = max(atk_max, num(e.get("attacking_near_max"), 0))
+            melee_max = max(melee_max, num(e.get("melee_attacking_near_max"), 0))
+            holders_max = max(holders_max, num(e.get("slot_holders_max"), 0))
+            ranged_max = max(ranged_max, num(e.get("ranged_in_flight_max"), 0))
+            over_slots += num(e.get("frames_melee_over_slots"), 0)
+            holders_over += num(e.get("frames_holders_over_slots"), 0)
+            ranged_over += num(e.get("frames_ranged_over_permits"), 0)
+            handoffs.append(num(e.get("slot_handoffs"), 0))
+            grants.append(num(e.get("slot_grants"), 0))
+            if num(e.get("slot_total")) > 0:
+                slots.add(str(e["slot_total"]))
+            if "far_waiter_samples" in e:
+                far_samples += num(e.get("far_waiter_samples"), 0)
+                waiter_samples += num(e.get("waiter_gap_samples"), 0)
+            for key, count in (e.get("waiter_gap_histogram") or {}).items():
+                waiters[key] = waiters.get(key, 0) + num(count, 0)
+            for key, count in (e.get("front_waiter_gap_histogram") or {}).items():
+                front[key] = front.get(key, 0) + num(count, 0)
+        ok = bool(have)
+        rows.append({
+            "bot": bot,
+            "runs": len(runs),
+            "slots": "/".join(sorted(slots)) if slots else "-",
+            "engaged_s": round(engaged / 60, 1) if ok else "-",
+            "atk_max": atk_max if ok else "-",
+            "atk_mean": round(atk_sum / engaged, 2) if engaged else "-",
+            "melee_max": melee_max if ok else "-",
+            "melee_mean": round(melee_sum / engaged, 2) if engaged else "-",
+            "over_slots%": pct(over_slots, engaged) if engaged else "-",
+            "holders_max": holders_max if ok else "-",
+            "holders_over_f": holders_over if ok else "-",
+            "handoffs/run": mean(handoffs, 1),
+            "grants/run": mean(grants, 1),
+            "waiter_gap_med": hist_median(waiters),
+            "front_gap_med": hist_median(front),
+            "far_waiter%": pct(far_samples, waiter_samples) if waiter_samples else "-",
+            "ranged_max": ranged_max if ok else "-",
+            "ranged_mean": round(ranged_sum / engaged, 2) if engaged else "-",
+            "ranged_over_f": ranged_over if ok else "-",
+        })
+    return rows
+
+
+# Must match BasicComboRules.AirAttackHitboxID: the air strike is airborne by
+# definition, so its by-hit key carries no "_air" suffix (PlaytestCombatMath.SwingHitKey).
+AIR_ATTACK_HIT = "air_attack"
+
+
 def swing_hit_rows(tag_pattern):
-    """D6d --swings: one row per hit (aerial hits keyed <hit>_air), pooled combat swings."""
+    """D6d --swings: one row per hit (aerial hits keyed <hit>_air; the GU-A air strike is air_attack), pooled combat swings."""
     hits = {}
     for r in reports(tag_pattern):
         for entry in r.get("swing_log") or []:
             if is_combat_swing(entry):
-                key = entry.get("hit", "?") + ("_air" if entry.get("air") else "")
+                hit = entry.get("hit", "?")
+                key = hit + ("_air" if entry.get("air") and hit != AIR_ATTACK_HIT else "")
                 hits.setdefault(key, []).append(entry)
     rows = []
     for hit, entries in sorted(hits.items()):
@@ -353,7 +505,8 @@ def print_table(keys, rows):
 
 def main(tags, swings=False):
     keys = ["bot", "runs", "completed", "boss_down", "deaths", "dmg_taken", "std_killed", "std_ttk_med",
-            "std_burst_kills", "std_special_majority", "elite_ttk_med", "passed_alive", "passed_then_hit"]
+            "std_burst_kills", "std_special_majority", "elite_ttk_med", "passed_alive", "passed_then_hit",
+            "left_lock_alive", "passed_out"]
     for tag in tags:
         print(f"\n### {tag}\n")
         print("| " + " | ".join(keys) + " |")
@@ -375,6 +528,16 @@ def main(tags, swings=False):
         print_table(["bot", "runs", "mob_swings/run", "mob_whiff%", "out_of_reach%", "mob_whiff_gap_med",
                      "top_whiffers"],
                     mob_rows(tag))
+        # GU-BOT (2026-10-12): encounter locks and the hero's crowd.
+        print("\n#### locks\n")
+        print_table(["bot", "runs", "locks/run", "cleared%", "stuck_lock", "reverts", "left_alive", "planned", "killed",
+                     "relocations", "stall_reloc", "forced", "clear_f_med"],
+                    lock_rows(tag))
+        print("\n#### crowd\n")
+        print_table(["bot", "runs", "slots", "engaged_s", "atk_max", "atk_mean", "melee_max", "melee_mean",
+                     "over_slots%", "holders_max", "holders_over_f", "handoffs/run", "grants/run", "waiter_gap_med",
+                     "front_gap_med", "far_waiter%", "ranged_max", "ranged_mean", "ranged_over_f"],
+                    crowd_rows(tag))
         if swings:
             print("\n#### swings by hit\n")
             print_table(["hit", "count", "conn%", "whiff%", "whiff_gap_med", "connect_gap_med"], swing_hit_rows(tag))

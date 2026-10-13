@@ -27,12 +27,17 @@ namespace FTT.Diagnostics {
         /// <summary>Largest damage this enemy took inside any 120-frame (2 s) window.</summary>
         public int MaxBurst120;
         public float SpawnX;
+        /// <summary>GU-BOT: the encounter lock that owned this body when it was first seen as a member ("" for none).</summary>
+        public string LockID = "";
         public readonly Dictionary<string, int> DamageByBotAction = new();
 
         internal readonly Queue<(int Frame, int Damage)> Window = new();
         internal int LastHP;
         internal bool WasAttacking;
         internal bool Closed;
+
+        /// <summary>The HP the telemetry last read (0 once the body was killed).</summary>
+        public int LastSeenHP => LastHP;
 
         public int? FramesToKill => KilledFrame >= 0 && FirstDamagedFrame >= 0 ? KilledFrame - FirstDamagedFrame : null;
     }
@@ -201,6 +206,15 @@ namespace FTT.Diagnostics {
                     if (PlaytestWorld.HasHitConfirmGate && Trace[^1] is Dictionary<string, object> sample) {
                         sample["sgate"] = PlaytestWorld.SpecialGateFrames(player);
                     }
+                    // GU-BOT: the engaged encounter lock (ID tail : enemies left) and,
+                    // from the previous frame's crowd sample, the mobs attacking near
+                    // the hero and its slot holders.
+                    if (Trace[^1] is Dictionary<string, object> crowdSample) {
+                        string lockCell = EngagedLockTraceCell();
+                        if (lockCell.Length > 0) crowdSample["enc"] = lockCell;
+                        if (_lastEngagementFrame.AttackingNear > 0) crowdSample["atk"] = _lastEngagementFrame.AttackingNear;
+                        if (_lastEngagementFrame.Holders > 0) crowdSample["slots"] = _lastEngagementFrame.Holders;
+                    }
                     if (_bot?.CurrentTarget == null && Trace.Count > 0 && Trace[^1] is Dictionary<string, object> last) {
                         // Idle: name the nearest foe so a stalled run shows what it is waiting on.
                         Node2D nearestFoe = null;
@@ -241,6 +255,7 @@ namespace FTT.Diagnostics {
 
             if (Frame % 10 == 0) TrackObjectives(tree);
 
+            BeginEngagementFrame();
             var seen = new HashSet<ulong>();
             Godot.Collections.Array<Node> nodes = tree.GetNodesInGroup("Enemies");
             using (nodes.AsDisposable()) {
@@ -285,10 +300,17 @@ namespace FTT.Diagnostics {
                     seen.Add(key);
                     Observe(record, body, hp, alive, attacking, playerPosition, player != null);
                     if (body is EnemyController melee) TrackMobSwing(melee, player);
+                    // GU-BOT: the hero's crowd (the engagement director's roles and
+                    // the concurrent attackers), over living mobs only.
+                    if (body is EnemyController crowd && alive && hp > 0) ObserveEngagement(crowd, player, playerPosition);
                 }
             }
             // C3: a mob that died, despawned or left the group mid-swing cuts it.
             CloseUntrackedMobSwings();
+            if (player != null) FinishEngagementFrame();
+            // GU-BOT: the encounter locks (after the enemy loop, so every living
+            // member already has its EnemyRecord).
+            TrackLocks(player);
 
             // A body that left the group (freed / pooled out) while alive counts as gone, not killed.
             foreach (KeyValuePair<ulong, EnemyRecord> entry in _live) {
@@ -923,6 +945,244 @@ namespace FTT.Diagnostics {
             _openMobSwings.Clear();
         }
 
+        // =================================================================
+        // GU-BOT (gameplay update 2026-10-12, plan §5): the hero's crowd under
+        // the engagement director (mob_engagement) and the encounter locks
+        // (locks). Observation only; every read of a GU-E / GU-F member goes
+        // through PlaytestWorld's "Encounter locks and the engagement director"
+        // region.
+        // =================================================================
+
+        private readonly MobEngagementTracker _engagement = new();
+        private readonly LockTracker _locks = new();
+        private EngagementFrameSample _engagementFrame;
+        private EngagementFrameSample _lastEngagementFrame;
+        private readonly List<(float Gap, int Side)> _waitersThisFrame = new();
+        private readonly Dictionary<string, string> _lockStates = new();
+
+        public MobEngagementTracker Engagement => _engagement;
+        public LockTracker Locks => _locks;
+
+        private void BeginEngagementFrame() {
+            _engagementFrame = default;
+            _waitersThisFrame.Clear();
+        }
+
+        /// <summary>One living mob's part in this frame's crowd sample (see <see cref="EngagementFrameSample"/>).</summary>
+        private void ObserveEngagement(EnemyController mob, PlayerController hero, Vector2 heroPosition) {
+            if (hero == null) return;
+            bool onHero = PlaytestWorld.EngagesHero(mob, hero);
+            StoryEngagementRules.EngagementRole role = onHero
+                ? PlaytestWorld.EngagementRoleOf(mob)
+                : StoryEngagementRules.EngagementRole.None;
+            _engagement.NoteRole(mob.GetInstanceId(), PlaytestWorld.SpawnGenerationOf(mob), role);
+            bool attacking = mob.CurrentState == EnemyState.Attacking;
+            StoryEngagementRules.EngagementClass inFlight = attacking
+                ? PlaytestWorld.InFlightClassOf(mob)
+                : StoryEngagementRules.EngagementClass.Free;
+            if (onHero) _engagementFrame.Engaged++;
+            if (attacking && mob.GlobalPosition.DistanceTo(heroPosition) <= MobEngagementTracker.NearPixels) {
+                _engagementFrame.AttackingNear++;
+                if (inFlight == StoryEngagementRules.EngagementClass.MeleeSlot) _engagementFrame.MeleeAttackingNear++;
+            }
+            if (role == StoryEngagementRules.EngagementRole.Slot) _engagementFrame.Holders++;
+            if (inFlight == StoryEngagementRules.EngagementClass.RangedPermit) _engagementFrame.RangedInFlight++;
+            if (onHero && PlaytestWorld.IsRingingWaiter(mob)) {
+                float gap = PlaytestWorld.EngagementGapOf(mob);
+                _waitersThisFrame.Add((gap, PlaytestWorld.RingSideOf(mob)));
+                if (gap > MobEngagementTracker.FarWaiterGapPixels) {
+                    _engagement.NoteFarWaiter(Frame, FoeIdOf(mob), mob.GlobalPosition.X, mob.GlobalPosition.Y, gap);
+                }
+            }
+        }
+
+        /// <summary>Books the frame's crowd sample and its waiter gaps (the nearest per side is the front one).</summary>
+        private void FinishEngagementFrame() {
+            Difficulty difficulty = StoryDifficultyTuning.CurrentStoryDifficulty;
+            _engagement.SlotTotal = StoryEngagementRules.MeleeSlotsTotal(difficulty);
+            _engagement.PermitTotal = StoryEngagementRules.RangedPermits(difficulty);
+            _engagement.SampleFrame(_engagementFrame);
+            _lastEngagementFrame = _engagementFrame;
+            float frontLeft = float.MaxValue, frontRight = float.MaxValue;
+            foreach ((float gap, int side) in _waitersThisFrame) {
+                if (side < 0) frontLeft = MathF.Min(frontLeft, gap);
+                else frontRight = MathF.Min(frontRight, gap);
+            }
+            bool leftTaken = false, rightTaken = false;
+            foreach ((float gap, int side) in _waitersThisFrame) {
+                bool front = false;
+                if (side < 0 && !leftTaken && gap == frontLeft) front = leftTaken = true;
+                else if (side >= 0 && !rightTaken && gap == frontRight) front = rightTaken = true;
+                _engagement.NoteWaiterGap(gap, front);
+            }
+        }
+
+        /// <summary>Reads every encounter lock: its state edges, counters, members and the hero's leaves.</summary>
+        private void TrackLocks(PlayerController player) {
+            if (_world == null) return;
+            bool heroAlive = player != null && GodotObject.IsInstanceValid(player) && player.CurrentHP > 0
+                && player.CurrentState != CharacterState.Dead;
+            foreach (EncounterLock encounterLock in _world.EncounterLocks()) {
+                var observation = new LockObservation {
+                    LockID = encounterLock.LockID,
+                    State = encounterLock.State,
+                    Planned = encounterLock.PlannedTotal,
+                    Registered = encounterLock.RegisteredCount,
+                    Living = encounterLock.LivingMemberCount,
+                    Remaining = encounterLock.RemainingCount,
+                    Engages = encounterLock.EngageCount,
+                    Reverts = encounterLock.RevertCount,
+                    StallRelocations = encounterLock.StallRelocations,
+                    Recycled = encounterLock.RecycledMembers,
+                    ForceCleared = encounterLock.ForceCleared,
+                    RestoredCleared = encounterLock.RestoredCleared,
+                    EngagedSeconds = encounterLock.EngagedSeconds,
+                    HeroInside = heroAlive && encounterLock.HeroStandsInside,
+                    HeroAlive = heroAlive
+                };
+                int leftBefore = _locks.Records.Find(r => r.LockID == observation.LockID)?.LeftWithMembersAlive ?? 0;
+                LockRecord record = _locks.Observe(Frame, observation);
+                string stateName = record.State;
+                if (!_lockStates.TryGetValue(record.LockID, out string previous) || previous != stateName) {
+                    _lockStates[record.LockID] = stateName;
+                    AddEvent("lock", $"{record.LockID}:{stateName} living={observation.Living} remaining={observation.Remaining}"
+                        + (encounterLock.RestoredCleared ? " (restored)" : encounterLock.ForceCleared ? " (forced)" : ""));
+                }
+                if (record.LeftWithMembersAlive > leftBefore) {
+                    AddEvent("lock_left_alive", $"{record.LockID} living={observation.Living}");
+                }
+                foreach (EnemyController member in encounterLock.LivingMembers) {
+                    if (member == null || !GodotObject.IsInstanceValid(member)) continue;
+                    ulong id = member.GetInstanceId();
+                    EnemyRecord enemy = _live.TryGetValue(id, out EnemyRecord live) && !live.Closed ? live : null;
+                    if (enemy != null && enemy.LockID.Length == 0) enemy.LockID = record.LockID;
+                    (int relocations, int falls) = PlaytestWorld.MemberRelocations(member);
+                    _locks.NoteMember(record.LockID, id, PlaytestWorld.SpawnGenerationOf(member), enemy, relocations, falls);
+                }
+            }
+        }
+
+        /// <summary>The trace's lock cell: the engaged lock's ID tail and what is left in it.</summary>
+        private string EngagedLockTraceCell() {
+            EncounterLock engaged = _world?.EngagedLock();
+            if (engaged == null) return "";
+            string id = engaged.LockID ?? "";
+            int cut = id.IndexOf("_lock_", StringComparison.Ordinal);
+            string shortId = cut >= 0 ? id[(cut + 6)..] : id;
+            return $"{shortId}:{engaged.RemainingCount}";
+        }
+
+        private Dictionary<string, object> MobEngagementReport() {
+            MobEngagementTracker e = _engagement;
+            return new Dictionary<string, object> {
+                ["near_px"] = (int)MobEngagementTracker.NearPixels,
+                ["slot_total"] = e.SlotTotal,
+                ["ranged_permits"] = e.PermitTotal,
+                ["engaged_frames"] = e.EngagedFrames,
+                ["attacking_near_max"] = e.MaxAttackingNear,
+                ["attacking_near_mean"] = e.MeanOverEngaged(e.SumAttackingNear),
+                ["melee_attacking_near_max"] = e.MaxMeleeAttackingNear,
+                ["melee_attacking_near_mean"] = e.MeanOverEngaged(e.SumMeleeAttackingNear),
+                ["frames_melee_over_slots"] = e.FramesMeleeOverSlots,
+                ["slot_holders_max"] = e.MaxHolders,
+                ["slot_holders_mean"] = e.MeanOverEngaged(e.SumHolders),
+                ["frames_holders_over_slots"] = e.FramesHoldersOverSlots,
+                ["slot_grants"] = e.SlotGrants,
+                ["slot_handoffs"] = e.SlotHandoffs,
+                ["waiter_gap_px_median"] = e.WaiterGapMedian,
+                ["front_waiter_gap_px_median"] = e.FrontWaiterGapMedian,
+                ["waiter_gap_samples"] = e.WaiterGapSamples,
+                ["gap_bucket_px"] = MobEngagementTracker.GapBucketPixels,
+                ["waiter_gap_histogram"] = e.WaiterGapBuckets.ToDictionary(kv => kv.Key.ToString(), kv => (object)kv.Value),
+                ["front_waiter_gap_histogram"] = e.FrontWaiterGapBuckets.ToDictionary(kv => kv.Key.ToString(), kv => (object)kv.Value),
+                ["ranged_in_flight_max"] = e.MaxRangedInFlight,
+                ["ranged_in_flight_mean"] = e.MeanOverEngaged(e.SumRangedInFlight),
+                ["frames_ranged_over_permits"] = e.FramesRangedOverPermits,
+                // Ringing waiters more than 600 px from the hero (off their ring:
+                // still walking in across a wide area, or held off it by a ledge,
+                // wall or barrier): every sample counted, a few logged with where
+                // they stood (a gap that never shrinks is a stuck waiter).
+                ["far_waiter_samples"] = e.FarWaiterSamples,
+                ["far_waiters"] = e.FarWaiters.Select(w => (object)new Dictionary<string, object> {
+                    ["f"] = w.Frame, ["foe"] = w.Enemy, ["x"] = w.X, ["y"] = w.Y, ["gap"] = w.Gap
+                }).ToList(),
+                ["attacking_near_histogram"] = e.AttackingNearHistogram.ToDictionary(kv => kv.Key.ToString(), kv => (object)kv.Value),
+                // Raw sums over the engaged frames, so batches pool exactly (compare_runs.py).
+                ["sums"] = new Dictionary<string, object> {
+                    ["attacking_near"] = e.SumAttackingNear,
+                    ["melee_attacking_near"] = e.SumMeleeAttackingNear,
+                    ["slot_holders"] = e.SumHolders,
+                    ["ranged_in_flight"] = e.SumRangedInFlight
+                }
+            };
+        }
+
+        private Dictionary<string, object> LocksReport() {
+            _locks.Summarize();
+            List<LockRecord> records = _locks.Records;
+            return new Dictionary<string, object> {
+                ["count"] = records.Count,
+                ["engaged"] = records.Count(r => r.EngageFrame >= 0),
+                ["cleared"] = records.Count(r => r.State == "cleared"),
+                ["restored_cleared"] = records.Count(r => r.RestoredCleared),
+                ["force_cleared"] = records.Count(r => r.ForceCleared),
+                ["reverts"] = records.Sum(r => r.Reverts),
+                ["left_with_members_alive"] = _locks.LeftWithMembersAlive,
+                ["members_planned"] = records.Sum(r => r.Planned),
+                ["members_killed"] = records.Sum(r => r.Killed),
+                ["stall_relocations"] = records.Sum(r => r.StallRelocations),
+                ["member_relocations"] = records.Sum(r => r.MemberRelocations),
+                ["fall_recoveries"] = records.Sum(r => r.FallRecoveries),
+                ["frames_to_clear_median"] = PlaytestCombatMath.Median(records.Where(r => r.FramesToClear >= 0).Select(r => r.FramesToClear).ToList()),
+                ["log"] = records.Select(r => (object)new Dictionary<string, object> {
+                    ["id"] = r.LockID,
+                    ["state"] = r.State,
+                    ["engage_frame"] = r.EngageFrame,
+                    ["clear_frame"] = r.ClearFrame,
+                    ["frames_to_clear"] = r.FramesToClear,
+                    ["engaged_seconds"] = Math.Round(r.EngagedSeconds, 1),
+                    ["planned"] = r.Planned,
+                    ["registered"] = r.Registered,
+                    ["killed"] = r.Killed,
+                    ["living"] = r.Living,
+                    ["max_living"] = r.MaxLiving,
+                    ["engages"] = r.Engages,
+                    ["reverts"] = r.Reverts,
+                    ["left_with_members_alive"] = r.LeftWithMembersAlive,
+                    ["left_frames"] = Boxed(r.LeftFrames),
+                    ["stall_relocations"] = r.StallRelocations,
+                    ["member_relocations"] = r.MemberRelocations,
+                    ["fall_recoveries"] = r.FallRecoveries,
+                    ["recycled"] = r.Recycled,
+                    ["force_cleared"] = r.ForceCleared,
+                    ["restored_cleared"] = r.RestoredCleared
+                }).ToList()
+            };
+        }
+
+        /// <summary>The <c>PLAYTEST_RESULT</c> lock and crowd summary (plan §5 GU-BOT).</summary>
+        public Dictionary<string, object> EncounterSummary() {
+            _locks.Summarize();
+            List<LockRecord> records = _locks.Records;
+            MobEngagementTracker e = _engagement;
+            return new Dictionary<string, object> {
+                ["locks"] = records.Count,
+                ["locks_cleared"] = records.Count(r => r.State == "cleared"),
+                ["lock_reverts"] = records.Sum(r => r.Reverts),
+                ["left_lock_alive"] = _locks.LeftWithMembersAlive,
+                ["lock_relocations"] = records.Sum(r => r.MemberRelocations),
+                ["locks_forced"] = records.Count(r => r.ForceCleared),
+                ["atk_max"] = e.MaxAttackingNear,
+                ["atk_mean"] = e.MeanOverEngaged(e.SumAttackingNear),
+                ["melee_max"] = e.MaxMeleeAttackingNear,
+                ["melee_over_slots_f"] = e.FramesMeleeOverSlots,
+                ["handoffs"] = e.SlotHandoffs,
+                ["waiter_gap_med"] = e.WaiterGapMedian,
+                ["ranged_max"] = e.MaxRangedInFlight,
+                ["slot_total"] = e.SlotTotal
+            };
+        }
+
         /// <summary>
         /// The carry-sampled finisher target's HP at the start of this tick: the
         /// baseline while its record is open, and after a swing close the test
@@ -972,7 +1232,7 @@ namespace FTT.Diagnostics {
             List<SwingRecord> combat = counted.Where(s => s.IsCombat).ToList();
             List<SwingRecord> whiffs = combat.Where(s => s.Outcome == "w").ToList();
             var byHit = new Dictionary<string, object>();
-            foreach (IGrouping<string, SwingRecord> group in combat.GroupBy(s => s.Hit + (s.Air ? "_air" : "")).OrderBy(g => g.Key)) {
+            foreach (IGrouping<string, SwingRecord> group in combat.GroupBy(s => PlaytestCombatMath.SwingHitKey(s.Hit, s.Air)).OrderBy(g => g.Key)) {
                 List<SwingRecord> groupWhiffs = group.Where(s => s.Outcome == "w").ToList();
                 byHit[group.Key] = new Dictionary<string, object> {
                     ["count"] = group.Count(),
@@ -995,7 +1255,15 @@ namespace FTT.Diagnostics {
                 ["connect_basis"] = PlaytestWorld.ConnectBasis,
                 ["whiff_gap_px_median"] = PlaytestCombatMath.Median(whiffs.Select(s => s.GapMin).ToList()),
                 ["connect_gap_px_median"] = PlaytestCombatMath.Median(combat.Where(s => s.Outcome == "c").Select(s => s.Gap).ToList()),
-                ["by_hit"] = byHit
+                ["by_hit"] = byHit,
+                // GU-BOT: the same combat swings by basic-attack family (string,
+                // air_attack — the single aerial strike since GU-A — up_attack, down_air).
+                ["by_variant"] = combat.GroupBy(s => PlaytestCombatMath.HitVariant(s.Hit)).OrderBy(g => g.Key, StringComparer.Ordinal)
+                    .ToDictionary(g => g.Key, g => (object)new Dictionary<string, object> {
+                        ["count"] = g.Count(),
+                        ["connected"] = g.Count(s => s.Outcome == "c"),
+                        ["whiffed"] = g.Count(s => s.Outcome == "w")
+                    })
             };
         }
 
@@ -1183,6 +1451,8 @@ namespace FTT.Diagnostics {
             List<EnemyRecord> passedAlive = Enemies.Where(e => e.PassedFrame >= 0
                 && (e.KilledFrame < 0 || e.KilledFrame > e.PassedFrame)).ToList();
             List<int> ttk = killed.Where(e => e.FramesToKill.HasValue).Select(e => e.FramesToKill.Value).OrderBy(v => v).ToList();
+            List<EnemyRecord> members = Enemies.Where(e => e.LockID.Length > 0).ToList();
+            _locks.Summarize();
 
             return new Dictionary<string, object> {
                 ["frames"] = Frame,
@@ -1212,8 +1482,19 @@ namespace FTT.Diagnostics {
                     ["engaged"] = engaged.Count,
                     ["bot_gave_up_unreachable"] = _bot?.UnreachableTargets ?? 0,
                     ["killed"] = killed.Count,
+                    // The pre-lock meaning, kept for comparability: the hero got 250 px
+                    // east of a live mob it had come within 450 px of.
                     ["passed_while_alive"] = passedAlive.Count,
                     ["passed_then_hit_player"] = passedAlive.Count(e => e.HitsOnPlayer > 0),
+                    // GU-BOT (2026-10-12): the lock meaning — the hero left an
+                    // uncleared lock's area with members alive (a revert: an Echo Step,
+                    // a rewind landing, a barrier failure) — and the old passes split
+                    // into lock members and mobs no lock owns.
+                    ["left_lock_with_members_alive"] = _locks.LeftWithMembersAlive,
+                    ["passed_alive_lock_members"] = passedAlive.Count(e => e.LockID.Length > 0),
+                    ["passed_alive_outside_locks"] = passedAlive.Count(e => e.LockID.Length == 0),
+                    ["lock_members_seen"] = members.Count,
+                    ["lock_members_killed"] = members.Count(e => e.KilledFrame >= 0 && e.LastSeenHP <= 0),
                     ["engaged_that_ever_hit_player"] = engaged.Count(e => e.HitsOnPlayer > 0),
                     ["median_frames_to_kill"] = ttk.Count == 0 ? -1 : ttk[ttk.Count / 2],
                     ["max_frames_to_kill"] = ttk.Count == 0 ? -1 : ttk[^1],
@@ -1239,6 +1520,7 @@ namespace FTT.Diagnostics {
                     ["attacks_started"] = e.AttacksStarted,
                     ["hits_on_player"] = e.HitsOnPlayer,
                     ["damage_to_player"] = e.DamageToPlayer,
+                    ["lock"] = e.LockID,
                     ["damage_by_bot_action"] = e.DamageByBotAction.ToDictionary(kv => kv.Key, kv => (object)kv.Value)
                 }).ToList(),
                 ["objectives_broken_frame"] = Objectives.ToDictionary(kv => kv.Key, kv => (object)kv.Value),
@@ -1251,6 +1533,10 @@ namespace FTT.Diagnostics {
                 ["ability_presses"] = PressesReport(),
                 // C3 (§4.3 step 2.4): mob MeleeStrike/ChargeDash active windows.
                 ["mob_swings"] = MobSwingsReport(),
+                // GU-BOT (2026-10-12): the hero's crowd under the engagement
+                // director, and every encounter lock.
+                ["mob_engagement"] = MobEngagementReport(),
+                ["locks"] = LocksReport(),
                 ["trace"] = Trace
             };
         }
