@@ -61,6 +61,50 @@ public class StoryEnemyCombatTests {
     }
 
     [TestCase]
+    public async Task AnIdenticalFinisherWritesTheSameVelocityOnAMobAtFullHPAndAtThreeHP() {
+        // User direction 2026-10-12 (request 5): Story knockback is static —
+        // "the same no matter what their health is". Before, the 3 HP mob flew
+        // about 1.9x as fast (the post-damage missing-HP ramp), and with it the
+        // D6a carry and the D9 bounce moved with the mob's health.
+        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => {
+            StaticBody2D floor = CreateFloor(centerX: 0f, width: 4000f);
+            EnemyController healthy = CreateEnemy("chrono_slasher");
+            EnemyController wounded = CreateEnemy("chrono_slasher");
+            try {
+                healthy.GlobalPosition = new Vector2(-600f, 0f);
+                wounded.GlobalPosition = new Vector2(600f, 0f);
+                SettleOnFloor(healthy);
+                SettleOnFloor(wounded);
+                AssertThat(healthy.CurrentHP).IsEqual(healthy.ScaledMaxHP);
+                wounded.CurrentHP = 3;
+
+                HitPayload finisher = Finisher(damage: 1f);
+                healthy.GetNode<Hurtbox>("Hurtbox").TakeHit(finisher);
+                wounded.GetNode<Hurtbox>("Hurtbox").TakeHit(finisher);
+
+                AssertThat(wounded.CurrentState)
+                    .OverrideFailureMessage("The wounded mob must survive the finisher, stunned.")
+                    .IsEqual(EnemyState.Stunned);
+                AssertThat(healthy.CurrentState).IsEqual(EnemyState.Stunned);
+                AssertThat(wounded.CurrentHP < 3 && healthy.CurrentHP < healthy.ScaledMaxHP)
+                    .OverrideFailureMessage("The finisher must land on both mobs.")
+                    .IsTrue();
+                Vector2 expected = DamageCalculator.CalculateKnockback(
+                    finisher.Knockback, healthy.Data.Weight, attackerFacingRight: true) * 60f;
+                foreach (EnemyController mob in new[] { healthy, wounded }) {
+                    AssertThat(mob.Velocity.X).IsEqualApprox(expected.X, 0.001f);
+                    AssertThat(mob.Velocity.Y).IsEqualApprox(expected.Y, 0.001f);
+                }
+                AssertThat(wounded.Velocity).IsEqual(healthy.Velocity);
+            } finally {
+                healthy.Free();
+                wounded.Free();
+                floor.Free();
+            }
+        });
+    }
+
+    [TestCase]
     public async Task KnockbackNeverCarriesAGroundMobOffALedge() {
         await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => {
             StaticBody2D floor = CreateFloor(centerX: 0f, width: 400f); // x in [-200, 200]

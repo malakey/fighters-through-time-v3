@@ -7,32 +7,26 @@ namespace FTT.Combat {
             return Mathf.Max(0f, baseDamage) * Mathf.Max(0f, damageMultiplier);
         }
 
+        /// <summary>
+        /// Story's one knockback rule: <c>baseKnockback / (1 + weight)</c>, its
+        /// horizontal pushed the attacker's way. It is <b>static</b> — the
+        /// victim's HP never enters it (user direction 2026-10-12, request 5:
+        /// "the health effects of the knockback should only apply to fighting
+        /// mode"), so every Story victim — the hero, the Level 13 Mirror clone,
+        /// mobs, elites, a thrown or bowled mob, bosses — takes the same impulse
+        /// from the same hit at any HP and on any difficulty. The missing-HP
+        /// scaling is Fighter Mode's alone, in fixed point inside
+        /// <c>FighterDamageRules.ApplyFighterHit</c>
+        /// (<see cref="BasicComboRules.LowHealthKnockbackScale"/> is its float
+        /// statement). The attacker-side Story knockback lane is applied to the
+        /// payload before it gets here.
+        /// </summary>
         public static Vector2 CalculateKnockback(Vector2 baseKnockback, float targetWeight, bool attackerFacingRight) {
             float divisor = 1f + Mathf.Max(0f, targetWeight);
             Vector2 knockback = baseKnockback / divisor;
             knockback.X = Mathf.Abs(knockback.X) * (attackerFacingRight ? 1f : -1f);
             return knockback;
         }
-
-        /// <summary>
-        /// Story's half of the low-health knockback scaling (gameplay-feel plan
-        /// §2.5): the impulse is multiplied by <c>1 + missingHPFraction</c> of
-        /// the victim, measured *after* the hit's damage has been applied —
-        /// a linear 1x at full HP to 2x at 0 HP. The Fighter sim applies the
-        /// identical ratio in fixed point inside
-        /// <c>FighterDamageRules.ApplyFighterHit</c>; the scale itself lives in
-        /// <see cref="BasicComboRules.LowHealthKnockbackScale"/> so neither mode
-        /// owns a second copy. Call sites pass post-damage HP.
-        /// </summary>
-        public static Vector2 CalculateKnockback(
-            Vector2 baseKnockback,
-            float targetWeight,
-            bool attackerFacingRight,
-            float targetCurrentHP,
-            float targetMaxHP) => CalculateKnockback(
-                baseKnockback * BasicComboRules.LowHealthKnockbackScale(targetCurrentHP, targetMaxHP),
-                targetWeight,
-                attackerFacingRight);
 
         public static float CalculateComboFinisherDamage(float baseDamage) {
             return CalculateDamage(baseDamage, 1.5f);

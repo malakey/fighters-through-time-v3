@@ -731,7 +731,10 @@ namespace FTT.FighterSim {
                     // source funnels through (basics, specials, ultimates,
                     // projectiles, zones, constructs, and — via
                     // ApplyEnvironmentHit — stage hazards), so the rule needs no
-                    // second copy. Story mirrors it in DamageCalculator.
+                    // second copy. Fighter Mode only: Story knockback is static
+                    // (user direction 2026-10-12), so DamageCalculator takes no
+                    // HP; BasicComboRules.LowHealthKnockbackScale is this rule's
+                    // float statement.
                     FP64 force = ScaleByMissingHP(knockback, in target) / (FP64.One + target.Weight);
                     // Launcher-class impulses (Nassau's mortar) bias the impulse
                     // upward; everything else keeps the symmetric 1:1 pulse.
@@ -886,7 +889,8 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
-        /// The fixed-point half of <c>BasicComboRules.LowHealthKnockbackScale</c>:
+        /// The fixed-point form of <c>BasicComboRules.LowHealthKnockbackScale</c>
+        /// (Fighter Mode only; Story knockback is static):
         /// <c>knockback * (2 * MaxHP - CurrentHP) / MaxHP</c>. The ratio is
         /// formed first so the intermediate never leaves the [1, 2] band, and
         /// the whole computation stays in FP64 — no float math on the

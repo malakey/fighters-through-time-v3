@@ -658,8 +658,14 @@ namespace FTT.Combat {
         /// <paramref name="carryPx"/>, for a 60 Hz step that slows the speed
         /// before each move: <c>v² / (2 (D + v/120))</c>; the <c>v/120</c> term
         /// corrects the discrete step's undershoot. 0 for no launch speed. A
-        /// carry of 0 stops the mob on the first step. The caller takes the max
-        /// with S1's friction, so the rule never lengthens a carry.
+        /// carry of 0 stops the mob on the first step. The caller applies it
+        /// <i>in place of</i> S1's friction for the whole flight (air and
+        /// ground), so the mob stops at the target by construction and never
+        /// past it. Until the 2026-10-12 static knockback the caller took
+        /// <c>max(S1, it)</c>; with HP no longer inflating the launch, S1's
+        /// 600 px/s² air drag out-braked the slowest finisher (Cleopatra's
+        /// 300 px/s) and landed the mob inside her own reach, so the max is
+        /// retired.
         /// </summary>
         public static float FinisherCarryDeceleration(float launchSpeedPxPerSec, float carryPx) {
             if (launchSpeedPxPerSec <= 0f) return 0f;

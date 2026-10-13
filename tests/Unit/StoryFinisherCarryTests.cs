@@ -144,6 +144,51 @@ public class StoryFinisherCarryTests {
     }
 
     [TestCase]
+    public async Task AFinisherFlightBrakesAtItsCarryDecelerationAloneEvenWhereS1IsStronger() {
+        // GU-D (2026-10-12, with the static Story knockback): a finisher flight
+        // decelerates at its D6a carry deceleration alone, on the ground and in
+        // the air. The retired max(S1, carry) let S1's 1800 px/s² grounded
+        // friction (or its 600 px/s² air drag, for the slowest launches) cut
+        // the carry short of one step out.
+        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => {
+            StaticBody2D floor = CreateFloor();
+            PlayerController attacker = CreateBareAttacker(new Vector2(OriginX - 60f, 0f));
+            EnemyController mob = CreatePassiveMob("chrono_slasher", new Vector2(OriginX, 0f));
+            try {
+                SettleOnFloor(mob);
+                mob.GetNode<Hurtbox>("Hurtbox").TakeHit(FinisherFrom(attacker));
+                AssertThat(mob.IsInFinisherFlight).IsTrue();
+                float carry = mob.FinisherCarryDeceleration;
+                AssertThat(carry > 0f && carry < StoryEnemyCombatRules.StunnedGroundFrictionPixelsPerSecondSquared)
+                    .OverrideFailureMessage($"Harness premise: the carry ({carry:F0} px/s²) must be gentler than S1's ground friction.")
+                    .IsTrue();
+
+                int guard = 0;
+                while (mob.HitstopFramesRemaining > 0 && guard++ < 30) mob._PhysicsProcess(Step);
+                // The first free frame brakes while still grounded (the launch
+                // lifts the mob in this frame's slide), where S1 would be 1800.
+                AssertThat(mob.IsOnFloor()).IsTrue();
+                for (int frame = 0; frame < 12; frame++) {
+                    float before = mob.Velocity.X;
+                    mob._PhysicsProcess(Step);
+                    float expected = Mathf.MoveToward(before, 0f, carry * Step);
+                    AssertThat(Mathf.Abs(mob.Velocity.X - expected) < 0.5f)
+                        .OverrideFailureMessage(
+                            $"Frame {frame}: vx {mob.Velocity.X:F2}, the carry alone gives {expected:F2} (from {before:F2}).")
+                        .IsTrue();
+                }
+                AssertThat(mob.IsOnFloor())
+                    .OverrideFailureMessage("The checked frames must include airborne ones.")
+                    .IsFalse();
+            } finally {
+                mob.Free();
+                attacker.Free();
+                floor.Free();
+            }
+        });
+    }
+
+    [TestCase]
     public async Task TheLaunchLatchesClearOnTouchdownStunExpiryATripAGrabAPoolCycleAKnockbackWriteAndARewind() {
         await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => {
             StaticBody2D floor = CreateFloor();
@@ -255,10 +300,15 @@ public class StoryFinisherCarryTests {
         AssertThat(run.TouchdownGap <= run.Target + 2f)
             .OverrideFailureMessage($"{at}: landed {run.TouchdownGap:F1} px, past the {run.Target:F1} px target.")
             .IsTrue();
-        if (run.CarryDeceleration > StoryEnemyCombatRules.StunnedGroundFrictionPixelsPerSecondSquared) {
+        // Since the 2026-10-12 static knockback a finisher flight brakes at its
+        // carry deceleration alone (no max with S1), so a carry that runs out
+        // in the air stops the mob on its target by construction; one that
+        // touches down first (a slow launch, a heavy elite) lands short of it,
+        // which the two bars above still bound.
+        if (run.CarryStoppedInAir) {
             AssertThat(System.Math.Abs(run.TouchdownGap - run.Target) <= 6f)
                 .OverrideFailureMessage(
-                    $"{at}: the carry rule binds ({run.CarryDeceleration:F0} px/s²) but the mob landed {run.TouchdownGap:F1} px against a {run.Target:F1} px target.")
+                    $"{at}: the carry ({run.CarryDeceleration:F0} px/s²) stopped the mob in the air but it landed {run.TouchdownGap:F1} px against a {run.Target:F1} px target.")
                 .IsTrue();
         }
     }
@@ -286,6 +336,15 @@ public class StoryFinisherCarryTests {
         public bool ArmedFlight;
         public float ArmedDeceleration;
         public float ArmedTarget;
+        /// <summary>
+        /// D9: how far the mob's body travelled, from where the finisher struck
+        /// it, while its bounce latch held and its pre-move speed was over the
+        /// 300 px/s bounce floor: a wall face within this of its leading edge
+        /// bounces it. Measurement only, printed in the table.
+        /// </summary>
+        public float BounceRadius;
+        /// <summary>D6a: the finisher flight's horizontal speed reached zero before touchdown.</summary>
+        public bool CarryStoppedInAir;
     }
 
     /// <summary>
@@ -332,6 +391,7 @@ public class StoryFinisherCarryTests {
             int lastHP = mob.CurrentHP;
             bool airborneSinceFinisher = false;
             float lastX = 0f;
+            float launchX = 0f;
             for (int frame = 1; frame < 420; frame++) {
                 await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
                 run.HeroStunned |= hero.CurrentState == CharacterState.Stunned;
@@ -349,6 +409,7 @@ public class StoryFinisherCarryTests {
                         run.ArmedFlight = mob.IsInFinisherFlight;
                         run.ArmedDeceleration = mob.FinisherCarryDeceleration;
                         run.ArmedTarget = mob.LastFinisherLandingTargetPixels;
+                        launchX = mob.GlobalPosition.X;
                         // Release: the held button must not open a new string
                         // on a mob that comes back into reach.
                         source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, GameplayButtons.None,
@@ -358,6 +419,12 @@ public class StoryFinisherCarryTests {
                 if (run.FinisherFrame < 0) continue;
 
                 float x = mob.GlobalPosition.X;
+                // The sampled velocity is the one this frame's move used (the
+                // friction runs before the slide, and no wall is in the way).
+                if (mob.IsWallBounceArmed
+                    && Mathf.Abs(mob.Velocity.X) > StoryEnemyCombatRules.WallBounceMinSpeedPixelsPerSecond) {
+                    run.BounceRadius = Mathf.Max(run.BounceRadius, Mathf.Abs(x - launchX));
+                }
                 if (run.StunEndFrame < 0 && mob.CurrentState != EnemyState.Stunned) {
                     run.StunEndFrame = frame;
                 } else if (run.StunEndFrame >= 0 && run.TouchdownFrame < 0 && x < lastX - 0.01f) {
@@ -368,6 +435,7 @@ public class StoryFinisherCarryTests {
                 if (run.TouchdownFrame < 0) {
                     if (!mob.IsOnFloor()) {
                         airborneSinceFinisher = true;
+                        if (Mathf.Abs(mob.Velocity.X) < 0.01f) run.CarryStoppedInAir = true;
                     } else if (airborneSinceFinisher) {
                         run.TouchdownFrame = frame;
                         run.TouchdownGap = x - hero.GlobalPosition.X;
@@ -389,14 +457,14 @@ public class StoryFinisherCarryTests {
     private static string Table(string title, List<CarryRun> runs) {
         var text = new StringBuilder();
         text.AppendLine($"[D6a] {title}");
-        text.AppendLine("[D6a] hero | mob | R1 | F | target | hits | g0 | v0 | carry decel | lands (±R1) | touchdown f | stun end f | armor end f | steered back");
+        text.AppendLine("[D6a] hero | mob | R1 | F | target | hits | g0 | v0 | carry decel | lands (±R1) | touchdown f | stun end f | armor end f | steered back | stopped in air | D9 bounce r");
         foreach (CarryRun run in runs) {
             int Rel(int frame) => frame < 0 ? -1 : frame - run.FinisherFrame;
             text.AppendLine(
                 $"[D6a] {run.Hero} | {run.Enemy} | {run.OwnReach:F1} | {run.Force:F2} | {run.Target:F1} | {run.Hits} | "
                 + $"{run.GapAtFinisher:F1} | {run.LaunchVx:F0} | {run.CarryDeceleration:F0} | "
                 + $"{run.TouchdownGap:F1} ({run.TouchdownGap - run.OwnReach:+0.0;-0.0}) | {Rel(run.TouchdownFrame)} | "
-                + $"{Rel(run.StunEndFrame)} | {Rel(run.ArmorEndFrame)} | {run.SteeredBack}");
+                + $"{Rel(run.StunEndFrame)} | {Rel(run.ArmorEndFrame)} | {run.SteeredBack} | {run.CarryStoppedInAir} | {run.BounceRadius:F1}");
         }
         return text.ToString();
     }
