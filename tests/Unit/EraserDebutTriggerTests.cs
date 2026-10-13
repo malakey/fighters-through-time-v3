@@ -162,6 +162,43 @@ public class EraserDebutTriggerTests {
             .IsNotEqual(EraserDebutTrigger.DebutBarkKey);
     }
 
+    /// <summary>
+    /// GU-L4 (gameplay update 2026-10-12): a level whose encounter lock spawns
+    /// the debut Eraser turns the route trigger's own spawn off and hands the
+    /// lock's body to <see cref="EraserDebutTrigger.AdoptEraserDebut"/>, which
+    /// begins the ambush once with the same bark and guards; a cleared record
+    /// never adopts again. (The real-scene adoption, with an Eraser the lock
+    /// spawned, is <c>Level05ContentTests</c>' flood case.)
+    /// </summary>
+    [TestCase]
+    public void AnAdoptedLockSpawnedBodyBeginsTheAmbushOnceWithTheSameBark() {
+        using var fixture = new TriggerFixture();
+        fixture.Trigger.RouteTriggerSpawns = false;
+        int began = 0;
+        int cleared = 0;
+        fixture.Trigger.DebutBegan += _ => began++;
+        fixture.Trigger.DebutCleared += _ => cleared++;
+
+        var body = new Node2D { Name = "LockSpawnedEraser" };
+        fixture.Trigger.AddChild(body);
+        AssertThat(fixture.Trigger.AdoptEraserDebut(body)).IsTrue();
+        AssertThat(fixture.Trigger.EncounterLive).IsTrue();
+        AssertThat(fixture.Trigger.BarkSeen).IsTrue();
+        AssertThat(fixture.Trigger.SpawnCount).IsEqual(1);
+        AssertThat(began).IsEqual(1);
+        // A live ambush is never begun twice, by adoption or by the trigger.
+        AssertThat(fixture.Trigger.AdoptEraserDebut(body)).IsFalse();
+        AssertThat(fixture.Trigger.SpawnEraserDebut()).IsFalse();
+        AssertThat(fixture.Trigger.SpawnCount).IsEqual(1);
+
+        // The adopted body is not an EnemyController, so the trigger watches no
+        // exit on it; a cleared record never adopts again.
+        fixture.Trigger.MarkClearedForTest();
+        AssertThat(cleared).IsEqual(1);
+        AssertThat(fixture.Trigger.AdoptEraserDebut(body)).IsFalse();
+        AssertThat(fixture.Trigger.AdoptEraserDebut(null)).IsFalse();
+    }
+
     // === Level 5 placement (Package 13 W2, S27) ===
 
     [TestCase]

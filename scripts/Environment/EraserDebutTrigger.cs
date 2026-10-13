@@ -89,6 +89,16 @@ namespace FTT.Environment {
         /// <summary>Where the ambush drops in, relative to the trigger.</summary>
         [Export] public Vector2 SpawnOffset = new(320f, 0f);
 
+        /// <summary>
+        /// GU-L4 (gameplay update 2026-10-12, encounter locks): true (the default)
+        /// keeps the classic route trigger — crossing it spawns the Eraser. A level
+        /// whose encounter lock spawns the debut Eraser as one of its waves sets it
+        /// false: crossing then spawns nothing, and the level hands the lock's body
+        /// to <see cref="AdoptEraserDebut"/>, which runs the same bark and
+        /// reconstruction bookkeeping. <see cref="SpawnEraserDebut"/> is unchanged.
+        /// </summary>
+        [Export] public bool RouteTriggerSpawns = true;
+
         /// <summary>Encounter state: the ambush is defeated (or declared complete on reconstruction).</summary>
         public bool EncounterCleared { get; private set; }
 
@@ -127,7 +137,7 @@ namespace FTT.Environment {
             // ambush is built right after it. Direct calls to SpawnEraserDebut (which
             // is how tests drive this) stay fully synchronous.
             _trigger.BodyEntered += body => {
-                if (body is not PlayerController) return;
+                if (body is not PlayerController || !RouteTriggerSpawns) return;
                 Callable.From(() => SpawnEraserDebut()).CallDeferred();
             };
             AddChild(_trigger);
@@ -166,6 +176,26 @@ namespace FTT.Environment {
             BarkSeen = true;
             DebutBegan?.Invoke(this);
             if (EncounterCleared) DebutCleared?.Invoke(this);
+            return true;
+        }
+
+        /// <summary>
+        /// GU-L4: begins the ambush with a body something else spawned — the
+        /// level's encounter lock, whose member the debut Eraser is. The same
+        /// guards as <see cref="SpawnEraserDebut"/> (a cleared or live encounter is
+        /// never begun twice), the same watch on the body's exit, the same bark.
+        /// Returns true only when the ambush began.
+        /// </summary>
+        public bool AdoptEraserDebut(Node body) {
+            if (body == null || !IsInstanceValid(body)) return false;
+            if (EncounterCleared || EncounterLive) return false;
+            PruneDeadEnemies();
+            EncounterLive = true;
+            SpawnCount++;
+            _liveEnemies.Add(body);
+            Watch(body);
+            BarkSeen = true;
+            DebutBegan?.Invoke(this);
             return true;
         }
 

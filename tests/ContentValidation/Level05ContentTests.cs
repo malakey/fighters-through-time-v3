@@ -180,7 +180,8 @@ public class Level05ContentTests {
                 .OverrideFailureMessage(
                     $"'{enemyID}' is not a Future Cultist; the Titanic roster is cultist-only.")
                 .IsTrue();
-            AssertThat(wave >= 1 && wave <= 3).IsTrue();
+            // GU-L4: four waves, one per encounter lock (the boat deck's old wave 3 is split in two).
+            AssertThat(wave >= 1 && wave <= Level05Controller.WaveCount).IsTrue();
         }
 
         var standard = AuthoredResources.Load<EnemyData>(
@@ -338,20 +339,256 @@ public class Level05ContentTests {
             AssertThat(level.ArenaFlood.Enabled).IsFalse();
             AssertThat(level.ArenaFlood.CurrentStep).IsEqual(0);
 
-            // Later checkpoints resume with the ship further gone, and every wave
-            // behind the checkpoint stays cleared instead of replaying.
+            // Later checkpoints resume with the ship further gone, and every lock
+            // behind the checkpoint is built Cleared instead of replaying (GU-L4:
+            // the encounters are the four locks).
+            bool preBoss = checkpointID == Level05Controller.Checkpoint2;
             if (isEntryAnchor) {
                 AssertThat(level.HullFlood.CurrentStep).IsEqual(0);
-                AssertThat(level.HasWaveSpawned(2)).IsFalse();
+                AssertThat(level.StaircaseLock.State).IsEqual(EncounterLockState.Armed);
+                AssertThat(level.BoilerCasingLock.State).IsEqual(EncounterLockState.Armed);
             } else {
                 AssertThat(level.HullFlood.CurrentStep).IsGreater(0);
-                AssertThat(level.HasWaveSpawned(1)).IsTrue();
-                AssertThat(level.HasWaveSpawned(2)).IsTrue();
+                AssertThat(level.StaircaseLock.RestoredCleared).IsTrue();
+                AssertThat(level.BoilerCasingLock.RestoredCleared).IsTrue();
+                AssertThat(level.EDeckLock.RestoredCleared).IsEqual(preBoss);
+                AssertThat(level.BoatDeckLock.RestoredCleared).IsEqual(preBoss);
             }
-            if (checkpointID == Level05Controller.Checkpoint2) {
-                AssertThat(level.HasWaveSpawned(3)).IsTrue();
+            // A restored clear raises nothing: the anchor's own step stands.
+            AssertThat(level.PendingHullStep).IsEqual(0);
+        }
+    }
+
+    // === GU-L4 (2026-10-12): the encounter locks and the flood ===
+
+    /// <summary>
+    /// The four rooms are encounter locks, one wave per manifest row (the old
+    /// wave 3 split between the E-deck run and the boat deck), each barrier
+    /// standing on the deck under it; the debut Eraser is the E-deck lock's
+    /// unscaled third wave; room 1 has a room trigger and camera rect; every
+    /// anchor lists the locks before it.
+    /// </summary>
+    [TestCase]
+    public void TheFourRoomsAreEncounterLocksAndTheDebutEraserIsAMemberOfTheEDeckLock() {
+        using var fixture = new TitanicFixture(null);
+        Level05Controller level = fixture.Level;
+        AssertThat(level.EncounterLocks.Count).IsEqual(4);
+
+        var expected = new (EncounterLock Lock, string ID, float MinX, float MaxX, float EntryFloor, float ExitFloor, int Wave, EncounterWaveTrigger Trigger)[] {
+            (level.StaircaseLock, Level05Controller.LockStaircase, 380f, 3400f, 1300f, 1140f, 1, EncounterWaveTrigger.OnBuild),
+            (level.BoilerCasingLock, Level05Controller.LockBoilerCasing, 3420f, 5880f, 1140f, 940f, 2, EncounterWaveTrigger.OnEngage),
+            (level.EDeckLock, Level05Controller.LockEDeck, 6160f, 7520f, 940f, 800f, 3, EncounterWaveTrigger.OnBuild),
+            (level.BoatDeckLock, Level05Controller.LockBoatDeck, 7540f, 8820f, 800f, 800f, 4, EncounterWaveTrigger.OnBuild)
+        };
+        foreach ((EncounterLock encounterLock, string id, float minX, float maxX, float entryFloor, float exitFloor,
+                     int wave, EncounterWaveTrigger trigger) in expected) {
+            AssertObject(encounterLock).OverrideFailureMessage($"'{id}' was not built.").IsNotNull();
+            AssertString(encounterLock.LockID).IsEqual(id);
+            AssertFloat(encounterLock.Area.Position.X).IsEqualApprox(minX, 0.5f);
+            AssertFloat(encounterLock.Area.End.X).IsEqualApprox(maxX, 0.5f);
+            AssertFloat(encounterLock.EntryBarrier.BottomY).IsEqualApprox(entryFloor, 0.5f);
+            AssertFloat(encounterLock.ExitBarrier.BottomY).IsEqualApprox(exitFloor, 0.5f);
+            EncounterLockWave first = encounterLock.Spec.Waves[0];
+            AssertString(first.RowID).IsEqual(Level05Controller.WaveRowID(wave));
+            AssertThat(first.Trigger).IsEqual(trigger);
+            var authored = new List<string>();
+            foreach ((string enemyID, int entryWave, Vector2 position) in Level05Controller.SpawnTable) {
+                if (entryWave != wave) continue;
+                authored.Add(enemyID);
+                AssertThat(position.X > minX && position.X < maxX)
+                    .OverrideFailureMessage($"Wave {wave}'s {enemyID} at {position} stands outside '{id}' {minX}..{maxX}.")
+                    .IsTrue();
+            }
+            AssertString(string.Join(",", first.EnemyIDs)).IsEqual(string.Join(",", authored));
+        }
+
+        // The debut Eraser: the E-deck lock's unscaled third wave, dropping in
+        // once one E-deck slasher is left; the route trigger no longer spawns.
+        AssertThat(level.EDeckLock.Spec.Waves.Length).IsEqual(2);
+        EncounterLockWave debut = level.EDeckLock.Spec.Waves[1];
+        AssertString(debut.RowID).IsEqual(Level05Controller.EraserDebutRowID);
+        AssertThat(debut.Scaled).IsFalse();
+        AssertThat(debut.Trigger).IsEqual(EncounterWaveTrigger.WhenAliveAtMost);
+        AssertThat(debut.AliveAtMost).IsEqual(1);
+        AssertString(string.Join(",", debut.EnemyIDs)).IsEqual(level.EraserDebut.EnemyID);
+        AssertThat(level.EraserDebut.RouteTriggerSpawns).IsFalse();
+        foreach (EncounterLock other in new[] { level.StaircaseLock, level.BoilerCasingLock, level.BoatDeckLock }) {
+            AssertThat(other.Spec.Waves.Length).IsEqual(1);
+        }
+
+        // Room 1 confines the camera now (it had no trigger at all).
+        RoomTransitionTrigger room1 = null;
+        foreach (RoomTransitionTrigger room in level.RoomTriggers) {
+            if (room.RoomID == "titanic_grand_staircase") room1 = room;
+        }
+        AssertObject(room1).OverrideFailureMessage("Room 1 has no room trigger.").IsNotNull();
+        AssertThat(room1.CameraBounds).IsEqual(Level05Controller.Room1CameraBounds);
+        // The old x triggers are gone: the boiler surge is the casing's clear now.
+        AssertObject(level.GetNodeOrNull("BoilerSurgeTrigger")).IsNull();
+
+        IReadOnlyDictionary<string, string[]> map = level.AuthoredEncounterBaselines;
+        AssertThat(map[Level05Controller.Checkpoint0].Length).IsEqual(0);
+        AssertString(string.Join(",", map[Level05Controller.Checkpoint1]))
+            .IsEqual($"{Level05Controller.LockStaircase},{Level05Controller.LockBoilerCasing}");
+        AssertString(string.Join(",", map[Level05Controller.Checkpoint2]))
+            .IsEqual($"{Level05Controller.LockStaircase},{Level05Controller.LockBoilerCasing},"
+                + $"{Level05Controller.LockEDeck},{Level05Controller.LockBoatDeck},{Level05Controller.EraserDebutTriggerID}");
+    }
+
+    /// <summary>
+    /// The anchors, the Restoration Font and the pre-boss beat's trigger stand
+    /// outside every lock, and each anchor's strike surface lies beyond the
+    /// longest basic swing from inside the locks its baseline lists.
+    /// </summary>
+    [TestCase]
+    public void TheAnchorsTheFontAndThePreBossBeatStandOutsideEveryLock() {
+        using var fixture = new TitanicFixture(null);
+        Level05Controller level = fixture.Level;
+        float swing = EncounterLockReach.LongestBasicSwingPixels();
+
+        float middleWest = Level05Controller.MiddleCheckpointX - EncounterLockReach.StrikeSurfaceHalfWidthPixels;
+        float casingReach = EncounterLockReach.EastReachFromInside(Level05Controller.BoilerCasingLockMaxX, swing);
+        AssertThat(casingReach < middleWest)
+            .OverrideFailureMessage($"A swing from the boiler casing reaches x {casingReach:0}; the Middle surface starts at {middleWest:0}.")
+            .IsTrue();
+        float preBossWest = Level05Controller.PreBossCheckpointX - EncounterLockReach.StrikeSurfaceHalfWidthPixels;
+        float boatReach = EncounterLockReach.EastReachFromInside(Level05Controller.BoatDeckLockMaxX, swing);
+        AssertThat(boatReach < preBossWest)
+            .OverrideFailureMessage($"A swing from the boat deck reaches x {boatReach:0}; the PreBoss surface starts at {preBossWest:0}.")
+            .IsTrue();
+
+        AssertThat(level.Levels.TryGetCheckpointPosition(Level05Controller.Checkpoint2, out Vector2 preBoss)).IsTrue();
+        AssertFloat(preBoss.X).IsEqualApprox(Level05Controller.PreBossCheckpointX, 0.5f);
+        // The PreBoss anchor stands past the hull flood, on the stern rail, short of the arena.
+        AssertThat(preBoss.X > Level05Controller.ArenaStartX && preBoss.X < Level05Controller.BossArenaBounds.Position.X).IsTrue();
+
+        float fontX = level.AuthoredRestorationFontPosition.Value.X;
+        var preBossTrigger = level.GetNodeOrNull<Area2D>("PreBossTrigger");
+        AssertObject(preBossTrigger).IsNotNull();
+        foreach (EncounterLock encounterLock in level.EncounterLocks) {
+            Rect2 area = encounterLock.Area;
+            AssertThat(fontX + 30f <= area.Position.X || fontX - 30f >= area.End.X)
+                .OverrideFailureMessage($"The font at {fontX} stands inside '{encounterLock.LockID}'.").IsTrue();
+            // The pre-boss beat pauses gameplay: it never fires inside a fight.
+            float beatX = preBossTrigger.GlobalPosition.X;
+            AssertThat(beatX + 35f <= area.Position.X || beatX - 35f >= area.End.X)
+                .OverrideFailureMessage($"The pre-boss trigger at {beatX} stands inside '{encounterLock.LockID}'.").IsTrue();
+            // So does the stern-rail room trigger, whose camera would take the view when the lock clears.
+            foreach (RoomTransitionTrigger room in level.RoomTriggers) {
+                if (room.RoomID != "titanic_stern_rail") continue;
+                AssertThat(room.GlobalPosition.X - 40f >= area.End.X || room.GlobalPosition.X + 40f <= area.Position.X)
+                    .OverrideFailureMessage($"The stern-rail trigger at {room.GlobalPosition.X} reaches into '{encounterLock.LockID}'.").IsTrue();
             }
         }
+    }
+
+    /// <summary>
+    /// The ruling for the flood (plan §5): the hull steps advance on the locks'
+    /// clears, never on x triggers, and never over a fight — each step rises once
+    /// the hero stands on the next dry deck (Provisional), the boiler surge after
+    /// the casing's clear, step 3 after the E-deck's, and the boat deck's 14 s
+    /// timer starts only after the boat deck clears. The debut Eraser drops in as
+    /// an E-deck member once one slasher is left and the trigger adopts it for its
+    /// bark. In real frames on the real scene, resumed at the entry anchor.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task TheHullFloodRisesOnEachLockClearOnlyOnceTheHeroIsClearOfIt() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        using var fixture = new TitanicFixture(new StorySaveData {
+            SelectedCharacterID = "einstein",
+            CurrentLevelID = StoryManager.GetLevelScenePath(CampaignLevel.Titanic),
+            LastCheckpointID = Level05Controller.Checkpoint0,
+            CurrentHP = 100
+        });
+        // Real frames: go slotless so nothing reaches a slot file.
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
+        Level05Controller level = fixture.Level;
+        RisingWaterZone hull = level.HullFlood;
+        PlayerController hero = level.Player;
+        AssertThat(hull.CurrentStep).IsEqual(0);
+
+        async System.Threading.Tasks.Task Engage(EncounterLock encounterLock, Vector2 at) {
+            Place(hero, at);
+            for (int frame = 0; frame < 30 && encounterLock.State != EncounterLockState.Engaged; frame++) {
+                await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            }
+            AssertThat(encounterLock.State)
+                .OverrideFailureMessage($"'{encounterLock.LockID}' did not engage with the hero at {at}.")
+                .IsEqual(EncounterLockState.Engaged);
+        }
+        async System.Threading.Tasks.Task KillAll(EncounterLock encounterLock) {
+            for (int pass = 0; pass < 6 && encounterLock.State == EncounterLockState.Engaged; pass++) {
+                foreach (EnemyController member in encounterLock.LivingMembers) member.TakeDamage(99999);
+                for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            }
+            AssertThat(encounterLock.State).IsEqual(EncounterLockState.Cleared);
+            AssertThat(encounterLock.ForceCleared).IsFalse();
+        }
+
+        // Area 1, cleared with the hero still on D1: step 1 would flood it, so it waits.
+        await Engage(level.StaircaseLock, new Vector2(1600f, 1210f));
+        await KillAll(level.StaircaseLock);
+        AssertThat(hull.CurrentStep).IsEqual(0);
+        AssertThat(level.PendingHullStep).IsEqual(1);
+        // On D2 the deck is above step 1's line: the water comes in behind the hero.
+        Place(hero, new Vector2(3000f, 1130f));
+        for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        AssertThat(hull.CurrentStep).IsEqual(1);
+        AssertThat(level.PendingHullStep).IsEqual(0);
+
+        // Area 2 (its crew spawns on engage), cleared on D2: the boiler surge waits for E2.
+        await Engage(level.BoilerCasingLock, new Vector2(3800f, 1130f));
+        await KillAll(level.BoilerCasingLock);
+        AssertThat(hull.CurrentStep).IsEqual(1);
+        AssertThat(level.PendingHullStep).IsEqual(2);
+        Place(hero, new Vector2(5700f, 930f));
+        for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        AssertThat(hull.CurrentStep).IsEqual(2);
+
+        // Area 3a: the debut Eraser drops in once one slasher is left, as a member,
+        // and the trigger adopts it for Sarah's bark.
+        EncounterLock eDeck = level.EDeckLock;
+        await Engage(eDeck, new Vector2(6500f, 930f));
+        IReadOnlyList<EnemyController> slashers = eDeck.LivingMembers;
+        AssertThat(slashers.Count).IsGreater(0);
+        bool eraserSeen = false;
+        for (int pass = 0; pass < 6 && !eraserSeen; pass++) {
+            IReadOnlyList<EnemyController> living = eDeck.LivingMembers;
+            if (living.Count > 1) living[0].TakeDamage(99999);
+            for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            foreach (EnemyController member in eDeck.LivingMembers) {
+                if (member.Data?.EnemyID == EraserDebutTrigger.EraserEnemyID) {
+                    eraserSeen = true;
+                    AssertThat(member.IsEncounterMember).IsTrue();
+                    AssertString(member.EncounterLockID).IsEqual(Level05Controller.LockEDeck);
+                }
+            }
+        }
+        AssertThat(eraserSeen).OverrideFailureMessage("The debut Eraser never joined the E-deck lock.").IsTrue();
+        AssertThat(level.EraserDebut.EncounterLive).IsTrue();
+        AssertThat(level.EraserDebut.BarkSeen).IsTrue();
+        AssertThat(level.EraserDebut.SpawnCount).IsEqual(1);
+        await KillAll(eDeck);
+        // Cleared on E2: step 3 floods E2, so it waits for the boat deck.
+        AssertThat(hull.CurrentStep).IsEqual(2);
+        AssertThat(level.PendingHullStep).IsEqual(3);
+        Place(hero, new Vector2(7520f, 790f));
+        for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        AssertThat(hull.CurrentStep).IsEqual(3);
+        AssertObject(level.GetNodeOrNull<Timer>("BoatDeckFloodTimer"))
+            .OverrideFailureMessage("The boat deck's timer started before its fight was cleared.").IsNull();
+
+        // Area 3b: its clear starts the last race.
+        await Engage(level.BoatDeckLock, new Vector2(8000f, 790f));
+        await KillAll(level.BoatDeckLock);
+        AssertObject(level.GetNodeOrNull<Timer>("BoatDeckFloodTimer"))
+            .OverrideFailureMessage("The boat deck's clear did not start the 14 s timer.").IsNotNull();
+        AssertThat(hull.CurrentStep).IsEqual(3);
+    }
+
+    private static void Place(PlayerController hero, Vector2 at) {
+        hero.GlobalPosition = at;
+        hero.Velocity = Vector2.Zero;
     }
 
     [TestCase]

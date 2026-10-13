@@ -38,6 +38,20 @@ namespace FTT.Environment {
     /// Since S27 (Package 13 W2) it also hosts the scripted Eraser debut — one
     /// <c>unbound_eraser</c> at <see cref="EraserDebutTriggerID"/> — and pays the
     /// retired Level 4A's dust row: 55 required / 25 boss / 30 optional.
+    ///
+    /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-L4): the
+    /// stair decks (380–3400), the boiler casing (3420–5880), the E-deck run up
+    /// the listing ramp (6160–7520) and the boat deck (7540–8820) are
+    /// <see cref="EncounterLock"/>s, one per room, and the hull flood rises on
+    /// their clears rather than on x triggers, so the sea always comes in behind
+    /// the hero instead of over a fight it cannot leave: area 1's clear floods
+    /// D0/D1, area 2's clear is the boiler surge (D2/E1) and area 3a's clear
+    /// floods E2, each once the hero stands on the next dry deck; area 3b's clear
+    /// starts the 14 s boat-deck timer. The Eraser debut stays scripted (Sarah's bark, the F12
+    /// reconstruction record) but the debut Eraser is a member of area 3a: its
+    /// unscaled wave drops in once one E-deck slasher is left. Room 1 gained the
+    /// room trigger and camera rect it never had, and the PreBoss anchor moved
+    /// past the hull flood onto the stern rail (9060), outside every lock.</para>
     /// </summary>
     public partial class Level05Controller : StoryLevelControllerBase {
 
@@ -67,9 +81,11 @@ namespace FTT.Environment {
         protected override Vector2? SecretCachePosition => new(3050f, 775f);
 
         // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, after the PreBoss
-        // anchor (8650) on the stern rail, outside the hull flood (x < 8800), 300 px short of
-        // the arena (9400).
-        protected override Vector2? RestorationFontPosition => new(9100f, DeckBoat);
+        // anchor on the stern rail, outside the hull flood (x < 8800), short of the arena
+        // (9400). GU-L4 (2026-10-13): 9100 -> 9200, because the PreBoss anchor moved from
+        // 8650 to 9060 (the font keeps 140 px from it and its channel circle ends 200 px
+        // short of the arena).
+        protected override Vector2? RestorationFontPosition => new(9200f, DeckBoat);
 
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
@@ -143,7 +159,7 @@ namespace FTT.Environment {
 
         /// <summary>
         /// P1 (2026-10-04): the stern rail. West edge is <see cref="BossArenaWestX"/>
-        /// (spawn 10300 - 900), so the pre-boss beat at 8720 lands first; east edge
+        /// (spawn 10300 - 900), so the pre-boss beat (8960 since GU-L4) lands first; east edge
         /// is the stern wall's inner face. The Overseer used to fight on the boat
         /// deck at x ~8000, outside the arena entirely.
         /// </summary>
@@ -164,9 +180,12 @@ namespace FTT.Environment {
         public const float BossArenaWestX = BossSpawnX - BossArenaApproachPixels;
 
         /// <summary>
-        /// Authored Normal-difficulty spawn table. Wave 1 is live on entry; waves 2
-        /// and 3 arm on their room triggers. Difficulty scaling takes a prefix of
-        /// each wave through <see cref="StoryDifficultyTuning.ScaleEncounterCount"/>.
+        /// Authored Normal-difficulty spawn table, one wave per encounter lock and
+        /// per manifest row (<c>level_05.wave{n}</c>). Difficulty scaling takes a
+        /// prefix of each wave through <see cref="StoryDifficultyTuning.ScaleEncounterCount"/>.
+        /// GU-L4 (2026-10-13): the old wave 3 is split in two — wave 3 holds the
+        /// E-deck run (area 3a), wave 4 the boat deck (area 3b) — because the
+        /// boat deck's flood steps now advance on each half's clear.
         /// </summary>
         public static readonly (string EnemyID, int Wave, Vector2 Position)[] SpawnTable = {
             // Wave 1 - D-Deck, Grand Staircase.
@@ -179,13 +198,17 @@ namespace FTT.Environment {
             (StandardEnemyID, 2, new Vector2(4300f, DeckD2 - 20f)),
             (StandardEnemyID, 2, new Vector2(4900f, DeckE1 - 20f)),
             (StandardEnemyID, 2, new Vector2(5600f, DeckE2 - 20f)),
-            // Wave 3 - Boat Deck, the elite holds the stern stair.
+            // Wave 3 - the E-deck run below the boat deck.
             (StandardEnemyID, 3, new Vector2(6600f, DeckE2 - 20f)),
             (StandardEnemyID, 3, new Vector2(7000f, DeckE2 - 20f)),
-            (StandardEnemyID, 3, new Vector2(7800f, DeckBoat - 20f)),
-            (StandardEnemyID, 3, new Vector2(8300f, DeckBoat - 20f)),
-            (EliteEnemyID, 3, new Vector2(8500f, DeckBoat - 20f))
+            // Wave 4 - Boat Deck, the elite holds the stern stair.
+            (StandardEnemyID, 4, new Vector2(7800f, DeckBoat - 20f)),
+            (StandardEnemyID, 4, new Vector2(8300f, DeckBoat - 20f)),
+            (EliteEnemyID, 4, new Vector2(8500f, DeckBoat - 20f))
         };
+
+        /// <summary>The number of authored waves (and lock waves drawn from <see cref="SpawnTable"/>).</summary>
+        public const int WaveCount = 4;
 
         /// <summary>Four extractors, each guarding an off-route climb. 15 dust each, resource-owned.</summary>
         public static readonly (string ID, Vector2 Position)[] ExtractorPlacements = {
@@ -204,9 +227,61 @@ namespace FTT.Environment {
             return total;
         }
 
+        // === GU-L4 (2026-10-12): the four encounter locks ====================
+
+        /// <summary>The F10 encounter IDs of the four locks (they start with the level ID).</summary>
+        public const string LockStaircase = TitanicLevelID + "_lock_staircase";
+        public const string LockBoilerCasing = TitanicLevelID + "_lock_boiler_casing";
+        public const string LockEDeck = TitanicLevelID + "_lock_e_deck";
+        public const string LockBoatDeck = TitanicLevelID + "_lock_boat_deck";
+
+        /// <summary>The manifest row of the debut Eraser (<c>@0</c>: never difficulty-scaled).</summary>
+        public const string EraserDebutRowID = "level_05.eraser_debut";
+
+        /// <summary>The stair decks, east of the entry anchor (300), to the room seam on D2.</summary>
+        public const float StaircaseLockMinX = 380f;
+        public const float StaircaseLockMaxX = Room2StartX;
+        /// <summary>The boiler casing, ending on E2 short of the Middle anchor (6100) and its swing reach.</summary>
+        public const float BoilerCasingLockMinX = Room2StartX + EncounterLockRules.DefaultBarrierWidthPixels;
+        public const float BoilerCasingLockMaxX = 5880f;
+        /// <summary>Area 3a: the E-deck run and the listing ramp, its exit on the boat deck (from 7500).</summary>
+        public const float EDeckLockMinX = 6160f;
+        public const float EDeckLockMaxX = 7520f;
+        /// <summary>Area 3b: the boat deck, its exit on the stern rail (from 8800), short of the PreBoss anchor.</summary>
+        public const float BoatDeckLockMinX = EDeckLockMaxX + EncounterLockRules.DefaultBarrierWidthPixels;
+        public const float BoatDeckLockMaxX = 8820f;
+
+        /// <summary>
+        /// The debut Eraser's spawn: on the E-deck run ahead of the hero, 110 px
+        /// over the deck, so it drops in from above (area 3a's third wave).
+        /// </summary>
+        public static readonly Vector2 EraserDebutLockSpawn = new(6850f, DeckE2 - 110f);
+
+        /// <summary>
+        /// The Middle and PreBoss anchors. GU-L4: the PreBoss anchor moved from the
+        /// boat deck (8650, inside the boat-deck fight and the hull flood) onto the
+        /// stern rail (9060), past the boat deck's barrier and swing reach.
+        /// </summary>
+        public const float MiddleCheckpointX = 6100f;
+        public const float PreBossCheckpointX = 9060f;
+
+        /// <summary>GU-L4: the stern-rail room trigger, east of the boat deck's exit barrier (was 8800).</summary>
+        public const float SternRailTriggerX = 8880f;
+        /// <summary>GU-L4: the pre-boss beat's trigger, between the boat deck's barrier and the PreBoss anchor (was 8720).</summary>
+        public const float PreBossTriggerX = 8960f;
+
+        private EncounterLock _staircaseLock;
+        private EncounterLock _boilerCasingLock;
+        private EncounterLock _eDeckLock;
+        private EncounterLock _boatDeckLock;
+
+        public EncounterLock StaircaseLock => _staircaseLock;
+        public EncounterLock BoilerCasingLock => _boilerCasingLock;
+        public EncounterLock EDeckLock => _eDeckLock;
+        public EncounterLock BoatDeckLock => _boatDeckLock;
+
         // === Runtime state ===
 
-        private readonly HashSet<int> _wavesSpawned = new();
         private Timer _boatDeckFloodTimer;
         private bool _preBossShown;
         private bool _arenaFlooded;
@@ -235,7 +310,81 @@ namespace FTT.Environment {
 
             BuildWall(0f, 0f, LevelHeight);
             BuildWall(LevelWidth - 220f, 0f, LevelHeight);
+            BuildEncounterLocks();
         }
+
+        /// <summary>
+        /// GU-L4: the four rooms as encounter locks, one wave per manifest row
+        /// (plus the debut Eraser's unscaled row in area 3a). The decks list, so
+        /// each barrier stands on the deck under it. Built here, before the resume
+        /// baseline, so a resume past a lock builds it Cleared.
+        /// </summary>
+        private void BuildEncounterLocks() {
+            // D-deck, live on entry: pre-placed.
+            _staircaseLock = BuildLock(LockStaircase, StaircaseLockMinX, StaircaseLockMaxX,
+                entryFloorY: DeckD0, exitFloorY: DeckD2,
+                new[] { WaveFromTable(1, EncounterWaveTrigger.OnBuild) },
+                "encounter_lock_objective_clear");
+            // The casing crew comes up the stairs once the hero is in.
+            _boilerCasingLock = BuildLock(LockBoilerCasing, BoilerCasingLockMinX, BoilerCasingLockMaxX,
+                entryFloorY: DeckD2, exitFloorY: DeckE2,
+                new[] { WaveFromTable(2, EncounterWaveTrigger.OnEngage) },
+                "encounter_lock_objective_clear");
+            // Area 3a: the E-deck slashers are posted; the Eraser drops in once
+            // one of them is left (never difficulty-scaled: the @0 debut row).
+            // It keeps the level's objective so the debut bark stays readable.
+            _eDeckLock = BuildLock(LockEDeck, EDeckLockMinX, EDeckLockMaxX,
+                entryFloorY: DeckE2, exitFloorY: DeckBoat,
+                new[] {
+                    WaveFromTable(3, EncounterWaveTrigger.OnBuild),
+                    new EncounterLockWave {
+                        RowID = EraserDebutRowID,
+                        Spawns = new[] { new EncounterLockSpawn(EraserDebutTrigger.EraserEnemyID, EraserDebutLockSpawn) },
+                        Trigger = EncounterWaveTrigger.WhenAliveAtMost,
+                        AliveAtMost = 1,
+                        Scaled = false
+                    }
+                },
+                "");
+            // Area 3b: the elite holds the stern stair.
+            _boatDeckLock = BuildLock(LockBoatDeck, BoatDeckLockMinX, BoatDeckLockMaxX,
+                entryFloorY: DeckBoat, exitFloorY: DeckBoat,
+                new[] { WaveFromTable(4, EncounterWaveTrigger.OnBuild) },
+                "encounter_lock_objective_clear");
+
+            foreach (EncounterLock encounterLock in new[] { _staircaseLock, _boilerCasingLock, _eDeckLock, _boatDeckLock }) {
+                encounterLock.StateChanged += OnHullLockStateChanged;
+            }
+        }
+
+        private EncounterLock BuildLock(string lockID, float minX, float maxX, float entryFloorY, float exitFloorY,
+            EncounterLockWave[] waves, string objectiveKey) {
+            float half = EncounterLockRules.DefaultBarrierWidthPixels * 0.5f;
+            return BuildEncounterLock(new EncounterLockSpec {
+                LockID = lockID,
+                Area = EncounterLockSpec.Span(minX, maxX, LevelHeight),
+                EntryBarrierX = minX - half,
+                ExitBarrierX = maxX + half,
+                EntryBarrierYRange = new Vector2(StoryGateRules.ColumnTopY, entryFloorY),
+                ExitBarrierYRange = new Vector2(StoryGateRules.ColumnTopY, exitFloorY),
+                BarrierFloorY = exitFloorY,
+                Waves = waves,
+                ObjectiveKey = objectiveKey,
+                GoDirection = EncounterGoDirection.Right
+            });
+        }
+
+        /// <summary>One lock wave: the authored <see cref="SpawnTable"/> entries of <paramref name="wave"/>, row <c>level_05.wave{n}</c>.</summary>
+        private static EncounterLockWave WaveFromTable(int wave, EncounterWaveTrigger trigger) {
+            var spawns = new List<EncounterLockSpawn>();
+            foreach ((string enemyID, int entryWave, Vector2 position) in SpawnTable) {
+                if (entryWave == wave) spawns.Add(new EncounterLockSpawn(enemyID, position));
+            }
+            return new EncounterLockWave { RowID = WaveRowID(wave), Spawns = spawns.ToArray(), Trigger = trigger };
+        }
+
+        /// <summary>The manifest row of authored wave <paramref name="wave"/>.</summary>
+        public static string WaveRowID(int wave) => $"level_05.wave{wave}";
 
         /// <summary>
         /// Deck slab tilted about its own top-centre so walking sternward is walking
@@ -264,7 +413,16 @@ namespace FTT.Environment {
 
             BuildCheckpoint(300f, DeckD0 - 10f, Checkpoint0, CheckpointRole.Entry);
             BuildRoomDecoration(0f, "titanic_room_grand_staircase", new Color(0.8f, 0.68f, 0.4f));
+
+            // GU-L4 (2026-10-13): room 1 had no room trigger, so its camera was the
+            // whole level and its mobs had no leash room. It confines to the stair
+            // decks now, from the spawn.
+            BuildRoomTransition("titanic_grand_staircase", new Vector2(300f, LevelHeight / 2f),
+                Room1CameraBounds, new Vector2(80f, LevelHeight));
         }
+
+        /// <summary>GU-L4: room 1's camera rect, the stair decks up to the boiler casing's room.</summary>
+        public static readonly Rect2 Room1CameraBounds = new(0f, 0f, Room2StartX, LevelHeight);
 
         private void BuildRoom2BoilerCasing() {
             BuildRoomBackground("BG_Room2", Room2StartX, Room3StartX - Room2StartX, LevelHeight,
@@ -281,17 +439,18 @@ namespace FTT.Environment {
             BuildOneWayPlatform(5000f, 900f, 220f);
             BuildOneWayPlatform(5700f, 780f, 200f);
 
-            BuildCheckpoint(6100f, DeckE2 - 10f, Checkpoint1, CheckpointRole.Middle);
+            BuildCheckpoint(MiddleCheckpointX, DeckE2 - 10f, Checkpoint1, CheckpointRole.Middle);
             BuildRoomDecoration(Room2StartX, "titanic_room_boiler_casing", new Color(0.75f, 0.5f, 0.3f));
 
-            BuildRoomTransition("titanic_boiler_casing", new Vector2(Room2StartX, LevelHeight / 2f),
+            // GU-L4: the trigger stands just inside the boiler-casing lock (a hero
+            // pressed against the staircase's exit barrier does not reach it), and
+            // it only moves the camera now: the casing's wave is the lock's, step 1
+            // rose on the staircase's clear, and the boiler surge (step 2) is the
+            // casing's own clear rather than a mid-corridor trigger that flooded the
+            // fight.
+            BuildRoomTransition("titanic_boiler_casing", new Vector2(BoilerCasingLockMinX + 60f, LevelHeight / 2f),
                 new Rect2(Room2StartX - 100f, 0f, 3000f, LevelHeight),
-                new Vector2(80f, LevelHeight),
-                _ => EnterRoom2());
-
-            // Mid-corridor surge: the casing fills while the player is still in it.
-            BuildWaveTrigger("BoilerSurgeTrigger", new Vector2(5000f, 950f),
-                () => RaiseHullFlood(2), new Vector2(70f, LevelHeight));
+                new Vector2(80f, LevelHeight));
         }
 
         private void BuildRoom3BoatDeck() {
@@ -300,7 +459,7 @@ namespace FTT.Environment {
 
             BuildFloor(6300f, DeckE2, 1000f);
             BuildListingRamp(7400f, 870f, 500f, -16f);
-            BuildFloor(7500f, DeckBoat, 1300f);
+            BuildFloor(BoatDeckWestX, DeckBoat, ArenaStartX - BoatDeckWestX);
 
             // Davit climb: the only dry ground once the boat deck itself goes under.
             BuildOneWayPlatform(6800f, 800f, 220f);
@@ -310,7 +469,7 @@ namespace FTT.Environment {
             BuildOneWayPlatform(8600f, 660f, 240f);
 
             BuildEraserDebut();
-            BuildCheckpoint(8650f, DeckBoat - 10f, Checkpoint2, CheckpointRole.PreBoss);
+            BuildCheckpoint(PreBossCheckpointX, DeckBoat - 10f, Checkpoint2, CheckpointRole.PreBoss);
             BuildRoomDecoration(Room3StartX, "titanic_room_boat_deck", new Color(0.6f, 0.78f, 0.9f));
 
             BuildRoomTransition("titanic_boat_deck", new Vector2(Room3StartX, LevelHeight / 2f),
@@ -330,11 +489,15 @@ namespace FTT.Environment {
 
             BuildRoomDecoration(ArenaStartX, "titanic_room_stern_rail", new Color(0.95f, 0.45f, 0.4f));
 
-            BuildRoomTransition("titanic_stern_rail", new Vector2(ArenaStartX, LevelHeight / 2f),
+            // GU-L4: both triggers moved east of the boat deck's exit barrier (8840):
+            // a room trigger the hero touches mid-fight would hand the camera to
+            // the stern rail when the lock clears, and the pre-boss beat pauses the
+            // game, so neither may fire inside a lock.
+            BuildRoomTransition("titanic_stern_rail", new Vector2(SternRailTriggerX, LevelHeight / 2f),
                 new Rect2(ArenaStartX - 40f, 0f, LevelWidth - ArenaStartX + 40f, LevelHeight),
                 new Vector2(80f, LevelHeight));
 
-            BuildWaveTrigger("PreBossTrigger", new Vector2(8720f, 700f),
+            BuildWaveTrigger("PreBossTrigger", new Vector2(PreBossTriggerX, 700f),
                 StartPreBossBeat, new Vector2(70f, LevelHeight));
 
             // Arena spans 2160 px; the boss's ranged band (10 m x 60 px/unit = 600 px)
@@ -408,18 +571,78 @@ namespace FTT.Environment {
             base._ExitTree();
         }
 
-        protected override void SpawnInitialEnemies() => SpawnWave(1);
-
-        private void EnterRoom2() {
-            RaiseHullFlood(1);
-            SpawnWave(2);
-        }
+        /// <summary>True once the hero has entered the boat-deck room (its objective is the level's own from then on).</summary>
+        private bool _boatDeckReached;
 
         private void EnterRoom3() {
-            RaiseHullFlood(3);
+            _boatDeckReached = true;
             SetObjective("titanic_objective_boat_deck");
-            SpawnWave(3);
-            StartBoatDeckFlooding();
+        }
+
+        /// <summary>
+        /// GU-L4: the hull flood rises on the locks' clears instead of on x
+        /// triggers. Only a clear from Engaged counts: a lock restored Cleared by
+        /// a resume baseline raises nothing (the anchor's own step is restored by
+        /// <see cref="RestoreFloodForCheckpoint"/>). The staircase's clear arms
+        /// step 1, the casing's step 2 (the boiler surge) and the E-deck's step 3;
+        /// each rises once the hero is clear of it (<see cref="TryRaisePendingHullStep"/>).
+        /// The boat deck's clear starts the 14 s timer to the last step.
+        /// </summary>
+        private void OnHullLockStateChanged(EncounterLock encounterLock, EncounterLockState previous, EncounterLockState current) {
+            if (current != EncounterLockState.Cleared || previous != EncounterLockState.Engaged) return;
+            if (encounterLock == _staircaseLock) ArmHullStep(1);
+            else if (encounterLock == _boilerCasingLock) ArmHullStep(2);
+            else if (encounterLock == _eDeckLock) ArmHullStep(3);
+            else if (encounterLock == _boatDeckLock) StartBoatDeckFlooding();
+        }
+
+        /// <summary>
+        /// The hull step a lock's clear has armed and the flood has not yet reached:
+        /// it rises once the hero stands on the deck above it (0: none pending).
+        /// </summary>
+        public int PendingHullStep { get; private set; }
+
+        /// <summary>
+        /// Per hull step, the west end of the first deck that stays dry above it —
+        /// D2 for step 1, E2 for step 2, the boat deck for step 3. A pending step
+        /// rises only once the hero's feet are east of it and above the new line,
+        /// so a clear never floods the deck the hero is still standing on (the
+        /// water would have caught a hero who finished the casing on D2, or the
+        /// E-deck run on E2, with a long wade at ×0.55 to the next dry deck).
+        /// </summary>
+        public static readonly float[] HullStepDryFromX = { 0f, 2300f, 5500f, BoatDeckWestX, ArenaStartX };
+
+        /// <summary>The boat deck's west end.</summary>
+        public const float BoatDeckWestX = 7500f;
+        /// <summary>How far above a pending step's line the hero's feet must be before it rises behind it.</summary>
+        public const float HullStepClearancePixels = 16f;
+
+        private void ArmHullStep(int step) {
+            if (HullFlood == null || !IsInstanceValid(HullFlood) || HullFlood.CurrentStep >= step) return;
+            PendingHullStep = Mathf.Max(PendingHullStep, step);
+            TryRaisePendingHullStep();
+        }
+
+        /// <summary>Raises the pending hull step once the hero stands clear of it. Public as a test seam.</summary>
+        public bool TryRaisePendingHullStep() {
+            if (PendingHullStep <= 0 || HullFlood == null || !IsInstanceValid(HullFlood)) return false;
+            if (HullFlood.CurrentStep >= PendingHullStep) {
+                PendingHullStep = 0;
+                return false;
+            }
+            if (Player == null || !IsInstanceValid(Player)) return false;
+            int step = Mathf.Clamp(PendingHullStep, 1, HullStepHeights.Length - 1);
+            float line = HullWaterOriginY - HullStepHeights[step];
+            Vector2 feet = Player.GlobalPosition;
+            if (feet.X < HullStepDryFromX[step] || feet.Y >= line - HullStepClearancePixels) return false;
+            PendingHullStep = 0;
+            RaiseHullFlood(step);
+            return true;
+        }
+
+        public override void _PhysicsProcess(double delta) {
+            if (PendingHullStep > 0) TryRaisePendingHullStep();
+            AdoptLockSpawnedEraserDebut();
         }
 
         /// <summary>
@@ -510,7 +733,8 @@ namespace FTT.Environment {
 
         /// <summary>
         /// The trigger sits on the E-deck run of the boat deck, past the Middle
-        /// anchor (6100) and well before PreBoss (8650).
+        /// anchor (6100) and well before PreBoss (9060 since GU-L4). Since GU-L4 it
+        /// only places the debut record: area 3a's lock spawns the Eraser.
         /// </summary>
         public static readonly Vector2 EraserDebutPosition = new(6900f, DeckE2 - 200f);
 
@@ -526,7 +750,11 @@ namespace FTT.Environment {
                 Name = "EraserDebut",
                 TriggerID = EraserDebutTriggerID,
                 Position = EraserDebutPosition,
-                SpawnOffset = EraserDebutSpawnOffset
+                SpawnOffset = EraserDebutSpawnOffset,
+                // GU-L4: area 3a's lock spawns the debut Eraser as one of its
+                // waves; crossing the route trigger spawns nothing, and the
+                // trigger adopts the lock's body for its bark and its record.
+                RouteTriggerSpawns = false
             };
             EraserDebut.DebutBegan += OnEraserDebutBegan;
             AddChild(EraserDebut);
@@ -538,6 +766,27 @@ namespace FTT.Environment {
         /// </summary>
         private void OnEraserDebutBegan(EraserDebutTrigger trigger) =>
             SetObjective(EraserDebutTrigger.DebutBarkKey);
+
+        private int _eDeckRegisteredSeen;
+
+        /// <summary>
+        /// GU-L4: hands the debut Eraser that area 3a's lock just spawned to the
+        /// <see cref="EraserDebutTrigger"/>, which raises the bark and keeps the
+        /// F12 reconstruction record. Checked only when the lock registers a new
+        /// member, so it costs nothing on an ordinary tick.
+        /// </summary>
+        private void AdoptLockSpawnedEraserDebut() {
+            if (_eDeckLock == null || !IsInstanceValid(_eDeckLock) || EraserDebut == null || !IsInstanceValid(EraserDebut)) return;
+            int registered = _eDeckLock.RegisteredCount;
+            if (registered == _eDeckRegisteredSeen) return;
+            _eDeckRegisteredSeen = registered;
+            if (EraserDebut.EncounterLive || EraserDebut.EncounterCleared) return;
+            foreach (EnemyController member in _eDeckLock.LivingMembers) {
+                if (member.Data?.EnemyID != EraserDebut.EnemyID) continue;
+                EraserDebut.AdoptEraserDebut(member);
+                return;
+            }
+        }
 
         // === Package 13 W4: Captain Smith's taking and the lifeboats (S18/S19) ===
 
@@ -600,37 +849,39 @@ namespace FTT.Environment {
         /// guarantee true even if the deck heights are re-authored later.
         /// </summary>
         protected override void MarkWavesClearedThrough(string checkpointID) {
-            // Package 12 W2 (GAP-13): the cleared waves come from the explicit
+            // Package 12 W2 (GAP-13): the cleared encounters come from the explicit
             // encounter baseline below; this keeps only the flood state.
             RestoreFloodForCheckpoint(checkpointID);
             // Package 13 W2: before PreBoss the debut is rebuilt and stays
             // triggerable; the PreBoss baseline declares it fought, with its
             // reward still claimed.
             EraserDebut?.RestoreFromCheckpoint(_eraserDebutCleared, rewardAlreadyClaimed: _eraserDebutCleared);
+            if (checkpointID == Checkpoint2) _boatDeckReached = true;
         }
 
-        // Package 12 W2 (GAP-13): explicit encounter baseline — waves 1+2 at the
-        // middle anchor, 1+2+3 at the PreBoss anchor, authored rather than derived.
-        // Package 13 W2 (S27): the PreBoss anchor also restores the Eraser debut
-        // as fought; the middle anchor precedes it, so it stays live there.
-        private static readonly IReadOnlyDictionary<string, string[]> Baselines = BuildBaselines();
-
-        private static IReadOnlyDictionary<string, string[]> BuildBaselines() {
-            var map = new Dictionary<string, string[]>(
-                NumberedWaveBaselines(TitanicLevelID, new[] { 1, 2 }, new[] { 1, 2, 3 }));
-            var preBoss = new List<string>(map[Checkpoint2]) { EraserDebutTriggerID };
-            map[Checkpoint2] = preBoss.ToArray();
-            return map;
-        }
+        // Package 12 W2 (GAP-13): explicit encounter baseline, authored rather
+        // than derived. GU-L4: the encounters are the four locks; every anchor
+        // lists every lock before it, and a resume builds those Cleared. Package
+        // 13 W2 (S27): the PreBoss anchor also restores the Eraser debut as
+        // fought; the middle anchor precedes it, so it stays live there.
+        private static readonly IReadOnlyDictionary<string, string[]> Baselines =
+            new Dictionary<string, string[]> {
+                [Checkpoint0] = System.Array.Empty<string>(),
+                [Checkpoint1] = new[] { LockStaircase, LockBoilerCasing },
+                [Checkpoint2] = new[] { LockStaircase, LockBoilerCasing, LockEDeck, LockBoatDeck, EraserDebutTriggerID }
+            };
 
         protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
 
         protected override void MarkEncounterCleared(string encounterID) {
-            if (encounterID == EraserDebutTriggerID) {
-                _eraserDebutCleared = true;
-                return;
-            }
-            if (TryParseWaveEncounter(TitanicLevelID, encounterID, out int wave)) _wavesSpawned.Add(wave);
+            if (encounterID == EraserDebutTriggerID) _eraserDebutCleared = true;
+        }
+
+        /// <summary>GU-L4: a cleared or reverted lock hands back the room's own objective.</summary>
+        protected override void RestoreLevelObjective() {
+            if (IsBossDefeated) SetObjective(CompletionObjectiveKey);
+            else if (_boatDeckReached) SetObjective("titanic_objective_boat_deck");
+            else SetObjective(InitialObjectiveKey);
         }
 
         public void RestoreFloodForCheckpoint(string checkpointID) {
@@ -660,23 +911,9 @@ namespace FTT.Environment {
         }
 
         // === Encounters ===
-
-        public bool HasWaveSpawned(int wave) => _wavesSpawned.Contains(wave);
-
-        private void SpawnWave(int wave) {
-            if (!_wavesSpawned.Add(wave)) return;
-
-            var authored = new List<(string EnemyID, Vector2 Position)>();
-            foreach ((string enemyID, int entryWave, Vector2 position) in SpawnTable) {
-                if (entryWave == wave) authored.Add((enemyID, position));
-            }
-            if (authored.Count == 0) return;
-
-            int count = StoryDifficultyTuning.ScaleEncounterCount(
-                authored.Count, StoryDifficultyTuning.CurrentStoryDifficulty);
-            for (int index = 0; index < count && index < authored.Count; index++) {
-                EnemyFactory.Spawn(authored[index].EnemyID, this, authored[index].Position);
-            }
-        }
+        //
+        // GU-L4 (2026-10-12): every encounter is a lock wave (BuildEncounterLocks).
+        // Authored counts are the Normal-difficulty truth; the lock takes the same
+        // per-row ScaleEncounterCount prefix the reward manifest compiles.
     }
 }

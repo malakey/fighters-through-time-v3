@@ -157,7 +157,7 @@ NpcID = "level_06.civilian_forum"
 InteractionPromptKey = "interaction_rescue"
 
 [node name="CivilianAshRoad" parent="." instance=ExtResource("10_civilian")]
-position = Vector2(7050, 820)
+position = Vector2(8700, 820)
 NpcID = "level_06.civilian_ash_road"
 InteractionPromptKey = "interaction_rescue"
 
