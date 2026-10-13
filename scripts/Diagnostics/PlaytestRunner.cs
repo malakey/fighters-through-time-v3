@@ -144,6 +144,22 @@ namespace FTT.Diagnostics {
 
         /// <summary>Neutral-input frames before the bot takes control (0 for seed 0; 5..60 otherwise).</summary>
         public int SeedDelayFrames => Seed == 0 ? 0 : 5 + (int)((uint)(Seed * 2654435761u) % 56u);
+
+        /// <summary>The floor under the auto run length's par, in seconds (short levels still get five minutes).</summary>
+        public const float AutoMaxSecondsParFloor = 300f;
+
+        /// <summary>
+        /// The auto run length (<c>--max-seconds=0</c>): the level's Timeline
+        /// Integrity budget on this difficulty — the par the clock runs on (the
+        /// authored par times its provisional scale,
+        /// <see cref="TimelineIntegrityRules.ProvisionalParScale"/>, GU-E, 2026-10-12),
+        /// at least <see cref="AutoMaxSecondsParFloor"/>, times the difficulty's time
+        /// multiplier (2.0 / 1.5 / 1.2) — plus a minute for the post-boss beats.
+        /// </summary>
+        public static int AutoMaxSeconds(float authoredPar, Difficulty difficulty) {
+            float par = Math.Max(TimelineIntegrityRules.ProvisionallyScaledSeconds(authoredPar), AutoMaxSecondsParFloor);
+            return (int)Math.Ceiling(par * TimelineIntegrityRules.DifficultyTimeMultiplier(difficulty)) + 60;
+        }
     }
 
     /// <summary>Holds neutral input for <c>delay</c> ticks, then hands every sample to the bot.</summary>
@@ -255,7 +271,12 @@ namespace FTT.Diagnostics {
             }
 
             if (_telemetry.LevelCompleted) Finish("level_complete");
-            else if (tree.CurrentScene == null || tree.CurrentScene.SceneFilePath != _levelPath) {
+            else if (_bot is StoryBot story && story.StuckLockID != null) {
+                // GU-BOT: an engaged encounter lock made no progress with no
+                // member the bot could reach (StoryBot.LockStallFrames); the nav
+                // note names the members and where they stood.
+                Finish($"stuck_lock:{story.StuckLockID}");
+            } else if (tree.CurrentScene == null || tree.CurrentScene.SceneFilePath != _levelPath) {
                 string destination = tree.CurrentScene?.SceneFilePath ?? "none";
                 // A Timeline Collapse extracts to the hub: say why.
                 string cause = destination.Contains("HubWorld") || destination.Contains("GameOver")
@@ -293,11 +314,8 @@ namespace FTT.Diagnostics {
             _bot = PlaytestBotFactory.Create(Options.Bot, _world, Options.Level, Options.Enemy, Options.SpecialPress);
             int seconds = Options.MaxSeconds;
             if (seconds <= 0) {
-                // Auto: the level's Timeline Integrity budget on this difficulty
-                // (par x 2.0 / 1.5 / 1.2) plus a minute for the post-boss beats.
                 float par = tree.CurrentScene is FTT.Environment.StoryLevelControllerBase level ? level.ParSeconds : 360f;
-                float multiplier = Options.Difficulty switch { Difficulty.Easy => 2f, Difficulty.Hard => 1.2f, _ => 1.5f };
-                seconds = Mathf.CeilToInt(Mathf.Max(par, 300f) * multiplier) + 60;
+                seconds = PlaytestOptions.AutoMaxSeconds(par, Options.Difficulty);
             }
             _maxFrames = seconds * 60;
             _telemetry = new PlaytestTelemetry { TraceEveryFrames = Options.TraceEvery };
@@ -477,6 +495,8 @@ namespace FTT.Diagnostics {
                 ["story_meter_scale"] = Options.StoryMeterScale,
                 ["interactions"] = InteractionsRouted,
                 ["nav_rebuilds"] = _world?.Nav.Rebuilds ?? 0,
+                // GU-BOT: of those, the rebuilds an encounter-lock barrier's toggle caused.
+                ["nav_barrier_rebuilds"] = _world?.Nav.BarrierRebuilds ?? 0,
                 ["dialogue_lines_skipped"] = _dialogueLinesAdvanced
             };
             if (_telemetry != null) {
@@ -502,6 +522,12 @@ namespace FTT.Diagnostics {
                 // C3: the mob melee whiff % and the Special press policy.
                 // C2: plus the run's D5 meter scale (--story-meter-scale).
                 ["combat"] = combatSummary,
+                // GU-BOT (2026-10-12): encounter locks (count, cleared, reverts,
+                // leaves with members alive, member relocations, force-clears) and
+                // the hero's crowd (mobs attacking within 250 px, max and mean;
+                // melee attackers; frames over the slot total; slot hand-offs; the
+                // median waiter gap; ranged attacks in flight).
+                ["encounters"] = _telemetry?.EncounterSummary(),
                 ["report"] = ProjectSettings.GlobalizePath(Options.OutPath)
             };
             GD.Print("PLAYTEST_RESULT " + JsonSerializer.Serialize(summary));

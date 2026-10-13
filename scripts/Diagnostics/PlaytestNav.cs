@@ -277,6 +277,11 @@ namespace FTT.Diagnostics {
             Node scene = _tree.CurrentScene;
             if (scene == null) return;
             bool rebuild = scene.GetInstanceId() != _sceneId || Frame - _builtFrame > 1200;
+            // GU-BOT (2026-10-12): an encounter-lock barrier that opened or closed
+            // since the build rebuilds the graph on the frame its shape toggles
+            // (the 15-frame validation below would also catch it, up to a quarter
+            // second late — long enough to plan a jump through a closing curtain).
+            if (!rebuild && BarrierToggled()) rebuild = true;
             if (!rebuild && Frame - _validatedFrame >= 15) {
                 _validatedFrame = Frame;
                 foreach (NavRect rect in _static) {
@@ -294,6 +299,32 @@ namespace FTT.Diagnostics {
             if (_dynamicFrame != Frame) RefreshDynamic();
         }
 
+        /// <summary>Encounter-lock barriers seen at the last build, with whether each was open (shape disabled) then.</summary>
+        private readonly List<(EncounterLockBarrier Barrier, bool OpenAtBuild)> _barrierWatch = new();
+
+        /// <summary>Rebuilds caused by an encounter-lock barrier toggling (diagnostics).</summary>
+        public int BarrierRebuilds { get; private set; }
+
+        /// <summary>Encounter-lock barriers closed at the last build (a closed curtain is a wall in the graph).</summary>
+        public int ClosedBarriersAtBuild {
+            get {
+                int closed = 0;
+                foreach ((EncounterLockBarrier _, bool open) in _barrierWatch) if (!open) closed++;
+                return closed;
+            }
+        }
+
+        private bool BarrierToggled() {
+            foreach ((EncounterLockBarrier barrier, bool openAtBuild) in _barrierWatch) {
+                if (!GodotObject.IsInstanceValid(barrier) || barrier.Shape == null || !GodotObject.IsInstanceValid(barrier.Shape)) continue;
+                if (barrier.Shape.Disabled != openAtBuild) {
+                    BarrierRebuilds++;
+                    return true;
+                }
+            }
+            return false;
+        }
+
         // =================================================================
         // Collection
         // =================================================================
@@ -306,6 +337,7 @@ namespace FTT.Diagnostics {
             _static.Clear();
             _dynamic.Clear();
             _disabledWatch.Clear();
+            _barrierWatch.Clear();
             _gravityZones.Clear();
             _slowZones.Clear();
             _spikes.Clear();
@@ -332,6 +364,12 @@ namespace FTT.Diagnostics {
             } else if (node is PendulumAnchor rope) {
                 _ropes.Add(rope);
             } else if (node is CollisionObject2D body && node is not Area2D) {
+                // An encounter-lock barrier is a pre-built StaticBody2D whose one
+                // shape the lock toggles (GU-E): a static wall while closed, nothing
+                // while open, and watched every frame for the toggle.
+                if (body is EncounterLockBarrier barrier && barrier.Shape != null) {
+                    _barrierWatch.Add((barrier, barrier.Shape.Disabled));
+                }
                 uint layer = body.CollisionLayer;
                 bool oneWay = (layer & CollisionLayers.OneWayPlatform) != 0;
                 bool solid = (layer & CollisionLayers.Environment) != 0;
