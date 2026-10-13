@@ -181,7 +181,8 @@ public class Level07ContentTests {
                     or Level07Controller.EliteEnemyID
                     or Level07Controller.EraserEnemyID)
                 .OverrideFailureMessage($"'{enemyID}' is not on the Nassau roster.").IsTrue();
-            AssertThat(wave >= 1 && wave <= 3).IsTrue();
+            // GU-L4: four waves, two per encounter lock.
+            AssertThat(wave >= 1 && wave <= Level07Controller.WaveCount).IsTrue();
         }
 
         var deckhand = AuthoredResources.Load<EnemyData>(
@@ -564,16 +565,17 @@ public class Level07ContentTests {
                 .OverrideFailureMessage($"'{checkpointID}' did not restore.").IsTrue();
             AssertString(level.ResumedCheckpointID).IsEqual(checkpointID);
 
+            // GU-L4: the encounters are the two locks; every lock behind the
+            // anchor is built Cleared, everything ahead of it re-arms in full.
             if (checkpointID == Level07Controller.Checkpoint0) {
-                AssertThat(level.HasWaveSpawned(1)).IsTrue();
-                AssertThat(level.HasWaveSpawned(2)).IsFalse();
+                AssertThat(level.QuayLock.State).IsEqual(EncounterLockState.Armed);
+                AssertThat(level.QuayLock.RegisteredCount).IsGreater(0);
+                AssertThat(level.BoardingLock.State).IsEqual(EncounterLockState.Armed);
             } else {
-                AssertThat(level.HasWaveSpawned(1)).IsTrue();
-                AssertThat(level.HasWaveSpawned(2)).IsTrue();
+                AssertThat(level.QuayLock.RestoredCleared).IsTrue();
+                AssertThat(level.QuayLock.RegisteredCount).IsEqual(0);
             }
-            if (checkpointID == Level07Controller.Checkpoint2) {
-                AssertThat(level.HasWaveSpawned(3)).IsTrue();
-            }
+            AssertThat(level.BoardingLock.RestoredCleared).IsEqual(checkpointID == Level07Controller.Checkpoint2);
 
             // The base class confines the camera to the room the resume starts in.
             AssertObject(level.Camera).IsNotNull();
@@ -582,6 +584,230 @@ public class Level07ContentTests {
                 && level.Player.Position.X <= level.Camera.ActiveBounds.End.X)
                 .OverrideFailureMessage($"'{checkpointID}' resumes outside its own camera bounds.").IsTrue();
         }
+    }
+
+    // === GU-L4 (2026-10-12): the encounter locks ===
+
+    /// <summary>
+    /// Both channels are water, so the two locks sit on the decks: the quay
+    /// (waves 1 and 2) and the boarding action from the Bonnet across the channel
+    /// to the ramp (waves 3 and 4), each barrier standing on a deck. Every member
+    /// spawns on solid deck inside its lock — the Eraser no longer spawns over the
+    /// boarding channel — and the anchors stand clear of both elites.
+    /// </summary>
+    [TestCase]
+    public void TheTwoDecksAreEncounterLocksAndEveryMemberIncludingTheEraserSpawnsOnSolidDeck() {
+        using var fixture = new NassauFixture(null);
+        Level07Controller level = fixture.Level;
+        AssertThat(level.EncounterLocks.Count).IsEqual(2);
+
+        var expected = new (EncounterLock Lock, string ID, float MinX, float MaxX, int[] Waves, EncounterWaveTrigger[] Triggers)[] {
+            (level.QuayLock, Level07Controller.LockQuay, 380f, 3580f, new[] { 1, 2 },
+                new[] { EncounterWaveTrigger.OnBuild, EncounterWaveTrigger.WhenAliveAtMost }),
+            (level.BoardingLock, Level07Controller.LockBoarding, 5780f, 8480f, new[] { 3, 4 },
+                new[] { EncounterWaveTrigger.OnBuild, EncounterWaveTrigger.AfterPreviousCleared })
+        };
+        var claimed = new HashSet<int>();
+        foreach ((EncounterLock encounterLock, string id, float minX, float maxX, int[] waves,
+                     EncounterWaveTrigger[] triggers) in expected) {
+            AssertObject(encounterLock).OverrideFailureMessage($"'{id}' was not built.").IsNotNull();
+            AssertString(encounterLock.LockID).IsEqual(id);
+            AssertFloat(encounterLock.Area.Position.X).IsEqualApprox(minX, 0.5f);
+            AssertFloat(encounterLock.Area.End.X).IsEqualApprox(maxX, 0.5f);
+            // Both barriers stand on a deck.
+            foreach (EncounterLockBarrier barrier in new[] { encounterLock.EntryBarrier, encounterLock.ExitBarrier }) {
+                AssertThat(IsOnSolidDeck(barrier.CenterX))
+                    .OverrideFailureMessage($"'{id}''s barrier at {barrier.CenterX} stands over water.").IsTrue();
+            }
+            AssertThat(encounterLock.Spec.Waves.Length).IsEqual(waves.Length);
+            for (int index = 0; index < waves.Length; index++) {
+                EncounterLockWave wave = encounterLock.Spec.Waves[index];
+                AssertString(wave.RowID).IsEqual(Level07Controller.WaveRowID(waves[index]));
+                AssertThat(wave.Trigger).IsEqual(triggers[index]);
+                AssertThat(claimed.Add(waves[index])).IsTrue();
+                var authored = new List<string>();
+                foreach ((string enemyID, int entryWave, Vector2 position) in Level07Controller.SpawnTable) {
+                    if (entryWave != waves[index]) continue;
+                    authored.Add(enemyID);
+                    AssertThat(position.X > minX && position.X < maxX)
+                        .OverrideFailureMessage($"Wave {entryWave}'s {enemyID} at {position} is outside '{id}'.").IsTrue();
+                    AssertThat(IsOnSolidDeck(position.X))
+                        .OverrideFailureMessage($"Wave {entryWave}'s {enemyID} at {position} spawns over water.").IsTrue();
+                    foreach ((string _, float startX, float endX, Vector2 _) in Level07Controller.WaterSpans) {
+                        AssertThat(position.X > startX && position.X < endX)
+                            .OverrideFailureMessage($"{enemyID} at {position} spawns over the channel {startX}..{endX}.")
+                            .IsFalse();
+                    }
+                }
+                AssertString(string.Join(",", wave.EnemyIDs)).IsEqual(string.Join(",", authored));
+            }
+            AssertThat(encounterLock.Spec.Waves[0].Scaled && encounterLock.Spec.Waves[1].Scaled).IsTrue();
+        }
+        AssertThat(claimed.Count).IsEqual(Level07Controller.WaveCount);
+        // The quay's reinforcements come when one dockside fighter is left.
+        AssertThat(level.QuayLock.Spec.Waves[1].AliveAtMost).IsEqual(1);
+
+        // The anchors stand clear of both elites (both spawn on the ramp, behind
+        // the boarding lock's exit), and outside both locks.
+        AssertThat(level.Levels.TryGetCheckpointPosition(Level07Controller.Checkpoint2, out Vector2 preBoss)).IsTrue();
+        foreach ((string enemyID, int _, Vector2 position) in Level07Controller.SpawnTable) {
+            if (enemyID is not (Level07Controller.EliteEnemyID or Level07Controller.EraserEnemyID)) continue;
+            AssertThat(position.X < level.BoardingLock.Area.End.X).IsTrue();
+            AssertThat(preBoss.X - position.X > 300f)
+                .OverrideFailureMessage($"The PreBoss anchor at {preBoss.X} stands beside the elite {enemyID} at {position.X}.")
+                .IsTrue();
+        }
+
+        IReadOnlyDictionary<string, string[]> map = level.AuthoredEncounterBaselines;
+        AssertThat(map[Level07Controller.Checkpoint0].Length).IsEqual(0);
+        AssertString(string.Join(",", map[Level07Controller.Checkpoint1])).IsEqual(Level07Controller.LockQuay);
+        AssertString(string.Join(",", map[Level07Controller.Checkpoint2]))
+            .IsEqual($"{Level07Controller.LockQuay},{Level07Controller.LockBoarding}");
+    }
+
+    /// <summary>
+    /// The movers and the sea respect the locks. No skiff's travel envelope and
+    /// no rope's swing (grab box or hang point) crosses a lock barrier, so none
+    /// needs holding at a near stop; every sea haul-out lands on a deck inside a
+    /// lock area whose exit lies east of that channel, so going over the side can
+    /// never land the hero past an uncleared exit; and the anchors and the font
+    /// stand outside both locks, beyond a swing from inside.
+    /// </summary>
+    [TestCase]
+    public void NoMoverCrossesABarrierAndNoHaulOutLandsPastAnUnclearedExit() {
+        using var fixture = new NassauFixture(null);
+        Level07Controller level = fixture.Level;
+        var barriers = new List<float>();
+        foreach (EncounterLock encounterLock in level.EncounterLocks) {
+            barriers.Add(encounterLock.EntryBarrier.CenterX);
+            barriers.Add(encounterLock.ExitBarrier.CenterX);
+        }
+
+        foreach ((float westX, float eastX) in Level07Controller.SkiffTravelSpans) {
+            foreach (float barrierX in barriers) {
+                AssertThat(barrierX > westX - 10f && barrierX < eastX + 10f)
+                    .OverrideFailureMessage($"A skiff sweeping {westX}..{eastX} crosses the lock barrier at {barrierX}.")
+                    .IsFalse();
+            }
+        }
+        float reach = Mathf.Max(Level07Controller.AnchorGrabRadius, Level07Controller.AnchorHangRadius)
+            * Mathf.Sin(Mathf.DegToRad(Level07Controller.AnchorAmplitudeDegrees));
+        foreach (float pivotX in Level07Controller.AnchorPivotsX) {
+            foreach (float barrierX in barriers) {
+                AssertThat(barrierX > pivotX - reach - 30f && barrierX < pivotX + reach + 30f)
+                    .OverrideFailureMessage($"The rope at {pivotX} swings across the lock barrier at {barrierX}.")
+                    .IsFalse();
+            }
+        }
+
+        foreach ((string id, float startX, float endX, Vector2 rescue) in Level07Controller.WaterSpans) {
+            // The haul-out lands west of its channel, on a deck inside a lock area...
+            AssertThat(rescue.X < startX).IsTrue();
+            bool inside = false;
+            foreach (EncounterLock encounterLock in level.EncounterLocks) {
+                if (rescue.X > encounterLock.Area.Position.X && rescue.X < encounterLock.Area.End.X) inside = true;
+                // ...and never past an exit the hero could still owe: any lock whose
+                // exit lies west of the landing was already behind the hero when
+                // it reached this channel (its exit is at or west of the channel).
+                float exitX = encounterLock.ExitBarrier.CenterX;
+                if (exitX <= rescue.X) {
+                    AssertThat(exitX <= startX + 0.5f)
+                        .OverrideFailureMessage($"'{id}''s haul-out at {rescue} lands past '{encounterLock.LockID}''s exit ({exitX}), east of the channel.")
+                        .IsTrue();
+                }
+            }
+            AssertThat(inside).OverrideFailureMessage($"'{id}''s haul-out at {rescue} lands outside every lock.").IsTrue();
+        }
+
+        float swing = EncounterLockReach.LongestBasicSwingPixels();
+        AssertThat(level.Levels.TryGetCheckpointPosition(Level07Controller.Checkpoint1, out Vector2 middle)).IsTrue();
+        AssertThat(level.Levels.TryGetCheckpointPosition(Level07Controller.Checkpoint2, out Vector2 preBoss)).IsTrue();
+        float quayReach = EncounterLockReach.EastReachFromInside(level.QuayLock.Area.End.X, swing);
+        AssertThat(quayReach < middle.X - EncounterLockReach.StrikeSurfaceHalfWidthPixels).IsTrue();
+        float boardingReach = EncounterLockReach.EastReachFromInside(level.BoardingLock.Area.End.X, swing);
+        AssertThat(boardingReach < preBoss.X - EncounterLockReach.StrikeSurfaceHalfWidthPixels)
+            .OverrideFailureMessage($"A swing from the boarding lock reaches x {boardingReach:0}; the PreBoss anchor stands at {preBoss.X}.")
+            .IsTrue();
+        float fontX = level.AuthoredRestorationFontPosition.Value.X;
+        foreach (EncounterLock encounterLock in level.EncounterLocks) {
+            foreach (float x in new[] { middle.X, preBoss.X, fontX }) {
+                AssertThat(x + 30f <= encounterLock.Area.Position.X || x - 30f >= encounterLock.Area.End.X)
+                    .OverrideFailureMessage($"An anchor or the font at {x} stands inside '{encounterLock.LockID}'.").IsTrue();
+            }
+        }
+    }
+
+    /// <summary>
+    /// The boarding action in real frames: the Bonnet and the gun pier's crew is
+    /// pre-placed; the flagship's boarding crew (the cannon master and the Eraser
+    /// among them) musters on the ramp only once they are down, and Sarah's first
+    /// Eraser bark fires then. The haul-out from the boarding channel lands inside
+    /// the engaged lock and leaves it engaged.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task TheBoardingCrewMustersOnTheRampOnceTheBonnetAndThePierAreClear() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        using var fixture = new NassauFixture(new StorySaveData {
+            SelectedCharacterID = "einstein",
+            CurrentLevelID = StoryManager.GetLevelScenePath(CampaignLevel.Nassau),
+            LastCheckpointID = Level07Controller.Checkpoint1,
+            CurrentHP = 100
+        });
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
+        Level07Controller level = fixture.Level;
+        EncounterLock boarding = level.BoardingLock;
+        AssertThat(level.QuayLock.RestoredCleared).IsTrue();
+        AssertThat(boarding.State).IsEqual(EncounterLockState.Armed);
+        AssertThat(level.FirstEraserBarkShown).IsFalse();
+
+        PlayerController hero = level.Player;
+        hero.GlobalPosition = new Vector2(6100f, 880f);
+        hero.Velocity = Vector2.Zero;
+        for (int frame = 0; frame < 30 && boarding.State != EncounterLockState.Engaged; frame++) {
+            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        }
+        AssertThat(boarding.State).IsEqual(EncounterLockState.Engaged);
+        int pierCrew = boarding.LivingMemberCount;
+        AssertThat(pierCrew).IsGreater(0);
+        foreach (EnemyController member in boarding.LivingMembers) {
+            AssertThat(member.GlobalPosition.X < Level07Controller.ChannelStartX).IsTrue();
+        }
+        AssertThat(level.FirstEraserBarkShown).IsFalse();
+
+        // Going over the side mid-fight hauls the hero out onto the pier, still inside.
+        level.HaulOutOfTheWater(hero, Level07Controller.WaterSpans[1].Rescue);
+        await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        AssertThat(boarding.State).IsEqual(EncounterLockState.Engaged);
+
+        foreach (EnemyController member in boarding.LivingMembers) member.TakeDamage(99999);
+        bool mustered = false;
+        for (int frame = 0; frame < 10 && !mustered; frame++) {
+            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            mustered = boarding.LivingMemberCount > 0;
+        }
+        AssertThat(mustered).OverrideFailureMessage("The boarding crew never mustered.").IsTrue();
+        AssertThat(boarding.State).IsEqual(EncounterLockState.Engaged);
+        foreach (EnemyController member in boarding.LivingMembers) {
+            AssertThat(member.GlobalPosition.X > Level07Controller.ChannelEndX)
+                .OverrideFailureMessage($"A boarding-crew member stands at {member.GlobalPosition.X}, off the ramp.").IsTrue();
+        }
+        bool eraserMustered = false;
+        foreach (EnemyController member in boarding.LivingMembers) {
+            if (member.Data?.EnemyID == Level07Controller.EraserEnemyID) eraserMustered = true;
+        }
+        if (eraserMustered) {
+            for (int frame = 0; frame < 3 && !level.FirstEraserBarkShown; frame++) {
+                await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            }
+            AssertThat(level.FirstEraserBarkShown).OverrideFailureMessage("The Eraser mustered without its bark.").IsTrue();
+        }
+
+        for (int pass = 0; pass < 6 && boarding.State == EncounterLockState.Engaged; pass++) {
+            foreach (EnemyController member in boarding.LivingMembers) member.TakeDamage(99999);
+            for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        }
+        AssertThat(boarding.State).IsEqual(EncounterLockState.Cleared);
+        AssertThat(boarding.ExitBarrier.IsClosed).IsFalse();
     }
 
     // === Helpers ===

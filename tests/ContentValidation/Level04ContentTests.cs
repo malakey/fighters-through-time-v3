@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using FTT.Characters;
 using FTT.Core;
 using FTT.Enemies;
 using FTT.Environment;
@@ -451,6 +452,171 @@ public class Level04ContentTests {
         var gate = level.GetNodeOrNull<StaticBody2D>("CourtyardGate");
         AssertThat(gate == null || gate.IsQueuedForDeletion())
             .OverrideFailureMessage("The courtyard gate is still solid after a completed resume.").IsTrue();
+    }
+
+    // === GU-L4 (2026-10-12): the encounter locks ===
+
+    /// <summary>
+    /// The three approach rooms are encounter locks, one wave per manifest row:
+    /// IDs, areas, barriers, triggers, the cell block's puzzle condition, and the
+    /// baseline of every anchor. The walkway rioter now stands on the corridor
+    /// floor; every member spawns inside its lock on the ground floor; the cell-B
+    /// rioter stays sealed in cell B.
+    /// </summary>
+    [TestCase]
+    public void TheThreeApproachRoomsAreEncounterLocksOneWavePerManifestRow() {
+        using var fixture = new ParisFixture();
+        Level04Controller level = fixture.Level;
+        AssertThat(level.EncounterLocks.Count).IsEqual(3);
+
+        var expected = new (EncounterLock Lock, string ID, float MinX, float MaxX, string Row,
+            (string EnemyID, Vector2 Position)[] Table, EncounterWaveTrigger Trigger, string[] Puzzles)[] {
+            (level.GatehouseLock, Level04Controller.LockGatehouse, 300f, 3200f, "level_04.room1",
+                Level04Controller.Room1Spawns, EncounterWaveTrigger.OnBuild, Array.Empty<string>()),
+            (level.CorridorLock, Level04Controller.LockCorridor, 3220f, 4760f, "level_04.room2",
+                Level04Controller.Room2Spawns, EncounterWaveTrigger.OnEngage, Array.Empty<string>()),
+            (level.CellsLock, Level04Controller.LockCells, 6120f, 8100f, "level_04.room3",
+                Level04Controller.Room3Spawns, EncounterWaveTrigger.OnBuild, new[] { PrisonerPuzzleID })
+        };
+        foreach ((EncounterLock encounterLock, string id, float minX, float maxX, string row,
+                     (string EnemyID, Vector2 Position)[] table, EncounterWaveTrigger trigger, string[] puzzles) in expected) {
+            AssertObject(encounterLock).OverrideFailureMessage($"'{id}' was not built.").IsNotNull();
+            AssertString(encounterLock.LockID).IsEqual(id);
+            AssertThat(encounterLock.LockID.StartsWith(LevelID, StringComparison.Ordinal)).IsTrue();
+            AssertFloat(encounterLock.Area.Position.X).IsEqualApprox(minX, 0.5f);
+            AssertFloat(encounterLock.Area.End.X).IsEqualApprox(maxX, 0.5f);
+            AssertFloat(encounterLock.EntryBarrier.CenterX).IsEqualApprox(minX - 10f, 0.5f);
+            AssertFloat(encounterLock.ExitBarrier.CenterX).IsEqualApprox(maxX + 10f, 0.5f);
+            AssertThat(encounterLock.Spec.Waves.Length).IsEqual(1);
+            EncounterLockWave wave = encounterLock.Spec.Waves[0];
+            AssertString(wave.RowID).IsEqual(row);
+            AssertThat(wave.Trigger).IsEqual(trigger);
+            AssertThat(wave.Scaled).IsTrue();
+            AssertThat(wave.Spawns.Length).IsEqual(table.Length);
+            for (int index = 0; index < table.Length; index++) {
+                AssertString(wave.Spawns[index].EnemyID).IsEqual(table[index].EnemyID);
+                Vector2 spawn = wave.Spawns[index].Position;
+                AssertThat(spawn.X > minX && spawn.X < maxX)
+                    .OverrideFailureMessage($"'{id}' spawns {table[index].EnemyID} at {spawn}, outside {minX}..{maxX}.")
+                    .IsTrue();
+                // Every Paris member stands on the ground floor (y 850 over the 900 floor).
+                AssertFloat(spawn.Y).IsEqualApprox(850f, 0.5f);
+                // Their patrols stay inside the lock.
+                AssertThat(wave.Spawns[index].PatrolA.Value.X >= minX && wave.Spawns[index].PatrolB.Value.X <= maxX).IsTrue();
+            }
+            AssertThat(string.Join(",", encounterLock.Spec.RequiredPuzzleIDs)).IsEqual(string.Join(",", puzzles));
+        }
+
+        // The rioter that held the upper walkway (5600, 250) is on the corridor floor.
+        foreach ((string _, Vector2 position) in Level04Controller.Room2Spawns) {
+            AssertFloat(position.Y).IsEqualApprox(850f, 0.5f);
+        }
+        // The cell-B rioter stands in cell B (between lock B's east face, 7668,
+        // and the far wall, 8020), part of the prisoner puzzle.
+        AssertThat(Level04Controller.Room3Spawns[2].Position.X > 7668f && Level04Controller.Room3Spawns[2].Position.X < 8020f)
+            .OverrideFailureMessage("The cell-B rioter no longer stands inside cell B.").IsTrue();
+
+        // Every anchor lists every lock whose area ends before it.
+        IReadOnlyDictionary<string, string[]> map = level.AuthoredEncounterBaselines;
+        AssertThat(map[$"{LevelID}_checkpoint_0"].Length).IsEqual(0);
+        AssertString(string.Join(",", map[$"{LevelID}_checkpoint_1"]))
+            .IsEqual($"{Level04Controller.LockGatehouse},{Level04Controller.LockCorridor}");
+        AssertString(string.Join(",", map[$"{LevelID}_checkpoint_2"]))
+            .IsEqual($"{Level04Controller.LockGatehouse},{Level04Controller.LockCorridor},{Level04Controller.LockCells}");
+
+        // The old wave triggers are gone: the locks spawn every member.
+        AssertObject(level.GetNodeOrNull("Room2WaveTrigger")).IsNull();
+        AssertObject(level.GetNodeOrNull("Room3WaveTrigger")).IsNull();
+    }
+
+    /// <summary>
+    /// The Middle and PreBoss anchors and the Restoration Font stand outside every
+    /// lock area, and each anchor's strike surface lies beyond the longest basic
+    /// swing from inside the locks its baseline lists (FIX-E authoring rule).
+    /// </summary>
+    [TestCase]
+    public void TheAnchorsAndTheFontStandOutsideEveryLockAndBeyondASwingFromInside() {
+        using var fixture = new ParisFixture();
+        Level04Controller level = fixture.Level;
+        float swing = EncounterLockReach.LongestBasicSwingPixels();
+        AssertThat(level.Levels.TryGetCheckpointPosition($"{LevelID}_checkpoint_1", out Vector2 _)).IsTrue();
+
+        float middleSurfaceWest = Level04Controller.MiddleCheckpointX - EncounterLockReach.StrikeSurfaceHalfWidthPixels;
+        float corridorReach = EncounterLockReach.EastReachFromInside(Level04Controller.CorridorLockMaxX, swing);
+        AssertThat(corridorReach < middleSurfaceWest)
+            .OverrideFailureMessage($"A swing from inside the corridor lock reaches x {corridorReach:0}; the Middle anchor's surface starts at {middleSurfaceWest:0}.")
+            .IsTrue();
+        float preBossSurfaceWest = Level04Controller.PreBossCheckpointX - EncounterLockReach.StrikeSurfaceHalfWidthPixels;
+        float cellsReach = EncounterLockReach.EastReachFromInside(Level04Controller.CellsLockMaxX, swing);
+        AssertThat(cellsReach < preBossSurfaceWest)
+            .OverrideFailureMessage($"A swing from inside the cell block reaches x {cellsReach:0}; the PreBoss anchor's surface starts at {preBossSurfaceWest:0}.")
+            .IsTrue();
+
+        AssertThat(level.AuthoredRestorationFontPosition.HasValue).IsTrue();
+        float fontX = level.AuthoredRestorationFontPosition.Value.X;
+        foreach (EncounterLock encounterLock in level.EncounterLocks) {
+            AssertThat(fontX + 30f <= encounterLock.Area.Position.X || fontX - 30f >= encounterLock.Area.End.X)
+                .OverrideFailureMessage($"The font at {fontX} stands inside '{encounterLock.LockID}'.").IsTrue();
+        }
+        // The font sits between the cell block's barrier and the PreBoss anchor.
+        AssertThat(fontX > Level04Controller.CellsLockMaxX && fontX < Level04Controller.PreBossCheckpointX).IsTrue();
+    }
+
+    /// <summary>
+    /// The ruling for the cell block (plan §5): the courtyard gate still opens the
+    /// moment both prisoners are free, but the lock's barrier opens only on
+    /// "freed AND cleared" — killing the guards alone leaves it shut, and so does
+    /// freeing the prisoners with a guard alive. In real frames on the real scene,
+    /// resumed at the Middle anchor (the gatehouse and corridor built Cleared).
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task TheCellBlockBarrierOpensOnlyOnceThePrisonersAreFreeAndItsGuardsAreDown() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        using var fixture = new ParisFixture($"{LevelID}_checkpoint_1");
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
+        Level04Controller level = fixture.Level;
+        AssertThat(level.GatehouseLock.State).IsEqual(EncounterLockState.Cleared);
+        AssertThat(level.GatehouseLock.RestoredCleared).IsTrue();
+        AssertThat(level.CorridorLock.State).IsEqual(EncounterLockState.Cleared);
+        EncounterLock cells = level.CellsLock;
+        AssertThat(cells.State).IsEqual(EncounterLockState.Armed);
+        AssertThat(cells.ExitBarrier.IsClosed).IsTrue();
+        // The PreBoss fracture is held while the cell block holds.
+        var preBoss = level.GetNode<CheckpointTrigger>($"Checkpoint_{LevelID}_checkpoint_2");
+        AssertThat(preBoss.IsHeldByEncounterLock).IsTrue();
+
+        PlayerController hero = level.Player;
+        hero.GlobalPosition = new Vector2(6400f, 880f);
+        hero.Velocity = Vector2.Zero;
+        for (int frame = 0; frame < 30 && cells.State != EncounterLockState.Engaged; frame++) {
+            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        }
+        AssertThat(cells.State).IsEqual(EncounterLockState.Engaged);
+        AssertThat(cells.EntryBarrier.IsClosed).IsTrue();
+        AssertThat(cells.LivingMemberCount).IsGreater(0);
+
+        // Every guard down, the cell-B rioter included: the puzzle still holds the barrier.
+        foreach (EnemyController member in cells.LivingMembers) member.TakeDamage(99999);
+        for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        AssertThat(cells.LivingMemberCount).IsEqual(0);
+        AssertThat(cells.State)
+            .OverrideFailureMessage("The cell block cleared with both prisoners still locked up.")
+            .IsEqual(EncounterLockState.Engaged);
+        AssertThat(cells.ExitBarrier.IsClosed).IsTrue();
+        AssertThat(level.CourtyardGateOpen).IsFalse();
+
+        // Both prisoners free: the gate opens at once, the barrier on the lock's next tick.
+        AssertThat(level.Prisoners[0].Rescue()).IsTrue();
+        AssertThat(level.Prisoners[1].Rescue()).IsTrue();
+        AssertThat(level.CourtyardGateOpen).IsTrue();
+        for (int frame = 0; frame < 3 && cells.State != EncounterLockState.Cleared; frame++) {
+            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        }
+        AssertThat(cells.State).IsEqual(EncounterLockState.Cleared);
+        AssertThat(cells.ForceCleared).IsFalse();
+        AssertThat(cells.EntryBarrier.IsClosed).IsFalse();
+        AssertThat(cells.ExitBarrier.IsClosed).IsFalse();
+        AssertThat(preBoss.IsHeldByEncounterLock).IsFalse();
     }
 
     // === Helpers ===

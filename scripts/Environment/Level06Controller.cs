@@ -42,6 +42,18 @@ namespace FTT.Environment {
     /// 0 elites, 1 boss, 3 extractors. The authored tables below are the single
     /// source of those counts and Level06ContentTests asserts them.
     /// </para>
+    ///
+    /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-L4): the
+    /// Forum (300–2880), the vault up to the rockfall (2900–5390, which also needs
+    /// the winch balanced: the rockfall door still opens on the solve, the lock's
+    /// barrier on "solved AND cleared") and the Ash Road (5660–8500) are
+    /// <see cref="EncounterLock"/>s. The Ash Road crowd is fought <i>before</i> the
+    /// lava front: the front starts when the road lock clears, a fixed head start
+    /// behind the hero (<see cref="EscapeHeadStartPixels"/>, never west of
+    /// <see cref="EscapeStartX"/>), and the road's second civilian waits in the run
+    /// that follows (8700), so the rescue still costs seconds the hero does not
+    /// have. The Chrono-Warden is a member of the road lock, so its Phase Skip
+    /// lands inside the road (the lock's member clamp).</para>
     /// </summary>
     public partial class Level06Controller : StoryLevelControllerBase {
 
@@ -173,6 +185,21 @@ namespace FTT.Environment {
         /// <summary>Crossing this clears the run.</summary>
         public const float EscapeFinishX = 8880f;
 
+        /// <summary>
+        /// GU-L4 (2026-10-13, Provisional): the lava front starts when the Ash Road
+        /// lock clears, this far behind the hero (and never west of
+        /// <see cref="EscapeStartX"/>). The front runs 224 px/s against Lincoln's
+        /// 228, so a running hero keeps about this lead and a stop costs it
+        /// (about one second at the front's speed).
+        /// </summary>
+        public const float EscapeHeadStartPixels = 240f;
+
+        /// <summary>
+        /// The road's second civilian, in the run after the road lock (GU-L4: it
+        /// stood at 7050, inside the fight; the scene node is pinned to it).
+        /// </summary>
+        public static readonly Vector2 AshRoadCivilianPosition = new(8700f, 820f);
+
         // === Authored encounter tables (the locked economy row lives here) ===
 
         /// <summary>
@@ -216,7 +243,8 @@ namespace FTT.Environment {
             ("chrono_slasher", new Vector2(6200, EnemyGroundY), new Vector2(6060, EnemyGroundY), new Vector2(6360, EnemyGroundY)),
             ("shock_shield_legionnaire", new Vector2(6900, EnemyGroundY), new Vector2(6760, EnemyGroundY), new Vector2(7060, EnemyGroundY)),
             ("chrono_slasher", new Vector2(7700, EnemyGroundY), new Vector2(7560, EnemyGroundY), new Vector2(7860, EnemyGroundY)),
-            ("shock_shield_legionnaire", new Vector2(8400, EnemyGroundY), new Vector2(8260, EnemyGroundY), new Vector2(8560, EnemyGroundY)),
+            // GU-L4: its east patrol end moved 8560 -> 8460, inside the road lock (it ends at 8500).
+            ("shock_shield_legionnaire", new Vector2(8400, EnemyGroundY), new Vector2(8260, EnemyGroundY), new Vector2(8460, EnemyGroundY)),
             // The Warden holds the last stretch of the Ash Road, where a Dilation
             // Field on a lava-timed corridor is the whole point of the enemy.
             (WardenEnemyID, new Vector2(8050, EnemyGroundY), new Vector2(7900, EnemyGroundY), new Vector2(8200, EnemyGroundY))
@@ -305,9 +333,41 @@ namespace FTT.Environment {
         public bool EscapeTriggered { get; private set; }
 
         private bool _vaultReached;
-        private bool _room2WaveSpawned;
-        private bool _room3WaveSpawned;
         private bool _rewindBound;
+
+        // === GU-L4 (2026-10-12): the three encounter locks ===================
+
+        /// <summary>The F10 encounter IDs of the three locks (they start with the level ID).</summary>
+        public const string LockForum = ID + "_lock_forum";
+        public const string LockVault = ID + "_lock_vault";
+        public const string LockAshRoad = ID + "_lock_ash_road";
+
+        /// <summary>The manifest rows the three lock waves are (level_06_rewards.tres).</summary>
+        public const string Room1RowID = "level_06.room1";
+        public const string Room2RowID = "level_06.room2";
+        public const string Room3RowID = "level_06.room3";
+
+        /// <summary>The Forum, east of the entry anchor (240) to the room seam.</summary>
+        public const float ForumLockMinX = 300f;
+        public const float ForumLockMaxX = Room2StartX;
+        /// <summary>The vault, up to the rockfall's west face (its exit barrier fills the rockfall under the gate column).</summary>
+        public const float VaultLockMinX = Room2StartX + EncounterLockRules.DefaultBarrierWidthPixels;
+        public const float VaultLockMaxX = RockfallX - EncounterLockRules.DefaultBarrierWidthPixels * 0.5f;
+        /// <summary>
+        /// The Ash Road, east of the Middle anchor (5600) to 8500: the road crowd is
+        /// fought here, then the front starts and the hero runs 8500 → the finish
+        /// (8880) past the second civilian.
+        /// </summary>
+        public const float AshRoadLockMinX = 5660f;
+        public const float AshRoadLockMaxX = 8500f;
+
+        private EncounterLock _forumLock;
+        private EncounterLock _vaultLock;
+        private EncounterLock _ashRoadLock;
+
+        public EncounterLock ForumLock => _forumLock;
+        public EncounterLock VaultLock => _vaultLock;
+        public EncounterLock AshRoadLock => _ashRoadLock;
 
         // === Construction ===
 
@@ -318,6 +378,71 @@ namespace FTT.Environment {
             BuildAshRoad();
             BuildCalderaRim();
             BuildExtractors(ExtractorPlacements);
+            BuildEncounterLocks();
+        }
+
+        /// <summary>
+        /// GU-L4: the three rooms with enemies as encounter locks, one wave per
+        /// manifest row. Built here, before the resume baseline, so a resume past a
+        /// lock builds it Cleared.
+        /// </summary>
+        private void BuildEncounterLocks() {
+            float half = EncounterLockRules.DefaultBarrierWidthPixels * 0.5f;
+            // The Forum's colonnade guard: pre-placed.
+            _forumLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockForum,
+                Area = EncounterLockSpec.Span(ForumLockMinX, ForumLockMaxX, LevelHeight),
+                EntryBarrierX = ForumLockMinX - half,
+                ExitBarrierX = ForumLockMaxX + half,
+                BarrierFloorY = GroundY,
+                Waves = new[] { LockWave(Room1RowID, Room1Spawns, EncounterWaveTrigger.OnBuild) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            // The winch room: the escort is on the vault floor, and its exit — the
+            // rockfall — also needs the winch balanced. It keeps the level's
+            // rockfall objective.
+            _vaultLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockVault,
+                Area = EncounterLockSpec.Span(VaultLockMinX, VaultLockMaxX, LevelHeight),
+                EntryBarrierX = VaultLockMinX - half,
+                ExitBarrierX = RockfallX,
+                ExitBarrierYRange = new Vector2(GroundY - RockfallHeight, GroundY),
+                BarrierFloorY = GroundY,
+                Waves = new[] { LockWave(Room2RowID, Room2Spawns, EncounterWaveTrigger.OnBuild) },
+                RequiredPuzzleIDs = new[] { RockfallPuzzleID },
+                GoDirection = EncounterGoDirection.Right
+            });
+            // The Ash Road: the crowd comes out of the ash as the hero steps onto
+            // the road; the lava front only starts once it is cleared.
+            _ashRoadLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockAshRoad,
+                Area = EncounterLockSpec.Span(AshRoadLockMinX, AshRoadLockMaxX, LevelHeight),
+                EntryBarrierX = AshRoadLockMinX - half,
+                ExitBarrierX = AshRoadLockMaxX + half,
+                BarrierFloorY = GroundY,
+                Waves = new[] { LockWave(Room3RowID, Room3Spawns, EncounterWaveTrigger.OnEngage) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            _ashRoadLock.StateChanged += OnAshRoadLockStateChanged;
+        }
+
+        private static EncounterLockWave LockWave(string rowID,
+            (string EnemyID, Vector2 Position, Vector2 PatrolA, Vector2 PatrolB)[] table, EncounterWaveTrigger trigger) {
+            var spawns = new EncounterLockSpawn[table.Length];
+            for (int index = 0; index < table.Length; index++) {
+                (string enemyID, Vector2 position, Vector2 patrolA, Vector2 patrolB) = table[index];
+                spawns[index] = new EncounterLockSpawn(enemyID, position, patrolA, patrolB);
+            }
+            return new EncounterLockWave { RowID = rowID, Spawns = spawns, Trigger = trigger };
+        }
+
+        /// <summary>GU-L4: the road lock's clear (from a live fight) starts the lava front.</summary>
+        private void OnAshRoadLockStateChanged(EncounterLock encounterLock, EncounterLockState previous,
+            EncounterLockState current) {
+            if (current != EncounterLockState.Cleared || previous != EncounterLockState.Engaged) return;
+            BeginEscape();
         }
 
         /// <summary>
@@ -468,12 +593,14 @@ namespace FTT.Environment {
                 "pompeii_rockfall_blocked", new Vector2(RockfallWidth, RockfallHeight), RockfallColor);
             BuildGateColumn(RockfallX, RockfallWidth, GroundY - RockfallHeight, RockfallColor);
 
-            BuildRoomTransition("pompeii_room_vault", new Vector2(Room2StartX, 600), Room2CameraBounds,
+            // GU-L4: the trigger stands just inside the vault lock, so a hero pressed
+            // against the Forum's exit barrier does not reach it; the old wave
+            // trigger is gone (the vault lock places its escort).
+            BuildRoomTransition("pompeii_room_vault", new Vector2(VaultLockMinX + 40f, 600), Room2CameraBounds,
                 onEntered: _ => {
                     _vaultReached = true;
                     RefreshObjective();
                 });
-            BuildWaveTrigger("Room2WaveTrigger", new Vector2(Room2StartX + 140, 760), TriggerRoom2Wave);
         }
 
         /// <summary>
@@ -501,11 +628,9 @@ namespace FTT.Environment {
 
             BuildRoomDecoration(Room3StartX, "pompeii_room_ashroad", new Color(0.95f, 0.45f, 0.20f));
 
-            BuildRoomTransition("pompeii_room_ashroad", new Vector2(Room3StartX + 30, 600), Room3CameraBounds,
-                onEntered: _ => {
-                    BeginEscape();
-                    TriggerRoom3Wave();
-                });
+            // GU-L4: entering the road no longer starts the front or spawns the
+            // crowd: the Ash Road lock spawns it, and its clear starts the front.
+            BuildRoomTransition("pompeii_room_ashroad", new Vector2(Room3StartX + 30, 600), Room3CameraBounds);
         }
 
         /// <summary>
@@ -551,47 +676,38 @@ namespace FTT.Environment {
         }
 
         // === Encounters ===
-
-        protected override void SpawnInitialEnemies() => SpawnWave(Room1Spawns);
-
-        private void TriggerRoom2Wave() {
-            if (_room2WaveSpawned) return;
-            _room2WaveSpawned = true;
-            SpawnWave(Room2Spawns);
-        }
-
-        private void TriggerRoom3Wave() {
-            if (_room3WaveSpawned) return;
-            _room3WaveSpawned = true;
-            SpawnWave(Room3Spawns);
-        }
-
-        /// <summary>
-        /// Authored counts are the Normal-difficulty truth; ScaleEncounterCount is the
-        /// only thing allowed to move them, and it never exceeds the authored table.
-        /// Concurrency peaks at 4 live standards, inside the level's warm pool counts
-        /// (standard_enemy 12, enemy_projectile 20).
-        /// </summary>
-        private void SpawnWave((string EnemyID, Vector2 Position, Vector2 PatrolA, Vector2 PatrolB)[] wave) {
-            if (wave == null) return;
-            int count = StoryDifficultyTuning.ScaleEncounterCount(
-                wave.Length, StoryDifficultyTuning.CurrentStoryDifficulty);
-            for (int index = 0; index < count && index < wave.Length; index++) {
-                (string enemyID, Vector2 position, Vector2 patrolA, Vector2 patrolB) = wave[index];
-                EnemyFactory.Spawn(enemyID, this, position, patrolA, patrolB);
-            }
-        }
+        //
+        // GU-L4 (2026-10-12): every encounter is a lock wave (BuildEncounterLocks).
+        // Authored counts are the Normal-difficulty truth; the lock takes the same
+        // per-row ScaleEncounterCount prefix the reward manifest compiles, never more
+        // than the table. Concurrency peaks at 5 live (4 standards and the Warden),
+        // inside the level's warm pool counts (standard_enemy 12, elite_enemy 3,
+        // enemy_projectile 20).
 
         // === Era mechanic 1: the advancing lava front ===
 
-        /// <summary>Starts the front the first time the player enters the Ash Road.</summary>
+        /// <summary>
+        /// Starts the front. Since GU-L4 that happens when the Ash Road lock clears
+        /// (no longer on entering the road), so the front starts
+        /// <see cref="EscapeHeadStartPixels"/> behind wherever the hero stands —
+        /// never west of the authored <see cref="EscapeStartX"/> — instead of at
+        /// the road's west end, which would trail a hero who finished the fight
+        /// far down the road by thousands of pixels.
+        /// </summary>
         public bool BeginEscape() {
             if (_escape == null || EscapeTriggered || _escape.IsCompleted) return false;
             EscapeTriggered = true;
+            float heroX = Player != null && IsInstanceValid(Player) ? Player.GlobalPosition.X : EscapeStartX;
+            _escape.StartX = EscapeStartFor(heroX);
+            _escape.ResetSequence();
             _escape.Begin();
             RefreshObjective();
             return true;
         }
+
+        /// <summary>The front's start for a hero at <paramref name="heroX"/>: the head start behind it, never west of the authored start nor past the front's end.</summary>
+        public static float EscapeStartFor(float heroX) =>
+            Mathf.Clamp(heroX - EscapeHeadStartPixels, EscapeStartX, EscapeEndX);
 
         private void OnEscapeCompleted() => RefreshObjective();
 
@@ -611,6 +727,14 @@ namespace FTT.Environment {
         /// </summary>
         private void OnStoryRewind(Vector2 targetPosition) {
             if (_escape == null || !EscapeTriggered || _escape.IsCompleted) return;
+            // GU-L4: the front's start follows the hero since it starts at the road
+            // lock's clear. A rewind that lands the hero behind it moves it back, so
+            // the reset front never begins over (or ahead of) the hero.
+            float start = Mathf.Min(_escape.StartX, EscapeStartFor(targetPosition.X));
+            if (!Mathf.IsEqualApprox(start, _escape.StartX)) {
+                _escape.StartX = start;
+                _escape.ResetSequence();
+            }
             _escape.Begin();
         }
 
@@ -641,22 +765,20 @@ namespace FTT.Environment {
 
         // === Resume, lifecycle, and objectives ===
 
-        public const string Room2WaveEncounter = ID + "_room2_wave";
-        public const string Room3WaveEncounter = ID + "_room3_wave";
-
+        // GU-L4: the encounters are the three locks; every anchor lists every lock
+        // before it, so a resume builds those Cleared (the Forum used to respawn
+        // behind the hero on every resume).
         private static readonly IReadOnlyDictionary<string, string[]> Baselines =
             new Dictionary<string, string[]> {
                 [Checkpoint0] = System.Array.Empty<string>(),
-                [Checkpoint1] = new[] { Room2WaveEncounter },
-                [Checkpoint2] = new[] { Room2WaveEncounter, Room3WaveEncounter }
+                [Checkpoint1] = new[] { LockForum, LockVault },
+                [Checkpoint2] = new[] { LockForum, LockVault, LockAshRoad }
             };
 
         protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
 
-        protected override void MarkEncounterCleared(string encounterID) {
-            if (encounterID == Room2WaveEncounter) _room2WaveSpawned = true;
-            else if (encounterID == Room3WaveEncounter) _room3WaveSpawned = true;
-        }
+        /// <summary>GU-L4: a cleared or reverted lock hands back the level's derived objective.</summary>
+        protected override void RestoreLevelObjective() => RefreshObjective();
 
         protected override void MarkWavesClearedThrough(string checkpointID) {
             // Package 12 W2 (GAP-13): the room waves come from the explicit

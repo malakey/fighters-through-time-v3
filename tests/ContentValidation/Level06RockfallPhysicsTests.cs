@@ -130,10 +130,16 @@ public class Level06RockfallPhysicsTests {
         private readonly string _originalCharacter;
         private readonly StorySaveData _originalSave;
         private readonly bool _originalPaused;
+        private readonly bool _originalSuppress;
 
         public PompeiiFixture() {
             SceneTree tree = (SceneTree)Engine.GetMainLoop();
             _originalPaused = tree.Paused;
+            // GU-L4 (2026-10-13): the hero stands on the east pan, inside the vault
+            // lock, and this case measures the winch rather than the fight, so the
+            // locks build Cleared (EncounterLock's test seam), restored on dispose.
+            _originalSuppress = EncounterLock.SuppressForTesting;
+            EncounterLock.SuppressForTesting = true;
             _originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
             _originalCharacter = GameManager.Instance.CurrentSession.SelectedCharacterID;
             _originalSave = SaveManager.Instance.SaveSlots[ScratchSlot];
@@ -166,6 +172,7 @@ public class Level06RockfallPhysicsTests {
             GameManager.Instance.CurrentSession.ActiveSaveSlot = _originalSlot;
             GameManager.Instance.CurrentSession.SelectedCharacterID = _originalCharacter;
             ((SceneTree)Engine.GetMainLoop()).Paused = _originalPaused;
+            EncounterLock.SuppressForTesting = _originalSuppress;
         }
     }
 }

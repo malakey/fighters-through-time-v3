@@ -507,6 +507,168 @@ public class Level06ContentTests {
         AssertThat(level.CiviliansRescued).IsEqual(2);
     }
 
+    // === GU-L4 (2026-10-12): the encounter locks ===
+
+    /// <summary>
+    /// The Forum, the vault and the Ash Road are encounter locks, one wave per
+    /// manifest row: IDs, areas, the vault's exit filling the rockfall under its
+    /// gate column, the winch as the vault's clear condition, the Warden a member
+    /// of the road (its Phase Skip clamped inside the road), and the baselines.
+    /// </summary>
+    [TestCase]
+    public void TheForumTheVaultAndTheAshRoadAreEncounterLocksOneWavePerManifestRow() {
+        using var fixture = new PompeiiFixture();
+        Level06Controller level = fixture.Level;
+        AssertThat(level.EncounterLocks.Count).IsEqual(3);
+
+        var expected = new (EncounterLock Lock, string ID, float MinX, float MaxX, string Row,
+            (string EnemyID, Vector2 Position, Vector2 PatrolA, Vector2 PatrolB)[] Table,
+            EncounterWaveTrigger Trigger, string Puzzle)[] {
+            (level.ForumLock, Level06Controller.LockForum, 300f, 2880f, "level_06.room1",
+                Level06Controller.Room1Spawns, EncounterWaveTrigger.OnBuild, ""),
+            (level.VaultLock, Level06Controller.LockVault, 2900f, 5390f, "level_06.room2",
+                Level06Controller.Room2Spawns, EncounterWaveTrigger.OnBuild, Level06Controller.RockfallPuzzleID),
+            (level.AshRoadLock, Level06Controller.LockAshRoad, 5660f, 8500f, "level_06.room3",
+                Level06Controller.Room3Spawns, EncounterWaveTrigger.OnEngage, "")
+        };
+        foreach ((EncounterLock encounterLock, string id, float minX, float maxX, string row,
+                     (string EnemyID, Vector2 Position, Vector2 PatrolA, Vector2 PatrolB)[] table,
+                     EncounterWaveTrigger trigger, string puzzle) in expected) {
+            AssertObject(encounterLock).OverrideFailureMessage($"'{id}' was not built.").IsNotNull();
+            AssertString(encounterLock.LockID).IsEqual(id);
+            AssertFloat(encounterLock.Area.Position.X).IsEqualApprox(minX, 0.5f);
+            AssertFloat(encounterLock.Area.End.X).IsEqualApprox(maxX, 0.5f);
+            AssertThat(encounterLock.Spec.Waves.Length).IsEqual(1);
+            EncounterLockWave wave = encounterLock.Spec.Waves[0];
+            AssertString(wave.RowID).IsEqual(row);
+            AssertThat(wave.Trigger).IsEqual(trigger);
+            AssertThat(wave.Spawns.Length).IsEqual(table.Length);
+            for (int index = 0; index < table.Length; index++) {
+                AssertString(wave.Spawns[index].EnemyID).IsEqual(table[index].EnemyID);
+                Vector2 spawn = table[index].Position;
+                AssertThat(spawn.X > minX && spawn.X < maxX).OverrideFailureMessage(
+                    $"'{id}' spawns {table[index].EnemyID} at {spawn}, outside {minX}..{maxX}.").IsTrue();
+                // Patrols stay inside the lock (an engaged member that loses its target patrols).
+                AssertThat(table[index].PatrolA.X > minX && table[index].PatrolB.X < maxX).IsTrue();
+            }
+            AssertString(string.Join(",", encounterLock.Spec.RequiredPuzzleIDs)).IsEqual(puzzle);
+        }
+
+        // The vault's exit barrier fills the rockfall from the gate column's foot to the floor.
+        EncounterLockBarrier vaultExit = level.VaultLock.ExitBarrier;
+        AssertFloat(vaultExit.CenterX).IsEqualApprox(Level06Controller.RockfallX, 0.5f);
+        AssertFloat(vaultExit.TopY).IsEqualApprox(280f, 0.5f);
+        AssertFloat(vaultExit.BottomY).IsEqualApprox(900f, 0.5f);
+
+        // The Warden debuts in the road lock (the last entry, so Easy's prefix
+        // still leaves it out), and its manifest row now carries it.
+        var road = level.AshRoadLock.Spec.Waves[0];
+        AssertString(road.Spawns[^1].EnemyID).IsEqual(Level06Controller.WardenEnemyID);
+
+        IReadOnlyDictionary<string, string[]> map = level.AuthoredEncounterBaselines;
+        AssertThat(map[Level06Controller.Checkpoint0].Length).IsEqual(0);
+        AssertString(string.Join(",", map[Level06Controller.Checkpoint1]))
+            .IsEqual($"{Level06Controller.LockForum},{Level06Controller.LockVault}");
+        AssertString(string.Join(",", map[Level06Controller.Checkpoint2]))
+            .IsEqual($"{Level06Controller.LockForum},{Level06Controller.LockVault},{Level06Controller.LockAshRoad}");
+        AssertObject(level.GetNodeOrNull("Room2WaveTrigger")).IsNull();
+    }
+
+    /// <summary>
+    /// The anchors and the Restoration Font stand outside every lock, and each
+    /// anchor's strike surface lies beyond the longest basic swing from inside the
+    /// locks its baseline lists.
+    /// </summary>
+    [TestCase]
+    public void TheAnchorsAndTheFontStandOutsideEveryLockAndBeyondASwingFromInside() {
+        using var fixture = new PompeiiFixture();
+        Level06Controller level = fixture.Level;
+        float swing = EncounterLockReach.LongestBasicSwingPixels();
+        AssertThat(level.Levels.TryGetCheckpointPosition(Level06Controller.Checkpoint1, out Vector2 middle)).IsTrue();
+        AssertThat(level.Levels.TryGetCheckpointPosition(Level06Controller.Checkpoint2, out Vector2 preBoss)).IsTrue();
+
+        float vaultReach = EncounterLockReach.EastReachFromInside(Level06Controller.VaultLockMaxX, swing);
+        AssertThat(vaultReach < middle.X - EncounterLockReach.StrikeSurfaceHalfWidthPixels)
+            .OverrideFailureMessage($"A swing from inside the vault reaches x {vaultReach:0}; the Middle anchor stands at {middle.X}.")
+            .IsTrue();
+        float roadReach = EncounterLockReach.EastReachFromInside(Level06Controller.AshRoadLockMaxX, swing);
+        AssertThat(roadReach < preBoss.X - EncounterLockReach.StrikeSurfaceHalfWidthPixels)
+            .OverrideFailureMessage($"A swing from inside the Ash Road reaches x {roadReach:0}; the PreBoss anchor stands at {preBoss.X}.")
+            .IsTrue();
+        // The Middle anchor stands between the rockfall and the road.
+        AssertThat(middle.X - 30f > Level06Controller.RockfallX && middle.X + 30f < Level06Controller.AshRoadLockMinX).IsTrue();
+
+        float fontX = level.AuthoredRestorationFontPosition.Value.X;
+        foreach (EncounterLock encounterLock in level.EncounterLocks) {
+            AssertThat(fontX + 30f <= encounterLock.Area.Position.X || fontX - 30f >= encounterLock.Area.End.X)
+                .OverrideFailureMessage($"The font at {fontX} stands inside '{encounterLock.LockID}'.").IsTrue();
+        }
+    }
+
+    /// <summary>
+    /// The ruling for the Ash Road (plan §5): its enemies are fought before the
+    /// lava front, which starts when the road lock clears. Entering the road no
+    /// longer starts the front; clearing the road starts it
+    /// <see cref="Level06Controller.EscapeHeadStartPixels"/> behind the hero, never
+    /// west of the authored start. The Warden, a road member, is clamped inside the
+    /// road. In real frames on the real scene, resumed at the Middle anchor.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task TheLavaFrontStartsOnlyWhenTheAshRoadLockClearsAHeadStartBehindTheHero() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        using var fixture = new PompeiiFixture($"{LevelID}_checkpoint_1");
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
+        Level06Controller level = fixture.Level;
+        EncounterLock road = level.AshRoadLock;
+        AssertThat(level.VaultLock.RestoredCleared).IsTrue();
+        AssertThat(road.State).IsEqual(EncounterLockState.Armed);
+
+        PlayerController hero = level.Player;
+        hero.GlobalPosition = new Vector2(7600f, 880f);
+        hero.Velocity = Vector2.Zero;
+        for (int frame = 0; frame < 30 && road.State != EncounterLockState.Engaged; frame++) {
+            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        }
+        AssertThat(road.State).IsEqual(EncounterLockState.Engaged);
+        // Stepping onto the road spawned the crowd, but the front waits for the clear.
+        AssertThat(road.LivingMemberCount).IsGreater(0);
+        AssertThat(level.EscapeTriggered).IsFalse();
+        AssertThat(level.Escape.IsRunning).IsFalse();
+
+        // The road's members are clamped inside it (the Warden's Phase Skip included).
+        foreach (EnemyController member in road.LivingMembers) {
+            AssertThat(member.EncounterBounds).IsEqual(road.Area);
+            if (member.Data?.EnemyID != Level06Controller.WardenEnemyID) continue;
+            member.GlobalPosition = new Vector2(Level06Controller.AshRoadLockMaxX + 300f, member.GlobalPosition.Y);
+            member.ApplyEncounterBoundsForTest();
+            AssertThat(member.GlobalPosition.X < Level06Controller.AshRoadLockMaxX)
+                .OverrideFailureMessage($"The Warden stands at {member.GlobalPosition.X}, past the road's end.").IsTrue();
+        }
+
+        for (int pass = 0; pass < 6 && road.State == EncounterLockState.Engaged; pass++) {
+            foreach (EnemyController member in road.LivingMembers) member.TakeDamage(99999);
+            for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        }
+        AssertThat(road.State).IsEqual(EncounterLockState.Cleared);
+        AssertThat(level.EscapeTriggered).IsTrue();
+        AssertThat(level.Escape.IsRunning).IsTrue();
+        float expectedStart = Level06Controller.EscapeStartFor(hero.GlobalPosition.X);
+        AssertFloat(level.Escape.StartX).IsEqualApprox(expectedStart, 60f);
+        AssertThat(level.Escape.StartX >= Level06Controller.EscapeStartX).IsTrue();
+        AssertThat(level.Escape.FrontX < hero.GlobalPosition.X)
+            .OverrideFailureMessage($"The front starts at {level.Escape.FrontX}, ahead of the hero at {hero.GlobalPosition.X}.")
+            .IsTrue();
+        // The road's second civilian waits in the run, between the road lock and the finish.
+        AssertThat(level.Civilians[1].GlobalPosition.X > Level06Controller.AshRoadLockMaxX
+            && level.Civilians[1].GlobalPosition.X < Level06Controller.EscapeFinishX).IsTrue();
+
+        // The head-start rule itself: never west of the authored start, never past the front's end.
+        AssertFloat(Level06Controller.EscapeStartFor(5600f)).IsEqualApprox(Level06Controller.EscapeStartX, 0.01f);
+        AssertFloat(Level06Controller.EscapeStartFor(8000f))
+            .IsEqualApprox(8000f - Level06Controller.EscapeHeadStartPixels, 0.01f);
+        AssertFloat(Level06Controller.EscapeStartFor(9500f)).IsEqualApprox(Level06Controller.EscapeEndX, 0.01f);
+    }
+
     // === Helpers ===
 
     private static HashSet<string> EnglishKeys() {

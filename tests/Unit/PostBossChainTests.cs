@@ -253,6 +253,12 @@ public class PostBossChainTests {
         for (int step = 0; step < 80 && dialogue.IsSequenceActive; step++) dialogue.AdvanceLine();
         AssertThat(dialogue.IsSequenceActive).IsFalse();
 
+        // GU-L4 (2026-10-13): the run reaching the stern has fought through the
+        // E-deck and boat-deck locks (the Middle-anchor resume rebuilt them Armed),
+        // and the PreBoss fracture is held until they are Cleared.
+        level.EDeckLock.RestoreCleared();
+        level.BoatDeckLock.RestoreCleared();
+
         // Only now does the hero cross the pre-boss trigger and strike the fracture.
         var trigger = level.GetNodeOrNull<Area2D>("PreBossTrigger");
         AssertObject(trigger).IsNotNull();

@@ -31,6 +31,19 @@ namespace FTT.Environment {
     /// identifiers — <c>revolutionary_tribunal.tres</c>, the <c>Tribunal*</c>
     /// members below, the <c>RevolutionaryTribunalEncounter</c> node name and every
     /// translation key — are retained (D6); only English values and prose moved.</para>
+    ///
+    /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-L4): each
+    /// approach room is an <see cref="EncounterLock"/> the hero must clear — the
+    /// gatehouse yard (300–3200), the corridor floor under the two ground beams
+    /// (3220–4760) and the cell block (6120–8100, which also needs both prisoners
+    /// freed). The walkway rioter that used to hold the upper walkway, where the
+    /// floor route walked under it, now stands on the corridor floor; the cell-B
+    /// rioter stays sealed in with prisoner B and is fought once lock B breaks.
+    /// The courtyard gate still opens the moment the prisoners are free; the
+    /// cell block's barrier opens on "freed AND cleared". The tower and the swept
+    /// walkway (4780–6080) hold no enemy, so the Middle anchor stands there, and
+    /// the Restoration Font and the PreBoss anchor stand between the cell block's
+    /// barrier and the courtyard.</para>
     /// </summary>
     public partial class Level04Controller : StoryLevelControllerBase {
 
@@ -80,19 +93,31 @@ namespace FTT.Environment {
             ("chrono_rioter", new Vector2(2700, 850))
         };
 
-        /// <summary>Security corridors: two on the floor, one holding the upper walkway.</summary>
+        /// <summary>
+        /// Security corridors: three on the floor between the two ground beams.
+        /// GU-L4 (2026-10-13): the third rioter used to hold the upper walkway
+        /// (5600, 250), 600 px above a floor route that walked straight under it
+        /// and where it never came down; it now stands on the corridor floor
+        /// inside the corridor lock.
+        /// </summary>
         public static readonly (string EnemyID, Vector2 Position)[] Room2Spawns = {
             ("chrono_rioter", new Vector2(3900, 850)),
             ("chrono_slasher", new Vector2(4600, 850)),
-            ("chrono_rioter", new Vector2(5600, 250))
+            ("chrono_rioter", new Vector2(4250, 850))
         };
 
-        /// <summary>Cell block: the heaviest concurrent group, still inside the warm-12 cap.</summary>
+        /// <summary>
+        /// Cell block: the heaviest concurrent group, still inside the warm-12 cap.
+        /// The rioter at 7900 stands inside cell B with prisoner B (part of the
+        /// puzzle: it is fought once lock B breaks). GU-L4 (2026-10-13): the last
+        /// slasher moved from 8350 (beside the PreBoss anchor, past the cell
+        /// block's barrier) to 7400, between the two cells.
+        /// </summary>
         public static readonly (string EnemyID, Vector2 Position)[] Room3Spawns = {
             ("chrono_rioter", new Vector2(6400, 850)),
             ("chrono_slasher", new Vector2(7100, 850)),
             ("chrono_rioter", new Vector2(7900, 850)),
-            ("chrono_slasher", new Vector2(8350, 850))
+            ("chrono_slasher", new Vector2(7400, 850))
         };
 
         /// <summary>Three extractors, each guarding a climb the critical path can skip.</summary>
@@ -171,8 +196,45 @@ namespace FTT.Environment {
         /// <summary>Times a beam has caught the player; used for the alarm objective.</summary>
         public int SearchlightAlarmCount { get; private set; }
 
-        private bool _room2WaveSpawned;
-        private bool _room3WaveSpawned;
+        // === GU-L4 (2026-10-12): the three encounter locks ===================
+
+        /// <summary>The F10 encounter IDs of the three locks (they start with the level ID).</summary>
+        public const string LockGatehouse = ParisLevelID + "_lock_gatehouse";
+        public const string LockCorridor = ParisLevelID + "_lock_corridor";
+        public const string LockCells = ParisLevelID + "_lock_cells";
+
+        /// <summary>The manifest rows the three lock waves are (level_04_rewards.tres).</summary>
+        public const string Room1RowID = "level_04.room1";
+        public const string Room2RowID = "level_04.room2";
+        public const string Room3RowID = "level_04.room3";
+
+        /// <summary>The gatehouse yard, east of the entry anchor (240) to the room seam.</summary>
+        public const float GatehouseLockMinX = 300f;
+        public const float GatehouseLockMaxX = Room2StartX;
+        /// <summary>
+        /// The corridor floor between the two ground beams, up to the low cover's
+        /// east end (4760): the tower climb and the swept walkway east of it hold no
+        /// enemy, so the Middle anchor (5000) stands outside the lock.
+        /// </summary>
+        public const float CorridorLockMinX = Room2StartX + EncounterLockRules.DefaultBarrierWidthPixels;
+        public const float CorridorLockMaxX = 4760f;
+        /// <summary>
+        /// The cell block, both cells inside (cell B's far wall ends at 8040), its
+        /// exit short of the Restoration Font (8200) and the PreBoss anchor (8480).
+        /// </summary>
+        public const float CellsLockMinX = 6120f;
+        public const float CellsLockMaxX = 8100f;
+
+        /// <summary>Patrol half-span the Paris tables have always used (±200 px), clamped into each lock.</summary>
+        private const float PatrolHalfSpan = 200f;
+
+        private EncounterLock _gatehouseLock;
+        private EncounterLock _corridorLock;
+        private EncounterLock _cellsLock;
+
+        public EncounterLock GatehouseLock => _gatehouseLock;
+        public EncounterLock CorridorLock => _corridorLock;
+        public EncounterLock CellsLock => _cellsLock;
 
         // === Construction ===
 
@@ -183,6 +245,67 @@ namespace FTT.Environment {
             BuildCellBlock();
             BuildInnerCourtyard();
             BuildExtractors(ExtractorPlacements);
+            BuildEncounterLocks();
+        }
+
+        /// <summary>
+        /// GU-L4: the three approach rooms as encounter locks, one wave per
+        /// manifest row. Built in <see cref="BuildLevel"/>, before the resume
+        /// baseline, so a resume past a lock builds it Cleared with nothing spawned.
+        /// </summary>
+        private void BuildEncounterLocks() {
+            float half = EncounterLockRules.DefaultBarrierWidthPixels * 0.5f;
+            // The crowd already fighting at the gates: pre-placed.
+            _gatehouseLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockGatehouse,
+                Area = EncounterLockSpec.Span(GatehouseLockMinX, GatehouseLockMaxX, LevelHeight),
+                EntryBarrierX = GatehouseLockMinX - half,
+                ExitBarrierX = GatehouseLockMaxX + half,
+                BarrierFloorY = GroundY,
+                Waves = new[] { LockWave(Room1RowID, Room1Spawns, EncounterWaveTrigger.OnBuild,
+                    GatehouseLockMinX, GatehouseLockMaxX) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            // The garrison pours out of the corridors once the hero is in.
+            _corridorLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockCorridor,
+                Area = EncounterLockSpec.Span(CorridorLockMinX, CorridorLockMaxX, LevelHeight),
+                EntryBarrierX = CorridorLockMinX - half,
+                ExitBarrierX = CorridorLockMaxX + half,
+                BarrierFloorY = GroundY,
+                Waves = new[] { LockWave(Room2RowID, Room2Spawns, EncounterWaveTrigger.OnEngage,
+                    CorridorLockMinX, CorridorLockMaxX) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            // The cell block: its guards are posted, and its barrier also needs
+            // both prisoners free. It keeps the level's prisoner objective.
+            _cellsLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockCells,
+                Area = EncounterLockSpec.Span(CellsLockMinX, CellsLockMaxX, LevelHeight),
+                EntryBarrierX = CellsLockMinX - half,
+                ExitBarrierX = CellsLockMaxX + half,
+                BarrierFloorY = GroundY,
+                Waves = new[] { LockWave(Room3RowID, Room3Spawns, EncounterWaveTrigger.OnBuild,
+                    CellsLockMinX, CellsLockMaxX) },
+                RequiredPuzzleIDs = new[] { PrisonerPuzzleID },
+                GoDirection = EncounterGoDirection.Right
+            });
+        }
+
+        /// <summary>One lock wave from a Paris table, its ±200 px patrols clamped inside the lock.</summary>
+        private static EncounterLockWave LockWave(string rowID, (string EnemyID, Vector2 Position)[] table,
+            EncounterWaveTrigger trigger, float minX, float maxX) {
+            var spawns = new EncounterLockSpawn[table.Length];
+            for (int index = 0; index < table.Length; index++) {
+                (string enemyID, Vector2 position) = table[index];
+                float west = Mathf.Max(minX + 40f, position.X - PatrolHalfSpan);
+                float east = Mathf.Min(maxX - 40f, position.X + PatrolHalfSpan);
+                spawns[index] = new EncounterLockSpawn(enemyID, position,
+                    new Vector2(west, position.Y), new Vector2(east, position.Y));
+            }
+            return new EncounterLockWave { RowID = rowID, Spawns = spawns, Trigger = trigger };
         }
 
         /// <summary>
@@ -276,18 +399,22 @@ namespace FTT.Environment {
             // Upper walkway, swept end to end by the tower beam.
             BuildPlatform(5540, 300, 1080);
 
-            BuildCheckpoint(5000, GroundY - 50, $"{LevelID}_checkpoint_1", CheckpointRole.Middle);
+            // GU-L4: the Middle anchor stands at the tower's foot, east of the
+            // corridor lock (it ends at 4760), so no lock area holds it.
+            BuildCheckpoint(MiddleCheckpointX, GroundY - 50, $"{LevelID}_checkpoint_1", CheckpointRole.Middle);
             BuildRoomDecoration(Room2StartX, "paris_room_searchlights", new Color(0.95f, 0.88f, 0.45f));
 
-            BuildRoomTransition("paris_room_searchlights", new Vector2(Room2StartX, 600),
+            // GU-L4: the room trigger stands just inside the corridor lock, so a
+            // hero pressed against the gatehouse's exit barrier does not reach it.
+            // The old wave trigger is gone: the corridor lock spawns its wave.
+            BuildRoomTransition("paris_room_searchlights", new Vector2(CorridorLockMinX + 40f, 600),
                 new Rect2(Room2StartX, 0, 2880, LevelHeight));
-
-            BuildWaveTrigger("Room2WaveTrigger", new Vector2(Room2StartX + 120, 800), () => {
-                if (_room2WaveSpawned) return;
-                _room2WaveSpawned = true;
-                SpawnWave(Room2Spawns);
-            });
         }
+
+        /// <summary>The Middle anchor's x (unchanged at 5000; outside the corridor lock since GU-L4).</summary>
+        public const float MiddleCheckpointX = 5000f;
+        /// <summary>The PreBoss anchor's x (unchanged at 8480; past the cell block's barrier since GU-L4).</summary>
+        public const float PreBossCheckpointX = 8480f;
 
         /// <summary>
         /// Room 3: two sealed cells. Each cell is a walled alcove whose only opening
@@ -307,7 +434,7 @@ namespace FTT.Environment {
             BuildCellShell(6820);
             BuildCellShell(7820);
 
-            BuildCheckpoint(8480, GroundY - 50, $"{LevelID}_checkpoint_2", CheckpointRole.PreBoss);
+            BuildCheckpoint(PreBossCheckpointX, GroundY - 50, $"{LevelID}_checkpoint_2", CheckpointRole.PreBoss);
             BuildRoomDecoration(Room3StartX, "paris_room_cells", new Color(0.7f, 0.45f, 0.5f));
 
             _courtyardGate = BuildDoor("CourtyardGate", new Vector2(CourtyardGateX, GroundY),
@@ -319,14 +446,9 @@ namespace FTT.Environment {
             // the prisoners still opens the gate itself.
             BuildGateColumn(CourtyardGateX, CourtyardGateWidth, GroundY - CourtyardGateHeight, CourtyardGateColor);
 
+            // GU-L4: the old wave trigger is gone; the cell block lock spawns its wave.
             BuildRoomTransition("paris_room_cells", new Vector2(Room3StartX, 600),
                 new Rect2(Room3StartX, 0, 2560, LevelHeight));
-
-            BuildWaveTrigger("Room3WaveTrigger", new Vector2(Room3StartX + 140, 800), () => {
-                if (_room3WaveSpawned) return;
-                _room3WaveSpawned = true;
-                SpawnWave(Room3Spawns);
-            });
         }
 
         /// <summary>
@@ -459,41 +581,27 @@ namespace FTT.Environment {
         }
 
         // === Encounters ===
-
-        protected override void SpawnInitialEnemies() => SpawnWave(Room1Spawns);
-
-        private void SpawnWave((string EnemyID, Vector2 Position)[] authored) {
-            int count = StoryDifficultyTuning.ScaleEncounterCount(
-                authored.Length, StoryDifficultyTuning.CurrentStoryDifficulty);
-            for (int index = 0; index < count && index < authored.Length; index++) {
-                (string enemyID, Vector2 position) = authored[index];
-                EnemyFactory.Spawn(enemyID, this, position,
-                    waypointA: position + new Vector2(-200, 0),
-                    waypointB: position + new Vector2(200, 0));
-            }
-        }
+        //
+        // GU-L4 (2026-10-12): every encounter is a lock wave (BuildEncounterLocks).
+        // Authored counts are the Normal-difficulty truth; the lock takes the same
+        // per-row ScaleEncounterCount prefix the reward manifest compiles.
 
         // Package 12 W2 (GAP-13): explicit encounter baseline. Paris has no
-        // non-encounter anchor state, so MarkWavesClearedThrough is no longer
-        // overridden.
+        // non-encounter anchor state, so MarkWavesClearedThrough is not overridden.
+        // GU-L4: the encounters are the three locks; every anchor lists every lock
+        // before it, so a resume builds those Cleared (the gatehouse used to
+        // respawn behind the hero on every resume).
 
         private const string ParisLevelID = "level_04_paris";
-        public const string Room2WaveEncounter = ParisLevelID + "_room2_wave";
-        public const string Room3WaveEncounter = ParisLevelID + "_room3_wave";
 
         private static readonly IReadOnlyDictionary<string, string[]> Baselines =
             new Dictionary<string, string[]> {
                 [ParisLevelID + "_checkpoint_0"] = System.Array.Empty<string>(),
-                [ParisLevelID + "_checkpoint_1"] = new[] { Room2WaveEncounter },
-                [ParisLevelID + "_checkpoint_2"] = new[] { Room2WaveEncounter, Room3WaveEncounter }
+                [ParisLevelID + "_checkpoint_1"] = new[] { LockGatehouse, LockCorridor },
+                [ParisLevelID + "_checkpoint_2"] = new[] { LockGatehouse, LockCorridor, LockCells }
             };
 
         protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
-
-        protected override void MarkEncounterCleared(string encounterID) {
-            if (encounterID == Room2WaveEncounter) _room2WaveSpawned = true;
-            else if (encounterID == Room3WaveEncounter) _room3WaveSpawned = true;
-        }
 
         // === Era mechanics ===
 
@@ -528,6 +636,17 @@ namespace FTT.Environment {
 
         private void PostPrisonerObjective() =>
             SetObjective("paris_objective_free_prisoners", PrisonersFreed, _prisoners.Count);
+
+        /// <summary>
+        /// GU-L4: a cleared or reverted lock hands back the level's own objective,
+        /// derived from live state rather than the last line posted (which may be
+        /// a searchlight alarm from the middle of the fight).
+        /// </summary>
+        protected override void RestoreLevelObjective() {
+            if (IsBossDefeated) SetObjective(CompletionObjectiveKey);
+            else if (CourtyardGateOpen) SetObjective("paris_objective_reach_courtyard");
+            else PostPrisonerObjective();
+        }
 
         /// <summary>The freed prisoners haul the inner-courtyard gate open. Idempotent.</summary>
         private void OpenCourtyardGate() {

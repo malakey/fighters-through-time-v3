@@ -181,12 +181,14 @@ public class RewardManifestTests {
         foreach ((string head, string[] enemyIDs) in manifest.ParseWaves()) {
             waves[head.Split('@')[0]] = (head, enemyIDs);
         }
-        for (int wave = 1; wave <= 3; wave++) {
+        // GU-L4 (2026-10-13): four waves, one per encounter lock (the old wave 3
+        // split between the E-deck run and the boat deck); the level total is unchanged.
+        for (int wave = 1; wave <= Level05Controller.WaveCount; wave++) {
             var authored = new List<string>();
             foreach ((string enemyID, int entryWave, Godot.Vector2 _) in Level05Controller.SpawnTable) {
                 if (entryWave == wave) authored.Add(enemyID);
             }
-            string id = $"level_05.wave{wave}";
+            string id = Level05Controller.WaveRowID(wave);
             if (!waves.TryGetValue(id, out var row)) { issues.Add($"no '{id}' wave"); continue; }
             if (string.Join(",", row.Enemies) != string.Join(",", authored)) {
                 issues.Add($"{id} is [{string.Join(",", row.Enemies)}], the controller spawns "
@@ -209,7 +211,9 @@ public class RewardManifestTests {
                     + $"[{liveDebutEnemy}]");
             }
         }
-        if (waves.Count != 4) issues.Add($"expected 3 waves plus the debut, found {waves.Count}");
+        if (waves.Count != Level05Controller.WaveCount + 1) {
+            issues.Add($"expected {Level05Controller.WaveCount} waves plus the debut, found {waves.Count}");
+        }
 
         // Optional: half to the four Extractors (15 → 4/4/4/3), half to the secret.
         LevelRewardLedger ledger = LevelRewardDirectory.Compile(manifest, Difficulty.Normal);
@@ -312,7 +316,7 @@ public class RewardManifestTests {
         try {
             foreach (Difficulty difficulty in Difficulties) {
                 var spawned = new List<string>();
-                for (int wave = 1; wave <= 3; wave++) {
+                for (int wave = 1; wave <= Level05Controller.WaveCount; wave++) {
                     var authored = new List<string>();
                     foreach ((string enemyID, int entryWave, Godot.Vector2 _) in Level05Controller.SpawnTable) {
                         if (entryWave == wave) authored.Add(enemyID);

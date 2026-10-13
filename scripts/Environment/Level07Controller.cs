@@ -44,6 +44,20 @@ namespace FTT.Environment {
     /// 1 boss, 3 extractors. Roster is the Nassau era pair - `laser_pistol_deckhand`
     /// (rapid low-damage ranged) - mixed with `chrono_slasher` Severed troopers, and the
     /// single elite is the `overcharged_cannon_master`.
+    ///
+    /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-L4). Both
+    /// channels are open water, so the two locks sit on the decks and their
+    /// barriers stand on deck: the <b>quay</b> (380–3580, the whole Nassau quay
+    /// and the Ranger's waist up to the launch yard's lip, so the ropes are out of
+    /// reach until it clears) and the <b>boarding action</b> (5780–8480, from the
+    /// Bonnet's waist across the boarding channel to the flagship's ramp). The
+    /// boarding crew on the ramp musters once the Bonnet and the gun pier are
+    /// clear, and the Eraser, which used to spawn over open water at 7900, is
+    /// among them on the ramp. No skiff or rope sweeps across a barrier, every
+    /// sea haul-out lands on a deck inside the lock the hero is in (or one already
+    /// cleared), and the Middle and PreBoss anchors stand outside both locks: the
+    /// Middle on the Bonnet's waist (5700), the PreBoss on the flagship's west
+    /// deck (8680), clear of both elites.</para>
     /// </summary>
     public partial class Level07Controller : StoryLevelControllerBase {
 
@@ -72,11 +86,12 @@ namespace FTT.Environment {
         protected override Vector2? SecretCachePosition => new(900f, 537f);
 
         // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, after the PreBoss
-        // anchor (8420) on the flagship's west deck, outside the mortar channel, 650 px short
-        // of the arena (9350). FlagshipFireA's column (scene, x 8840–8960) starts 140 px east,
-        // so the hero's body anywhere in the 90 px channel circle keeps 30 px from it (the
-        // first placement, x 8800, put the column inside the channel circle).
-        protected override Vector2? RestorationFontPosition => new(8700f, ListDeckWestY);
+        // anchor on the flagship's west deck, outside the mortar channel, short of the arena
+        // (9350). GU-L4 (2026-10-13): 8700 -> 9100, east of FlagshipFireA, because the PreBoss
+        // anchor moved onto the west deck (8680). FlagshipFireA's column (scene, x 8840–8960)
+        // ends 140 px west of the font, so the hero's body anywhere in the 90 px channel
+        // circle keeps 30 px from it, and the circle ends 160 px short of the arena.
+        protected override Vector2? RestorationFontPosition => new(9100f, ListDeckWestY);
 
         public override Rect2 LevelBounds => new(0f, 0f, LevelWidth, LevelHeight);
 
@@ -196,14 +211,23 @@ namespace FTT.Environment {
 
         public static readonly string[] CheckpointIDs = { Checkpoint0, Checkpoint1, Checkpoint2 };
 
-        /// <summary>Authored checkpoint anchors. Every one stands on a span in <see cref="SolidDeckSpans"/>.</summary>
+        /// <summary>
+        /// Authored checkpoint anchors. Every one stands on a span in <see cref="SolidDeckSpans"/>.
+        /// GU-L4 (2026-10-13): the Middle anchor moved 5800 -> 5700 (west of the
+        /// boarding lock, which starts at 5780) and the PreBoss anchor 8420 -> 8680,
+        /// off the boarding ramp (inside the boarding fight, beside both elites) onto
+        /// the flagship's west deck, past the lock's exit and its swing reach.
+        /// </summary>
         public static readonly (string ID, Vector2 Position)[] CheckpointPlacements = {
             (Checkpoint0, new Vector2(240f, DeckY - 20f)),
-            (Checkpoint1, new Vector2(5800f, DeckY - 20f)),
-            (Checkpoint2, new Vector2(8420f, DeckY - 20f))
+            (Checkpoint1, new Vector2(5700f, DeckY - 20f)),
+            (Checkpoint2, new Vector2(8680f, ListDeckWestY - 20f))
         };
 
         // === Structural spans (single source for geometry and for the content tests) ===
+
+        /// <summary>East end of the flagship's west deck (the first listing ramp starts beyond it).</summary>
+        public const float FlagshipWestDeckEndX = Room4StartX + 720f;
 
         /// <summary>Continuous solid deck runs: (start X, end X, top Y).</summary>
         public static readonly (float StartX, float EndX, float TopY)[] SolidDeckSpans = {
@@ -211,7 +235,9 @@ namespace FTT.Environment {
             (Room2StartX, SwingGapStartX, DeckY),       // the Ranger's waist
             (SwingGapEndX, Room3StartX, DeckY),         // the Bonnet's waist
             (Room3StartX, ChannelStartX, DeckY),        // the gun pier
-            (ChannelEndX, Room4StartX, DeckY)           // the flagship boarding ramp
+            (ChannelEndX, Room4StartX, DeckY),          // the flagship boarding ramp
+            // GU-L4: the flagship's west deck, where the PreBoss anchor now stands.
+            (Room4StartX, FlagshipWestDeckEndX, ListDeckWestY)
         };
 
         /// <summary>Open water the player cannot walk on: (start X, end X, rescue anchor).</summary>
@@ -261,10 +287,17 @@ namespace FTT.Environment {
         public const float BossArenaWestX = BossSpawnX - BossArenaApproachPixels;
 
         /// <summary>
-        /// Authored Normal-difficulty spawn table. Wave 1 is live on entry; waves 2
-        /// and 3 arm on their room triggers, so at most five combatants are alive at
-        /// once - inside the level_07_nassau_pools warm counts (standard 12, elite 4)
-        /// with plenty of `enemy_projectile` headroom under its warm 26.
+        /// Authored Normal-difficulty spawn table, one wave per lock wave and per
+        /// manifest row (<c>level_07.wave{n}</c>). Difficulty scaling takes a prefix
+        /// of each wave. GU-L4 (2026-10-13) re-partitioned it to the two locks: the
+        /// quay lock takes waves 1 (pre-placed) and 2 (the Ranger's crew, when one
+        /// of wave 1 is left); the boarding lock takes waves 3 (the Bonnet and the
+        /// gun pier, pre-placed) and 4 (the flagship's boarding crew, mustering on
+        /// the ramp once wave 3 is down). The deckhand that stood on the Bonnet in
+        /// wave 2 joined wave 3, and the Eraser — which spawned at 7900, over open
+        /// water, and fell forever whenever skiff C was not under it — stands on the
+        /// ramp in wave 4. At most seven combatants are alive at once, inside the
+        /// level_07_nassau_pools warm counts (standard 12, elite 4).
         /// </summary>
         public static readonly (string EnemyID, int Wave, Vector2 Position)[] SpawnTable = {
             // Wave 1 - the quay, under the first shells.
@@ -274,17 +307,21 @@ namespace FTT.Environment {
             // Wave 2 - the Ranger's crew, including a marksman on the launch yard.
             (CultistEnemyID, 2, new Vector2(3000f, EnemyDeckY)),
             (StandardEnemyID, 2, new Vector2(3450f, LaunchYardY - 30f)),
-            (StandardEnemyID, 2, new Vector2(5780f, EnemyDeckY)),
-            // Wave 3 - the gun pier and the flagship's boarding ramp.
-            (StandardEnemyID, 3, new Vector2(6180f, EnemyDeckY)),
+            // Wave 3 - the Bonnet's waist and the gun pier.
+            (StandardEnemyID, 3, new Vector2(5900f, EnemyDeckY)),
             (CultistEnemyID, 3, new Vector2(6420f, EnemyDeckY)),
-            (StandardEnemyID, 3, new Vector2(8080f, EnemyDeckY)),
-            (CultistEnemyID, 3, new Vector2(8380f, EnemyDeckY)),
-            (EliteEnemyID, 3, new Vector2(8230f, EnemyDeckY)),
+            (StandardEnemyID, 3, new Vector2(6180f, EnemyDeckY)),
+            // Wave 4 - the flagship's boarding ramp.
+            (StandardEnemyID, 4, new Vector2(8080f, EnemyDeckY)),
+            (CultistEnemyID, 4, new Vector2(8380f, EnemyDeckY)),
+            (EliteEnemyID, 4, new Vector2(8230f, EnemyDeckY)),
             // The hunter on the boarding ramp: a visored silhouette among the
-            // Ranger's crew, in nothing anyone in 1715 could have made.
-            (EraserEnemyID, 3, new Vector2(7900f, EnemyDeckY))
+            // flagship's crew, in nothing anyone in 1715 could have made.
+            (EraserEnemyID, 4, new Vector2(8150f, EnemyDeckY))
         };
+
+        /// <summary>The number of authored waves (lock waves drawn from <see cref="SpawnTable"/>).</summary>
+        public const int WaveCount = 4;
 
         /// <summary>Three extractors, each up an off-route climb. 15 dust each, resource-owned.</summary>
         public static readonly (string ID, Vector2 Position)[] ExtractorPlacements = {
@@ -324,16 +361,47 @@ namespace FTT.Environment {
             }
         }
 
+        // === GU-L4 (2026-10-12): the two encounter locks ======================
+
+        /// <summary>The F10 encounter IDs of the two locks (they start with the level ID).</summary>
+        public const string LockQuay = NassauLevelID + "_lock_quay";
+        public const string LockBoarding = NassauLevelID + "_lock_boarding";
+
+        /// <summary>
+        /// The quay lock: the Nassau quay and the Ranger's waist, east of the entry
+        /// anchor (240) to the launch yard's lip at the rope channel (its exit
+        /// barrier stands on the deck's last 20 px, so no rope is reachable before
+        /// the clear). 3200 px, one authored room.
+        /// </summary>
+        public const float QuayLockMinX = 380f;
+        public const float QuayLockMaxX = SwingGapStartX - EncounterLockRules.DefaultBarrierWidthPixels;
+        /// <summary>
+        /// The boarding lock: from the Bonnet's waist (east of the Middle anchor at
+        /// 5700) across the boarding channel to the flagship's ramp, its exit on the
+        /// ramp's last 20 px. The channel is water: the lock's barriers stand on the
+        /// two decks at its ends, and every skiff runs inside it.
+        /// </summary>
+        public const float BoardingLockMinX = 5780f;
+        public const float BoardingLockMaxX = Room4StartX - EncounterLockRules.DefaultBarrierWidthPixels;
+
+        private EncounterLock _quayLock;
+        private EncounterLock _boardingLock;
+        private int _boardingRegisteredSeen;
+
+        public EncounterLock QuayLock => _quayLock;
+        public EncounterLock BoardingLock => _boardingLock;
+
+        /// <summary>The manifest row of authored wave <paramref name="wave"/>.</summary>
+        public static string WaveRowID(int wave) => $"level_07.wave{wave}";
+
         // === Runtime state ===
 
-        private readonly HashSet<int> _wavesSpawned = new();
         private readonly List<PendulumAnchor> _anchors = new();
         private readonly List<PathMovingPlatform> _skiffs = new();
         private bool _flagshipSighted;
 
         public IReadOnlyList<PendulumAnchor> RopeAnchors => _anchors;
         public IReadOnlyList<PathMovingPlatform> BoardingSkiffs => _skiffs;
-        public bool HasWaveSpawned(int wave) => _wavesSpawned.Contains(wave);
 
         // === Era palette: tarred timber, tropical night, powder flash ===
 
@@ -357,6 +425,60 @@ namespace FTT.Environment {
             BuildSeaSurfaces();
             BuildExtractors(ExtractorPlacements);
             BindAuthoredEraMechanics();
+            BuildEncounterLocks();
+        }
+
+        /// <summary>
+        /// GU-L4: the two decks with enemies as encounter locks, one lock wave per
+        /// manifest row. Built here, before the resume baseline, so a resume past
+        /// a lock builds it Cleared.
+        /// </summary>
+        private void BuildEncounterLocks() {
+            float half = EncounterLockRules.DefaultBarrierWidthPixels * 0.5f;
+            // The quay: the dockside crew is already fighting; the Ranger's crew
+            // comes down the gangplank when one of them is left.
+            _quayLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockQuay,
+                Area = EncounterLockSpec.Span(QuayLockMinX, QuayLockMaxX, LevelHeight),
+                EntryBarrierX = QuayLockMinX - half,
+                ExitBarrierX = QuayLockMaxX + half,
+                BarrierFloorY = DeckY,
+                Waves = new[] {
+                    WaveFromTable(1, EncounterWaveTrigger.OnBuild),
+                    WaveFromTable(2, EncounterWaveTrigger.WhenAliveAtMost, aliveAtMost: 1)
+                },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            // The boarding action: the Bonnet and the gun pier are held; the
+            // flagship's boarding crew musters on the ramp once they are down.
+            _boardingLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockBoarding,
+                Area = EncounterLockSpec.Span(BoardingLockMinX, BoardingLockMaxX, LevelHeight),
+                EntryBarrierX = BoardingLockMinX - half,
+                ExitBarrierX = BoardingLockMaxX + half,
+                BarrierFloorY = DeckY,
+                Waves = new[] {
+                    WaveFromTable(3, EncounterWaveTrigger.OnBuild),
+                    WaveFromTable(4, EncounterWaveTrigger.AfterPreviousCleared)
+                },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+        }
+
+        /// <summary>One lock wave: the authored <see cref="SpawnTable"/> entries of <paramref name="wave"/>, row <c>level_07.wave{n}</c>.</summary>
+        private static EncounterLockWave WaveFromTable(int wave, EncounterWaveTrigger trigger, int aliveAtMost = 0) {
+            var spawns = new List<EncounterLockSpawn>();
+            foreach ((string enemyID, int entryWave, Vector2 position) in SpawnTable) {
+                if (entryWave == wave) spawns.Add(new EncounterLockSpawn(enemyID, position));
+            }
+            return new EncounterLockWave {
+                RowID = WaveRowID(wave),
+                Spawns = spawns.ToArray(),
+                Trigger = trigger,
+                AliveAtMost = aliveAtMost
+            };
         }
 
         /// <summary>Room 1: the free port itself, already under naval bombardment.</summary>
@@ -402,10 +524,13 @@ namespace FTT.Environment {
             BuildFloor(SwingGapEndX, DeckY, Room3StartX - SwingGapEndX);
             BuildPlatform(5750f, ReceivingYardY + DefaultPlatformThickness / 2f, 400f, YardColor);
 
-            BuildCheckpoint(5800f, DeckY - 20f, Checkpoint1, CheckpointRole.Middle);
+            Vector2 middle = CheckpointPlacements[1].Position;
+            BuildCheckpoint(middle.X, middle.Y, Checkpoint1, CheckpointRole.Middle);
             BuildRoomDecoration(Room2StartX, "nassau_room_rigging", new Color(0.55f, 0.82f, 0.9f));
+            // GU-L4: the Ranger's crew is the quay lock's second wave now, so the
+            // seam only moves the camera.
             BuildRoomTransitionPair("nassau_room_harbour_return", Room1CameraBounds,
-                "nassau_room_rigging", Room2CameraBounds, Room2StartX, _ => SpawnWave(2));
+                "nassau_room_rigging", Room2CameraBounds, Room2StartX, null);
         }
 
         /// <summary>
@@ -422,7 +547,10 @@ namespace FTT.Environment {
                 BuildPlatform(centerX, topY + DefaultPlatformThickness / 2f, width, YardColor);
             }
 
-            BuildCheckpoint(8420f, DeckY - 20f, Checkpoint2, CheckpointRole.PreBoss);
+            // GU-L4: the PreBoss anchor stands on the flagship's west deck, past the
+            // boarding lock (it used to stand on the ramp, beside both elites).
+            Vector2 preBoss = CheckpointPlacements[2].Position;
+            BuildCheckpoint(preBoss.X, preBoss.Y, Checkpoint2, CheckpointRole.PreBoss);
             BuildRoomDecoration(Room3StartX, "nassau_room_channel", new Color(0.9f, 0.6f, 0.3f));
             BuildRoomTransitionPair("nassau_room_rigging_return", Room2CameraBounds,
                 "nassau_room_channel", Room3CameraBounds, Room3StartX, _ => EnterBoardingChannel());
@@ -559,14 +687,35 @@ namespace FTT.Environment {
 
         // === Flow ===
 
-        protected override void SpawnInitialEnemies() => SpawnWave(1);
-
         private void EnterBoardingChannel() {
             if (!_flagshipSighted) {
                 _flagshipSighted = true;
                 SetObjective("nassau_objective_board_flagship");
             }
-            SpawnWave(3);
+        }
+
+        /// <summary>
+        /// GU-L4: Sarah's bark on the first salted Eraser fires when the boarding
+        /// lock spawns it (the ramp crew's wave). Checked only when the lock
+        /// registers new members.
+        /// </summary>
+        public override void _PhysicsProcess(double delta) {
+            if (FirstEraserBarkShown || _boardingLock == null || !IsInstanceValid(_boardingLock)) return;
+            int registered = _boardingLock.RegisteredCount;
+            if (registered == _boardingRegisteredSeen) return;
+            _boardingRegisteredSeen = registered;
+            foreach (EnemyController member in _boardingLock.LivingMembers) {
+                if (member.Data?.EnemyID != EraserEnemyID) continue;
+                PostFirstEraserBark();
+                return;
+            }
+        }
+
+        /// <summary>GU-L4: a cleared or reverted lock hands back the level's own objective.</summary>
+        protected override void RestoreLevelObjective() {
+            if (IsBossDefeated) SetObjective(CompletionObjectiveKey);
+            else if (_flagshipSighted) SetObjective("nassau_objective_board_flagship");
+            else SetObjective(InitialObjectiveKey);
         }
 
         protected override void OnLevelReady() {
@@ -586,35 +735,23 @@ namespace FTT.Environment {
             if (checkpointID == Checkpoint2) _flagshipSighted = true;
         }
 
-        // Package 12 W2 (GAP-13): explicit encounter baseline — waves 1+2 at the
-        // middle anchor, 1+2+3 at the PreBoss anchor, authored rather than derived.
+        // Package 12 W2 (GAP-13): explicit encounter baseline, authored rather than
+        // derived. GU-L4: the encounters are the two locks; every anchor lists
+        // every lock before it, and a resume builds those Cleared.
         private static readonly IReadOnlyDictionary<string, string[]> Baselines =
-            NumberedWaveBaselines(NassauLevelID, new[] { 1, 2 }, new[] { 1, 2, 3 });
+            new Dictionary<string, string[]> {
+                [Checkpoint0] = System.Array.Empty<string>(),
+                [Checkpoint1] = new[] { LockQuay },
+                [Checkpoint2] = new[] { LockQuay, LockBoarding }
+            };
 
         protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
 
-        protected override void MarkEncounterCleared(string encounterID) {
-            if (TryParseWaveEncounter(NassauLevelID, encounterID, out int wave)) _wavesSpawned.Add(wave);
-        }
-
         // === Encounters ===
-
-        private void SpawnWave(int wave) {
-            if (!_wavesSpawned.Add(wave)) return;
-
-            var authored = new List<(string EnemyID, Vector2 Position)>();
-            foreach ((string enemyID, int entryWave, Vector2 position) in SpawnTable) {
-                if (entryWave == wave) authored.Add((enemyID, position));
-            }
-            if (authored.Count == 0) return;
-
-            int count = StoryDifficultyTuning.ScaleEncounterCount(
-                authored.Count, StoryDifficultyTuning.CurrentStoryDifficulty);
-            for (int index = 0; index < count && index < authored.Count; index++) {
-                EnemyFactory.Spawn(authored[index].EnemyID, this, authored[index].Position);
-                if (authored[index].EnemyID == EraserEnemyID) PostFirstEraserBark();
-            }
-        }
+        //
+        // GU-L4 (2026-10-12): every encounter is a lock wave (BuildEncounterLocks).
+        // Authored counts are the Normal-difficulty truth; the lock takes the same
+        // per-row ScaleEncounterCount prefix the reward manifest compiles.
 
         // === Package 13 W4 (S35): the first salted Eraser ===
 
