@@ -17,6 +17,9 @@ namespace FTT.Environment {
     /// position smoothing and drag margins are off while following — the rig is
     /// the smoothing. Without <see cref="EnableFollow"/> this is the plain confiner
     /// it always was.</para>
+    ///
+    /// <para>The zoom (<see cref="StoryCameraRules.ViewZoom"/>, eased out for a
+    /// boss or Mirror arena) lives in <c>StoryCameraConfiner.Framing.cs</c>.</para>
     /// </summary>
     public partial class StoryCameraConfiner : Camera2D {
         [Signal] public delegate void BoundsChangedEventHandler(Rect2 bounds);
@@ -74,6 +77,7 @@ namespace FTT.Environment {
         /// <summary>Cuts to the target with no lead and no damping (teleports, loads).</summary>
         public void SnapToTarget() {
             if (!IsFollowing) return;
+            SnapZoomToTarget();
             LookAheadX = 0f;
             _lastTargetPosition = FollowTarget.GlobalPosition;
             _hasLastTarget = true;
@@ -90,6 +94,9 @@ namespace FTT.Environment {
         /// <summary>One rig step. Public so tests can drive it frame by frame.</summary>
         public void StepFollow(float delta) {
             if (!IsFollowing) return;
+            // GU-B: the zoom eases first, so this step's view, zones and
+            // confinement all read the zoom the frame is drawn at.
+            StepZoom(delta);
             Vector2 targetPosition = FollowTarget.GlobalPosition;
             Vector2 velocity = FollowTarget is CharacterBody2D body
                 ? body.Velocity
@@ -109,9 +116,9 @@ namespace FTT.Environment {
             _lastFollowPoint = basePoint;
 
             Vector2 view = ViewSize();
-            float x = StoryCameraRules.FollowAxis(RigCenter.X, follow.X,
-                StoryCameraRules.DeadZoneWidth * view.X / 2f, StoryCameraRules.SoftZoneWidth * view.X / 2f,
-                StoryCameraRules.DampingX, delta);
+            // GU-B: the ordinary horizontal follow, pulled onto a framed arena
+            // while a framing request is live (StoryCameraConfiner.Framing.cs).
+            float x = FramedFollowX(follow.X, view, delta);
             float y = StoryCameraRules.FollowAxis(RigCenter.Y, follow.Y,
                 StoryCameraRules.DeadZoneHeight * view.Y / 2f, StoryCameraRules.SoftZoneHeight * view.Y / 2f,
                 StoryCameraRules.DampingY, delta);
@@ -119,10 +126,14 @@ namespace FTT.Environment {
             GlobalPosition = RigCenter;
         }
 
-        /// <summary>The visible world size: the viewport over the zoom.</summary>
+        /// <summary>
+        /// The visible world size: the viewport over the current zoom (eased
+        /// toward <see cref="TargetZoom"/>, so confinement follows the ease).
+        /// </summary>
         private Vector2 ViewSize() {
-            Vector2 viewport = IsInsideTree() ? GetViewportRect().Size : new Vector2(1920f, 1080f);
-            if (viewport.X <= 0f || viewport.Y <= 0f) viewport = new Vector2(1920f, 1080f);
+            var reference = new Vector2(StoryCameraRules.ReferenceViewportWidth, StoryCameraRules.ReferenceViewportHeight);
+            Vector2 viewport = IsInsideTree() ? GetViewportRect().Size : reference;
+            if (viewport.X <= 0f || viewport.Y <= 0f) viewport = reference;
             Vector2 zoom = Zoom;
             return new Vector2(viewport.X / Mathf.Max(0.01f, zoom.X), viewport.Y / Mathf.Max(0.01f, zoom.Y));
         }
