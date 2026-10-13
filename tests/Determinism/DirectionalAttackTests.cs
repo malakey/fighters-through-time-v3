@@ -42,6 +42,10 @@ public class DirectionalAttackTests {
             .IsEqual(BasicComboRules.VariantChain);
         AssertThat(BasicComboRules.SelectAttackVariant(upHeld: false, downHeld: false, airborne: false))
             .IsEqual(BasicComboRules.VariantChain);
+        // GU-A (2026-10-12): any other air press is the single air strike — the
+        // three-hit string is grounded only.
+        AssertThat(BasicComboRules.SelectAttackVariant(upHeld: false, downHeld: false, airborne: true))
+            .IsEqual(BasicComboRules.VariantAirAttack);
     }
 
     [TestCase]
@@ -293,9 +297,10 @@ public class DirectionalAttackTests {
 
     [TestCase]
     public void ACpuStyleZeroVerticalStreamNeverProducesAVariant() {
-        // The CPU's combat table emits MoveY = 0 and never holds Down, so it can
-        // only ever produce the ordinary string (§2.8 accepted gap). This pins
-        // that the variant selection cannot fire without a real direction.
+        // The CPU's combat table emits MoveY = 0 and never holds Down, so on the
+        // ground it can only ever produce the ordinary string (§2.8 accepted
+        // gap; in the air, since GU-A, the air strike). This pins that the
+        // directional selection cannot fire without a real direction.
         var simulation = NewZeroKnockbackSimulation(seed: 509);
         for (int tick = 0; tick < 400; tick++) {
             Advance(simulation, tick, p1Buttons: GameplayButtons.BasicAttack);

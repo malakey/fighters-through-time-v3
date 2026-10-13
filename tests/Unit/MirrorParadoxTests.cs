@@ -361,8 +361,12 @@ public class MirrorParadoxTests {
             // A swing start arms no Special-sourced lockout and has not landed.
             AssertThat(mirror.Decisions.Observe().SpecialLockoutFrames).IsEqual(0);
             AssertThat(mirror.Decisions.Observe().SwingLanded).IsEqual(0);
-            // Hit 1 is running, so a press would continue into hit 2.
-            AssertThat(mirror.Decisions.Observe().SelfNextStringStep).IsEqual(1);
+            // The clone hangs in mid-air here (no floor), so its press started
+            // the single air strike (GU-A, 2026-10-12), which never continues:
+            // a press would only open a fresh opener, so the band reads step 0.
+            AssertThat(mirror.Clone.GetNode<FTT.Combat.Hitbox>("MeleeHitbox").HitboxID)
+                .IsEqual(FTT.Combat.BasicComboRules.AirAttackHitboxID);
+            AssertThat(mirror.Decisions.Observe().SelfNextStringStep).IsEqual(0);
         } finally {
             InputManager.Instance?.ClearInputSource(cloneIndex);
             FreeMirror(mirror);

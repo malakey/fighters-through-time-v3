@@ -331,10 +331,11 @@ public class StorySpecialRecoveryCancelTests {
             AssertThat(smite.IsExecuting).IsTrue();
             AssertThat(player.SpecialTwoCooldownTimer).IsEqual(0f);
 
-            // Positive control: a neutral Attack press cancels into aerial hit 1.
+            // Positive control: a neutral Attack press cancels into the air
+            // strike (GU-A: an air press is never the string's hit 1).
             Tick(player, GameplayButtons.BasicAttack);
             AssertThat(player.CurrentState).IsEqual(CharacterState.Attacking);
-            AssertThat(player.GetNode<Hitbox>("MeleeHitbox").HitboxID).IsEqual("combo_1");
+            AssertThat(player.GetNode<Hitbox>("MeleeHitbox").HitboxID).IsEqual(BasicComboRules.AirAttackHitboxID);
         });
     }
 

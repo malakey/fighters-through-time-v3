@@ -22,7 +22,8 @@ namespace FTT.Combat {
     /// the chain window, and every cancel rule are shared — while three axes
     /// are authored per character:
     /// <list type="bullet">
-    /// <item><b>Speed</b>: opener and finisher startup (ground 5–8 / 14–17).</item>
+    /// <item><b>Speed</b>: opener and finisher startup (ground 5–8 / 14–17),
+    /// and the single air strike's startup (4–7; GU-A, 2026-10-12).</item>
     /// <item><b>Damage shape</b>: per-hit multipliers in tenths whose sum is
     /// pinned at 33, so a full string is always 3.3x BasicAttackDamage and the
     /// special/ultimate damage anchors survive untouched.</item>
@@ -36,7 +37,13 @@ namespace FTT.Combat {
     /// </summary>
     public sealed class BasicStringProfile {
         public readonly int[] GroundStartupFrames;
-        public readonly int[] AerialStartupFrames;
+        /// <summary>
+        /// Startup of the single air strike (GU-A, 2026-10-12): the retired
+        /// aerial string's opener startup. Active and recovery frames are the
+        /// universal <see cref="BasicComboRules.AirAttackActiveFrames"/> /
+        /// <see cref="BasicComboRules.AirAttackRecoveryFrames"/>.
+        /// </summary>
+        public readonly int AirAttackStartupFrames;
         /// <summary>Per-hit damage multipliers in tenths; always sums to 33.</summary>
         public readonly int[] DamageTenths;
         /// <summary>Hitbox width / sim horizontal reach, percent of template (85–120).</summary>
@@ -103,7 +110,7 @@ namespace FTT.Combat {
 
         public BasicStringProfile(
             int groundOpenerStartup, int groundFinisherStartup,
-            int aerialOpenerStartup, int aerialFinisherStartup,
+            int airAttackStartup,
             int damageTenthsHit1, int damageTenthsHit2, int damageTenthsHit3,
             int reachWidthPercent, int reachHeightPercent,
             int finisherStatusType = 0,
@@ -116,8 +123,7 @@ namespace FTT.Combat {
             bool hit2Launches = false) {
             GroundStartupFrames = new[] {
                 groundOpenerStartup, BasicComboRules.GroundStartupFrames[1], groundFinisherStartup };
-            AerialStartupFrames = new[] {
-                aerialOpenerStartup, BasicComboRules.AerialStartupFrames[1], aerialFinisherStartup };
+            AirAttackStartupFrames = airAttackStartup;
             DamageTenths = new[] { damageTenthsHit1, damageTenthsHit2, damageTenthsHit3 };
             ReachWidthPercent = reachWidthPercent;
             ReachHeightPercent = reachHeightPercent;
@@ -152,10 +158,10 @@ namespace FTT.Combat {
         public static readonly int[] GroundActiveFrames = { 6, 7, 9 };
         public static readonly int[] GroundRecoveryFrames = { 15, 16, 21 };
 
-        // Aerial string TEMPLATE (totals 25/28/40).
-        public static readonly int[] AerialStartupFrames = { 5, 6, 12 };
-        public static readonly int[] AerialActiveFrames = { 7, 8, 10 };
-        public static readonly int[] AerialRecoveryFrames = { 13, 14, 18 };
+        // The aerial three-hit string (template totals 25/28/40) is retired:
+        // since GU-A (2026-10-12) an air press is the single air strike below
+        // (see "The single air strike"), which keeps the old aerial opener's
+        // frames. Its hit-2 / hit-3 frames and boxes are gone, not unread.
 
         // === Grounded string hitboxes: the one table (2026-10-11) ===
         // The V7 normative template boxes (design "Hitbox & Hurtbox Geometry":
@@ -170,9 +176,10 @@ namespace FTT.Combat {
         // its ReachHeightPercent scales the height (ledger
         // VERIFY-STRING-REACH-OFFSET-SCALING: the design says offsets stay
         // fixed). Before 2026-10-11 Story and the sim each held a hand-mirrored
-        // copy. The Story aerial string boxes take this table's x-span (D6b,
-        // the aerial vertical span below); the directional Up-Attack / Down-Air
-        // boxes are NOT in this table (ledger VERIFY-DIRECTIONAL-HIT-MODEL).
+        // copy. The single air strike takes hit 1's row (GU-A: the sim's box as
+        // is, Story's x-span with the air strike's own vertical span below);
+        // the directional Up-Attack / Down-Air boxes are NOT in this table
+        // (ledger VERIFY-DIRECTIONAL-HIT-MODEL).
         // Pinned by StringHitboxGeometryTests and StoryAerialStringReachTests.
 
         /// <summary>Half the grounded string box's width per hit, in world units.</summary>
@@ -194,30 +201,34 @@ namespace FTT.Combat {
         /// </summary>
         public static readonly double[] StringBoxOffsetYUnits = { 0.0, 0.2, 0.0 };
 
-        // === Story aerial string hitboxes: the vertical span (2026-10-11, D6b) ===
-        // Story-only vertical span. The x-span is the grounded table's
-        // (StringBoxHalfWidthUnits / StringBoxOffsetXUnits, scaled by the
-        // profile's ReachWidthPercent and the Story AttackRange minor exactly as
-        // the grounded box is), so an aerial string hit reaches as far as its
-        // grounded twin and never behind the hero. The sim's aerial string uses
-        // the grounded boxes. Kept here, beside the grounded table, as the
-        // authored Story pixels over KitMotionRules.StoryPixelsPerUnit (60) so
-        // they stay legible; nothing in scripts/FighterSim/ reads them (ledger
-        // USER-STORY-AERIAL-REACH, which closed VERIFY-STORY-AERIAL-STRING-BOXES).
+        // === Story air strike hitbox: the vertical span (GU-A, 2026-10-12) ===
+        // Story-only vertical span of the single air strike. Its x-span is
+        // string hit 1's from the grounded table (StringBoxHalfWidthUnits /
+        // StringBoxOffsetXUnits at AirAttackStringStep, scaled by the profile's
+        // ReachWidthPercent and the Story AttackRange minor exactly as the
+        // grounded box is), so it reaches as far as the grounded opener and
+        // never behind the hero (D6b's rule, ledger USER-STORY-AERIAL-REACH).
+        // The vertical span is the retired aerial hit 3's, the one that reached
+        // below the feet, so a jump-in connects on a grounded foe (the aerial
+        // hit-1 span, −78 … −14 px, sat entirely above them). The sim's air
+        // strike uses hit 1's grounded box as is. Kept here, beside the
+        // grounded table, as authored Story pixels over
+        // KitMotionRules.StoryPixelsPerUnit (60) so they stay legible; nothing
+        // in scripts/FighterSim/ reads them.
 
         /// <summary>
-        /// Story-only: the aerial string box centre's height per hit, in world
-        /// units from the feet pivot, <b>Y down</b> (Godot's Story convention;
-        /// −46 / −50 / −12 px). The x-span is the grounded table's.
+        /// Story-only: the air strike box centre's height, in world units from
+        /// the feet pivot, <b>Y down</b> (Godot's Story convention; −12 px).
         /// </summary>
-        public static readonly double[] AerialStringBoxCentreYUnits = { -46.0 / 60.0, -50.0 / 60.0, -12.0 / 60.0 };
+        public const double AirAttackBoxCentreYUnits = -12.0 / 60.0;
 
         /// <summary>
-        /// Story-only: the aerial string box's full height per hit, in world
-        /// units (64 / 82 / 104 px) before the profile's ReachHeightPercent and
-        /// the Story AttackRange minor, which scale it about its centre.
+        /// Story-only: the air strike box's full height, in world units (104 px:
+        /// −64 … +40 px about the feet at 100 %) before the profile's
+        /// ReachHeightPercent and the Story AttackRange minor, which scale it
+        /// about its centre.
         /// </summary>
-        public static readonly double[] AerialStringBoxHeightUnits = { 64.0 / 60.0, 82.0 / 60.0, 104.0 / 60.0 };
+        public const double AirAttackBoxHeightUnits = 104.0 / 60.0;
 
         // === V7.6 F07 Conductive mark durations (cross-mode) ===
 
@@ -247,7 +258,7 @@ namespace FTT.Combat {
         /// shipped with before V7.1. Unknown character IDs resolve to this.
         /// </summary>
         public static readonly BasicStringProfile TemplateStringProfile =
-            new(6, 15, 5, 12, 8, 10, 15, 100, 100);
+            new(6, 15, 5, 8, 10, 15, 100, 100);
 
         // === V7.1 per-character string profiles (applied 2026-08-22) ===
         // The differentiation table the roster's Range and Skill Floor columns
@@ -259,19 +270,19 @@ namespace FTT.Combat {
         // copy. Pinned by BasicStringProfileTests.
         private static readonly System.Collections.Generic.Dictionary<string, BasicStringProfile> StringProfiles =
             new() {
-                //                                 gOpen gFin aOpen aFin  d1  d2  d3  width height
-                { "joan",        new BasicStringProfile(5, 14, 4, 11, 10, 10, 13,  90, 110) },
+                //                                 gOpen gFin air  d1  d2  d3  width height
+                { "joan",        new BasicStringProfile(5, 14, 4, 10, 10, 13,  90, 110) },
                 // Cleopatra's finisher "marks" (kit brief): a light Venom
                 // (0.5 intensity, 2 s = 2 chip) riding the damage status slot,
                 // so it survives her own vortex slow into the nest loop.
-                { "cleopatra",   new BasicStringProfile(6, 15, 5, 12,  8, 10, 15, 120, 100,
+                { "cleopatra",   new BasicStringProfile(6, 15, 5,  8, 10, 15, 120, 100,
                     finisherStatusType: (int)FTT.Core.StatusType.Venom,
                     finisherStatusFrames: 120,
                     finisherStatusIntensityMilli: 500) },
-                { "leonardo",    new BasicStringProfile(6, 15, 5, 12,  8, 10, 15, 115, 100) },
+                { "leonardo",    new BasicStringProfile(6, 15, 5,  8, 10, 15, 115, 100) },
                 // Mozart's finisher "pushes enemies away" (kit brief): the
                 // spacing shove, 5.5x knockback on a low base.
-                { "mozart",      new BasicStringProfile(6, 15, 5, 12,  8, 10, 15, 105, 100,
+                { "mozart",      new BasicStringProfile(6, 15, 5,  8, 10, 15, 105, 100,
                     finisherKnockbackTenths: 55) },
                 // Tesla's finisher magnetizes "with a brief Static Charge"
                 // (kit brief): 0.4 s — equal to the finisher's own hitstun, so
@@ -279,17 +290,17 @@ namespace FTT.Combat {
                 // V7.6 F07: the finisher now applies TWO things — the same
                 // 0.4 s Static Charge interrupt AND a separate 1.5 s Conductive
                 // mark that enables Lorentz chains without locking actions.
-                { "tesla",       new BasicStringProfile(6, 15, 5, 12,  8, 10, 15, 100, 100,
+                { "tesla",       new BasicStringProfile(6, 15, 5,  8, 10, 15, 100, 100,
                     finisherStatusType: (int)FTT.Core.StatusType.StaticCharge,
                     finisherStatusFrames: 24,
                     finisherMarkType: (int)ComboMarkType.Conductive,
                     finisherMarkFrames: BasicComboRules.ConductiveMarkBaselineFrames) },
-                { "einstein",    new BasicStringProfile(7, 16, 6, 13,  8, 10, 15, 110, 100) },
-                { "shakespeare", new BasicStringProfile(7, 16, 6, 13,  8, 10, 15, 105, 100) },
+                { "einstein",    new BasicStringProfile(7, 16, 6,  8, 10, 15, 110, 100) },
+                { "shakespeare", new BasicStringProfile(7, 16, 6,  8, 10, 15, 105, 100) },
                 // Lincoln's "heavy upward vertical swing that launches" hit 2
                 // (kit brief): double the bridge's vertical lift, and (M07,
                 // Package 12 W3b) the one authored launching hit 2.
-                { "lincoln",     new BasicStringProfile(8, 17, 7, 14,  7,  9, 17,  85, 115,
+                { "lincoln",     new BasicStringProfile(8, 17, 7,  7,  9, 17,  85, 115,
                     hit2VerticalLaunchTenths: 20,
                     hit2Launches: true) }
             };
@@ -484,8 +495,18 @@ namespace FTT.Combat {
         /// HOLDING BasicAttack when the swing's recovery ends, or through this
         /// window, continues the chain (design-godot.md: "Holding the attack
         /// button through the window also continues the chain"). Directional
-        /// strikes never buffer, and Time Freeze discards rather than buffers.
-        /// <see cref="ChainContinues"/> is the shared statement.</para>
+        /// strikes and the air strike never buffer, and Time Freeze discards
+        /// rather than buffers. <see cref="ChainContinues"/> is the shared
+        /// statement.</para>
+        ///
+        /// <para>No chain hit ever starts in the air (GU-A, 2026-10-12, both
+        /// modes, provisional): a continuation — buffered, held, or held in this
+        /// window — that would begin while the fighter is airborne (a grounded
+        /// string that walked off a ledge, or dropped through a one-way
+        /// platform mid-swing) ends the string instead. A fresh BasicAttack
+        /// press in this window while airborne is not a continuation: it is an
+        /// air press and starts the single air strike (or the Up-Attack /
+        /// Down-Air by the held direction), as from neutral.</para>
         /// </summary>
         public const int ChainHoldFrames = 24;
 
@@ -493,7 +514,9 @@ namespace FTT.Combat {
         /// F3: whether a chain swing that has just finished its recovery goes
         /// straight into the next string hit — a buffered press, or BasicAttack
         /// still held. The finisher never continues (it exits straight out).
-        /// Both modes call this at the recovery-to-hold boundary.
+        /// Both modes call this at the recovery-to-hold boundary, and since GU-A
+        /// a continuation it asks for while the fighter is airborne ends the
+        /// string instead (see <see cref="ChainHoldFrames"/>).
         /// </summary>
         public static bool ChainContinues(int comboStep, bool buffered, bool attackHeld) =>
             comboStep < ComboHits - 1 && (buffered || attackHeld);
@@ -774,14 +797,15 @@ namespace FTT.Combat {
         // definition (damage applied, or absorbed by a shield or barrier layer;
         // never a block, a refusal, a whiff or a construct, prop or strike
         // surface), on any enemy, boss included — refunds time on BOTH special
-        // cooldowns: 20 frames for string hits 1-2 and the two directional
-        // strikes, 60 for the finisher. Paid once per swing, never per target
-        // (Story's melee cleaves). The cap counts the frames actually removed:
+        // cooldowns: 20 frames for string hits 1-2, the air strike (GU-A) and
+        // the two directional strikes, 60 for the finisher. Paid once per
+        // swing, never per target (Story's melee cleaves). The cap counts the
+        // frames actually removed:
         // 120 per slot per cooldown cycle; a ready slot takes nothing and spends
         // none of it; each slot's counter resets when that slot's cooldown is
         // armed. Both modes read these numbers.
 
-        /// <summary>Refund for a landed string hit 1 or 2 (a third of a second).</summary>
+        /// <summary>Refund for a landed string hit 1 or 2, or the air strike (a third of a second).</summary>
         public const int MomentumStringHitRefundFrames = 20;
         /// <summary>Refund for a landed Up-Attack or Down-Air.</summary>
         public const int MomentumDirectionalRefundFrames = 20;
@@ -791,10 +815,12 @@ namespace FTT.Combat {
         public const int MomentumRefundCapFramesPerCycle = 120;
 
         /// <summary>
-        /// The nominal refund for a landed swing: a directional strike pays 20,
-        /// a chain hit pays 20 on steps 0-1 and 60 on the finisher (step 2).
+        /// The nominal refund for a landed swing: the air strike pays string
+        /// hit 1's 20 (GU-A), a directional strike pays 20, a chain hit pays 20
+        /// on steps 0-1 and 60 on the finisher (step 2).
         /// </summary>
         public static int MomentumRefundFramesFor(int variant, int comboStep) {
+            if (variant == VariantAirAttack) return MomentumStringHitRefundFrames;
             if (variant != VariantChain) return MomentumDirectionalRefundFrames;
             return comboStep >= 2 ? MomentumFinisherRefundFrames : MomentumStringHitRefundFrames;
         }
@@ -802,12 +828,14 @@ namespace FTT.Combat {
         /// <summary>
         /// Story's form of <see cref="MomentumRefundFramesFor"/>, keyed on the
         /// melee hitbox's ID: <c>combo_3</c> 60, any other <c>combo_</c> ID and
-        /// the two directional IDs 20, anything else (a throw, a construct) 0.
+        /// the air strike's <see cref="AirAttackHitboxID"/> 20, the two
+        /// directional IDs 20, anything else (a throw, a construct) 0.
         /// </summary>
         public static int MomentumRefundFramesForHitbox(string hitboxID) {
             if (hitboxID == null) return 0;
             if (hitboxID == "combo_3") return MomentumFinisherRefundFrames;
             if (hitboxID.StartsWith("combo_", System.StringComparison.Ordinal)) return MomentumStringHitRefundFrames;
+            if (hitboxID == AirAttackHitboxID) return MomentumStringHitRefundFrames;
             if (hitboxID == UpAttackHitboxID || hitboxID == DownAirHitboxID) return MomentumDirectionalRefundFrames;
             return 0;
         }
@@ -827,7 +855,7 @@ namespace FTT.Combat {
 
         // === Ability lockout: the special global cooldown (user direction 2026-10-08) ===
         // Ends ability spam in both modes. Starting a basic swing (any chain hit,
-        // the up-attack or the down-air), casting Special 1 or Special 2, or
+        // the air strike, the up-attack or the down-air), casting Special 1 or Special 2, or
         // having the Ultimate accepted arms one shared per-fighter lockout. While
         // it runs, Special 1, Special 2 and the Ultimate are refused (Specials:
         // amended 2026-10-11 by the hit-confirm cancel below — a swing that lands
@@ -1015,26 +1043,82 @@ namespace FTT.Combat {
         // === Directional attacks (gameplay feel batch §2.8) ===
         // Up-attack and down-air are SINGLE strikes outside the three-hit chain:
         // no chain-hold, no buffering into the string, and the combo index
-        // resets. Both modes read every number below; nothing here is duplicated
-        // in PlayerController or the deterministic simulation.
+        // resets. Since GU-A (2026-10-12) the air strike is the third single
+        // strike (its region follows the selection rule). Both modes read every
+        // number below; nothing here is duplicated in PlayerController or the
+        // deterministic simulation.
 
-        /// <summary>The normal three-hit string.</summary>
+        /// <summary>The normal three-hit string, grounded only (GU-A).</summary>
         public const int VariantChain = 0;
         /// <summary>Up held + BasicAttack. Available grounded and airborne.</summary>
         public const int VariantUpAttack = 1;
         /// <summary>Airborne + Down held + BasicAttack. Grounded Down is the normal string.</summary>
         public const int VariantDownAir = 2;
+        /// <summary>
+        /// Airborne + BasicAttack with neither Up nor Down held: the single air
+        /// strike (GU-A, 2026-10-12). It replaced the aerial three-hit string.
+        /// </summary>
+        public const int VariantAirAttack = 3;
 
         /// <summary>
-        /// The one selection rule, shared by both modes. Up wins over Down, and
-        /// a grounded Down-attack is deliberately just a standard string opener
-        /// (Story also reads Down as Crouching, whose attack is the same string).
+        /// The one selection rule, shared by both modes. Up wins over Down, a
+        /// grounded Down-attack is deliberately just a standard string opener
+        /// (Story also reads Down as Crouching, whose attack is the same string),
+        /// and any other air press is the single air strike (GU-A) — the
+        /// three-hit string is grounded only.
         /// </summary>
         public static int SelectAttackVariant(bool upHeld, bool downHeld, bool airborne) {
             if (upHeld) return VariantUpAttack;
             if (downHeld && airborne) return VariantDownAir;
+            if (airborne) return VariantAirAttack;
             return VariantChain;
         }
+
+        // === The single air strike (user direction 2026-10-12, request 1; GU-A) ===
+        // "For aerial attacks, it should just be a standard attack and no longer
+        // chain the combo. It should be a single attack." Both modes, by the
+        // user's scope ruling. An air press with neither Up nor Down held is ONE
+        // strike outside the string, like the two directional strikes: a press
+        // during it is dropped (never buffered), holding BasicAttack never
+        // repeats it, it never enters the chain hold and never advances the
+        // combo index, so the CPU melee band, the Mirror projection and the bots
+        // read "the next press is an opener". Landing cancels it with no lag.
+        // Its start arms the ability lockout and clears the D1 landed latch like
+        // every swing start. One strike per press, with no per-airtime limit.
+        // Every number below is provisional (an agent's choice under the user's
+        // request), recorded at the package closeout.
+        //
+        // It is string hit 1 in the air: hit 1's box (the sim's grounded box;
+        // Story's x-span with the vertical span above), hit 1's knockback
+        // multiplier and 30-frame hitstun, the profile's air startup with the
+        // old aerial opener's active and recovery frames, at 1.0x
+        // BasicAttackDamage like the two directional strikes, and never a
+        // launch (no DI, tumble, D6a carry or D9 bounce). Its Story hitbox ID
+        // is not combo_1, so it carries no hit-1 block-cancel gate (as the sim's
+        // single strikes do not) and takes the default S5 stun floor
+        // (EnemyBasicStunFloorFrames).
+
+        /// <summary>The air strike's TEMPLATE startup; per character in <see cref="BasicStringProfile.AirAttackStartupFrames"/>.</summary>
+        public const int AirAttackStartupFrames = 5;
+        /// <summary>The air strike's active frames, universal.</summary>
+        public const int AirAttackActiveFrames = 7;
+        /// <summary>The air strike's recovery frames, universal (template total 25).</summary>
+        public const int AirAttackRecoveryFrames = 13;
+
+        /// <summary>
+        /// The string step whose box and knockback multiplier the air strike
+        /// takes: hit 1. Both modes index the one string table with it.
+        /// </summary>
+        public const int AirAttackStringStep = 0;
+
+        /// <summary>The air strike deals a flat 1.0x <c>BasicAttackDamage</c>, like the directional strikes.</summary>
+        public const float AirAttackDamageMultiplier = 1.0f;
+
+        /// <summary>Victim hitstun for the air strike (0.5 s at 60 Hz, string hit 1's).</summary>
+        public const int AirAttackHitstunFrames = 30;
+
+        /// <summary>The air strike never launches (M05): grounded knockback on a grounded victim.</summary>
+        public const bool AirAttackLaunches = false;
 
         // Up-attack: startup / active / recovery (total 33). One table for both
         // grounded and airborne — there is no aerial variant of the up-attack.
@@ -1043,7 +1127,7 @@ namespace FTT.Combat {
         public const int UpAttackRecoveryFrames = 18;
 
         // Down-air: startup / active / recovery (total 32). Aerial only; landing
-        // cancels it with no lag, exactly like the aerial string.
+        // cancels it with no lag, exactly like the air strike.
         public const int DownAirStartupFrames = 6;
         public const int DownAirActiveFrames = 10;
         public const int DownAirRecoveryFrames = 16;
@@ -1080,18 +1164,23 @@ namespace FTT.Combat {
         /// <summary>Hitbox IDs for the two directional attacks (Story hit payloads).</summary>
         public const string UpAttackHitboxID = "up_attack";
         public const string DownAirHitboxID = "down_air";
+        /// <summary>Hitbox ID of the single air strike (GU-A; Story hit payloads).</summary>
+        public const string AirAttackHitboxID = "air_attack";
 
         /// <summary>
         /// True for every hitbox the universal basic set produces: the three
-        /// chain hits plus the two directional strikes. Story's enemy stun floor
-        /// (<see cref="EnemyBasicStunFloorFrames"/>) keys on this so a landed
-        /// up-attack or down-air holds a high-<c>StunResistance</c> enemy just
-        /// as a chain hit does; other Basic-class sources (constructs, turrets)
-        /// keep their authored short stuns.
+        /// chain hits, the air strike and the two directional strikes. Story's
+        /// enemy stun floor (<see cref="EnemyBasicStunFloorFrames"/>), the D1
+        /// hit-confirm, per-hit Momentum, the freeze-only Special buffer and the
+        /// S4 basics pacing key on this, so a landed air strike, up-attack or
+        /// down-air holds a high-<c>StunResistance</c> enemy just as a chain hit
+        /// does; other Basic-class sources (constructs, turrets) keep their
+        /// authored short stuns.
         /// </summary>
         public static bool IsBasicStringHitbox(string hitboxID) =>
             hitboxID != null
             && (hitboxID.StartsWith("combo_", System.StringComparison.Ordinal)
+                || hitboxID == AirAttackHitboxID
                 || hitboxID == UpAttackHitboxID
                 || hitboxID == DownAirHitboxID);
     }

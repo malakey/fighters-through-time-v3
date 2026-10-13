@@ -708,6 +708,9 @@ namespace FTT.Diagnostics {
             swing.Landed++;
             swing.Damage += dealt;
             if (firstLanded && hit == "combo_3" && swing.TargetId != 0UL) {
+                // Since GU-A (2026-10-12) the string is grounded only, so a finisher
+                // record never opens in the air (batches from before it can carry
+                // aerial combo_3 records; compare finishers with that in mind).
                 // The knockback is not integrated until the target's own update, so
                 // its position now is its position at the connect.
                 float targetX = GodotObject.InstanceFromId(swing.TargetId) is Node2D target && GodotObject.IsInstanceValid(target)

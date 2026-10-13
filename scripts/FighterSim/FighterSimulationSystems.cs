@@ -536,8 +536,9 @@ namespace FTT.FighterSim {
                     // locks and cancels gate the same tick's movement, mirroring how
                     // Story resolves both inside one _PhysicsProcess.
                     // Package 13 W7b (A08): Attack during the Wing-Dive ends the
-                    // dive so this same tick's phase machine starts the aerial
-                    // string — the dive is an approach, not a hover.
+                    // dive so this same tick's phase machine starts the air
+                    // strike (GU-A; it was the aerial string) — the dive is an
+                    // approach, not a hover.
                     FighterKitMotion.TryWingDiveAttackCancel(ref runtime);
                     ProcessBasicAttackPhase(ref fighter, ref runtime, in verb);
                     bool attacking = runtime.AttackPhase != FighterBasicAttackRules.PhaseNone;
@@ -1066,9 +1067,12 @@ namespace FTT.FighterSim {
         /// chain-hold cancels. Held horizontal movement steers the attacker but
         /// never cancels the swing or resets the chain — the authored string
         /// pace is the only pace. Jump/roll/block (and a special or the
-        /// ultimate, upstream) remain the cancel set.
+        /// ultimate, upstream) remain the cancel set. GU-A (2026-10-12): an air
+        /// press is the single air strike, and no chain hit ever starts in the
+        /// air — a continuation that would begin airborne ends the string.
+        /// Internal so the GU-A suites can drive it on a hand-built fighter.
         /// </summary>
-        private static void ProcessBasicAttackPhase(
+        internal static void ProcessBasicAttackPhase(
             ref FighterStateComponent fighter,
             ref FighterRuntimeComponent runtime,
             in FighterVerbComponent verb) {
@@ -1089,19 +1093,23 @@ namespace FTT.FighterSim {
 
             bool aerial = (runtime.AttackFlags & FighterBasicAttackRules.FlagAerial) != 0;
             bool variantSwing = FighterBasicAttackRules.IsVariantSwing(in runtime);
-            if (aerial && fighter.IsGrounded != 0) {
-                // Landing cancels an aerial string with no landing lag.
+            bool airborne = fighter.IsGrounded == 0;
+            if (aerial && !airborne) {
+                // Landing cancels a swing started in the air (the air strike, an
+                // airborne up-attack, the down-air) with no landing lag.
                 FighterBasicAttackRules.CancelString(ref runtime);
                 return;
             }
 
-            // Directional attacks stand outside the chain: they neither buffer
-            // into the string nor continue it.
+            // The air strike and the directional attacks stand outside the
+            // chain: they neither buffer into the string nor continue it.
             if (basicPressed && !variantSwing) {
                 if (phase == FighterBasicAttackRules.PhaseChainHold) {
                     // A fresh direction re-selects at this swing start, so
                     // Up + BasicAttack out of the hold window starts an
-                    // up-attack (chain reset) rather than continuing the string.
+                    // up-attack (chain reset) rather than continuing the string,
+                    // and (GU-A) any press made airborne — a grounded string that
+                    // walked off a ledge — starts the air strike, never hit 2.
                     int variant = FighterBasicAttackRules.SelectVariant(in fighter, in runtime);
                     if (variant != FTT.Combat.BasicComboRules.VariantChain) {
                         FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, 0, variant);
@@ -1136,7 +1144,13 @@ namespace FTT.FighterSim {
                 && !variantSwing
                 && (runtime.HeldButtons & BasicButton) != 0
                 && runtime.ComboIndex < FTT.Combat.BasicComboRules.ComboHits - 1) {
-                FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, runtime.ComboIndex + 1);
+                // GU-A: no chain hit starts in the air — an airborne fighter's
+                // held continuation ends the string instead.
+                if (airborne) {
+                    FighterBasicAttackRules.CancelString(ref runtime);
+                } else {
+                    FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, runtime.ComboIndex + 1);
+                }
                 return;
             }
 
@@ -1155,14 +1169,23 @@ namespace FTT.FighterSim {
                         FighterBasicAttackRules.RecoveryFramesFor(runtime.AttackFlags, step);
                     break;
                 case FighterBasicAttackRules.PhaseRecovery:
-                    // A directional attack exits straight out — no chain hold,
-                    // no buffered continuation, combo index already zero.
+                    // A single strike (the air strike or a directional attack)
+                    // exits straight out — no chain hold, no buffered
+                    // continuation, combo index already zero.
                     if (variantSwing) {
                         FighterBasicAttackRules.CancelString(ref runtime);
                     } else if (FTT.Combat.BasicComboRules.ChainContinues(
                         step,
                         buffered: (runtime.AttackFlags & FighterBasicAttackRules.FlagBuffered) != 0,
                         attackHeld: (runtime.HeldButtons & BasicButton) != 0)) {
+                        if (airborne) {
+                            // GU-A: a continuation that would start in the air
+                            // (the string dropped through a one-way platform
+                            // mid-swing; a walk-off is caught by the ledge grab
+                            // first) ends the string instead.
+                            FighterBasicAttackRules.CancelString(ref runtime);
+                            break;
+                        }
                         // F3: a buffered press, or BasicAttack still held,
                         // continues the chain; a queued second press carries
                         // into the hit that starts here.
@@ -1476,8 +1499,9 @@ namespace FTT.FighterSim {
         /// Starts an air dodge if one is legal: airborne, not already dodged
         /// this airtime, not rooted (A05), no other universal movement running.
         /// The caller has already excluded hitstun, daze, hitstop, grab states,
-        /// the ledge hang and any live swing (an aerial string's recovery or
-        /// chain window is cancelled by the same Roll press just before this).
+        /// the ledge hang and any live swing (an air strike's recovery, or a
+        /// dropped-through string's chain window, is cancelled by the same Roll
+        /// press just before this).
         /// </summary>
         public static bool TryStart(
             ref FighterStateComponent fighter,
@@ -1719,6 +1743,11 @@ namespace FTT.FighterSim {
         public const int PhaseRecovery = 3;
         public const int PhaseChainHold = 4;
 
+        /// <summary>
+        /// The swing started airborne, so landing cancels it with no lag. Since
+        /// GU-A only a single strike (the air strike, an airborne up-attack, the
+        /// down-air) carries it: the chain never starts in the air.
+        /// </summary>
         public const int FlagAerial = 1;
         public const int FlagHitResolved = 2;
         public const int FlagBuffered = 4;
@@ -1726,8 +1755,14 @@ namespace FTT.FighterSim {
         public const int FlagUpAttack = 8;
         /// <summary>Directional-attack variant latch (§2.8): down-air.</summary>
         public const int FlagDownAir = 16;
-        /// <summary>Either variant bit — a swing outside the three-hit chain.</summary>
-        public const int VariantMask = FlagUpAttack | FlagDownAir;
+        /// <summary>
+        /// GU-A (2026-10-12): the single air strike's variant latch, the next
+        /// spare bit of the existing <c>AttackFlags</c> word (no new component
+        /// state, no protocol change).
+        /// </summary>
+        public const int FlagAirAttack = 128;
+        /// <summary>Any variant bit — a single strike outside the three-hit chain.</summary>
+        public const int VariantMask = FlagUpAttack | FlagDownAir | FlagAirAttack;
         /// <summary>One construct sweep per swing (2026-08-11: basics damage enemy constructs).</summary>
         public const int FlagConstructHitResolved = 32;
         /// <summary>
@@ -1744,10 +1779,10 @@ namespace FTT.FighterSim {
         /// <summary>
         /// F3: buffers this tick's BasicAttack press for the next chain hit — in
         /// startup, ACTIVE frames, recovery, or the hitstop freeze — or queues it
-        /// for the hit after when one is already buffered. Directional strikes and
-        /// the chain-hold window (where a press starts the next swing outright)
-        /// never buffer. Story's <c>PlayerController.BufferChainPress</c> is the
-        /// same rule.
+        /// for the hit after when one is already buffered. The air strike, the
+        /// directional strikes and the chain-hold window (where a press starts
+        /// the next swing outright) never buffer. Story's
+        /// <c>PlayerController.BufferChainPress</c> is the same rule.
         /// </summary>
         public static void BufferChainPress(ref FighterRuntimeComponent runtime) {
             if ((runtime.PressedButtons & BasicButton) == 0) return;
@@ -1759,7 +1794,7 @@ namespace FTT.FighterSim {
         public static bool IsSwinging(in FighterRuntimeComponent runtime) =>
             runtime.AttackPhase is PhaseStartup or PhaseActive or PhaseRecovery;
 
-        /// <summary>True while the running swing is an up-attack or a down-air.</summary>
+        /// <summary>True while the running swing is the air strike, an up-attack or a down-air.</summary>
         public static bool IsVariantSwing(in FighterRuntimeComponent runtime) =>
             (runtime.AttackFlags & VariantMask) != 0;
 
@@ -1767,9 +1802,12 @@ namespace FTT.FighterSim {
         /// The string step a BasicAttack press would continue into right now
         /// (the CPU's melee band, 2026-10-11): the next hit's index while a
         /// chain swing of hit 1 or hit 2 runs, any phase, the chain hold
-        /// included; otherwise 0. The finisher cannot continue and a
-        /// directional swing stands outside the chain, so a press during
-        /// either can at most open a fresh string. Read-only.
+        /// included; otherwise 0. The finisher cannot continue, and the air
+        /// strike and the directional swings stand outside the chain (GU-A), so
+        /// a press during any of them can at most open a fresh string or air
+        /// strike, both at hit 1's reach. It reads no ground state: a grounded
+        /// string airborne mid-swing (a one-way drop-through) still reports its
+        /// next hit, though that continuation now ends the string. Read-only.
         /// </summary>
         public static int NextChainStep(in FighterRuntimeComponent runtime) {
             if (runtime.AttackPhase == PhaseNone || IsVariantSwing(in runtime)) return 0;
@@ -1818,27 +1856,26 @@ namespace FTT.FighterSim {
         public static int StartupFramesFor(int characterID, int attackFlags, int comboStep) {
             if ((attackFlags & FlagUpAttack) != 0) return FTT.Combat.BasicComboRules.UpAttackStartupFrames;
             if ((attackFlags & FlagDownAir) != 0) return FTT.Combat.BasicComboRules.DownAirStartupFrames;
+            // GU-A: the air strike's startup is the profile's air axis.
+            if ((attackFlags & FlagAirAttack) != 0) return StringProfileFor(characterID).AirAttackStartupFrames;
             // Chain opener/finisher startups are the authored per-character axis
-            // (V7.1); active and recovery frames below stay universal.
-            return (attackFlags & FlagAerial) != 0
-                ? StringProfileFor(characterID).AerialStartupFrames[comboStep]
-                : StringProfileFor(characterID).GroundStartupFrames[comboStep];
+            // (V7.1); active and recovery frames below stay universal. The
+            // string is grounded only (GU-A), so it has one frame table.
+            return StringProfileFor(characterID).GroundStartupFrames[comboStep];
         }
 
         public static int ActiveFramesFor(int attackFlags, int comboStep) {
             if ((attackFlags & FlagUpAttack) != 0) return FTT.Combat.BasicComboRules.UpAttackActiveFrames;
             if ((attackFlags & FlagDownAir) != 0) return FTT.Combat.BasicComboRules.DownAirActiveFrames;
-            return (attackFlags & FlagAerial) != 0
-                ? FTT.Combat.BasicComboRules.AerialActiveFrames[comboStep]
-                : FTT.Combat.BasicComboRules.GroundActiveFrames[comboStep];
+            if ((attackFlags & FlagAirAttack) != 0) return FTT.Combat.BasicComboRules.AirAttackActiveFrames;
+            return FTT.Combat.BasicComboRules.GroundActiveFrames[comboStep];
         }
 
         public static int RecoveryFramesFor(int attackFlags, int comboStep) {
             if ((attackFlags & FlagUpAttack) != 0) return FTT.Combat.BasicComboRules.UpAttackRecoveryFrames;
             if ((attackFlags & FlagDownAir) != 0) return FTT.Combat.BasicComboRules.DownAirRecoveryFrames;
-            return (attackFlags & FlagAerial) != 0
-                ? FTT.Combat.BasicComboRules.AerialRecoveryFrames[comboStep]
-                : FTT.Combat.BasicComboRules.GroundRecoveryFrames[comboStep];
+            if ((attackFlags & FlagAirAttack) != 0) return FTT.Combat.BasicComboRules.AirAttackRecoveryFrames;
+            return FTT.Combat.BasicComboRules.GroundRecoveryFrames[comboStep];
         }
 
         /// <summary>
@@ -1888,13 +1925,16 @@ namespace FTT.FighterSim {
             int comboStep,
             int variant = FTT.Combat.BasicComboRules.VariantChain) {
             bool aerial = fighter.IsGrounded == 0;
-            // A directional attack is a single strike outside the chain: the
-            // combo index resets to zero and never advances from here.
+            // A single strike (the air strike or a directional attack) stands
+            // outside the chain: the combo index resets to zero and never
+            // advances from here. Every caller keeps the chain on the ground
+            // (GU-A), so a chain swing never carries FlagAerial.
             runtime.ComboIndex = variant == FTT.Combat.BasicComboRules.VariantChain ? comboStep : 0;
             runtime.AttackPhase = PhaseStartup;
             int flags = aerial ? FlagAerial : 0;
             if (variant == FTT.Combat.BasicComboRules.VariantUpAttack) flags |= FlagUpAttack;
             else if (variant == FTT.Combat.BasicComboRules.VariantDownAir) flags |= FlagDownAir;
+            else if (variant == FTT.Combat.BasicComboRules.VariantAirAttack) flags |= FlagAirAttack;
             runtime.AttackFlags = flags;
             runtime.AttackPhaseFrames = StartupFramesFor(fighter.CharacterID, flags, runtime.ComboIndex);
             // Defensive: universal movement is provably None at every current call
@@ -1902,8 +1942,9 @@ namespace FTT.FighterSim {
             // a string is active), so this cancel is a no-op today. It stays so a
             // future cancel window cannot leave a phase running under a swing.
             FighterUniversalMovementRules.Cancel(ref runtime);
-            // Every swing start (each chain hit, the up-attack, the down-air)
-            // locks specials and the Ultimate; the swing itself is never refused.
+            // Every swing start (each chain hit, the air strike, the up-attack,
+            // the down-air) locks specials and the Ultimate; the swing itself is
+            // never refused.
             // StartSwing runs in FighterMovementSystem, before the ability and
             // combat systems, so a same-tick special or Ultimate press loses to
             // the swing, as it does in Story (CheckAttackInput from neutral,
@@ -2287,6 +2328,9 @@ namespace FTT.FighterSim {
         private static readonly FP64 DownAirVerticalReach = FP64.FromInt(2);
         private static readonly FP64 DirectionalDamageMultiplier =
             FP64.FromDouble(FTT.Combat.BasicComboRules.DirectionalAttackDamageMultiplier);
+        // GU-A: the air strike's damage scale, converted once like the others.
+        private static readonly FP64 AirAttackDamageMultiplier =
+            FP64.FromDouble(FTT.Combat.BasicComboRules.AirAttackDamageMultiplier);
         private static readonly FP64 DirectionalHorizontalKnockback =
             FP64.FromDouble(FTT.Combat.BasicComboRules.DirectionalAttackHorizontalKnockback);
         private static readonly FP64 DirectionalVerticalKnockbackScale = FP64.FromDouble(
@@ -2733,7 +2777,9 @@ namespace FTT.FighterSim {
             if (attacker.Stocks <= 0) return;
 
             int step = attackerRuntime.ComboIndex < 0 ? 0 : attackerRuntime.ComboIndex > 2 ? 2 : attackerRuntime.ComboIndex;
-            // Same V7.1 profile axes the fighter-target swing applies.
+            // Same V7.1 profile axes the fighter-target swing applies. The three
+            // single strikes (the air strike and the two directional strikes,
+            // all a flat 1.0x) deal one basic, through hit 1's box at step 0.
             FTT.Combat.BasicStringProfile profile =
                 FighterBasicAttackRules.StringProfileFor(attacker.CharacterID);
             int damage = FighterBasicAttackRules.IsVariantSwing(in attackerRuntime)
@@ -2781,6 +2827,21 @@ namespace FTT.FighterSim {
             if (attackerRuntime.AttackPhase != FighterBasicAttackRules.PhaseActive) return;
             if ((attackerRuntime.AttackFlags & FighterBasicAttackRules.FlagHitResolved) != 0) return;
             if (attacker.Stocks <= 0) return;
+
+            // GU-A (2026-10-12): the single air strike — string hit 1's box and
+            // knockback at one basic, never a launch. Routed before the
+            // directional strikes, which own every other variant bit.
+            if ((attackerRuntime.AttackFlags & FighterBasicAttackRules.FlagAirAttack) != 0) {
+                FighterHitOutcome airOutcome = ApplyAirAttackSwing(
+                    ref attacker, ref attackerRuntime, ref attackerVerb, in attackerTuning,
+                    ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
+                    ref targetCounter, out int airDamage);
+                OnSwingResolved(
+                    ref attackerRuntime, ref attackerVerb, airOutcome, airDamage,
+                    FTT.Combat.BasicComboRules.MomentumRefundFramesFor(
+                        FTT.Combat.BasicComboRules.VariantAirAttack, 0));
+                return;
+            }
 
             // Directional attacks (§2.8) own their own boxes: the Up-Attack
             // launches upward, the Down-Air slams (A12).
@@ -2919,10 +2980,75 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
+        /// GU-A (2026-10-12): the single air strike. It swings string hit 1's
+        /// box (<see cref="ResolveStringBox"/> at
+        /// <see cref="FTT.Combat.BasicComboRules.AirAttackStringStep"/>, the box
+        /// the aerial string's opener always used) for a flat
+        /// <see cref="FTT.Combat.BasicComboRules.AirAttackDamageMultiplier"/>
+        /// basic, hit 1's knockback multiplier on the scalar path, the 30-frame
+        /// <see cref="FTT.Combat.BasicComboRules.AirAttackHitstunFrames"/>, no
+        /// rider and no launch. It is not string hit 1, so its hitstun stays
+        /// block-cancelable like the directional strikes'. Same one-attempt-per-
+        /// swing rule as the chain: a box miss is Refused and tries again next
+        /// tick; a Foresight counter is Refused.
+        /// </summary>
+        private static FighterHitOutcome ApplyAirAttackSwing(
+            ref FighterStateComponent attacker,
+            ref FighterRuntimeComponent attackerRuntime,
+            ref FighterVerbComponent attackerVerb,
+            in FighterTuningComponent attackerTuning,
+            ref FighterStateComponent target,
+            ref FighterRuntimeComponent targetRuntime,
+            ref FighterVerbComponent targetVerb,
+            ref FighterDefenseComponent targetDefense,
+            in FighterTuningComponent targetTuning,
+            ref FighterCounterComponent targetCounter,
+            out int damage) {
+            damage = 0;
+            const int step = FTT.Combat.BasicComboRules.AirAttackStringStep;
+            FTT.Combat.BasicStringProfile profile =
+                FighterBasicAttackRules.StringProfileFor(attacker.CharacterID);
+            ResolveStringBox(in attacker, in profile, step, out FPVector2 boxCenter, out FPVector2 boxHalf);
+            if (!FighterEntityQueries.Overlaps(
+                    in boxCenter, in boxHalf, in target.Position, in VictimHalfExtents)) {
+                return FighterHitOutcome.Refused;
+            }
+
+            damage = ScaleDamage(attackerTuning.BasicDamage, AirAttackDamageMultiplier);
+            attackerRuntime.AttackFlags |= FighterBasicAttackRules.FlagHitResolved;
+            if (FighterForesightRules.TryCounter(ref targetCounter, ref target)) return FighterHitOutcome.Refused;
+            return FighterDamageRules.ResolveFighterHit(
+                ref attacker,
+                ref attackerRuntime,
+                ref attackerVerb,
+                ref target,
+                ref targetRuntime,
+                ref targetVerb,
+                ref targetDefense,
+                in targetTuning,
+                FighterDamageRules.BasicAttackClass,
+                damage,
+                attackerTuning.BasicKnockback * BasicKnockbackMultipliers[step],
+                FTT.Combat.BasicComboRules.AirAttackHitstunFrames,
+                (int)FTT.Core.StatusType.None,
+                0,
+                FP64.One,
+                attacker.Position.x,
+                true,
+                0,
+                FP64.Zero,
+                blockCancelableHitstun: true,
+                launches: FTT.Combat.BasicComboRules.AirAttackLaunches);
+        }
+
+        /// <summary>
         /// The two directional strikes (§2.8). Up-attack reaches above the
         /// attacker's origin, down-air below it; both deal a flat 1.0x basic and
         /// launch the victim upward through <c>verticalKnockbackScale</c>. Same
         /// one-attempt-per-swing rule, same meter/status/block flow as the chain.
+        /// Only the up-attack and the down-air reach here (the air strike has
+        /// <see cref="ApplyAirAttackSwing"/>), so "not the up-attack" is the
+        /// down-air.
         /// </summary>
         private static FighterHitOutcome ApplyDirectionalSwing(
             ref FighterStateComponent attacker,

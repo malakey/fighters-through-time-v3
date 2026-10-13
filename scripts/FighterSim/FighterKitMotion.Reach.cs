@@ -32,7 +32,7 @@ namespace FTT.FighterSim {
         public const int PiercingLunge = 24;
         /// <summary>A08 Ascendant Wings: the rising slash-leap — the whole cast's frames at the authored speed.</summary>
         public const int WingRise = 25;
-        /// <summary>A08: the held Wing-Dive — a steep forward descent; Attack cancels it into the aerial string.</summary>
+        /// <summary>A08: the held Wing-Dive — a steep forward descent; Attack cancels it into the air strike (GU-A).</summary>
         public const int WingDive = 26;
         /// <summary>C03 Desert Mirage: the 8-direction sand rush that passes through opponents.</summary>
         public const int SandRush = 27;
@@ -164,7 +164,8 @@ namespace FTT.FighterSim {
 
         /// <summary>
         /// A08: pressing Attack during the Wing-Dive ends it so the same tick's
-        /// basic-attack phase machine starts the aerial string. Called before
+        /// basic-attack phase machine starts the air strike (GU-A, 2026-10-12;
+        /// it was the aerial string). Called before
         /// <c>ProcessBasicAttackPhase</c>.
         /// </summary>
         public static void TryWingDiveAttackCancel(ref FighterRuntimeComponent runtime) {

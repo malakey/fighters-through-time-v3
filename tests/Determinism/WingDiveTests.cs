@@ -70,8 +70,11 @@ public class WingDiveTests {
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
         AssertThat(runtime.UniversalMovementState).IsEqual(0);
         AssertThat(runtime.AttackPhase != 0).IsTrue();
-        // Flag 1 = an aerial string.
+        // Flag 1 = started airborne; since GU-A (2026-10-12) the dive cancels
+        // into the single air strike, not the retired aerial string.
         AssertThat(runtime.AttackFlags & 1).IsEqual(1);
+        AssertThat(runtime.AttackFlags & FighterBasicAttackRules.FlagAirAttack)
+            .IsEqual(FighterBasicAttackRules.FlagAirAttack);
     }
 
     private static FighterSimulation NewMatch() => new(

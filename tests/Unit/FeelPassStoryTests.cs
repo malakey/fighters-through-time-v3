@@ -46,14 +46,16 @@ public class FeelPassStoryTests {
     [TestCase]
     public void TheOpenerIsPosedFromItsFrameWindowsAndTheChainHoldReadsAsLocomotion() {
         // Tesla is the template profile — the character whose swings used to run
-        // on the combat AnimationPlayer's idle clock.
-        PlayerController player = CreateAirborne("tesla");
+        // on the combat AnimationPlayer's idle clock. GU-A (2026-10-12): the
+        // string is grounded only, so the chain cases stand on a floor.
+        StaticBody2D floor = CreateFlatFloor();
+        PlayerController player = CreateGroundedPlayer("tesla");
         try {
             var hitbox = player.GetNode<Hitbox>("MeleeHitbox");
             BasicStringProfile profile = BasicComboRules.StringProfileFor("tesla");
-            int startup = profile.AerialStartupFrames[0];
-            int active = BasicComboRules.AerialActiveFrames[0];
-            int recovery = BasicComboRules.AerialRecoveryFrames[0];
+            int startup = profile.GroundStartupFrames[0];
+            int active = BasicComboRules.GroundActiveFrames[0];
+            int recovery = BasicComboRules.GroundRecoveryFrames[0];
 
             SendInput(player, GameplayButtons.BasicAttack);
             AssertThat(player.CurrentState).IsEqual(CharacterState.Attacking);
@@ -82,15 +84,16 @@ public class FeelPassStoryTests {
             }
 
             // The last recovery frame hands the swing to the chain hold, which is
-            // not a swing: the body reads as falling, not frozen mid-follow-through.
+            // not a swing: the body reads as standing, not frozen mid-follow-through.
             SendInput(player, GameplayButtons.None);
             AssertThat(player.CurrentState).IsEqual(CharacterState.Attacking);
             AssertThat(player.ActiveAnimationName)
                 .OverrideFailureMessage("The chain hold must play the body's locomotion reel.")
-                .IsEqual("fall");
+                .IsEqual("idle");
             AssertThat(player.IsShowingAttackPose).IsFalse();
         } finally {
             Release(player);
+            floor.Free();
         }
     }
 
@@ -98,11 +101,12 @@ public class FeelPassStoryTests {
     public void HitstopExtendsTemplateAndAuthoredProfileSwingsByExactlyTheFreeze() {
         // F2: Tesla's template swing (once AnimationPlayer-timed) and Einstein's
         // authored-profile swing (always frame-clocked) both stretch by exactly
-        // the freeze, and hold the strike pose through it.
+        // the freeze, and hold the strike pose through it. Since GU-A the swing
+        // is the single air strike, which runs its window out with no hold.
         const int freeze = 6;
         foreach (string characterID in new[] { "tesla", "einstein" }) {
-            int baseline = TicksUntilTheOpenerAndItsHoldEnd(characterID, injectHitstop: 0);
-            int frozen = TicksUntilTheOpenerAndItsHoldEnd(characterID, injectHitstop: freeze);
+            int baseline = TicksUntilTheAirStrikeEnds(characterID, injectHitstop: 0);
+            int frozen = TicksUntilTheAirStrikeEnds(characterID, injectHitstop: freeze);
             AssertThat(frozen - baseline)
                 .OverrideFailureMessage($"{characterID}: a {freeze}-frame freeze stretched the swing by {frozen - baseline}.")
                 .IsEqual(freeze);
@@ -113,10 +117,11 @@ public class FeelPassStoryTests {
 
     [TestCase]
     public void APressDuringTheActiveFramesBuffersTheNextHit() {
-        PlayerController player = CreateAirborne("tesla");
+        StaticBody2D floor = CreateFlatFloor();
+        PlayerController player = CreateGroundedPlayer("tesla");
         try {
-            int startup = BasicComboRules.StringProfileFor("tesla").AerialStartupFrames[0];
-            int total = startup + BasicComboRules.AerialActiveFrames[0] + BasicComboRules.AerialRecoveryFrames[0];
+            int startup = BasicComboRules.StringProfileFor("tesla").GroundStartupFrames[0];
+            int total = startup + BasicComboRules.GroundActiveFrames[0] + BasicComboRules.GroundRecoveryFrames[0];
             SendInput(player, GameplayButtons.BasicAttack);
             for (int frame = 0; frame < startup; frame++) SendInput(player, GameplayButtons.None);
             // Elapsed frame == startup: the first active frame.
@@ -132,15 +137,17 @@ public class FeelPassStoryTests {
             AssertPose(player, "basic_attack_2", AttackPoseRules.WindUpPose, "hit two's first frame");
         } finally {
             Release(player);
+            floor.Free();
         }
     }
 
     [TestCase]
     public void APressDuringHitstopBuffersAndTimeFreezeDiscardsIt() {
         foreach (bool timeFrozen in new[] { false, true }) {
-            PlayerController player = CreateAirborne("tesla");
+            StaticBody2D floor = CreateFlatFloor();
+            PlayerController player = CreateGroundedPlayer("tesla");
             try {
-                int startup = BasicComboRules.StringProfileFor("tesla").AerialStartupFrames[0];
+                int startup = BasicComboRules.StringProfileFor("tesla").GroundStartupFrames[0];
                 SendInput(player, GameplayButtons.BasicAttack);
                 for (int frame = 0; frame <= startup; frame++) SendInput(player, GameplayButtons.None);
                 player.ApplyHitstop(5);
@@ -152,7 +159,8 @@ public class FeelPassStoryTests {
                 bool sawHold = false;
                 for (int frame = 0; frame < 60 && player.ComboCounter == 0; frame++) {
                     SendInput(player, GameplayButtons.None);
-                    if (player.ActiveAnimationName == "fall") sawHold = true;
+                    // The chain hold reads as standing (F4).
+                    if (player.ActiveAnimationName == "idle") sawHold = true;
                     if (sawHold) break;
                 }
                 if (timeFrozen) {
@@ -168,13 +176,15 @@ public class FeelPassStoryTests {
                 }
             } finally {
                 Release(player);
+                floor.Free();
             }
         }
     }
 
     [TestCase]
     public void HoldingAttackContinuesTheChainThroughTheFinisher() {
-        PlayerController player = CreateAirborne("tesla");
+        StaticBody2D floor = CreateFlatFloor();
+        PlayerController player = CreateGroundedPlayer("tesla");
         try {
             SendInput(player, GameplayButtons.BasicAttack);
             int highest = 0;
@@ -192,6 +202,7 @@ public class FeelPassStoryTests {
                 .IsNotEqual(CharacterState.Attacking);
         } finally {
             Release(player);
+            floor.Free();
         }
     }
 
@@ -199,8 +210,10 @@ public class FeelPassStoryTests {
     public void ThreePressesOnATwelveFrameRhythmLandThreeSwings() {
         // The playtest probe's "three rhythmic presses -> two hits": the second
         // press lands in hit one's active frames (once excluded) and the third
-        // in its recovery (once collapsed into the one-deep buffer).
-        PlayerController player = CreateAirborne("tesla");
+        // in its recovery (once collapsed into the one-deep buffer). Grounded:
+        // the string is grounded only since GU-A.
+        StaticBody2D floor = CreateFlatFloor();
+        PlayerController player = CreateGroundedPlayer("tesla");
         try {
             int highest = 0;
             for (int tick = 0; tick < 150; tick++) {
@@ -213,6 +226,7 @@ public class FeelPassStoryTests {
                 .IsEqual(2);
         } finally {
             Release(player);
+            floor.Free();
         }
     }
 
@@ -913,10 +927,11 @@ public class FeelPassStoryTests {
 
     // === helpers ==============================================================
 
-    private static int TicksUntilTheOpenerAndItsHoldEnd(string characterID, int injectHitstop) {
+    /// <summary>Ticks from an air press until the single air strike (GU-A) has run out, in free fall.</summary>
+    private static int TicksUntilTheAirStrikeEnds(string characterID, int injectHitstop) {
         PlayerController player = CreateAirborne(characterID);
         try {
-            int startup = BasicComboRules.StringProfileFor(characterID).AerialStartupFrames[0];
+            int startup = BasicComboRules.StringProfileFor(characterID).AirAttackStartupFrames;
             SendInput(player, GameplayButtons.BasicAttack);
             int ticks = 0;
             for (; ticks < 300 && player.CurrentState == CharacterState.Attacking; ticks++) {

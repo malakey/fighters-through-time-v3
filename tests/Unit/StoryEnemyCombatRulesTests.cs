@@ -61,7 +61,7 @@ public class StoryEnemyCombatRulesTests {
     [TestCase]
     public void BasicsPacingCoversOnlyTheUniversalBasicSet() {
         AssertThat(StoryEnemyCombatRules.StandardBasicDamageScale).IsEqualApprox(1.25f, 0.0001f);
-        foreach (string id in new[] { "combo_1", "combo_2", "combo_3",
+        foreach (string id in new[] { "combo_1", "combo_2", "combo_3", BasicComboRules.AirAttackHitboxID,
                      BasicComboRules.UpAttackHitboxID, BasicComboRules.DownAirHitboxID }) {
             AssertThat(StoryEnemyCombatRules.IsBasicsPacingHit(AttackClass.Basic, id)).IsTrue();
         }
@@ -92,6 +92,9 @@ public class StoryEnemyCombatRulesTests {
         AssertThat(StoryEnemyCombatRules.BasicStringStunFloorFrames(BasicComboRules.UpAttackHitboxID))
             .IsEqual(BasicComboRules.EnemyBasicStunFloorFrames);
         AssertThat(StoryEnemyCombatRules.BasicStringStunFloorFrames(BasicComboRules.DownAirHitboxID))
+            .IsEqual(BasicComboRules.EnemyBasicStunFloorFrames);
+        // GU-A: the air strike is not string hit 1, so it takes the default floor.
+        AssertThat(StoryEnemyCombatRules.BasicStringStunFloorFrames(BasicComboRules.AirAttackHitboxID))
             .IsEqual(BasicComboRules.EnemyBasicStunFloorFrames);
         AssertThat(StoryEnemyCombatRules.BasicStringStunFloorFrames("turret_shot")).IsEqual(0);
         AssertThat(StoryEnemyCombatRules.BasicStringStunFloorFrames(null)).IsEqual(0);
@@ -209,7 +212,7 @@ public class StoryEnemyCombatRulesTests {
 
         // Elites keep V7.4's 1 s/s drain, so their budget is charged the pre-S5
         // shared floor: the S5 floor lengthens the stun, never the elite's poise cost.
-        foreach (string id in new[] { "combo_1", "combo_2", "combo_3",
+        foreach (string id in new[] { "combo_1", "combo_2", "combo_3", BasicComboRules.AirAttackHitboxID,
                      BasicComboRules.UpAttackHitboxID, BasicComboRules.DownAirHitboxID }) {
             AssertThat(StoryEnemyCombatRules.EliteBudgetStunFloorFrames(id))
                 .IsEqual(BasicComboRules.EnemyBasicStunFloorFrames);

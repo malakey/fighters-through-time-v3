@@ -238,8 +238,10 @@ namespace FTT.Characters.Abilities {
     /// frames. There is no glide. Holding the movement button when the rise
     /// ends starts the <b>Wing-Dive</b> — a steep forward descent for up to the
     /// authored <c>MovementDuration</c> (1 s); releasing the button ends it into
-    /// a normal fall, and pressing Attack during it ends it into her aerial
-    /// string (<c>PlayerController.ProcessUsingMovementAbility</c> reads
+    /// a normal fall, and pressing Attack during it ends it into her air
+    /// strike (GU-A, 2026-10-12: the single air strike replaced the aerial
+    /// string; Wings Refresh still keys on the grounded finisher)
+    /// (<c>PlayerController.ProcessUsingMovementAbility</c> reads
     /// <see cref="IsWingDiving"/>). The Fighter sim runs the same rise and dive
     /// (<c>FighterKitMotion.WingRise</c> / <c>WingDive</c>).
     /// </summary>
@@ -303,8 +305,8 @@ namespace FTT.Characters.Abilities {
         }
 
         /// <summary>
-        /// A08: Attack during the dive ends it; the owner then starts the aerial
-        /// string on the same frame. Returns true when a dive was cancelled.
+        /// A08: Attack during the dive ends it; the owner then starts the air
+        /// strike on the same frame (GU-A). Returns true when a dive was cancelled.
         /// </summary>
         public bool TryCancelDiveForAttack() {
             if (!_isDiving) return false;

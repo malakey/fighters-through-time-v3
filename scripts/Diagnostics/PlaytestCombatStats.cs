@@ -142,8 +142,8 @@ namespace FTT.Diagnostics {
     }
 
     /// <summary>
-    /// One active window of the hero's <c>MeleeHitbox</c> (a chain hit, an
-    /// aerial hit, the up-attack or the down-air). Opened by its first contact
+    /// One active window of the hero's <c>MeleeHitbox</c> (a chain hit, the
+    /// air strike, the up-attack or the down-air). Opened by its first contact
     /// or by the first telemetry tick that sees the box active, whichever comes
     /// first; closed by the first tick that sees the box inactive or carrying a
     /// different hit.
@@ -151,7 +151,7 @@ namespace FTT.Diagnostics {
     public sealed class SwingRecord {
         /// <summary>Telemetry frame the swing opened.</summary>
         public int F;
-        /// <summary>The hitbox's <c>HitboxID</c> (<c>combo_1..3</c>, <c>up_attack</c>, <c>down_air</c>).</summary>
+        /// <summary>The hitbox's <c>HitboxID</c> (<c>combo_1..3</c>, <c>air_attack</c> since GU-A, <c>up_attack</c>, <c>down_air</c>).</summary>
         public string Hit = "";
         /// <summary>The hero was airborne when the swing opened.</summary>
         public bool Air;

@@ -922,7 +922,6 @@ movelist_title,Move List
 movelist_title_for,"Move List — {0}"
 movelist_section_string,Basic String
 movelist_string_hit,"Hit {0}: {1}/{2}/{3} frames — {4:0.#} damage"
-movelist_aerial_startups,"Aerial startups: {0}/{1}/{2}"
 movelist_reach,"Reach: {0}% wide × {1}% tall of the standard hitbox"
 movelist_up_attack,"Up attack: {0}/{1}/{2} frames — {3:0.#} damage, vertical launcher"
 movelist_down_air,"Down air: {0}/{1}/{2} frames — {3:0.#} damage, aerial slam: spikes straight down, then one forced ground bounce"
@@ -1649,3 +1648,5 @@ hero_name_tubman,Tubman
 hero_address_tubman,Miss Tubman
 hero_possessive_tubman,Tubman's
 hero_home_era_tubman,Maryland
+# GU-A
+movelist_air_attack,"Air attack: {0}/{1}/{2} frames — {3:0.#} damage, one strike that never chains"
