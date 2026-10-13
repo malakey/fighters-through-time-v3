@@ -21,6 +21,18 @@ namespace FTT.Environment {
     /// mechanical, and the read-plan-execute tell that shows the player the goal.
     ///
     /// Locked encounter economy: 8 standards, 0 elites, 1 boss, 3 extractors.
+    ///
+    /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-L0): each of
+    /// the three approach rooms is an <see cref="EncounterLock"/> the hero must
+    /// clear — the Midway (700–3820, its fairground crowd spawning in as the hero
+    /// steps onto the midway), the Electricity Building floor (3840–5780; the
+    /// crown slasher, which stood on the unreachable crown, now holds the floor
+    /// under the descent) and the routing hall (6115–8290, which also needs the
+    /// beam routed; its exit barrier fills the Court of Honor door under its
+    /// column). One lock wave per manifest row. The Middle anchor moved from 6180
+    /// to the gap between the Electricity and routing locks (6000), the PreBoss
+    /// anchor from 8420 to 8500 (out of swing reach from inside the routing hall),
+    /// and every checkpoint lists the locks before it.</para>
     /// </summary>
     public partial class Level03Controller : StoryLevelControllerBase {
 
@@ -51,7 +63,7 @@ namespace FTT.Environment {
         protected override Vector2? SecretCachePosition => new(1000f, 997f);
 
         // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, after the PreBoss
-        // anchor (8420) on the court floor, 240 px short of the arena (9000).
+        // anchor (8500 since GU-L0) on the court floor, 240 px short of the arena (9000).
         protected override Vector2? RestorationFontPosition => new(8760f, GroundY);
 
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
@@ -130,11 +142,18 @@ namespace FTT.Environment {
             new("voltaic_shock_drone", new Vector2(2900, 900), 300f)
         };
 
-        /// <summary>Room 2 - Electricity Building climb.</summary>
+        /// <summary>
+        /// Room 2 - Electricity Building climb. GU-L0 (2026-10-13): the third
+        /// slasher used to stand on the crown platform (5240, 340), about 1060 px
+        /// above the floor route, outside its aggro radius, never coming down — a
+        /// member no lock could ever count as cleared. It now holds the floor
+        /// under the descent (5400), where the route runs; the crown keeps its
+        /// Extractor.
+        /// </summary>
         public static readonly EnemySpawn[] ElectricityWave = {
             new("chrono_slasher", new Vector2(4300, GroundY - 50), 320f),
             new("voltaic_shock_drone", new Vector2(4600, 640), 240f),
-            new("chrono_slasher", new Vector2(5240, 340), 0f)
+            new("chrono_slasher", new Vector2(5400, GroundY - 50), 250f)
         };
 
         /// <summary>Room 3 - Coil routing hall. Deliberately light: the puzzle is the room.</summary>
@@ -162,13 +181,74 @@ namespace FTT.Environment {
             ("level_03_extractor_2", new Vector2(7360, 880))
         };
 
+        // === GU-L0 (2026-10-13): the three encounter locks ==================
+
+        /// <summary>The F10 encounter IDs of the three locks (they start with the level ID).</summary>
+        public const string LockMidway = ChicagoLevelID + "_lock_midway";
+        public const string LockElectricity = ChicagoLevelID + "_lock_electricity";
+        public const string LockRoutingHall = ChicagoLevelID + "_lock_routing_hall";
+
+        /// <summary>The manifest rows the three lock waves are (level_03_rewards.tres).</summary>
+        public const string MidwayRowID = "level_03.midway";
+        public const string ElectricityRowID = "level_03.electricity";
+        public const string RoutingHallRowID = "level_03.routing_hall";
+
+        /// <summary>
+        /// The Midway lock: the fairground floor from past the entry anchor (240)
+        /// and the low stand (350–650; every lock edge sits in a gap between
+        /// platforms, so no barrier cuts one) to the Electricity seam. Its exit and
+        /// the Electricity lock's entry share the 20 px slot 3820–3840.
+        /// </summary>
+        public const float MidwayLockMinX = 700f;
+        public const float MidwayLockMaxX = ElectricityStartX - EncounterLockRules.DefaultBarrierWidthPixels;
+
+        /// <summary>
+        /// The Electricity lock: the dynamo hall from the seam to the gap under
+        /// the descent (between the 5620 and 5960 platforms, so its exit barrier
+        /// cuts no platform).
+        /// </summary>
+        public const float ElectricityLockMinX = ElectricityStartX;
+        public const float ElectricityLockMaxX = 5780f;
+
+        /// <summary>
+        /// The routing-hall lock: from the gap past the Middle anchor (between the
+        /// 5960 and 6240 platforms) to the Court of Honor door, whose puzzle it
+        /// also needs solved.
+        /// </summary>
+        public const float RoutingLockMinX = 6115f;
+        public const float RoutingLockMaxX = CourtDoorX - EncounterLockRules.DefaultBarrierWidthPixels * 0.5f;
+
+        /// <summary>The Court of Honor door's centre x (it stands on the routing hall's east edge).</summary>
+        public const float CourtDoorX = BossStartX - 20f;
+
+        /// <summary>
+        /// The Middle anchor, in the gap between the Electricity and routing locks
+        /// (it stood at 6180, inside the routing hall's area). Its strike surface
+        /// (5970–6030) lies past the roster's longest basic swing from a hero
+        /// pressed against the Electricity lock's closed exit (pivot 5760).
+        /// </summary>
+        public const float MiddleCheckpointX = 6000f;
+
+        /// <summary>
+        /// The PreBoss anchor (8420 before GU-L0): its strike surface (8470–8530)
+        /// lies past the longest basic swing from a hero pressed against the
+        /// routing hall's closed exit barrier (pivot 8270) or the Court door
+        /// (pivot 8260); the guard refuses it anyway until the hall is cleared.
+        /// </summary>
+        public const float PreBossCheckpointX = 8500f;
+
+        private EncounterLock _midwayLock;
+        private EncounterLock _electricityLock;
+        private EncounterLock _routingLock;
+
+        public EncounterLock MidwayLock => _midwayLock;
+        public EncounterLock ElectricityLock => _electricityLock;
+        public EncounterLock RoutingHallLock => _routingLock;
+
         // === Runtime ===
 
         private PuzzleManager _beamPuzzle;
         private StaticBody2D _courtDoor;
-        private bool _midwayWaveSpawned;
-        private bool _electricityWaveSpawned;
-        private bool _routingWaveSpawned;
 
         private readonly List<(PowerRoutingNode Tap, StoryCyclicHazard Hazard)> _crowdTaps = new();
 
@@ -186,6 +266,74 @@ namespace FTT.Environment {
             BuildRoutingHall();
             BuildCourtOfHonor();
             BuildExtractors(ExtractorPlacements);
+            BuildEncounterLocks();
+        }
+
+        /// <summary>
+        /// GU-L0: the three approach rooms as encounter locks, one wave per
+        /// manifest row. Built here — before the resume baseline is applied — so a
+        /// resume past a lock builds it Cleared with no member ever spawned.
+        /// </summary>
+        private void BuildEncounterLocks() {
+            float halfBarrier = EncounterLockRules.DefaultBarrierWidthPixels * 0.5f;
+            // The Midway crowd arrives as the hero steps onto the fairground (it
+            // used to spawn from a trigger at 760); the two ground rooms keep the
+            // room cameras' bottom-anchored framing.
+            _midwayLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockMidway,
+                Area = EncounterLockSpec.Span(MidwayLockMinX, MidwayLockMaxX, LevelHeight),
+                CameraBounds = new Rect2(MidwayLockMinX, GroundRoomCameraTop,
+                    MidwayLockMaxX - MidwayLockMinX, LevelHeight - GroundRoomCameraTop),
+                EntryBarrierX = MidwayLockMinX - halfBarrier,
+                ExitBarrierX = MidwayLockMaxX + halfBarrier,
+                BarrierFloorY = GroundY,
+                Waves = new[] { WaveFrom(MidwayRowID, MidwayWave, EncounterWaveTrigger.OnEngage) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            // The dynamo hall's defenders stand waiting on its floor and climb.
+            _electricityLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockElectricity,
+                Area = EncounterLockSpec.Span(ElectricityLockMinX, ElectricityLockMaxX, LevelHeight),
+                EntryBarrierX = ElectricityLockMinX - halfBarrier,
+                ExitBarrierX = ElectricityLockMaxX + halfBarrier,
+                BarrierFloorY = GroundY,
+                Waves = new[] { WaveFrom(ElectricityRowID, ElectricityWave, EncounterWaveTrigger.OnBuild) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            // The routing hall: its guards, and the beam routed into the receiver.
+            // The exit barrier fills the Court of Honor door under its column; the
+            // routing objective stays the level's own (no lock objective).
+            _routingLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockRoutingHall,
+                Area = EncounterLockSpec.Span(RoutingLockMinX, RoutingLockMaxX, LevelHeight),
+                CameraBounds = new Rect2(RoutingLockMinX, GroundRoomCameraTop,
+                    RoutingLockMaxX - RoutingLockMinX, LevelHeight - GroundRoomCameraTop),
+                EntryBarrierX = RoutingLockMinX - halfBarrier,
+                ExitBarrierX = CourtDoorX,
+                ExitBarrierYRange = new Vector2(GroundY - CourtDoorHeight, GroundY),
+                BarrierFloorY = GroundY,
+                Waves = new[] { WaveFrom(RoutingHallRowID, RoutingHallWave, EncounterWaveTrigger.OnBuild) },
+                RequiredPuzzleIDs = new[] { BeamPuzzleID },
+                GoDirection = EncounterGoDirection.Right
+            });
+        }
+
+        /// <summary>One lock wave from an authored spawn table (a patrol radius becomes the patrol pair).</summary>
+        private static EncounterLockWave WaveFrom(string rowID, EnemySpawn[] table, EncounterWaveTrigger trigger) {
+            var spawns = new EncounterLockSpawn[table.Length];
+            for (int index = 0; index < table.Length; index++) {
+                EnemySpawn spawn = table[index];
+                Vector2? patrolA = null;
+                Vector2? patrolB = null;
+                if (spawn.PatrolRadius > 0f) {
+                    patrolA = spawn.Position - new Vector2(spawn.PatrolRadius, 0);
+                    patrolB = spawn.Position + new Vector2(spawn.PatrolRadius, 0);
+                }
+                spawns[index] = new EncounterLockSpawn(spawn.EnemyID, spawn.Position, patrolA, patrolB);
+            }
+            return new EncounterLockWave { RowID = rowID, Spawns = spawns, Trigger = trigger };
         }
 
         private void BuildMidway() {
@@ -205,12 +353,8 @@ namespace FTT.Environment {
 
             BuildCheckpoint(240, GroundY - 50, CheckpointEntry, CheckpointRole.Entry);
             BuildRoomDecoration(MidwayStartX, "chicago_room_midway", new Color(0.6f, 0.82f, 1f));
-
-            BuildWaveTrigger("MidwayWaveTrigger", new Vector2(760, GroundY - 200), () => {
-                if (_midwayWaveSpawned) return;
-                _midwayWaveSpawned = true;
-                SpawnWave(MidwayWave);
-            }, new Vector2(60, 600));
+            // GU-L0: the Midway wave is the Midway lock's (it spawns as the hero
+            // engages, where the wave trigger at 760 used to fire).
         }
 
         /// <summary>Room 2 - the level's vertical section, a climb up the dynamo hall.</summary>
@@ -233,7 +377,9 @@ namespace FTT.Environment {
             BuildPlatform(5960, 820, 240);
             BuildPlatform(6240, 1080, 220);
 
-            BuildCheckpoint(6180, GroundY - 50, CheckpointMid, CheckpointRole.Middle);
+            // GU-L0: the Middle anchor stands in the gap between the Electricity
+            // and routing locks (it stood at 6180, inside the routing hall's area).
+            BuildCheckpoint(MiddleCheckpointX, GroundY - 50, CheckpointMid, CheckpointRole.Middle);
             BuildRoomDecoration(ElectricityStartX, "chicago_room_electricity", new Color(0.5f, 0.9f, 1f));
 
             BuildRoomTransitionPair(
@@ -243,12 +389,7 @@ namespace FTT.Environment {
 
             // Package 13 W4 (S23): the powerhouse, and Tesla's coat still on the hook.
             BuildAbsenceTrigger(new Vector2(3900, GroundY - 200), new Vector2(60, 600));
-
-            BuildWaveTrigger("ElectricityWaveTrigger", new Vector2(3990, GroundY - 200), () => {
-                if (_electricityWaveSpawned) return;
-                _electricityWaveSpawned = true;
-                SpawnWave(ElectricityWave);
-            }, new Vector2(60, 600));
+            // GU-L0: the Electricity wave is the Electricity lock's (pre-placed).
         }
 
         /// <summary>
@@ -276,9 +417,9 @@ namespace FTT.Environment {
             // 680, so P5 (2026-10-04) seals everything above the door with a
             // permanent gate column. The routing puzzle opens the door; nothing
             // ever opens the sky over it.
-            _courtDoor = BuildDoor("CourtOfHonorDoor", new Vector2(BossStartX - 20, GroundY),
+            _courtDoor = BuildDoor("CourtOfHonorDoor", new Vector2(CourtDoorX, GroundY),
                 "chicago_door_sealed", new Vector2(CourtDoorWidth, CourtDoorHeight), CourtDoorColor);
-            BuildGateColumn(BossStartX - 20, CourtDoorWidth, GroundY - CourtDoorHeight, CourtDoorColor);
+            BuildGateColumn(CourtDoorX, CourtDoorWidth, GroundY - CourtDoorHeight, CourtDoorColor);
 
             BuildRoomTransitionPair(
                 RoutingStartX, "chicago_room_routing", "chicago_room_electricity",
@@ -289,12 +430,7 @@ namespace FTT.Environment {
                         SetObjective("chicago_objective_reroute");
                     }
                 });
-
-            BuildWaveTrigger("RoutingWaveTrigger", new Vector2(6560, GroundY - 200), () => {
-                if (_routingWaveSpawned) return;
-                _routingWaveSpawned = true;
-                SpawnWave(RoutingHallWave);
-            }, new Vector2(60, 600));
+            // GU-L0: the routing-hall wave is the routing lock's (pre-placed).
         }
 
         /// <summary>
@@ -313,7 +449,9 @@ namespace FTT.Environment {
             BuildPlatform(8720, 1060, 300, new Color(0.42f, 0.34f, 0.18f));
             BuildPlatform(9840, 1060, 300, new Color(0.42f, 0.34f, 0.18f));
 
-            BuildCheckpoint(8420, GroundY - 50, CheckpointPreBoss, CheckpointRole.PreBoss);
+            // GU-L0: 8420 -> 8500, out of basic-swing reach from inside the
+            // routing hall's lock (its exit barrier and the door are at 8280-8320).
+            BuildCheckpoint(PreBossCheckpointX, GroundY - 50, CheckpointPreBoss, CheckpointRole.PreBoss);
             BuildRoomDecoration(BossStartX, "chicago_room_boss", new Color(1f, 0.45f, 0.35f));
 
             BuildRoomTransition("chicago_room_boss", new Vector2(BossStartX + 80, GroundY - 400),
@@ -424,6 +562,8 @@ namespace FTT.Environment {
             if (_beamPuzzle.IsCompleted || ResumedCheckpointID == CheckpointPreBoss) {
                 OpenCourtDoor(announce: false);
             }
+            // GU-L0: a resume past a lock starts on the objective of the room ahead.
+            if (ResumedMidLevel) RefreshApproachObjective();
         }
 
         /// <summary>
@@ -451,7 +591,34 @@ namespace FTT.Environment {
 
         private void OpenCourtDoor(bool announce) {
             bool opened = OpenDoor(ref _courtDoor);
-            if (announce && opened) SetObjective("chicago_objective_reach_boss");
+            if (!announce || !opened) return;
+            // GU-L0: the door is open but the routing hall's barrier holds until
+            // its guards are down too; the clear hands the "press on" back.
+            if (_routingLock != null && IsInstanceValid(_routingLock) && _routingLock.IsHolding) {
+                SetObjective("encounter_lock_objective_clear");
+            } else {
+                SetObjective("chicago_objective_reach_boss");
+            }
+        }
+
+        /// <summary>GU-L0: a cleared or reverted lock hands the objective back to the room ahead.</summary>
+        protected override void RestoreLevelObjective() => RefreshApproachObjective();
+
+        /// <summary>
+        /// The approach objective from live state: the Court once its door and
+        /// the routing hall are open, the routing puzzle once the Electricity
+        /// Building is behind the hero, else the fairgrounds.
+        /// </summary>
+        private void RefreshApproachObjective() {
+            if (IsBossDefeated) return;
+            bool routingHolds = _routingLock != null && IsInstanceValid(_routingLock) && _routingLock.IsHolding;
+            if (CourtDoorOpen && !routingHolds) SetObjective("chicago_objective_reach_boss");
+            else if (CourtDoorOpen) SetObjective("encounter_lock_objective_clear");
+            else if (_electricityLock != null && IsInstanceValid(_electricityLock) && !_electricityLock.IsHolding) {
+                SetObjective("chicago_objective_reroute");
+            } else {
+                SetObjective(InitialObjectiveKey);
+            }
         }
 
         /// <summary>
@@ -470,49 +637,25 @@ namespace FTT.Environment {
         }
 
         // === Encounters ===
+        //
+        // GU-L0 (2026-10-13): every encounter is a lock wave (BuildEncounterLocks).
+        // Authored counts are the Normal-difficulty truth; the lock takes the same
+        // per-row ScaleEncounterCount prefix the reward manifest compiles, never
+        // more than the table.
 
-        // Package 12 W2 (GAP-13): the explicit encounter baseline replaces the
-        // old checkpoint switch. Chicago has no non-encounter anchor state, so
-        // MarkWavesClearedThrough is no longer overridden.
-
-        public const string MidwayWaveEncounter = ChicagoLevelID + "_midway_wave";
-        public const string ElectricityWaveEncounter = ChicagoLevelID + "_electricity_wave";
-        public const string RoutingWaveEncounter = ChicagoLevelID + "_routing_wave";
+        // Package 12 W2 (GAP-13): the explicit encounter baseline. GU-L0: the
+        // encounters are the three locks; every anchor lists every lock before
+        // it, and a resume builds those Cleared (Chicago has no non-encounter
+        // anchor state, so MarkWavesClearedThrough is not overridden; the
+        // PreBoss resume's open door is OnLevelReady's).
 
         private static readonly IReadOnlyDictionary<string, string[]> Baselines =
             new Dictionary<string, string[]> {
                 [CheckpointEntry] = Array.Empty<string>(),
-                [CheckpointMid] = new[] { MidwayWaveEncounter },
-                [CheckpointPreBoss] = new[] { MidwayWaveEncounter, ElectricityWaveEncounter, RoutingWaveEncounter }
+                [CheckpointMid] = new[] { LockMidway, LockElectricity },
+                [CheckpointPreBoss] = new[] { LockMidway, LockElectricity, LockRoutingHall }
             };
 
         protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
-
-        protected override void MarkEncounterCleared(string encounterID) {
-            switch (encounterID) {
-                case MidwayWaveEncounter: _midwayWaveSpawned = true; break;
-                case ElectricityWaveEncounter: _electricityWaveSpawned = true; break;
-                case RoutingWaveEncounter: _routingWaveSpawned = true; break;
-            }
-        }
-
-        /// <summary>
-        /// Authored counts are the Normal-difficulty budget; Hard can ask for more
-        /// than the table holds, so the table length is the hard ceiling.
-        /// </summary>
-        private void SpawnWave(EnemySpawn[] wave) {
-            int count = StoryDifficultyTuning.ScaleEncounterCount(
-                wave.Length, StoryDifficultyTuning.CurrentStoryDifficulty);
-            for (int index = 0; index < count && index < wave.Length; index++) {
-                EnemySpawn spawn = wave[index];
-                Vector2? patrolA = null;
-                Vector2? patrolB = null;
-                if (spawn.PatrolRadius > 0f) {
-                    patrolA = spawn.Position - new Vector2(spawn.PatrolRadius, 0);
-                    patrolB = spawn.Position + new Vector2(spawn.PatrolRadius, 0);
-                }
-                EnemyFactory.Spawn(spawn.EnemyID, this, spawn.Position, patrolA, patrolB);
-            }
-        }
     }
 }

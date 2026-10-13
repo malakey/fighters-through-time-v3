@@ -203,6 +203,143 @@ public class EncounterBaselineTests {
         }
     }
 
+    /// <summary>
+    /// GU-L0 (2026-10-13): Chicago's three locks are F10 encounter IDs. A resume at
+    /// the Middle anchor builds the Midway and the Electricity Building Cleared and
+    /// leaves the routing hall Armed, its guards dormant and its exit shut (the
+    /// Electricity wave used to stay dormant behind a hero resumed there, and
+    /// nothing re-armed it); a PreBoss resume builds all three Cleared with the
+    /// Court door open.
+    /// </summary>
+    [TestCase]
+    public void ResumingChicagoPastItsLocksBuildsThemClearedAndLeavesTheNextOneArmed() {
+        using (var fixture = new ResumedSceneFixture<Level03Controller>(
+                   CampaignLevel.Chicago, Level03Controller.CheckpointMid)) {
+            Level03Controller level = fixture.Level;
+            AssertThat(level.ResumedMidLevel).IsTrue();
+            AssertThat(string.Join(",", level.AppliedEncounterBaseline))
+                .IsEqual($"{Level03Controller.LockMidway},{Level03Controller.LockElectricity}");
+            foreach (EncounterLock cleared in new[] { level.MidwayLock, level.ElectricityLock }) {
+                AssertThat(cleared.State).IsEqual(EncounterLockState.Cleared);
+                AssertThat(cleared.RestoredCleared).IsTrue();
+                AssertThat(cleared.RegisteredCount)
+                    .OverrideFailureMessage($"'{cleared.LockID}' spawned members a resume past it should never see.")
+                    .IsEqual(0);
+                AssertThat(cleared.ExitBarrier.IsClosed).IsFalse();
+            }
+            EncounterLock routing = level.RoutingHallLock;
+            AssertThat(routing.State).IsEqual(EncounterLockState.Armed);
+            AssertThat(routing.ExitBarrier.IsClosed).IsTrue();
+            AssertThat(routing.LivingMemberCount).IsEqual(routing.PlannedTotal);
+            foreach (FTT.Enemies.EnemyController member in routing.LivingMembers) AssertThat(member.IsEncounterDormant).IsTrue();
+            AssertThat(level.Player.GlobalPosition.X).IsEqual(Level03Controller.MiddleCheckpointX);
+        }
+        using (var fixture = new ResumedSceneFixture<Level03Controller>(
+                   CampaignLevel.Chicago, Level03Controller.CheckpointPreBoss)) {
+            foreach (EncounterLock encounterLock in fixture.Level.EncounterLocks) {
+                AssertThat(encounterLock.State).IsEqual(EncounterLockState.Cleared);
+                AssertThat(encounterLock.RegisteredCount).IsEqual(0);
+            }
+            AssertThat(fixture.Level.CourtDoorOpen).IsTrue();
+        }
+    }
+
+    /// <summary>
+    /// GU-L0 (2026-10-13): Florence's standalone locks follow the same baseline
+    /// rule. Its entry room used to respawn behind the hero on every resume; a
+    /// resume at the Middle anchor (past the workshop door) now builds the
+    /// streets, the piazza and the print shop Cleared and leaves the workshop
+    /// Armed, and the boss-room anchor builds all four Cleared.
+    /// </summary>
+    [TestCase]
+    public void ResumingFlorencePastItsLocksBuildsThemClearedAndLeavesTheNextOneArmed() {
+        using (var fixture = new ResumedSceneFixture<Level01Controller>(
+                   CampaignLevel.Florence, Level01Controller.MiddleCheckpointID)) {
+            Level01Controller level = fixture.Level;
+            AssertString(level.ResumedCheckpointID).IsEqual(Level01Controller.MiddleCheckpointID);
+            foreach (EncounterLock cleared in new[] { level.StreetsLock, level.PiazzaLock, level.PrintShopLock }) {
+                AssertThat(cleared.State).IsEqual(EncounterLockState.Cleared);
+                AssertThat(cleared.RestoredCleared).IsTrue();
+                AssertThat(cleared.RegisteredCount)
+                    .OverrideFailureMessage($"'{cleared.LockID}' spawned members a resume past it should never see.")
+                    .IsEqual(0);
+                AssertThat(cleared.ExitBarrier.IsClosed).IsFalse();
+                AssertThat(cleared.EntryBarrier.IsClosed).IsFalse();
+            }
+            EncounterLock workshop = level.WorkshopLock;
+            AssertThat(workshop.State).IsEqual(EncounterLockState.Armed);
+            AssertThat(workshop.ExitBarrier.IsClosed).IsTrue();
+            var hero = level.GetNode<FTT.Characters.PlayerController>("Player");
+            AssertThat(hero.GlobalPosition.X).IsEqual(Level01Controller.MiddleCheckpointX);
+        }
+        using (var fixture = new ResumedSceneFixture<Level01Controller>(
+                   CampaignLevel.Florence, Level01Controller.BossRoomCheckpointID)) {
+            foreach (EncounterLock encounterLock in fixture.Level.EncounterLocks) {
+                AssertThat(encounterLock.State).IsEqual(EncounterLockState.Cleared);
+                AssertThat(encounterLock.RegisteredCount).IsEqual(0);
+            }
+        }
+    }
+
+    /// <summary>
+    /// GU-L0: a real campaign scene resumed at an anchor through a scratch save,
+    /// in the Orléans fixture's image (any controller type).
+    /// </summary>
+    private sealed class ResumedSceneFixture<T> : IDisposable where T : Node {
+        public readonly T Level;
+        private readonly int _originalSlot;
+        private readonly string _originalCharacter;
+        private readonly Difficulty _originalDifficulty;
+        private readonly CampaignLevel _originalLevel;
+        private readonly StorySaveData _originalSave;
+        private readonly bool _originalPaused;
+
+        public ResumedSceneFixture(CampaignLevel campaignLevel, string checkpointID) {
+            var tree = (SceneTree)Engine.GetMainLoop();
+            StoryManager story = StoryManager.Instance;
+            _originalPaused = tree.Paused;
+            _originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+            _originalCharacter = GameManager.Instance.CurrentSession.SelectedCharacterID;
+            _originalDifficulty = GameManager.Instance.CurrentSession.Difficulty;
+            _originalLevel = story.CurrentLevel;
+            _originalSave = SaveManager.Instance.SaveSlots[ScratchSlot];
+
+            story.PrepareDirectLevel(campaignLevel, "einstein", Difficulty.Normal);
+            SaveManager.Instance.SaveSlots[ScratchSlot] = new StorySaveData {
+                SelectedCharacterID = "einstein",
+                CurrentLevelID = StoryManager.GetLevelScenePath(campaignLevel),
+                LastCheckpointID = checkpointID,
+                CurrentHP = 100,
+                CurrentUltimateMeter = 0f,
+                Difficulty = Difficulty.Normal
+            };
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = ScratchSlot;
+            story.BeginLevelRun(resumeAttempt: true);
+
+            Level = ResourceLoader.Load<PackedScene>(StoryManager.GetLevelScenePath(campaignLevel)).Instantiate<T>();
+            Level.Name = $"EncounterBaseline{campaignLevel}";
+            tree.Root.AddChild(Level);
+        }
+
+        public void Dispose() {
+            PoolManager.Instance?.ReleaseActiveInGroup("Enemies");
+            if (GodotObject.IsInstanceValid(Level)) {
+                Level.GetParent()?.RemoveChild(Level);
+                Level.Free();
+            }
+            StoryManager story = StoryManager.Instance;
+            story.PrepareDirectLevel(_originalLevel,
+                string.IsNullOrEmpty(_originalCharacter) ? "einstein" : _originalCharacter, _originalDifficulty);
+            story.ClearLevelAttemptState();
+            story.StopLevelRun();
+            SaveManager.Instance.SaveSlots[ScratchSlot] = _originalSave;
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = _originalSlot;
+            GameManager.Instance.CurrentSession.SelectedCharacterID = _originalCharacter;
+            GameManager.Instance.CurrentSession.Difficulty = _originalDifficulty;
+            ((SceneTree)Engine.GetMainLoop()).Paused = _originalPaused;
+        }
+    }
+
     /// <summary>The real Orléans scene resumed at an anchor, in the Globe fixture's image.</summary>
     private sealed class OrleansFixture : IDisposable {
         public readonly Level02Controller Level;

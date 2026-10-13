@@ -225,6 +225,60 @@ public class RewardManifestTests {
     }
 
     /// <summary>
+    /// GU-L0 (2026-10-13): Florence's entry room became two encounter locks, so its
+    /// <c>level_01.room1@5</c> row split into <c>room1a@3</c> (the streets) and
+    /// <c>room1b@2</c> (the piazza), each the matching lock's table. The split keeps
+    /// the room exactly: on every difficulty the two rows' spawnable sources are
+    /// the old row's prefix as a multiset (Easy two slashers and a guard; Normal
+    /// and Hard all five), the required pool still pays 25, and the old row is gone.
+    /// </summary>
+    [TestCase]
+    public void FlorencesSplitEntryRowsKeepTheEntryRoomsCompositionOnEveryDifficulty() {
+        LevelRewardManifest manifest = Load((int)CampaignLevel.Florence);
+        string[] oldRoom = { "chrono_slasher", "chrono_slasher", "cyber_guard", "cyber_guard", "steam_automaton" };
+        var issues = new List<string>();
+        var rows = new Dictionary<string, string[]>(System.StringComparer.Ordinal);
+        foreach ((string head, string[] enemyIDs) in manifest.ParseWaves()) rows[head] = enemyIDs;
+        if (rows.ContainsKey("level_01.room1@5")) issues.Add("the old level_01.room1@5 row is still authored");
+        if (!rows.TryGetValue("level_01.room1a@3", out string[] streets)) issues.Add("no level_01.room1a@3 row");
+        if (!rows.TryGetValue("level_01.room1b@2", out string[] piazza)) issues.Add("no level_01.room1b@2 row");
+        if (streets != null && string.Join(",", streets) != string.Join(",", Level01SpawnIDs(Level01Controller.Room1aSpawns))) {
+            issues.Add($"room1a is [{string.Join(",", streets)}], the streets lock spawns [{string.Join(",", Level01SpawnIDs(Level01Controller.Room1aSpawns))}]");
+        }
+        if (piazza != null && string.Join(",", piazza) != string.Join(",", Level01SpawnIDs(Level01Controller.Room1bSpawns))) {
+            issues.Add($"room1b is [{string.Join(",", piazza)}], the piazza lock spawns [{string.Join(",", Level01SpawnIDs(Level01Controller.Room1bSpawns))}]");
+        }
+        foreach (Difficulty difficulty in Difficulties) {
+            LevelRewardLedger ledger = LevelRewardDirectory.Compile(manifest, difficulty);
+            var split = new List<string>();
+            int required = 0;
+            foreach (KeyValuePair<string, IReadOnlyList<string>> queue in ledger.EnemyQueues) {
+                foreach (string sourceID in queue.Value) {
+                    if (sourceID.StartsWith("level_01.room1a#", System.StringComparison.Ordinal)
+                        || sourceID.StartsWith("level_01.room1b#", System.StringComparison.Ordinal)) split.Add(queue.Key);
+                    required += ledger.Award(sourceID);
+                }
+            }
+            var expected = new List<string>(oldRoom[..System.Math.Min(oldRoom.Length,
+                StoryDifficultyTuning.ScaleEncounterCount(oldRoom.Length, difficulty))]);
+            split.Sort(System.StringComparer.Ordinal);
+            expected.Sort(System.StringComparer.Ordinal);
+            if (string.Join(",", split) != string.Join(",", expected)) {
+                issues.Add($"{difficulty}: the split rows spawn [{string.Join(",", split)}], the entry room spawned [{string.Join(",", expected)}]");
+            }
+            if (required != 25) issues.Add($"{difficulty}: the required sources pay {required}, not 25");
+        }
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
+    private static List<string> Level01SpawnIDs(
+        (string EnemyID, Godot.Vector2 Position, Godot.Vector2? PatrolA, Godot.Vector2? PatrolB)[] table) {
+        var ids = new List<string>();
+        foreach ((string enemyID, Godot.Vector2 _, Godot.Vector2? _, Godot.Vector2? _) in table) ids.Add(enemyID);
+        return ids;
+    }
+
+    /// <summary>
     /// The enemy the Level 5 Eraser debut really spawns: the default of a freshly
     /// constructed trigger, which is exactly what <c>Level05Controller</c> builds
     /// (it sets no <c>EnemyID</c> override).

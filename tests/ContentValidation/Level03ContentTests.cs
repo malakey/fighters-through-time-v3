@@ -383,7 +383,210 @@ public class Level03ContentTests {
         AssertThat(inventor.CurrentHP < hp).IsTrue();
     }
 
+    // === GU-L0 (2026-10-13): the three encounter locks ===
+
+    /// <summary>
+    /// The Midway, the Electricity Building floor and the routing hall are
+    /// encounter locks, one wave per manifest row: the Midway crowd spawns in on
+    /// engage (it used to spawn from a trigger), the other two stand dormant from
+    /// the build, the routing hall also needs the beam routed and its exit barrier
+    /// fills the Court of Honor door under its column, and every later anchor
+    /// lists the locks before it. The crown slasher now holds the floor.
+    /// </summary>
+    [TestCase]
+    public void TheThreeApproachRoomsAreEncounterLocksOneWavePerManifestRow() {
+        using var fixture = new Level03Fixture(null);
+        Level03Controller level = fixture.Level;
+        try {
+            AssertThat(level.EncounterLocks.Count).IsEqual(3);
+            EncounterLock midway = level.MidwayLock;
+            EncounterLock electricity = level.ElectricityLock;
+            EncounterLock routing = level.RoutingHallLock;
+            AssertString(midway.LockID).IsEqual(Level03Controller.LockMidway);
+            AssertString(electricity.LockID).IsEqual(Level03Controller.LockElectricity);
+            AssertString(routing.LockID).IsEqual(Level03Controller.LockRoutingHall);
+
+            AssertThat(midway.Area.Position.X).IsEqual(700f);
+            AssertThat(midway.Area.End.X).IsEqual(3820f);
+            AssertThat(electricity.Area.Position.X).IsEqual(3840f);
+            AssertThat(electricity.Area.End.X).IsEqual(5780f);
+            AssertThat(routing.Area.Position.X).IsEqual(6115f);
+            AssertThat(routing.Area.End.X).IsEqual(8290f);
+
+            AssertString(midway.Spec.Waves[0].RowID).IsEqual(Level03Controller.MidwayRowID);
+            AssertString(electricity.Spec.Waves[0].RowID).IsEqual(Level03Controller.ElectricityRowID);
+            AssertString(routing.Spec.Waves[0].RowID).IsEqual(Level03Controller.RoutingHallRowID);
+            AssertThat(midway.Spec.Waves[0].Spawns.Length).IsEqual(Level03Controller.MidwayWave.Length);
+            AssertThat(electricity.Spec.Waves[0].Spawns.Length).IsEqual(Level03Controller.ElectricityWave.Length);
+            AssertThat(routing.Spec.Waves[0].Spawns.Length).IsEqual(Level03Controller.RoutingHallWave.Length);
+            AssertThat(midway.Spec.Waves[0].Trigger).IsEqual(EncounterWaveTrigger.OnEngage);
+            AssertThat(electricity.Spec.Waves[0].Trigger).IsEqual(EncounterWaveTrigger.OnBuild);
+            AssertThat(routing.Spec.Waves[0].Trigger).IsEqual(EncounterWaveTrigger.OnBuild);
+
+            // Armed at load, exits shut, entries open; the Midway's crowd waits to spawn.
+            foreach (EncounterLock encounterLock in level.EncounterLocks) {
+                AssertThat(encounterLock.State).IsEqual(EncounterLockState.Armed);
+                AssertThat(encounterLock.ExitBarrier.IsClosed).IsTrue();
+                AssertThat(encounterLock.EntryBarrier.IsClosed).IsFalse();
+            }
+            AssertThat(midway.LivingMemberCount).IsEqual(0);
+            AssertThat(electricity.LivingMemberCount).IsEqual(electricity.PlannedTotal);
+            AssertThat(routing.LivingMemberCount).IsEqual(routing.PlannedTotal);
+            foreach (EnemyController member in electricity.LivingMembers) AssertThat(member.IsEncounterDormant).IsTrue();
+
+            // The routing hall: the beam puzzle, and its exit fills the door under its column.
+            AssertThat(string.Join(",", routing.Spec.RequiredPuzzleIDs)).IsEqual(Level03Controller.BeamPuzzleID);
+            AssertThat(routing.ExitBarrier.CenterX).IsEqual(Level03Controller.CourtDoorX);
+            AssertThat(routing.ExitBarrier.TopY).IsEqual(Level03Controller.GroundY - 720f);
+            AssertThat(routing.ExitBarrier.BottomY).IsEqual(Level03Controller.GroundY);
+
+            // The crown slasher (5240, 340) stood ~1060 px above the floor route and
+            // never came down; it now holds the floor inside the Electricity lock.
+            Level03Controller.EnemySpawn moved = Level03Controller.ElectricityWave[2];
+            AssertString(moved.EnemyID).IsEqual("chrono_slasher");
+            AssertThat(moved.Position.Y).IsEqual(Level03Controller.GroundY - 50f);
+            AssertThat(moved.Position.X > electricity.Area.Position.X && moved.Position.X < electricity.Area.End.X).IsTrue();
+
+            IReadOnlyDictionary<string, string[]> baselines = level.AuthoredEncounterBaselines;
+            AssertThat(baselines[Level03Controller.CheckpointEntry].Length).IsEqual(0);
+            AssertThat(string.Join(",", baselines[Level03Controller.CheckpointMid]))
+                .IsEqual($"{Level03Controller.LockMidway},{Level03Controller.LockElectricity}");
+            AssertThat(string.Join(",", baselines[Level03Controller.CheckpointPreBoss]))
+                .IsEqual($"{Level03Controller.LockMidway},{Level03Controller.LockElectricity},{Level03Controller.LockRoutingHall}");
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+        }
+    }
+
+    /// <summary>
+    /// The Middle anchor (6180 before) and the PreBoss anchor (8420 before) stand
+    /// outside every lock, past the locks their baselines list and out of the
+    /// roster's longest basic swing from a hero pressed against those locks'
+    /// closed exits (the guard refuses them anyway until the locks clear).
+    /// </summary>
+    [TestCase]
+    public void TheMiddleAndPreBossAnchorsStandBetweenTheLocksOutOfSwingReach() {
+        using var fixture = new Level03Fixture(null);
+        Level03Controller level = fixture.Level;
+        try {
+            CheckpointTrigger middle = level.GetNode<CheckpointTrigger>($"Checkpoint_{Level03Controller.CheckpointMid}");
+            CheckpointTrigger preBoss = level.GetNode<CheckpointTrigger>($"Checkpoint_{Level03Controller.CheckpointPreBoss}");
+            AssertThat(middle.GlobalPosition.X).IsEqual(Level03Controller.MiddleCheckpointX);
+            AssertThat(preBoss.GlobalPosition.X).IsEqual(Level03Controller.PreBossCheckpointX);
+            foreach (CheckpointTrigger anchor in new[] { middle, preBoss }) {
+                foreach (EncounterLock encounterLock in level.EncounterLocks) {
+                    bool inside = anchor.GlobalPosition.X + 30f > encounterLock.Area.Position.X
+                        && anchor.GlobalPosition.X - 30f < encounterLock.Area.End.X;
+                    AssertThat(inside)
+                        .OverrideFailureMessage($"{anchor.CheckpointID} stands inside '{encounterLock.LockID}'.").IsFalse();
+                }
+                AssertThat(anchor.IsHeldByEncounterLock)
+                    .OverrideFailureMessage($"{anchor.CheckpointID} can be struck before its locks are cleared.").IsTrue();
+            }
+            float reach = LongestBasicSwingPixels();
+            float electricityPivot = level.ElectricityLock.ExitBarrier.Footprint.Position.X - HeroHalfWidthPixels;
+            AssertThat(electricityPivot + reach < middle.GlobalPosition.X - 30f)
+                .OverrideFailureMessage($"A swing from the Electricity lock reaches x {electricityPivot + reach:0}.").IsTrue();
+            // The routing hall ends at the Court door (west face 8280); its barrier's
+            // west face (8290) is the worst case, once the beam has opened the door.
+            float routingPivot = level.RoutingHallLock.ExitBarrier.Footprint.Position.X - HeroHalfWidthPixels;
+            AssertThat(routingPivot + reach < preBoss.GlobalPosition.X - 30f)
+                .OverrideFailureMessage($"A swing from the routing hall reaches x {routingPivot + reach:0}.").IsTrue();
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+        }
+    }
+
+    /// <summary>
+    /// On the real scene in real physics frames: the Midway's crowd spawns in, awake,
+    /// the moment the hero steps onto the fairground; and the routing hall clears
+    /// only when its guards are down AND the beam reaches the receiver — then the
+    /// door and both barriers are open and the PreBoss anchor is no longer held.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task TheMidwaySpawnsOnEngageAndTheRoutingHallNeedsTheBeamAsWellAsItsGuards() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        bool originalPaused = tree.Paused;
+        using var fixture = new Level03Fixture(null);
+        Level03Controller level = fixture.Level;
+        FTT.Characters.PlayerController player = level.Player;
+        try {
+            for (int frame = 0; frame < 2; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            DialogueManager dialogue = DialogueManager.Instance;
+            for (int advance = 0; advance < 200 && dialogue != null && dialogue.IsSequenceActive; advance++) dialogue.AdvanceLine();
+            AssertThat(tree.Paused).IsFalse();
+
+            EncounterLock midway = level.MidwayLock;
+            player.GlobalPosition = new Vector2(1000f, Level03Controller.GroundY - 50f);
+            player.Velocity = Vector2.Zero;
+            for (int frame = 0; frame < 4; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(midway.State).IsEqual(EncounterLockState.Engaged);
+            AssertThat(midway.LivingMemberCount).IsEqual(midway.PlannedTotal);
+            AssertThat(midway.LivingMemberCount).IsGreater(0);
+            foreach (EnemyController member in midway.LivingMembers) AssertThat(member.IsEncounterDormant).IsFalse();
+
+            // The hero stands past the Midway and the Electricity Building (cleared,
+            // as a run reaching the routing hall has them).
+            midway.RestoreCleared();
+            level.ElectricityLock.RestoreCleared();
+            CheckpointTrigger preBoss = level.GetNode<CheckpointTrigger>($"Checkpoint_{Level03Controller.CheckpointPreBoss}");
+
+            EncounterLock routing = level.RoutingHallLock;
+            player.GlobalPosition = new Vector2(6600f, Level03Controller.GroundY - 50f);
+            player.Velocity = Vector2.Zero;
+            for (int frame = 0; frame < 4; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(routing.State).IsEqual(EncounterLockState.Engaged);
+            AssertThat(routing.EntryBarrier.IsClosed).IsTrue();
+            AssertThat(preBoss.IsHeldByEncounterLock).IsTrue();
+
+            foreach (EnemyController member in routing.LivingMembers) member.TakeDamage(99999);
+            for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(routing.State)
+                .OverrideFailureMessage("The routing hall must hold while the beam still feeds the crowd.")
+                .IsEqual(EncounterLockState.Engaged);
+            AssertThat(level.CourtDoorOpen).IsFalse();
+
+            AssertThat(level.SolveBeamPuzzleForTest()).IsTrue();
+            for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(level.CourtDoorOpen).IsTrue();
+            AssertThat(routing.State).IsEqual(EncounterLockState.Cleared);
+            AssertThat(routing.EntryBarrier.IsClosed).IsFalse();
+            AssertThat(routing.ExitBarrier.IsClosed).IsFalse();
+            AssertThat(preBoss.IsHeldByEncounterLock).IsFalse();
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+            tree.Paused = originalPaused;
+        }
+    }
+
     // === Helpers ===
+
+    /// <summary>The 40 px hero body's half-width.</summary>
+    private const float HeroHalfWidthPixels = 20f;
+
+    /// <summary>
+    /// The farthest a Story basic string hit reaches in front of the pivot over the
+    /// whole roster — every step's far edge from the Story box resolver, at each
+    /// hero's reach profile with every AttackRange minor of its grid bought (the
+    /// FIX-E measure in Level02ContentTests).
+    /// </summary>
+    private static float LongestBasicSwingPixels() {
+        float longest = 0f;
+        foreach (string id in CharacterRoster.IDs) {
+            float minor = 0f;
+            ResonanceGridData grid = ResonanceProgression.LoadGrid(id);
+            foreach (ResonanceNodeData node in grid?.Nodes ?? Array.Empty<ResonanceNodeData>()) {
+                if (node != null && node.StatModifierKey == ResonanceStatKeys.AttackRange) minor += node.StatModifierValue;
+            }
+            FTT.Combat.BasicStringProfile profile = FTT.Combat.BasicComboRules.StringProfileFor(id);
+            for (int step = 0; step < FTT.Combat.BasicComboRules.StringBoxHalfWidthUnits.Length; step++) {
+                FTT.Characters.PlayerController.ResolveGroundStringBoxPixels(step, profile, 1f + minor,
+                    out Vector2 size, out Vector2 offset);
+                longest = Mathf.Max(longest, offset.X + size.X * 0.5f);
+            }
+        }
+        return longest;
+    }
 
     private static void AssertLocalized(string key) {
         AssertThat(TranslationServer.Translate(key).ToString() != key)

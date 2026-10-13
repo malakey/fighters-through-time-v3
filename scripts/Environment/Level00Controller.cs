@@ -24,6 +24,17 @@ namespace FTT.Environment {
     /// meter and spends it refusing a scripted lethal hit with the F13 seal
     /// going lit → broken on screen. Part 3's traversal is authored for base
     /// jump reach alone; its movement-ability corridor is gone.</para>
+    ///
+    /// <para><b>The Combat Trial is an encounter lock</b> (gameplay update
+    /// 2026-10-12, GU-L0): one standalone <see cref="EncounterLock"/> over the
+    /// bay's east end (<see cref="TrialLockMinX"/>–<see cref="CalibrationBayEastWallX"/>),
+    /// built when the trial starts, its two waves spawning as the hero walks in
+    /// and once the first is down. Its clear completes the tutorial, replacing the
+    /// global kill counter that also counted the grab lesson's drone (now
+    /// released after its lesson). The roll gate, the trial anchor and the
+    /// Restoration Font moved west of the lock. The hold stays scripted, and the
+    /// Time Freeze drill stays exempt: its point is passing an enemy that cannot
+    /// be killed.</para>
     /// </summary>
     public partial class Level00Controller : Node2D {
         /// <summary>
@@ -90,8 +101,6 @@ namespace FTT.Environment {
         private const int DefyBeatDelayFrames = 120;
         private int _defyCountdownFrames = -1;
 
-        private int _enemiesKilled;
-        private int _totalEnemies;
         private bool _levelComplete;
 
         public override void _Ready() {
@@ -188,6 +197,9 @@ namespace FTT.Environment {
 
         /// <summary>The top of the Calibration Bay floor (BuildFloor's collision starts here).</summary>
         public const float TutorialFloorTopY = 900f;
+        /// <summary>The Calibration Bay's size (the camera's limits and the trial lock's level bounds).</summary>
+        public const float BayWidth = 4800f;
+        public const float BayHeight = 1080f;
         /// <summary>BuildPlatform's slab thickness.</summary>
         public const float TutorialPlatformThickness = 16f;
         /// <summary>The double-jump gate's first step: centre (1700, 780), top 772 — a 128 px single hop.</summary>
@@ -716,6 +728,9 @@ namespace FTT.Environment {
         }
 
         private void CompleteGrabLesson() {
+            // GU-L0: the drone leaves with its lesson (it used to stay behind as a
+            // live hostile, and the trial's kill counter counted it).
+            _grabDroneDismissFrames = GrabDroneDismissFrames;
             // "Grabs beat blocks. Strikes beat grabs." — the follow-up names the
             // rule both ways before the next beat starts.
             _services.HUD?.SetObjective("tutorial_step_grab_complete");
@@ -724,6 +739,55 @@ namespace FTT.Environment {
                 BeginHitstunAgencyLesson();
             }
         }
+
+        /// <summary>
+        /// GU-L0 (2026-10-13): how long the grab lesson's drone may fly from the
+        /// throw before it is released to the pool (it is released as soon as it
+        /// lands). Provisional.
+        /// </summary>
+        internal const int GrabDroneDismissFrames = 90;
+
+        private int _grabDroneDismissFrames = -1;
+
+        /// <summary>The grab lesson's drone while it exists. Test seam.</summary>
+        public EnemyController GrabLessonDrone =>
+            _grabDummy != null && IsInstanceValid(_grabDummy) ? _grabDummy : null;
+
+        /// <summary>
+        /// GU-L0: once the grab lesson closes, its drone lands its throw and is
+        /// handed back to the pool — a dead drone (the throw can kill it) needs
+        /// nothing. Polled every physics frame.
+        /// </summary>
+        private void ProcessGrabDroneDismissal() {
+            if (_grabDroneDismissFrames < 0) return;
+            if (_grabDummy == null || !IsInstanceValid(_grabDummy) || _grabDummy.IsQueuedForDeletion()
+                || _grabDummy.CurrentState == EnemyState.Dead) {
+                _grabDroneDismissFrames = -1;
+                _grabDummy = null;
+                return;
+            }
+            if (_grabDroneDismissFrames > 0 && (_grabDummy.IsThrownFlight || _grabDummy.IsHeldByPlayer)) {
+                _grabDroneDismissFrames--;
+                return;
+            }
+            _grabDroneDismissFrames = -1;
+            EnemyController drone = _grabDummy;
+            _grabDummy = null;
+            // A pooled body outlives this scene: never hand one back held or
+            // wearing the lesson's guard.
+            _grabGuardUp = false;
+            if (_grabGuardVisual != null && IsInstanceValid(_grabGuardVisual)) _grabGuardVisual.QueueFree();
+            _grabGuardVisual = null;
+            drone.SetStoryRewindFrozen(false);
+            if (PoolManager.Instance != null) PoolManager.Instance.Release(drone);
+            else drone.QueueFree();
+        }
+
+        /// <summary>Test seam: opens the grab lesson (its drone and guard) without the earlier lessons.</summary>
+        internal void BeginGrabLessonForTesting() => BeginGrabLesson();
+
+        /// <summary>Test seam: closes the grab lesson as a resolved throw does.</summary>
+        internal void CompleteGrabLessonForTesting() => CompleteGrabLesson();
 
         // === V7.6 Hitstun Agency Calibration ============================
 
@@ -1038,7 +1102,10 @@ namespace FTT.Environment {
             // its own optional Wren drill when it is actually granted.
 
             // Roll gate: a marked strip the player must cross while rolling.
-            _rollGate = BuildGateZone("RollGate", new Vector2(3100, 850), new Vector2(200, 110),
+            // GU-L0: it stood at 3100, inside what is now the Combat Trial's
+            // lock; it moved west of it, so the trial opens with the hero outside
+            // the lock, beside its anchor and font.
+            _rollGate = BuildGateZone("RollGate", RollGatePosition, new Vector2(200, 110),
                 new Color(0.4f, 0.6f, 1f, 0.25f), "tutorial_gate_roll");
         }
 
@@ -1080,6 +1147,7 @@ namespace FTT.Environment {
             ProcessHoldFight();
             if (_phase == TutorialPhase.Rift && ZoneContainsPlayer(_riftGate)) TranslateToBay();
             ProcessRewindDemo();
+            ProcessGrabDroneDismissal();
             if (_phase == TutorialPhase.Calibration) {
                 // V7.6 beats. Each is phase-gated inside itself, so the order
                 // here is documentation, not control flow.
@@ -1088,6 +1156,7 @@ namespace FTT.Environment {
                 ProcessMeterAndDefyLesson();
             ProcessTimeFreezeDrill();
             }
+            if (_phase == TutorialPhase.CombatTrial) RefreshTrialObjective();
             if (_phase != TutorialPhase.Mobility || _player == null || !IsInstanceValid(_player)) return;
 
             if (!_doubleJumpGateCleared && ZoneContainsPlayer(_doubleJumpGate)) {
@@ -1145,13 +1214,14 @@ namespace FTT.Environment {
             AddChild(trigger);
         }
 
-        // === Combat trial ===
+        // === Combat trial (GU-L0: one encounter lock over the bay) ===
 
         private void BeginCombatTrial() {
             _phase = TutorialPhase.CombatTrial;
             AddCheckpoint("l00_checkpoint_trial", TrialCheckpointPosition);
             BuildRestorationFont();
-            SpawnWave1();
+            BuildTrialLock();
+            RefreshTrialObjective();
         }
 
         /// <summary>
@@ -1165,8 +1235,20 @@ namespace FTT.Environment {
 
         /// <summary>The mobility gates' checkpoint position.</summary>
         public static readonly Vector2 MobilityCheckpointPosition = new(1500, 850);
-        /// <summary>The Combat Trial's checkpoint position (the font's anchor).</summary>
-        public static readonly Vector2 TrialCheckpointPosition = new(3400, 850);
+
+        /// <summary>
+        /// The roll gate (GU-L0: it stood at 3100, inside what is now the trial's
+        /// lock; it sits west of it, past the double-jump steps).
+        /// </summary>
+        public static readonly Vector2 RollGatePosition = new(2150, 850);
+
+        /// <summary>
+        /// The Combat Trial's checkpoint position (the font's anchor). GU-L0: it
+        /// stood at 3400, inside what is now the trial's lock; it stands beside
+        /// the roll gate, west of the lock, where the trial begins.
+        /// </summary>
+        public static readonly Vector2 TrialCheckpointPosition = new(2300, 850);
+
         /// <summary>The Calibration Bay's east wall.</summary>
         public const float CalibrationBayEastWallX = 4780f;
 
@@ -1182,9 +1264,10 @@ namespace FTT.Environment {
         /// Part 1 home-era hold shares this space, so the font is built only when
         /// the Combat Trial starts — never during the hold, the calibration, the
         /// mobility gates or the Skip path (no Warden wellspring in the hero's own
-        /// era: the "two kinds of door" grammar).
+        /// era: the "two kinds of door" grammar). GU-L0: 4300 -> 2450, out of the
+        /// trial's lock (from 2580), 150 px past the trial anchor.
         /// </summary>
-        public static readonly Vector2 RestorationFontPosition = new(4300f, TutorialFloorTopY);
+        public static readonly Vector2 RestorationFontPosition = new(2450f, TutorialFloorTopY);
 
         /// <summary>The font the Combat Trial placed, or null before it. Test seam.</summary>
         public RestorationFont PlacedRestorationFont { get; private set; }
@@ -1198,62 +1281,122 @@ namespace FTT.Environment {
             AddChild(PlacedRestorationFont);
         }
 
-        private void SpawnWave1() {
-            _totalEnemies = StoryDifficultyTuning.ScaleEncounterCount(5, StoryDifficultyTuning.CurrentStoryDifficulty);
-            _enemiesKilled = 0;
-            UpdateWaveObjective("tutorial_objective_progress");
+        // === The trial's lock ===
 
-            Vector2[] spawns = {
-                new(1200, 850), new(1800, 850), new(2400, 850), new(3000, 700), new(3600, 850)
-            };
-            for (int index = 0; index < _totalEnemies && index < spawns.Length; index++) {
-                if (index == 2) {
-                    EnemyFactory.SpawnHologramDrone(this, spawns[index],
-                        waypointA: spawns[index] + new Vector2(-200, 0), waypointB: spawns[index] + new Vector2(200, 0));
-                } else {
-                    EnemyFactory.SpawnHologramDrone(this, spawns[index]);
-                }
-            }
-            _totalEnemies = Mathf.Min(_totalEnemies, spawns.Length);
+        /// <summary>
+        /// The trial lock's stable ID. Level 0 has no mid-level resume and no
+        /// checkpoint after the lock, so it never appears in a baseline.
+        /// </summary>
+        public const string TrialLockID = "level_00_tutorial_lock_combat_trial";
+
+        /// <summary>
+        /// The trial lock's west edge: the gap between the 2300 and 2700 platforms,
+        /// so the entry barrier (2560–2580) cuts neither; the bay's east wall is
+        /// its other side (2200 px).
+        /// </summary>
+        public const float TrialLockMinX = 2580f;
+
+        /// <summary>
+        /// The two wave tables' IDs. Level 0 pays no persistent dust and ships an
+        /// explicitly empty reward manifest (DustEconomyTests), so — unlike the
+        /// campaign's locks — these name no manifest row.
+        /// </summary>
+        public const string TrialWave1ID = "level_00.trial_wave_1";
+        public const string TrialWave2ID = "level_00.trial_wave_2";
+
+        /// <summary>
+        /// Wave 1: five hologram drones (Easy three), across the bay inside the
+        /// lock (they used to spawn from 1200 to 3600, most of them behind a hero
+        /// standing at 3100).
+        /// </summary>
+        public static readonly (string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] TrialWave1Spawns = {
+            ("hologram_drone", new Vector2(2950, 850), null, null),
+            ("hologram_drone", new Vector2(3350, 850), null, null),
+            ("hologram_drone", new Vector2(3750, 850), new Vector2(3550, 850), new Vector2(3950, 850)),
+            ("hologram_drone", new Vector2(4150, 700), null, null),
+            ("hologram_drone", new Vector2(4500, 850), null, null)
+        };
+
+        /// <summary>Wave 2, once wave 1 is down: three drones and a slasher (Easy two drones).</summary>
+        public static readonly (string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] TrialWave2Spawns = {
+            ("hologram_drone", new Vector2(3000, 850), null, null),
+            ("hologram_drone", new Vector2(3500, 600), null, null),
+            ("hologram_drone", new Vector2(4000, 850), null, null),
+            ("chrono_slasher", new Vector2(4300, 850), new Vector2(4100, 850), new Vector2(4500, 850))
+        };
+
+        /// <summary>The trial's lock, once the trial has begun. Test and bot seam.</summary>
+        public EncounterLock TrialLock { get; private set; }
+
+        private int _trialWave1Planned;
+        private int _trialWave2Planned;
+        private string _trialObjectiveKey = "";
+        private int _trialObjectiveDefeated = -1;
+
+        /// <summary>
+        /// Builds and arms the trial's lock: the entry barrier stands open, wave 1
+        /// spawns the moment the hero walks into the bay, wave 2 once wave 1 is
+        /// down, and the clear completes the tutorial.
+        /// </summary>
+        private void BuildTrialLock() {
+            if (TrialLock != null) return;
+            EncounterLockWave wave1 = EncounterLockWave.FromTable(TrialWave1ID, TrialWave1Spawns, EncounterWaveTrigger.OnEngage);
+            EncounterLockWave wave2 = EncounterLockWave.FromTable(TrialWave2ID, TrialWave2Spawns, EncounterWaveTrigger.AfterPreviousCleared);
+            TrialLock = EncounterLock.Create(new EncounterLockSpec {
+                LockID = TrialLockID,
+                Area = EncounterLockSpec.Span(TrialLockMinX, CalibrationBayEastWallX, BayHeight),
+                LevelBounds = new Rect2(0f, 0f, BayWidth, BayHeight),
+                EntryBarrierX = TrialLockMinX - EncounterLockRules.DefaultBarrierWidthPixels * 0.5f,
+                // No exit barrier: the bay's east wall closes the far side.
+                BarrierFloorY = TutorialFloorTopY,
+                Waves = new[] { wave1, wave2 },
+                GoDirection = EncounterGoDirection.None
+            });
+            TrialLock.StateChanged += OnTrialLockStateChanged;
+            AddChild(TrialLock);
+            TrialLock.Hero = _player;
+            TrialLock.Camera = StoryCameraConfiner.FindOn(_player);
+            Difficulty difficulty = StoryDifficultyTuning.CurrentStoryDifficulty;
+            _trialWave1Planned = EncounterLockRules.PlannedSpawnCount(TrialWave1Spawns.Length, -1, true, difficulty);
+            _trialWave2Planned = EncounterLockRules.PlannedSpawnCount(TrialWave2Spawns.Length, -1, true, difficulty);
+            TrialLock.Arm();
         }
 
-        private void SpawnWave2() {
-            _totalEnemies = StoryDifficultyTuning.ScaleEncounterCount(4, StoryDifficultyTuning.CurrentStoryDifficulty);
-            _enemiesKilled = 0;
-
-            Vector2[] spawns = { new(1500, 850), new(2000, 550), new(2800, 850), new(3200, 850) };
-            for (int index = 0; index < _totalEnemies && index < spawns.Length; index++) {
-                if (index == 3) {
-                    EnemyFactory.SpawnChronoSlasher(this, spawns[index],
-                        waypointA: spawns[index] + new Vector2(-200, 0), waypointB: spawns[index] + new Vector2(200, 0));
-                } else {
-                    EnemyFactory.SpawnHologramDrone(this, spawns[index]);
-                }
-            }
-            _totalEnemies = Mathf.Min(_totalEnemies, spawns.Length);
-            _waveTwoActive = true;
-            UpdateWaveObjective("tutorial_objective_wave_two");
+        private void OnTrialLockStateChanged(EncounterLock encounterLock, EncounterLockState previous,
+            EncounterLockState current) {
+            if (current == EncounterLockState.Cleared) CompleteTutorial();
         }
 
-        private bool _waveTwoActive;
+        /// <summary>
+        /// The trial objective from the lock: wave 1's progress, then wave 2's
+        /// (the tutorial's own two objectives; the HUD's lock counter shows the
+        /// running total beside them). Posted only when it changes.
+        /// </summary>
+        private void RefreshTrialObjective() {
+            if (_phase != TutorialPhase.CombatTrial || _levelComplete) return;
+            if (TrialLock == null || !IsInstanceValid(TrialLock)) return;
+            int remaining = TrialLock.RemainingCount;
+            string key;
+            int defeated;
+            int total;
+            if (!TrialLock.AllWavesSpawned) {
+                key = "tutorial_objective_progress";
+                total = _trialWave1Planned;
+                defeated = Mathf.Clamp(total - Mathf.Max(0, remaining - _trialWave2Planned), 0, total);
+            } else {
+                key = "tutorial_objective_wave_two";
+                total = _trialWave2Planned;
+                defeated = Mathf.Clamp(total - remaining, 0, total);
+            }
+            if (key == _trialObjectiveKey && defeated == _trialObjectiveDefeated) return;
+            _trialObjectiveKey = key;
+            _trialObjectiveDefeated = defeated;
+            _services?.HUD?.SetObjective(key, defeated, total);
+        }
 
         private void OnEnemyKilled(EnemyKilledPayload payload) {
-            if (_phase == TutorialPhase.Hold) {
-                OnHoldLocalKilled();
-                return;
-            }
-            if (_phase != TutorialPhase.CombatTrial || _levelComplete) return;
-            _enemiesKilled++;
-            UpdateWaveObjective("tutorial_objective_progress");
-
-            if (_enemiesKilled >= _totalEnemies) {
-                if (!_waveTwoActive) SpawnWave2();
-                else CompleteTutorial();
-            }
-        }
-
-        private void UpdateWaveObjective(string key) {
-            _services.HUD?.SetObjective(key, _enemiesKilled, _totalEnemies);
+            // GU-L0: only the hold counts kills now; the trial is its lock's.
+            if (_phase == TutorialPhase.Hold) OnHoldLocalKilled();
         }
 
         /// <summary>

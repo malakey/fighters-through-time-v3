@@ -9,20 +9,30 @@ namespace FTT.Environment {
     /// <summary>
     /// Level 1 - Florence, 1503 (Steampunk Renaissance). Four-room progression:
     /// entry streets, the print-shop gear puzzle that unlocks the workshop door,
-    /// the workshop gauntlet, and the Borgia Inquisitor boss arena. Rooms two and
-    /// three spawn difficulty-scaled waves on first entry.
+    /// the workshop gauntlet, and the Borgia Inquisitor boss arena.
+    ///
+    /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-L0; Florence
+    /// predates <see cref="StoryLevelControllerBase"/>, so it wires standalone
+    /// <see cref="EncounterLock"/> nodes): the entry room is two locks — the
+    /// streets (720–2330) and the piazza (2350–4430), its manifest row split in
+    /// two — then the print shop (5800–8630, which also needs the gear puzzle;
+    /// its exit barrier fills the workshop door under its column) and the
+    /// workshop gauntlet (8900–10460). Room 1 is pre-placed, rooms 2 and 3 spawn
+    /// as the hero walks in (as their wave triggers did). The entry anchor moved
+    /// out of the fighting to 300, the Middle anchor past the workshop door (8840),
+    /// the Restoration Font past the gauntlet (10530) and the third Extractor west
+    /// of it (10150). A west wall now closes x 0.</para>
     /// </summary>
     public partial class Level01Controller : Node2D {
         private PlayerController _player;
         private BossEncounterController _bossEncounter;
         private LevelManager _levelManager;
         private StorySceneServices _services;
+        private StoryCameraConfiner _camera;
 
         private PuzzleManager _gearPuzzle;
         private StaticBody2D _workshopDoor;
 
-        private bool _room2WaveSpawned;
-        private bool _room3WaveSpawned;
         private bool _bossIntroShown;
         private bool _bossDefeated;
         private bool _levelComplete;
@@ -60,7 +70,10 @@ namespace FTT.Environment {
             }
             BuildLevel();
             SpawnPlayer();
-            SpawnRoom1Enemies();
+            // GU-L0: the locks arm once the resume point is known — a resume past
+            // a lock builds it Cleared (no member ever spawned), the rest arm with
+            // their exits shut and room 1's members standing dormant.
+            ArmEncounterLocks();
 
             _services = StorySceneBootstrapper.Attach(
                 this, "res://resources/Dialogue/level_01_dialogue.tres",
@@ -187,6 +200,9 @@ namespace FTT.Environment {
         // === end Package 12 W8 region ==========================================
 
         public override void _ExitTree() {
+            foreach (EncounterLock encounterLock in _encounterLocks) {
+                if (encounterLock != null && IsInstanceValid(encounterLock)) encounterLock.StateChanged -= OnEncounterLockStateChanged;
+            }
             if (EventBus.Instance != null) {
                 EventBus.Instance.OnChronalDustCollected -= OnDustAwarded;
                 EventBus.Instance.OnDustAwardCollected -= OnDustAwardAttributed;
@@ -217,6 +233,7 @@ namespace FTT.Environment {
             BuildRoom4BossArena();
             BuildExtractors();
             BuildRestorationFont();
+            BuildEncounterLocks();
         }
 
         // === D13: the Restoration Font (2026-10-11) ===
@@ -230,14 +247,17 @@ namespace FTT.Environment {
 
         /// <summary>
         /// D13: on the workshop floor (top 900), past the Middle anchor
-        /// (<c>florence_checkpoint_1</c>) and west of <c>florence_extractor_2</c>;
-        /// the antechamber before the arena is too short. It stands midway between
-        /// the second spike run (x 9500–9580) and the scene-authored
-        /// <c>SteamGeyser</c> column (x 9860–9980, y 670–890), so the hero's body
-        /// anywhere in the 90 px channel circle keeps 30 px from both (the first
-        /// placement, x 9900, stood inside the geyser).
+        /// (<c>florence_checkpoint_1</c>). GU-L0 (2026-10-13): it stood at 9720,
+        /// inside the workshop gauntlet (now an encounter lock), so it moved past
+        /// the gauntlet's exit to the room's east end (10530): the last heal
+        /// before the boss room, 40 px clear of the lock's area, 130 px short of
+        /// the boss-room checkpoint and 210 px short of the arena; the third
+        /// Extractor moved west (10150) to keep its 320 px. The antechamber past
+        /// the doorway is still too short. No hazard reaches the channel circle
+        /// (the steam geyser is at 9860–9980; the first placement, x 9900, stood
+        /// inside it).
         /// </summary>
-        public static readonly Vector2 RestorationFontPosition = new(Room3OffsetX + 1080f, 900f);
+        public static readonly Vector2 RestorationFontPosition = new(Room3OffsetX + 1890f, 900f);
 
         /// <summary>The font Florence placed. Test seam.</summary>
         public RestorationFont PlacedRestorationFont { get; private set; }
@@ -271,7 +291,9 @@ namespace FTT.Environment {
         private void BuildExtractors() {
             BuildExtractor("florence_extractor_0", new Vector2(4700f, 860f));
             BuildExtractor("florence_extractor_1", new Vector2(Room2OffsetX + 2600f, 860f));
-            BuildExtractor("florence_extractor_2", new Vector2(Room3OffsetX + 1700f, 860f));
+            // GU-L0: 10340 -> 10150, so the Restoration Font past the gauntlet
+            // (10530) keeps its 320 px; still behind the spike runs and the geyser.
+            BuildExtractor("florence_extractor_2", new Vector2(Room3OffsetX + 1510f, 860f));
         }
 
         /// <summary>
@@ -311,6 +333,9 @@ namespace FTT.Environment {
             AddChild(bg1);
 
             BuildFloor(0, 900, 5760);
+            // GU-L0: the missing west wall — the floor's west end used to be open
+            // to a fall off the level.
+            BuildWall(-20, 0, LevelHeight);
             BuildPlatform(400, 700, 300);
             BuildPlatform(900, 550, 250);
             BuildPlatform(1400, 650, 280);
@@ -325,7 +350,9 @@ namespace FTT.Environment {
             BuildHazardSpikes(1600, 890, 100);
             BuildHazardSpikes(3500, 890, 120);
 
-            BuildCheckpoint(2800, 850, "florence_checkpoint_0");
+            // GU-L0: the entry anchor stood at 2800, in the middle of room 1's
+            // fighting; it now stands at the entrance, before the streets lock.
+            BuildCheckpoint(EntryCheckpointX, 850, "florence_checkpoint_0");
 
             BuildRoomDecoration(0, "florence_room_entry", new Color(0.7f, 0.5f, 0.2f));
         }
@@ -348,17 +375,11 @@ namespace FTT.Environment {
             BuildPlatform(offsetX + 1900, 700, 250);
             BuildPlatform(offsetX + 2400, 550, 200);
 
-            BuildCheckpoint(offsetX + 1400, 850, "florence_checkpoint_1");
             BuildRoomDecoration(offsetX, "florence_room_print_shop", new Color(0.6f, 0.4f, 0.2f));
-
-            BuildWaveTrigger("Room2WaveTrigger", new Vector2(offsetX + 120, 800), () => {
-                if (_gearPuzzle != null && !_gearPuzzle.IsCompleted) {
-                    _services?.HUD?.SetObjective("florence_objective_gears");
-                }
-                if (_room2WaveSpawned) return;
-                _room2WaveSpawned = true;
-                SpawnRoom2Enemies();
-            });
+            // GU-L0: the Middle anchor (it stood at 7160, in the print shop's
+            // fight) is built with room 3, past the workshop door; the room's wave
+            // is the print-shop lock's (it spawns as the hero walks in, where the
+            // wave trigger at 5880 used to fire).
 
             BuildGearPuzzle(offsetX);
         }
@@ -459,7 +480,9 @@ namespace FTT.Environment {
             if (_workshopDoor == null || !IsInstanceValid(_workshopDoor)) return;
             _workshopDoor.QueueFree();
             _workshopDoor = null;
-            _services?.HUD?.SetObjective("florence_objective_reach_boss");
+            // GU-L0: the door is open, but the print shop's barrier holds until
+            // its guards are down as well.
+            RefreshObjective();
         }
 
         private void BuildRoom3() {
@@ -473,7 +496,9 @@ namespace FTT.Environment {
             AddChild(bg3);
 
             BuildFloor(offsetX, 900, 1920);
-            BuildPlatform(offsetX + 300, 700, 200);
+            // GU-L0: 8840–9040 -> 8910–9040 (centre 8975, 130 wide), so the
+            // workshop lock's entry barrier (8880–8900) stands clear of it.
+            BuildPlatform(offsetX + 335, 700, 130);
             BuildPlatform(offsetX + 700, 550, 250);
             BuildPlatform(offsetX + 1100, 650, 200);
             BuildPlatform(offsetX + 1500, 500, 220);
@@ -495,11 +520,11 @@ namespace FTT.Environment {
                 WorkshopDoorTopY - StoryGateRules.ColumnTopY, columnWidth);
             WorkshopDoorColumn.Name = "WorkshopDoorColumn";
 
-            BuildWaveTrigger("Room3WaveTrigger", new Vector2(offsetX + 150, 800), () => {
-                if (_room3WaveSpawned) return;
-                _room3WaveSpawned = true;
-                SpawnRoom3Enemies();
-            });
+            // GU-L0: the Middle anchor, past the workshop door and out of
+            // basic-swing reach from inside the print shop's lock; the room's wave
+            // is the workshop lock's (it spawns as the hero walks in, where the
+            // wave trigger at 8790 used to fire).
+            BuildCheckpoint(MiddleCheckpointX, 850, "florence_checkpoint_1");
         }
 
         /// <summary>Solid placeholder door; removed when the gear puzzle completes.</summary>
@@ -569,26 +594,6 @@ namespace FTT.Environment {
 
             SpawnBoss(BossSpawnX, BossSpawnY);
             BuildSealingAnchor();
-        }
-
-        private void BuildWaveTrigger(string name, Vector2 position, System.Action onEntered) {
-            var trigger = new Area2D {
-                Name = name,
-                Position = position,
-                CollisionLayer = CollisionLayers.Trigger,
-                CollisionMask = CollisionLayers.Player
-            };
-            var col = new CollisionShape2D();
-            col.Shape = new RectangleShape2D { Size = new Vector2(60, 400) };
-            trigger.AddChild(col);
-            trigger.BodyEntered += body => {
-                if (body is not PlayerController) return;
-                // Wave callbacks spawn collision bodies, which the engine
-                // forbids during the in/out flush this signal runs in; fire
-                // the callback right after the flush.
-                Callable.From(() => onEntered()).CallDeferred();
-            };
-            AddChild(trigger);
         }
 
         private void BuildFloor(float x, float y, float width) {
@@ -767,6 +772,7 @@ namespace FTT.Environment {
             };
             _player.AddChild(camera);
             camera.EnableFollow(_player);
+            _camera = camera;
         }
 
         private void RestoreSavedCheckpoint() {
@@ -781,13 +787,9 @@ namespace FTT.Environment {
                 resumed = true;
                 position = checkpoint;
                 _levelManager.SetCheckpointPosition(save.LastCheckpointID, checkpoint);
-                // Resuming past the print shop means the waves ahead of the
-                // checkpoint were already fought.
-                if (save.LastCheckpointID == "florence_checkpoint_1") _room2WaveSpawned = true;
-                if (save.LastCheckpointID == "florence_checkpoint_2") {
-                    _room2WaveSpawned = true;
-                    _room3WaveSpawned = true;
-                }
+                // GU-L0: the locks this anchor's baseline lists are built Cleared
+                // (ArmEncounterLocks); every other lock re-arms in full.
+                ResumedCheckpointID = save.LastCheckpointID;
             }
             // Package 12 W2 (GAP-01): the shared F10 restore — actual block,
             // cooldown and delay resources back on the rebuilt hero, and the
@@ -797,58 +799,257 @@ namespace FTT.Environment {
             _player.RestoreStoryCheckpoint(position, save.CurrentHP, settledMeter);
         }
 
-        // === Encounters ===
+        // === Encounters: the GU-L0 encounter locks (2026-10-13) ===============
+        //
+        // Florence predates StoryLevelControllerBase, so its locks are standalone
+        // EncounterLock nodes wired by hand (docs/handoffs/GU_E.md, "A standalone
+        // level"): built in BuildLevel, the resume baseline applied once the hero
+        // stands at its checkpoint, then armed. The baselines are registered with
+        // StoryManager, so the checkpoint guard holds every fracture past a lock
+        // until that lock is cleared and the F10 record carries the lock IDs.
+        // Authored counts are the Normal-difficulty truth; each lock wave takes
+        // the per-row ScaleEncounterCount prefix the reward manifest compiles.
 
-        private void SpawnRoom1Enemies() {
-            var difficulty = StoryDifficultyTuning.CurrentStoryDifficulty;
-            int count = StoryDifficultyTuning.ScaleEncounterCount(5, difficulty);
+        public const string LevelID = "level_01_florence";
 
-            System.Action[] spawns = {
-                () => EnemyFactory.SpawnChronoSlasher(this, new Vector2(800, 850),
-                    waypointA: new Vector2(600, 850), waypointB: new Vector2(1000, 850)),
-                () => EnemyFactory.SpawnChronoSlasher(this, new Vector2(1800, 850),
-                    waypointA: new Vector2(1600, 850), waypointB: new Vector2(2000, 850)),
-                () => EnemyFactory.SpawnCyberGuard(this, new Vector2(2200, 850),
-                    waypointA: new Vector2(2000, 850), waypointB: new Vector2(2400, 850)),
-                () => EnemyFactory.SpawnCyberGuard(this, new Vector2(3000, 850),
-                    waypointA: new Vector2(2800, 850), waypointB: new Vector2(3200, 850)),
-                () => EnemyFactory.SpawnSteamAutomaton(this, new Vector2(4000, 850))
+        /// <summary>The F10 encounter IDs of the four locks (they start with the level ID).</summary>
+        public const string LockStreets = LevelID + "_lock_streets";
+        public const string LockPiazza = LevelID + "_lock_piazza";
+        public const string LockPrintShop = LevelID + "_lock_print_shop";
+        public const string LockWorkshop = LevelID + "_lock_workshop";
+
+        public const string EntryCheckpointID = "florence_checkpoint_0";
+        public const string MiddleCheckpointID = "florence_checkpoint_1";
+        public const string GearPuzzleID = "florence_gear_puzzle";
+
+        /// <summary>
+        /// The manifest rows (level_01_rewards.tres). GU-L0 split the entry room's
+        /// <c>level_01.room1@5</c> into the streets' three and the piazza's two, so
+        /// each lock is one row: the same five enemies, the same Easy three (two
+        /// slashers and a guard) and the same Hard five.
+        /// </summary>
+        public const string Room1aRowID = "level_01.room1a";
+        public const string Room1bRowID = "level_01.room1b";
+        public const string Room2RowID = "level_01.room2";
+        public const string Room3RowID = "level_01.room3";
+
+        /// <summary>The entry anchor, at the entrance (it stood at 2800, mid-fight).</summary>
+        public const float EntryCheckpointX = 300f;
+
+        /// <summary>
+        /// The Middle anchor, past the workshop door (it stood at 7160, inside the
+        /// print shop). Its strike surface (8810–8870) lies past the roster's
+        /// longest basic swing from a hero pressed against the print shop's
+        /// closed exit barrier (pivot 8610) or the door (pivot 8600).
+        /// </summary>
+        public const float MiddleCheckpointX = Room3OffsetX + 200f;
+
+        /// <summary>
+        /// The streets: from past the first spike strip (525–675) to the gap before
+        /// the 2500 platform. Every lock edge sits in a gap between platforms, so
+        /// no barrier cuts one.
+        /// </summary>
+        public const float StreetsLockMinX = 720f;
+        public const float StreetsLockMaxX = 2330f;
+        /// <summary>The piazza shares the streets' exit slot (2330–2350) and runs to the gap past the 4300 platform.</summary>
+        public const float PiazzaLockMinX = StreetsLockMaxX + 20f;
+        public const float PiazzaLockMaxX = 4430f;
+        public const float PrintShopLockMinX = 5800f;
+        /// <summary>The print shop runs to the workshop door, whose barrier fills the doorway.</summary>
+        public const float PrintShopLockMaxX = Room3OffsetX - 10f;
+        public const float WorkshopLockMinX = Room3OffsetX + 260f;
+        /// <summary>
+        /// The workshop's east edge: its exit barrier (10460–10480) leaves the
+        /// boss-room checkpoint's surface (10630) out of swing reach (pivot 10440)
+        /// and the font's footprint (10500–10560) outside the area.
+        /// </summary>
+        public const float WorkshopLockMaxX = Room3OffsetX + 1820f;
+
+        /// <summary>
+        /// Room 1, the streets: the two slashers and the first guard (room1a).
+        /// GU-L0: the first slasher moved 800 -> 1000 (patrol 800–1200), off the
+        /// lock's entry, and the guard's patrol stops at the lock's exit (2300).
+        /// </summary>
+        public static readonly (string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] Room1aSpawns = {
+            ("chrono_slasher", new Vector2(1000, 850), new Vector2(800, 850), new Vector2(1200, 850)),
+            ("chrono_slasher", new Vector2(1800, 850), new Vector2(1600, 850), new Vector2(2000, 850)),
+            ("cyber_guard", new Vector2(2200, 850), new Vector2(2000, 850), new Vector2(2300, 850))
+        };
+
+        /// <summary>Room 1, the piazza: the second guard and the automaton standing guard (room1b).</summary>
+        public static readonly (string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] Room1bSpawns = {
+            ("cyber_guard", new Vector2(3000, 850), new Vector2(2800, 850), new Vector2(3200, 850)),
+            ("steam_automaton", new Vector2(4000, 850), null, null)
+        };
+
+        /// <summary>Room 2, the print shop (room2@3; the fourth, a slasher, is Hard's extra).</summary>
+        public static readonly (string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] Room2Spawns = {
+            ("cyber_guard", new Vector2(Room2OffsetX + 500, 850), new Vector2(Room2OffsetX + 300, 850), new Vector2(Room2OffsetX + 700, 850)),
+            ("cyber_guard", new Vector2(Room2OffsetX + 1200, 850), null, null),
+            ("chrono_slasher", new Vector2(Room2OffsetX + 2000, 850), new Vector2(Room2OffsetX + 1800, 850), new Vector2(Room2OffsetX + 2200, 850)),
+            ("chrono_slasher", new Vector2(Room2OffsetX + 900, 850), null, null)
+        };
+
+        /// <summary>The print shop's authored count (its manifest row's @3).</summary>
+        public const int Room2AuthoredCount = 3;
+
+        /// <summary>
+        /// Room 3, the workshop gauntlet (room3@7). GU-L0: the first slasher moved
+        /// from 9040 (on the 8990–9090 spike strip) to 9140.
+        /// </summary>
+        public static readonly (string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] Room3Spawns = {
+            ("chrono_slasher", new Vector2(Room3OffsetX + 500, 850), null, null),
+            ("cyber_guard", new Vector2(Room3OffsetX + 600, 850), new Vector2(Room3OffsetX + 400, 850), new Vector2(Room3OffsetX + 900, 850)),
+            ("chrono_slasher", new Vector2(Room3OffsetX + 800, 850), null, null),
+            ("steam_automaton", new Vector2(Room3OffsetX + 1000, 850), null, null),
+            ("chrono_slasher", new Vector2(Room3OffsetX + 1200, 850), null, null),
+            ("cyber_guard", new Vector2(Room3OffsetX + 1400, 850), null, null),
+            ("steam_automaton", new Vector2(Room3OffsetX + 1600, 850), null, null)
+        };
+
+        private readonly System.Collections.Generic.List<EncounterLock> _encounterLocks = new();
+        private EncounterLock _streetsLock;
+        private EncounterLock _piazzaLock;
+        private EncounterLock _printShopLock;
+        private EncounterLock _workshopLock;
+
+        /// <summary>Florence's locks, in route order. Test and bot seam.</summary>
+        public System.Collections.Generic.IReadOnlyList<EncounterLock> EncounterLocks => _encounterLocks;
+        public EncounterLock StreetsLock => _streetsLock;
+        public EncounterLock PiazzaLock => _piazzaLock;
+        public EncounterLock PrintShopLock => _printShopLock;
+        public EncounterLock WorkshopLock => _workshopLock;
+
+        /// <summary>The checkpoint this load resumed at, or "" on a fresh entry. Test seam.</summary>
+        public string ResumedCheckpointID { get; private set; } = "";
+
+        /// <summary>
+        /// Every checkpoint lists every lock whose area ends before it (the F10
+        /// baseline): a resume there builds those locks Cleared, and the
+        /// checkpoint guard refuses the fracture until they are.
+        /// </summary>
+        public static readonly System.Collections.Generic.IReadOnlyDictionary<string, string[]> EncounterBaselines =
+            new System.Collections.Generic.Dictionary<string, string[]> {
+                [EntryCheckpointID] = System.Array.Empty<string>(),
+                [MiddleCheckpointID] = new[] { LockStreets, LockPiazza, LockPrintShop },
+                [BossRoomCheckpointID] = new[] { LockStreets, LockPiazza, LockPrintShop, LockWorkshop }
             };
-            for (int index = 0; index < count && index < spawns.Length; index++) spawns[index]();
+
+        private void BuildEncounterLocks() {
+            float halfBarrier = EncounterLockRules.DefaultBarrierWidthPixels * 0.5f;
+            var levelBounds = new Rect2(0, 0, LevelWidth, LevelHeight);
+            // The streets and the piazza: room 1's patrols and its automaton,
+            // pre-placed (room 1 always spawned at load). They share one 20 px slot.
+            _streetsLock = AddEncounterLock(new EncounterLockSpec {
+                LockID = LockStreets,
+                Area = EncounterLockSpec.Span(StreetsLockMinX, StreetsLockMaxX, LevelHeight),
+                LevelBounds = levelBounds,
+                EntryBarrierX = StreetsLockMinX - halfBarrier,
+                ExitBarrierX = StreetsLockMaxX + halfBarrier,
+                BarrierFloorY = 900f,
+                Waves = new[] { EncounterLockWave.FromTable(Room1aRowID, Room1aSpawns, EncounterWaveTrigger.OnBuild) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            _piazzaLock = AddEncounterLock(new EncounterLockSpec {
+                LockID = LockPiazza,
+                Area = EncounterLockSpec.Span(PiazzaLockMinX, PiazzaLockMaxX, LevelHeight),
+                LevelBounds = levelBounds,
+                EntryBarrierX = PiazzaLockMinX - halfBarrier,
+                ExitBarrierX = PiazzaLockMaxX + halfBarrier,
+                BarrierFloorY = 900f,
+                Waves = new[] { EncounterLockWave.FromTable(Room1bRowID, Room1bSpawns, EncounterWaveTrigger.OnBuild) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            // The print shop: its guards come in as the hero does, and the gear
+            // train must be aligned. The exit barrier fills the workshop door below
+            // its permanent column; the door still opens on the solve, the barrier
+            // on the clear.
+            EncounterLockWave printShopWave = EncounterLockWave.FromTable(Room2RowID, Room2Spawns, EncounterWaveTrigger.OnEngage);
+            printShopWave.AuthoredCount = Room2AuthoredCount;
+            _printShopLock = AddEncounterLock(new EncounterLockSpec {
+                LockID = LockPrintShop,
+                Area = EncounterLockSpec.Span(PrintShopLockMinX, PrintShopLockMaxX, LevelHeight),
+                LevelBounds = levelBounds,
+                EntryBarrierX = PrintShopLockMinX - halfBarrier,
+                ExitBarrierX = Room3OffsetX,
+                ExitBarrierYRange = new Vector2(WorkshopDoorTopY, 900f),
+                BarrierFloorY = 900f,
+                Waves = new[] { printShopWave },
+                RequiredPuzzleIDs = new[] { GearPuzzleID },
+                GoDirection = EncounterGoDirection.Right
+            });
+            // The workshop gauntlet: seven of the Severed's men (two automatons)
+            // pour in as the hero steps past the Middle anchor, among the spikes,
+            // the geyser and the crumbling scaffolds.
+            _workshopLock = AddEncounterLock(new EncounterLockSpec {
+                LockID = LockWorkshop,
+                Area = EncounterLockSpec.Span(WorkshopLockMinX, WorkshopLockMaxX, LevelHeight),
+                LevelBounds = levelBounds,
+                EntryBarrierX = WorkshopLockMinX - halfBarrier,
+                ExitBarrierX = WorkshopLockMaxX + halfBarrier,
+                BarrierFloorY = 900f,
+                Waves = new[] { EncounterLockWave.FromTable(Room3RowID, Room3Spawns, EncounterWaveTrigger.OnEngage) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            // The checkpoint guard reads the baselines StoryManager holds.
+            foreach (System.Collections.Generic.KeyValuePair<string, string[]> entry in EncounterBaselines) {
+                StoryManager.Instance?.RegisterEncounterBaseline(
+                    entry.Key, entry.Value, StoryLevelControllerBase.ExplicitEncounterBaselineVersion);
+            }
         }
 
-        private void SpawnRoom2Enemies() {
-            var difficulty = StoryDifficultyTuning.CurrentStoryDifficulty;
-            int count = StoryDifficultyTuning.ScaleEncounterCount(3, difficulty);
-            float offsetX = Room2OffsetX;
-
-            System.Action[] spawns = {
-                () => EnemyFactory.SpawnCyberGuard(this, new Vector2(offsetX + 500, 850),
-                    waypointA: new Vector2(offsetX + 300, 850), waypointB: new Vector2(offsetX + 700, 850)),
-                () => EnemyFactory.SpawnCyberGuard(this, new Vector2(offsetX + 1200, 850)),
-                () => EnemyFactory.SpawnChronoSlasher(this, new Vector2(offsetX + 2000, 850),
-                    waypointA: new Vector2(offsetX + 1800, 850), waypointB: new Vector2(offsetX + 2200, 850)),
-                () => EnemyFactory.SpawnChronoSlasher(this, new Vector2(offsetX + 900, 850))
-            };
-            for (int index = 0; index < count && index < spawns.Length; index++) spawns[index]();
+        private EncounterLock AddEncounterLock(EncounterLockSpec spec) {
+            EncounterLock encounterLock = EncounterLock.Create(spec);
+            encounterLock.StateChanged += OnEncounterLockStateChanged;
+            AddChild(encounterLock);
+            _encounterLocks.Add(encounterLock);
+            return encounterLock;
         }
 
-        private void SpawnRoom3Enemies() {
-            var difficulty = StoryDifficultyTuning.CurrentStoryDifficulty;
-            int count = StoryDifficultyTuning.ScaleEncounterCount(7, difficulty);
-            float offsetX = Room3OffsetX;
+        /// <summary>
+        /// Hands every lock the hero and the camera, builds the ones the resume
+        /// baseline lists Cleared, and arms the rest: exits shut, room 1's
+        /// members dormant. A pre-seal load (the boss already down) stands past
+        /// every lock.
+        /// </summary>
+        private void ArmEncounterLocks() {
+            string[] cleared = _bossDefeated
+                ? EncounterBaselines[BossRoomCheckpointID]
+                : EncounterBaselines.TryGetValue(ResumedCheckpointID ?? "", out string[] ids) ? ids : System.Array.Empty<string>();
+            foreach (EncounterLock encounterLock in _encounterLocks) {
+                if (encounterLock == null || !IsInstanceValid(encounterLock)) continue;
+                encounterLock.Hero = _player;
+                encounterLock.Camera = _camera;
+                if (System.Array.IndexOf(cleared, encounterLock.LockID) >= 0) encounterLock.RestoreCleared();
+                encounterLock.Arm();
+            }
+        }
 
-            System.Action[] spawns = {
-                () => EnemyFactory.SpawnChronoSlasher(this, new Vector2(offsetX + 400, 850)),
-                () => EnemyFactory.SpawnCyberGuard(this, new Vector2(offsetX + 600, 850),
-                    waypointA: new Vector2(offsetX + 400, 850), waypointB: new Vector2(offsetX + 900, 850)),
-                () => EnemyFactory.SpawnChronoSlasher(this, new Vector2(offsetX + 800, 850)),
-                () => EnemyFactory.SpawnSteamAutomaton(this, new Vector2(offsetX + 1000, 850)),
-                () => EnemyFactory.SpawnChronoSlasher(this, new Vector2(offsetX + 1200, 850)),
-                () => EnemyFactory.SpawnCyberGuard(this, new Vector2(offsetX + 1400, 850)),
-                () => EnemyFactory.SpawnSteamAutomaton(this, new Vector2(offsetX + 1600, 850))
-            };
-            for (int index = 0; index < count && index < spawns.Length; index++) spawns[index]();
+        private void OnEncounterLockStateChanged(EncounterLock encounterLock, EncounterLockState previous,
+            EncounterLockState current) => RefreshObjective();
+
+        /// <summary>
+        /// The objective from live state while the hero is still on the way to the
+        /// boss: an engaged lock's (the print shop's gears first), else the
+        /// approach. The boss and seal beats post their own.
+        /// </summary>
+        private void RefreshObjective() {
+            if (_bossIntroShown || _bossDefeated || _levelComplete) return;
+            EncounterLock engaged = null;
+            foreach (EncounterLock encounterLock in _encounterLocks) {
+                if (encounterLock != null && IsInstanceValid(encounterLock)
+                    && encounterLock.State == EncounterLockState.Engaged) engaged = encounterLock;
+            }
+            if (engaged != null && engaged == _printShopLock && _gearPuzzle != null && !_gearPuzzle.IsSolvedOrPersisted) {
+                _services?.HUD?.SetObjective("florence_objective_gears");
+            } else if (engaged != null) {
+                _services?.HUD?.SetObjective("encounter_lock_objective_clear");
+            } else {
+                _services?.HUD?.SetObjective("florence_objective_reach_boss");
+            }
         }
 
         /// <summary>
