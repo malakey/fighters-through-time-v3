@@ -425,7 +425,11 @@ namespace FTT.Environment {
 
             BuildPlatform(9700, 690, 260);
             BuildPlatform(10800, 690, 260);
-            BuildPlatform(10250, 480, 220);
+            // The top perch, a double jump up from either side platform. Widened
+            // 220 -> 340 by the 2026-10-12 20% movement cut (GU-C): the 310 px gap
+            // to it left Lincoln (now 228 px/s) a 13 px, frame-perfect margin, and
+            // the bots' arc planner none. 250 px is the old gap scaled by 0.8.
+            BuildPlatform(10250, 480, 340);
 
             BuildWall(11500, 0, LevelHeight);
 

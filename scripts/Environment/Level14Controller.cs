@@ -207,15 +207,16 @@ namespace FTT.Environment {
         public static float BeamContactHalfWidth => BeamHalfWidth + PlayerHalfWidth;
 
         /// <summary>
-        /// Lincoln's ground speed (`MaxMoveSpeed` 4.75 x 60 px/s), the slowest in the
+        /// Lincoln's ground speed (`MaxMoveSpeed` 3.8 x 60 px/s), the slowest in the
         /// roster. Every grid's phase offsets are derived from it, and the safe-walk
         /// proof runs at it - a faster character can always choose to walk slower,
         /// but nobody can choose to walk faster than their cap. The content test
         /// re-derives this from the nine CharacterData resources, so a roster retune
         /// that changes the slowest speed must move this constant with it (it went
-        /// 330 -> 285 with the 2026-08-10 movement retune).
+        /// 330 -> 285 with the 2026-08-10 movement retune, and 285 -> 228 with the
+        /// 2026-10-12 gameplay update's 20% movement cut).
         /// </summary>
-        public const float ReferenceWalkSpeed = 285f;
+        public const float ReferenceWalkSpeed = 228f;
 
         /// <summary>Authored corridor stride between adjacent beams, in pixels.</summary>
         public const float BeamSpacing = 330f;
