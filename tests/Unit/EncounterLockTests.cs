@@ -564,7 +564,235 @@ public class EncounterLockTests {
         }
     }
 
+    // === Review fixes (FIX-E, 2026-10-13) ====================================
+
+    /// <summary>
+    /// A checkpoint fracture refuses activation while a lock its F10 baseline
+    /// lists is not Cleared — a strike through a barrier used to commit that
+    /// baseline, and a reload then built the unfought lock Cleared — and, belt
+    /// and braces, while the hero stands inside a lock that is not Cleared,
+    /// whatever the baseline says. A refusal pays nothing and commits nothing.
+    /// </summary>
+    [TestCase(Timeout = 60000)]
+    public async Task ACheckpointRefusesItsStrikeWhileALockItListsOrTheHeroStandsInIsUncleared() {
+        StoryManager story = StoryManager.Instance;
+        story.ClearLevelAttemptState();
+        int committed = 0;
+        void OnCommitted(string id) { if (id.StartsWith("fixe_lock_checkpoint", StringComparison.Ordinal)) committed++; }
+        EventBus.Instance.OnCheckpointCommitted += OnCommitted;
+        try {
+            using var scene = new LockScene();
+            EncounterLock encounterLock = scene.BuildLock(OnBuildWave(1));
+            CheckpointTrigger past = scene.BuildCheckpoint("fixe_lock_checkpoint_past", AreaMax + 300f, encounterLock.LockID);
+            CheckpointTrigger before = scene.BuildCheckpoint("fixe_lock_checkpoint_before", AreaMin - 200f);
+            await Frames(2);
+            scene.Hero.ApplyDamage(60);
+            int wounded = scene.Hero.CurrentHP;
+
+            // The hero outside, the lock Armed: the anchor that lists it refuses.
+            AssertThat(past.IsHeldByEncounterLock).IsTrue();
+            past.HandleStrike(AnchorStrike());
+            AssertThat(past.IsActivated).IsFalse();
+            AssertThat(story.IsCheckpointActivated(past.CheckpointID)).IsFalse();
+            AssertThat(committed).OverrideFailureMessage("A refused strike must save nothing.").IsEqual(0);
+            AssertThat(scene.Hero.CurrentHP).OverrideFailureMessage("A refused strike pays no Mending.").IsEqual(wounded);
+            AssertThat(before.IsHeldByEncounterLock).IsFalse();
+
+            // The hero inside the engaged lock: even an anchor listing nothing refuses.
+            scene.PlaceHero(AreaMin + 200f);
+            await Frames(3);
+            AssertThat(encounterLock.State).IsEqual(EncounterLockState.Engaged);
+            AssertThat(before.IsHeldByEncounterLock).IsTrue();
+            before.HandleStrike(AnchorStrike());
+            AssertThat(before.IsActivated).IsFalse();
+            AssertThat(story.IsCheckpointActivated(before.CheckpointID)).IsFalse();
+
+            // Cleared: both take the strike.
+            encounterLock.LivingMembers[0].TakeDamage(99999);
+            await Frames(2);
+            AssertThat(encounterLock.State).IsEqual(EncounterLockState.Cleared);
+            AssertThat(past.IsHeldByEncounterLock).IsFalse();
+            AssertThat(before.IsHeldByEncounterLock).IsFalse();
+            past.HandleStrike(AnchorStrike());
+            AssertThat(past.IsActivated).IsTrue();
+            AssertThat(story.IsCheckpointActivated(past.CheckpointID)).IsTrue();
+            AssertThat(committed).IsEqual(1);
+        } finally {
+            EventBus.Instance.OnCheckpointCommitted -= OnCommitted;
+            SessionExitGuard.ClearMarker();
+            story.ClearLevelAttemptState();
+        }
+    }
+
+    /// <summary>
+    /// The dormant ward covers the zone tick: a damaging zone (the Relativity
+    /// Rift's) over a dormant member deals nothing, applies nothing and earns its
+    /// owner no meter — its enemy branch bypasses the hurtbox the ward lives in.
+    /// The same tick lands once the lock is engaged.
+    /// </summary>
+    [TestCase(Timeout = 60000)]
+    public async Task AZoneTickNeverDamagesOrCreditsADormantMemberButAnEngagedOneTakesIt() {
+        using var scene = new LockScene();
+        EncounterLock encounterLock = scene.BuildLock(OnBuildWave(1));
+        await Frames(2);
+        EnemyController member = encounterLock.LivingMembers[0];
+        var zone = new PlaceholderZone { Name = "FixeRiftZone" };
+        scene.Host.AddChild(zone);
+        zone.SetPhysicsProcess(false);
+        zone.GlobalPosition = member.GlobalPosition;
+        zone.Setup(3f, 3f, 0.5f, scene.Hero.PlayerIndex, Colors.White, 90f,
+            StatusType.TimeDilation, 1f, 1f, ownerPlayer: scene.Hero);
+        int hp = member.CurrentHP;
+        float meter = scene.Hero.CurrentUltimateMeter;
+
+        zone.ApplyTickTo(member);
+        AssertThat(member.CurrentHP).OverrideFailureMessage("A zone tick damaged a dormant member.").IsEqual(hp);
+        AssertThat(scene.Hero.CurrentUltimateMeter).OverrideFailureMessage("A zone tick on a dormant member earned meter.").IsEqual(meter);
+        AssertThat(member.ControlStatusType).IsEqual(StatusType.None);
+
+        scene.PlaceHero(AreaMin + 200f);
+        await Frames(3);
+        AssertThat(encounterLock.State).IsEqual(EncounterLockState.Engaged);
+        AssertThat(member.IsEncounterDormant).IsFalse();
+        zone.ApplyTickTo(member);
+        AssertThat(member.CurrentHP).IsLess(hp);
+        AssertThat(scene.Hero.CurrentUltimateMeter).IsGreater(meter);
+    }
+
+    /// <summary>The dormant ward covers crowd bowling: a thrown body never bowls a dormant member.</summary>
+    [TestCase(Timeout = 60000)]
+    public async Task AThrownBodyNeverBowlsADormantMember() {
+        using var scene = new LockScene();
+        EncounterLock encounterLock = scene.BuildLock(OnBuildWave(1));
+        await Frames(6);
+        EnemyController member = encounterLock.LivingMembers[0];
+        AssertThat(member.IsEncounterDormant).IsTrue();
+        int hp = member.CurrentHP;
+        // Not a member: a body the hero could have grabbed outside the area.
+        EnemyController thrown = EnemyFactory.Spawn("chrono_slasher", scene.Host, member.GlobalPosition + new Vector2(-30f, -20f));
+        thrown.LaunchThrown(new Vector2(0f, -240f), bowlingDamage: 7, throwDamage: 7);
+        await Frames(2);
+        AssertThat(member.CurrentHP).OverrideFailureMessage("A bowled dormant member took damage.").IsEqual(hp);
+        AssertThat(member.CurrentState).IsEqual(EnemyState.Patrol);
+        AssertThat(member.IsEncounterDormant).IsTrue();
+    }
+
+    /// <summary>
+    /// A lock wakes every member on one tick. Each woken member joins the
+    /// engagement director at the wake, so the first melee grant sees them all
+    /// and goes by the plan §2.6 priority — the elite — not to the standard that
+    /// happens to tick first.
+    /// </summary>
+    [TestCase(Timeout = 60000)]
+    public async Task AnEliteListedAfterAStandardTakesTheFirstMeleeSlotWhenTheLockWakes() {
+        StoryEngagementDirector.ResetForTest();
+        try {
+            using var scene = new LockScene();
+            var wave = new EncounterLockWave {
+                RowID = RowID,
+                Spawns = new[] {
+                    new EncounterLockSpawn("chrono_slasher", scene.At(1500f)),
+                    new EncounterLockSpawn("chrono_guard_elite", scene.At(1800f))
+                },
+                Trigger = EncounterWaveTrigger.OnBuild
+            };
+            EncounterLock encounterLock = scene.BuildLock(wave);
+            await Frames(3);
+            IReadOnlyList<EnemyController> members = encounterLock.LivingMembers;
+            AssertThat(members.Count).IsEqual(2);
+            EnemyController standard = members[0];
+            EnemyController elite = members[1];
+            AssertThat(elite.Data.Tier).IsEqual(EnemyTier.Elite);
+            AssertThat(StoryEngagementRules.ClassOf(elite.PreviewNextAttack().Archetype, false))
+                .IsEqual(StoryEngagementRules.EngagementClass.MeleeSlot);
+            // The standard ticks first: it comes first in the tree.
+            AssertThat(standard.GetIndex() < elite.GetIndex()).IsTrue();
+
+            // Both stand east of the hero: Normal has one slot on that side.
+            scene.PlaceHero(AreaMin + 200f);
+            for (int frame = 0; frame < 6 && standard.EngagementRole != StoryEngagementRules.EngagementRole.Slot
+                    && elite.EngagementRole != StoryEngagementRules.EngagementRole.Slot; frame++) {
+                await Frames(1);
+            }
+            AssertThat(encounterLock.State).IsEqual(EncounterLockState.Engaged);
+            AssertThat(elite.EngagementRole)
+                .OverrideFailureMessage($"The first slot went to {(standard.EngagementRole == StoryEngagementRules.EngagementRole.Slot ? "the standard" : "nobody")}, not the elite.")
+                .IsEqual(StoryEngagementRules.EngagementRole.Slot);
+            AssertThat(standard.EngagementRole).IsEqual(StoryEngagementRules.EngagementRole.Waiting);
+        } finally {
+            StoryEngagementDirector.ResetForTest();
+        }
+    }
+
+    /// <summary>
+    /// A revert puts every member to sleep, and a dormant member leaves the
+    /// director (plan §2.6: dormant lock members never join): no role, no slot.
+    /// The re-engage then grants slots afresh under the per-side cap — two former
+    /// holders now on one side do not both keep theirs.
+    /// </summary>
+    [TestCase(Timeout = 60000)]
+    public async Task ARevertedMemberLeavesTheDirectorAndAReengageGrantsSlotsAfresh() {
+        StoryEngagementDirector.ResetForTest();
+        try {
+            using var scene = new LockScene();
+            var wave = new EncounterLockWave {
+                RowID = RowID,
+                Spawns = new[] {
+                    new EncounterLockSpawn("chrono_slasher", scene.At(1300f)),
+                    new EncounterLockSpawn("chrono_slasher", scene.At(2000f)),
+                    new EncounterLockSpawn("chrono_slasher", scene.At(2200f))
+                },
+                Trigger = EncounterWaveTrigger.OnBuild
+            };
+            EncounterLock encounterLock = scene.BuildLock(wave);
+            await Frames(3);
+            IReadOnlyList<EnemyController> members = encounterLock.LivingMembers;
+            AssertThat(members.Count).IsEqual(3);
+
+            // In the middle: one member west of the hero, two east — Normal grants one slot a side.
+            scene.PlaceHero(AreaMin + 700f);
+            await Frames(3);
+            AssertThat(encounterLock.State).IsEqual(EncounterLockState.Engaged);
+            AssertThat(members.Count(m => m.EngagementRole == StoryEngagementRules.EngagementRole.Slot))
+                .OverrideFailureMessage("Holders after the engage: " + string.Join(", ", members.Select(m =>
+                    $"{m.EngagementRole}/{m.CurrentState}@{m.GlobalPosition.X - Origin.X:0}")) + $" hero@{scene.Hero.GlobalPosition.X - Origin.X:0}")
+                .IsEqual(2);
+
+            // A landing outside reverts it.
+            scene.PlaceHero(AreaMin - 300f);
+            await Frames(2);
+            AssertThat(encounterLock.State).IsEqual(EncounterLockState.Armed);
+            foreach (EnemyController member in members) {
+                AssertThat(member.IsEncounterDormant).IsTrue();
+                AssertThat(member.EngagementRole)
+                    .OverrideFailureMessage("A dormant member kept its engagement role.")
+                    .IsEqual(StoryEngagementRules.EngagementRole.None);
+            }
+            AssertThat(StoryEngagementDirector.MemberCountFor(scene.Hero)).IsEqual(0);
+
+            // Back in from the entry: every member stands east of the hero now.
+            scene.PlaceHero(AreaMin + 100f);
+            await Frames(3);
+            AssertThat(encounterLock.State).IsEqual(EncounterLockState.Engaged);
+            foreach (EnemyController member in members) AssertThat(member.GlobalPosition.X > scene.Hero.GlobalPosition.X).IsTrue();
+            AssertThat(members.Count(m => m.EngagementRole == StoryEngagementRules.EngagementRole.Slot))
+                .OverrideFailureMessage("Former holders kept their slots through the revert.")
+                .IsEqual(StoryEngagementRules.MeleeSlotsPerSide(Difficulty.Normal));
+        } finally {
+            StoryEngagementDirector.ResetForTest();
+        }
+    }
+
     // === Helpers =============================================================
+
+    private static HitPayload AnchorStrike() => new() {
+        AttackerIndex = 0,
+        AttackID = "einstein.basic",
+        HitboxID = "combo_1",
+        AttackClass = AttackClass.Basic,
+        Damage = 10f,
+        ContactId = HitClassification.NextContactId()
+    };
 
     private static EncounterLockWave OnBuildWave(int count) {
         var spawns = new List<EncounterLockSpawn>();
@@ -673,12 +901,43 @@ public class EncounterLockTests {
             Host.AddChild(encounterLock);
             encounterLock.Hero = Hero;
             encounterLock.Arm();
+            // A pooled body another case left with its physics stopped would never
+            // tick here (the director then drops it); every member starts live.
+            foreach (EnemyController member in encounterLock.LivingMembers) member.SetPhysicsProcess(true);
             return encounterLock;
+        }
+
+        /// <summary>
+        /// A Middle fracture at <paramref name="x"/> whose F10 baseline lists
+        /// <paramref name="baseline"/>, registered with StoryManager the way the
+        /// base level's builder does.
+        /// </summary>
+        public CheckpointTrigger BuildCheckpoint(string id, float x, params string[] baseline) {
+            StoryManager.Instance.RegisterEncounterBaseline(id, baseline,
+                StoryLevelControllerBase.ExplicitEncounterBaselineVersion);
+            var checkpoint = new CheckpointTrigger {
+                Name = $"Checkpoint_{id}",
+                CheckpointID = id,
+                Role = CheckpointRole.Middle,
+                Position = At(x, FloorY)
+            };
+            Host.AddChild(checkpoint);
+            return checkpoint;
         }
 
         public void Dispose() {
             EncounterLock.SuppressForTesting = false;
             InputManager.Instance?.ClearInputSource(Hero.PlayerIndex);
+            // A case that stopped a pooled member's physics (the stall watchdog's)
+            // must not hand the pool a body that never ticks again: a later case
+            // spawning from the same pool would get a frozen member (FIX-E).
+            if (GodotObject.IsInstanceValid(Host)) {
+                Godot.Collections.Array<Node> children = Host.GetChildren();
+                using var childrenLifetime = children.AsDisposable();
+                foreach (Node child in children) {
+                    if (child is EnemyController enemy) enemy.SetPhysicsProcess(true);
+                }
+            }
             PoolManager.Instance?.ReleaseActiveUnder(Host);
             if (GodotObject.IsInstanceValid(Host)) {
                 Host.GetParent()?.RemoveChild(Host);

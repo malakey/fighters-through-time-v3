@@ -27,10 +27,10 @@ namespace FTT.Environment {
     /// <see cref="EncounterLock"/> the hero must clear before the way forward
     /// opens — the vanguard (300–3200), the siege line (3220–6290, which also
     /// needs generator A down; its exit barrier fills Gate A under the gate
-    /// column) and the battlement floor fight before the climb (6460–8690, its
+    /// column) and the battlement floor fight before the climb (6580–8690, its
     /// exit at Gate B). One lock wave per manifest row. The Middle checkpoint
     /// moved out of the siege line to the corridor between Gate A and the
-    /// battlement lock (6370), and every checkpoint lists the locks before it.</para>
+    /// battlement lock (6500), and every checkpoint lists the locks before it.</para>
     /// </summary>
     public partial class Level02Controller : StoryLevelControllerBase {
 
@@ -197,16 +197,27 @@ namespace FTT.Environment {
         /// <summary>The siege line lock: room 2 up to Gate A, whose generator it also needs down.</summary>
         public const float SiegeLineLockMinX = Room2StartX + EncounterLockRules.DefaultBarrierWidthPixels;
         public const float SiegeLineLockMaxX = GateAX - EncounterLockRules.DefaultBarrierWidthPixels * 0.5f;
-        /// <summary>The battlement lock: the floor fight before the climb, up to Gate B.</summary>
-        public const float BattlementLockMinX = 6460f;
+        /// <summary>
+        /// The battlement lock: the floor fight before the climb, up to Gate B.
+        /// FIX-E (2026-10-13): it starts at 6580 (was 6460) to widen the corridor
+        /// the Middle anchor stands in; the spikes (6690–6810) and both room 3
+        /// spawns stay inside it.
+        /// </summary>
+        public const float BattlementLockMinX = 6580f;
         public const float BattlementLockMaxX = GateBX - EncounterLockRules.DefaultBarrierWidthPixels * 0.5f;
 
         /// <summary>
         /// The Middle anchor, in the corridor between Gate A (its forcefield ends at
-        /// 6324) and the battlement lock's entry barrier (6440): outside every lock
-        /// area, past the siege line it used to stand inside (5300).
+        /// 6324) and the battlement lock's entry barrier (6560): outside every lock
+        /// area, past the siege line it used to stand inside (5300). FIX-E
+        /// (2026-10-13): 6500, not 6370 — its strike surface (6470–6530) is beyond
+        /// the longest basic swing from inside the siege line (a hero pressed
+        /// against the exit barrier stands at 6270; the roster's longest basic hit,
+        /// AttackRange minor bought, ends at about 6426), and its respawn point is clear of the
+        /// room 3 trigger (6380–6460) whose camera starts at 6400. The checkpoint
+        /// guard refuses it anyway until the siege line is cleared.
         /// </summary>
-        public const float MiddleCheckpointX = 6370f;
+        public const float MiddleCheckpointX = 6500f;
 
         /// <summary>Gate A's column foot: the siege line's exit barrier fills the gate below it.</summary>
         private const float GateAColumnFootY = 600f;

@@ -1655,3 +1655,6 @@ movelist_air_attack,"Air attack: {0}/{1}/{2} frames — {3:0.#} damage, one stri
 hud_encounter_enemies_left,Enemies left: {0}
 hud_encounter_go,GO
 encounter_lock_objective_clear,Defeat every enemy here to break the Severed barrier.
+# FIX-E
+# Review fixes 2026-10-13 (encounter locks): a checkpoint fracture held shut while an encounter lock before it is uncleared.
+checkpoint_held_by_encounter_lock,The Severed barrier holds this fracture. Clear the area first.

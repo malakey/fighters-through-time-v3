@@ -32,6 +32,10 @@ namespace FTT.Tests.ContentValidation;
 ///       only see enabled shapes.</item>
 /// <item>Every lock ID is a stable encounter ID of its level, unique, and listed
 ///       in the baseline of every checkpoint after its area (and none before).</item>
+/// <item>FIX-E (2026-10-13): every checkpoint past a lock refuses activation
+///       while that lock holds, and no checkpoint respawns the hero inside a room
+///       trigger whose camera leaves the hero off screen (a placement rule for
+///       every campaign scene, locks or not).</item>
 /// </list>
 /// </summary>
 [TestSuite]
@@ -40,6 +44,8 @@ public class EncounterLockContentTests {
 
     /// <summary>The 40 px hero's half-width, for prompt footprints.</summary>
     private const float HeroHalfWidthPixels = 20f;
+    /// <summary>The hero body's height (CharacterFactory's 40 × 64 px body, feet on the origin).</summary>
+    private const float HeroHeightPixels = 64f;
     /// <summary>A checkpoint's or font's footprint reaches this far either side of its x (CheckpointTrigger's 60 px box).</summary>
     private const float AnchorHalfWidthPixels = 30f;
     /// <summary>A member spawn's floor lies at most this far under its feet (spawns stand 50 px above the floor).</summary>
@@ -250,6 +256,76 @@ public class EncounterLockContentTests {
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 
+    /// <summary>
+    /// FIX-E (2026-10-13): no fracture past a lock can be stabilized while that
+    /// lock holds. At build every lock is Armed and the hero stands at its spawn,
+    /// so a checkpoint that lists a lock in its F10 baseline, or stands at or past
+    /// a lock's area (the baseline rule above), must answer "held"
+    /// (<c>CheckpointTrigger.IsHeldByEncounterLock</c>) — a strike through a
+    /// barrier would otherwise commit a baseline a reload builds Cleared — and
+    /// every other checkpoint must not. Inert anchors activate nothing and are
+    /// skipped. A standalone level must register its baselines with StoryManager
+    /// for its fractures to be held.
+    /// </summary>
+    [TestCase]
+    public void EveryCheckpointPastALockRefusesActivationUntilThatLockIsCleared() {
+        var issues = new List<string>();
+        int held = 0;
+        foreach (LevelSnapshot level in Snapshots()) {
+            if (level.LoadError != null) { issues.Add($"{level.Label}: {level.LoadError}"); continue; }
+            foreach (FractureSnapshot fracture in level.Fractures) {
+                if (fracture.Inert) continue;
+                string listed = null;
+                string passed = null;
+                foreach (LockSnapshot encounterLock in level.Locks) {
+                    if (Array.IndexOf(fracture.Baseline, encounterLock.ID) >= 0) listed ??= encounterLock.ID;
+                    if (fracture.Position.X >= encounterLock.Area.End.X) passed ??= encounterLock.ID;
+                }
+                string holder = listed ?? passed;
+                if (holder != null && !fracture.HeldAtLevelStart) {
+                    issues.Add($"{level.Label}: {fracture.ID} (x {fracture.Position.X:0}) can be stabilized while '{holder}' is uncleared");
+                } else if (holder == null && fracture.HeldAtLevelStart) {
+                    issues.Add($"{level.Label}: {fracture.ID} (x {fracture.Position.X:0}) is held at the level start though no lock comes before it");
+                }
+                if (fracture.HeldAtLevelStart) held++;
+            }
+        }
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+        AssertThat(held).OverrideFailureMessage("No fracture is held anywhere: the sweep is vacuous.").IsGreater(0);
+    }
+
+    /// <summary>
+    /// FIX-E (2026-10-13): a hero respawned at a checkpoint is on screen. No live
+    /// checkpoint's respawn point puts the hero's body (40 × 64 px, feet on the
+    /// point) inside a room trigger whose camera rect does not contain that body:
+    /// the trigger fires on the first physics frame and confines the camera away
+    /// from the hero, and a once-only trigger never gives the room back (Level 2's
+    /// Middle anchor at 6370 sat inside the battlement trigger, whose camera starts
+    /// at 6400).
+    /// </summary>
+    [TestCase]
+    public void NoCheckpointRespawnsTheHeroInsideARoomTriggerWhoseCameraLeavesItOffScreen() {
+        var issues = new List<string>();
+        int checkedPoints = 0;
+        foreach (LevelSnapshot level in Snapshots()) {
+            if (level.LoadError != null) { issues.Add($"{level.Label}: {level.LoadError}"); continue; }
+            foreach (FractureSnapshot fracture in level.Fractures) {
+                if (fracture.Inert) continue;
+                checkedPoints++;
+                var body = new Rect2(fracture.Respawn.X - HeroHalfWidthPixels, fracture.Respawn.Y - HeroHeightPixels,
+                    HeroHalfWidthPixels * 2f, HeroHeightPixels);
+                foreach ((string roomID, Rect2 shape, Rect2 camera) in level.RoomTriggers) {
+                    if (!body.Intersects(shape)) continue;
+                    if (camera.Encloses(body)) continue;
+                    issues.Add($"{level.Label}: {fracture.ID} respawns the hero at {fracture.Respawn} inside room trigger "
+                        + $"'{roomID}' {Span(shape)}, whose camera {camera} leaves the hero's body {Span(body)} off screen");
+                }
+            }
+        }
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+        AssertThat(checkedPoints).IsGreater(0);
+    }
+
     // === Snapshots ===========================================================
 
     private sealed class SpawnSnapshot {
@@ -290,6 +366,20 @@ public class EncounterLockContentTests {
         public readonly List<Rect2> BossArenas = new();
         /// <summary>Every standable top (floors, platforms, one-ways), with disabled shapes.</summary>
         public readonly List<Rect2> Standables = new();
+        /// <summary>FIX-E: every checkpoint fracture, with its respawn point, its baseline and the lock guard's answer at build.</summary>
+        public readonly List<FractureSnapshot> Fractures = new();
+        /// <summary>FIX-E: every room trigger's enabled shape and the camera rect it applies.</summary>
+        public readonly List<(string RoomID, Rect2 Shape, Rect2 CameraBounds)> RoomTriggers = new();
+    }
+
+    private sealed class FractureSnapshot {
+        public string ID;
+        public Vector2 Position;
+        public Vector2 Respawn;
+        public CheckpointRole Role;
+        public bool Inert;
+        public bool HeldAtLevelStart;
+        public string[] Baseline = Array.Empty<string>();
     }
 
     private static int TotalLocks() {
@@ -359,7 +449,23 @@ public class EncounterLockContentTests {
             case CheckpointTrigger checkpoint:
                 snapshot.Checkpoints.Add((checkpoint.CheckpointID, checkpoint.GlobalPosition));
                 snapshot.Anchors.Add(($"checkpoint {checkpoint.CheckpointID}", checkpoint.GlobalPosition));
+                snapshot.Fractures.Add(new FractureSnapshot {
+                    ID = checkpoint.CheckpointID,
+                    Position = checkpoint.GlobalPosition,
+                    Respawn = checkpoint.GlobalPosition + checkpoint.RespawnOffset,
+                    Role = checkpoint.Role,
+                    Inert = checkpoint.Inert,
+                    HeldAtLevelStart = checkpoint.IsHeldByEncounterLock,
+                    Baseline = new List<string>(StoryManager.Instance?.GetEncounterBaseline(checkpoint.CheckpointID)
+                        ?? Array.Empty<string>()).ToArray()
+                });
                 break;
+            case RoomTransitionTrigger room: {
+                var shapes = new List<Rect2>();
+                AddShapes(room, shapes, includeDisabled: false);
+                foreach (Rect2 shape in shapes) snapshot.RoomTriggers.Add((room.RoomID, shape, room.CameraBounds));
+                break;
+            }
             case RestorationFont font:
                 snapshot.Anchors.Add(($"font {font.FontID}", font.GlobalPosition));
                 break;

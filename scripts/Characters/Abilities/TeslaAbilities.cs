@@ -363,7 +363,9 @@ namespace FTT.Characters.Abilities {
                         // GU-E (2026-10-12): through the body's own collision (the
                         // Tempest pattern), so a wall or an encounter-lock barrier
                         // between Tesla and the target stops the pull at it.
-                        body.MoveAndCollide(pulled - body.GlobalPosition);
+                        // FIX-E (2026-10-13): horizontal then vertical, so a target
+                        // standing above Tesla is not held by its own footing.
+                        PullThroughCollision(body, pulled - body.GlobalPosition);
                     }
                     return;
                 }

@@ -313,12 +313,13 @@ public class Level02ContentTests {
             AssertString(siegeLine.LockID).IsEqual(Level02Controller.LockSiegeLine);
             AssertString(battlement.LockID).IsEqual(Level02Controller.LockBattlement);
 
-            // The plan's areas: 300-3200, 3220-6290 (to Gate A), 6460-8690 (to Gate B).
+            // The plan's areas: 300-3200, 3220-6290 (to Gate A), 6580-8690 (to Gate B;
+            // FIX-E moved its west edge from 6460 to widen the Middle anchor's corridor).
             AssertThat(vanguard.Area.Position.X).IsEqual(300f);
             AssertThat(vanguard.Area.End.X).IsEqual(3200f);
             AssertThat(siegeLine.Area.Position.X).IsEqual(3220f);
             AssertThat(siegeLine.Area.End.X).IsEqual(6290f);
-            AssertThat(battlement.Area.Position.X).IsEqual(6460f);
+            AssertThat(battlement.Area.Position.X).IsEqual(6580f);
             AssertThat(battlement.Area.End.X).IsEqual(8690f);
 
             // One wave per manifest row, the authored tables, the plan's triggers.
@@ -379,7 +380,7 @@ public class Level02ContentTests {
             AssertObject(middle).IsNotNull();
             AssertThat(middle.Role).IsEqual(CheckpointRole.Middle);
             AssertThat(middle.GlobalPosition.X).IsEqual(Level02Controller.MiddleCheckpointX);
-            // Past Gate A's barrier (east face 6324) and short of the battlement's entry (6440).
+            // Past Gate A's barrier (east face 6324) and short of the battlement's entry (6560).
             AssertThat(middle.GlobalPosition.X - 30f > Level02Controller.GateAX + 24f).IsTrue();
             AssertThat(middle.GlobalPosition.X + 30f < level.BattlementLock.EntryBarrier.Footprint.Position.X).IsTrue();
             foreach (EncounterLock encounterLock in level.EncounterLocks) {
@@ -387,8 +388,75 @@ public class Level02ContentTests {
                     && middle.GlobalPosition.X - 30f < encounterLock.Area.End.X;
                 AssertThat(inside).OverrideFailureMessage($"The Middle anchor stands inside '{encounterLock.LockID}'.").IsFalse();
             }
+            // FIX-E (2026-10-13): out of swing reach from inside the siege line. A
+            // hero pressed against its closed exit barrier swings the roster's
+            // longest basic hit (widest reach, largest AttackRange minor) short of
+            // the strike surface's west edge (the anchor's x - 30). It stood at
+            // 6370 and a template hit 1 reached it through the barrier.
+            float pivot = level.SiegeLineLock.ExitBarrier.Footprint.Position.X - HeroHalfWidthPixels;
+            float reach = LongestBasicSwingPixels();
+            AssertThat(pivot + reach < middle.GlobalPosition.X - 30f)
+                .OverrideFailureMessage($"A swing from the siege line reaches x {pivot + reach:0}, the Middle anchor's surface starts at {middle.GlobalPosition.X - 30f:0}.")
+                .IsTrue();
         } finally {
             PoolManager.Instance?.ReleaseActiveUnder(level);
+        }
+    }
+
+    /// <summary>
+    /// FIX-E (2026-10-13), the review's scenario on the real scene: with the siege
+    /// line engaged, a strike that reaches the Middle anchor's surface stabilizes
+    /// nothing — its baseline lists the siege line, which a reload would build
+    /// Cleared (and MarkWavesClearedThrough would break generator A). Once the
+    /// siege line is cleared the same strike takes.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task TheMiddleAnchorRefusesAStrikeUntilTheSiegeLineIsCleared() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        StoryManager story = StoryManager.Instance;
+        using var fixture = new Level02Fixture(null);
+        Level02Controller level = fixture.Level;
+        FTT.Characters.PlayerController player = level.Player;
+        try {
+            for (int frame = 0; frame < 2; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            DialogueManager dialogue = DialogueManager.Instance;
+            for (int advance = 0; advance < 200 && dialogue != null && dialogue.IsSequenceActive; advance++) dialogue.AdvanceLine();
+            AssertThat(tree.Paused).IsFalse();
+            CheckpointTrigger middle = level.GetNode<CheckpointTrigger>($"Checkpoint_{Level02Controller.Checkpoint1}");
+            var surface = middle.GetNode<EnvironmentHurtboxAdapter>("StrikeSurface");
+            // The vanguard is behind the hero (cleared, as a run reaching the siege line has it).
+            level.VanguardLock.RestoreCleared();
+
+            EncounterLock siegeLine = level.SiegeLineLock;
+            player.GlobalPosition = new Vector2(3600f, 850f);
+            player.Velocity = Vector2.Zero;
+            for (int frame = 0; frame < 4; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(siegeLine.State).IsEqual(EncounterLockState.Engaged);
+            // Pressed against Gate A, inside the engaged lock.
+            player.GlobalPosition = new Vector2(6250f, 850f);
+            player.Velocity = Vector2.Zero;
+            for (int frame = 0; frame < 2; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(siegeLine.State).IsEqual(EncounterLockState.Engaged);
+
+            AssertThat(middle.IsHeldByEncounterLock).IsTrue();
+            surface.TakeHit(PlayerStrike());
+            AssertThat(middle.IsActivated)
+                .OverrideFailureMessage("The Middle anchor was stabilized from inside the engaged siege line.")
+                .IsFalse();
+            AssertThat(story.IsCheckpointActivated(Level02Controller.Checkpoint1)).IsFalse();
+
+            foreach (EnemyController member in siegeLine.LivingMembers) member.TakeDamage(99999);
+            level.ShieldTowerA.TakeEnvironmentDamage(level.ShieldTowerA.MaxHP);
+            for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(siegeLine.State).IsEqual(EncounterLockState.Cleared);
+            AssertThat(middle.IsHeldByEncounterLock).IsFalse();
+            surface.TakeHit(PlayerStrike());
+            AssertThat(middle.IsActivated).IsTrue();
+            AssertThat(story.IsCheckpointActivated(Level02Controller.Checkpoint1)).IsTrue();
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+            SessionExitGuard.ClearMarker();
+            story.ClearLevelAttemptState();
         }
     }
 
@@ -437,6 +505,41 @@ public class Level02ContentTests {
     }
 
     // === Helpers ===
+
+    /// <summary>The 40 px hero body's half-width.</summary>
+    private const float HeroHalfWidthPixels = 20f;
+
+    /// <summary>
+    /// FIX-E: the farthest a Story basic string hit reaches in front of the pivot
+    /// over the whole roster — every step's far edge from the Story box resolver,
+    /// at each hero's reach profile with every AttackRange minor of its grid bought.
+    /// </summary>
+    private static float LongestBasicSwingPixels() {
+        float longest = 0f;
+        foreach (string id in CharacterRoster.IDs) {
+            float minor = 0f;
+            ResonanceGridData grid = ResonanceProgression.LoadGrid(id);
+            foreach (ResonanceNodeData node in grid?.Nodes ?? Array.Empty<ResonanceNodeData>()) {
+                if (node != null && node.StatModifierKey == ResonanceStatKeys.AttackRange) minor += node.StatModifierValue;
+            }
+            FTT.Combat.BasicStringProfile profile = FTT.Combat.BasicComboRules.StringProfileFor(id);
+            for (int step = 0; step < FTT.Combat.BasicComboRules.StringBoxHalfWidthUnits.Length; step++) {
+                FTT.Characters.PlayerController.ResolveGroundStringBoxPixels(step, profile, 1f + minor,
+                    out Vector2 size, out Vector2 offset);
+                longest = Mathf.Max(longest, offset.X + size.X * 0.5f);
+            }
+        }
+        return longest;
+    }
+
+    private static FTT.Combat.HitPayload PlayerStrike() => new() {
+        AttackerIndex = 0,
+        AttackID = "einstein.basic",
+        HitboxID = "combo_1",
+        AttackClass = FTT.Combat.AttackClass.Basic,
+        Damage = 10f,
+        ContactId = FTT.Combat.HitClassification.NextContactId()
+    };
 
     private static IEnumerable<(string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)> AllAuthoredSpawns() {
         foreach (var spawn in Level02Controller.Room1Spawns) yield return spawn;

@@ -165,6 +165,21 @@ namespace FTT.Environment {
         /// <summary>True while Time Freeze (or a recovery hold's sweep) has latched this lock.</summary>
         public bool IsTimeFrozen => _timeFrozen;
 
+        /// <summary>
+        /// FIX-E (2026-10-13): true while the lock's living hero stands inside its
+        /// area — the same containment test the tick reverts on. The checkpoint
+        /// guard (<c>CheckpointTrigger.IsHeldByEncounterLock</c>) reads it.
+        /// </summary>
+        public bool HeroStandsInside {
+            get {
+                PlayerController hero = ResolveHero();
+                if (!IsAlive(hero)) return false;
+                Vector2 feet = hero.GlobalPosition;
+                return EncounterLockRules.IsInsideArea(
+                    feet.X, feet.Y, Area.Position.X, Area.End.X, Area.Position.Y, Area.End.Y);
+            }
+        }
+
         /// <summary>The hero the lock judges; set by the base level, else resolved from <c>StoryPlayer</c>.</summary>
         public PlayerController Hero { get; set; }
 

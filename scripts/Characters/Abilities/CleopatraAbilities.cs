@@ -249,8 +249,9 @@ namespace FTT.Characters.Abilities {
                 // GU-E (2026-10-12): a positional pull through the body's own
                 // collision (the Tempest pattern), so walls and encounter-lock
                 // barriers stop it — it used to write the position straight
-                // through them.
-                body.MoveAndCollide(new Vector2(travel, 0f));
+                // through them. Horizontal only, so the target's footing never
+                // cancels it (FIX-E's PullThroughCollision runs it as its horizontal half).
+                PullThroughCollision(body, new Vector2(travel, 0f));
             }
         }
 

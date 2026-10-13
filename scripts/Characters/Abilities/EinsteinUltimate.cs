@@ -108,7 +108,11 @@ namespace FTT.Characters.Abilities {
                 // GU-E (2026-10-12): through the body's own collision (the
                 // Tempest pattern), so walls and encounter-lock barriers stop the
                 // pull instead of the position being written through them.
-                body.MoveAndCollide(toCenter.Length() <= step ? toCenter : toCenter.Normalized() * step);
+                // FIX-E (2026-10-13): the horizontal and vertical halves move
+                // separately — one diagonal MoveAndCollide stopped dead on the
+                // target's own footing whenever it stood above the singularity.
+                PullThroughCollision(body,
+                    toCenter.Length() <= step ? toCenter : toCenter.Normalized() * step);
             }
         }
 

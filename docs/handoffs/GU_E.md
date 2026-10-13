@@ -400,6 +400,9 @@ Delete the level's `SpawnInitialEnemies`, `SpawnWave`, its wave triggers and the
 - Barriers stand outside their own area, within 20 px of its edge, and never inside another lock's area. Two adjacent locks share one 20 px slot (lock A's exit and lock B's entry at the same x, as Level 2's 3200–3220).
 - Every barrier needs floor under its x.
 - A lock with no barrier fails the content test.
+- **(FIX-E, 2026-10-13) A checkpoint past a lock is held shut until that lock is Cleared.** `CheckpointTrigger.IsHeldByEncounterLock` refuses activation while a lock the checkpoint's F10 baseline lists is not Cleared, and while the hero stands inside any lock that is not Cleared. The content test fails on any live checkpoint that lists a lock, or stands at or past a lock's area, and is not held at the level start; and on one that is held although no lock comes before it (for example a hero spawn inside an area). The guard reads the baseline **StoryManager** holds, so a standalone level (Level 0, Florence) must call `StoryManager.RegisterEncounterBaseline(checkpointID, lockIDs, StoryLevelControllerBase.ExplicitEncounterBaselineVersion)` for every checkpoint after a lock, or the content test fails.
+- **(FIX-E) Keep each Middle and PreBoss strike surface out of basic-swing reach from inside the locks its baseline lists**, as belt and braces: the surface is `x ± 30`, and the longest Story basic hit reaches about 156 px past the pivot of a hero pressed against the closed exit barrier (widest reach profile, AttackRange minor bought). The guard is the real rule; Specials, Ultimates and shape queries ignore barriers, so geometry alone can never be enough. `Level02ContentTests` measures it with the roster's data (`LongestBasicSwingPixels`).
+- **(FIX-E) No live checkpoint's respawn point may put the hero's 40 × 64 px body inside a room trigger whose `CameraBounds` do not contain that body** (`EncounterLockContentTests`, every campaign scene). The trigger fires on the first frame after a resume and confines the camera away from the hero; a once-only trigger never gives the room back. Level 2's Middle anchor at 6370 sat inside the battlement trigger (6380–6460, camera from 6400).
 
 **Pitfalls I hit or saw:**
 - **Build locks in `BuildLevel`.** Built later, a resume baseline cannot restore them Cleared, and their members spawn behind a resumed hero.
@@ -411,3 +414,141 @@ Delete the level's `SpawnInitialEnemies`, `SpawnWave`, its wave triggers and the
 - **The hard cap does not rescue unreachable members.** The watchdog relocates melee members stuck off the floor or out of reach to their anchor. If the anchor itself is unreachable, fix the content.
 - **Escape sequences and timed floods (L5, L6, L15):** start them on a lock's clear (`StateChanged` → `Cleared`), not on an x trigger inside an area.
 - **Tests:** a real-scene suite that walks the hero through a level and does not test locks can set `EncounterLock.SuppressForTesting = true` in try/finally. No existing suite needed it for Level 2.
+- **(FIX-E) Tests that activate a checkpoint past a lock** (`Activate()`, `HandleStrike`, a strike on its `StrikeSurface`) are refused while that lock holds. Clear the lock first (kill its members, or `RestoreCleared()` for a lock the scenario stands past), or set `SuppressForTesting`.
+- **(FIX-E) A test that stops a pooled member's physics** (`SetPhysicsProcess(false)`) must start it again before the body goes back to the pool: the pool does not, and a later case then gets a member that never ticks (the director drops it). `EncounterLockTests`' `LockScene` now does both ends.
+
+---
+
+## Review fixes (2026-10-13)
+
+Workstream FIX-E of the Phase A adversarial review (`D:/Projects/absolum_research/update_2026-10-12/phaseA_review_verified.json`: the six findings on the lock framework, Level 2, zones, pulls and the lock/director seams). Branch `worktree-wf_0734101c-91c-1`, based on `199e260` (merged Phase A). **Nobody has played any of it**; the evidence is the suites below.
+
+### Per finding
+
+1. **Level 2's Middle checkpoint could be struck from inside the engaged siege line, and a reload then skipped the lock and generator A** (high; reported twice). The fix is in the framework, so no Phase B level can repeat it.
+   - `CheckpointTrigger.IsHeldByEncounterLock` (`scripts/Environment/LevelManager.cs`) is true while either of these holds:
+     - a lock that the checkpoint's F10 baseline lists (`StoryManager.GetEncounterBaseline`) is not Cleared;
+     - the hero stands inside any lock that is not Cleared. This is the belt-and-braces half: a strike surface is a PersistentObject area, so an area-to-area hit passes straight through a barrier. It uses the new `EncounterLock.HeroStandsInside`, the same containment test the lock's tick uses.
+   - `Activate()` refuses outright while the checkpoint is held. It is the one chokepoint for the strike surface, the Entry self-activation and direct calls. A refused activation does nothing: no `TryActivateCheckpoint`, no Mending, no rewind refresh, no Integrity bank, no `CheckpointReached`/`Committed`, no save.
+   - A lock ID with no live lock in the tree never holds.
+   - Feedback: the fracture posts the `EnvironmentNotice` `checkpoint_held_by_encounter_lock` ("The Severed barrier holds this fracture. Clear the area first."). It posts at most once per notice lifetime (`EnvironmentNotice.DefaultSeconds` × the physics rate), so a three-hit string shows it once. The key is in an `en.csv` `# FIX-E` block; `--import` was run and `en.en.translation` is committed.
+   - **Level 2 moved:**
+     - `MiddleCheckpointX` 6370 → **6500**.
+     - `BattlementLockMinX` 6460 → **6580**: the entry barrier is now 6560–6580 and the area 6580–8690 (2110 px). The spikes (6690–6810) and both room 3 spawns are still inside it, and the engage line (6624) is still short of the spikes.
+     - The anchor's strike surface (6470–6530) now lies past the longest Story basic swing from inside the siege line: a hero pressed against the closed exit stands at 6270, and that swing reaches 6426.
+     - The anchor is also clear of the room 3 trigger (finding 3).
+     - `MarkWavesClearedThrough(Checkpoint1)` still breaks generator A. That is now consistent, because the checkpoint can only commit once the siege line has been cleared.
+   - Not done: the verifiers' second layer, which filters `CheckpointRecord.BaselineEncounterIDs` at commit time. It is redundant, because every activation path goes through `Activate()`.
+2. **Relativity Rift zone ticks damaged dormant members** (medium).
+   - `PlaceholderZone.ApplyTickTo` now skips a dormant member before damage, status and meter (`if (enemy.IsEncounterDormant) return;`).
+   - The skip is silent, like the boss ward's Venom tick. The tick is not routed through the hurtbox, because that would change mob intake (proration, poise, confirm).
+   - **Audit** of every player-sourced path that reaches an enemy outside `OnHurtboxHit` (the warded intake):
+
+   | Path | Reaches a dormant member? | Outcome |
+   |---|---|---|
+   | `PlaceholderZone.ApplyTickTo` → `TakeDamage(int)` + meter credit (the Rift) | yes: through an Armed lock's open entry after a revert, and its 90 px radius spills past a 20 px barrier | **closed** |
+   | Crowd bowling, `EnemyController.ProcessThrownFlight` → `TakeDamage(int, Vector2?)`, `TryApplyKnockback`, `ApplyStun` | yes: a non-member thrown in through an Armed lock's open entry | **closed** (a dormant `other` is skipped) |
+   | The Story throw, `PlayerController.ResolveStoryThrow` → `TakeDamage(int)`, `LaunchThrown` | no. `IsGrabbable` refuses a dormant member, and a held member cannot go dormant: the revert needs the holder outside the area, and the grab pins the holder beside its victim inside it | left, recorded |
+   | Lincoln's Kinetic Splitting bounce, `ResolveGroundBounces` → `ApplyStun` (and `SpikeAirborneTargets`' velocity write) | only an airborne dormant ground member under the overhead arc, reached through an open entry in the few frames it is falling. A dormant flyer never lands, so it is never stunned | left, recorded (no damage, no meter) |
+   | The Venom tick | already guarded (GU-E) | — |
+   | The D9 wall impact (`TakeDamage` in the wall bounce) | no: going dormant clears the launch and the bounce latch | — |
+   | Every kit hit through `Hurtbox.TakeHit` / `Hitbox`: Specials and Ultimates (`DealSingularityHit`), constructs (coil arcs, the coil fence, turret bolts, serpent nest bites), ground waves, bursts (E=mc², Requiem), the Lorentz chain, the Rift Collapse launch, pooled projectiles | warded at `OnHurtboxHit` | — |
+   | Kit `ApplyStatusEffect` calls (roots, Macbeth's Venom, Critical Mass's burn, the Rift linger) | warded inside `ApplyStatusEffect` | — |
+   | Displacement-only writes: the three pulls, the Rift Collapse pull, the Tempest windbox | can move a dormant member, with no damage, status or meter | left. The member's x-clamp keeps it in its area, and closed barriers stop the three pulls. The Rift Collapse pull is still a direct position write over 6 frames (not one of the plan's three); it can carry any body through a thin wall. Recorded as open |
+
+3. **The Middle checkpoint sat on the room 2/3 camera seam** (medium).
+   - Moving the anchor to 6500 resolves it. The respawned body (6480–6520) no longer overlaps the battlement room trigger (6380–6460), and the resume camera picks room 3 (from 6400), which contains it.
+   - A new all-level content rule says no live checkpoint's respawn point may put the hero's 40 × 64 px body inside a room trigger whose `CameraBounds` do not enclose that body. It flagged only Level 2's old anchor (confirmed by the revert run below). **No other level needed a change.**
+4. **The wall-aware pulls stalled on the target's own footing, and nothing tested the pulls** (low ×2).
+   - New `BaseSpecial.PullThroughCollision(body, motion)`: a horizontal `MoveAndCollide`, then a vertical one. Walls and closed barriers still stop the horizontal half; the target's footing can only cancel the vertical half.
+   - It is used by Einstein's singularity, Lorentz Attraction and the Sandstorm Vortex. The Vortex is horizontal only, so its effect is unchanged.
+5. **A lock's simultaneous wake gave the first melee slot to tree order** (low).
+   - `EnemyController.Engage` (`EnemyController.Encounter.cs`) now calls `StoryEngagementDirector.Join(this, hero)` once the member is in Chase.
+   - So every member the lock wakes, and every engage-time wave body, is in the director before any member ticks. The first grant then goes by the plan §2.6 priority, which puts the elite first.
+   - `Join` is idempotent. A lone mob's ordinary aggro path is untouched.
+6. **A reverted (dormant) member kept its director role** (low). `SetEncounterDormant(true)` now calls `StoryEngagementDirector.Leave(this)`, so a dormant body holds no slot or wait role, and a re-engage queues it afresh by priority.
+
+### Files
+
+- `scripts/Environment/LevelManager.cs` (the checkpoint guard)
+- `scripts/Environment/EncounterLock.cs` (`HeroStandsInside`)
+- `scripts/Environment/Level02Controller.cs`
+- `scripts/Combat/PlaceholderZone.cs`
+- `scripts/Combat/BaseSpecial.cs` (`PullThroughCollision`)
+- `scripts/Characters/Abilities/{EinsteinUltimate,TeslaAbilities,CleopatraAbilities}.cs`
+- `scripts/Enemies/EnemyController.Encounter.cs` (`Join` at engage, `Leave` at dormancy)
+- `scripts/Enemies/EnemyController.cs` (one line in `ProcessThrownFlight`)
+- `localization/en.csv`, `en.en.translation`
+- the tests below
+
+**Merge seams:**
+- FIX-F's files (`StoryEngagementRules`, `StoryEngagementDirector`, `EnemyController.Engagement.cs`) were not edited; this fix only calls the director's existing internal `Join` / `Leave`.
+- `LevelManager.cs`, `BaseSpecial.cs` and `PlaceholderZone.cs` sit outside GU-E's original list. The guard belongs on the checkpoint itself, the pull helper on the kits' shared base, and the zone tick is a ward path.
+
+### Tests: +11 (3109 → 3120)
+
+New cases:
+- `EncounterLockTests` +5:
+  - `ACheckpointRefusesItsStrikeWhileALockItListsOrTheHeroStandsInIsUncleared`
+  - `AZoneTickNeverDamagesOrCreditsADormantMemberButAnEngagedOneTakesIt`
+  - `AThrownBodyNeverBowlsADormantMember`
+  - `AnEliteListedAfterAStandardTakesTheFirstMeleeSlotWhenTheLockWakes`
+  - `ARevertedMemberLeavesTheDirectorAndAReengageGrantsSlotsAfresh`
+- New suite `StoryKitPullWallTests` (real frames) +3:
+  - `TheSandstormVortexDrawsATargetInButNeverThroughABarrier`
+  - `TheSingularityDrawsATargetOnAStepAboveItButNeverThroughABarrier`
+  - `LorentzAttractionDrawsATargetOnAStepAboveTeslaButNeverThroughABarrier`
+- `EncounterLockContentTests` +2:
+  - `EveryCheckpointPastALockRefusesActivationUntilThatLockIsCleared`
+  - `NoCheckpointRespawnsTheHeroInsideARoomTriggerWhoseCameraLeavesItOffScreen`
+- `Level02ContentTests` +1:
+  - `TheMiddleAnchorRefusesAStrikeUntilTheSiegeLineIsCleared` (the review's scenario on the real scene)
+
+Rewritten in place, no count change:
+- `Level02ContentTests.TheThreeApproachRoomsAreEncounterLocksOneWavePerManifestRow`: the battlement pin 6460 → 6580.
+- `Level02ContentTests.TheMiddleAnchorStandsInTheCorridorPastGateAOutsideEveryLock`: adds the swing-reach clearance, computed from every roster profile and grid (`LongestBasicSwingPixels`).
+- `EncounterLockTests`' `LockScene`:
+  - `BuildLock` starts every member's physics.
+  - `Dispose` restarts the physics of every enemy it hands back to the pool. The stall-watchdog case used to return a frozen pooled slasher, and the next case that drew it got a member that never ticked.
+  - A new `BuildCheckpoint` helper.
+
+**Every fix was checked against a revert.** All seven fixes were temporarily undone at once:
+- the guard property forced false;
+- the zone skip, the bowling skip, the join and the leave removed;
+- the pull split back to one diagonal `MoveAndCollide`;
+- Level 2 back to 6370 / 6460.
+
+Exactly the 12 expected cases then failed, each for its own reason: the 11 new cases (minus the Vortex case, whose pull was already horizontal) plus the two rewritten Level 2 cases. The respawn rule flagged only Level 2's old anchor. Everything was then restored.
+
+Runs, all holding the lock:
+- the four touched suites: 49/49;
+- 27 affected suites (locks, Level 2, baselines, the director, zones, checkpoints, the pull kits, the camera rig, wall bounce, rift collapse, `EnemyControllerTests` and others): 302/302;
+- **the full suite: `Passed! - Failed: 0, Passed: 3120, Total: 3120` (1 m 34 s) = 3109 + 11.** The `[TestCase]` count under `tests/` is 3120.
+
+### Changes to the Phase B authoring rules
+
+The AUTHORING GUIDE above now marks each of these FIX-E:
+- the checkpoint hold;
+- registering baselines in standalone levels;
+- swing-reach clearance for Middle and PreBoss anchors;
+- the respawn and room-trigger camera rule;
+- tests that activate a checkpoint past a lock;
+- restarting a pooled body's physics.
+
+Still open for Phase B:
+- Moving platforms and position-writing kit moves (the Rift Collapse) are still not barrier-aware.
+- **GU-BOT:** the `play` bot may strike a held checkpoint and get only refusals until its 900-frame task give-up. It should skip checkpoints while `IsHeldByEncounterLock`.
+
+### For the closeout
+
+- `PROVISIONAL-ENCOUNTER-LOCK-RULES` gains:
+  - the checkpoint hold (both rules and the notice);
+  - the dormant ward extended to zone ticks and crowd bowling;
+  - the lock/director edges (`Join` at engage, `Leave` at dormancy).
+- The Level 2 Middle-anchor fact is now **6500** (not 6370), and the battlement lock starts at 6580.
+- AGENTS.md: the strike-to-activate checkpoint bullet gains the lock hold.
+- Design-master line owed: the "Chronal Rift Checkpoints" section must say a fracture past an uncleared lock cannot be stabilized.
+- Open, recorded above:
+  - the Rift Collapse position write;
+  - the Lincoln bounce stun on an airborne dormant member;
+  - the record-time baseline filter.
