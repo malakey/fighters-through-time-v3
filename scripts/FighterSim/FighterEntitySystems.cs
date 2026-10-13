@@ -1061,7 +1061,7 @@ namespace FTT.FighterSim {
 
             // Package 13 W7a (L03/D14): Leonardo's once-per-flight glide bolt.
             // Read before the combat gates (the basic press also swings, the
-            // way Story's glide command sits beside the aerial string).
+            // way Story's glide command sits beside the air strike).
             ResolveGlideBolts(ref frame);
 
             var filter = frame.Filter<

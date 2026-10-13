@@ -159,7 +159,13 @@ public class CpuMeleeBandTests {
             (2, FighterBasicAttackRules.PhaseRecovery, 0, 0),
             (0, FighterBasicAttackRules.PhaseActive, FighterBasicAttackRules.FlagUpAttack, 0),
             (0, FighterBasicAttackRules.PhaseRecovery,
-                FighterBasicAttackRules.FlagDownAir | FighterBasicAttackRules.FlagAerial, 0)
+                FighterBasicAttackRules.FlagDownAir | FighterBasicAttackRules.FlagAerial, 0),
+            // GU-A: the single air strike never continues, so a press during it
+            // reads the opener's band (the box it and the opener share).
+            (0, FighterBasicAttackRules.PhaseStartup,
+                FighterBasicAttackRules.FlagAirAttack | FighterBasicAttackRules.FlagAerial, 0),
+            (0, FighterBasicAttackRules.PhaseRecovery,
+                FighterBasicAttackRules.FlagAirAttack | FighterBasicAttackRules.FlagAerial, 0)
         };
         foreach ((int comboIndex, int phase, int flags, int expected) in cases) {
             var runtime = new FighterRuntimeComponent { ComboIndex = comboIndex, AttackPhase = phase, AttackFlags = flags };

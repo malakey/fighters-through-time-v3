@@ -52,8 +52,9 @@ public class BasicStringProfileTests {
             // hit 2's 40-frame hitstun must still cover the finisher link).
             AssertThat(profile.GroundStartupFrames[0] >= 5 && profile.GroundStartupFrames[0] <= 8).IsTrue();
             AssertThat(profile.GroundStartupFrames[2] >= 14 && profile.GroundStartupFrames[2] <= 17).IsTrue();
-            AssertThat(profile.AerialStartupFrames[0] >= 4 && profile.AerialStartupFrames[0] <= 7).IsTrue();
-            AssertThat(profile.AerialStartupFrames[2] >= 11 && profile.AerialStartupFrames[2] <= 14).IsTrue();
+            // GU-A (2026-10-12): the single air strike keeps the retired aerial
+            // opener's startup band, 4-7; the aerial finisher is gone.
+            AssertThat(profile.AirAttackStartupFrames >= 4 && profile.AirAttackStartupFrames <= 7).IsTrue();
             // Reach: +/-20% width, height never below template.
             AssertThat(profile.ReachWidthPercent >= 85 && profile.ReachWidthPercent <= 120).IsTrue();
             AssertThat(profile.ReachHeightPercent >= 100 && profile.ReachHeightPercent <= 115).IsTrue();
@@ -67,7 +68,6 @@ public class BasicStringProfileTests {
         foreach (string id in RosterIDs) {
             BasicStringProfile profile = BasicComboRules.StringProfileFor(id);
             AssertThat(profile.GroundStartupFrames[1]).IsEqual(BasicComboRules.GroundStartupFrames[1]);
-            AssertThat(profile.AerialStartupFrames[1]).IsEqual(BasicComboRules.AerialStartupFrames[1]);
         }
     }
 
@@ -80,6 +80,7 @@ public class BasicStringProfileTests {
         BasicStringProfile template = BasicComboRules.TemplateStringProfile;
         AssertThat(template.GroundStartupFrames[0]).IsEqual(BasicComboRules.GroundStartupFrames[0]);
         AssertThat(template.GroundStartupFrames[2]).IsEqual(BasicComboRules.GroundStartupFrames[2]);
+        AssertThat(template.AirAttackStartupFrames).IsEqual(BasicComboRules.AirAttackStartupFrames);
         AssertThat(template.DamageTenths[0] + template.DamageTenths[1] + template.DamageTenths[2]).IsEqual(33);
     }
 

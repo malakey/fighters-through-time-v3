@@ -156,27 +156,36 @@ public class StoryCombatRulesTests {
     }
 
     [TestCase]
-    public void AerialComboUsesIndependentStateAndLandingResetDoesNotLeakIntoGroundCombo() {
+    public void AnAirPressIsOneStrikeThatNeverAdvancesTheStringAndLandingLeavesItFresh() {
+        // GU-A (2026-10-12; this case pinned the retired aerial string's own
+        // counter): the template-profile air strike runs its whole authored
+        // window on the frame clock and exits straight out, with no chain hold,
+        // so the next air press is a fresh air strike, never hit two.
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
-        // Template-profile character: the aerial opener runs its whole authored
-        // window on the frame clock, then the chain hold accepts hit two.
         PlayerController player = CharacterFactory.CreateCharacter("tesla");
         tree.Root.AddChild(player);
         try {
+            var hitbox = player.GetNode<Hitbox>("MeleeHitbox");
             player.TransitionTo(CharacterState.Airborne);
             player.Velocity = Vector2.Down;
             SendInput(player, GameplayButtons.BasicAttack);
-            int opener = BasicComboRules.StringProfileFor("tesla").AerialStartupFrames[0]
-                + BasicComboRules.AerialActiveFrames[0]
-                + BasicComboRules.AerialRecoveryFrames[0];
-            for (int frame = 0; frame < opener; frame++) SendInput(player, GameplayButtons.None);
+            AssertThat(hitbox.HitboxID).IsEqual(BasicComboRules.AirAttackHitboxID);
+            int strike = BasicComboRules.StringProfileFor("tesla").AirAttackStartupFrames
+                + BasicComboRules.AirAttackActiveFrames
+                + BasicComboRules.AirAttackRecoveryFrames;
+            for (int frame = 0; frame < strike; frame++) SendInput(player, GameplayButtons.None);
+            AssertThat(player.CurrentState)
+                .OverrideFailureMessage("The air strike exits straight out, with no chain hold.")
+                .IsEqual(CharacterState.Airborne);
             SendInput(player, GameplayButtons.BasicAttack);
 
-            AssertThat(player.AerialComboCounter).IsEqual(1);
+            AssertThat(player.CurrentState).IsEqual(CharacterState.Attacking);
+            AssertThat(hitbox.HitboxID).IsEqual(BasicComboRules.AirAttackHitboxID);
+            AssertThat(player.ComboCounter).IsEqual(0);
             AssertThat(player.GroundComboCounter).IsEqual(0);
 
             player.TransitionTo(CharacterState.Idle);
-            AssertThat(player.AerialComboCounter).IsEqual(0);
+            AssertThat(player.ComboCounter).IsEqual(0);
             AssertThat(player.GroundComboCounter).IsEqual(0);
         } finally {
             InputManager.Instance?.ClearInputSource(player.PlayerIndex);
@@ -742,11 +751,12 @@ public class StoryCombatRulesTests {
             var hitShape = hitbox.GetChild<CollisionShape2D>(0);
             float baseKnockback = player.Data.BasicAttackKnockback;
 
-            // No direction held: the ordinary string opener.
+            // No direction held in the air: the single air strike (GU-A), not
+            // the string opener.
             player.TransitionTo(CharacterState.Airborne);
             player.Velocity = Vector2.Down;
             SendInput(player, GameplayButtons.BasicAttack);
-            AssertThat(hitbox.HitboxID).IsEqual("combo_1");
+            AssertThat(hitbox.HitboxID).IsEqual(BasicComboRules.AirAttackHitboxID);
             player.TransitionTo(CharacterState.Airborne);
 
             // Up held: the up-attack.
@@ -785,7 +795,7 @@ public class StoryCombatRulesTests {
             int remaining = BasicComboRules.UpAttackActiveFrames + BasicComboRules.UpAttackRecoveryFrames;
             for (int frame = 0; frame < remaining; frame++) SendInput(player, GameplayButtons.None, vertical: -1f);
             AssertThat(player.CurrentState).IsNotEqual(CharacterState.Attacking);
-            AssertThat(player.AerialComboCounter)
+            AssertThat(player.ComboCounter)
                 .OverrideFailureMessage("A directional attack never advances the chain.")
                 .IsEqual(0);
             AssertThat(player.GroundComboCounter).IsEqual(0);

@@ -560,7 +560,12 @@ namespace FTT.FighterSim {
         /// </summary>
         public int AttackPhase;
         public int AttackPhaseFrames;
-        /// <summary>Bit flags: 1 aerial string, 2 hit resolved, 4 next hit buffered.</summary>
+        /// <summary>
+        /// Bit flags (<c>FighterBasicAttackRules.Flag*</c>): 1 started airborne,
+        /// 2 hit resolved, 4 next hit buffered, 8 up-attack, 16 down-air,
+        /// 32 construct hit resolved, 64 queued buffered, 128 the single air
+        /// strike (GU-A, 2026-10-12). Bits above 128 are free.
+        /// </summary>
         public int AttackFlags;
         /// <summary>Countdown to the next block-charge regeneration.</summary>
         public int BlockRegenFrames;

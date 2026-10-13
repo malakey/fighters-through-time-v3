@@ -9,15 +9,18 @@ using static GdUnit4.Assertions;
 namespace FTT.Tests.Unit;
 
 /// <summary>
-/// D6b (2026-10-11, ledger <c>USER-STORY-AERIAL-REACH</c>): a Story aerial
-/// string hit takes its grounded twin's x-span — the same near and far edge
+/// The Story air strike's box (GU-A, 2026-10-12; this suite pinned the retired
+/// aerial string's three boxes under D6b). An air press is one strike whose
+/// box takes string hit 1's grounded x-span — the same near and far edge
 /// through <c>PlayerController.ResolveGroundStringBoxPixels</c>, with the
 /// profile's reach percentage and the AttackRange minor scaling it exactly as
-/// they scale the grounded box — so the aerial far edge is the sim's aerial
-/// reach and the box is front-only. Its vertical span stays Story's own
-/// (<c>BasicComboRules.AerialStringBoxCentreYUnits</c> /
-/// <c>AerialStringBoxHeightUnits</c>), and its facing is read at active start,
-/// not latched when the swing starts.
+/// they scale the grounded box — so it is front-only and reaches as far as the
+/// grounded opener (D6b's rule, ledger <c>USER-STORY-AERIAL-REACH</c>). Its
+/// vertical span is the air strike's own
+/// (<c>BasicComboRules.AirAttackBoxCentreYUnits</c> /
+/// <c>AirAttackBoxHeightUnits</c>, −64 … +40 px at 100 %), reaching below the
+/// feet so a jump-in connects on a grounded foe, and its facing is read at
+/// active start, not latched when the strike starts.
 ///
 /// <para>Every hero is built with <c>applyStoryProgression: false</c>, so no
 /// grid can move an edge; Leonardo's AttackRange minor is set directly.</para>
@@ -28,16 +31,16 @@ public class StoryAerialStringReachTests {
     private const double Step = 1.0 / 60.0;
     private const float Tolerance = 0.01f;
 
-    // The Story aerial vertical span shipped before D6b (y-down from the feet,
-    // at 100 % height): hit 1 −78 … −14, hit 2 −91 … −9, hit 3 −64 … +40.
-    private static readonly float[] AerialTopAt100 = { -78f, -91f, -64f };
-    private static readonly float[] AerialBottomAt100 = { -14f, -9f, 40f };
+    // The air strike's vertical span (y-down from the feet, at 100 % height):
+    // the retired aerial hit 3's, the one that reached below the feet.
+    private const float AirTopAt100 = -64f;
+    private const float AirBottomAt100 = 40f;
 
     private static readonly Vector2 GroundedSpawn = new(0f, -8f);
     private static readonly Vector2 AirborneSpawn = new(30000f, -4000f);
 
     [TestCase]
-    public void AnAerialStringHitSharesTheGroundedXSpanInFrontAndKeepsItsVerticalSpan() {
+    public void TheAirStrikeTakesHitOnesXSpanInFrontAndReachesBelowTheFeet() {
         (string Hero, float Minor)[] heroes = {
             ("tesla", 1f),      // 100 % width, 100 % height
             ("cleopatra", 1f),  // 120 % width
@@ -50,56 +53,69 @@ public class StoryAerialStringReachTests {
                 BasicStringProfile profile = BasicComboRules.StringProfileFor(hero);
                 float heightScale = profile.ReachHeightPercent / 100f * minor;
                 foreach (bool facingRight in new[] { true, false }) {
-                    string where = $"{hero} (minor {minor:F2}) facing {(facingRight ? "right" : "left")}";
-                    List<Box> grounded = RunHeldChain(hero, minor, airborne: false, facingRight);
-                    List<Box> aerial = RunHeldChain(hero, minor, airborne: true, facingRight);
+                    string at = $"{hero} (minor {minor:F2}) facing {(facingRight ? "right" : "left")}";
+                    Box g = RunHeldSwings(hero, minor, airborne: false, facingRight, wanted: 1)[0];
+                    List<Box> air = RunHeldSwings(hero, minor, airborne: true, facingRight, wanted: 2);
 
-                    for (int step = 0; step < BasicComboRules.ComboHits; step++) {
-                        string at = $"{where} hit {step + 1}";
-                        Box g = grounded[step];
-                        Box a = aerial[step];
+                    // Holding Attack through the whole fall opens exactly one box:
+                    // the air strike never chains and never repeats on a hold.
+                    AssertThat(air.Count)
+                        .OverrideFailureMessage($"{at}: a held air press opened {air.Count} boxes.")
+                        .IsEqual(1);
+                    Box a = air[0];
 
-                        // Front-only, mirrored by facing: the whole box lies on the
-                        // facing side of the pivot.
-                        AssertThat(a.NearEdge >= 0f)
-                            .OverrideFailureMessage($"{at}: the aerial box reaches {-a.NearEdge:F2} px behind the hero.")
-                            .IsTrue();
-                        AssertThat(facingRight ? a.Centre.X > 0f : a.Centre.X < 0f)
-                            .OverrideFailureMessage($"{at}: the aerial box sits on the wrong side ({a.Centre.X:F2}).")
-                            .IsTrue();
+                    // Front-only, mirrored by facing: the whole box lies on the
+                    // facing side of the pivot.
+                    AssertThat(a.NearEdge >= 0f)
+                        .OverrideFailureMessage($"{at}: the air strike reaches {-a.NearEdge:F2} px behind the hero.")
+                        .IsTrue();
+                    AssertThat(facingRight ? a.Centre.X > 0f : a.Centre.X < 0f)
+                        .OverrideFailureMessage($"{at}: the air strike sits on the wrong side ({a.Centre.X:F2}).")
+                        .IsTrue();
 
-                        // The x-span is the grounded box's, edge for edge.
-                        AssertThat(System.Math.Abs(a.NearEdge - g.NearEdge) < Tolerance)
-                            .OverrideFailureMessage(
-                                $"{at}: aerial near edge {a.NearEdge:F3} px, grounded {g.NearEdge:F3} px.")
-                            .IsTrue();
-                        AssertThat(System.Math.Abs(a.FarEdge - g.FarEdge) < Tolerance)
-                            .OverrideFailureMessage(
-                                $"{at}: aerial far edge {a.FarEdge:F3} px, grounded {g.FarEdge:F3} px.")
-                            .IsTrue();
+                    // The x-span is the grounded hit 1 box's, edge for edge.
+                    AssertThat(System.Math.Abs(a.NearEdge - g.NearEdge) < Tolerance)
+                        .OverrideFailureMessage(
+                            $"{at}: air near edge {a.NearEdge:F3} px, grounded hit 1 {g.NearEdge:F3} px.")
+                        .IsTrue();
+                    AssertThat(System.Math.Abs(a.FarEdge - g.FarEdge) < Tolerance)
+                        .OverrideFailureMessage(
+                            $"{at}: air far edge {a.FarEdge:F3} px, grounded hit 1 {g.FarEdge:F3} px.")
+                        .IsTrue();
 
-                        // ...which is the one helper's span (template × width % × minor).
-                        PlayerController.ResolveGroundStringBoxPixels(
-                            step, profile, minor, out Vector2 helperSize, out Vector2 helperOffset);
-                        float helperFar = helperOffset.X + helperSize.X * 0.5f;
-                        AssertThat(System.Math.Abs(a.FarEdge - helperFar) < Tolerance)
-                            .OverrideFailureMessage(
-                                $"{at}: aerial far edge {a.FarEdge:F3} px, the helper's {helperFar:F3} px.")
-                            .IsTrue();
+                    // ...which is the one helper's hit 1 span (template × width % × minor).
+                    PlayerController.ResolveGroundStringBoxPixels(
+                        BasicComboRules.AirAttackStringStep, profile, minor,
+                        out Vector2 helperSize, out Vector2 helperOffset);
+                    float helperFar = helperOffset.X + helperSize.X * 0.5f;
+                    AssertThat(System.Math.Abs(a.FarEdge - helperFar) < Tolerance)
+                        .OverrideFailureMessage($"{at}: air far edge {a.FarEdge:F3} px, the helper's {helperFar:F3} px.")
+                        .IsTrue();
 
-                        // The vertical span is today's aerial span, scaled about its
-                        // centre by the height percentage and the minor.
-                        float centre = (AerialTopAt100[step] + AerialBottomAt100[step]) * 0.5f;
-                        float halfHeight = (AerialBottomAt100[step] - AerialTopAt100[step]) * 0.5f * heightScale;
-                        AssertThat(System.Math.Abs(a.Top - (centre - halfHeight)) < Tolerance)
-                            .OverrideFailureMessage(
-                                $"{at}: aerial top {a.Top:F3} px, expected {centre - halfHeight:F3} px.")
-                            .IsTrue();
-                        AssertThat(System.Math.Abs(a.Bottom - (centre + halfHeight)) < Tolerance)
-                            .OverrideFailureMessage(
-                                $"{at}: aerial bottom {a.Bottom:F3} px, expected {centre + halfHeight:F3} px.")
-                            .IsTrue();
-                    }
+                    // The vertical span is the air strike's, scaled about its
+                    // centre by the height percentage and the minor, and it
+                    // reaches below the feet.
+                    float centre = (AirTopAt100 + AirBottomAt100) * 0.5f;
+                    float halfHeight = (AirBottomAt100 - AirTopAt100) * 0.5f * heightScale;
+                    AssertThat(System.Math.Abs(a.Top - (centre - halfHeight)) < Tolerance)
+                        .OverrideFailureMessage($"{at}: air top {a.Top:F3} px, expected {centre - halfHeight:F3} px.")
+                        .IsTrue();
+                    AssertThat(System.Math.Abs(a.Bottom - (centre + halfHeight)) < Tolerance)
+                        .OverrideFailureMessage($"{at}: air bottom {a.Bottom:F3} px, expected {centre + halfHeight:F3} px.")
+                        .IsTrue();
+                    AssertThat(a.Bottom > 0f)
+                        .OverrideFailureMessage($"{at}: the air strike must reach below the feet (bottom {a.Bottom:F2} px).")
+                        .IsTrue();
+
+                    // The live box is the resolver's, mirrored by facing.
+                    PlayerController.ResolveAirAttackBoxPixels(profile, minor, out Vector2 airSize, out Vector2 airOffset);
+                    AssertThat(System.Math.Abs(a.Size.X - airSize.X) < Tolerance
+                        && System.Math.Abs(a.Size.Y - airSize.Y) < Tolerance
+                        && System.Math.Abs(a.Centre.X - (facingRight ? airOffset.X : -airOffset.X)) < Tolerance
+                        && System.Math.Abs(a.Centre.Y - airOffset.Y) < Tolerance)
+                        .OverrideFailureMessage(
+                            $"{at}: live box {a.Size} @ {a.Centre} is not the resolver's {airSize} @ {airOffset}.")
+                        .IsTrue();
                 }
             }
         } finally {
@@ -171,11 +187,13 @@ public class StoryAerialStringReachTests {
     }
 
     /// <summary>
-    /// Builds <paramref name="hero"/>, holds BasicAttack through a full
-    /// three-hit string (grounded on the floor, or in free fall) and records the
-    /// live melee box on each hit's first active frame.
+    /// Builds <paramref name="hero"/>, presses and then holds BasicAttack for up
+    /// to 120 frames (grounded on the floor, or in free fall) and records the
+    /// live melee box on the first active frame of each swing, stopping at
+    /// <paramref name="wanted"/> boxes. Grounded the first box is string hit 1;
+    /// airborne it is the air strike.
     /// </summary>
-    private static List<Box> RunHeldChain(string hero, float minor, bool airborne, bool facingRight) {
+    private static List<Box> RunHeldSwings(string hero, float minor, bool airborne, bool facingRight, int wanted) {
         PlayerController player = airborne ? CreateAirborne(hero) : CreateGroundedPlayer(hero);
         try {
             player.StoryAttackRangeMultiplier = minor;
@@ -192,27 +210,28 @@ public class StoryAerialStringReachTests {
             var boxes = new List<Box>();
             bool wasActive = false;
             GameplayButtons previous = GameplayButtons.None;
-            for (int frame = 0; frame < 240 && boxes.Count < BasicComboRules.ComboHits; frame++) {
+            for (int frame = 0; frame < 120 && boxes.Count < wanted; frame++) {
                 SendFrame(player, moveX, GameplayButtons.BasicAttack, previous);
                 previous = GameplayButtons.BasicAttack;
                 bool active = hitbox.IsActive;
                 if (active && !wasActive) {
                     AssertThat(player.ComboCounter)
-                        .OverrideFailureMessage($"{hero}: hit {boxes.Count + 1} opened as step {player.ComboCounter}.")
+                        .OverrideFailureMessage($"{hero}: swing {boxes.Count + 1} opened as step {player.ComboCounter}.")
                         .IsEqual(boxes.Count);
+                    AssertThat(hitbox.HitboxID)
+                        .IsEqual(airborne ? BasicComboRules.AirAttackHitboxID : $"combo_{boxes.Count + 1}");
                     AssertThat(player.IsOnFloor())
                         .OverrideFailureMessage(
-                            $"{hero} hit {boxes.Count + 1}: the {(airborne ? "aerial" : "grounded")} harness changed ground state.")
+                            $"{hero} swing {boxes.Count + 1}: the {(airborne ? "aerial" : "grounded")} harness changed ground state.")
                         .IsEqual(!airborne);
                     AssertThat(player.IsFacingRight).IsEqual(facingRight);
                     boxes.Add(new Box(shape.Position, ((RectangleShape2D)shape.Shape).Size, facingRight));
                 }
                 wasActive = active;
             }
-            AssertThat(boxes.Count)
-                .OverrideFailureMessage(
-                    $"{hero}: the held {(airborne ? "aerial" : "grounded")} string opened only {boxes.Count} of three boxes.")
-                .IsEqual(BasicComboRules.ComboHits);
+            AssertThat(boxes.Count > 0)
+                .OverrideFailureMessage($"{hero}: the {(airborne ? "aerial" : "grounded")} press opened no box.")
+                .IsTrue();
             return boxes;
         } finally {
             Release(player);

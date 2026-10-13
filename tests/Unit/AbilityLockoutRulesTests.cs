@@ -92,12 +92,18 @@ public class AbilityLockoutRulesTests {
         AssertThat(BasicComboRules.MomentumRefundFramesFor(BasicComboRules.VariantChain, 2)).IsEqual(60);
         AssertThat(BasicComboRules.MomentumRefundFramesFor(BasicComboRules.VariantUpAttack, 0)).IsEqual(20);
         AssertThat(BasicComboRules.MomentumRefundFramesFor(BasicComboRules.VariantDownAir, 0)).IsEqual(20);
+        // GU-A: the single air strike pays string hit 1's refund.
+        AssertThat(BasicComboRules.MomentumRefundFramesFor(BasicComboRules.VariantAirAttack, 0)).IsEqual(20);
 
         AssertThat(BasicComboRules.MomentumRefundFramesForHitbox("combo_1")).IsEqual(20);
         AssertThat(BasicComboRules.MomentumRefundFramesForHitbox("combo_2")).IsEqual(20);
         AssertThat(BasicComboRules.MomentumRefundFramesForHitbox("combo_3")).IsEqual(60);
         AssertThat(BasicComboRules.MomentumRefundFramesForHitbox(BasicComboRules.UpAttackHitboxID)).IsEqual(20);
         AssertThat(BasicComboRules.MomentumRefundFramesForHitbox(BasicComboRules.DownAirHitboxID)).IsEqual(20);
+        AssertThat(BasicComboRules.MomentumRefundFramesForHitbox(BasicComboRules.AirAttackHitboxID)).IsEqual(20);
+        AssertThat(BasicComboRules.IsBasicStringHitbox(BasicComboRules.AirAttackHitboxID))
+            .OverrideFailureMessage("The air strike is a basic swing: D1 confirm, Momentum and the freeze buffer key on this.")
+            .IsTrue();
         AssertThat(BasicComboRules.MomentumRefundFramesForHitbox("throw"))
             .OverrideFailureMessage("A throw is not a swing and refunds nothing.")
             .IsEqual(0);

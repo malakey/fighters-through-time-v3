@@ -172,11 +172,13 @@ namespace FTT.UI {
                     BasicComboRules.GroundRecoveryFrames[hit],
                     basicDamage * profile.DamageTenths[hit] / 10f));
             }
-            AddRow("AerialStartups", string.Format(
-                Tr("movelist_aerial_startups"),
-                profile.AerialStartupFrames[0],
-                profile.AerialStartupFrames[1],
-                profile.AerialStartupFrames[2]));
+            // GU-A (2026-10-12): an air press is one strike, never the string.
+            AddRow("AirAttack", string.Format(
+                Tr("movelist_air_attack"),
+                profile.AirAttackStartupFrames,
+                BasicComboRules.AirAttackActiveFrames,
+                BasicComboRules.AirAttackRecoveryFrames,
+                basicDamage * BasicComboRules.AirAttackDamageMultiplier));
             AddRow("Reach", string.Format(
                 Tr("movelist_reach"), profile.ReachWidthPercent, profile.ReachHeightPercent));
             AddRow("UpAttack", string.Format(

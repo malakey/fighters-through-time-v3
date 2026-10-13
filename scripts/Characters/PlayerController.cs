@@ -97,8 +97,13 @@ namespace FTT.Characters {
 		public float MovementAbilityCooldownTimer;
 		public List<Node2D> ActivePersistentObjects = new();
 		public int ComboCounter;
+		/// <summary>
+		/// The three-hit string's step (0–2). The string is grounded only since
+		/// GU-A (2026-10-12): the aerial string and its separate counter are
+		/// retired, and every single strike (the air strike, the Up-Attack, the
+		/// Down-Air) runs at step 0.
+		/// </summary>
 		public int GroundComboCounter { get; private set; }
-		public int AerialComboCounter { get; private set; }
 		public float StatusMovementMultiplier { get; set; } = 1.0f;
 		public float StatusJumpMultiplier { get; set; } = 1.0f;
 		public float StatusAnimationMultiplier { get; set; } = 1.0f;
@@ -1265,8 +1270,9 @@ namespace FTT.Characters {
 		private bool _castClocksSuspended;
 		/// <summary>
 		/// Which basic the running swing is (gameplay feel §2.8):
-		/// <c>BasicComboRules.VariantChain</c>, <c>VariantUpAttack</c>, or
-		/// <c>VariantDownAir</c>. The two directional strikes are single swings
+		/// <c>BasicComboRules.VariantChain</c>, <c>VariantUpAttack</c>,
+		/// <c>VariantDownAir</c> or (GU-A, 2026-10-12) <c>VariantAirAttack</c>.
+		/// The air strike and the two directional strikes are single swings
 		/// outside the chain — they never buffer, hold, or advance a counter.
 		/// </summary>
 		private int _attackVariant = FTT.Combat.BasicComboRules.VariantChain;
@@ -1279,10 +1285,12 @@ namespace FTT.Characters {
 			FTT.Combat.BasicComboRules.GroundStartupFrames,
 			FTT.Combat.BasicComboRules.GroundActiveFrames,
 			FTT.Combat.BasicComboRules.GroundRecoveryFrames);
-		private static readonly FTT.Combat.CombatFrameTimeline[] AerialComboTimelines = BuildComboTimelines(
-			FTT.Combat.BasicComboRules.AerialStartupFrames,
-			FTT.Combat.BasicComboRules.AerialActiveFrames,
-			FTT.Combat.BasicComboRules.AerialRecoveryFrames);
+		// GU-A (2026-10-12): the single air strike's template timeline; _Ready
+		// swaps in the profile's air startup.
+		private static readonly FTT.Combat.CombatFrameTimeline AirAttackTemplateTimeline = new(
+			FTT.Combat.BasicComboRules.AirAttackStartupFrames,
+			FTT.Combat.BasicComboRules.AirAttackActiveFrames,
+			FTT.Combat.BasicComboRules.AirAttackRecoveryFrames);
 
 		private static FTT.Combat.CombatFrameTimeline[] BuildComboTimelines(
 			int[] startup, int[] active, int[] recovery) {
@@ -1301,7 +1309,7 @@ namespace FTT.Characters {
 		private FTT.Combat.BasicStringProfile _stringProfile =
 			FTT.Combat.BasicComboRules.TemplateStringProfile;
 		private FTT.Combat.CombatFrameTimeline[] _groundComboTimelines = ComboTimelines;
-		private FTT.Combat.CombatFrameTimeline[] _aerialComboTimelines = AerialComboTimelines;
+		private FTT.Combat.CombatFrameTimeline _airAttackTimeline = AirAttackTemplateTimeline;
 		// The grounded string boxes are not authored here: they come from the
 		// one cross-mode table (BasicComboRules.StringBox*Units, world units)
 		// at KitMotionRules.StoryPixelsPerUnit, through
@@ -1311,9 +1319,10 @@ namespace FTT.Characters {
 		// its own hurtbox.
 		private const float GroundStringBoxAnchorYPixels = -32f;
 
-		// The Story aerial string boxes take the grounded x-span (front-only,
-		// the sim's aerial reach) and keep a Story-only vertical span, both read
-		// from BasicComboRules through ResolveAerialStringBoxPixels (D6b, ledger
+		// The Story air strike box takes string hit 1's grounded x-span
+		// (front-only, the sim's reach) and a Story-only vertical span that
+		// reaches below the feet, both read from BasicComboRules through
+		// ResolveAirAttackBoxPixels (GU-A; the x-span rule is D6b's, ledger
 		// USER-STORY-AERIAL-REACH).
 
 		// Directional attacks (§2.8). Frames come from the shared rulebook; the
@@ -1380,37 +1389,44 @@ namespace FTT.Characters {
 		}
 
 		/// <summary>
-		/// The aerial string box for <paramref name="step"/> in Story pixels,
-		/// for a hero facing right, relative to the feet pivot (D6b, ledger
-		/// <c>USER-STORY-AERIAL-REACH</c>).
+		/// The single air strike's box in Story pixels, for a hero facing right,
+		/// relative to the feet pivot (GU-A, 2026-10-12; it replaced the aerial
+		/// string's per-hit boxes).
 		///
-		/// <para>The x-span is the grounded box's, from
-		/// <see cref="ResolveGroundStringBoxPixels"/> unchanged: the same near
-		/// and far edge, with the profile's <c>ReachWidthPercent</c> and the
-		/// AttackRange minor scaling it exactly as they scale the grounded box.
-		/// So the aerial far edge is the sim's aerial reach (the sim swings its
-		/// grounded boxes in the air) and the near edge is never behind the
-		/// pivot: the box is front-only.</para>
+		/// <para>The x-span is string hit 1's grounded box, from
+		/// <see cref="ResolveGroundStringBoxPixels"/> at
+		/// <see cref="FTT.Combat.BasicComboRules.AirAttackStringStep"/> unchanged:
+		/// the same near and far edge, with the profile's <c>ReachWidthPercent</c>
+		/// and the AttackRange minor scaling it exactly as they scale the
+		/// grounded box. So the far edge is the sim's air strike reach (the sim
+		/// swings hit 1's grounded box) and the near edge is never behind the
+		/// pivot: the box is front-only (D6b's rule, ledger
+		/// <c>USER-STORY-AERIAL-REACH</c>).</para>
 		///
-		/// <para>The vertical span is Story's own aerial span
-		/// (<see cref="FTT.Combat.BasicComboRules.AerialStringBoxCentreYUnits"/> and
-		/// <see cref="FTT.Combat.BasicComboRules.AerialStringBoxHeightUnits"/>): the
-		/// centre stays put and the height scales by the profile's
-		/// <c>ReachHeightPercent</c> and by the minor, as the grounded height
-		/// does.</para>
+		/// <para>The vertical span is Story's own
+		/// (<see cref="FTT.Combat.BasicComboRules.AirAttackBoxCentreYUnits"/> and
+		/// <see cref="FTT.Combat.BasicComboRules.AirAttackBoxHeightUnits"/>,
+		/// −64 … +40 px at 100 %), reaching below the feet so a jump-in connects
+		/// on a grounded foe: the centre stays put and the height scales by the
+		/// profile's <c>ReachHeightPercent</c> and by the minor, as the grounded
+		/// height does.</para>
 		/// </summary>
-		internal static void ResolveAerialStringBoxPixels(
-			int step,
+		internal static void ResolveAirAttackBoxPixels(
 			FTT.Combat.BasicStringProfile profile,
 			float reachMultiplier,
 			out Vector2 size,
 			out Vector2 offset) {
 			const double pixelsPerUnit = FTT.Combat.KitMotionRules.StoryPixelsPerUnit;
 			profile ??= FTT.Combat.BasicComboRules.TemplateStringProfile;
-			ResolveGroundStringBoxPixels(step, profile, reachMultiplier, out Vector2 groundSize, out Vector2 groundOffset);
+			ResolveGroundStringBoxPixels(
+				FTT.Combat.BasicComboRules.AirAttackStringStep,
+				profile,
+				reachMultiplier,
+				out Vector2 groundSize,
+				out Vector2 groundOffset);
 			float heightScale = profile.ReachHeightPercent / 100f;
-			float baseHeight = (float)(FTT.Combat.BasicComboRules.AerialStringBoxHeightUnits[step] * pixelsPerUnit);
-			float centreY = (float)(FTT.Combat.BasicComboRules.AerialStringBoxCentreYUnits[step] * pixelsPerUnit);
+			float baseHeight = (float)(FTT.Combat.BasicComboRules.AirAttackBoxHeightUnits * pixelsPerUnit);
+			float centreY = (float)(FTT.Combat.BasicComboRules.AirAttackBoxCentreYUnits * pixelsPerUnit);
 			size = new Vector2(groundSize.X, baseHeight * heightScale * reachMultiplier);
 			offset = new Vector2(groundOffset.X, centreY);
 		}
@@ -1419,8 +1435,8 @@ namespace FTT.Characters {
 		/// This hero's string hit <paramref name="step"/> (0–2) as a horizontal
 		/// span in Story pixels in front of the pivot, facing-independent: the
 		/// near and far edge of the grounded box for its profile and live
-		/// AttackRange minor (<see cref="StoryAttackRangeMultiplier"/>). The
-		/// aerial string shares it (D6b).
+		/// AttackRange minor (<see cref="StoryAttackRangeMultiplier"/>). The air
+		/// strike shares hit 1's (GU-A).
 		/// </summary>
 		public (float Near, float Far) StoryStringSpanPixels(int step) {
 			ResolveGroundStringBoxPixels(
@@ -1445,10 +1461,10 @@ namespace FTT.Characters {
 				_stringProfile.GroundStartupFrames,
 				FTT.Combat.BasicComboRules.GroundActiveFrames,
 				FTT.Combat.BasicComboRules.GroundRecoveryFrames);
-			_aerialComboTimelines = BuildComboTimelines(
-				_stringProfile.AerialStartupFrames,
-				FTT.Combat.BasicComboRules.AerialActiveFrames,
-				FTT.Combat.BasicComboRules.AerialRecoveryFrames);
+			_airAttackTimeline = new(
+				_stringProfile.AirAttackStartupFrames,
+				FTT.Combat.BasicComboRules.AirAttackActiveFrames,
+				FTT.Combat.BasicComboRules.AirAttackRecoveryFrames);
 
 			_animatedSprite = GetNodeOrNull<AnimatedSprite2D>("AnimatedSprite2D");
 			_collisionShape = GetNodeOrNull<CollisionShape2D>("CollisionShape2D");
@@ -2554,8 +2570,9 @@ namespace FTT.Characters {
 		/// <summary>
 		/// A03: starts an air dodge if one is legal — airborne, unused this
 		/// airtime, not rooted (A05; the caller already checked). The caller owns
-		/// the other legality rules: only Airborne and an aerial swing's recovery
-		/// or chain window reach here.
+		/// the other legality rules: only Airborne and an airborne swing's
+		/// recovery or chain window reach here (since GU-A an air strike has no
+		/// chain window; only a grounded string that walked off a ledge does).
 		/// </summary>
 		private bool TryStartAirDodge() {
 			if (_airDodgeUsed || IsOnFloor()) return false;
@@ -2708,7 +2725,6 @@ namespace FTT.Characters {
 				if (_jumpBufferTimer > 0) {
 					PerformJump();
 				} else {
-					AerialComboCounter = 0;
 					ComboCounter = 0;
 					TransitionTo(CharacterState.Idle);
 				}
@@ -2735,10 +2751,11 @@ namespace FTT.Characters {
 			// braking a carried-in dive back to the 720 px/s terminal. ApplyGravity is a
 			// no-op on the floor, so a grounded swing is unaffected.
 			ApplyGravity(dt, fastFalling: CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Down));
+			// Landing cancels a swing started in the air (the air strike, an
+			// airborne Up-Attack, the Down-Air) with no lag.
 			if (_attackStartedAerial && IsOnFloor()) {
 				CancelActiveAttack();
-				AerialComboCounter = 0;
-				ComboCounter = 0;
+				ResetActiveCombo();
 				TransitionTo(CharacterState.Idle);
 				return;
 			}
@@ -2846,7 +2863,10 @@ namespace FTT.Characters {
 		/// last frame with the next hit buffered or held. A Jump or Roll press or
 		/// a held Block keeps the old order for the held starts (the special still
 		/// beats those recovery cancels), using the raw inputs as the sim's
-		/// unconditional cancel set does.
+		/// unconditional cancel set does. GU-A: a continuation never starts in
+		/// the air, so an airborne held or last-frame start ends the string
+		/// instead (no swing starts), while an airborne press in the hold still
+		/// starts a swing, the air strike, as the sim's re-selection does.
 		/// </summary>
 		private bool ChainSwingStartsThisTick() {
 			if (TimeFrozen) return false;
@@ -2855,23 +2875,25 @@ namespace FTT.Characters {
 				|| CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block);
 			if (_inRecoveryHold) {
 				// ProcessRecoveryHold: a press restarts first; a held button only
-				// after the jump/roll/block cancel set.
+				// after the jump/roll/block cancel set, and only on the ground.
 				return CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack)
-					|| (!recoveryCancelInput && ChainAttackHeld());
+					|| (!recoveryCancelInput && ChainAttackHeld() && IsOnFloor());
 			}
 			if (_attackVariant != FTT.Combat.BasicComboRules.VariantChain) return false;
 			if (recoveryCancelInput) return false;
 			// The frame clock below steps floor(progress + speed) frames this tick.
 			int framesThisTick = Mathf.FloorToInt(_attackFrameProgress + StoryComboSpeedMultiplier);
 			if (_attackFramesRemaining > framesThisTick) return false;
+			if (!IsOnFloor()) return false;
 			return FTT.Combat.BasicComboRules.ChainContinues(
 				GetActiveComboIndex(), _nextAttackBuffered || ChainPressThisTick(), ChainAttackHeld());
 		}
 
 		/// <summary>
 		/// F3: true when this tick carries a BasicAttack press the chain may
-		/// buffer — a chain swing (never a directional strike), and never under
-		/// Time Freeze, which discards attack input rather than queueing it.
+		/// buffer — a chain swing (never the air strike or a directional
+		/// strike), and never under Time Freeze, which discards attack input
+		/// rather than queueing it.
 		/// </summary>
 		private bool ChainPressThisTick() =>
 			!TimeFrozen
@@ -2901,9 +2923,14 @@ namespace FTT.Characters {
 		/// (the CPU melee band, 2026-10-11; Story mirror of
 		/// <c>FighterBasicAttackRules.NextChainStep</c>): the next hit's index
 		/// while a chain swing of hit 1 or hit 2 runs or its chain hold is
-		/// open, otherwise 0. The finisher cannot continue and a directional
-		/// strike stands outside the chain, so a press during either can at
-		/// most open a fresh string. Read-only; the Mirror adapter projects it.
+		/// open, otherwise 0. The finisher cannot continue, and the air strike
+		/// and the directional strikes stand outside the chain (GU-A), so a
+		/// press during any of them can at most open a fresh string or air
+		/// strike, both at hit 1's reach. Like the sim's, it does not read the
+		/// ground: a grounded string that walked off a ledge still reports its
+		/// next hit, though that press now ends the string or becomes the air
+		/// strike (a rare edge the band tolerates). Read-only; the Mirror
+		/// adapter projects it.
 		/// </summary>
 		internal int NextChainStepForPress {
 			get {
@@ -2924,17 +2951,22 @@ namespace FTT.Characters {
 		private void ProcessRecoveryHold(float dt) {
 			_comboBufferFramesRemaining--;
 
-			if (_attackStartedAerial && IsOnFloor()) {
-				CancelActiveAttack();
-				AerialComboCounter = 0;
-				ComboCounter = 0;
-				TransitionTo(CharacterState.Idle);
-				return;
-			}
+			// Only a grounded chain swing reaches the hold (GU-A: the string never
+			// starts in the air), so there is no aerial landing cancel here.
 
 			// V7.6 Time Freeze discards the press (never buffers it).
 			if (!TimeFrozen && CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack)) {
 				_inRecoveryHold = false;
+				if (!IsOnFloor()) {
+					// GU-A: the hero walked off a ledge during the string. No chain
+					// hit starts in the air, so the press is a fresh air press: the
+					// air strike, or the Up-Attack / Down-Air by the held direction
+					// (the sim re-selects the variant here too).
+					StartBasicSwing(
+						upHeld: CurrentInputFrame.Vertical < FTT.Combat.BasicComboRules.StoryUpInputThreshold,
+						downHeld: CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Down));
+					return;
+				}
 				AdvanceActiveCombo();
 				StartComboHit();
 				return;
@@ -2954,6 +2986,12 @@ namespace FTT.Characters {
 			// held button never swallows a Block, Jump or Roll cancel.
 			if (ChainAttackHeld()) {
 				_inRecoveryHold = false;
+				// GU-A: a held continuation that would start in the air ends the
+				// string instead.
+				if (!IsOnFloor()) {
+					EndStringInTheAir();
+					return;
+				}
 				AdvanceActiveCombo();
 				StartComboHit();
 				return;
@@ -3167,10 +3205,9 @@ namespace FTT.Characters {
 			else if (slot == FTT.Core.AbilitySlot.Special2) _momentumRefundedFramesSlotTwo = 0;
 		}
 
-		/// <summary>Resets both surface counters — the whole chain, not one string.</summary>
+		/// <summary>Resets the string counter — the whole chain, not one swing.</summary>
 		private void ResetComboChain() {
 			GroundComboCounter = 0;
-			AerialComboCounter = 0;
 			ComboCounter = 0;
 			_attackVariant = FTT.Combat.BasicComboRules.VariantChain;
 		}
@@ -3858,7 +3895,9 @@ namespace FTT.Characters {
 				leap.TryStarGuideRedirect();
 			}
 			// Package 13 W7b (A08, Joan kit hook): Attack during the Wing-Dive
-			// ends the dive and starts her aerial string on the same frame — the
+			// ends the dive and starts her air strike on the same frame (GU-A:
+			// the single air strike replaced the aerial string; Wings Refresh and
+			// Zealous Vigor still trigger on the grounded finisher only) — the
 			// dive is an approach, not a hover.
 			if (_movementAbility is Abilities.JoanAscendantWings { IsWingDiving: true } wings
 				&& !TimeFrozen
@@ -3924,11 +3963,11 @@ namespace FTT.Characters {
 					_respawnTimer = 2.0f;
 					break;
 				case CharacterState.Airborne:
+					// The string is grounded only (GU-A): nothing chains in the air.
 					GroundComboCounter = 0;
-					if (oldState != CharacterState.Attacking) ComboCounter = AerialComboCounter;
+					if (oldState != CharacterState.Attacking) ComboCounter = 0;
 					break;
 				case CharacterState.Idle:
-					if (oldState == CharacterState.Airborne || _attackStartedAerial) AerialComboCounter = 0;
 					if (oldState == CharacterState.Attacking) GroundComboCounter = 0;
 					ComboCounter = GroundComboCounter;
 					break;
@@ -5022,35 +5061,48 @@ namespace FTT.Characters {
 		}
 
 		/// <summary>
-		/// Starts a fresh basic swing — hit 1 of the string, the Up-Attack or the
-		/// Down-Air, chosen from <paramref name="upHeld"/> / <paramref name="downHeld"/>
-		/// and whether the swing starts in the air — resetting the combo counters
-		/// and entering <see cref="StartComboHit"/>, which arms the swing lockout.
-		/// Shared by <see cref="CheckAttackInput"/> and the D3 recovery cancel.
+		/// Starts a fresh basic swing — hit 1 of the string, the air strike, the
+		/// Up-Attack or the Down-Air, chosen from <paramref name="upHeld"/> /
+		/// <paramref name="downHeld"/> and whether the swing starts in the air —
+		/// resetting the combo counter and entering <see cref="StartComboHit"/>,
+		/// which arms the swing lockout. Shared by <see cref="CheckAttackInput"/>,
+		/// the D3 recovery cancel and an airborne press in the chain hold.
 		/// </summary>
 		private void StartBasicSwing(bool upHeld, bool downHeld) {
 			_attackStartedAerial = !IsOnFloor() || CurrentState == CharacterState.Airborne;
 			_attackStartedCrouched = CurrentState == CharacterState.Crouching;
 			// Gameplay feel §2.8 — one shared selection rule with the Fighter
-			// simulation. Up wins; airborne Down is the down-air; grounded
-			// Down (including the Crouching state) is the normal string.
+			// simulation. Up wins; airborne Down is the down-air; any other air
+			// press is the single air strike (GU-A); grounded Down (including the
+			// Crouching state) is the normal string.
 			_attackVariant = FTT.Combat.BasicComboRules.SelectAttackVariant(
 				upHeld: upHeld,
 				downHeld: downHeld,
 				airborne: _attackStartedAerial);
-			if (_attackStartedAerial) {
-				AerialComboCounter = 0;
-				GroundComboCounter = 0;
-			} else {
-				GroundComboCounter = 0;
-			}
+			GroundComboCounter = 0;
 			ComboCounter = 0;
 			StartComboHit();
 		}
 
+		/// <summary>
+		/// GU-A (2026-10-12): a chain continuation that would start while the
+		/// hero is airborne (a grounded string that walked off a ledge, or dropped
+		/// through a one-way platform mid-swing) ends the string instead, as the
+		/// finisher does: no chain hit ever starts in the air, in either mode
+		/// (<see cref="FTT.Combat.BasicComboRules.ChainHoldFrames"/>).
+		/// </summary>
+		private void EndStringInTheAir() {
+			ResetActiveCombo();
+			_nextAttackBuffered = false;
+			_queuedAttackBuffered = false;
+			_inRecoveryHold = false;
+			TransitionTo(CharacterState.Airborne);
+		}
+
 		private void StartComboHit() {
-			// Every swing start (each chain hit, the up-attack, the down-air)
-			// locks specials and the Ultimate; the swing itself is never refused.
+			// Every swing start (each chain hit, the air strike, the up-attack,
+			// the down-air) locks specials and the Ultimate; the swing itself is
+			// never refused.
 			// D1 (2026-10-11): it also clears the landed latch, so Specials wait
 			// for THIS swing to land (or for the full lockout).
 			ArmSwingLockout();
@@ -5063,6 +5115,12 @@ namespace FTT.Characters {
 			_queuedAttackBuffered = false;
 			_inRecoveryHold = false;
 
+			// The three single strikes stand outside the chain (GU-A adds the air
+			// strike beside the two directional ones).
+			if (_attackVariant == FTT.Combat.BasicComboRules.VariantAirAttack) {
+				StartAirAttack();
+				return;
+			}
 			if (_attackVariant != FTT.Combat.BasicComboRules.VariantChain) {
 				StartDirectionalAttack();
 				return;
@@ -5145,11 +5203,55 @@ namespace FTT.Characters {
 		}
 
 		/// <summary>
+		/// Arms the single air strike (GU-A, 2026-10-12): an air press with
+		/// neither Up nor Down held, one strike outside the three-hit chain. It is
+		/// string hit 1 in the air — hit 1's knockback multiplier and 30-frame
+		/// hitstun, the profile's air startup — at a flat 1.0x basic, never a
+		/// launch, posed on <c>basic_attack_1</c>. Every number comes from
+		/// <see cref="FTT.Combat.BasicComboRules"/>, the table the Fighter
+		/// simulation reads; the box is placed at active start
+		/// (<see cref="ResolveAirAttackBoxPixels"/>).
+		/// </summary>
+		private void StartAirAttack() {
+			if (_meleeHitbox != null) {
+				float baseDmg = (Data?.BasicAttackDamage ?? 10f) * StoryBasicDamageMultiplier;
+				_meleeHitbox.Damage = baseDmg * FTT.Combat.BasicComboRules.AirAttackDamageMultiplier;
+				_meleeHitbox.AttackID = $"{Data?.CharacterID ?? "fighter"}.basic";
+				_meleeHitbox.HitboxID = FTT.Combat.BasicComboRules.AirAttackHitboxID;
+				_meleeHitbox.AttackClass = FTT.Combat.AttackClass.Basic;
+				_meleeHitbox.Launches = FTT.Combat.BasicComboRules.AirAttackLaunches;
+				_meleeHitbox.Delivery = FTT.Combat.HitDelivery.DirectHit;
+				_meleeHitbox.Origin = FTT.Combat.HitOrigin.Basic;
+				_meleeHitbox.HitstunDuration = FTT.Combat.BasicComboRules.AirAttackHitstunFrames / 60f;
+				// String hit 1's shove: the shared multiplier and hit 1's
+				// vertical component, so the victim stays near for the follow-up.
+				float baseKB = Data?.BasicAttackKnockback ?? 3f;
+				_meleeHitbox.KnockbackForce = new Vector2(
+					baseKB * FTT.Combat.BasicComboRules.KnockbackMultipliers[FTT.Combat.BasicComboRules.AirAttackStringStep],
+					-1f);
+				// No rider: clear the shared hitbox so a finisher's authored status
+				// or combo mark cannot leak in.
+				_meleeHitbox.AppliedStatus = FTT.Core.StatusType.None;
+				_meleeHitbox.StatusDuration = 0f;
+				_meleeHitbox.StatusIntensity = 1f;
+				_meleeHitbox.ComboMark = FTT.Combat.ComboMarkType.None;
+				_meleeHitbox.ComboMarkFrames = 0;
+			}
+
+			TransitionTo(CharacterState.Attacking);
+			// No new animation: the air strike is posed on hit 1's sheet (F1).
+			_attackPoseAnimation = "basic_attack_1";
+			ShowAttackPose(_attackPoseAnimation, FTT.Combat.AttackPoseRules.WindUpPose);
+			_attackFrameProgress = 0f;
+		}
+
+		/// <summary>
 		/// Arms the up-attack or down-air (§2.8): a single strike outside the
 		/// three-hit chain. Damage, hitstun and both knockback components come
 		/// from <see cref="FTT.Combat.BasicComboRules"/>, the same table the
 		/// Fighter simulation reads. Both variants have dedicated retro sprite
-		/// animations; gameplay timing remains on the frame clock.
+		/// animations; gameplay timing remains on the frame clock. Only these two
+		/// variants reach here; the air strike has <see cref="StartAirAttack"/>.
 		/// </summary>
 		private void StartDirectionalAttack() {
 			bool upAttack = _attackVariant == FTT.Combat.BasicComboRules.VariantUpAttack;
@@ -5166,11 +5268,16 @@ namespace FTT.Characters {
 				_meleeHitbox.Origin = FTT.Combat.HitOrigin.Basic;
 				_meleeHitbox.HitstunDuration =
 					FTT.Combat.BasicComboRules.DirectionalAttackHitstunFrames / 60f;
-				// Directional strikes carry no rider status; clear the shared
-				// hitbox so a finisher's authored status cannot leak in.
+				// Directional strikes carry no rider; clear the shared hitbox so a
+				// finisher's authored status or combo mark cannot leak in (GU-A
+				// added the mark: Tesla's Conductive mark used to ride an
+				// Up-Attack or Down-Air swung after his finisher, which the sim's
+				// directional strikes never apply).
 				_meleeHitbox.AppliedStatus = FTT.Core.StatusType.None;
 				_meleeHitbox.StatusDuration = 0f;
 				_meleeHitbox.StatusIntensity = 1f;
+				_meleeHitbox.ComboMark = FTT.Combat.ComboMarkType.None;
+				_meleeHitbox.ComboMarkFrames = 0;
 				// The Up-Attack launches: a small horizontal nudge and a strong
 				// upward component (Godot 2D Y is down, so upward is negative).
 				// A12 (Package 13 W1): the Down-Air is a slam — it spikes the
@@ -5196,8 +5303,9 @@ namespace FTT.Characters {
 			if (CurrentState != CharacterState.Attacking || _attackHitActive) return;
 			_attackHitActive = true;
 			int comboIdx = GetActiveComboIndex();
-			bool directional = _attackVariant != FTT.Combat.BasicComboRules.VariantChain;
+			bool airAttack = _attackVariant == FTT.Combat.BasicComboRules.VariantAirAttack;
 			bool upAttack = _attackVariant == FTT.Combat.BasicComboRules.VariantUpAttack;
+			bool directional = upAttack || _attackVariant == FTT.Combat.BasicComboRules.VariantDownAir;
 			// Reach = the box x the authored V7.1 profile scale (chain hits
 			// only; directional strikes stay universal) x the Story-only
 			// AttackRange Resonance minor. On a chain box the profile width and
@@ -5213,14 +5321,14 @@ namespace FTT.Characters {
 			if (directional) {
 				hitboxSize = (upAttack ? UpAttackHitboxSize : DownAirHitboxSize) * reach;
 				resolvedOffset = upAttack ? UpAttackHitboxOffset : DownAirHitboxOffset;
-			} else if (_attackStartedAerial) {
-				// D6b: the grounded x-span (front-only) with Story's aerial
-				// vertical span. Facing is read here, at active start, like the
-				// grounded box (design :1046), so a hero who turned during the
-				// aerial startup strikes in front of its new facing.
-				ResolveAerialStringBoxPixels(
-					comboIdx, _stringProfile, reach, out hitboxSize, out Vector2 aerialOffset);
-				resolvedOffset = new Vector2(IsFacingRight ? aerialOffset.X : -aerialOffset.X, aerialOffset.Y);
+			} else if (airAttack) {
+				// GU-A: string hit 1's x-span (front-only, D6b's rule) with the
+				// air strike's own vertical span, which reaches below the feet.
+				// Facing is read here, at active start, like the grounded box
+				// (design :1046), so a hero who turned during the startup strikes
+				// in front of its new facing.
+				ResolveAirAttackBoxPixels(_stringProfile, reach, out hitboxSize, out Vector2 airOffset);
+				resolvedOffset = new Vector2(IsFacingRight ? airOffset.X : -airOffset.X, airOffset.Y);
 			} else {
 				ResolveGroundStringBoxPixels(
 					comboIdx, _stringProfile, reach, out hitboxSize, out Vector2 groundOffset);
@@ -5247,8 +5355,9 @@ namespace FTT.Characters {
 			OnAttackActiveEnded();
 			int comboIndex = GetActiveComboIndex();
 
-			// A directional attack exits straight out: no buffered continuation,
-			// no chain-hold window, chain reset (§2.8).
+			// A single strike (the air strike or a directional attack) exits
+			// straight out: no buffered continuation, no chain-hold window, chain
+			// reset (§2.8, GU-A).
 			if (_attackVariant != FTT.Combat.BasicComboRules.VariantChain) {
 				_attackVariant = FTT.Combat.BasicComboRules.VariantChain;
 				ResetActiveCombo();
@@ -5261,7 +5370,13 @@ namespace FTT.Characters {
 
 			// F3: a buffered press — or BasicAttack still held — continues the
 			// chain; a queued second press carries into the hit that starts here.
+			// GU-A: never in the air — a continuation that would start airborne
+			// ends the string instead.
 			if (FTT.Combat.BasicComboRules.ChainContinues(comboIndex, _nextAttackBuffered, ChainAttackHeld())) {
+				if (!IsOnFloor()) {
+					EndStringInTheAir();
+					return;
+				}
 				bool queued = _queuedAttackBuffered;
 				AdvanceActiveCombo();
 				StartComboHit();
@@ -5290,25 +5405,23 @@ namespace FTT.Characters {
 			_attackInRecovery = false;
 		}
 
-		private int GetActiveComboIndex() => Mathf.Clamp(
-			_attackStartedAerial ? AerialComboCounter : GroundComboCounter,
-			0,
-			2);
+		// The string runs only on the ground (GU-A), and every single strike
+		// starts from a zeroed counter, so one counter serves every swing.
+		private int GetActiveComboIndex() => Mathf.Clamp(GroundComboCounter, 0, 2);
 
 		private FTT.Combat.CombatFrameTimeline GetActiveComboTimeline() =>
 			_attackVariant == FTT.Combat.BasicComboRules.VariantUpAttack ? UpAttackTimeline
 			: _attackVariant == FTT.Combat.BasicComboRules.VariantDownAir ? DownAirTimeline
-			: (_attackStartedAerial ? _aerialComboTimelines : _groundComboTimelines)[GetActiveComboIndex()];
+			: _attackVariant == FTT.Combat.BasicComboRules.VariantAirAttack ? _airAttackTimeline
+			: _groundComboTimelines[GetActiveComboIndex()];
 
 		private void AdvanceActiveCombo() {
-			if (_attackStartedAerial) AerialComboCounter = Mathf.Min(2, AerialComboCounter + 1);
-			else GroundComboCounter = Mathf.Min(2, GroundComboCounter + 1);
+			GroundComboCounter = Mathf.Min(2, GroundComboCounter + 1);
 			ComboCounter = GetActiveComboIndex();
 		}
 
 		private void ResetActiveCombo() {
-			if (_attackStartedAerial) AerialComboCounter = 0;
-			else GroundComboCounter = 0;
+			GroundComboCounter = 0;
 			ComboCounter = 0;
 		}
 
