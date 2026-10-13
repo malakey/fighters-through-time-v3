@@ -151,7 +151,8 @@ namespace FTT.Enemies {
             Data?.Tier == EnemyTier.Standard
             && CurrentState != EnemyState.Dead
             && !_isHeldByPlayer
-            && !_thrownFlight;
+            && !_thrownFlight
+            && !IsEncounterDormant; // GU-E: a dormant lock member refuses the hero outright
 
         /// <summary>True while pinned in the player's grab. Test seam.</summary>
         public bool IsHeldByPlayer => _isHeldByPlayer;
@@ -674,6 +675,7 @@ namespace FTT.Enemies {
             if (_isHeldByPlayer) return;
             if (_thrownFlight) {
                 ProcessThrownFlight(dt);
+                ApplyEncounterBounds(); // GU-E: a lock member's clamp and fall net
                 return;
             }
 
@@ -695,7 +697,7 @@ namespace FTT.Enemies {
                 // (a fast chaser would otherwise steer back over the hero).
                 ApplyStunnedKnockbackFriction(dt);
                 _finisherFlightPostStunFrames++;
-            } else {
+            } else if (!TickEncounterDormant(dt)) { // GU-E: a dormant lock member runs no AI
                 switch (CurrentState) {
                     case EnemyState.Patrol: ProcessPatrol(dt); break;
                     case EnemyState.Chase: ProcessChase(dt); break;
@@ -716,6 +718,7 @@ namespace FTT.Enemies {
             if (_wallBounceArmed && (CurrentState == EnemyState.Stunned || _finisherFlight)) TryWallBounce(preMoveVx);
             if (CurrentState != EnemyState.Dead) ResolveFinisherTouchdown();
             _pushbox?.ResolveStoryOverlaps();
+            ApplyEncounterBounds(); // GU-E: a lock member's clamp and fall net, after every move
         }
 
         // === D6a + D9 (user direction 2026-10-11) ===
@@ -1130,6 +1133,7 @@ namespace FTT.Enemies {
 
         private bool KeepsChasingTarget() {
             if (_target == null || !IsInstanceValid(_target)) return false;
+            if (KeepsChasingInEncounter()) return true; // GU-E: an engaged lock member never leashes out
             EnsureLeashRoomResolved();
             float targetX = _target.GlobalPosition.X;
             bool inRoom = _hasLeashRoom && targetX >= _leashRoomMinX && targetX <= _leashRoomMaxX;
@@ -1996,6 +2000,7 @@ namespace FTT.Enemies {
                 Phase = EnemyPresentationPhase.Death,
                 Position = GlobalPosition
             });
+            RaiseDied(); // GU-E: the per-instance death an encounter lock counts
         }
 
         public void ApplyKnockback(Vector2 knockback, bool attackerFacingRight) =>
@@ -2202,6 +2207,8 @@ namespace FTT.Enemies {
         /// </summary>
         public void ApplyStatusEffect(StatusType type, float duration, float intensity, bool fromHitPayload) {
             if (CurrentState == EnemyState.Dead || type == StatusType.None || duration <= 0f) return;
+            // GU-E: the dormant ward refuses a hitless status too (the Rift linger).
+            if (IsEncounterDormant) return;
             // V7.6: Suppression has no enemy-side effect (the ability lock is a
             // player verb). Occupying the control slot with an inert status would
             // silently evict a live Root or slow, so it is refused outright.
@@ -2302,7 +2309,8 @@ namespace FTT.Enemies {
                     _venomTickTimer -= dt;
                     if (_venomTickTimer <= 0f) {
                         _venomTickTimer += 1f;
-                        TakeDamage(Math.Max(1, (int)MathF.Round(2f * _damageStatusIntensity)));
+                        // GU-E: a member a revert put back to sleep takes no tick.
+                        if (!IsEncounterDormant) TakeDamage(Math.Max(1, (int)MathF.Round(2f * _damageStatusIntensity)));
                     }
                 }
                 if (_damageStatusTimer <= 0f) {
@@ -2429,6 +2437,7 @@ namespace FTT.Enemies {
 
         public void OnSpawn() {
             IsSummoned = false;
+            BeginEncounterSpawnGeneration(); // GU-E: a new generation, no lock membership
             ResolveNodes();
             ApplyDifficultyScaling();
             ApplyScaledHitboxDamage();
@@ -2489,6 +2498,7 @@ namespace FTT.Enemies {
 
         public void OnDespawn() {
             IsSummoned = false;
+            ResetEncounterMembership(); // GU-E: a parked body belongs to no lock
             UnbindEvents();
             _barVisibility.Reset();
             ApplyBarVisibility();
@@ -2616,11 +2626,15 @@ namespace FTT.Enemies {
             // A rewound encounter has not been engaged yet in the restored timeline.
             _barVisibility.Reset();
             UpdateHPBar();
+            OnEncounterRewindRestored(); // GU-E: the lock keeps its member; re-clamp it
         }
 
         private void OnRewindTriggered(Vector2 targetPosition) => ApplyStoryRewind();
 
         private float OnHurtboxHit(FTT.Combat.HitPayload hit) {
+            // GU-E (2026-10-12): a dormant lock member is warded like a boss
+            // outside its arena — the hit lands nothing at all and reads as refused.
+            if (RefuseEncounterHit(in hit)) return 0f;
             // 2026-10-11 (D1a): a live, non-drill-invulnerable mob takes every
             // contact that carries damage — a frontal shield or bubble that
             // takes it to 0, an armor window and a lethal hit included — so such

@@ -740,9 +740,11 @@ public class StoryLevelControllerBaseTests {
         // And the base controller actually arms the clock from its own par.
         using var fixture = new LevelFixture(null);
         AssertThat(fixture.Level.ParSeconds).IsGreater(0f);
+        // GU-E (2026-10-12): StoryManager takes the authored par once, scaled by
+        // the provisional par scale until par is re-measured (VERIFY-PAR-SECONDS).
         AssertThat(StoryManager.Instance.ParSecondsForCurrentLevel)
             .OverrideFailureMessage("_Ready must arm the F01 clock from the level's authored par.")
-            .IsEqual(fixture.Level.ParSeconds);
+            .IsEqual(fixture.Level.ParSeconds * TimelineIntegrityRules.ProvisionalParScale);
         AssertThat(fixture.Level.Tremor)
             .OverrideFailureMessage("A timed level attaches the Collapse Tremor; an untimed one does not.")
             .IsNotNull();

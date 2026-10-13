@@ -21,6 +21,16 @@ namespace FTT.Environment {
     /// Locked encounter economy (docs/DUST_ECONOMY.md, DustEconomyTests row 2):
     /// 8 standards / 0 elites / 1 boss / 3 extractors. The authored tables below are
     /// the single source of those counts and Level02ContentTests asserts them.
+    ///
+    /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-E — the worked
+    /// example for every other level): each of the three approach rooms is an
+    /// <see cref="EncounterLock"/> the hero must clear before the way forward
+    /// opens — the vanguard (300–3200), the siege line (3220–6290, which also
+    /// needs generator A down; its exit barrier fills Gate A under the gate
+    /// column) and the battlement floor fight before the climb (6460–8690, its
+    /// exit at Gate B). One lock wave per manifest row. The Middle checkpoint
+    /// moved out of the siege line to the corridor between Gate A and the
+    /// battlement lock (6370), and every checkpoint lists the locks before it.</para>
     /// </summary>
     public partial class Level02Controller : StoryLevelControllerBase {
 
@@ -169,6 +179,48 @@ namespace FTT.Environment {
         public static int AuthoredStandardCount =>
             Room1Spawns.Length + Room2Spawns.Length + Room3Spawns.Length;
 
+        // === GU-E (2026-10-12): the three encounter locks ===================
+
+        /// <summary>The F10 encounter IDs of the three locks (they start with the level ID).</summary>
+        public const string LockVanguard = ID + "_lock_vanguard";
+        public const string LockSiegeLine = ID + "_lock_siege_line";
+        public const string LockBattlement = ID + "_lock_battlement";
+
+        /// <summary>The manifest rows the three lock waves are (level_02_rewards.tres).</summary>
+        public const string Room1RowID = "level_02.room1";
+        public const string Room2RowID = "level_02.room2";
+        public const string Room3RowID = "level_02.room3";
+
+        /// <summary>The vanguard lock: the whole approach room past the entry anchor.</summary>
+        public const float VanguardLockMinX = 300f;
+        public const float VanguardLockMaxX = Room2StartX;
+        /// <summary>The siege line lock: room 2 up to Gate A, whose generator it also needs down.</summary>
+        public const float SiegeLineLockMinX = Room2StartX + EncounterLockRules.DefaultBarrierWidthPixels;
+        public const float SiegeLineLockMaxX = GateAX - EncounterLockRules.DefaultBarrierWidthPixels * 0.5f;
+        /// <summary>The battlement lock: the floor fight before the climb, up to Gate B.</summary>
+        public const float BattlementLockMinX = 6460f;
+        public const float BattlementLockMaxX = GateBX - EncounterLockRules.DefaultBarrierWidthPixels * 0.5f;
+
+        /// <summary>
+        /// The Middle anchor, in the corridor between Gate A (its forcefield ends at
+        /// 6324) and the battlement lock's entry barrier (6440): outside every lock
+        /// area, past the siege line it used to stand inside (5300).
+        /// </summary>
+        public const float MiddleCheckpointX = 6370f;
+
+        /// <summary>Gate A's column foot: the siege line's exit barrier fills the gate below it.</summary>
+        private const float GateAColumnFootY = 600f;
+        /// <summary>Gate B's column foot: the battlement's exit barrier fills the gate and the footing pocket below it.</summary>
+        private const float GateBColumnFootY = 240f;
+
+        private EncounterLock _vanguardLock;
+        private EncounterLock _siegeLineLock;
+        private EncounterLock _battlementLock;
+
+        public EncounterLock VanguardLock => _vanguardLock;
+        public EncounterLock SiegeLineLock => _siegeLineLock;
+        public EncounterLock BattlementLock => _battlementLock;
+
         public static int AuthoredEliteCount => 0;
 
         public static int AuthoredExtractorCount => ExtractorPlacements.Length;
@@ -178,8 +230,6 @@ namespace FTT.Environment {
         private ShieldGeneratorTower _towerA;
         private ShieldGeneratorTower _towerB;
         private int _towersDown;
-        private bool _room2WaveSpawned;
-        private bool _room3WaveSpawned;
         private bool _siegeLineReached;
 
         public int TowersDestroyed => _towersDown;
@@ -205,6 +255,50 @@ namespace FTT.Environment {
             BuildRoom4BossCourt();
             BuildExtractors(ExtractorPlacements);
             WireShieldTowers();
+            BuildEncounterLocks();
+        }
+
+        /// <summary>
+        /// GU-E: the three approach rooms as encounter locks, one wave per
+        /// manifest row. Built here — before the resume baseline is applied — so a
+        /// resume past a lock builds it Cleared with no member ever spawned.
+        /// </summary>
+        private void BuildEncounterLocks() {
+            _vanguardLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockVanguard,
+                Area = EncounterLockSpec.Span(VanguardLockMinX, VanguardLockMaxX, LevelHeight),
+                EntryBarrierX = VanguardLockMinX - EncounterLockRules.DefaultBarrierWidthPixels * 0.5f,
+                ExitBarrierX = VanguardLockMaxX + EncounterLockRules.DefaultBarrierWidthPixels * 0.5f,
+                BarrierFloorY = GroundY,
+                Waves = new[] { EncounterLockWave.FromTable(Room1RowID, Room1Spawns, EncounterWaveTrigger.OnBuild) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            // The siege line's soldiers come over the earthworks once the hero is
+            // in (a wave that spawns on engage), and its generator has to fall.
+            _siegeLineLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockSiegeLine,
+                Area = EncounterLockSpec.Span(SiegeLineLockMinX, SiegeLineLockMaxX, LevelHeight),
+                EntryBarrierX = SiegeLineLockMinX - EncounterLockRules.DefaultBarrierWidthPixels * 0.5f,
+                ExitBarrierX = GateAX,
+                ExitBarrierYRange = new Vector2(GateAColumnFootY, GroundY),
+                BarrierFloorY = GroundY,
+                Waves = new[] { EncounterLockWave.FromTable(Room2RowID, Room2Spawns, EncounterWaveTrigger.OnEngage) },
+                RequiredBreakables = _towerA != null ? new DamageableEnvironmentObject[] { _towerA }
+                    : System.Array.Empty<DamageableEnvironmentObject>(),
+                GoDirection = EncounterGoDirection.Right
+            });
+            _battlementLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockBattlement,
+                Area = EncounterLockSpec.Span(BattlementLockMinX, BattlementLockMaxX, LevelHeight),
+                EntryBarrierX = BattlementLockMinX - EncounterLockRules.DefaultBarrierWidthPixels * 0.5f,
+                ExitBarrierX = GateBX,
+                ExitBarrierYRange = new Vector2(GateBColumnFootY, GroundY),
+                BarrierFloorY = GroundY,
+                Waves = new[] { EncounterLockWave.FromTable(Room3RowID, Room3Spawns, EncounterWaveTrigger.OnBuild) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
         }
 
         /// <summary>Room 1: the French vanguard's ruined approach. No gate, no waves past the opener.</summary>
@@ -244,7 +338,9 @@ namespace FTT.Environment {
             BuildPlatform(5000, 600, 200);
             BuildPlatform(5500, 700, 240);
 
-            BuildCheckpoint(5300, EnemyGroundY, Checkpoint1, CheckpointRole.Middle);
+            // GU-E: the Middle anchor stands past Gate A, outside every lock area
+            // (it used to stand at 5300, in the middle of the siege line's fight).
+            BuildCheckpoint(MiddleCheckpointX, EnemyGroundY, Checkpoint1, CheckpointRole.Middle);
             BuildRoomDecoration(Room2StartX, "orleans_room_siege_line", new Color(0.9f, 0.55f, 0.25f));
 
             // The barrier covers x 6276..6324, y 582..902; this column seals
@@ -256,12 +352,13 @@ namespace FTT.Environment {
             BuildGateColumn(GateAX, GateBarrierWidth, 600, GateColor);
             BuildGateLabel("GateALabel", new Vector2(GateAX, 540));
 
-            BuildRoomTransition("orleans_room_siege_line", new Vector2(Room2StartX, 600), Room2CameraBounds,
+            // GU-E: the room trigger stands just inside the siege line's area, so
+            // a hero pressed against the vanguard's exit barrier does not reach it.
+            BuildRoomTransition("orleans_room_siege_line", new Vector2(SiegeLineLockMinX + 40f, 600), Room2CameraBounds,
                 onEntered: _ => {
                     _siegeLineReached = true;
                     RefreshObjective();
                 });
-            BuildWaveTrigger("Room2WaveTrigger", new Vector2(3400, 700), TriggerRoom2Wave);
         }
 
         /// <summary>
@@ -301,7 +398,6 @@ namespace FTT.Environment {
 
             BuildRoomDecoration(Room3StartX, "orleans_room_battlement", new Color(0.6f, 0.75f, 0.9f));
             BuildRoomTransition("orleans_room_battlement", new Vector2(Room3StartX + 20, 600), Room3CameraBounds);
-            BuildWaveTrigger("Room3WaveTrigger", new Vector2(6600, 700), TriggerRoom3Wave);
         }
 
         /// <summary>
@@ -378,68 +474,40 @@ namespace FTT.Environment {
         }
 
         // === Encounters ===
-
-        protected override void SpawnInitialEnemies() => SpawnWave(Room1Spawns);
-
-        private void TriggerRoom2Wave() {
-            if (_room2WaveSpawned) return;
-            _room2WaveSpawned = true;
-            SpawnWave(Room2Spawns);
-        }
-
-        private void TriggerRoom3Wave() {
-            if (_room3WaveSpawned) return;
-            _room3WaveSpawned = true;
-            SpawnWave(Room3Spawns);
-        }
-
-        /// <summary>
-        /// Authored counts are the Normal-difficulty truth; ScaleEncounterCount is the
-        /// only thing allowed to move them, and it never exceeds the authored table.
-        /// Concurrency stays at 3 or fewer live standards, well inside the level's
-        /// warm pool counts (standard_enemy 10, enemy_projectile 18).
-        /// </summary>
-        private void SpawnWave((string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] wave) {
-            if (wave == null) return;
-            int count = StoryDifficultyTuning.ScaleEncounterCount(
-                wave.Length, StoryDifficultyTuning.CurrentStoryDifficulty);
-            for (int index = 0; index < count && index < wave.Length; index++) {
-                (string enemyID, Vector2 position, Vector2? patrolA, Vector2? patrolB) = wave[index];
-                EnemyFactory.Spawn(enemyID, this, position, patrolA, patrolB);
-            }
-        }
+        //
+        // GU-E (2026-10-12): every encounter is a lock wave (BuildEncounterLocks).
+        // Authored counts are the Normal-difficulty truth; the lock takes the same
+        // per-row ScaleEncounterCount prefix the reward manifest compiles, never
+        // more than the table. Concurrency stays at 3 or fewer live standards,
+        // well inside the level's warm pool counts (standard_enemy 10,
+        // enemy_projectile 18).
 
         // === Resume and objectives ===
 
         // === Package 12 W2 (GAP-13): explicit encounter baseline ===========
-
-        public const string Room2WaveEncounter = ID + "_room2_wave";
-        public const string Room3WaveEncounter = ID + "_room3_wave";
+        //
+        // GU-E: the encounters are the three locks; every anchor lists every lock
+        // before it, and a resume builds those Cleared (the vanguard used to
+        // respawn behind the hero on every resume).
 
         private static readonly IReadOnlyDictionary<string, string[]> Baselines =
             new Dictionary<string, string[]> {
                 [Checkpoint0] = System.Array.Empty<string>(),
-                [Checkpoint1] = new[] { Room2WaveEncounter },
-                [Checkpoint2] = new[] { Room2WaveEncounter, Room3WaveEncounter }
+                [Checkpoint1] = new[] { LockVanguard, LockSiegeLine },
+                [Checkpoint2] = new[] { LockVanguard, LockSiegeLine, LockBattlement }
             };
 
         protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
 
-        protected override void MarkEncounterCleared(string encounterID) {
-            if (encounterID == Room2WaveEncounter) _room2WaveSpawned = true;
-            else if (encounterID == Room3WaveEncounter) _room3WaveSpawned = true;
-        }
-
-        /// <summary>Test seam: whether the room-2 wave latch is set (spawn suppressed).</summary>
-        public bool Room2WaveLatched => _room2WaveSpawned;
-
-        /// <summary>Test seam: whether the room-3 wave latch is set (spawn suppressed).</summary>
-        public bool Room3WaveLatched => _room3WaveSpawned;
-
-        /// <summary>The anchor's non-encounter world state; the waves come from the baseline.</summary>
+        /// <summary>
+        /// The anchor's non-encounter world state; the locks come from the
+        /// baseline. GU-E: the Middle anchor now stands past Gate A, so a resume
+        /// there drops generator A's barrier too.
+        /// </summary>
         protected override void MarkWavesClearedThrough(string checkpointID) {
             if (checkpointID == Checkpoint1) {
                 _siegeLineReached = true;
+                ForceGateOpen(_towerA);
             } else if (checkpointID == Checkpoint2) {
                 _siegeLineReached = true;
                 ForceGateOpen(_towerA);
@@ -450,6 +518,9 @@ namespace FTT.Environment {
         // Resume camera confinement is handled by
         // StoryLevelControllerBase.ApplyResumeCameraBounds (Wave A integration).
         protected override void OnLevelReady() => RefreshObjective();
+
+        /// <summary>GU-E: a cleared or reverted lock hands the objective back to the level's own.</summary>
+        protected override void RestoreLevelObjective() => RefreshObjective();
 
         private void RefreshObjective() {
             if (IsBossDefeated) SetObjective(CompletionObjectiveKey);

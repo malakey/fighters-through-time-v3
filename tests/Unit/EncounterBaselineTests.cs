@@ -165,6 +165,101 @@ public class EncounterBaselineTests {
     }
 
     /// <summary>
+    /// GU-E (2026-10-12): Orléans' encounter locks are F10 encounter IDs. A
+    /// resume at an anchor builds every lock its baseline lists Cleared — no
+    /// member spawned, both barriers open — and leaves the locks after it Armed
+    /// with their members dormant and their exits shut. (The vanguard used to
+    /// respawn behind the hero on every resume.)
+    /// </summary>
+    [TestCase]
+    public void ResumingOrleansPastItsLocksBuildsThemClearedAndLeavesTheNextOneArmed() {
+        using (var fixture = new OrleansFixture($"{Level02Controller.ID}_checkpoint_1")) {
+            Level02Controller level = fixture.Level;
+            AssertThat(level.ResumedMidLevel).IsTrue();
+            AssertThat(string.Join(",", level.AppliedEncounterBaseline))
+                .IsEqual($"{Level02Controller.LockVanguard},{Level02Controller.LockSiegeLine}");
+            foreach (EncounterLock cleared in new[] { level.VanguardLock, level.SiegeLineLock }) {
+                AssertThat(cleared.State).IsEqual(EncounterLockState.Cleared);
+                AssertThat(cleared.RestoredCleared).IsTrue();
+                AssertThat(cleared.RegisteredCount)
+                    .OverrideFailureMessage($"'{cleared.LockID}' spawned members a resume past it should never see.")
+                    .IsEqual(0);
+                AssertThat(cleared.ExitBarrier.IsClosed).IsFalse();
+                AssertThat(cleared.EntryBarrier.IsClosed).IsFalse();
+            }
+            EncounterLock battlement = level.BattlementLock;
+            AssertThat(battlement.State).IsEqual(EncounterLockState.Armed);
+            AssertThat(battlement.ExitBarrier.IsClosed).IsTrue();
+            AssertThat(battlement.LivingMemberCount).IsEqual(battlement.PlannedTotal);
+            foreach (FTT.Enemies.EnemyController member in battlement.LivingMembers) AssertThat(member.IsEncounterDormant).IsTrue();
+            // The anchor stands past Gate A, so its generator is down on resume.
+            AssertThat(level.ShieldTowerA.IsDestroyed).IsTrue();
+        }
+        using (var fixture = new OrleansFixture($"{Level02Controller.ID}_checkpoint_2")) {
+            foreach (EncounterLock encounterLock in fixture.Level.EncounterLocks) {
+                AssertThat(encounterLock.State).IsEqual(EncounterLockState.Cleared);
+                AssertThat(encounterLock.RegisteredCount).IsEqual(0);
+            }
+        }
+    }
+
+    /// <summary>The real Orléans scene resumed at an anchor, in the Globe fixture's image.</summary>
+    private sealed class OrleansFixture : IDisposable {
+        public readonly Level02Controller Level;
+        private readonly int _originalSlot;
+        private readonly string _originalCharacter;
+        private readonly Difficulty _originalDifficulty;
+        private readonly CampaignLevel _originalLevel;
+        private readonly StorySaveData _originalSave;
+        private readonly bool _originalPaused;
+
+        public OrleansFixture(string checkpointID) {
+            var tree = (SceneTree)Engine.GetMainLoop();
+            StoryManager story = StoryManager.Instance;
+            _originalPaused = tree.Paused;
+            _originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+            _originalCharacter = GameManager.Instance.CurrentSession.SelectedCharacterID;
+            _originalDifficulty = GameManager.Instance.CurrentSession.Difficulty;
+            _originalLevel = story.CurrentLevel;
+            _originalSave = SaveManager.Instance.SaveSlots[ScratchSlot];
+
+            story.PrepareDirectLevel(CampaignLevel.Orleans, "einstein", Difficulty.Normal);
+            SaveManager.Instance.SaveSlots[ScratchSlot] = new StorySaveData {
+                SelectedCharacterID = "einstein",
+                CurrentLevelID = StoryManager.GetLevelScenePath(CampaignLevel.Orleans),
+                LastCheckpointID = checkpointID,
+                CurrentHP = 100,
+                CurrentUltimateMeter = 0f,
+                Difficulty = Difficulty.Normal
+            };
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = ScratchSlot;
+            story.BeginLevelRun(resumeAttempt: true);
+
+            Level = ResourceLoader.Load<PackedScene>("res://scenes/campaign/Level_02_Orleans.tscn").Instantiate<Level02Controller>();
+            Level.Name = "EncounterBaselineOrleans";
+            tree.Root.AddChild(Level);
+        }
+
+        public void Dispose() {
+            PoolManager.Instance?.ReleaseActiveInGroup("Enemies");
+            if (GodotObject.IsInstanceValid(Level)) {
+                Level.GetParent()?.RemoveChild(Level);
+                Level.Free();
+            }
+            StoryManager story = StoryManager.Instance;
+            story.PrepareDirectLevel(_originalLevel,
+                string.IsNullOrEmpty(_originalCharacter) ? "einstein" : _originalCharacter, _originalDifficulty);
+            story.ClearLevelAttemptState();
+            story.StopLevelRun();
+            SaveManager.Instance.SaveSlots[ScratchSlot] = _originalSave;
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = _originalSlot;
+            GameManager.Instance.CurrentSession.SelectedCharacterID = _originalCharacter;
+            GameManager.Instance.CurrentSession.Difficulty = _originalDifficulty;
+            ((SceneTree)Engine.GetMainLoop()).Paused = _originalPaused;
+        }
+    }
+
+    /// <summary>
     /// Builds the real Globe scene against a scratch save parked at a checkpoint,
     /// with the story's attempt restored from that save exactly as a resume does.
     /// Always resumes (checkpoint 0 included): a fresh entry defers a

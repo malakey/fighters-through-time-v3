@@ -360,7 +360,10 @@ namespace FTT.Characters.Abilities {
                     if (distance > AttractionStopDistancePixels) {
                         Vector2 pulled = Owner.GlobalPosition
                             - toOwner.Normalized() * AttractionStopDistancePixels;
-                        body.GlobalPosition = pulled;
+                        // GU-E (2026-10-12): through the body's own collision (the
+                        // Tempest pattern), so a wall or an encounter-lock barrier
+                        // between Tesla and the target stops the pull at it.
+                        body.MoveAndCollide(pulled - body.GlobalPosition);
                     }
                     return;
                 }

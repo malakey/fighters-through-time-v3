@@ -526,6 +526,43 @@ namespace FTT.Core {
         public bool ReclaimFlash;
     }
 
+    /// <summary>
+    /// Gameplay update 2026-10-12 (GU-E, user request 3): an encounter lock's
+    /// state. <see cref="Armed"/> — built, its exit barrier closed, its members
+    /// dormant; <see cref="Engaged"/> — the hero is inside, both barriers closed,
+    /// the members fight and the waves spawn; <see cref="Cleared"/> — latched, both
+    /// barriers open. Deliberately not "sealed": a seal is N01's.
+    /// </summary>
+    public enum EncounterLockState {
+        Armed = 0,
+        Engaged = 1,
+        Cleared = 2
+    }
+
+    /// <summary>Where the HUD's GO prompt points after a lock clears (an arrow glyph plus text).</summary>
+    public enum EncounterGoDirection {
+        None = 0,
+        Right = 1,
+        Left = 2,
+        Up = 3,
+        Down = 4
+    }
+
+    /// <summary>
+    /// Raised by <c>EncounterLock</c> on every state edge and, while Engaged, on
+    /// every change of its count. <see cref="Remaining"/> is the living members
+    /// plus every member a wave has yet to spawn; <see cref="Total"/> every member
+    /// the lock plans on this difficulty. The Story HUD shows "Enemies left" while
+    /// a lock is Engaged and a GO prompt after a clear. Presentation only.
+    /// </summary>
+    public struct EncounterLockPayload {
+        public string LockID;
+        public EncounterLockState State;
+        public int Remaining;
+        public int Total;
+        public EncounterGoDirection GoDirection;
+    }
+
     public partial class EventBus : Node {
         public static EventBus Instance { get; private set; }
 
@@ -782,6 +819,13 @@ namespace FTT.Core {
         public event Action<RallyEchoPayload> OnRallyEchoChanged;
         public void RaiseRallyEchoChanged(RallyEchoPayload payload) =>
             OnRallyEchoChanged?.Invoke(payload);
+
+        // === Gameplay update 2026-10-12 (GU-E): encounter locks ===
+        // Published by EncounterLock; the Story HUD's "Enemies left" counter and
+        // GO prompt subscribe. Gameplay runs on the lock itself, never on this.
+        public event Action<EncounterLockPayload> OnEncounterLockChanged;
+        public void RaiseEncounterLockChanged(EncounterLockPayload payload) =>
+            OnEncounterLockChanged?.Invoke(payload);
 
     }
 }

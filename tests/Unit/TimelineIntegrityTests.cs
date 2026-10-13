@@ -84,8 +84,10 @@ public class TimelineIntegrityTests {
             AssertThat(story.LivingExtractorCount)
                 .OverrideFailureMessage("A resume must keep the attempt's broken machines broken.")
                 .IsEqual(2);
+            // GU-E (2026-10-12): the clock's par is the authored par times the
+            // provisional par scale, applied once where StoryManager receives it.
             AssertThat(story.CurrentIntegrityDrainPerSecond)
-                .IsEqualApprox(100f / (Par * 1.5f) * 1.4f / 1.6f, 0.000001f);
+                .IsEqualApprox(100f / (Par * TimelineIntegrityRules.ProvisionalParScale * 1.5f) * 1.4f / 1.6f, 0.000001f);
         } finally {
             story.ClearLevelAttemptState();
             story.StopLevelRun();

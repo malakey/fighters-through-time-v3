@@ -28,17 +28,20 @@ namespace FTT.Environment {
             HasActivated = true;
             GetNodeOrNull<StoryCameraConfiner>(CameraPath)?.SetBounds(CameraBounds);
             SetEncounterActive(true);
-            // V7.6 Time Freeze: a room revealed DURING an active freeze is frozen
-            // before its actors can take a tick. This runs synchronously right
-            // after the encounter root is enabled and before anything has
-            // processed, which is what "suspend adjacent-room simulation so
-            // off-screen attacks cannot enter" reduces to in practice.
-            TimeFreezeController.FreezeActivatedRoom(GetTree());
             EventBus.Instance?.RaiseRoomTransitioned(new RoomTransitionPayload {
                 RoomID = RoomID,
                 CameraBounds = CameraBounds
             });
             EmitSignal(SignalName.RoomEntered, RoomID);
+            // V7.6 Time Freeze: a room revealed DURING an active freeze is frozen
+            // before its actors can take a tick. This runs synchronously right
+            // after the encounter root is enabled and before anything has
+            // processed, which is what "suspend adjacent-room simulation so
+            // off-screen attacks cannot enter" reduces to in practice. GU-E
+            // (2026-10-12): it runs AFTER RoomEntered, because the levels'
+            // onEntered handlers spawn their waves there (Levels 6, 7, 10, 11) —
+            // run first, the sweep missed every body those handlers spawned.
+            TimeFreezeController.FreezeActivatedRoom(GetTree());
             return true;
         }
 

@@ -588,7 +588,9 @@ namespace FTT.Core {
         /// calls this — and the gauge stays inert at 100.
         /// </summary>
         public void BeginIntegrityClock(float parSeconds, int startingExtractors) {
-            ParSecondsForCurrentLevel = Mathf.Max(0f, parSeconds);
+            // GU-E (2026-10-12): the one place the authored par becomes the
+            // clock's par — times TimelineIntegrityRules.ProvisionalParScale.
+            ParSecondsForCurrentLevel = TimelineIntegrityRules.ProvisionallyScaledSeconds(parSeconds);
             StartingExtractorCount = Mathf.Max(0, startingExtractors);
             LivingExtractorCount = Mathf.Max(0, StartingExtractorCount - _destroyedExtractors.Count);
             _integrityClockPause = IntegrityClockPause.None;
@@ -667,7 +669,10 @@ namespace FTT.Core {
         /// </summary>
         public void SetRecoveryRouteSeconds(string checkpointID, float remainingRouteSeconds) {
             if (string.IsNullOrWhiteSpace(checkpointID)) return;
-            _recoveryRouteSeconds[checkpointID] = Mathf.Max(0f, remainingRouteSeconds);
+            // GU-E: the route budget is a fraction of the authored par, so it is
+            // scaled with it — the F11 recovery minima keep their point values.
+            _recoveryRouteSeconds[checkpointID] =
+                TimelineIntegrityRules.ProvisionallyScaledSeconds(remainingRouteSeconds);
         }
 
         public float GetRecoveryRouteSeconds(string checkpointID) =>

@@ -105,11 +105,10 @@ namespace FTT.Characters.Abilities {
                 CharacterBody2D body = FindTargetBody(hurtbox);
                 if (body == null) continue;
                 Vector2 toCenter = _singularityCenter - body.GlobalPosition;
-                if (toCenter.Length() <= step) {
-                    body.GlobalPosition = _singularityCenter;
-                } else {
-                    body.GlobalPosition += toCenter.Normalized() * step;
-                }
+                // GU-E (2026-10-12): through the body's own collision (the
+                // Tempest pattern), so walls and encounter-lock barriers stop the
+                // pull instead of the position being written through them.
+                body.MoveAndCollide(toCenter.Length() <= step ? toCenter : toCenter.Normalized() * step);
             }
         }
 

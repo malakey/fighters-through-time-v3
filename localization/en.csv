@@ -1650,3 +1650,8 @@ hero_possessive_tubman,Tubman's
 hero_home_era_tubman,Maryland
 # GU-A
 movelist_air_attack,"Air attack: {0}/{1}/{2} frames — {3:0.#} damage, one strike that never chains"
+# GU-E
+# Gameplay update 2026-10-12 (user request 3): encounter locks - the HUD counter and GO prompt and the generic lock objective.
+hud_encounter_enemies_left,Enemies left: {0}
+hud_encounter_go,GO
+encounter_lock_objective_clear,Defeat every enemy here to break the Severed barrier.
