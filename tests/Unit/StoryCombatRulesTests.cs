@@ -546,12 +546,24 @@ public class StoryCombatRulesTests {
             int hpAfterFirst = player.CurrentHP;
             Vector2 firstImpulse = player.Velocity;
 
+            // Each later hit starts from rest, so it proves it wrote its own
+            // impulse (review fix 2026-10-13: a hit that wrote nothing used to
+            // pass on the first hit's leftover velocity).
+            player.Velocity = Vector2.Zero;
             hurtbox.TakeHit(hit);
             int hpAfterSecond = player.CurrentHP;
             Vector2 secondImpulse = player.Velocity;
 
-            player.CurrentHP = Mathf.Max(hpAfterSecond - 1, player.MaximumHP / 5);
+            // Truly at a fifth of max HP (review fix 2026-10-13: Mathf.Max kept
+            // the hero at 79 of 100, never near low HP), above one hit's damage
+            // so the third hit does not kill.
+            player.CurrentHP = player.MaximumHP / 5;
             int hpBeforeThird = player.CurrentHP;
+            AssertThat(hpBeforeThird < hpAfterSecond && hpBeforeThird > (int)System.MathF.Round(hit.Damage))
+                .OverrideFailureMessage(
+                    $"Harness: the third hit must land between one hit's damage and {hpAfterSecond} HP; it lands at {hpBeforeThird}.")
+                .IsTrue();
+            player.Velocity = Vector2.Zero;
             hurtbox.TakeHit(hit);
             int hpAfterThird = player.CurrentHP;
             Vector2 thirdImpulse = player.Velocity;
@@ -561,6 +573,9 @@ public class StoryCombatRulesTests {
                     $"Every hit must actually have landed: {hp0} -> {hpAfterFirst} -> {hpAfterSecond}, {hpBeforeThird} -> {hpAfterThird}.")
                 .IsTrue();
             AssertThat(hpAfterThird > 0).IsTrue();
+            AssertThat(hpAfterThird * 5 <= player.MaximumHP)
+                .OverrideFailureMessage($"The third hit must leave the hero at low HP; it left {hpAfterThird} of {player.MaximumHP}.")
+                .IsTrue();
             // (A grounded victim of this non-launcher slides: M05 zeroes the
             // vertical, so the horizontal carries the rule.)
             foreach ((string label, Vector2 impulse) in new[] {

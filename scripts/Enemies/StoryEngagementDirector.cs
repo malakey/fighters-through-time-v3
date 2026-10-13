@@ -100,8 +100,11 @@ namespace FTT.Enemies {
         /// True when <paramref name="mob"/> (a waiter that wants a melee slot) is
         /// one of the candidates <see cref="StoryEngagementRules.SelectGrants"/>
         /// hands a free slot to right now. The caller takes the slot.
+        /// <paramref name="sideOverride"/> (±1) ranks <paramref name="mob"/> as
+        /// if it stood on that side — the engage blink asks for the side it
+        /// lands on; 0 uses the side it stands on.
         /// </summary>
-        internal static bool IsGrantedMeleeSlot(EnemyController mob) {
+        internal static bool IsGrantedMeleeSlot(EnemyController mob, int sideOverride = 0) {
             if (!CollectMembers(mob.EngagementTargetId)) return false;
             CountHolders(out int left, out int right);
             Difficulty difficulty = CurrentDifficulty;
@@ -109,12 +112,31 @@ namespace FTT.Enemies {
             Candidates.Clear();
             foreach (EnemyController member in Members) {
                 if (!member.IsMeleeSlotCandidate) continue;
+                int side = member == mob && sideOverride != 0 ? sideOverride : member.EngagementSide;
                 Candidates.Add(new StoryEngagementRules.Candidate(
                     member.GetInstanceId(), member.IsEngagementElite, member.EngagementRested,
-                    member.EngagementSide, member.EngagementWaitedFrames, member.EngagementGapPixels));
+                    side, member.EngagementWaitedFrames, member.EngagementGapPixels));
             }
             StoryEngagementRules.SelectGrants(Candidates, left, right, difficulty, Grants);
             return Grants.Contains(mob.GetInstanceId());
+        }
+
+        /// <summary>
+        /// The engage-blink test for a slot holder: true when
+        /// <paramref name="side"/> stays inside its per-side cap once
+        /// <paramref name="holder"/>'s slot moves there (the other holders
+        /// counted, the holder itself not).
+        /// </summary>
+        internal static bool SideHasRoomForHolder(EnemyController holder, int side) {
+            if (!CollectMembers(holder.EngagementTargetId)) return true;
+            int onSide = 0;
+            int others = 0;
+            foreach (EnemyController member in Members) {
+                if (member == holder || member.EngagementRole != StoryEngagementRules.EngagementRole.Slot) continue;
+                others++;
+                if (member.EngagementHolderSide == (side < 0 ? -1 : 1)) onSide++;
+            }
+            return StoryEngagementRules.SideHasFreeSlot(onSide, others, CurrentDifficulty);
         }
 
         /// <summary>
@@ -126,7 +148,7 @@ namespace FTT.Enemies {
             if (!CollectMembers(holder.EngagementTargetId)) return false;
             CountHolders(out int left, out int right);
             Difficulty difficulty = CurrentDifficulty;
-            int holderSide = holder.EngagementSide;
+            int holderSide = holder.EngagementHolderSide;
             foreach (EnemyController member in Members) {
                 if (member == holder || !member.IsMeleeSlotCandidate || !member.EngagementRested) continue;
                 if (StoryEngagementRules.CanTakeFreedSlot(member.EngagementSide, holderSide, left, right, difficulty)) {
@@ -263,7 +285,8 @@ namespace FTT.Enemies {
             left = right = 0;
             foreach (EnemyController member in Members) {
                 if (member.EngagementRole != StoryEngagementRules.EngagementRole.Slot) continue;
-                if (member.EngagementSide < 0) left++;
+                // An engage blink in flight counts on the side it lands on.
+                if (member.EngagementHolderSide < 0) left++;
                 else right++;
             }
         }

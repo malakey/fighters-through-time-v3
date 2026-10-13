@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using FTT.Combat;
 using FTT.Core;
 using FTT.Enemies;
+using FTT.Environment;
 using GdUnit4;
 using static GdUnit4.Assertions;
 
@@ -105,15 +106,22 @@ public class StoryEngagementRulesTests {
     }
 
     [TestCase]
-    public void PriorityRanksElitesThenRestThenSideBalanceThenRoundRobinThenGapThenId() {
+    public void PriorityRanksRestThenElitesThenSideBalanceThenRoundRobinThenGapThenId() {
         var baseline = new StoryEngagementRules.Candidate(10, isElite: false, rested: true, side: 1, waitedFrames: 30, gapPixels: 170f);
-        // 1. An elite beats a standard that wins every later key.
-        var elite = new StoryEngagementRules.Candidate(99, true, false, 1, 0, 400f);
-        AssertThat(StoryEngagementRules.ComparePriority(in elite, in baseline, 0, 0) < 0).IsTrue();
-        AssertThat(StoryEngagementRules.ComparePriority(in baseline, in elite, 0, 0) > 0).IsTrue();
-        // 2. A rested waiter beats a resting one.
+        // 1. A rested waiter beats a resting one, whatever its later keys...
         var resting = new StoryEngagementRules.Candidate(1, false, false, 1, 500, 100f);
         AssertThat(StoryEngagementRules.ComparePriority(in baseline, in resting, 0, 0) < 0).IsTrue();
+        // ...an elite included (review fix 2026-10-13): a resting elite is the
+        // holder that has just handed off, and it must not take the slot back
+        // from a rested standard.
+        var restingElite = new StoryEngagementRules.Candidate(99, true, false, 1, 900, 60f);
+        AssertThat(StoryEngagementRules.ComparePriority(in baseline, in restingElite, 0, 0) < 0).IsTrue();
+        AssertThat(StoryEngagementRules.ComparePriority(in restingElite, in baseline, 0, 0) > 0).IsTrue();
+        // 2. Within one rest state an elite beats a standard that wins every later key.
+        var elite = new StoryEngagementRules.Candidate(99, true, true, 1, 0, 400f);
+        AssertThat(StoryEngagementRules.ComparePriority(in elite, in baseline, 0, 0) < 0).IsTrue();
+        AssertThat(StoryEngagementRules.ComparePriority(in baseline, in elite, 0, 0) > 0).IsTrue();
+        AssertThat(StoryEngagementRules.ComparePriority(in restingElite, in resting, 0, 0) < 0).IsTrue();
         // 3. The side with fewer holders goes first.
         var leftSide = new StoryEngagementRules.Candidate(50, false, true, -1, 0, 300f);
         AssertThat(StoryEngagementRules.ComparePriority(in leftSide, in baseline, holdersLeft: 0, holdersRight: 1) < 0).IsTrue();
@@ -165,6 +173,21 @@ public class StoryEngagementRulesTests {
         AssertThat(granted[0]).IsEqual(2UL);
         var restingAlone = new List<StoryEngagementRules.Candidate> { new(1, false, false, 1, 0, 60f) };
         AssertThat(StoryEngagementRules.SelectGrants(restingAlone, 0, 0, Difficulty.Easy, granted)).IsEqual(1);
+        // An elite that has just handed off (resting) does not take Easy's one
+        // slot back from a rested standard...
+        var restingEliteAndRestedStandard = new List<StoryEngagementRules.Candidate> {
+            new(1, true, false, 1, 0, 60f),
+            new(2, false, true, 1, 40, 200f)
+        };
+        StoryEngagementRules.SelectGrants(restingEliteAndRestedStandard, 0, 0, Difficulty.Easy, granted);
+        AssertThat(granted[0]).IsEqual(2UL);
+        // ...but still takes a free slot on a side the rested standard cannot use.
+        var restedStandardOnAFullSide = new List<StoryEngagementRules.Candidate> {
+            new(1, true, false, -1, 0, 60f),
+            new(2, false, true, 1, 40, 200f)
+        };
+        AssertThat(StoryEngagementRules.SelectGrants(restedStandardOnAFullSide, 0, 1, Difficulty.Normal, granted)).IsEqual(1);
+        AssertThat(granted[0]).IsEqual(1UL);
     }
 
     [TestCase]
@@ -205,12 +228,35 @@ public class StoryEngagementRulesTests {
 
     [TestCase]
     public void TheRangedHoldCapKeepsAShooterInsideTheZoomedHalfView() {
-        // The 1.5-zoom half view (1920 / 1.5 / 2 = 640) less 80.
-        AssertThat(StoryEngagementRules.RangedHoldMaxPixels).IsEqual(1920f / 1.5f / 2f - 80f);
+        // The half view is the camera rulebook's zoomed view, halved (consts
+        // only: StoryCameraRules is never loaded in this engine-free host).
+        float halfView = StoryCameraRules.ReferenceViewportWidth / StoryCameraRules.ViewZoom / 2f;
+        AssertThat(StoryEngagementRules.ZoomedHalfViewPixels).IsEqual(halfView);
+        AssertThat(StoryEngagementRules.RangedHoldMaxPixels)
+            .IsEqual(halfView - StoryEngagementRules.RangedHoldViewMarginPixels);
+        AssertThat(StoryEngagementRules.RangedHoldReleaseMaxPixels)
+            .IsEqual(halfView - StoryEngagementRules.RangedHoldReleaseViewMarginPixels);
+        // Both lines sit inside the half view, and the release keeps a dead band
+        // above the hold line (hysteresis).
+        AssertThat(StoryEngagementRules.RangedHoldViewMarginPixels > 0f).IsTrue();
+        AssertThat(StoryEngagementRules.RangedHoldReleaseViewMarginPixels > 0f).IsTrue();
+        AssertThat(StoryEngagementRules.RangedHoldReleaseMaxPixels > StoryEngagementRules.RangedHoldMaxPixels).IsTrue();
+        AssertThat(StoryEngagementRules.RangedHoldReleaseMaxPixels < halfView).IsTrue();
+
+        float sentryEngage = 0.85f * 810f;
         // The infrared sentry's projectile-widened line (0.85 x 810) is capped...
-        AssertThat(StoryEngagementRules.CappedHoldEngagePixels(0.85f * 810f)).IsEqual(560f);
+        AssertThat(StoryEngagementRules.CappedHoldEngagePixels(sentryEngage))
+            .IsEqual(StoryEngagementRules.RangedHoldMaxPixels);
         // ...a closer line is untouched.
         AssertThat(StoryEngagementRules.CappedHoldEngagePixels(0.85f * 540f)).IsEqualApprox(459f, 0.001f);
+        // A capped band's own hysteresis release (560 x 1.10 / 0.85 = 724.7)
+        // would stand it past the half view; the release is capped too...
+        float capped = StoryEngagementRules.CappedHoldEngagePixels(sentryEngage);
+        AssertThat(capped * 1.10f / 0.85f > halfView).IsTrue();
+        AssertThat(StoryEngagementRules.CappedHoldResumePixels(capped * 1.10f / 0.85f))
+            .IsEqual(StoryEngagementRules.RangedHoldReleaseMaxPixels);
+        // ...and a release already inside it passes through.
+        AssertThat(StoryEngagementRules.CappedHoldResumePixels(500f)).IsEqual(500f);
     }
 
     [TestCase]

@@ -257,13 +257,94 @@ public class StoryEngagementDirectorTests {
                 EnemyController elite = scenario.Add("chrono_guard_elite", 440f);
                 AssertThat(StoryEngagementRules.ClassOf(elite.PreviewNextAttack().Archetype, false))
                     .IsEqual(StoryEngagementRules.EngagementClass.MeleeSlot);
-                Trace trace = scenario.Run(400);
+                Trace trace = scenario.Run(900);
                 AssertThat(trace.Commits.Count >= 2).IsTrue();
                 AssertThat(trace.Commits[0].Mob).IsEqual(0);
                 AssertThat(trace.Commits[1].Mob)
                     .OverrideFailureMessage($"The slot went to mob {trace.Commits[1].Mob}, not the elite (mob 2).")
                     .IsEqual(2);
+                // The elite's turn ends like any other (review fix 2026-10-13):
+                // the standard that waited longest gets the next one.
+                int[] order = trace.Commits.Select(commit => commit.Mob).ToArray();
+                AssertThat(order.Skip(2).Contains(1))
+                    .OverrideFailureMessage($"The longer-waiting standard (mob 1) never got a turn after the elite's ({string.Join(",", order)}).")
+                    .IsTrue();
                 AssertThat(trace.WaiterCommits).IsEqual(0);
+            } finally {
+                scenario.Free();
+            }
+        }));
+    }
+
+    [TestCase]
+    public async Task AnEliteHandsItsTurnToARestedStandardAndOnlyGetsItBackAfterTheStandardsTurn() {
+        // Review fix 2026-10-13: an elite that has just handed off is resting,
+        // and it used to outrank every rested standard and take Easy's one slot
+        // straight back, so the standard never got a turn.
+        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => WithDifficulty(Difficulty.Easy, () => {
+            Scenario scenario = Scenario.Build(new Vector2(0f, 0f),
+                ("chrono_guard_elite", 300f), ("chrono_slasher", 380f));
+            try {
+                Trace trace = scenario.Run(900);
+                int[] order = trace.Commits.Select(commit => commit.Mob).ToArray();
+                string orderText = string.Join(",", order);
+                AssertThat(order.Length >= 3)
+                    .OverrideFailureMessage($"Only {order.Length} commits in 900 frames ({orderText}).")
+                    .IsTrue();
+                AssertThat(order[0]).OverrideFailureMessage($"The elite should open ({orderText}).").IsEqual(0);
+                AssertThat(order[1])
+                    .OverrideFailureMessage($"The elite took its slot back instead of handing it to the rested standard ({orderText}).")
+                    .IsEqual(1);
+                AssertThat(order.Skip(2).Contains(0))
+                    .OverrideFailureMessage($"The elite never got its turn back after the standard's ({orderText}).")
+                    .IsTrue();
+                AssertThat(trace.WaiterCommits).IsEqual(0);
+                AssertThat(trace.MaxHolders).IsEqual(1);
+            } finally {
+                scenario.Free();
+            }
+        }));
+    }
+
+    [TestCase]
+    public async Task AStaleEliteHolderHandsItsSlotToTheRestedStandardForGood() {
+        // Review fix 2026-10-13: the stale hand-off asks for a grant in the same
+        // call, and a resting elite used to win it straight back.
+        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => WithDifficulty(Difficulty.Easy, () => {
+            Scenario scenario = Scenario.Build(new Vector2(0f, 0f), cooldown: 999f,
+                ("chrono_guard_elite", 300f), ("chrono_slasher", 380f));
+            try {
+                EnemyController elite = scenario.Mobs[0];
+                EnemyController slasher = scenario.Mobs[1];
+                // The elite takes the slot but never commits: its slot goes stale.
+                elite.SetAttackCooldownForTest(999f);
+                scenario.Advance(3);
+                AssertThat(elite.EngagementRole).IsEqual(StoryEngagementRules.EngagementRole.Slot);
+                AssertThat(slasher.EngagementRole).IsEqual(StoryEngagementRules.EngagementRole.Waiting);
+
+                int handOffFrame = -1;
+                for (int frame = 0; frame < 300 && handOffFrame < 0; frame++) {
+                    scenario.Advance(1);
+                    if (elite.EngagementRole != StoryEngagementRules.EngagementRole.Slot) handOffFrame = frame;
+                }
+                AssertThat(handOffFrame >= 0)
+                    .OverrideFailureMessage("The stale elite never let its slot go.")
+                    .IsTrue();
+                AssertThat(handOffFrame + 3 >= StoryEngagementRules.StaleSlotFrames)
+                    .OverrideFailureMessage($"The elite handed off after {handOffFrame + 3} frames, before going stale.")
+                    .IsTrue();
+                AssertThat(elite.EngagementRole).IsEqual(StoryEngagementRules.EngagementRole.Waiting);
+                AssertThat(elite.EngagementRestFramesRemaining > 0).IsTrue();
+                AssertThat(slasher.EngagementRole)
+                    .OverrideFailureMessage("The stale hand-off did not pass the slot to the rested standard.")
+                    .IsEqual(StoryEngagementRules.EngagementRole.Slot);
+                // It stays passed: the elite does not take it back while it rests.
+                for (int frame = 0; frame < StoryEngagementRules.RestFramesAfterHandoff(Difficulty.Easy); frame++) {
+                    scenario.Advance(1);
+                    AssertThat(elite.EngagementRole == StoryEngagementRules.EngagementRole.Slot)
+                        .OverrideFailureMessage($"The elite took the slot back {frame + 1} frames after handing it off.")
+                        .IsFalse();
+                }
             } finally {
                 scenario.Free();
             }
@@ -340,9 +421,12 @@ public class StoryEngagementDirectorTests {
                 AssertThat(sentry.AttackRangePixels * EnemyController.StandOffEngageFraction
                     > StoryEngagementRules.RangedHoldMaxPixels).IsTrue();
                 AssertThat(sentry.StandOffEngagePixels).IsEqualApprox(StoryEngagementRules.RangedHoldMaxPixels, 0.001f);
-                AssertThat(sentry.StandOffResumePixels).IsEqualApprox(
-                    StoryEngagementRules.RangedHoldMaxPixels * EnemyController.StandOffResumeFraction
-                        / EnemyController.StandOffEngageFraction, 0.01f);
+                // The capped band's own hysteresis release would sit past the
+                // half view; it is capped too (review fix 2026-10-13).
+                AssertThat(StoryEngagementRules.RangedHoldMaxPixels * EnemyController.StandOffResumeFraction
+                    / EnemyController.StandOffEngageFraction > StoryEngagementRules.ZoomedHalfViewPixels).IsTrue();
+                AssertThat(sentry.StandOffResumePixels)
+                    .IsEqualApprox(StoryEngagementRules.RangedHoldReleaseMaxPixels, 0.001f);
                 int guard = 0;
                 while (!sentry.IsStandOffEngaged && guard++ < 1200) scenario.Advance(1);
                 scenario.Advance(30);
@@ -353,6 +437,123 @@ public class StoryEngagementDirectorTests {
                     .IsTrue();
             } finally {
                 scenario.Free();
+            }
+        }));
+    }
+
+    [TestCase]
+    public async Task AWaitingShooterFollowsAHeroWhoBacksAwayBeforeItWouldStandOffScreen() {
+        // Review fix 2026-10-13: the capped band used to release only past
+        // 724.7 px, so a sentry waiting out its cooldown stood still off the
+        // 640 px half view while the hero backed away.
+        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => WithDifficulty(Difficulty.Normal, () => {
+            Scenario scenario = Scenario.Build(new Vector2(0f, 0f), cooldown: 999f, ("infrared_border_sentry", 800f));
+            try {
+                EnemyController sentry = scenario.Mobs[0];
+                int guard = 0;
+                while (!sentry.IsStandOffEngaged && guard++ < 1200) scenario.Advance(1);
+                scenario.Advance(30);
+                AssertThat(sentry.IsStandOffEngaged).OverrideFailureMessage("Harness: the sentry never held.").IsTrue();
+                AssertThat(sentry.CurrentState).IsEqual(EnemyState.Chase);
+
+                // Inside the dead band the hold stands (the hysteresis is kept).
+                float release = StoryEngagementRules.RangedHoldReleaseMaxPixels;
+                float hold = StoryEngagementRules.RangedHoldMaxPixels;
+                scenario.Hero.GlobalPosition = new Vector2(sentry.GlobalPosition.X - (hold + release) / 2f, 0f);
+                scenario.Advance(5);
+                AssertThat(sentry.IsStandOffEngaged)
+                    .OverrideFailureMessage("The sentry released inside its dead band.")
+                    .IsTrue();
+
+                // The hero backs off past the release line, still inside the half
+                // view: the sentry follows instead of standing there.
+                float backedOff = (release + StoryEngagementRules.ZoomedHalfViewPixels) / 2f;
+                scenario.Hero.GlobalPosition = new Vector2(sentry.GlobalPosition.X - backedOff, 0f);
+                scenario.Advance(2);
+                AssertThat(sentry.IsStandOffEngaged)
+                    .OverrideFailureMessage($"The sentry still held at {backedOff:F1} px, past its {release:F1} px release.")
+                    .IsFalse();
+                AssertThat(sentry.Velocity.X < 0f)
+                    .OverrideFailureMessage("The released sentry did not walk after the hero.")
+                    .IsTrue();
+
+                float farthestStandStill = 0f;
+                guard = 0;
+                while (!sentry.IsStandOffEngaged && guard++ < 600) {
+                    scenario.Advance(1);
+                    float gap = Mathf.Abs(sentry.GlobalPosition.X - scenario.Hero.GlobalPosition.X);
+                    if (Mathf.Abs(sentry.Velocity.X) < 0.5f) farthestStandStill = Mathf.Max(farthestStandStill, gap);
+                }
+                float settled = Mathf.Abs(sentry.GlobalPosition.X - scenario.Hero.GlobalPosition.X);
+                AssertThat(sentry.IsStandOffEngaged).OverrideFailureMessage("The sentry never held again.").IsTrue();
+                AssertThat(settled <= hold + 0.5f)
+                    .OverrideFailureMessage($"The sentry re-held at {settled:F1} px.")
+                    .IsTrue();
+                AssertThat(farthestStandStill <= release)
+                    .OverrideFailureMessage($"The sentry stood still {farthestStandStill:F1} px out while following.")
+                    .IsTrue();
+            } finally {
+                scenario.Free();
+            }
+        }));
+    }
+
+    [TestCase]
+    public async Task TheEngageBlinkIsGrantedTheSlotOnTheSideItLandsOn() {
+        // Review fix 2026-10-13: the Rift Phantom's engage blink lands on the
+        // far side of the hero, and it used to be granted the slot of the side
+        // it stood on, so on Normal two holders ended up on one side.
+        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => WithDifficulty(Difficulty.Normal, () => {
+            // A slasher holds the far (right) side: the phantom must not blink
+            // there; it takes the free near slot and walks in instead.
+            Scenario held = Scenario.Build(new Vector2(0f, 0f), ("chrono_slasher", 300f), ("rift_phantom", -300f));
+            try {
+                EnemyController slasher = held.Mobs[0];
+                EnemyController phantom = held.Mobs[1];
+                SideTrace trace = RunSides(held, 600);
+                AssertThat(trace.PhantomBlinked)
+                    .OverrideFailureMessage("The phantom blinked onto the side the slasher holds.")
+                    .IsFalse();
+                AssertThat(trace.MaxHoldersPerSide)
+                    .OverrideFailureMessage("Two mobs held a slot on one side on Normal.")
+                    .IsEqual(1);
+                AssertThat(trace.MaxAttackingPerSide).IsEqual(1);
+                AssertThat(held.Mobs.All(mob => mob.EngagementRole == StoryEngagementRules.EngagementRole.Slot)).IsTrue();
+                AssertThat(phantom.GlobalPosition.X < 0f)
+                    .OverrideFailureMessage($"The phantom ended at x {phantom.GlobalPosition.X:F1}, on the slasher's side.")
+                    .IsTrue();
+                AssertThat(trace.PhantomCommits > 0)
+                    .OverrideFailureMessage("The phantom never attacked from its own side.")
+                    .IsTrue();
+                AssertThat(slasher.GlobalPosition.X > 0f).IsTrue();
+            } finally {
+                held.Free();
+            }
+
+            // The near (left) side is held and the far side is free: the
+            // phantom is granted the far slot and blinks there at once.
+            Scenario free = Scenario.Build(new Vector2(0f, 0f), ("chrono_slasher", -300f), ("rift_phantom", -420f));
+            try {
+                EnemyController slasher = free.Mobs[0];
+                EnemyController phantom = free.Mobs[1];
+                SideTrace trace = RunSides(free, 600);
+                AssertThat(trace.PhantomBlinked)
+                    .OverrideFailureMessage("The phantom never blinked to the free far side.")
+                    .IsTrue();
+                AssertThat(trace.FirstBlinkFrame <= 3)
+                    .OverrideFailureMessage($"The phantom first blinked on frame {trace.FirstBlinkFrame}.")
+                    .IsTrue();
+                AssertThat(trace.SlasherHeldAtFirstBlink)
+                    .OverrideFailureMessage("The phantom blinked only after the near holder let its slot go.")
+                    .IsTrue();
+                AssertThat(trace.PhantomSideAfterFirstBlink)
+                    .OverrideFailureMessage("The phantom did not land on the far side.")
+                    .IsEqual(1);
+                AssertThat(trace.MaxHoldersPerSide).IsEqual(1);
+                AssertThat(trace.MaxAttackingPerSide).IsEqual(1);
+                AssertThat(slasher.EngagementRole).IsEqual(StoryEngagementRules.EngagementRole.Slot);
+            } finally {
+                free.Free();
             }
         }));
     }
@@ -518,6 +719,60 @@ public class StoryEngagementDirectorTests {
         public float MinSettledRankGapDifference = float.MaxValue;
         public float MinSettledWaiterGap = float.MaxValue;
         public bool HandOffRestSeen;
+    }
+
+    /// <summary>What <see cref="RunSides"/> saw of a slasher and a Rift Phantom.</summary>
+    private sealed class SideTrace {
+        public bool PhantomBlinked;
+        public int FirstBlinkFrame = -1;
+        public bool SlasherHeldAtFirstBlink;
+        public int PhantomSideAfterFirstBlink;
+        public int PhantomCommits;
+        public int MaxHoldersPerSide;
+        public int MaxAttackingPerSide;
+    }
+
+    /// <summary>
+    /// Steps a scenario of one slasher and one Rift Phantom, counting holders and
+    /// attackers per side by where they stand. Frames with an engage blink in
+    /// flight are left out of the per-side counts: the blinker still stands on
+    /// the side it leaves until the teleport lands.
+    /// </summary>
+    private static SideTrace RunSides(Scenario scenario, int frames) {
+        EnemyController phantom = scenario.Mobs.Single(mob => mob.Data.EnemyID == "rift_phantom");
+        EnemyController slasher = scenario.Mobs.Single(mob => mob != phantom);
+        var trace = new SideTrace();
+        EnemyState previousPhantomState = phantom.CurrentState;
+        for (int frame = 0; frame < frames; frame++) {
+            scenario.Advance(1);
+            bool blinking = phantom.IsEngageBlinking;
+            if (blinking && !trace.PhantomBlinked) {
+                trace.PhantomBlinked = true;
+                trace.FirstBlinkFrame = frame;
+                trace.SlasherHeldAtFirstBlink = slasher.EngagementRole == StoryEngagementRules.EngagementRole.Slot;
+            }
+            if (trace.PhantomBlinked && !blinking && trace.PhantomSideAfterFirstBlink == 0) {
+                trace.PhantomSideAfterFirstBlink = phantom.GlobalPosition.X < scenario.Hero.GlobalPosition.X ? -1 : 1;
+            }
+            if (!blinking && phantom.CurrentState == EnemyState.Attacking && previousPhantomState != EnemyState.Attacking) {
+                trace.PhantomCommits++;
+            }
+            previousPhantomState = phantom.CurrentState;
+            if (blinking) continue;
+            int holdersLeft = 0, holdersRight = 0, attackingLeft = 0, attackingRight = 0;
+            foreach (EnemyController mob in scenario.Mobs) {
+                bool left = mob.GlobalPosition.X < scenario.Hero.GlobalPosition.X;
+                if (mob.EngagementRole == StoryEngagementRules.EngagementRole.Slot) {
+                    if (left) holdersLeft++; else holdersRight++;
+                }
+                if (mob.CurrentState == EnemyState.Attacking) {
+                    if (left) attackingLeft++; else attackingRight++;
+                }
+            }
+            trace.MaxHoldersPerSide = Math.Max(trace.MaxHoldersPerSide, Math.Max(holdersLeft, holdersRight));
+            trace.MaxAttackingPerSide = Math.Max(trace.MaxAttackingPerSide, Math.Max(attackingLeft, attackingRight));
+        }
+        return trace;
     }
 
     private sealed class Scenario {
