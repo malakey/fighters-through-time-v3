@@ -261,6 +261,69 @@ public class StoryHudPresentationTests {
         }
     }
 
+    /// <summary>
+    /// D10 (2026-10-11, ledger <c>USER-NOT-YET-FLASH</c>): a lockout refusal
+    /// flashes the refused slot — a red <c>SelfModulate</c> tint plus a
+    /// contracting frame, the shape channel HUD_CONTRACT's "never colour alone"
+    /// asks for — on the hero's HUD only. <c>Modulate</c> is left alone.
+    /// </summary>
+    [TestCase]
+    public void ANotYetRefusalFlashesTheMatchingSlotForTheHeroOnly() {
+        Node host = CreateHost("StoryHudNotYetHost");
+        try {
+            StoryHUD hud = AddHud(host);
+            EventBus bus = EventBus.Instance;
+            AssertObject(bus).IsNotNull();
+            const string Row = "SafeArea/TopLeft_Panel/Vitals/CooldownRow";
+            var slotOne = hud.GetNode<Label>($"{Row}/Cooldown1_Icon");
+            var slotTwo = hud.GetNode<Label>($"{Row}/Cooldown2_Icon");
+            var meterHost = hud.GetNode<Control>("SafeArea/TopLeft_Panel/Vitals/MeterRow/UltimateMeter_BG");
+            var meterFill = hud.GetNode<Control>("SafeArea/TopLeft_Panel/Vitals/MeterRow/UltimateMeter_BG/UltimateMeter_Fill");
+            Color slotOneModulate = slotOne.Modulate;
+
+            bus.RaiseAbilityLockoutRefused(new AbilityLockoutRefusedPayload {
+                PlayerIndex = 0, Slot = AbilitySlot.Special1
+            });
+            AssertThat(slotOne.SelfModulate == Colors.White)
+                .OverrideFailureMessage("The refused slot's icon is tinted.")
+                .IsFalse();
+            AssertThat(slotOne.SelfModulate).IsEqual(NotYetFlash.Tint);
+            Panel frame = NotYetFlash.FrameOf(slotOne);
+            AssertObject(frame).IsNotNull();
+            AssertThat(frame.Visible).OverrideFailureMessage("The frame is the non-colour channel.").IsTrue();
+            AssertThat(frame.Scale == new Vector2(NotYetFlash.StartScale, NotYetFlash.StartScale))
+                .OverrideFailureMessage("The frame appears enlarged and contracts.")
+                .IsTrue();
+            AssertThat(slotOne.Modulate).OverrideFailureMessage("Modulate belongs to other writers.").IsEqual(slotOneModulate);
+            AssertObject(NotYetFlash.FrameOf(slotTwo)).IsNull();
+            AssertThat(slotTwo.SelfModulate).IsEqual(Colors.White);
+
+            // The Mirror clone (index 1) raises the event too; the hero's HUD ignores it.
+            bus.RaiseAbilityLockoutRefused(new AbilityLockoutRefusedPayload {
+                PlayerIndex = 1, Slot = AbilitySlot.Special2
+            });
+            AssertObject(NotYetFlash.FrameOf(slotTwo)).IsNull();
+            AssertThat(slotTwo.SelfModulate).IsEqual(Colors.White);
+            bus.RaiseAbilityLockoutRefused(new AbilityLockoutRefusedPayload {
+                PlayerIndex = 1, Slot = AbilitySlot.Ultimate
+            });
+            AssertObject(NotYetFlash.FrameOf(meterHost)).IsNull();
+
+            // The Ultimate: the fill (the drawn RadialProgress) takes the tint,
+            // the plain BG hosts the frame.
+            bus.RaiseAbilityLockoutRefused(new AbilityLockoutRefusedPayload {
+                PlayerIndex = 0, Slot = AbilitySlot.Ultimate
+            });
+            AssertThat(meterFill.SelfModulate).IsEqual(NotYetFlash.Tint);
+            Panel meterFrame = NotYetFlash.FrameOf(meterHost);
+            AssertObject(meterFrame).IsNotNull();
+            AssertThat(meterFrame.Visible).IsTrue();
+            AssertThat(meterFrame.GetParent() == meterHost).IsTrue();
+        } finally {
+            host.Free();
+        }
+    }
+
     [TestCase]
     public void HudOpacityIsAppliedAtReadyAndAgainWheneverTheSettingChanges() {
         GlobalSaveData data = SaveManager.Instance?.GlobalData;

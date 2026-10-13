@@ -57,5 +57,25 @@ namespace FTT.Combat {
 
         /// <summary>A hurtbox with no live receiver cannot take a hit.</summary>
         public bool IsAlive => OnHit != null;
+
+        /// <summary>
+        /// 2026-10-11 (D1a): the <see cref="HitPayload.ContactId"/> of the last
+        /// contact this hurtbox's receiver reported as LANDED. Contact IDs are
+        /// monotonic for the process, so a pooled body never matches a stale one.
+        /// </summary>
+        public ulong LastLandedContactId { get; private set; }
+
+        /// <summary>
+        /// Called by the receiver (enemy, boss, player, training dummy) for a
+        /// contact that landed: damage applied, or absorbed by a shield or
+        /// barrier layer on a body that was not invulnerable to it. Strike
+        /// surfaces, props and constructs never call it. 0 is ignored.
+        /// </summary>
+        public void ReportLanded(ulong contactId) {
+            if (contactId != 0) LastLandedContactId = contactId;
+        }
+
+        /// <summary>True when the receiver reported <paramref name="contactId"/> as landed.</summary>
+        public bool DidLand(ulong contactId) => contactId != 0 && LastLandedContactId == contactId;
     }
 }

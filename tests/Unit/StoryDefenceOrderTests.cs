@@ -315,8 +315,8 @@ public class StoryDefenceOrderTests {
 
             player.AddInfluenceFromDamageDealt(8f);
             AssertThat(player.CurrentUltimateMeter)
-                .OverrideFailureMessage("An independent ordinary hit still earns its 8.")
-                .IsEqualApprox(8f, 0.01f);
+                .OverrideFailureMessage("An independent ordinary hit still earns its 8 HP at the Story rate.")
+                .IsEqualApprox(8f * player.StoryMeterGainFactor, 0.01f);
         } finally {
             InputManager.Instance?.ClearInputSource(player.PlayerIndex);
             player.Free();

@@ -11,7 +11,8 @@ using static GdUnit4.Assertions;
 namespace FTT.Tests.ContentValidation;
 
 /// <summary>
-/// Package 12 W8: the two base-owned content hooks every boss level carries,
+/// Package 12 W8: the base-owned content hooks every boss level carries (three
+/// since D13, 2026-10-11, added the Restoration Font),
 /// checked against each level as it is really built — the authored scene
 /// entered into the tree once, so the code-built geometry exists — for
 /// Levels 2–15 (Package 13 W2: S27 retired the nine Level 4A variants this
@@ -39,6 +40,22 @@ namespace FTT.Tests.ContentValidation;
 /// 200 px below it (its interaction area is 220×320 centred 40 px above it),
 /// not buried in a solid body, and within 700 px of where the boss (or the
 /// Mirror) stands. Level 15 uses its scene Prime Anchor instead.</para>
+///
+/// <para><b>D13 — the Restoration Font</b> (<c>PROVISIONAL-FONT-PLACEMENT</c>).
+/// Exactly one <see cref="RestorationFont"/> per level, ID
+/// <c>{DialoguePrefix}.restoration_font</c>, standing on a surface whose top is in
+/// [y - 2, y + 16] under it; at least 110 px past the Middle-role checkpoint;
+/// its whole channel circle (range + 30 px) outside the boss reveal (west of
+/// the arena rect, or beyond the reveal radius for the Mirror); 110 px from
+/// every checkpoint, 320 px from every Extractor or Resonance Hold node, and
+/// 200 px from every other Interact target (Warden Beacons, the secret cache,
+/// sealing anchors, Puzzle Reset Stations). The hero's body anywhere in the
+/// channel circle stays 20 px clear of every damaging hazard's shape — cyclic
+/// hazards armed or dormant at load (a phase-armed laser lane included), rifts
+/// and spike strips (<see cref="FontHazardClearance"/>). It carries its
+/// interaction area, glow and channel radial, and its completion refusal is
+/// wired and false at load. The low-gravity, escape, flood, searchlight and
+/// spawn-proximity preferences are authoring guidance, not encoded here.</para>
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
@@ -50,12 +67,21 @@ public class SecretCachePlacementTests {
     private const float AnchorBossReach = 700f;
     private const float MaxHorizontalGap = 250f;
 
+    // D13 font placement rule (PROVISIONAL-FONT-PLACEMENT).
+    private const float FontStandAbove = 2f;
+    private const float FontStandBelow = 16f;
+    private const float FontMiddleClearance = 110f;
+    private const float FontArenaMargin = 30f;
+    private const float FontCheckpointClearance = 110f;
+    private const float FontExtractorClearance = 320f;
+    private const float FontInteractClearance = 200f;
+
     private static List<LevelSnapshot> _snapshots;
 
     [TestCase]
     public void EverySecretLevelAuthorsOneReachableOffPathCacheKeyedToItsManifest() {
         var issues = new List<string>();
-        float doubleRise = 2f * WorstSingleJumpRise();
+        float doubleRise = WorstJumpBudgetRise();
         List<LevelSnapshot> levels = Snapshots();
         // Levels 2–15 (S27 retired the per-hero Level 4A variants).
         AssertThat(levels.Count).IsEqual(14);
@@ -67,6 +93,15 @@ public class SecretCachePlacementTests {
     public void EveryBossLevelPlacesItsSealingAnchorBesideTheBossOnSolidGround() {
         var issues = new List<string>();
         foreach (LevelSnapshot level in Snapshots()) CheckSealingAnchor(level, issues);
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
+    [TestCase]
+    public void EveryBossLevelPlacesOneRestorationFontBetweenItsMiddleCheckpointAndTheArena() {
+        var issues = new List<string>();
+        List<LevelSnapshot> levels = Snapshots();
+        AssertThat(levels.Count).IsEqual(14);
+        foreach (LevelSnapshot level in levels) CheckRestorationFont(level, issues);
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 
@@ -98,7 +133,7 @@ public class SecretCachePlacementTests {
         if (position.DistanceTo(level.Spawn) < MinimumClearance) {
             issues.Add($"{label}: cache {position} is within {MinimumClearance} px of the spawn");
         }
-        foreach ((string checkpointID, Vector2 checkpoint) in level.Checkpoints) {
+        foreach ((string checkpointID, Vector2 checkpoint, CheckpointRole _) in level.Checkpoints) {
             if (position.DistanceTo(checkpoint) < MinimumClearance) {
                 issues.Add($"{label}: cache {position} is within {MinimumClearance} px of {checkpointID}");
             }
@@ -155,6 +190,77 @@ public class SecretCachePlacementTests {
         }
     }
 
+    private static void CheckRestorationFont(LevelSnapshot level, List<string> issues) {
+        string label = level.Label;
+        if (level.LoadError != null) { issues.Add($"{label}: {level.LoadError}"); return; }
+        if (level.Fonts.Count != 1) { issues.Add($"{label}: {level.Fonts.Count} Restoration Fonts (expected 1)"); return; }
+        FontSnapshot font = level.Fonts[0];
+        Vector2 position = font.Position;
+        string expectedID = $"{level.DialoguePrefix}.restoration_font";
+        if (font.ID != expectedID) issues.Add($"{label}: font ID '{font.ID}' != '{expectedID}'");
+
+        // Wiring.
+        if (!font.HasInteraction) issues.Add($"{label}: the font has no InteractionArea");
+        if (!font.HasGlow) issues.Add($"{label}: the font has no Glow");
+        if (!font.HasRadial) issues.Add($"{label}: the font has no ChannelRadial");
+        if (!font.HasRefusal) issues.Add($"{label}: the font's completion refusal is not wired");
+        else if (font.RefusedAtLoad) issues.Add($"{label}: the font refuses at load");
+
+        // Standing on a surface.
+        bool standing = false;
+        foreach (Surface surface in level.Surfaces) {
+            if (position.X < surface.Left || position.X > surface.Right) continue;
+            if (surface.Top >= position.Y - FontStandAbove && surface.Top <= position.Y + FontStandBelow) {
+                standing = true;
+                break;
+            }
+        }
+        if (!standing) issues.Add($"{label}: no surface top within [{position.Y - FontStandAbove}, {position.Y + FontStandBelow}] under the font at {position}");
+
+        // Past the Middle anchor.
+        bool hasMiddle = false;
+        foreach ((string checkpointID, Vector2 checkpoint, CheckpointRole role) in level.Checkpoints) {
+            if (role != CheckpointRole.Middle) continue;
+            hasMiddle = true;
+            if (position.X < checkpoint.X + FontMiddleClearance) {
+                issues.Add($"{label}: font x {position.X} is not {FontMiddleClearance} px past the Middle checkpoint {checkpointID} ({checkpoint.X})");
+            }
+        }
+        if (!hasMiddle) issues.Add($"{label}: no Middle-role checkpoint to measure the font against");
+
+        // The whole channel circle stays outside the boss reveal.
+        float arenaClearance = font.ChannelRange + FontArenaMargin;
+        if (level.Encounters.Count == 0) issues.Add($"{label}: no boss encounter to fence the font");
+        foreach (Encounter encounter in level.Encounters) {
+            if (encounter.HasArena && position.X > encounter.Arena.Position.X - arenaClearance) {
+                issues.Add($"{label}: font x {position.X} is within {arenaClearance} px of the arena's west edge ({encounter.Arena.Position.X})");
+            }
+            if (encounter.Reveal > 0f && position.DistanceTo(encounter.Position) < encounter.Reveal + arenaClearance) {
+                issues.Add($"{label}: font {position} is within the reveal radius ({encounter.Reveal}) + {arenaClearance} of {encounter.Position}");
+            }
+        }
+
+        // Clearances.
+        foreach ((string checkpointID, Vector2 checkpoint, CheckpointRole _) in level.Checkpoints) {
+            if (position.DistanceTo(checkpoint) < FontCheckpointClearance) {
+                issues.Add($"{label}: font {position} is within {FontCheckpointClearance} px of {checkpointID} {checkpoint}");
+            }
+        }
+        foreach ((string extractorID, Vector2 extractor) in level.Extractors) {
+            if (position.DistanceTo(extractor) < FontExtractorClearance) {
+                issues.Add($"{label}: font {position} is within {FontExtractorClearance} px of the Extractor/hold node {extractorID} {extractor}");
+            }
+        }
+        foreach ((string targetID, Vector2 target) in level.InteractTargets) {
+            if (position.DistanceTo(target) < FontInteractClearance) {
+                issues.Add($"{label}: font {position} is within {FontInteractClearance} px of the Interact target {targetID} {target}");
+            }
+        }
+
+        // No damaging hazard reaches a hero channelling anywhere in the circle.
+        FontHazardClearance.Check(label, position, font.ChannelRange, level.Hazards, issues);
+    }
+
     // === The single capture pass ===
 
     private sealed class Surface {
@@ -172,6 +278,13 @@ public class SecretCachePlacementTests {
         public bool HasArena => Arena.Size.X > 0f && Arena.Size.Y > 0f;
     }
 
+    private sealed class FontSnapshot {
+        public string ID;
+        public Vector2 Position;
+        public float ChannelRange;
+        public bool HasInteraction, HasGlow, HasRadial, HasRefusal, RefusedAtLoad;
+    }
+
     private sealed class LevelSnapshot {
         public string Label;
         public int Index;
@@ -180,8 +293,15 @@ public class SecretCachePlacementTests {
         public string DialoguePrefix;
         public string ManifestSecretID;
         public readonly List<(string ID, Vector2 Position)> Caches = new();
-        public readonly List<(string ID, Vector2 Position)> Checkpoints = new();
+        public readonly List<(string ID, Vector2 Position, CheckpointRole Role)> Checkpoints = new();
+        public readonly List<FontSnapshot> Fonts = new();
+        public readonly List<(string ID, Vector2 Position)> Extractors = new();
+        /// <summary>Every other Interact target the font keeps clear of: Warden
+        /// Beacons, secret caches, sealing anchors and Puzzle Reset Stations.</summary>
+        public readonly List<(string ID, Vector2 Position)> InteractTargets = new();
         public readonly List<Encounter> Encounters = new();
+        /// <summary>Every damaging hazard shape the font keeps clear of (D13).</summary>
+        public readonly List<FontHazardClearance.Hazard> Hazards = new();
         public readonly List<Surface> Surfaces = new();
         public readonly List<Rect2> Solids = new();
         public bool HasSealingAnchor;
@@ -261,9 +381,36 @@ public class SecretCachePlacementTests {
     }
 
     private static void Collect(Node node, LevelSnapshot snapshot) {
+        FontHazardClearance.TryCollect(node, snapshot.Hazards);
         switch (node) {
-            case SecretCache cache: snapshot.Caches.Add((cache.SecretID, cache.GlobalPosition)); break;
-            case CheckpointTrigger checkpoint: snapshot.Checkpoints.Add((checkpoint.CheckpointID, checkpoint.GlobalPosition)); break;
+            case SecretCache cache:
+                snapshot.Caches.Add((cache.SecretID, cache.GlobalPosition));
+                snapshot.InteractTargets.Add((cache.SecretID, cache.GlobalPosition));
+                break;
+            case CheckpointTrigger checkpoint:
+                snapshot.Checkpoints.Add((checkpoint.CheckpointID, checkpoint.GlobalPosition, checkpoint.Role));
+                break;
+            case RestorationFont font:
+                snapshot.Fonts.Add(new FontSnapshot {
+                    ID = font.FontID,
+                    Position = font.GlobalPosition,
+                    ChannelRange = font.ChannelRangePixels,
+                    HasInteraction = font.GetNodeOrNull<InteractionArea>("InteractionArea") != null,
+                    HasGlow = font.GetNodeOrNull<Node2D>("Glow") != null,
+                    HasRadial = font.ChannelRadial != null,
+                    HasRefusal = font.RefusesWhile != null,
+                    RefusedAtLoad = font.RefusesWhile?.Invoke() ?? false
+                });
+                break;
+            case ChronalExtractor extractor:
+                // Resonance Hold nodes are Extractors too.
+                snapshot.Extractors.Add((extractor.ObjectID, extractor.GlobalPosition));
+                break;
+            case WardenBeacon beacon: snapshot.InteractTargets.Add((beacon.Name.ToString(), beacon.GlobalPosition)); break;
+            case PuzzleResetStation station: snapshot.InteractTargets.Add((station.Name.ToString(), station.GlobalPosition)); break;
+            case TemporalCoreAnchor sealingAnchor:
+                snapshot.InteractTargets.Add((sealingAnchor.Name.ToString(), sealingAnchor.GlobalPosition));
+                break;
             case BossEncounterController boss:
                 // A4: an arena encounter reveals on its rect and its RevealDistance
                 // is the unused export default — fence the rect, not that number.
@@ -328,19 +475,18 @@ public class SecretCachePlacementTests {
     }
 
     /// <summary>
-    /// The Level 13 closed form (PlayerController's authored physics at gravity
-    /// scale 1): launch = MaxJumpForce × 54 px/s, gravity =
-    /// 18 × (0.8 + 0.4 × Weight) × 60 px/s², rise = v² / 2a — minimised over the
-    /// manifest roster so the heaviest, lowest jumper sets the bar.
+    /// The whole jump budget's rise at gravity scale 1 (<see cref="StoryAirPhysics.MultiJumpRise"/>:
+    /// the controller's own per-tick step integrated, apex hang included, the second
+    /// press at the first apex), minimised over the manifest roster so the heaviest,
+    /// lowest jumper sets the bar. Until 2026-10-08 this was twice the continuous
+    /// closed-form single rise (v² / 2a), which ran ~7% under the real arc.
     /// </summary>
-    private static float WorstSingleJumpRise() {
+    private static float WorstJumpBudgetRise() {
         float worst = float.MaxValue;
         foreach (string id in CharacterRoster.IDs) {
             var data = AuthoredResources.Load<CharacterData>($"res://resources/Characters/{id}_data.tres");
-            float launch = data.MaxJumpForce * 54f;
-            float acceleration = 18f * (0.8f + 0.4f * data.Weight);
-            acceleration *= 60f;
-            worst = Mathf.Min(worst, launch * launch / (2f * acceleration));
+            worst = Mathf.Min(worst, StoryAirPhysics.MultiJumpRise(
+                StoryAirPhysics.JumpLaunchSpeed(data.MaxJumpForce), data.Weight, Math.Max(1, data.MaxJumpCount)));
         }
         return worst;
     }

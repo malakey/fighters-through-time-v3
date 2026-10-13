@@ -132,6 +132,12 @@ namespace FTT.Characters {
 		// simulation is authoritative there and its loadouts never read them.
 		/// <summary>Cooldown time multiplier: 0.9 means cooldowns run 10% shorter.</summary>
 		public float StoryCooldownMultiplier { get; set; } = 1f;
+		/// <summary>
+		/// The AttackRange minor: 1.1 moves a chain box's far edge out by 10%
+		/// (width and forward offset scale together; see
+		/// <see cref="ResolveGroundStringBoxPixels"/>). The centred Up-Attack and
+		/// Down-Air boxes grow about their centre.
+		/// </summary>
 		public float StoryAttackRangeMultiplier { get; set; } = 1f;
 		public float StoryComboSpeedMultiplier { get; set; } = 1f;
 		public float StoryBlockRecoveryMultiplier { get; set; } = 1f;
@@ -158,6 +164,23 @@ namespace FTT.Characters {
 		public float StoryRallyEchoFractionMultiplier { get; set; } = 1f;
 		/// <summary>Scales Influence-meter accrual (Story-only, Mozart's Minor Resonance).</summary>
 		public float StoryUltimateBuildRateMultiplier { get; set; } = 1f;
+		/// <summary>D5 (USER-STORY-METER-SCALE): true on the campaign hero only — set by
+		/// CharacterFactory's campaign-hero branch. The Mirror clone, the drills and every
+		/// Fighter build leave it false (no D5 scale). Never persisted.</summary>
+		public bool AppliesStoryMeterGainScale { get; set; }
+		/// <summary>
+		/// The one Story meter-GAIN factor, read once by the
+		/// <see cref="FTT.Combat.UltimateMeter"/> node's two gain paths (damage dealt;
+		/// damage taken, including Rally echo as it drains) and by
+		/// <see cref="RallyUncreditedMeter"/>. D5's Story scale (0.35, campaign hero
+		/// only, <see cref="FTT.Combat.StoryCombatRules.MeterGainScale"/>) times
+		/// Mozart's build-rate lane (1.0 when unbought; the Hard Mirror mirrors it).
+		/// Flat grants, spends and direct sets never read it, and the Fighter sim
+		/// never sees it (its meter is <c>FighterMeterRules</c> over the shared
+		/// <c>InfluenceMeterRules</c>).
+		/// </summary>
+		public float StoryMeterGainFactor =>
+			FTT.Combat.StoryCombatRules.MeterGainFactor(AppliesStoryMeterGainScale, StoryUltimateBuildRateMultiplier);
 		/// <summary>Scales damage dealt to Chronal Extractors (Story-only).</summary>
 		public float StoryExtractorDamageMultiplier { get; set; } = 1f;
 		/// <summary>
@@ -177,6 +200,62 @@ namespace FTT.Characters {
 		public float StoryScoped(string statKey, string abilityScope, float fallback = 1f) =>
 			StoryScopedStats.Get(statKey, abilityScope, fallback);
 
+		// === 2026-10-11: the one Story attacker-side ability-damage composition ===
+		// Ledger FIX-STORY-DAMAGE-BUFF-KIT-ROUTING. Three Story-only attacker
+		// multipliers scale an ability's damage: the character-wide SpecialDamage
+		// lane (StorySpecialDamageMultiplier, which also carries the Mirror
+		// clone's F20 outgoing campaign multiplier), the ability-scoped
+		// AbilityDamage lane keyed by the ability ID, and the item-drop damage
+		// buff (StoryTemporaryDamageMultiplier). They are composed here and
+		// nowhere else. A Hitbox adds the contact-time half itself when it builds
+		// its payload (Hitbox.CreatePayload), so a value written into a Hitbox's
+		// Damage takes only the build-time half; a payload a kit builds and
+		// delivers itself takes the whole composition. Either way each factor
+		// applies exactly once. Kit scripts never read the three inputs directly
+		// (KitAlignmentContractTests). Fighter Mode never reaches any of it.
+
+		/// <summary>
+		/// The build-time half: <paramref name="baseDamage"/> × the character-wide
+		/// SpecialDamage lane. For a value written into a
+		/// <see cref="FTT.Combat.Hitbox"/>'s <c>Damage</c> (a factory-built kit
+		/// hitbox, a pooled projectile's contact, a construct's bolt): the hitbox
+		/// multiplies in <see cref="StoryHitboxContactDamageScale"/> when it builds
+		/// the payload, so the item-drop buff and the AbilityDamage lane must not
+		/// be in this value.
+		/// </summary>
+		public float StoryAbilityHitboxDamage(float baseDamage) =>
+			baseDamage * StorySpecialDamageMultiplier;
+
+		/// <summary>
+		/// The contact-time half, read by <see cref="FTT.Combat.Hitbox.CreatePayload"/>
+		/// for every hit it builds (basic swings included): the item-drop damage buff
+		/// × the AbilityDamage lane keyed by <paramref name="abilityID"/>, the
+		/// hitbox's attack ID (the ability ID for every kit hitbox). A basic swing's
+		/// IDs carry no lane, so a swing takes the buff alone.
+		/// </summary>
+		public float StoryHitboxContactDamageScale(string abilityID) =>
+			StoryTemporaryDamageMultiplier
+			* StoryScoped(FTT.Environment.ResonanceStatKeys.AbilityDamage, abilityID ?? "");
+
+		/// <summary>
+		/// The whole composition as a factor: SpecialDamage × AbilityDamage(<paramref name="abilityID"/>)
+		/// × the item-drop damage buff. For a delivery that rounds after scaling
+		/// (a zone tick); everything else uses <see cref="StoryAbilityDamage"/>.
+		/// </summary>
+		public float StoryAbilityDamageScale(string abilityID) =>
+			StoryAbilityHitboxDamage(1f) * StoryHitboxContactDamageScale(abilityID);
+
+		/// <summary>
+		/// The damage of an ability hit a kit builds and delivers itself (a shape
+		/// query, a ground wave, a burst, a construct's bite or arc, a zone tick):
+		/// <paramref name="baseDamage"/> × <see cref="StoryAbilityDamageScale"/>.
+		/// Never write this into a Hitbox's <c>Damage</c>; that would apply the
+		/// buff and the lane twice. Evaluated when the hit lands, so a buff picked
+		/// up or expiring mid-cast counts for exactly the hits it covers.
+		/// </summary>
+		public float StoryAbilityDamage(float baseDamage, string abilityID) =>
+			baseDamage * StoryAbilityDamageScale(abilityID);
+
 		/// <summary>
 		/// Unlocked Resonance major-perk keys (Story-only). Populated by
 		/// CharacterFactory from the active save; always empty in Fighter Mode.
@@ -184,6 +263,92 @@ namespace FTT.Characters {
 		public HashSet<string> StoryAbilityPerks { get; } = new(StringComparer.Ordinal);
 		public bool HasStoryPerk(string abilityModifierKey) =>
 			!string.IsNullOrWhiteSpace(abilityModifierKey) && StoryAbilityPerks.Contains(abilityModifierKey);
+
+		// === 2026-10-11 region: live Resonance re-resolve (grid-live-apply) ===
+		// A node bought or a respec made at the hub Repository or an Act III
+		// Warden Beacon reaches this hero at once ("stat modifiers are applied
+		// immediately", design-godot.md, Resonance Grid UI Flow) through
+		// CharacterFactory.ReapplyStoryProgression — the build's own method — not
+		// on the next scene load. Story-only and campaign-hero-only.
+
+		/// <summary>
+		/// True on the campaign hero alone: set by <c>CharacterFactory</c> on the
+		/// full Story path (<c>applyStoryProgression</c> and
+		/// <c>applyLegacyUnlockLocks</c>). The Mirror clone, Fighter Mode, the
+		/// Holodeck and the Calibration Drills leave it false and never listen.
+		/// </summary>
+		public bool ReceivesLiveStoryProgression { get; set; }
+
+		private bool _liveStoryProgressionSubscribed;
+		private bool _liveStoryProgressionPending;
+
+		/// <summary>
+		/// A re-resolve requested mid-cast or mid-swing and held for the end of
+		/// that cast or swing. Test and diagnostics read.
+		/// </summary>
+		public bool LiveStoryProgressionPending => _liveStoryProgressionPending;
+
+		/// <summary>True while any of the four ability slots is mid-cast.</summary>
+		public bool IsAnyAbilityExecuting =>
+			(_special1?.IsExecuting ?? false)
+			|| (_special2?.IsExecuting ?? false)
+			|| (_movementAbility?.IsExecuting ?? false)
+			|| (_ultimate?.IsExecuting ?? false);
+
+		/// <summary>
+		/// True while a live re-resolve must wait: any ability slot is mid-cast,
+		/// or a basic swing is running (<see cref="CharacterState.Attacking"/>,
+		/// its chain hold included). A swing writes its per-hit damage when it
+		/// starts, sizes its box from <c>StoryAttackRangeMultiplier</c> when it
+		/// activates and paces itself on <c>StoryComboSpeedMultiplier</c> every
+		/// tick, so re-resolving between those reads would change the swing.
+		/// </summary>
+		public bool HoldsLiveStoryProgression =>
+			IsAnyAbilityExecuting || CurrentState == CharacterState.Attacking;
+
+		/// <summary>
+		/// Re-resolves the grid onto this hero now, or — while a cast or a basic
+		/// swing is in progress (<see cref="HoldsLiveStoryProgression"/>) — on
+		/// the first tick after it ends, so a cast or swing keeps the parameters
+		/// it started with (provisional, ledger <c>PROVISIONAL-GRID-LIVE-APPLY</c>).
+		/// A no-op on anything but the campaign hero.
+		/// </summary>
+		public void RequestLiveStoryProgression() {
+			if (!ReceivesLiveStoryProgression || IsStoryHostile) return;
+			if (HoldsLiveStoryProgression) {
+				_liveStoryProgressionPending = true;
+				return;
+			}
+			_liveStoryProgressionPending = false;
+			CharacterFactory.ReapplyStoryProgression(this);
+		}
+
+		private void OnResonanceProgressionChanged(string characterID) {
+			if (!string.Equals(characterID, Data?.CharacterID, StringComparison.Ordinal)) return;
+			RequestLiveStoryProgression();
+		}
+
+		/// <summary>
+		/// Settles the live caps a re-resolve moved. Current HP and block charges
+		/// are never raised — a higher cap is room, not a heal — and are clamped
+		/// to a lower one, so a respec and re-buy loop can never heal. The HUD
+		/// hears the new maximum through an ordinary zero-damage HP payload.
+		/// </summary>
+		public void SettleLiveStoryProgression() {
+			if (CurrentHP > MaximumHP) CurrentHP = MaximumHP;
+			if (_blockSystem != null) {
+				_blockSystem.SetMaxCharges(MaximumBlockCharges);
+				CurrentBlockCharges = _blockSystem.CurrentCharges;
+			} else if (CurrentBlockCharges > MaximumBlockCharges) {
+				CurrentBlockCharges = MaximumBlockCharges;
+			}
+			FTT.Core.EventBus.Instance?.RaisePlayerHPChanged(new FTT.Core.PlayerHPPayload {
+				PlayerIndex = PlayerIndex,
+				CurrentHP = CurrentHP,
+				MaxHP = MaximumHP,
+				DamageAmount = 0f
+			});
+		}
 
 		// === Package 11 A5 region: V7.5 Legacy Unlock ability gate ==========
 		// Story-only. The locks are INSTALLED by CharacterFactory on the
@@ -593,24 +758,21 @@ namespace FTT.Characters {
 			* StoryTemporarySpeedMultiplier * EnvironmentMoveMultiplier;
 		private float EffectiveJumpForce => (Data?.MaxJumpForce ?? 14f) * StoryJumpForceMultiplier;
 
-		// Physics constants
-		private const float BaseGravity = 18.0f;
-		private const float FallGravityMultiplier = 1.8f;
-		private const float ShortHopGravityMultiplier = 2.5f;
-		private const float DirectionReversalPenalty = 0.7f;
-		private const float TerminalVelocity = 600.0f;
+		// Physics constants. The air physics (gravity, the jump arc, fast-fall, the
+		// terminals, the launch factors and the air ramps) live in
+		// FTT.Core.StoryAirPhysics, the one rulebook the bots and the content tests
+		// also read; the ramp lengths come from UniversalMovementRules.
 		private const float GroundRampFrames = FTT.Core.UniversalMovementRules.RunAccelerationFrames;
 		/// <summary>
-		/// Grounded stop ramp (2026-08-10 feel batch §2.1). Every site that bleeds
-		/// horizontal speed toward zero on the ground — idle/skid/crouch settling,
-		/// the block stance, roll startup/recovery, and a released or reversed
-		/// stick while running — uses this instead of the accel ramp.
+		/// Grounded stop ramp (2026-08-10 feel batch §2.1; 4 frames since
+		/// 2026-10-08). Every site that bleeds horizontal speed toward zero on the
+		/// ground — idle/skid/crouch settling, the block stance, roll
+		/// startup/recovery, and a released or reversed stick while running — uses
+		/// this instead of the accel ramp.
 		/// </summary>
 		private const float GroundDecelRampFrames = FTT.Core.UniversalMovementRules.RunDecelerationFrames;
-		private const float AirAccelRampFrames = 4.0f;
-		private const float AirDecelRampFrames = 8.0f;
-		/// <summary>Story pixel-space fast-fall speed: <c>FastFallSpeed</c> units/s × 60 (M01: 1200 px/s).</summary>
-		private const float FastFallSpeedPixels = FTT.Core.UniversalMovementRules.FastFallSpeed * 60f;
+		private const float AirAccelRampFrames = FTT.Core.StoryAirPhysics.AirAccelerationFrames;
+		private const float AirDecelRampFrames = FTT.Core.StoryAirPhysics.AirDecelerationFrames;
 
 		// Timers
 		private float _coyoteTimer;
@@ -759,9 +921,179 @@ namespace FTT.Characters {
 		/// <summary>True while the Echo Step wind-up is running. Test seam.</summary>
 		public bool EchoStepWindingUp => _echoStepWindupFrames > 0;
 
-		// === V7.1 Resonance Momentum (Story side) ===
-		private int _momentumRefundsSlotOne;
-		private int _momentumRefundsSlotTwo;
+		// === Ability lockout: the special global cooldown (user direction 2026-10-08) ===
+		// A basic swing start, a special cast or an accepted Ultimate arms it;
+		// while it runs Special 1, Special 2 and the Ultimate are refused. The
+		// rule and the 30 frames live in BasicComboRules (shared with the sim's
+		// FighterRuntimeComponent.AbilityLockoutFrames). It ticks with the
+		// ability cooldowns, so hitstop and Time Freeze pause it, but it is never
+		// scaled by the Story cooldown perks and never persisted.
+		private int _abilityLockoutFrames;
+
+		/// <summary>
+		/// Frames of the lockout A (0 = clear): the Ultimate's gate, and the
+		/// Specials' gate until the current swing lands (D1, 2026-10-11; see
+		/// <see cref="SpecialGateFramesRemaining"/>). Read by the Mirror Paradox
+		/// CPU observation, the playtest bots and tests.
+		/// </summary>
+		public int AbilityLockoutFramesRemaining => _abilityLockoutFrames;
+
+		// === Hit-confirm cancel (user direction 2026-10-11, D1) ===
+		// S: the Special-sourced lockout, armed with A by every Special 1 / 2 or
+		// Ultimate acceptance and ticked beside it (hitstop and Time Freeze pause
+		// both). C: the current swing has landed (D1a) — cleared by every swing
+		// start, set by its first landed contact. Specials read
+		// BasicComboRules.SpecialGateFrames(A, S, C); the Ultimate reads A alone.
+		// Never persisted.
+		private int _specialLockoutFrames;
+		private bool _swingLanded;
+		/// <summary>
+		/// Set by <see cref="CheckUltimateInput"/> when a meter-paid, unlocked
+		/// Ultimate press is refused only by the lockout: no Special is accepted
+		/// that tick (the LB+RB chord must not cast its Special 2). Cleared at the
+		/// top of every tick.
+		/// </summary>
+		private bool _ultimateHeldBackThisTick;
+
+		/// <summary>Frames the Special-sourced lockout S still runs (D1). Test, Mirror and bot seam.</summary>
+		public int SpecialLockoutFramesRemaining => _specialLockoutFrames;
+
+		/// <summary>True once the swing that last armed the lockout has landed (D1a). Test, Mirror and bot seam.</summary>
+		public bool SwingLanded => _swingLanded;
+
+		/// <summary>Frames before Special 1 and Special 2 are legal again (D1's gate; 0 = clear).</summary>
+		public int SpecialGateFramesRemaining =>
+			FTT.Combat.BasicComboRules.SpecialGateFrames(_abilityLockoutFrames, _specialLockoutFrames, _swingLanded);
+
+		/// <summary>
+		/// D1a (2026-10-11): the three invulnerability gates that
+		/// <see cref="ApplyDamage"/> applies BELOW the shield layers — post-rewind
+		/// protection, the landing-tech window and the knockdown. A full shield
+		/// absorption on such a body is not reported as a landed contact.
+		/// </summary>
+		private bool IsConfirmInvulnerable =>
+			_postRewindInvulnerabilityFrames > 0 || _techInvulnerabilitySeconds > 0f || IsKnockedDown;
+
+		/// <summary>A Special 1 / 2 / Ultimate acceptance: arms A and S.</summary>
+		private void ArmAbilityLockout() {
+			_abilityLockoutFrames = FTT.Combat.BasicComboRules.AbilityLockoutFrames;
+			_specialLockoutFrames = FTT.Combat.BasicComboRules.AbilityLockoutFrames;
+		}
+
+		/// <summary>A basic swing start: arms A and clears the landed latch C.</summary>
+		private void ArmSwingLockout() {
+			_abilityLockoutFrames = FTT.Combat.BasicComboRules.AbilityLockoutFrames;
+			_swingLanded = false;
+			_freezeBufferArmed = false;
+		}
+
+		/// <summary>Death rewind and checkpoint restore: A, S and C (and the freeze buffer) to zero.</summary>
+		private void ClearAbilityLockout() {
+			_abilityLockoutFrames = 0;
+			_specialLockoutFrames = 0;
+			_swingLanded = false;
+			_freezeBufferArmed = false;
+			_freezeBufferedSpecials = FTT.Core.GameplayButtons.None;
+		}
+
+		// === The freeze-only Special buffer (user ruling 2026-10-11, addendum) ===
+		// Armed when this hero's own basic swing LANDS and freezes it; a Special
+		// 1/2 press made on a frozen tick of that freeze is held (one deep, the
+		// latest) and re-presented on the first unfrozen tick, where the ordinary
+		// gates decide it. A tick that also presses the Ultimate buffers nothing.
+		// Never persisted.
+		private bool _freezeBufferArmed;
+		private FTT.Core.GameplayButtons _freezeBufferedSpecials;
+
+		/// <summary>The Special presses held for the first tick after the current freeze. Test seam.</summary>
+		public FTT.Core.GameplayButtons FreezeBufferedSpecials => _freezeBufferedSpecials;
+
+		private void BufferFreezeSpecialPress() {
+			if (!_freezeBufferArmed) return;
+			FTT.Core.PlayerInputFrame input = CurrentInputFrame;
+			if (input.IsPressed(FTT.Core.GameplayButtons.Ultimate)) return;
+			FTT.Core.GameplayButtons specials = input.Pressed
+				& (FTT.Core.GameplayButtons.Special1 | FTT.Core.GameplayButtons.Special2);
+			if (specials != FTT.Core.GameplayButtons.None) _freezeBufferedSpecials = specials;
+		}
+
+		/// <summary>First unfrozen tick: the held press joins this tick's presses, then the buffer empties.</summary>
+		private void ReleaseFreezeSpecialBuffer() {
+			_freezeBufferArmed = false;
+			if (_freezeBufferedSpecials == FTT.Core.GameplayButtons.None) return;
+			FTT.Core.PlayerInputFrame input = CurrentInputFrame;
+			input.Pressed |= _freezeBufferedSpecials;
+			CurrentInputFrame = input;
+			_freezeBufferedSpecials = FTT.Core.GameplayButtons.None;
+		}
+
+		// === The "not yet" flash (user direction 2026-10-11, D10) ===
+		// A Special 1 / 2 or Ultimate press the ability lockout ALONE refused —
+		// the slot unlocked and off cooldown (the Ultimate: its meter full), in a
+		// state that polls the press — raises EventBus.OnAbilityLockoutRefused at
+		// the refusal site; the Story HUD flashes the slot for player 0. Visual
+		// only: nothing is spent, buffered or persisted. A press Time Freeze,
+		// Suppression (its own null-tone), a Dormant slot, a cooldown or an
+		// unpaid meter refuses never flashes, and neither does one dropped by
+		// hitstop, hitstun, the block stance or any state that does not poll it.
+		// A freeze-buffered press released on the thaw tick and refused there
+		// is reported like any other press (ledger USER-NOT-YET-FLASH).
+
+		/// <summary>Raises the D10 presentation edge for <paramref name="slot"/>.</summary>
+		private void ReportLockoutRefusal(FTT.Core.AbilitySlot slot) =>
+			FTT.Core.EventBus.Instance?.RaiseAbilityLockoutRefused(new FTT.Core.AbilityLockoutRefusedPayload {
+				PlayerIndex = PlayerIndex,
+				Slot = slot
+			});
+
+		/// <summary>True when this tick's Special press would cast but for the lockout.</summary>
+		private bool SpecialPressIsReady(FTT.Core.AbilitySlot slot) {
+			bool one = slot == FTT.Core.AbilitySlot.Special1;
+			return CurrentInputFrame.IsPressed(one ? FTT.Core.GameplayButtons.Special1 : FTT.Core.GameplayButtons.Special2)
+				&& IsAbilityUnlocked(slot)
+				&& (one ? _special1 : _special2) != null
+				&& (one ? SpecialOneCooldownTimer : SpecialTwoCooldownTimer) <= 0;
+		}
+
+		/// <summary>The Specials' lockout refusal: one flash per ready pressed slot.</summary>
+		private void ReportReadySpecialRefusals() {
+			if (SpecialPressIsReady(FTT.Core.AbilitySlot.Special1)) ReportLockoutRefusal(FTT.Core.AbilitySlot.Special1);
+			if (SpecialPressIsReady(FTT.Core.AbilitySlot.Special2)) ReportLockoutRefusal(FTT.Core.AbilitySlot.Special2);
+		}
+
+		/// <summary>
+		/// A chain swing starting this tick beats a same-tick Special or Ultimate
+		/// press and re-arms the lockout (the sim's order), so the press is a
+		/// lockout refusal. Time Freeze and Suppression refuse it first and flash
+		/// nothing. §1.7 applies first: a meter-paid, unlocked Ultimate press
+		/// reports the Ultimate alone; otherwise each ready Special press reports.
+		/// </summary>
+		private void ReportRefusalsLostToTheChainSwing() {
+			if (TimeFrozen || _abilityCastSuppressed) return;
+			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Ultimate)
+				&& IsAbilityUnlocked(FTT.Core.AbilitySlot.Ultimate)
+				&& _ultimate != null
+				&& (_ultimateMeter != null
+					? _ultimateMeter.IsFull
+					: CurrentUltimateMeter >= FTT.Combat.InfluenceMeterRules.MaxValue)) {
+				ReportLockoutRefusal(FTT.Core.AbilitySlot.Ultimate);
+				return;
+			}
+			ReportReadySpecialRefusals();
+		}
+
+		// === Per-hit Momentum (user direction 2026-10-11, D2) ===
+		// Frames refunded on each slot this cooldown cycle (0-120); reset when
+		// that slot's cooldown is armed. Not persisted (a reload mid-cycle
+		// reopens the cap; PROVISIONAL-HIT-CONFIRM-RULES (8)).
+		private int _momentumRefundedFramesSlotOne;
+		private int _momentumRefundedFramesSlotTwo;
+
+		/// <summary>Frames per-hit Momentum has refunded on Special 1 this cycle. Test seam.</summary>
+		public int MomentumRefundedFramesSlotOne => _momentumRefundedFramesSlotOne;
+
+		/// <summary>Frames per-hit Momentum has refunded on Special 2 this cycle. Test seam.</summary>
+		public int MomentumRefundedFramesSlotTwo => _momentumRefundedFramesSlotTwo;
 
 		// === V7.2 Grabs & Throws (Story side) ===
 		// Phase mirrors the sim's FighterGrabRules: 1 startup · 2 active ·
@@ -825,6 +1157,28 @@ namespace FTT.Characters {
 		private bool _jumpHeld;
 		private bool _wasGrounded;
 
+		/// <summary>
+		/// The apex hang's discriminator (user direction 2026-10-08, ledger
+		/// <c>USER-MOVEMENT-FEEL</c>): the hero has jumped since the last floor
+		/// contact or ledge grab. Every jump sets it — a ground, coyote, buffered or
+		/// air jump, and a ledge or swinging-rope jump-off — and floor contact, a
+		/// ledge (or rope) grab and the Tempest Apex jump refresh clear it, so a
+		/// walk-off, a drop-through and a ledge drop get no hang. A launch leaves it
+		/// alone. This is the Fighter sim's <c>RemainingJumps &lt; MaxJumpCount</c>
+		/// read without touching Story's jump budget: Story's ledge grab refills no
+		/// jump and its jump-off spends none, so the count alone could not say it.
+		/// The setter is internal for test seams and the Tempest refresh.
+		/// </summary>
+		public bool JumpedThisAirtime { get; internal set; }
+
+		/// <summary>
+		/// The Jump-held latch gravity reads (the short hop): written by the jump
+		/// check, so a ledge or rope jump-off's first airborne tick still reads the
+		/// value from before the catch. Read-only diagnostic seam for the playtest
+		/// planner's flight model.
+		/// </summary>
+		public bool JumpHeldLatch => _jumpHeld;
+
 		// Crouching
 		private float _normalHurtboxHeight;
 		private Vector2 _normalBodyShapePosition;
@@ -838,7 +1192,6 @@ namespace FTT.Characters {
 		private AnimatedSprite2D _animatedSprite;
 		private CollisionShape2D _collisionShape;
 		private Area2D _ledgeDetector;
-		private Marker2D _aerialHitboxMarker;
 		private FTT.Combat.GlowPresentationController _glow;
 		private FTT.Environment.LedgeGrabPoint _activeLedge;
 		// V7.3 ledge rules, mirroring the sim: a per-airtime grab budget
@@ -949,32 +1302,28 @@ namespace FTT.Characters {
 			FTT.Combat.BasicComboRules.TemplateStringProfile;
 		private FTT.Combat.CombatFrameTimeline[] _groundComboTimelines = ComboTimelines;
 		private FTT.Combat.CombatFrameTimeline[] _aerialComboTimelines = AerialComboTimelines;
-		private static readonly Vector2[] ComboHitboxSizes = {
-			new(72f, 60f),
-			new(84f, 72f),
-			new(108f, 84f)
-		};
-		private static readonly Vector2[] ComboHitboxOffsets = {
-			new(60f, -32f),
-			new(60f, -20f),
-			new(72f, -32f)
-		};
-		private static readonly Vector2[] AerialComboHitboxSizes = {
-			new(72f, 64f),
-			new(82f, 82f),
-			new(88f, 104f)
-		};
-		private static readonly Vector2[] AerialComboHitboxOffsets = {
-			new(58f, -46f),
-			new(42f, -50f),
-			new(20f, -12f)
-		};
+		// The grounded string boxes are not authored here: they come from the
+		// one cross-mode table (BasicComboRules.StringBox*Units, world units)
+		// at KitMotionRules.StoryPixelsPerUnit, through
+		// ResolveGroundStringBoxPixels. Story's pivot is the feet, so a box's
+		// vertical anchor is the hurtbox centre, 32 px above them (the
+		// factory's 64-px body and hurtbox) — the point the sim's pivot is to
+		// its own hurtbox.
+		private const float GroundStringBoxAnchorYPixels = -32f;
+
+		// The Story aerial string boxes take the grounded x-span (front-only,
+		// the sim's aerial reach) and keep a Story-only vertical span, both read
+		// from BasicComboRules through ResolveAerialStringBoxPixels (D6b, ledger
+		// USER-STORY-AERIAL-REACH).
 
 		// Directional attacks (§2.8). Frames come from the shared rulebook; the
 		// pixel boxes mirror the simulation's world-unit reaches at the
 		// repository's 62.5 px/unit convention (up-attack |dx| <= 1.2 and 2.4
 		// above the origin; down-air |dx| <= 1.0 and 2.0 below). Offsets are
-		// facing-independent — these strikes are centred on the fighter.
+		// facing-independent — these strikes are centred on the fighter. The
+		// sim tests those reaches pivot to pivot while Story overlaps these
+		// boxes with the target's hurtbox, at 62.5 rather than 60 px per unit
+		// (ledger VERIFY-DIRECTIONAL-HIT-MODEL).
 		private static readonly FTT.Combat.CombatFrameTimeline UpAttackTimeline = new(
 			FTT.Combat.BasicComboRules.UpAttackStartupFrames,
 			FTT.Combat.BasicComboRules.UpAttackActiveFrames,
@@ -987,6 +1336,102 @@ namespace FTT.Characters {
 		private static readonly Vector2 UpAttackHitboxOffset = new(0f, -75f);
 		private static readonly Vector2 DownAirHitboxSize = new(125f, 125f);
 		private static readonly Vector2 DownAirHitboxOffset = new(0f, 62.5f);
+
+		/// <summary>
+		/// The grounded string box for <paramref name="step"/> in Story pixels,
+		/// for a hero facing right, relative to the feet pivot: the one
+		/// cross-mode table (<see cref="FTT.Combat.BasicComboRules.StringBoxHalfWidthUnits"/>
+		/// and its siblings) at <see cref="FTT.Combat.KitMotionRules.StoryPixelsPerUnit"/>.
+		///
+		/// <para>The profile's <c>ReachWidthPercent</c> scales the width and the
+		/// forward offset together, and its <c>ReachHeightPercent</c> the height,
+		/// as the sim does. <paramref name="reachMultiplier"/> is the Story-only
+		/// AttackRange Resonance minor (<see cref="StoryAttackRangeMultiplier"/>,
+		/// never read by the sim). It scales the width and the forward offset the
+		/// same way, so the far edge moves by the full percentage and the near
+		/// edge stays in front of the hero, and it also scales the height, which
+		/// it always did. Before 2026-10-11 it scaled the size only, about the
+		/// box's centre: a +10% node gave about +4% forward reach and grew the
+		/// box backward (ledger FIX-REACH-MINOR-FORWARD).</para>
+		///
+		/// <para>Hit 2's 0.2-unit lift is applied downward here, as Story always
+		/// did (ledger VERIFY-STORY-STRING-HIT2-LIFT).</para>
+		/// </summary>
+		internal static void ResolveGroundStringBoxPixels(
+			int step,
+			FTT.Combat.BasicStringProfile profile,
+			float reachMultiplier,
+			out Vector2 size,
+			out Vector2 offset) {
+			const double pixelsPerUnit = FTT.Combat.KitMotionRules.StoryPixelsPerUnit;
+			profile ??= FTT.Combat.BasicComboRules.TemplateStringProfile;
+			float widthScale = profile.ReachWidthPercent / 100f;
+			float heightScale = profile.ReachHeightPercent / 100f;
+			float baseWidth = (float)(FTT.Combat.BasicComboRules.StringBoxHalfWidthUnits[step] * 2.0 * pixelsPerUnit);
+			float baseHeight = (float)(FTT.Combat.BasicComboRules.StringBoxHalfHeightUnits[step] * 2.0 * pixelsPerUnit);
+			float baseOffsetX = (float)(FTT.Combat.BasicComboRules.StringBoxOffsetXUnits[step] * pixelsPerUnit);
+			float liftPixels = (float)(FTT.Combat.BasicComboRules.StringBoxOffsetYUnits[step] * pixelsPerUnit);
+			size = new Vector2(
+				baseWidth * widthScale * reachMultiplier,
+				baseHeight * heightScale * reachMultiplier);
+			offset = new Vector2(
+				baseOffsetX * widthScale * reachMultiplier,
+				GroundStringBoxAnchorYPixels + liftPixels);
+		}
+
+		/// <summary>
+		/// The aerial string box for <paramref name="step"/> in Story pixels,
+		/// for a hero facing right, relative to the feet pivot (D6b, ledger
+		/// <c>USER-STORY-AERIAL-REACH</c>).
+		///
+		/// <para>The x-span is the grounded box's, from
+		/// <see cref="ResolveGroundStringBoxPixels"/> unchanged: the same near
+		/// and far edge, with the profile's <c>ReachWidthPercent</c> and the
+		/// AttackRange minor scaling it exactly as they scale the grounded box.
+		/// So the aerial far edge is the sim's aerial reach (the sim swings its
+		/// grounded boxes in the air) and the near edge is never behind the
+		/// pivot: the box is front-only.</para>
+		///
+		/// <para>The vertical span is Story's own aerial span
+		/// (<see cref="FTT.Combat.BasicComboRules.AerialStringBoxCentreYUnits"/> and
+		/// <see cref="FTT.Combat.BasicComboRules.AerialStringBoxHeightUnits"/>): the
+		/// centre stays put and the height scales by the profile's
+		/// <c>ReachHeightPercent</c> and by the minor, as the grounded height
+		/// does.</para>
+		/// </summary>
+		internal static void ResolveAerialStringBoxPixels(
+			int step,
+			FTT.Combat.BasicStringProfile profile,
+			float reachMultiplier,
+			out Vector2 size,
+			out Vector2 offset) {
+			const double pixelsPerUnit = FTT.Combat.KitMotionRules.StoryPixelsPerUnit;
+			profile ??= FTT.Combat.BasicComboRules.TemplateStringProfile;
+			ResolveGroundStringBoxPixels(step, profile, reachMultiplier, out Vector2 groundSize, out Vector2 groundOffset);
+			float heightScale = profile.ReachHeightPercent / 100f;
+			float baseHeight = (float)(FTT.Combat.BasicComboRules.AerialStringBoxHeightUnits[step] * pixelsPerUnit);
+			float centreY = (float)(FTT.Combat.BasicComboRules.AerialStringBoxCentreYUnits[step] * pixelsPerUnit);
+			size = new Vector2(groundSize.X, baseHeight * heightScale * reachMultiplier);
+			offset = new Vector2(groundOffset.X, centreY);
+		}
+
+		/// <summary>
+		/// This hero's string hit <paramref name="step"/> (0–2) as a horizontal
+		/// span in Story pixels in front of the pivot, facing-independent: the
+		/// near and far edge of the grounded box for its profile and live
+		/// AttackRange minor (<see cref="StoryAttackRangeMultiplier"/>). The
+		/// aerial string shares it (D6b).
+		/// </summary>
+		public (float Near, float Far) StoryStringSpanPixels(int step) {
+			ResolveGroundStringBoxPixels(
+				Mathf.Clamp(step, 0, FTT.Combat.BasicComboRules.ComboHits - 1),
+				_stringProfile,
+				StoryAttackRangeMultiplier,
+				out Vector2 size,
+				out Vector2 offset);
+			float half = size.X * 0.5f;
+			return (offset.X - half, offset.X + half);
+		}
 
 		public override void _Ready() {
 			AddToGroup("StoryPlayer");
@@ -1008,7 +1453,6 @@ namespace FTT.Characters {
 			_animatedSprite = GetNodeOrNull<AnimatedSprite2D>("AnimatedSprite2D");
 			_collisionShape = GetNodeOrNull<CollisionShape2D>("CollisionShape2D");
 			_ledgeDetector = GetNodeOrNull<Area2D>("LedgeDetector");
-			_aerialHitboxMarker = GetNodeOrNull<Marker2D>("AerialHitboxMarker");
 			_glow = GetNodeOrNull<FTT.Combat.GlowPresentationController>(
 				FTT.Combat.GlowPresentationController.NodeName);
 
@@ -1028,7 +1472,23 @@ namespace FTT.Characters {
 			InitializeCombatNodes();
 		}
 
+		public override void _EnterTree() {
+			// The campaign hero listens for grid purchases and respecs while it is
+			// in the tree (grid-live-apply); nothing else ever subscribes.
+			if (ReceivesLiveStoryProgression && !_liveStoryProgressionSubscribed
+				&& FTT.Core.EventBus.Instance != null) {
+				FTT.Core.EventBus.Instance.OnResonanceProgressionChanged += OnResonanceProgressionChanged;
+				_liveStoryProgressionSubscribed = true;
+			}
+		}
+
 		public override void _ExitTree() {
+			if (_liveStoryProgressionSubscribed) {
+				if (FTT.Core.EventBus.Instance != null) {
+					FTT.Core.EventBus.Instance.OnResonanceProgressionChanged -= OnResonanceProgressionChanged;
+				}
+				_liveStoryProgressionSubscribed = false;
+			}
 			if (_ledgeDetector != null) _ledgeDetector.AreaEntered -= OnLedgeAreaEntered;
 			if (_hurtbox != null) _hurtbox.OnHit -= OnHurtboxHit;
 			if (_meleeHitbox != null) _meleeHitbox.HitConfirmed -= OnMeleeHitConfirmed;
@@ -1085,6 +1545,25 @@ namespace FTT.Characters {
 		public bool IsAlive => CurrentState != CharacterState.Dead;
 
 		/// <summary>
+		/// D8 (user direction 2026-10-11, ledger <c>USER-PUNISH-WINDOW</c>): tells
+		/// the mob that sent <paramref name="hit"/> its attack reached this hero
+		/// (HP damage, a full protection-layer absorption, a block of either
+		/// result, or a Foresight counter), so the swing is no whiff; and, when
+		/// <paramref name="punish"/> (a non-shatter block, a counter), opens that
+		/// mob's Punish window. A no-op for a player-sourced hit, a hit with no
+		/// owner, or an owner that is not a live <c>EnemyController</c> (a boss
+		/// or the Mirror clone). It only sets fields on the mob, so it is safe
+		/// inside the physics flush.
+		/// </summary>
+		private static void ReportEnemyAttack(in FTT.Combat.HitPayload hit, bool punish) {
+			if (hit.AttackerIndex >= 0 || hit.SourceActorId == 0UL) return;
+			if (GodotObject.InstanceFromId(hit.SourceActorId) is not FTT.Enemies.EnemyController enemy
+				|| !IsInstanceValid(enemy)) return;
+			enemy.ReportAttackReachedHero(hit.AttackID);
+			if (punish) enemy.OpenPunishWindow();
+		}
+
+		/// <summary>
 		/// The ONE Story damage-resolution chokepoint (Package 11 A1b, V7.6
 		/// D01/D02b). Per distinct eligible hit contact:
 		///
@@ -1123,8 +1602,16 @@ namespace FTT.Characters {
 			// Package 13 W5 (Tubman's Foresight): the counter window nullifies an
 			// eligible strike or projectile before any shield, block or HP layer,
 			// and the post-trigger sidestep takes no hits at all.
-			if (_special2 is Abilities.TubmanForesight foresight
-				&& (foresight.IsSidestepping || foresight.TryCounter(in hit))) return 0f;
+			if (_special2 is Abilities.TubmanForesight foresight) {
+				if (foresight.IsSidestepping) return 0f;
+				if (foresight.TryCounter(in hit)) {
+					// D8 (2026-10-11): a counter reached the hero and opens the
+					// attacker's Punish window. It did not land for its attacker,
+					// so there is no ReportLanded (D1a).
+					ReportEnemyAttack(in hit, punish: true);
+					return 0f;
+				}
+			}
 			if (HasStoryProjectileImmunity && hit.HitboxID == "projectile") return 0f;
 			bool wasLedgeHanging = CurrentState == CharacterState.LedgeHanging;
 
@@ -1137,6 +1624,15 @@ namespace FTT.Characters {
 				// Fully absorbed: shield-impact feedback, and nothing else. No
 				// ResolveHit call, no Henry's Bastion grant, no shieldstun.
 				FTT.Core.CameraShake.Instance?.Shake(2f, 0.06f);
+				// 2026-10-11 (D1a): an absorbed contact LANDED for its attacker —
+				// unless this body was invulnerable to it (tech, knockdown,
+				// post-rewind protection sit below the shield layers here; the
+				// order itself is VERIFY-STORY-INVULN-LAYER-ORDER).
+				if (!IsConfirmInvulnerable) {
+					_hurtbox?.ReportLanded(hit.ContactId);
+					// D8: the absorbed swing reached the hero, so it is no whiff.
+					ReportEnemyAttack(in hit, punish: false);
+				}
 				return 0f;
 			}
 			if (remaining != incoming) {
@@ -1176,12 +1672,20 @@ namespace FTT.Characters {
 							? FTT.Combat.BasicComboRules.ShatterFreezeFrames
 							: FTT.Combat.BasicComboRules.BlockedHitstopFrames);
 					}
+					// D8 (2026-10-11): a blocked attack reached the hero; a
+					// non-shatter block opens the attacker's Punish window.
+					ReportEnemyAttack(in hit, punish: blockResult == FTT.Combat.BlockResult.Blocked);
 					return 0f;
 				}
 			}
 
 			int damageApplied = ApplyDamage(Math.Max(0, (int)MathF.Round(hit.Damage)));
 			if (damageApplied <= 0) return 0f;
+			// 2026-10-11 (D1a): damage applied is a LANDED contact. ApplyDamage
+			// already returned 0 for every invulnerable body.
+			_hurtbox?.ReportLanded(hit.ContactId);
+			// D8: the attack reached the hero, so its swing is no whiff.
+			ReportEnemyAttack(in hit, punish: false);
 
 			if (wasLedgeHanging && CurrentState != CharacterState.Dead) {
 				ReleaseActiveLedge();
@@ -1333,6 +1837,12 @@ namespace FTT.Characters {
 		/// three-hit string heals 5% of missing HP.
 		/// </summary>
 		private void OnMeleeHitConfirmed(FTT.Combat.HitPayload payload, float damageApplied) {
+			// 2026-10-11 (D1 / D2): the swing's first LANDED contact (D1a — the
+			// receiver's report; an absorbed contact carries 0 damage, so this
+			// sits outside the damage block) opens the hit-confirm cancel and
+			// pays per-hit Momentum once per swing, however many bodies it cleaves.
+			bool basicSwing = FTT.Combat.BasicComboRules.IsBasicStringHitbox(payload.HitboxID);
+			if (payload.ContactLanded && basicSwing) NoteSwingLanded(payload.HitboxID);
 			if (damageApplied > 0f) {
 				// V7.1 hitstop (attacker side): the same shared freeze the victim
 				// takes in their own hit handler — both parties suspend together.
@@ -1342,9 +1852,9 @@ namespace FTT.Characters {
 				// so the attacker always takes the kill freeze.
 				ApplyHitstop(FTT.Combat.BasicComboRules.HitstopFrames(
 					Math.Max(0, (int)MathF.Round(damageApplied)), payload.Launches));
-				// V7.1 Resonance Momentum: only the CONNECTING string finisher
-				// refunds — never hits 1-2 or the directional strikes.
-				if (payload.HitboxID == "combo_3") ApplyMomentumRefund();
+				// The freeze-only Special buffer (2026-10-11) arms on the freeze
+				// of a LANDED swing only — a strike surface's freeze buffers nothing.
+				if (payload.ContactLanded && basicSwing && IsInHitstop) _freezeBufferArmed = true;
 				// Package 8 A3: the attacker-side feedback hook. Haptics and impact
 				// VFX consume this; it carries no gameplay authority.
 				FTT.Core.EventBus.Instance?.RaiseHitConfirm(new FTT.Core.HitConfirmPayload {
@@ -1566,7 +2076,17 @@ namespace FTT.Characters {
 		public override void _PhysicsProcess(double delta) {
 			float dt = (float)delta;
 			_storyFrame++;
+			_ultimateHeldBackThisTick = false;
 			CurrentInputFrame = FTT.Core.InputManager.Instance?.GetFrame(PlayerIndex) ?? default;
+			// The freeze-only Special buffer (2026-10-11): the first tick after a
+			// landed swing's freeze re-presents the Special press held through it.
+			if (_hitstopFramesRemaining <= 0
+				&& (_freezeBufferArmed || _freezeBufferedSpecials != FTT.Core.GameplayButtons.None)) {
+				ReleaseFreezeSpecialBuffer();
+			}
+			// grid-live-apply: a purchase or respec that arrived mid-cast or
+			// mid-swing lands on the first tick no cast or swing is running.
+			if (_liveStoryProgressionPending && !HoldsLiveStoryProgression) RequestLiveStoryProgression();
 
 			// V7.1 hitstop: while frozen, every state timer, velocity, position,
 			// and the animation clock are suspended — only the input frame is
@@ -1577,6 +2097,12 @@ namespace FTT.Characters {
 				// is buffered for the next chain hit instead of being dropped —
 				// the freeze is the impact moment players mash into.
 				BufferChainPress();
+				// 2026-10-11: a Special press inside a landed swing's freeze is
+				// held for the first tick after it (never an Ultimate).
+				BufferFreezeSpecialPress();
+				// D3 (2026-10-11): a cancel press made in a Special's freeze (the
+				// caster freeze of its landed hit) is buffered without aging.
+				BufferSpecialCancelPress(hitstopTick: true);
 				SetCastClocksSuspended(true);
 				_hitstopFramesRemaining--;
 				if (_animatedSprite != null) _animatedSprite.SpeedScale = 0f;
@@ -1604,6 +2130,10 @@ namespace FTT.Characters {
 				_ledgeGrabsThisAirtime = 0;
 				// A03 (Package 13 W1): landing refreshes the air dodge.
 				_airDodgeUsed = false;
+				// 2026-10-08: floor contact, in any state, ends the airtime the apex
+				// hang reads (the sim's ground-contact refill), so a hero who lands
+				// in hitstun and is relaunched carries no hang into the new arc.
+				JumpedThisAirtime = false;
 			}
 
 			// V7.1 Echo Step bookkeeping: sample the position ring, tick the
@@ -1638,7 +2168,13 @@ namespace FTT.Characters {
 			// V7.6: the freeze suspends ability cooldowns (block-charge regen and
 			// status durations suspend in BlockSystem/StatusController for the
 			// same reason). Movement and the effect clock keep running.
-			if (!TimeFrozen) UpdateCooldowns(dt);
+			if (!TimeFrozen) {
+				UpdateCooldowns(dt);
+				// Unscaled frames: the lockout is a cross-mode constant, never a
+				// Story cooldown perk's to shorten.
+				_abilityLockoutFrames = FTT.Combat.BasicComboRules.TickAbilityLockout(_abilityLockoutFrames);
+				_specialLockoutFrames = FTT.Combat.BasicComboRules.TickAbilityLockout(_specialLockoutFrames);
+			}
 			UpdateDropThrough(dt);
 			UpdateHyperArmorPresentation();
 			// F07: the Conductive mark is a caster-owned combo mark, not a
@@ -1811,8 +2347,12 @@ namespace FTT.Characters {
 		private void ProcessIdle(float dt) {
 			ApplyGravity(dt);
 			float maxSpeed = EffectiveMoveSpeed * StatusMovementMultiplier * 60f;
-			float step = maxSpeed / GroundDecelRampFrames * dt * 60f;
+			float step = FTT.Core.StoryAirPhysics.RampStep(maxSpeed, GroundDecelRampFrames, dt);
 			var idleVel = Velocity;
+			// The tick's starting speed: a push below replaces this stop step with
+			// its own single ramp step, because the Fighter sim takes exactly one
+			// ramp step a tick (a stop step then a run step bled max/4 extra).
+			float preStopVx = idleVel.X;
 			idleVel.X = Mathf.MoveToward(idleVel.X, 0, step);
 			Velocity = idleVel;
 
@@ -1830,8 +2370,10 @@ namespace FTT.Characters {
 			if (CheckRollInput()) return;
 			if (CheckJumpInput()) return;
 			if (CheckAttackInput()) return;
-			if (CheckSpecialInput()) return;
+			// The Ultimate first: an accepted press takes the tick over a
+			// same-tick special (2026-10-08; the sim reads UltimatePressAccepted).
 			if (CheckUltimateInput()) return;
+			if (CheckSpecialInput()) return;
 			if (CheckBlockInput()) return;
 			if (CheckMovementAbilityInput()) return;
 			if (CheckInteractInput()) return;
@@ -1839,6 +2381,29 @@ namespace FTT.Characters {
 			float hAxis = GetHorizontalInput();
 			if (Mathf.Abs(hAxis) > 0.1f) {
 				TransitionTo(CharacterState.Running);
+				// 2026-10-08: the push tick is the run ramp's first frame, as the
+				// Fighter sim's is. It used to be a dead state-change tick, so the
+				// 6-frame ramp read as 7 from the stick. It takes ONE ramp step from
+				// the tick's starting speed (the stop step above is undone), so a
+				// re-press while still sliding matches the sim tick for tick. A push
+				// against the facing turns at once unless it reverses real travel
+				// (PushReversesTravel): from a standstill the hero faces the push
+				// and starts the 6-frame ramp now, as the sim does, instead of
+				// spending a Running tick and the skid first. A genuine reversal at
+				// speed still turns through the skid on the next tick, and a push
+				// with Down held still crouches there.
+				if (IsOnFloor() && !CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Down)) {
+					bool towardFacing = (hAxis > 0f) == IsFacingRight;
+					if (!towardFacing && !PushReversesTravel(hAxis, preStopVx, step)) {
+						UpdateFacing(hAxis);
+						towardFacing = true;
+					}
+					if (towardFacing) {
+						Velocity = new Vector2(preStopVx, Velocity.Y);
+						ApplyHorizontalMovement(hAxis, dt);
+						PlayAnimation("run");
+					}
+				}
 				return;
 			}
 
@@ -1877,14 +2442,19 @@ namespace FTT.Characters {
 			// M04 (Package 12 W3): Running → UsingSpecial / UsingUltimate with
 			// the same input and eligibility as from Idle (the sim never gated
 			// specials on locomotion).
-			if (CheckSpecialInput()) return;
+			// The Ultimate first: an accepted press takes the tick over a
+			// same-tick special (2026-10-08; the sim reads UltimatePressAccepted).
 			if (CheckUltimateInput()) return;
+			if (CheckSpecialInput()) return;
 			if (CheckBlockInput()) return;
 			if (CheckMovementAbilityInput()) return;
 
 			float hAxis = GetHorizontalInput();
 			if (Mathf.Abs(hAxis) < 0.1f) {
 				TransitionTo(CharacterState.Idle);
+				// 2026-10-08: the release tick is the stop ramp's first frame (it
+				// was a dead tick, so the 4-frame stop read as 5 from the stick).
+				DecelerateHorizontal(dt);
 				return;
 			}
 
@@ -1897,14 +2467,36 @@ namespace FTT.Characters {
 
 			bool wantsRight = hAxis > 0;
 			if (wantsRight != IsFacingRight && IsOnFloor()) {
-				TransitionTo(CharacterState.Skidding);
-				return;
+				float stopStep = FTT.Core.StoryAirPhysics.RampStep(
+					EffectiveMoveSpeed * StatusMovementMultiplier * 60f, GroundDecelRampFrames, dt);
+				if (PushReversesTravel(hAxis, Velocity.X, stopStep)) {
+					TransitionTo(CharacterState.Skidding);
+					// 2026-10-08: the reversal tick is the skid's first stop frame
+					// (it was a dead tick), so a full-speed reversal bleeds over the
+					// 4-frame stop ramp and rebuilds over the 6-frame run ramp —
+					// full speed the other way on frame 10, as in the sim.
+					DecelerateHorizontal(dt);
+					return;
+				}
+				// Not a reversal at speed (a standstill, or already moving the
+				// pushed way): the facing turns below with no skid, as from Idle.
 			}
 
 			ApplyHorizontalMovement(hAxis, dt);
 			UpdateFacing(hAxis);
 			PlayAnimation("run");
 		}
+
+		/// <summary>
+		/// 2026-10-08: whether a push against the facing reverses real travel —
+		/// the hero moves the other way faster than one grounded stop step
+		/// (<paramref name="stopStep"/>) bleeds. Only that earns the skid; a push
+		/// from a standstill, or with the body already moving the pushed way,
+		/// turns at once and starts the run ramp, which is what the Fighter sim
+		/// (no skid state) does on the same tick.
+		/// </summary>
+		private static bool PushReversesTravel(float hAxis, float velocityX, float stopStep) =>
+			hAxis > 0f ? -velocityX > stopStep : velocityX > stopStep;
 
 		private void ProcessRolling(float dt) {
 			if (_airDodge) {
@@ -1986,7 +2578,9 @@ namespace FTT.Characters {
 		}
 
 		private void ProcessAirDodge(float dt) {
-			ApplyGravity(dt);
+			// Gravity and momentum continue through the dodge, fast-fall included
+			// (2026-10-08, as in the sim).
+			ApplyGravity(dt, fastFalling: CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Down));
 			bool grounded = IsOnFloor();
 			// No speed is added: air control continues in the air, and a dodge
 			// that lands plays its remaining frames out grounded, decelerating.
@@ -2027,14 +2621,14 @@ namespace FTT.Characters {
 
 		private void DecelerateHorizontal(float dt) {
 			float maxSpeed = EffectiveMoveSpeed * StatusMovementMultiplier * 60f;
-			float step = maxSpeed / GroundDecelRampFrames * dt * 60f;
+			float step = FTT.Core.StoryAirPhysics.RampStep(maxSpeed, GroundDecelRampFrames, dt);
 			Velocity = new Vector2(Mathf.MoveToward(Velocity.X, 0f, step), Velocity.Y);
 		}
 
 		private void ProcessSkidding(float dt) {
 			ApplyGravity(dt);
 			float maxSpeed = EffectiveMoveSpeed * StatusMovementMultiplier * 60f;
-			float step = maxSpeed / GroundDecelRampFrames * dt * 60f;
+			float step = FTT.Core.StoryAirPhysics.RampStep(maxSpeed, GroundDecelRampFrames, dt);
 			var skidVel = Velocity;
 			skidVel.X = Mathf.MoveToward(skidVel.X, 0, step);
 			Velocity = skidVel;
@@ -2052,7 +2646,7 @@ namespace FTT.Characters {
 		private void ProcessCrouching(float dt) {
 			ApplyGravity(dt);
 			float maxSpeed = EffectiveMoveSpeed * StatusMovementMultiplier * 60f;
-			float step = maxSpeed / GroundDecelRampFrames * dt * 60f;
+			float step = FTT.Core.StoryAirPhysics.RampStep(maxSpeed, GroundDecelRampFrames, dt);
 			var crouchVel = Velocity;
 			crouchVel.X = Mathf.MoveToward(crouchVel.X, 0, step);
 			Velocity = crouchVel;
@@ -2071,8 +2665,10 @@ namespace FTT.Characters {
 			if (CheckRollInput()) return;
 			if (CheckJumpInput()) return;
 			if (CheckAttackInput()) return;
-			if (CheckSpecialInput()) return;
+			// The Ultimate first: an accepted press takes the tick over a
+			// same-tick special (2026-10-08; the sim reads UltimatePressAccepted).
 			if (CheckUltimateInput()) return;
+			if (CheckSpecialInput()) return;
 			if (CheckBlockInput()) return;
 			if (CheckMovementAbilityInput()) return;
 			CheckDropThrough();
@@ -2080,7 +2676,15 @@ namespace FTT.Characters {
 		}
 
 		private void ProcessAirborne(float dt) {
-			ApplyGravity(dt);
+			// Fast-fall (§2.9, 2026-08-10; ramped by user direction 2026-10-08):
+			// stateless — held Down while airborne runs gravity at the fast-fall
+			// multiplier toward the 900 px/s cap, any time in the air (a rise is
+			// cut short quickly, not instantly), and cancels the Warp float
+			// window. Releasing it eases the descent back to the 720 px/s terminal
+			// instead of snapping. It replaces M01's snap to 1200 px/s. Fed into
+			// the one gravity step so it applies exactly once per tick.
+			// ProcessStunned/ProcessDazed own hitstun and never route here.
+			ApplyGravity(dt, fastFalling: CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Down));
 
 			float hAxis = GetHorizontalInput();
 			float maxSpeed = EffectiveMoveSpeed * StatusMovementMultiplier * 60f;
@@ -2096,19 +2700,6 @@ namespace FTT.Characters {
 			float step = maxSpeed / rampFrames * dt * 60f * (Data?.AirControlMultiplier ?? 1f);
 			var vel = Velocity;
 			vel.X = Mathf.MoveToward(vel.X, targetSpeed, step);
-
-			// Fast-fall (§2.9, 2026-08-10): stateless — held Down while airborne
-			// snaps the descent to FastFallSpeedPixels and cancels the
-			// Warp float window. Applied after ApplyGravity so it deliberately
-			// overrides that method's 600 px/s terminal clamp for this case.
-			// ProcessStunned/ProcessDazed own hitstun and never route here.
-			// M01 (D1(a), Package 12 W3): fast-fall SNAPS to 20 u/s (1200 px/s),
-			// the terminal it is defined as — assigned, never exceeded. The
-			// ordinary Story terminal (600 px/s) is unchanged; H-7 stays deferred.
-			if (CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Down)) {
-				StoryFloatTimer = 0f;
-				vel.Y = FastFallSpeedPixels;
-			}
 			Velocity = vel;
 
 			UpdateFacing(hAxis);
@@ -2128,15 +2719,22 @@ namespace FTT.Characters {
 			if (CheckRollInput()) return;
 			if (CheckJumpInput()) return;
 			if (CheckAttackInput()) return;
-			if (CheckSpecialInput()) return;
+			// The Ultimate first: an accepted press takes the tick over a
+			// same-tick special (2026-10-08; the sim reads UltimatePressAccepted).
 			if (CheckUltimateInput()) return;
+			if (CheckSpecialInput()) return;
 			if (CheckMovementAbilityInput()) return;
 
 			PlayAnimation(Velocity.Y < 0 ? "jump" : "fall");
 		}
 
 		private void ProcessAttacking(float dt) {
-			ApplyGravity(dt);
+			// 2026-10-08: an aerial swing fast-falls on held Down like any other
+			// normal-control airtime (the sim does), so the down-air "stacks with
+			// fast-fall into a falling strike" as the design says, instead of
+			// braking a carried-in dive back to the 720 px/s terminal. ApplyGravity is a
+			// no-op on the floor, so a grounded swing is unaffected.
+			ApplyGravity(dt, fastFalling: CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Down));
 			if (_attackStartedAerial && IsOnFloor()) {
 				CancelActiveAttack();
 				AerialComboCounter = 0;
@@ -2158,13 +2756,22 @@ namespace FTT.Characters {
 			// (OnAttackActiveStarted), so nothing migrates mid-active.
 			UpdateFacing(GetHorizontalInput());
 
-			// Design 1051 — a special (or the ultimate) cancels a basic at any
-			// point in the swing and resets the chain; shared rule with the
-			// Fighter sim.
+			// Design 1051 — a special (or the ultimate) cancels a basic and resets
+			// the chain; shared rule with the Fighter sim. Since 2026-10-08 the
+			// swing's own ability lockout refuses both for its first 30 frames
+			// (CheckSpecialInput / CheckUltimateInput), so the cancel only opens
+			// late in a long swing or in the chain hold — and never on a tick
+			// that starts the next chain swing, which wins and re-arms the
+			// lockout exactly as StartSwing does in the sim. That swing's fresh
+			// lockout is what refuses the press there, so it raises the D10
+			// "not yet" flash for each ready slot (2026-10-11), as the sim's
+			// classifier does for the same tick.
 			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Special1)
 				|| CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Special2)
 				|| CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Ultimate)) {
-				if (CheckSpecialInput() || CheckUltimateInput()) {
+				if (ChainSwingStartsThisTick()) {
+					ReportRefusalsLostToTheChainSwing();
+				} else if (CheckUltimateInput() || CheckSpecialInput()) {
 					CancelActiveAttack();
 					ResetComboChain();
 					return;
@@ -2230,6 +2837,38 @@ namespace FTT.Characters {
 		}
 
 		/// <summary>
+		/// Ability lockout (2026-10-08): true when this tick will start the next
+		/// chain swing, so <see cref="ProcessAttacking"/> lets the swing win over a
+		/// same-tick special or Ultimate press (the swing's fresh lockout then
+		/// refuses them), as the sim's FighterMovementSystem does by starting
+		/// swings before any ability is polled. The starts: a BasicAttack press in
+		/// the chain hold, BasicAttack still held in the hold, and the swing's
+		/// last frame with the next hit buffered or held. A Jump or Roll press or
+		/// a held Block keeps the old order for the held starts (the special still
+		/// beats those recovery cancels), using the raw inputs as the sim's
+		/// unconditional cancel set does.
+		/// </summary>
+		private bool ChainSwingStartsThisTick() {
+			if (TimeFrozen) return false;
+			bool recoveryCancelInput = CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Jump)
+				|| CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Roll)
+				|| CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block);
+			if (_inRecoveryHold) {
+				// ProcessRecoveryHold: a press restarts first; a held button only
+				// after the jump/roll/block cancel set.
+				return CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack)
+					|| (!recoveryCancelInput && ChainAttackHeld());
+			}
+			if (_attackVariant != FTT.Combat.BasicComboRules.VariantChain) return false;
+			if (recoveryCancelInput) return false;
+			// The frame clock below steps floor(progress + speed) frames this tick.
+			int framesThisTick = Mathf.FloorToInt(_attackFrameProgress + StoryComboSpeedMultiplier);
+			if (_attackFramesRemaining > framesThisTick) return false;
+			return FTT.Combat.BasicComboRules.ChainContinues(
+				GetActiveComboIndex(), _nextAttackBuffered || ChainPressThisTick(), ChainAttackHeld());
+		}
+
+		/// <summary>
 		/// F3: true when this tick carries a BasicAttack press the chain may
 		/// buffer — a chain swing (never a directional strike), and never under
 		/// Time Freeze, which discards attack input rather than queueing it.
@@ -2256,6 +2895,26 @@ namespace FTT.Characters {
 		/// <summary>F3: BasicAttack is held (outside Time Freeze) — holding continues the chain.</summary>
 		private bool ChainAttackHeld() =>
 			!TimeFrozen && CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.BasicAttack);
+
+		/// <summary>
+		/// The string step a BasicAttack press would continue into right now
+		/// (the CPU melee band, 2026-10-11; Story mirror of
+		/// <c>FighterBasicAttackRules.NextChainStep</c>): the next hit's index
+		/// while a chain swing of hit 1 or hit 2 runs or its chain hold is
+		/// open, otherwise 0. The finisher cannot continue and a directional
+		/// strike stands outside the chain, so a press during either can at
+		/// most open a fresh string. Read-only; the Mirror adapter projects it.
+		/// </summary>
+		internal int NextChainStepForPress {
+			get {
+				if (CurrentState != CharacterState.Attacking
+					|| _attackVariant != FTT.Combat.BasicComboRules.VariantChain) {
+					return 0;
+				}
+				int index = GetActiveComboIndex();
+				return index < FTT.Combat.BasicComboRules.ComboHits - 1 ? index + 1 : 0;
+			}
+		}
 
 		/// <summary>
 		/// The post-recovery chain window. Reached only from
@@ -2465,30 +3124,47 @@ namespace FTT.Characters {
 		}
 
 		/// <summary>
-		/// V7.1 Resonance Momentum: a CONNECTING basic-string finisher refunds
-		/// 60 frames from each running special cooldown, at most twice per
-		/// cooldown cycle per slot (BaseSpecial re-arms the counters when a
-		/// slot's cooldown starts).
+		/// D1 / D2 (2026-10-11): the current swing's first landed contact sets
+		/// the hit-confirm latch and pays its per-hit Momentum, once per swing.
 		/// </summary>
-		private void ApplyMomentumRefund() {
-			const float refundSeconds = FTT.Combat.BasicComboRules.MomentumRefundFrames / 60f;
-			if (SpecialOneCooldownTimer > 0f
-				&& _momentumRefundsSlotOne < FTT.Combat.BasicComboRules.MomentumRefundCapPerCycle) {
-				SpecialOneCooldownTimer = Mathf.Max(0f, SpecialOneCooldownTimer - refundSeconds);
-				_momentumRefundsSlotOne++;
-			}
-			if (SpecialTwoCooldownTimer > 0f
-				&& _momentumRefundsSlotTwo < FTT.Combat.BasicComboRules.MomentumRefundCapPerCycle) {
-				SpecialTwoCooldownTimer = Mathf.Max(0f, SpecialTwoCooldownTimer - refundSeconds);
-				_momentumRefundsSlotTwo++;
-			}
+		private void NoteSwingLanded(string hitboxID) {
+			if (_swingLanded) return;
+			_swingLanded = true;
+			int nominal = FTT.Combat.BasicComboRules.MomentumRefundFramesForHitbox(hitboxID);
+			if (nominal > 0) ApplyMomentumRefund(nominal);
+		}
+
+		/// <summary>
+		/// Per-hit Momentum (D2, 2026-10-11): <paramref name="nominalFrames"/> off
+		/// each running special cooldown, the grant capped so a slot refunds at
+		/// most 120 frames per cooldown cycle (counted in frames actually
+		/// removed). A ready slot takes nothing and spends none of its cap. A
+		/// grant that covers the remaining frames sets the timer to exactly 0, so
+		/// no float remainder keeps the slot locked for a tick. Story timers are
+		/// timer-seconds: under a Story cooldown multiplier a refunded frame is a
+		/// timer frame, as the V7.1 refund already was.
+		/// </summary>
+		private void ApplyMomentumRefund(int nominalFrames) {
+			SpecialOneCooldownTimer = RefundMomentum(
+				SpecialOneCooldownTimer, nominalFrames, ref _momentumRefundedFramesSlotOne);
+			SpecialTwoCooldownTimer = RefundMomentum(
+				SpecialTwoCooldownTimer, nominalFrames, ref _momentumRefundedFramesSlotTwo);
+		}
+
+		private static float RefundMomentum(float timerSeconds, int nominalFrames, ref int refundedThisCycle) {
+			if (timerSeconds <= 0f) return timerSeconds;
+			int remainingFrames = Mathf.CeilToInt(timerSeconds * 60f - 0.001f);
+			int grant = FTT.Combat.BasicComboRules.MomentumGrant(nominalFrames, refundedThisCycle, remainingFrames);
+			if (grant <= 0) return timerSeconds;
+			refundedThisCycle += grant;
+			return grant >= remainingFrames ? 0f : Mathf.Max(0f, timerSeconds - grant / 60f);
 		}
 
 		/// <summary>Called by BaseSpecial when a slot's cooldown is armed: a fresh
-		/// cycle re-arms its Resonance Momentum refunds.</summary>
+		/// cycle re-opens its 120-frame Momentum cap.</summary>
 		public void OnSpecialCooldownArmed(FTT.Core.AbilitySlot slot) {
-			if (slot == FTT.Core.AbilitySlot.Special1) _momentumRefundsSlotOne = 0;
-			else if (slot == FTT.Core.AbilitySlot.Special2) _momentumRefundsSlotTwo = 0;
+			if (slot == FTT.Core.AbilitySlot.Special1) _momentumRefundedFramesSlotOne = 0;
+			else if (slot == FTT.Core.AbilitySlot.Special2) _momentumRefundedFramesSlotTwo = 0;
 		}
 
 		/// <summary>Resets both surface counters — the whole chain, not one string.</summary>
@@ -2500,6 +3176,8 @@ namespace FTT.Characters {
 		}
 
 		private void ProcessUsingSpecial(float dt) {
+			// D3 (2026-10-11): age the buffered cancel press, then take this tick's.
+			BufferSpecialCancelPress(hitstopTick: false);
 			var ability = _pendingSpecialSlot == 2 ? _special2 : _special1;
 			// F1: the Special's three poses follow its own authored phases.
 			if (ability?.IsExecuting == true) {
@@ -2526,11 +3204,187 @@ namespace FTT.Characters {
 					_specialStartedAerial = false;
 					return;
 				}
+				// D3 (user direction 2026-10-11): a Special that LANDED a direct
+				// hit cancels its recovery into a roll or a jump from frame 0, and
+				// into a basic attack or the movement ability from frame 6. A
+				// whiff keeps its whole recovery (Block above stays its only exit).
+				if (TryFireSpecialCancel(ability)) {
+					_specialStartedAerial = false;
+					return;
+				}
 			}
 			if (ability == null || !ability.IsExecuting) {
 				_specialStartedAerial = false;
 				TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
 			}
+		}
+
+		// === D3: the on-hit Special recovery cancel (user direction 2026-10-11) ===
+		// Ledger USER-SPECIAL-RECOVERY-CANCEL; the agent-chosen details are
+		// PROVISIONAL-SPECIAL-RECOVERY-CANCEL-RULES. Story only (the Fighter sim
+		// resolves Specials on the press tick, DEFER-SIM-SPECIAL-PHASES). The
+		// Level 13 Mirror clone is a PlayerController and inherits it. One buffer
+		// slot, never persisted: the latest cancel press made while UsingSpecial,
+		// fed on hitstop ticks without aging and aged one per unfrozen tick,
+		// fired by ProcessUsingSpecial's Recovery branch only when the cast landed
+		// a direct hit (BaseSpecial.LandedDirectHitThisExecution) and the verb's
+		// gate (StoryCombatRules.SpecialRecoveryAllows*) is open. A whiff never
+		// fires it. Never buffered: a Roll that forms the Echo Step chord (A06:
+		// no Echo Step out of a Special), the grab chord, and a Movement press on
+		// a tick that presses the Ultimate (the LB+RB chord), which also clears a
+		// buffered Movement press. Neither a Special nor the Ultimate is polled in
+		// a Special's recovery, so Special -> Special stays lockout-gated.
+
+		/// <summary>D3: the verbs a landed Special's recovery can cancel into.</summary>
+		public enum SpecialCancelVerb {
+			None,
+			Roll,
+			Jump,
+			BasicAttack,
+			MovementAbility
+		}
+
+		private SpecialCancelVerb _specialCancelPress;
+		private int _specialCancelPressAge;
+		private bool _specialCancelUpHeld;
+		private bool _specialCancelDownHeld;
+
+		/// <summary>D3: the buffered cancel press (test seam).</summary>
+		public SpecialCancelVerb BufferedSpecialCancel => _specialCancelPress;
+
+		/// <summary>D3: the buffered press's age in unfrozen controller ticks (test seam).</summary>
+		public int BufferedSpecialCancelAge => _specialCancelPressAge;
+
+		private void ClearSpecialCancelPress() {
+			_specialCancelPress = SpecialCancelVerb.None;
+			_specialCancelPressAge = 0;
+			_specialCancelUpHeld = false;
+			_specialCancelDownHeld = false;
+		}
+
+		/// <summary>
+		/// D3: feeds the one-slot cancel buffer from this tick's presses. On an
+		/// unfrozen tick the held press ages first and expires past
+		/// <see cref="FTT.Combat.StoryCombatRules.SpecialCancelBufferFrames"/>;
+		/// hitstop ticks never age it. The first verb pressed this tick, in the
+		/// order Roll, Jump, BasicAttack, MovementAbility, replaces the slot.
+		/// </summary>
+		private void BufferSpecialCancelPress(bool hitstopTick) {
+			if (CurrentState != CharacterState.UsingSpecial) return;
+			if (_specialCancelPress != SpecialCancelVerb.None && !hitstopTick) {
+				_specialCancelPressAge++;
+				if (!FTT.Combat.StoryCombatRules.SpecialCancelBufferHolds(_specialCancelPressAge)) {
+					ClearSpecialCancelPress();
+				}
+			}
+			FTT.Core.PlayerInputFrame input = CurrentInputFrame;
+			bool ultimatePressed = input.IsPressed(FTT.Core.GameplayButtons.Ultimate);
+			// The LB+RB Ultimate chord carries its component bits: it never fires
+			// or keeps the movement cancel, even when its halves arrive a tick apart.
+			if (ultimatePressed && _specialCancelPress == SpecialCancelVerb.MovementAbility) {
+				ClearSpecialCancelPress();
+			}
+			SpecialCancelVerb verb = SpecialCancelVerb.None;
+			bool upHeld = false;
+			bool downHeld = false;
+			if (input.IsPressed(FTT.Core.GameplayButtons.Roll)
+				&& !input.IsHeld(FTT.Core.GameplayButtons.EchoStep)) {
+				// A06: the Echo Step chord's Roll component never rolls out of a Special.
+				verb = SpecialCancelVerb.Roll;
+			} else if (input.IsPressed(FTT.Core.GameplayButtons.Jump)) {
+				verb = SpecialCancelVerb.Jump;
+			} else if (input.IsPressed(FTT.Core.GameplayButtons.BasicAttack)
+				&& !(input.IsHeld(FTT.Core.GameplayButtons.Block) && IsOnFloor())) {
+				// Every basic variant (2026-10-11 addendum): the direction held at
+				// the press picks hit 1, the Up-Attack or the Down-Air when it
+				// fires, so a held direction never eats the press. The grab chord
+				// (Block held, grounded) is not a basic attack.
+				verb = SpecialCancelVerb.BasicAttack;
+				upHeld = input.Vertical < FTT.Combat.BasicComboRules.StoryUpInputThreshold;
+				downHeld = input.IsHeld(FTT.Core.GameplayButtons.Down);
+			} else if (input.IsPressed(FTT.Core.GameplayButtons.MovementAbility) && !ultimatePressed) {
+				verb = SpecialCancelVerb.MovementAbility;
+			}
+			if (verb == SpecialCancelVerb.None) return;
+			_specialCancelPress = verb;
+			_specialCancelPressAge = 0;
+			_specialCancelUpHeld = upHeld;
+			_specialCancelDownHeld = downHeld;
+		}
+
+		/// <summary>
+		/// D3: fires the buffered cancel out of <paramref name="ability"/>'s
+		/// recovery when its execution landed a direct hit, the press is still
+		/// buffered and the verb's gate is open. The verb starts first, then the
+		/// cast is interrupted (the Block-cancel pattern): what the cast put into
+		/// the world survives, and the cooldown and lockout it armed stand. A verb
+		/// whose gate is open but which cannot start yet (no air jump, the air
+		/// dodge spent, Root, a cooldown) stays buffered until it ages out.
+		/// </summary>
+		private bool TryFireSpecialCancel(FTT.Combat.BaseSpecial ability) {
+			if (ability == null || !ability.IsExecuting) return false;
+			if (_specialCancelPress == SpecialCancelVerb.None) return false;
+			if (!ability.LandedDirectHitThisExecution) return false;
+			if (!FTT.Combat.StoryCombatRules.SpecialCancelBufferHolds(_specialCancelPressAge)) return false;
+			int frame = ability.RecoveryFramesElapsed;
+			bool started;
+			switch (_specialCancelPress) {
+				case SpecialCancelVerb.Roll:
+					if (!FTT.Combat.StoryCombatRules.SpecialRecoveryAllowsEvade(true, frame)) return false;
+					started = TryStartRollOrAirDodge();
+					break;
+				case SpecialCancelVerb.Jump:
+					if (!FTT.Combat.StoryCombatRules.SpecialRecoveryAllowsEvade(true, frame)) return false;
+					started = TryCancelIntoJump();
+					break;
+				case SpecialCancelVerb.BasicAttack:
+					if (!FTT.Combat.StoryCombatRules.SpecialRecoveryAllowsAction(true, frame)) return false;
+					if (TimeFrozen) return false;
+					StartBasicSwing(_specialCancelUpHeld, _specialCancelDownHeld);
+					started = true;
+					break;
+				case SpecialCancelVerb.MovementAbility:
+					if (!FTT.Combat.StoryCombatRules.SpecialRecoveryAllowsAction(true, frame)) return false;
+					if (TimeFrozen || IsMovementRooted) return false;
+					if (_abilityCastSuppressed) {
+						// Suppression refuses it with its null-tone once; the press is dropped.
+						PlaySuppressedCastRefusal();
+						ClearSpecialCancelPress();
+						return false;
+					}
+					started = IsAbilityUnlocked(FTT.Core.AbilitySlot.MovementAbility)
+						&& TryStartMovementAbilityCast();
+					break;
+				default:
+					return false;
+			}
+			if (!started) return false;
+			ClearSpecialCancelPress();
+			// The verb owns the hero from here. A Special's OnInterrupted must never
+			// write owner state a cancel verb owns: Divine Piercing's zeroes only
+			// Velocity.X, after the verb started, which no cancel verb has set yet
+			// (a jump sets Y, a roll and the air dodge move on later ticks, a swing
+			// sets nothing, Ascendant Wings sets Y at startup).
+			ability.Interrupt();
+			return true;
+		}
+
+		/// <summary>
+		/// D3: the jump cancel. Grounded it refills the jump budget as Idle does;
+		/// airborne it spends an air jump. It refreshes the held-Jump read before
+		/// <see cref="PerformJump"/> — ProcessAirborne applies gravity before
+		/// CheckJumpInput refreshes it, so a stale read would cost the first tick a
+		/// short-hop step — and arms no jump buffer, which nothing in UsingSpecial
+		/// drains.
+		/// </summary>
+		private bool TryCancelIntoJump() {
+			if (IsMovementRooted) return false;
+			if (IsOnFloor()) RemainingJumps = Data?.MaxJumpCount ?? 1;
+			else if (RemainingJumps <= 0) return false;
+			_jumpHeld = CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Jump);
+			_jumpBufferTimer = 0;
+			PerformJump();
+			return true;
 		}
 
 		private void ProcessUsingUltimate(float dt) {
@@ -2587,7 +3441,7 @@ namespace FTT.Characters {
 		private void ProcessGrabbing(float dt) {
 			ApplyGravity(dt);
 			var vel = Velocity;
-			vel.X = Mathf.MoveToward(vel.X, 0f, EffectiveMoveSpeed * 60f / GroundDecelRampFrames * dt * 60f);
+			vel.X = Mathf.MoveToward(vel.X, 0f, FTT.Core.StoryAirPhysics.RampStep(EffectiveMoveSpeed * 60f, GroundDecelRampFrames, dt));
 			Velocity = vel;
 
 			if (_grabPhase is 4 or 5) PinGrabbedEnemy();
@@ -2732,7 +3586,9 @@ namespace FTT.Characters {
 			int bowling = Math.Max(1, (int)MathF.Round(
 				(Data?.BasicAttackDamage ?? 10f)
 				* FTT.Combat.BasicComboRules.ThrownMobCollisionDamageMultiplier));
-			victim.LaunchThrown(launch, bowling);
+			// D9 (user addendum 2026-10-11): the thrown flight wall-bounces like a
+			// launch, its impact a tenth of this throw's own damage.
+			victim.LaunchThrown(launch, bowling, damage);
 			EndGrab(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
 		}
 
@@ -2764,7 +3620,7 @@ namespace FTT.Characters {
 		private void ProcessBlocking(float dt) {
 			ApplyGravity(dt);
 			float maxSpeed = EffectiveMoveSpeed * StatusMovementMultiplier * 60f;
-			float step = maxSpeed / GroundDecelRampFrames * dt * 60f;
+			float step = FTT.Core.StoryAirPhysics.RampStep(maxSpeed, GroundDecelRampFrames, dt);
 			var blockVel = Velocity;
 			blockVel.X = Mathf.MoveToward(blockVel.X, 0, step);
 			Velocity = blockVel;
@@ -2938,8 +3794,12 @@ namespace FTT.Characters {
 				ReleaseActiveLedge();
 				TransitionTo(CharacterState.Airborne);
 				var vel = Velocity;
-				vel.Y = -EffectiveJumpForce * StatusJumpMultiplier * 45f;
+				vel.Y = -FTT.Core.StoryAirPhysics.LedgeJumpLaunchSpeed(EffectiveJumpForce * StatusJumpMultiplier);
 				Velocity = vel;
+				// 2026-10-08: a ledge or rope jump-off is a jump, so its arc gets
+				// the apex hang like the sim's climb jump. It still spends no jump
+				// from Story's budget.
+				JumpedThisAirtime = true;
 				return;
 			}
 
@@ -3031,6 +3891,10 @@ namespace FTT.Characters {
 				_attackStartedCrouched = false;
 			}
 			CurrentState = newState;
+			// D3: the Special cancel buffer lives only inside one UsingSpecial stay.
+			if (oldState == CharacterState.UsingSpecial || newState == CharacterState.UsingSpecial) {
+				ClearSpecialCancelPress();
+			}
 			// Package 12 W1 (R02): every enter/exit is observable, which is how the
 			// "Story recovery never touches Respawning" pin watches both edges.
 			StateTransitioned?.Invoke(oldState, newState);
@@ -3609,6 +4473,21 @@ namespace FTT.Characters {
 		/// </summary>
 		internal void SyncUltimateMeterFromNode(float value) => CurrentUltimateMeter = value;
 
+		/// <summary>
+		/// A direct set of the meter, clamped to <c>[0, InfluenceMeterRules.Cap]</c>.
+		/// It is not a gain: no Story gain factor and no Rally reclaim, so a
+		/// scripted grant (the Level 0 Meter &amp; Defy lesson fills the bar with it)
+		/// lands on exactly the value asked for whatever the hero's build rate.
+		/// </summary>
+		public void SetUltimateMeter(float value) {
+			if (_ultimateMeter != null) {
+				_ultimateMeter.SetValue(value);
+				CurrentUltimateMeter = _ultimateMeter.CurrentValue;
+			} else {
+				CurrentUltimateMeter = Mathf.Clamp(value, 0f, FTT.Combat.InfluenceMeterRules.MaxValue);
+			}
+		}
+
 		public void DrainUltimateMeter(float points) {
 			if (_ultimateMeter != null) {
 				_ultimateMeter.SetValue(_ultimateMeter.CurrentValue - Mathf.Max(0f, points));
@@ -3660,7 +4539,8 @@ namespace FTT.Characters {
 
 		public void ApplyStockLossMeterRetention() {
 			_ultimateMeter?.ApplyStockLossRetention();
-			CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter * 0.75f;
+			CurrentUltimateMeter = _ultimateMeter?.CurrentValue
+				?? CurrentUltimateMeter * FTT.Combat.InfluenceMeterRules.StockLossRetention;
 		}
 
 		public bool HasActiveHyperArmor =>
@@ -3796,6 +4676,9 @@ namespace FTT.Characters {
 			// level, not once per life.
 			_hitstopFramesRemaining = 0;
 			SetCastClocksSuspended(false);
+			// The ability lockout belongs to the abandoned timeline too (with its
+			// D1 hit-confirm state and the freeze-only Special buffer).
+			ClearAbilityLockout();
 			_hasPendingLaunch = false;
 			_stunTumble = false;
 			_stunLeftTheGround = false;
@@ -3960,8 +4843,10 @@ namespace FTT.Characters {
 			// Checkpoint reconstruction discards old movement history (V7.6 temporal
 			// contract): a new Echo Step generation opens here too.
 			ResetEchoStepHistory();
+			ClearAbilityLockout();
 			_ultimateMeter?.SetValue(ultimateMeter);
-			CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? Mathf.Clamp(ultimateMeter, 0f, 100f);
+			CurrentUltimateMeter = _ultimateMeter?.CurrentValue
+				?? Mathf.Clamp(ultimateMeter, 0f, FTT.Combat.InfluenceMeterRules.MaxValue);
 			FTT.Core.EventBus.Instance?.RaisePlayerHPChanged(new FTT.Core.PlayerHPPayload {
 				PlayerIndex = PlayerIndex,
 				CurrentHP = CurrentHP,
@@ -3972,54 +4857,70 @@ namespace FTT.Characters {
 
 		// === Movement Helpers ===
 
-		private void ApplyGravity(float dt) {
+		/// <summary>
+		/// The launch states keep the pre-2026-10-08 Story gravity exactly (the
+		/// 1.8 fall multiplier and the hard 600 px/s terminal), so launch arcs, DI
+		/// and tech timing do not move: hitstun and tumble (Stunned, including its
+		/// knockdown sub-phase), a throw's ride-out, and the guard-break daze.
+		/// </summary>
+		private bool UsesLaunchGravity => CurrentState is CharacterState.Stunned
+			or CharacterState.Thrown or CharacterState.Dazed;
+
+		/// <summary>
+		/// One airborne tick of gravity through <see cref="FTT.Core.StoryAirPhysics.StepVertical"/>
+		/// (user direction 2026-10-08: the apex hang, the heavier fall and its
+		/// 720 px/s terminal, and the ramped fast-fall). <paramref name="fastFalling"/>
+		/// is Down held, passed by every normal-control airborne state the Fighter
+		/// sim fast-falls in — <see cref="ProcessAirborne"/>, an aerial swing
+		/// (<see cref="ProcessAttacking"/>, so the down-air stacks into a falling
+		/// strike) and the air dodge — and forced off in the launch states; it
+		/// cancels the Warp float window. Aerial Specials do not pass it (their
+		/// startup and active frames run half-time gravity, and sim Specials fire
+		/// on press). The hang applies after a jump this airtime
+		/// (<see cref="JumpedThisAirtime"/>, the sim's discriminator read without
+		/// Story's jump budget), so a walk-off, a drop-through or a ledge drop gets
+		/// none and a ledge or rope jump-off gets it.
+		/// </summary>
+		private void ApplyGravity(float dt, bool fastFalling = false) {
 			if (IsOnFloor()) {
 				StoryFloatTimer = 0f;
 				return;
 			}
 
-			float effectiveGravity = BaseGravity * (0.8f + 0.4f * (Data?.Weight ?? 1.0f)) * EnvironmentGravityScale;
-			float multiplier = 1.0f;
+			bool launch = UsesLaunchGravity;
+			if (launch) fastFalling = false;
+			bool floatActive = StoryFloatTimer > 0f && !fastFalling;
+			if (fastFalling) StoryFloatTimer = 0f;
+			else if (floatActive) StoryFloatTimer = Mathf.Max(0f, StoryFloatTimer - dt);
 
-			if (StoryFloatTimer > 0f) {
-				StoryFloatTimer = Mathf.Max(0f, StoryFloatTimer - dt);
-				multiplier = 0.15f;
-				if (Velocity.Y > 0) {
-					Velocity = new Vector2(Velocity.X, Mathf.Min(Velocity.Y, 60f));
-				}
-			} else if (Velocity.Y > 0) {
-				multiplier = FallGravityMultiplier;
-			} else if (!_jumpHeld && Velocity.Y < 0) {
-				multiplier = ShortHopGravityMultiplier;
-			}
-
-			var vel = Velocity;
-			vel.Y += effectiveGravity * multiplier * dt * 60f;
-			vel.Y = Mathf.Min(vel.Y, TerminalVelocity);
-			Velocity = vel;
+			float vy = FTT.Core.StoryAirPhysics.StepVertical(
+				Velocity.Y,
+				Data?.Weight ?? 1.0f,
+				EnvironmentGravityScale,
+				dt,
+				fastFalling: fastFalling,
+				floatActive: floatActive,
+				jumpHeld: _jumpHeld,
+				jumpedThisAirtime: JumpedThisAirtime,
+				launch: launch);
+			Velocity = new Vector2(Velocity.X, vy);
 		}
 
 		private void ApplyHorizontalMovement(float hAxis, float dt) {
 			float maxSpeed = EffectiveMoveSpeed * StatusMovementMultiplier * 60f;
 			float targetSpeed = hAxis * maxSpeed;
-			// Grounded movement runs two ramps (§2.1): the 14-frame accel ramp
-			// when building speed toward a same-signed target, the 12-frame
+			// Grounded movement runs two ramps (§2.1): the 6-frame accel ramp
+			// when building speed toward a same-signed target, the 4-frame
 			// decel ramp when the target is zero or reverses against current
-			// velocity. Mirrors the Fighter sim's ApplyNormalMovement selection.
+			// velocity (both since 2026-10-08). Mirrors the Fighter sim's
+			// ApplyNormalMovement selection.
 			bool decelerating = Mathf.IsZeroApprox(targetSpeed)
 				|| (targetSpeed > 0f && Velocity.X < 0f)
 				|| (targetSpeed < 0f && Velocity.X > 0f);
 			float rampFrames = decelerating ? GroundDecelRampFrames : GroundRampFrames;
-			float step = maxSpeed / rampFrames * dt * 60f;
+			float step = FTT.Core.StoryAirPhysics.RampStep(maxSpeed, rampFrames, dt);
 			var vel = Velocity;
 			vel.X = Mathf.MoveToward(vel.X, targetSpeed, step);
-			Velocity = vel;
-		}
-
-		private void ApplyFriction(float dt) {
-			float friction = (Data?.GroundFriction ?? 20f) * dt * 60f;
-			var vel = Velocity;
-			vel.X = Mathf.MoveToward(vel.X, 0, friction);
 			Velocity = vel;
 		}
 
@@ -4051,6 +4952,17 @@ namespace FTT.Characters {
 			// A05: Root refuses the roll and the air dodge alike.
 			if (IsMovementRooted) return false;
 			if (!CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Roll)) return false;
+			return TryStartRollOrAirDodge();
+		}
+
+		/// <summary>
+		/// Starts the grounded roll, or the air dodge when airborne (A03), from a
+		/// Roll press the caller has already read. Shared by
+		/// <see cref="CheckRollInput"/> and the D3 recovery cancel.
+		/// </summary>
+		private bool TryStartRollOrAirDodge() {
+			// A05: Root refuses the roll and the air dodge alike.
+			if (IsMovementRooted) return false;
 			// A03 (Package 13 W1): Roll pressed while airborne is the air dodge.
 			if (!IsOnFloor()) return TryStartAirDodge();
 			float input = GetHorizontalInput();
@@ -4080,9 +4992,10 @@ namespace FTT.Characters {
 
 		private void PerformJump() {
 			var vel = Velocity;
-			vel.Y = -EffectiveJumpForce * StatusJumpMultiplier * 54f;
+			vel.Y = -FTT.Core.StoryAirPhysics.JumpLaunchSpeed(EffectiveJumpForce * StatusJumpMultiplier);
 			Velocity = vel;
 			RemainingJumps--;
+			JumpedThisAirtime = true;
 			_coyoteTimer = 0;
 			TransitionTo(CharacterState.Airborne);
 		}
@@ -4100,29 +5013,47 @@ namespace FTT.Characters {
 				return TryStartGrab();
 			}
 			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack)) {
-				_attackStartedAerial = !IsOnFloor() || CurrentState == CharacterState.Airborne;
-				_attackStartedCrouched = CurrentState == CharacterState.Crouching;
-				// Gameplay feel §2.8 — one shared selection rule with the Fighter
-				// simulation. Up wins; airborne Down is the down-air; grounded
-				// Down (including the Crouching state) is the normal string.
-				_attackVariant = FTT.Combat.BasicComboRules.SelectAttackVariant(
+				StartBasicSwing(
 					upHeld: CurrentInputFrame.Vertical < FTT.Combat.BasicComboRules.StoryUpInputThreshold,
-					downHeld: CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Down),
-					airborne: _attackStartedAerial);
-				if (_attackStartedAerial) {
-					AerialComboCounter = 0;
-					GroundComboCounter = 0;
-				} else {
-					GroundComboCounter = 0;
-				}
-				ComboCounter = 0;
-				StartComboHit();
+					downHeld: CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Down));
 				return true;
 			}
 			return false;
 		}
 
+		/// <summary>
+		/// Starts a fresh basic swing — hit 1 of the string, the Up-Attack or the
+		/// Down-Air, chosen from <paramref name="upHeld"/> / <paramref name="downHeld"/>
+		/// and whether the swing starts in the air — resetting the combo counters
+		/// and entering <see cref="StartComboHit"/>, which arms the swing lockout.
+		/// Shared by <see cref="CheckAttackInput"/> and the D3 recovery cancel.
+		/// </summary>
+		private void StartBasicSwing(bool upHeld, bool downHeld) {
+			_attackStartedAerial = !IsOnFloor() || CurrentState == CharacterState.Airborne;
+			_attackStartedCrouched = CurrentState == CharacterState.Crouching;
+			// Gameplay feel §2.8 — one shared selection rule with the Fighter
+			// simulation. Up wins; airborne Down is the down-air; grounded
+			// Down (including the Crouching state) is the normal string.
+			_attackVariant = FTT.Combat.BasicComboRules.SelectAttackVariant(
+				upHeld: upHeld,
+				downHeld: downHeld,
+				airborne: _attackStartedAerial);
+			if (_attackStartedAerial) {
+				AerialComboCounter = 0;
+				GroundComboCounter = 0;
+			} else {
+				GroundComboCounter = 0;
+			}
+			ComboCounter = 0;
+			StartComboHit();
+		}
+
 		private void StartComboHit() {
+			// Every swing start (each chain hit, the up-attack, the down-air)
+			// locks specials and the Ultimate; the swing itself is never refused.
+			// D1 (2026-10-11): it also clears the landed latch, so Specials wait
+			// for THIS swing to land (or for the full lockout).
+			ArmSwingLockout();
 			int comboIdx = GetActiveComboIndex();
 			ComboCounter = comboIdx;
 			_attackFramesRemaining = GetActiveComboTimeline().TotalFrames;
@@ -4204,11 +5135,6 @@ namespace FTT.Characters {
 				_meleeHitbox.ComboMarkFrames = finisher ? FinisherConductiveMarkFrames() : 0;
 			}
 
-			if (_aerialHitboxMarker != null && _attackStartedAerial) {
-				Vector2 offset = AerialComboHitboxOffsets[comboIdx];
-				_aerialHitboxMarker.Position = new Vector2(IsFacingRight ? offset.X : -offset.X, offset.Y);
-			}
-
 			TransitionTo(CharacterState.Attacking);
 			// F2: every chain hit runs on the physics frame clock (ProcessAttacking)
 			// — template and authored-profile startups alike. F1: the sheet is
@@ -4272,34 +5198,34 @@ namespace FTT.Characters {
 			int comboIdx = GetActiveComboIndex();
 			bool directional = _attackVariant != FTT.Combat.BasicComboRules.VariantChain;
 			bool upAttack = _attackVariant == FTT.Combat.BasicComboRules.VariantUpAttack;
-			// Reach = template pixels x the authored V7.1 profile scale (chain
-			// hits only; directional strikes stay universal) x the Story-only
-			// AttackRange Resonance minor.
-			Vector2 profileScale = directional
-				? Vector2.One
-				: new Vector2(
-					_stringProfile.ReachWidthPercent / 100f,
-					_stringProfile.ReachHeightPercent / 100f);
-			Vector2 hitboxSize = (directional
-				? (upAttack ? UpAttackHitboxSize : DownAirHitboxSize)
-				: _attackStartedAerial
-					? AerialComboHitboxSizes[comboIdx]
-					: ComboHitboxSizes[comboIdx]) * profileScale * StoryAttackRangeMultiplier;
-			Vector2 hitboxOffset = directional
-				? (upAttack ? UpAttackHitboxOffset : DownAirHitboxOffset)
-				: _attackStartedAerial
-					? (_aerialHitboxMarker?.Position ?? AerialComboHitboxOffsets[comboIdx])
-					: ComboHitboxOffsets[comboIdx];
-			float facingMul = IsFacingRight ? 1f : -1f;
+			// Reach = the box x the authored V7.1 profile scale (chain hits
+			// only; directional strikes stay universal) x the Story-only
+			// AttackRange Resonance minor. On a chain box the profile width and
+			// the minor both scale the width AND the forward offset, so a longer
+			// reach moves the far edge by the full percentage instead of growing
+			// the box backward through the fighter (ledger FIX-REACH-MINOR-FORWARD).
 			// The directional boxes are centred on the fighter, so facing does
-			// not mirror them (their X offset is zero by construction). Chain
-			// offsets scale with the profile width so a wider box extends the
-			// front edge instead of growing backward through the fighter.
-			Vector2 resolvedOffset = directional
-				? hitboxOffset
-				: _attackStartedAerial
-					? new Vector2(hitboxOffset.X * profileScale.X, hitboxOffset.Y)
-					: new Vector2(hitboxOffset.X * profileScale.X * facingMul, hitboxOffset.Y);
+			// not mirror them (their X offset is zero by construction) and the
+			// minor grows them about their centre.
+			float reach = StoryAttackRangeMultiplier;
+			Vector2 hitboxSize;
+			Vector2 resolvedOffset;
+			if (directional) {
+				hitboxSize = (upAttack ? UpAttackHitboxSize : DownAirHitboxSize) * reach;
+				resolvedOffset = upAttack ? UpAttackHitboxOffset : DownAirHitboxOffset;
+			} else if (_attackStartedAerial) {
+				// D6b: the grounded x-span (front-only) with Story's aerial
+				// vertical span. Facing is read here, at active start, like the
+				// grounded box (design :1046), so a hero who turned during the
+				// aerial startup strikes in front of its new facing.
+				ResolveAerialStringBoxPixels(
+					comboIdx, _stringProfile, reach, out hitboxSize, out Vector2 aerialOffset);
+				resolvedOffset = new Vector2(IsFacingRight ? aerialOffset.X : -aerialOffset.X, aerialOffset.Y);
+			} else {
+				ResolveGroundStringBoxPixels(
+					comboIdx, _stringProfile, reach, out hitboxSize, out Vector2 groundOffset);
+				resolvedOffset = new Vector2(IsFacingRight ? groundOffset.X : -groundOffset.X, groundOffset.Y);
+			}
 
 			if (_meleeHitbox?.GetChildCount() > 0 && _meleeHitbox.GetChild(0) is CollisionShape2D hitShape) {
 				if (hitShape.Shape is RectangleShape2D rectShape) rectShape.Size = hitboxSize;
@@ -4398,12 +5324,27 @@ namespace FTT.Characters {
 				}
 				return false;
 			}
+			// A meter-paid Ultimate held back only by the lockout claims this
+			// tick (CheckUltimateInput is always polled first, and it raised
+			// the Ultimate's "not yet" flash, so no Special flashes beside it).
+			if (_ultimateHeldBackThisTick) return false;
+			// Ability lockout, D1 gate (2026-10-11): once the current swing has
+			// landed only the Special-sourced lockout S refuses; otherwise the
+			// whole lockout A. Nothing is spent or buffered. This is the
+			// Specials' lockout refusal point: a ready slot's press raises the
+			// D10 "not yet" flash.
+			if (FTT.Combat.BasicComboRules.IsSpecialLocked(
+				_abilityLockoutFrames, _specialLockoutFrames, _swingLanded)) {
+				ReportReadySpecialRefusals();
+				return false;
+			}
 			// Package 11 A5 gate: a Dormant slot is refused outright. Cooldowns
 			// are irrelevant — the ability has never been cast.
 			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Special1)
 				&& IsAbilityUnlocked(FTT.Core.AbilitySlot.Special1)
 				&& SpecialOneCooldownTimer <= 0) {
 				if (_special1 != null && _special1.TryExecute()) {
+					ArmAbilityLockout();
 					_pendingSpecialSlot = 1;
 					_specialStartedAerial = !IsOnFloor();
 					ShowAttackPose("special_1", FTT.Combat.AttackPoseRules.WindUpPose);
@@ -4416,6 +5357,7 @@ namespace FTT.Characters {
 				&& IsAbilityUnlocked(FTT.Core.AbilitySlot.Special2)
 				&& SpecialTwoCooldownTimer <= 0) {
 				if (_special2 != null && _special2.TryExecute()) {
+					ArmAbilityLockout();
 					_pendingSpecialSlot = 2;
 					_specialStartedAerial = !IsOnFloor();
 					ShowAttackPose("special_2", FTT.Combat.AttackPoseRules.WindUpPose);
@@ -4444,7 +5386,22 @@ namespace FTT.Characters {
 			// Level 4's dampening beams need it from Level 0) — only the cast is.
 			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Ultimate)
 				&& IsAbilityUnlocked(FTT.Core.AbilitySlot.Ultimate)) {
-				bool meterReady = _ultimateMeter != null ? _ultimateMeter.IsFull : CurrentUltimateMeter >= 100f;
+				bool meterReady = _ultimateMeter != null
+					? _ultimateMeter.IsFull
+					: CurrentUltimateMeter >= FTT.Combat.InfluenceMeterRules.MaxValue;
+				if (meterReady && _ultimate != null
+					&& FTT.Combat.BasicComboRules.IsAbilityLocked(_abilityLockoutFrames)) {
+					// Ability lockout: the Ultimate waits it out (D1 never opens
+					// it); the meter is untouched. A meter-paid press held back
+					// ONLY by the lockout still claims the tick from Special 1 and
+					// Special 2 (PROVISIONAL-HIT-CONFIRM-RULES (4)), so the LB+RB
+					// chord cannot cast its Special 2 inside a hit-confirm. This is
+					// the Ultimate's lockout refusal point: it raises the D10 "not
+					// yet" flash for the Ultimate alone.
+					_ultimateHeldBackThisTick = true;
+					ReportLockoutRefusal(FTT.Core.AbilitySlot.Ultimate);
+					return false;
+				}
 				if (meterReady && _ultimate != null) {
 					// A02 (Package 13 W6): the Mirror Paradox clone plays the
 					// Fighter version — an avoidable activation strike first.
@@ -4646,6 +5603,9 @@ namespace FTT.Characters {
 
 		/// <summary>Shared tail of both ultimate cast paths.</summary>
 		private void BeginUltimateCast() {
+			// Acceptance arms the ability lockout (the activation strike's
+			// hand-off to the real Ultimate is the same cast and never re-arms).
+			ArmAbilityLockout();
 			_ultimateStartedAerial = !IsOnFloor();
 			ShowAttackPose("ultimate", FTT.Combat.AttackPoseRules.WindUpPose);
 			TransitionTo(CharacterState.UsingUltimate);
@@ -4681,6 +5641,16 @@ namespace FTT.Characters {
 			// Package 11 A5 gate.
 			if (!IsAbilityUnlocked(FTT.Core.AbilitySlot.MovementAbility)) return false;
 			if (!CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.MovementAbility)) return false;
+			return TryStartMovementAbilityCast();
+		}
+
+		/// <summary>
+		/// Casts the movement ability from a press the caller has already read
+		/// and gated (Time Freeze, Root, Suppression, the Legacy unlock). The
+		/// cooldown and its bypass are checked here. Shared by
+		/// <see cref="CheckMovementAbilityInput"/> and the D3 recovery cancel.
+		/// </summary>
+		private bool TryStartMovementAbilityCast() {
 			// Package 12 W4: a movement ability may authorize one cast while its
 			// cooldown runs (Mozart's banked Extra Note charge; Pocahontas's
 			// Second Glide left with her in Package 13). The allowance is
@@ -4932,7 +5902,8 @@ namespace FTT.Characters {
 			// Story-only CooldownReduction minors shorten every ability cooldown by
 			// ticking the shared timers faster; abilities keep assigning the
 			// authored CooldownDuration so the .tres numbers stay canonical.
-			float cooldownDt = dt / Mathf.Max(0.05f, StoryCooldownMultiplier);
+			float cooldownDt = dt / Mathf.Max(
+				FTT.Environment.ResonanceProgression.MinimumCooldownMultiplier, StoryCooldownMultiplier);
 			if (SpecialOneCooldownTimer > 0) SpecialOneCooldownTimer -= cooldownDt;
 			if (SpecialTwoCooldownTimer > 0) SpecialTwoCooldownTimer -= cooldownDt;
 			if (MovementAbilityCooldownTimer > 0) MovementAbilityCooldownTimer -= cooldownDt;
@@ -4948,10 +5919,13 @@ namespace FTT.Characters {
 		/// <summary>
 		/// Rally damage-taken meter earned but not yet credited: the echo portion
 		/// of a hit accrues meter only as it drains (no double-earning), so the
-		/// live pool is exactly the outstanding meter record.
+		/// live pool is exactly the outstanding meter record. It is measured at the
+		/// hero's own <see cref="StoryMeterGainFactor"/>, the rate the drain would
+		/// have credited (in the hero's scaled meter units: D5's Story scale on the
+		/// campaign hero), so the load-time settlement adds it back unscaled.
 		/// </summary>
 		public float RallyUncreditedMeter =>
-			MathF.Max(0f, _echoPool) * FTT.Combat.UltimateMeter.PointsPerDamageTaken;
+			FTT.Combat.InfluenceMeterRules.GainFromDamageTaken(_echoPool, StoryMeterGainFactor);
 
 		/// <summary>Writes this hero's continuous resources into <paramref name="timers"/>.</summary>
 		public void CaptureStoryResourceTimers(FTT.Core.StoryPlayerResourceTimers timers) {
@@ -5100,6 +6074,10 @@ namespace FTT.Characters {
 			_ledgeGrabsThisAirtime++;
 			// A03 (Package 13 W1): a ledge grab refreshes the air dodge.
 			_airDodgeUsed = false;
+			// 2026-10-08: a grab ends the airtime the apex hang reads (the sim's
+			// grab refills its jumps), so a drop from here gets no hang; only a
+			// jump-off sets it again. Story's jump budget is not refilled.
+			JumpedThisAirtime = false;
 			_activeLedge = ledge;
 			GlobalPosition = ledge.HangPosition;
 			IsFacingRight = ledge.StageIsToRight;
@@ -5279,21 +6257,28 @@ namespace FTT.Characters {
 		}
 
 		/// <summary>
-		/// The <c>tesla_conductive_hold</c> Resonance node (Story-only) extends
-		/// the finisher's mark from 1.5 s to 2.5 s. A4 authors the node; the
-		/// scaling is read here, at the application site — the cross-mode
-		/// <see cref="FTT.Combat.BasicComboRules"/> constant is never edited for a
-		/// Story perk. Linked coil-fence marks are deliberately NOT extended.
+		/// The Conductive frames this character's finisher applies; 0 when it
+		/// applies none. The Story-only <c>tesla_conductive_hold</c> Resonance
+		/// node (Minor Conductive Hold) extends the finisher's mark from 1.5 s to
+		/// 2.5 s through its one ability-scoped lane, <c>AbilityDuration</c> on
+		/// <see cref="FTT.Environment.ResonanceStatKeys.ConductiveFinisherMarkScope"/>
+		/// (+66.7%: 90 frames x 1.667 = 150, which is
+		/// <see cref="FTT.Combat.BasicComboRules.ConductiveMarkUpgradedFrames"/>).
+		/// The lane is read once, here at the application site — the cross-mode
+		/// <see cref="FTT.Combat.BasicComboRules"/> table is never edited for a
+		/// Story node, and the empty Fighter-side lanes read neutral. The node
+		/// used to carry a <c>conductive_hold</c> perk key as well, which the
+		/// misspelled <c>tesla_conductive_hold</c> perk check here never matched,
+		/// so the bought node did nothing; the perk key is gone and the lane is
+		/// the only source. Linked coil-fence marks are deliberately NOT extended.
 		/// </summary>
-		public const string ConductiveHoldPerkKey = "tesla_conductive_hold";
-
-		/// <summary>The Conductive frames this character's finisher applies; 0 when it applies none.</summary>
 		public int FinisherConductiveMarkFrames() {
 			int frames = _stringProfile.FinisherMarkFrames;
 			if (frames <= 0) return 0;
-			return HasStoryPerk(ConductiveHoldPerkKey)
-				? FTT.Combat.BasicComboRules.ConductiveMarkUpgradedFrames
-				: frames;
+			float scale = StoryScoped(
+				FTT.Environment.ResonanceStatKeys.AbilityDuration,
+				FTT.Environment.ResonanceStatKeys.ConductiveFinisherMarkScope);
+			return Math.Max(frames, Mathf.RoundToInt(frames * scale));
 		}
 
 		// === Package 11 A7a (V7.6 F14): the non-damaging block entry point ====

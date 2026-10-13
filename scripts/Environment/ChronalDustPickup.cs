@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using FTT.Core;
 
@@ -24,8 +25,10 @@ namespace FTT.Environment {
         /// </summary>
         public string SourceID = "";
 
-        /// <summary>Boss/extractor awards never expire — a milestone payout
-        /// must not be lost to the 10 s kill-drop timer.</summary>
+        /// <summary>Boss / extractor / secret awards have no timer — a
+        /// milestone payout waits on the ground until it is collected or the
+        /// level's completion settles it. A mob pickup's timer collects it
+        /// (D12, <c>USER-DUST-NEVER-EXPIRES</c>).</summary>
         public bool NeverExpires;
 
         /// <summary>Forces the Large visual tier regardless of amount (the
@@ -35,8 +38,23 @@ namespace FTT.Environment {
 
         private const float MagnetRadius = 150f;
         private const float MagnetSpeed = 900f;
-        private const float ExpirationTime = 10f;
-        private float _lifetime;
+        /// <summary>
+        /// A mob pickup that reaches this timer collects itself — claim, wallet
+        /// and attribution, exactly as a touched pickup does (user direction
+        /// D12, <c>USER-DUST-NEVER-EXPIRES</c>). It used to vanish here unpaid,
+        /// which made the authored 720 / 1,000 totals unreachable.
+        /// </summary>
+        private const float AutoCollectSeconds = 10f;
+        // Field-initialized so a hand-instantiated pickup that never went
+        // through OnSpawn cannot auto-collect on its first tick.
+        private float _lifetime = AutoCollectSeconds;
+        private bool _collected;
+
+        /// <summary>
+        /// True from the first <see cref="Collect"/> until the next pool spawn.
+        /// Test seam, and the completion settle's filter.
+        /// </summary>
+        public bool IsCollected => _collected;
         private FTT.Characters.PlayerController _magnetTarget;
         private Sprite2D _visual;
         private Sprite2D _glow;
@@ -70,12 +88,17 @@ namespace FTT.Environment {
         }
 
         public void OnSpawn() {
-            _lifetime = ExpirationTime;
+            _lifetime = AutoCollectSeconds;
+            _collected = false;
             _magnetTarget = null;
             _glowTimer = 0f;
         }
 
         public void OnDespawn() {
+            // _collected deliberately survives until the next spawn: a stray
+            // tick or Collect() on a parked (or deferred-release) node pays nothing.
+            _lifetime = AutoCollectSeconds;
+            _timeFrozen = false;
             _magnetTarget = null;
             DustAmount = 1;
             Rotation = 0f;
@@ -88,11 +111,13 @@ namespace FTT.Environment {
         }
 
         public override void _PhysicsProcess(double delta) {
+            if (_collected) return;
             if (_timeFrozen) return;
             float dt = (float)delta;
             if (!NeverExpires) {
                 _lifetime -= dt;
-                if (_lifetime <= 0) { ReturnToPool(); return; }
+                // D12: the timer collects, it no longer discards.
+                if (_lifetime <= 0) { Collect(); return; }
             }
 
             if (_magnetTarget == null) {
@@ -129,8 +154,19 @@ namespace FTT.Environment {
         /// then the attribution payload for the itemized results, then returns
         /// to the pool. Public so tests and scripted collections can resolve a
         /// pickup without simulating the magnet.
+        ///
+        /// <para>D12: idempotent — a second call on a collected or parked
+        /// pickup pays nothing. Once the owning level has completed, the
+        /// pickup releases <b>unpaid</b>: the completion has already deposited
+        /// the wallet and re-keyed the reward directory, so a payment now would
+        /// leak into the next level's bank (<c>PROVISIONAL-DUST-SETTLE-RULES</c>).</para>
         /// </summary>
         public void Collect() {
+            if (_collected) return;
+            _collected = true;
+            // D12 (PROVISIONAL-DUST-SETTLE-RULES (3)): completion has deposited
+            // the wallet and re-keyed the reward directory; nothing pays after it.
+            if (LevelManager.IsLevelCompleteFor(this)) { ReturnToPool(); return; }
             // Package 11 A10 (F05): the claim commits HERE, with the wallet
             // increment, never at the kill. A pickup left on the ground keeps
             // its source spawned-but-uncollected, so a reload that discards the
@@ -147,6 +183,40 @@ namespace FTT.Environment {
             // those cues instead of marking a pickup.
             EnvironmentAudioCues.PlayPickup(1.35f);
             ReturnToPool();
+        }
+
+        /// <summary>
+        /// D12: settles every live dust pickup under <paramref name="root"/> into
+        /// the wallet through <see cref="Collect"/> (claim + wallet +
+        /// attribution), returning the total paid. Every source is settled — a
+        /// mob drop still on its timer and, per the 2026-10-11 addendum, a boss,
+        /// Extractor or Secret award left on the ground at the seal
+        /// (<c>PROVISIONAL-DUST-SETTLE-RULES</c> (2)). Called by
+        /// <see cref="LevelManager.CompleteLevel"/> <b>before</b> it sets
+        /// <see cref="LevelManager.IsComplete"/>, so these collections still pay.
+        /// Pool-parked pickups are skipped (they are Disabled).
+        /// </summary>
+        public static int SettleOutstandingDust(Node root) {
+            if (root == null || !GodotObject.IsInstanceValid(root) || !root.IsInsideTree()) return 0;
+            var live = new List<ChronalDustPickup>();
+            Godot.Collections.Array<Node> members = root.GetTree().GetNodesInGroup("chronal_dust");
+            using (members.AsDisposable()) {
+                foreach (Node node in members) {
+                    if (node is ChronalDustPickup pickup && GodotObject.IsInstanceValid(pickup)
+                        && pickup.IsInsideTree() && !pickup.IsQueuedForDeletion()
+                        && pickup.ProcessMode != ProcessModeEnum.Disabled
+                        && !pickup.IsCollected && root.IsAncestorOf(pickup)) {
+                        live.Add(pickup);
+                    }
+                }
+            }
+            // The list is built first: Collect releases the node to its pool.
+            int paid = 0;
+            foreach (ChronalDustPickup pickup in live) {
+                paid += pickup.DustAmount;
+                pickup.Collect();
+            }
+            return paid;
         }
 
         private void ApplyVisualTier() {

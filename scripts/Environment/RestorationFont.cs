@@ -18,9 +18,20 @@ namespace FTT.Environment {
     /// level entry. The glow dims per use, dark when spent.
     ///
     /// Pair with an <see cref="InteractionArea"/> child pointing at this node,
-    /// exactly like every other interactable.
+    /// exactly like every other interactable; <see cref="Create"/> builds the
+    /// whole wellspring (D13, 2026-10-11: one is placed in every campaign level,
+    /// design :2131-2132, ledger <c>PROVISIONAL-FONT-PLACEMENT</c>).
+    ///
+    /// F10 (STORY_PERSISTENCE :65-66, :77): a completed channel commits its use
+    /// and its pending heal together through
+    /// <see cref="StoryManager.CommitFontChannelCompletion"/>, every paid tick
+    /// credits it, and the channeler's death cancels the remainder without
+    /// refunding the use.
     /// </summary>
     public partial class RestorationFont : Node2D, IInteractable, IStoryTimeFreezable {
+        /// <summary>Every placed font joins this group (content tests, Collapse Tremor safe zones).</summary>
+        public const string Group = "restoration_font";
+
         [Export] public string FontID = "font";
 
         /// <summary>
@@ -36,6 +47,19 @@ namespace FTT.Environment {
         /// <summary>The completed channel restores HP over this window.</summary>
         public const float RestoreSeconds = 2.0f;
 
+        /// <summary>
+        /// Scene wiring: true once the level is complete (D13,
+        /// <c>PROVISIONAL-FONT-PLACEMENT</c>) — completion re-keys the use
+        /// registry to the next level, so a spent font would otherwise read
+        /// fresh and commit into the next attempt. A channel running when it
+        /// turns true is interrupted with a refund; a paid restore completes.
+        /// Null = never refuses.
+        /// </summary>
+        public System.Func<bool> RefusesWhile { get; set; }
+
+        private static readonly Color StoneColor = new(0.56f, 0.55f, 0.58f);
+        private static readonly Color CrackColor = new(0.24f, 0.23f, 0.26f);
+
         private bool _channeling;
         private float _channelElapsed;
         private PlayerController _channeler;
@@ -47,9 +71,18 @@ namespace FTT.Environment {
         private int _restoreTotalRemaining;
 
         private Node2D _glow;
+        private InteractionArea _interaction;
+        private FTT.UI.RadialProgress _channelRadial;
 
         /// <summary>True while a channel is running. Test seam.</summary>
         public bool IsChanneling => _channeling;
+
+        /// <summary>The channel's progress, 0..1; 0 when no channel runs. Test seam.</summary>
+        public float ChannelProgress =>
+            _channeling ? Mathf.Clamp(_channelElapsed / ChannelSeconds, 0f, 1f) : 0f;
+
+        /// <summary>The channel display (the <see cref="ResonanceHoldNode"/> precedent), or null when not built. Test seam.</summary>
+        public FTT.UI.RadialProgress ChannelRadial => _channelRadial;
 
         /// <summary>Uses left at the current difficulty. Test seam.</summary>
         public int UsesRemaining {
@@ -67,8 +100,15 @@ namespace FTT.Environment {
         public string InteractionID => $"restoration_font_{FontID}";
         public string PromptKey => "font_channel_prompt";
 
+        /// <summary>
+        /// D13 (<c>PROVISIONAL-FONT-PLACEMENT</c>): refuses while its own restore
+        /// runs (a second Easy use waits for the first to land instead of
+        /// overwriting it) and while <see cref="RefusesWhile"/> says so. There
+        /// is deliberately no boss-fight refusal.
+        /// </summary>
         public bool CanInteract(PlayerController player) =>
-            !_channeling && UsesRemaining > 0 && player != null
+            !_channeling && _restoreRemainingSeconds <= 0f && !(RefusesWhile?.Invoke() ?? false)
+            && UsesRemaining > 0 && player != null
             && player.CurrentState != CharacterState.Dead;
 
         public void Interact(PlayerController player) {
@@ -79,13 +119,93 @@ namespace FTT.Environment {
             _hpBaseline = player.CurrentHP;
         }
 
+        /// <summary>
+        /// Builds a complete wellspring at <paramref name="position"/> (the
+        /// floor top under it): a placeholder cracked-hourglass body, the gold
+        /// <c>Glow</c> that dims per use, the <c>ChannelRadial</c>, and an
+        /// <see cref="InteractionArea"/> with its prompt label (the
+        /// <see cref="WardenBeacon"/> pattern).
+        /// </summary>
+        public static RestorationFont Create(string fontID, Vector2 position) {
+            var font = new RestorationFont {
+                Name = $"RestorationFont_{(fontID ?? "font").Replace('.', '_')}",
+                FontID = fontID ?? "font",
+                Position = position
+            };
+            font.AddChild(new Polygon2D {
+                Name = "Visual",
+                Polygon = new[] {
+                    new Vector2(-20f, 0f), new Vector2(20f, 0f), new Vector2(20f, -8f),
+                    new Vector2(6f, -45f), new Vector2(20f, -82f), new Vector2(20f, -90f),
+                    new Vector2(-20f, -90f), new Vector2(-20f, -82f), new Vector2(-6f, -45f),
+                    new Vector2(-20f, -8f)
+                },
+                Color = StoneColor
+            });
+            font.AddChild(new Line2D {
+                Name = "Crack",
+                Points = new[] {
+                    new Vector2(12f, -86f), new Vector2(8f, -74f), new Vector2(13f, -66f),
+                    new Vector2(9f, -56f)
+                },
+                Width = 2f,
+                DefaultColor = CrackColor
+            });
+            font.AddChild(new Polygon2D {
+                Name = "Glow",
+                Polygon = new[] {
+                    new Vector2(-13f, -8f), new Vector2(13f, -8f), new Vector2(0f, -36f)
+                },
+                Color = FTT.UI.UIPalette.ResonanceAura
+            });
+            Color fill = FTT.UI.UIPalette.ResonanceAura;
+            fill.A = 1f;
+            font.AddChild(new FTT.UI.RadialProgress {
+                Name = "ChannelRadial",
+                Size = new Vector2(36f, 36f),
+                Position = new Vector2(-18f, -164f),
+                Thickness = 4f,
+                Fraction = 0f,
+                FillColor = fill,
+                Visible = false
+            });
+            var area = new InteractionArea {
+                Name = "InteractionArea",
+                TargetPath = "..",
+                PromptLabelPath = "Prompt"
+            };
+            area.AddChild(new CollisionShape2D {
+                Shape = new RectangleShape2D { Size = new Vector2(110f, 150f) },
+                Position = new Vector2(0f, -70f)
+            });
+            area.AddChild(new Label {
+                Name = "Prompt",
+                Text = "",
+                Position = new Vector2(-110f, -122f),
+                CustomMinimumSize = new Vector2(220f, 26f),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Visible = false
+            });
+            font.AddChild(area);
+            return font;
+        }
+
         public override void _Ready() {
             // The font has no natural simulation group, so it joins the generic
             // one the Time Freeze sweep also walks: an in-progress channel must
             // stop (no healing during a freeze).
             AddToGroup(TimeFreezeController.FreezableGroup);
+            AddToGroup(Group);
             _glow = GetNodeOrNull<Node2D>("Glow");
+            _interaction = GetNodeOrNull<InteractionArea>("InteractionArea");
+            _channelRadial = GetNodeOrNull<FTT.UI.RadialProgress>("ChannelRadial");
+            if (EventBus.Instance != null) EventBus.Instance.OnPlayerDied += OnPlayerDied;
             UpdateGlow();
+            ApplyChannelPresentation();
+        }
+
+        public override void _ExitTree() {
+            if (EventBus.Instance != null) EventBus.Instance.OnPlayerDied -= OnPlayerDied;
         }
 
         public override void _PhysicsProcess(double delta) {
@@ -93,6 +213,7 @@ namespace FTT.Environment {
             float dt = (float)delta;
             AdvanceChannel(dt);
             AdvanceRestore(dt);
+            ApplyChannelPresentation();
         }
 
         private void AdvanceChannel(float dt) {
@@ -101,6 +222,13 @@ namespace FTT.Environment {
             if (player == null || !IsInstanceValid(player)
                 || player.CurrentState is CharacterState.Dead or CharacterState.Stunned
                     or CharacterState.Dazed) {
+                InterruptChannel();
+                return;
+            }
+            // D13: the level completed mid-channel — the registry now reads the
+            // next level, so the channel is interrupted (and, as with every
+            // interrupt, the use is refunded by never being spent).
+            if (RefusesWhile?.Invoke() == true) {
                 InterruptChannel();
                 return;
             }
@@ -126,26 +254,27 @@ namespace FTT.Environment {
             _channelElapsed += dt;
             if (_channelElapsed < ChannelSeconds) return;
 
-            // Channel complete: consume the use and start the 2-second restore.
+            // Channel complete: commit the use and the pending heal together
+            // (F10), then start the 2-second restore.
             _channeling = false;
-            StoryManager.Instance?.RecordFontUse(RegistryKey);
+            _channelElapsed = 0f;
             float fraction = StoryDifficultyTuning.GetRestorationFontFraction(
                 StoryDifficultyTuning.CurrentStoryDifficulty);
             int total = StoryDifficultyTuning.ScaleHeal(player.MaximumHP, fraction);
+            StoryManager.Instance?.CommitFontChannelCompletion(RegistryKey, total, RestoreSeconds);
             _restoreRemainingSeconds = RestoreSeconds;
             _restorePerSecond = total / RestoreSeconds;
             _restoreAccumulator = 0f;
             _restoreTotalRemaining = total;
             UpdateGlow();
+            _interaction?.RefreshPrompt();
         }
 
         private void AdvanceRestore(float dt) {
             if (_restoreRemainingSeconds <= 0f) return;
             PlayerController player = _channeler;
             if (player == null || !IsInstanceValid(player) || player.CurrentState == CharacterState.Dead) {
-                _restoreRemainingSeconds = 0f;
-                _restoreTotalRemaining = 0;
-                _channeler = null;
+                CancelRestore();
                 return;
             }
             float step = Mathf.Min(dt, _restoreRemainingSeconds);
@@ -160,14 +289,56 @@ namespace FTT.Environment {
                 _restoreAccumulator -= whole;
                 _restoreTotalRemaining -= whole;
                 player.HealStory(whole);
+                StoryManager.Instance?.CreditPendingHealing(whole);
             }
-            if (_restoreRemainingSeconds <= 0f) _channeler = null;
+            if (_restoreRemainingSeconds <= 0f) {
+                _channeler = null;
+                _interaction?.RefreshPrompt();
+            }
+        }
+
+        /// <summary>
+        /// A death recovery replacing HP cancels the pending heal <b>without</b>
+        /// refunding the use (F10, STORY_PERSISTENCE :77).
+        /// </summary>
+        private void CancelRestore() {
+            _restoreRemainingSeconds = 0f;
+            _restoreTotalRemaining = 0;
+            _restoreAccumulator = 0f;
+            _channeler = null;
+            StoryManager.Instance?.CancelPendingHealingForRecovery();
+            _interaction?.RefreshPrompt();
         }
 
         private void InterruptChannel() {
             _channeling = false;
             _channelElapsed = 0f;
             _channeler = null;
+            _interaction?.RefreshPrompt();
+            ApplyChannelPresentation();
+        }
+
+        /// <summary>
+        /// T01a (design :1507): the channeler's death interrupts a channel (a
+        /// refund) or cancels a running restore (no refund). Event delivery is
+        /// not stopped by the freeze latch, so this runs even while a death
+        /// rewind holds the font — whose own tick would never see <c>Dead</c>.
+        /// </summary>
+        private void OnPlayerDied(int playerIndex) {
+            if (_channeler == null || !IsInstanceValid(_channeler)
+                || _channeler.PlayerIndex != playerIndex) return;
+            if (_channeling) {
+                InterruptChannel();
+                return;
+            }
+            if (_restoreRemainingSeconds > 0f) CancelRestore();
+        }
+
+        /// <summary>The channel radial is written by this font only.</summary>
+        private void ApplyChannelPresentation() {
+            if (_channelRadial == null || !IsInstanceValid(_channelRadial)) return;
+            _channelRadial.Visible = _channeling;
+            _channelRadial.Fraction = ChannelProgress;
         }
 
         /// <summary>Remaining uses read at a glance: dims per use, dark when spent.</summary>

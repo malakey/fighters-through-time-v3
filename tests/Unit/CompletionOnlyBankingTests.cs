@@ -108,6 +108,113 @@ public class CompletionOnlyBankingTests {
         AssertThat(save.DepositedChronalDust[Hero]).IsEqual(50);
     }
 
+    /// <summary>
+    /// RESULTS-DUST-LINES-AFTER-RESET (D12 review fix-up): an Anchor Snap's fee
+    /// and a later voluntary exit fee are both itemised on the results of the
+    /// attempt that paid them. Each is followed by a reload of that attempt
+    /// (the Snap's in-place reconstruction, then a slot load from the main
+    /// menu), and each reload's reset used to zero the in-memory tally; the
+    /// exit fee was never recorded at all. The carried-in figure makes the
+    /// itemisation add up to the bank: 10 earned after the last load + 100
+    /// carried + bonus − 36 lost = 74 + bonus.
+    /// </summary>
+    [TestCase]
+    public void AnAnchorSnapAndAnExitFeeBothReachTheResumedAttemptsResults() {
+        using var scope = new StoryScope();
+        StorySaveData save = scope.Begin(CampaignLevel.ChronalVoid, deposited: 0);
+        StoryManager story = StoryManager.Instance;
+        string levelID = StoryManager.GetLevelID(CampaignLevel.ChronalVoid);
+        story.CollectDust(100);
+
+        // The Snap: 20% fee, then the in-place reload of the same attempt.
+        story.BeginAnchorSnap($"{levelID}_checkpoint_1");
+        AssertThat(story.ChronalDustCollected).IsEqual(80);
+        AssertThat(LevelRewardDirectory.DustLostThisAttempt)
+            .OverrideFailureMessage("The Snap's reload must not zero the fee it just charged.")
+            .IsEqual(20);
+        AssertThat(story.LevelDustCarriedIn).IsEqual(100);
+
+        // Quit to Main Menu: the pause menu charges 20% of the 80 held...
+        int retained = SessionExitGuard.CalculateExitWalletAfterPenalty(80, 80);
+        AssertThat(retained).IsEqual(64);
+        story.CommitOrderlyExit(retained);
+        AssertThat(LevelRewardDirectory.DustLostThisAttempt)
+            .OverrideFailureMessage("The exit fee is a loss on the attempt that paid it.")
+            .IsEqual(36);
+        // ...and loading the slot again routes an Act III attempt straight back
+        // into the level, a resume of the same attempt.
+        story.ResumeCampaign(ScratchSlot, save);
+        AssertThat(story.LastRequestedScenePath).IsEqual(StoryManager.GetLevelScenePath(CampaignLevel.ChronalVoid));
+        AssertThat(story.ChronalDustCollected).IsEqual(64);
+        AssertThat(LevelRewardDirectory.DustLostThisAttempt).IsEqual(36);
+        AssertThat(story.LevelDustCarriedIn).IsEqual(100);
+
+        story.CollectDust(10);
+        EventBus.Instance.RaiseLevelComplete(levelID);
+
+        int bonus = story.LastLevelTierBonusDust;
+        AssertThat(story.LastLevelDustLost).IsEqual(36);
+        AssertThat(story.LastLevelDustCarriedIn).IsEqual(100);
+        AssertThat(story.LastCompletionDepositDust).IsEqual(74 + bonus);
+        AssertThat(10 + story.LastLevelDustCarriedIn + bonus - story.LastLevelDustLost)
+            .OverrideFailureMessage("The itemisation must add up to what the completion banked.")
+            .IsEqual(story.LastCompletionDepositDust);
+        AssertThat(save.DepositedChronalDust[Hero]).IsEqual(74 + bonus);
+    }
+
+    /// <summary>
+    /// The loss tally is keyed by the attempt's GUID: a reload of any other
+    /// attempt (another slot loaded in the same session) never inherits it,
+    /// and a fee charged to another attempt starts the tally over instead of
+    /// adding to it.
+    /// </summary>
+    [TestCase]
+    public void AnotherAttemptNeverInheritsTheLossTally() {
+        using var scope = new StoryScope();
+        StorySaveData save = scope.Begin(CampaignLevel.Orleans, deposited: 0);
+        StoryManager story = StoryManager.Instance;
+        string levelID = StoryManager.GetLevelID(CampaignLevel.Orleans);
+        story.CollectDust(100);
+        story.BeginTimelineCollapse($"{levelID}_checkpoint_1");
+        AssertThat(LevelRewardDirectory.DustLostThisAttempt).IsEqual(20);
+
+        // A different attempt's parked save: the reset zeroes the tally.
+        var otherAttempt = new StorySaveData {
+            SelectedCharacterID = Hero,
+            Difficulty = Difficulty.Normal,
+            CurrentLevelID = StoryManager.GetLevelScenePath(CampaignLevel.Orleans),
+            LastCheckpointID = $"{levelID}_checkpoint_1",
+            AttemptState = StoryAttemptState.CreateFresh(levelID, 0)
+        };
+        AssertThat(otherAttempt.AttemptState.AttemptID).IsNotEqual(save.AttemptState.AttemptID);
+        story.RestoreAttemptStateFromSave(otherAttempt);
+        AssertThat(LevelRewardDirectory.DustLostThisAttempt)
+            .OverrideFailureMessage("A reload of another attempt must not inherit this attempt's loss.")
+            .IsEqual(0);
+
+        // Positive control: the attempt that paid carries its own loss. The
+        // slot is still parked on it, so this load is a resume of it, and its
+        // exit fee is recorded against it.
+        story.SetDust(100);
+        story.BeginLevelRun();
+        AssertThat(LevelRewardDirectory.DustLostThisAttempt).IsEqual(0);
+        story.CommitOrderlyExit(80);
+        AssertThat(LevelRewardDirectory.DustLostThisAttempt).IsEqual(20);
+        string payingAttempt = save.AttemptState.AttemptID;
+        story.RestoreAttemptStateFromSave(save);
+        AssertThat(save.AttemptState.AttemptID).IsEqual(payingAttempt);
+        AssertThat(LevelRewardDirectory.DustLostThisAttempt).IsEqual(20);
+
+        // A fee charged to a different attempt while the tally still holds
+        // this one's (a hub exit after loading another slot) starts it over.
+        story.ResumeCampaign(ScratchSlot, otherAttempt);
+        story.SetDust(50);
+        story.CommitOrderlyExit(40);
+        AssertThat(LevelRewardDirectory.DustLostThisAttempt)
+            .OverrideFailureMessage("Two attempts' losses must never be added together.")
+            .IsEqual(10);
+    }
+
     [TestCase]
     public void TheRepositoryLedgerShowsTheLastBankAndAnyHeldDustAsSeparateLines() {
         AssertThat(HubWorldController.RepositoryLedgerLines(0, 0).Count).IsEqual(0);

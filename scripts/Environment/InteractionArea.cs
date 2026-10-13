@@ -61,7 +61,12 @@ namespace FTT.Environment {
         private void OnBodyEntered(Node2D body) { if (body is PlayerController player) RegisterPlayer(player); }
         private void OnBodyExited(Node2D body) { if (body is PlayerController player) UnregisterPlayer(player); }
 
-        private void RefreshPrompt() {
+        /// <summary>
+        /// Re-reads the target's eligibility into the prompt. Owners whose
+        /// eligibility changes without an enter/exit/interact call this (D13:
+        /// a Restoration Font when a use ends).
+        /// </summary>
+        public void RefreshPrompt() {
             if (_prompt == null) return;
             IInteractable target = GetInteractable();
             bool visible = _availablePlayer != null && target?.CanInteract(_availablePlayer) == true;

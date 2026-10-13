@@ -480,9 +480,11 @@ public class EnemyControllerTests {
                 AssertThat(enemy.CurrentState).IsEqual(EnemyState.Chase);
                 AssertThat(enemy.IsStandOffEngaged).IsTrue();
                 AssertThat(enemy.Velocity.X).IsEqualApprox(0f, 0.001f);
-                // Halted at the engage line (85% of the authored attack range), which
-                // must sit outside pushbox contact distance - the boxes never touch.
-                AssertThat(dist <= enemy.AttackRangePixels * EnemyController.StandOffEngageFraction).IsTrue();
+                // Halted inside its own reach (D6c: the opener commits at the
+                // capped melee line, then the band holds), which must sit outside
+                // pushbox contact distance - the boxes never touch.
+                AssertThat(dist <= enemy.StandOffEngagePixels).IsTrue();
+                AssertThat(dist <= enemy.CommitRangePixels + 0.01f).IsTrue();
                 var enemyPushbox = enemy.GetNode<CombatantPushbox>("Pushbox");
                 var playerPushbox = player.GetNode<CombatantPushbox>("Pushbox");
                 AssertThat(dist > (enemyPushbox.BoxSize.X + playerPushbox.BoxSize.X) * 0.5f).IsTrue();
@@ -526,7 +528,8 @@ public class EnemyControllerTests {
                 // Every follow-up attack launches from inside striking distance but
                 // outside pushbox contact - from the band, not from body overlap.
                 for (int index = 1; index < commitDistances.Count; index++) {
-                    AssertThat(commitDistances[index] <= enemy.AttackRangePixels).IsTrue();
+                    // D6c: inside the capped melee commit line, not the authored range.
+                    AssertThat(commitDistances[index] <= enemy.CommitRangePixels + 0.01f).IsTrue();
                     AssertThat(commitDistances[index] > contact).IsTrue();
                 }
                 AssertThat(player.GlobalPosition).IsEqual(new Vector2(300f, 0f));
@@ -557,13 +560,14 @@ public class EnemyControllerTests {
                 for (int frame = 0; frame < 30; frame++) enemy._PhysicsProcess(Step);
                 float heldX = enemy.GlobalPosition.X;
 
-                // Shuffle the target while staying safely inside the 110% release
-                // line (chrono_slasher range 90 px, release 99 px): the enemy must
-                // not move. The shuffle is computed from the actual settled gap —
-                // the halt position rides the engine's process delta, so a fixed
-                // 25 px sat within noise of the release line and flaked.
+                // Shuffle the target while staying safely inside the release line
+                // (chrono_slasher commits at 60 px and, D6c, releases its band at
+                // ≈ 82 px): the enemy must not move. The shuffle is computed from
+                // the actual settled gap — the halt position rides the engine's
+                // process delta, so a fixed 25 px sat within noise of the release
+                // line and flaked.
                 float settledGap = player.GlobalPosition.X - enemy.GlobalPosition.X;
-                float shuffle = Mathf.Max(5f, enemy.AttackRangePixels * 1.1f - settledGap - 6f);
+                float shuffle = Mathf.Max(5f, enemy.StandOffResumePixels - settledGap - 6f);
                 player.GlobalPosition += new Vector2(shuffle, 0f);
                 for (int frame = 0; frame < 120; frame++) enemy._PhysicsProcess(Step);
                 AssertThat(enemy.IsStandOffEngaged).IsTrue();
@@ -1134,11 +1138,12 @@ public class EnemyControllerTests {
         await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => {
             StaticBody2D floor = CreateStandOffFloor();
             EnemyController enemy = CreateEnemy("chrono_slasher");
-            PlayerController player = CreateTargetPlayer(new Vector2(60f, 0f));
+            PlayerController player = CreateTargetPlayer(new Vector2(50f, 0f));
             try {
                 enemy.GlobalPosition = Vector2.Zero;
-                // Aggro: chrono_slasher's 1.5-unit reach is 90 px, so 60 px is in
-                // range. One frame acquires the target.
+                // Aggro: chrono_slasher's legacy 40 px box at offset 30 reaches
+                // 70 px against the hero, so it commits at 60 px (D6c) and 50 px
+                // is in reach. One frame acquires the target.
                 enemy._PhysicsProcess(Step);
                 AssertThat(enemy.CurrentState == EnemyState.Chase
                         || enemy.CurrentState == EnemyState.Attacking).IsTrue();
@@ -1156,6 +1161,340 @@ public class EnemyControllerTests {
                 player.Free();
                 floor.Free();
                 enemy.Free();
+            }
+        });
+    }
+
+    // === D6c (user direction 2026-10-11): melee mobs stay in range ===
+
+    [TestCase]
+    public async Task AMeleeMobWalksInsideItsOwnHitboxReachBeforeItCommits() {
+        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => {
+            StaticBody2D floor = CreateStandOffFloor();
+            PlayerController player = CreateTargetPlayer(new Vector2(66f, 0f));
+            EnemyController enemy = CreateEnemy("chrono_slasher");
+            try {
+                float contact = (enemy.GetNode<CombatantPushbox>("Pushbox").BoxSize.X
+                    + player.GetNode<CombatantPushbox>("Pushbox").BoxSize.X) * 0.5f;
+                AssertThat(enemy.CommitRangePixels).IsEqualApprox(60f, 0.001f);
+                float commitGap = -1f;
+                for (int frame = 0; frame < 120 && commitGap < 0f; frame++) {
+                    enemy._PhysicsProcess(Step);
+                    if (enemy.CurrentState == EnemyState.Attacking) {
+                        commitGap = player.GlobalPosition.X - enemy.GlobalPosition.X;
+                    }
+                }
+                AssertThat(commitGap > 0f)
+                    .OverrideFailureMessage("The slasher never committed.")
+                    .IsTrue();
+                // Today's 90 px authored range would have committed at 66 px.
+                AssertThat(commitGap <= enemy.CommitRangePixels + 0.01f)
+                    .OverrideFailureMessage($"Committed at {commitGap:F1} px, outside its {enemy.CommitRangePixels:F1} px reach line.")
+                    .IsTrue();
+                AssertThat(commitGap > contact).IsTrue();
+
+                // The swing it throws from there reaches the hero's hurtbox.
+                var hitbox = enemy.GetNode<Hitbox>("Hitbox");
+                int guard = 0;
+                while (enemy.AbilityPhase != EnemyAbilityPhase.Active && guard++ < 120) enemy._PhysicsProcess(Step);
+                AssertThat(enemy.AbilityPhase).IsEqual(EnemyAbilityPhase.Active);
+                float farEdge = hitbox.GlobalPosition.X
+                    + ((RectangleShape2D)hitbox.GetNode<CollisionShape2D>("CollisionShape2D").Shape).Size.X * 0.5f;
+                AssertThat(farEdge + StoryCombatRules.HeroHurtboxWidthPixels / 2f >= player.GlobalPosition.X)
+                    .OverrideFailureMessage($"The box ends at {farEdge:F1}; the hero stands at {player.GlobalPosition.X:F1}.")
+                    .IsTrue();
+            } finally {
+                enemy.Free();
+                player.Free();
+                floor.Free();
+            }
+        });
+    }
+
+    [TestCase]
+    public void AnEliteThrowsItsSignatureAbilityFromItsAuthoredRangeButSwingsItsPrimaryOnlyInReach() {
+        EnemyController elite = CreateEnemy("chrono_guard_elite");
+        try {
+            EnemyAbilityData signature = System.Array.Find(
+                elite.Data.EliteAbilities, ability => ability != null && ability.Archetype != EnemyAbilityArchetype.Teleport);
+            AssertObject(signature).IsNotNull();
+            // At spawn the elite cooldown is up: the next attack is the signature
+            // ability, which keeps the authored striking distance.
+            AssertThat(ReferenceEquals(elite.PreviewNextAttack(), signature)).IsTrue();
+            AssertThat(elite.CommitRangePixels).IsEqualApprox(elite.AttackRangePixels, 0.001f);
+            AssertThat(elite.StandOffEngagePixels)
+                .IsEqualApprox(elite.AttackRangePixels * EnemyController.StandOffEngageFraction, 0.001f);
+            AssertThat(elite.PreviewNextAttack() == elite.PreviewNextAttack()).IsTrue();
+
+            // After it, the primary (temporal_blades, 56 px at offset 36) commits
+            // only inside its own reach: 36 + 28 + 20 - 10 = 74 px.
+            AssertThat(ReferenceEquals(elite.SelectNextAttack(), signature)).IsTrue();
+            AssertThat(ReferenceEquals(elite.PreviewNextAttack(), elite.Data.PrimaryAttack)).IsTrue();
+            AssertThat(elite.CommitRangePixels).IsEqualApprox(74f, 0.001f);
+            AssertThat(elite.PrimaryCommitRangePixels).IsEqualApprox(74f, 0.001f);
+            float speed = elite.Data.MoveSpeed * 60f;
+            float expectedEngage = Mathf.Max(0.85f * 74f, 24f + 18f + 4f + speed * 9f / 120f);
+            AssertThat(elite.StandOffEngagePixels).IsEqualApprox(expectedEngage, 0.01f);
+            AssertThat(elite.StandOffResumePixels).IsEqualApprox(expectedEngage * 1.10f / 0.85f, 0.01f);
+        } finally {
+            elite.Free();
+        }
+    }
+
+    [TestCase]
+    public async Task AStunEndingOutsideTheCappedReachChasesInsteadOfSwinging() {
+        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => {
+            StaticBody2D floor = CreateStandOffFloor();
+            EnemyController enemy = CreateEnemy("chrono_slasher");
+            PlayerController player = CreateTargetPlayer(new Vector2(75f, 0f));
+            try {
+                enemy.GlobalPosition = Vector2.Zero;
+                enemy._PhysicsProcess(Step);
+                AssertThat(enemy.CurrentState).IsEqual(EnemyState.Chase);
+                // A non-launching stun with no knockback: the mob stays at 75 px,
+                // inside today's 90 px range but outside its 60 px reach line.
+                enemy.ApplyStun(0.15f);
+                int guard = 0;
+                while (enemy.CurrentState == EnemyState.Stunned && guard++ < 30) enemy._PhysicsProcess(Step);
+                AssertThat(enemy.CurrentState)
+                    .OverrideFailureMessage("A stun ending outside the capped reach must chase, not swing at air.")
+                    .IsEqual(EnemyState.Chase);
+                AssertThat(enemy.IsGetupArmored).IsTrue();
+            } finally {
+                player.Free();
+                floor.Free();
+                enemy.Free();
+            }
+        });
+    }
+
+    [TestCase]
+    public async Task AStandardsPoiseTripOutOfReachAdvancesArmoredInsteadOfSwingingAtAir() {
+        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => {
+            StaticBody2D floor = CreateStandOffFloor();
+            EnemyController enemy = CreateEnemy("chrono_slasher");
+            PlayerController player = CreateTargetPlayer(new Vector2(110f, 0f));
+            try {
+                enemy.GlobalPosition = Vector2.Zero;
+                enemy._PhysicsProcess(Step);
+                AssertThat(enemy.CurrentState).IsEqual(EnemyState.Chase);
+                for (int stun = 0; stun < 8 && !enemy.IsArmoredRecovery; stun++) enemy.ApplyStun(1.0f, 0f, true);
+                AssertThat(enemy.IsArmoredRecovery).IsTrue();
+                AssertThat(enemy.CurrentState)
+                    .OverrideFailureMessage("The armored answer must advance, not swing from 110 px.")
+                    .IsEqual(EnemyState.Chase);
+                AssertThat(enemy.AbilityPhase).IsEqual(EnemyAbilityPhase.Idle);
+                AssertThat(enemy.ArmoredAnswerOwed).IsTrue();
+
+                int committedAt = -1;
+                bool armoredAtCommit = false;
+                EnemyAbilityPhase phaseAtCommit = EnemyAbilityPhase.Idle;
+                for (int frame = 0; frame < 60 && committedAt < 0; frame++) {
+                    enemy._PhysicsProcess(Step);
+                    if (enemy.CurrentState == EnemyState.Attacking) {
+                        committedAt = frame;
+                        armoredAtCommit = enemy.IsArmoredRecovery;
+                        phaseAtCommit = enemy.AbilityPhase;
+                    }
+                }
+                AssertThat(committedAt >= 0)
+                    .OverrideFailureMessage("The armored mob never committed inside its reach.")
+                    .IsTrue();
+                AssertThat(player.GlobalPosition.X - enemy.GlobalPosition.X <= enemy.CommitRangePixels + 0.01f).IsTrue();
+                // 2026-10-11 review fix: the answer swings the frame it commits —
+                // no fresh reaction delay that outlasts the 0.6 s window — so its
+                // telegraph opens while the mob is still armored.
+                AssertThat(phaseAtCommit)
+                    .OverrideFailureMessage("The answer must begin its swing the frame it commits, not after a reaction delay.")
+                    .IsNotEqual(EnemyAbilityPhase.Idle);
+                AssertThat(armoredAtCommit)
+                    .OverrideFailureMessage($"The answer began on frame {committedAt}, after its armored window.")
+                    .IsTrue();
+                AssertThat(enemy.ArmoredAnswerOwed).IsFalse();
+            } finally {
+                player.Free();
+                floor.Free();
+                enemy.Free();
+            }
+        });
+    }
+
+    [TestCase]
+    public async Task AnOutOfReachArmoredAnswerStillSwingsInsideItsWindowWhileThePrimaryIsOnCooldown() {
+        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => {
+            StaticBody2D floor = CreateStandOffFloor();
+            EnemyController enemy = CreateEnemy("chrono_slasher");
+            PlayerController player = CreateTargetPlayer(new Vector2(110f, 0f));
+            try {
+                enemy.GlobalPosition = Vector2.Zero;
+                enemy._PhysicsProcess(Step);
+                AssertThat(enemy.CurrentState).IsEqual(EnemyState.Chase);
+                // A just-finished swing: the 2.0 s primary cooldown outlasts the
+                // 0.6 s standard window, and V7.4 commits the answer regardless.
+                enemy.SetAttackCooldownForTest(enemy.Data.AttackCooldown);
+                for (int stun = 0; stun < 8 && !enemy.IsArmoredRecovery; stun++) enemy.ApplyStun(1.0f, 0f, true);
+                AssertThat(enemy.IsArmoredRecovery).IsTrue();
+                AssertThat(enemy.ArmoredAnswerOwed).IsTrue();
+                AssertThat(enemy.CurrentState).IsEqual(EnemyState.Chase);
+
+                int committedAt = -1;
+                bool held = false;
+                bool armoredAtCommit = false;
+                EnemyAbilityPhase phaseAtCommit = EnemyAbilityPhase.Idle;
+                float gapAtCommit = 0f;
+                for (int frame = 0; frame < 60 && committedAt < 0; frame++) {
+                    enemy._PhysicsProcess(Step);
+                    if (enemy.IsStandOffEngaged) held = true;
+                    if (enemy.CurrentState == EnemyState.Attacking) {
+                        committedAt = frame;
+                        armoredAtCommit = enemy.IsArmoredRecovery;
+                        phaseAtCommit = enemy.AbilityPhase;
+                        gapAtCommit = player.GlobalPosition.X - enemy.GlobalPosition.X;
+                    }
+                }
+                AssertThat(held)
+                    .OverrideFailureMessage("The armored answer held at its stand-off band on the running cooldown.")
+                    .IsFalse();
+                AssertThat(committedAt >= 0)
+                    .OverrideFailureMessage("The armored answer never committed while the primary's cooldown ran.")
+                    .IsTrue();
+                AssertThat(gapAtCommit > 0f && gapAtCommit <= enemy.PrimaryCommitRangePixels + 0.01f)
+                    .OverrideFailureMessage($"Committed at {gapAtCommit:F1} px, outside its {enemy.PrimaryCommitRangePixels:F1} px reach line.")
+                    .IsTrue();
+                AssertThat(phaseAtCommit).IsNotEqual(EnemyAbilityPhase.Idle);
+                AssertThat(armoredAtCommit)
+                    .OverrideFailureMessage($"The answer began on frame {committedAt}, after its armored window.")
+                    .IsTrue();
+                AssertThat(enemy.ArmoredAnswerOwed).IsFalse();
+            } finally {
+                player.Free();
+                floor.Free();
+                enemy.Free();
+            }
+        });
+    }
+
+    [TestCase]
+    public async Task AnArmoredAnswerTheTargetOutrunsLapsesWithItsWindow() {
+        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => {
+            StaticBody2D floor = CreateStandOffFloor();
+            EnemyController enemy = CreateEnemy("chrono_slasher");
+            // 300 px: a 5 u/s walk covers about 180 px in the 36-frame window,
+            // so the target is still out of reach when it closes.
+            PlayerController player = CreateTargetPlayer(new Vector2(300f, 0f));
+            try {
+                enemy.GlobalPosition = Vector2.Zero;
+                enemy._PhysicsProcess(Step);
+                AssertThat(enemy.CurrentState).IsEqual(EnemyState.Chase);
+                enemy.SetAttackCooldownForTest(enemy.Data.AttackCooldown);
+                for (int stun = 0; stun < 8 && !enemy.IsArmoredRecovery; stun++) enemy.ApplyStun(1.0f, 0f, true);
+                AssertThat(enemy.ArmoredAnswerOwed).IsTrue();
+                float startX = enemy.GlobalPosition.X;
+
+                int guard = 0;
+                while (enemy.IsArmoredRecovery && guard++ < 120) {
+                    enemy._PhysicsProcess(Step);
+                    AssertThat(enemy.CurrentState).IsNotEqual(EnemyState.Attacking);
+                }
+                AssertThat(enemy.IsArmoredRecovery).IsFalse();
+                // It advanced armored the whole window instead of holding.
+                AssertThat(enemy.GlobalPosition.X - startX > 150f)
+                    .OverrideFailureMessage($"The armored mob only advanced {enemy.GlobalPosition.X - startX:F1} px.")
+                    .IsTrue();
+                AssertThat(player.GlobalPosition.X - enemy.GlobalPosition.X > enemy.PrimaryCommitRangePixels).IsTrue();
+                AssertThat(enemy.ArmoredAnswerOwed).IsFalse();
+                AssertThat(enemy.CurrentState).IsEqual(EnemyState.Chase);
+
+                // The debt lapsed with the window: the ordinary rules hold now, so
+                // the running cooldown keeps it out of an attack and in its band.
+                for (int frame = 0; frame < 60; frame++) {
+                    enemy._PhysicsProcess(Step);
+                    AssertThat(enemy.CurrentState)
+                        .OverrideFailureMessage($"Frame {frame} after the window: a lapsed answer still committed.")
+                        .IsNotEqual(EnemyState.Attacking);
+                }
+                AssertThat(enemy.IsStandOffEngaged).IsTrue();
+            } finally {
+                player.Free();
+                floor.Free();
+                enemy.Free();
+            }
+        });
+    }
+
+    [TestCase]
+    public async Task AMeleeMobHoldsBelowAHeroItsBoxCannotReach() {
+        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => {
+            StaticBody2D floor = CreateStandOffFloor();
+            EnemyController enemy = CreateEnemy("chrono_slasher");
+            // 60 px up and 50 px out: today's Euclidean 78 px is inside the
+            // 90 px range, but the legacy box (-45 .. -5) cannot reach a hurtbox
+            // standing on feet 60 px up.
+            PlayerController player = CreateTargetPlayer(new Vector2(50f, -60f));
+            try {
+                enemy.GlobalPosition = Vector2.Zero;
+                for (int frame = 0; frame < 120; frame++) {
+                    enemy._PhysicsProcess(Step);
+                    AssertThat(enemy.CurrentState)
+                        .OverrideFailureMessage($"Frame {frame}: the mob committed at a hero its box cannot reach.")
+                        .IsNotEqual(EnemyState.Attacking);
+                }
+                AssertThat(enemy.CurrentState).IsEqual(EnemyState.Chase);
+                AssertThat(enemy.IsStandOffEngaged).IsTrue();
+                AssertThat(enemy.Velocity.X).IsEqualApprox(0f, 0.001f);
+                AssertThat(enemy.GetNode<CombatantPushbox>("Pushbox")
+                    .GetHorizontalOverlap(player.GetNode<CombatantPushbox>("Pushbox"))).IsEqual(0f);
+            } finally {
+                player.Free();
+                floor.Free();
+                enemy.Free();
+            }
+        });
+    }
+
+    [TestCase]
+    public async Task AHoldingMobRestsOutsidePushboxContactAndInsideItsReachOnEachTier() {
+        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => {
+            foreach (string enemyID in new[] { "chrono_slasher", "cyber_centurion" }) {
+                StaticBody2D floor = CreateStandOffFloor();
+                PlayerController player = CreateTargetPlayer(new Vector2(300f, 0f));
+                EnemyController enemy = CreateEnemy(enemyID);
+                try {
+                    // In memory only: the elite runs its legacy melee primary alone.
+                    enemy.Data.EliteAbilities = null;
+                    enemy.Data.AttackCooldown = 999f;
+                    // The opener: it walks in and commits inside its reach.
+                    int guard = 0;
+                    while (enemy.CurrentState != EnemyState.Attacking && guard++ < 600) enemy._PhysicsProcess(Step);
+                    AssertThat(enemy.CurrentState).IsEqual(EnemyState.Attacking);
+                    guard = 0;
+                    while (enemy.CurrentState == EnemyState.Attacking && guard++ < 600) enemy._PhysicsProcess(Step);
+                    // Cooldown parked: the target steps back, and the mob closes to
+                    // its band and rests there.
+                    player.GlobalPosition += new Vector2(200f, 0f);
+                    guard = 0;
+                    while (!enemy.IsStandOffEngaged && guard++ < 600) enemy._PhysicsProcess(Step);
+                    AssertThat(enemy.IsStandOffEngaged).IsTrue();
+                    for (int frame = 0; frame < 30; frame++) enemy._PhysicsProcess(Step);
+
+                    float gap = player.GlobalPosition.X - enemy.GlobalPosition.X;
+                    var enemyPushbox = enemy.GetNode<CombatantPushbox>("Pushbox");
+                    var playerPushbox = player.GetNode<CombatantPushbox>("Pushbox");
+                    float heroContact = enemyPushbox.BoxSize.X * 0.5f
+                        + BasicComboRules.PushboxWidthUnits * KitMotionRules.StoryPixelsPerUnit / 2f;
+                    AssertThat(enemy.Velocity.X).IsEqualApprox(0f, 0.001f);
+                    AssertThat(enemyPushbox.GetHorizontalOverlap(playerPushbox)).IsEqual(0f);
+                    AssertThat(gap > heroContact)
+                        .OverrideFailureMessage($"{enemyID} rests at {gap:F1} px, inside the hero's {heroContact:F1} px pushbox contact.")
+                        .IsTrue();
+                    AssertThat(gap <= enemy.CommitRangePixels + 0.01f)
+                        .OverrideFailureMessage($"{enemyID} rests at {gap:F1} px, outside its {enemy.CommitRangePixels:F1} px reach line.")
+                        .IsTrue();
+                } finally {
+                    enemy.Free();
+                    player.Free();
+                    floor.Free();
+                }
             }
         });
     }

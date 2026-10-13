@@ -43,7 +43,6 @@ StatModifierKey = "AbilityDuration"
 AbilityScope = "conductive_finisher_mark"
 StatModifierValue = 0.666667
 StatModifierIsPercent = true
-AbilityModifierKey = "conductive_hold"
 Tier = 1
 GatedAbilityID = "special2"
 LayoutPosition = Vector2(0.34, 0.5)

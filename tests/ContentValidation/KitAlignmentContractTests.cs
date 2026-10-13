@@ -19,7 +19,10 @@ namespace FTT.Tests.ContentValidation;
 /// two drifting copies);</item>
 /// <item>every kit script that builds its own <see cref="HitPayload"/> stamps the
 /// authored M08 contract through the one helper and credits off the stamped
-/// payload — no literal <c>collectsEcho</c>/<c>ultimateOrigin</c> left.</item>
+/// payload — no literal <c>collectsEcho</c>/<c>ultimateOrigin</c> left;</item>
+/// <item>(2026-10-11) every kit reads its Story ability-damage multipliers
+/// through the one composition on <see cref="PlayerController"/>, never
+/// directly.</item>
 /// </list>
 /// </summary>
 [TestSuite]
@@ -72,6 +75,71 @@ public class KitAlignmentContractTests {
                 }
             }
         }
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
+    /// <summary>
+    /// 2026-10-11, ledger FIX-STORY-DAMAGE-BUFF-KIT-ROUTING: the Story attacker
+    /// multipliers for ability damage (the SpecialDamage lane, the scoped
+    /// AbilityDamage lane, the item-drop damage buff) compose in ONE place,
+    /// <see cref="PlayerController.StoryAbilityDamage"/> and its build-time half
+    /// <see cref="PlayerController.StoryAbilityHitboxDamage"/>. A kit that read
+    /// one of them directly is how most Specials and Ultimates came to ignore the
+    /// buff; a kit that wrote the whole composition into a Hitbox would apply the
+    /// buff and the lane twice, because the Hitbox adds its contact-time half.
+    /// </summary>
+    [TestCase]
+    public void KitScriptsReadStoryAbilityDamageOnlyThroughTheOneComposition() {
+        var issues = new List<string>();
+        var comment = new Regex(@"(^|\s)//.*$");
+        string[] forbiddenInKits = {
+            nameof(PlayerController.StorySpecialDamageMultiplier),
+            nameof(PlayerController.StoryTemporaryDamageMultiplier),
+            nameof(PlayerController.StoryHitboxContactDamageScale)
+        };
+        var abilityDamageLaneRead = new Regex(@"StoryScoped\(\s*(""AbilityDamage""|(\w+\.)*ResonanceStatKeys\.AbilityDamage\b)");
+        var wholeCompositionIntoHitbox = new Regex(@"(\.Damage\s*=|\.Setup\().*StoryAbilityDamage(Scale)?\(");
+
+        string kitRoot = ProjectSettings.GlobalizePath("res://scripts/Characters/Abilities");
+        foreach (string path in Directory.GetFiles(kitRoot, "*.cs")) {
+            string file = Path.GetFileName(path);
+            string[] lines = File.ReadAllLines(path);
+            for (int index = 0; index < lines.Length; index++) {
+                string code = comment.Replace(lines[index], "");
+                foreach (string token in forbiddenInKits) {
+                    if (code.Contains(token)) {
+                        issues.Add($"{file}:{index + 1} reads {token} directly; use PlayerController.StoryAbilityDamage (or StoryAbilityHitboxDamage for a Hitbox's Damage)");
+                    }
+                }
+                if (abilityDamageLaneRead.IsMatch(code)) {
+                    issues.Add($"{file}:{index + 1} reads the AbilityDamage lane directly; StoryAbilityDamage already applies it");
+                }
+                if (wholeCompositionIntoHitbox.IsMatch(code)) {
+                    issues.Add($"{file}:{index + 1} writes the whole composition into a Hitbox, which adds the buff and the lane again; use StoryAbilityHitboxDamage");
+                }
+            }
+        }
+
+        // Outside the kit the buff has exactly two readers: the composition itself
+        // and the throw, both in PlayerController. A delivery path that read it on
+        // its own would be a second application.
+        string scriptsRoot = ProjectSettings.GlobalizePath("res://scripts");
+        foreach (string path in Directory.GetFiles(scriptsRoot, "*.cs", SearchOption.AllDirectories)) {
+            if (Path.GetFileName(path) == "PlayerController.cs") continue;
+            string[] lines = File.ReadAllLines(path);
+            for (int index = 0; index < lines.Length; index++) {
+                if (comment.Replace(lines[index], "").Contains(nameof(PlayerController.StoryTemporaryDamageMultiplier))) {
+                    issues.Add($"{Path.GetFileName(path)}:{index + 1} applies the item-drop damage buff outside the one composition");
+                }
+            }
+        }
+
+        // And the Hitbox really does add the contact-time half.
+        string hitbox = File.ReadAllText(ProjectSettings.GlobalizePath("res://scripts/Combat/Hitbox.cs"));
+        if (!hitbox.Contains(nameof(PlayerController.StoryHitboxContactDamageScale) + "(")) {
+            issues.Add("Hitbox.cs no longer applies StoryHitboxContactDamageScale, so Hitbox-delivered hits lose the buff and the lane");
+        }
+
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 

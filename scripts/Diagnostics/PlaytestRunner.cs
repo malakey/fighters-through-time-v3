@@ -78,6 +78,19 @@ namespace FTT.Diagnostics {
         /// against the world. Seed 0 = no offset (the classic run).
         /// </summary>
         public int Seed;
+        /// <summary>
+        /// How the Spam and Play bots press Specials (<c>--special-press=gated|confirm</c>,
+        /// spec C §1.4(f)). The run name does not carry it, so batches with
+        /// different policies need different tags.
+        /// </summary>
+        public SpecialPressPolicy SpecialPress = SpecialPressPolicy.Gated;
+        /// <summary>
+        /// D5 A/B (<c>--story-meter-scale=on|off</c>, spec C §4.2 step 5): off clears
+        /// <c>PlayerController.AppliesStoryMeterGainScale</c> on every hero instance,
+        /// so the hero earns meter at its lane alone (the pre-D5 rate for a slotless
+        /// bot, which has no lane). Default on, the shipped rule. Diagnostics only.
+        /// </summary>
+        public bool StoryMeterScale = true;
 
         public static PlaytestOptions Parse(string[] args) {
             var options = new PlaytestOptions();
@@ -104,6 +117,20 @@ namespace FTT.Diagnostics {
                     case "trace-every": options.TraceEvery = Math.Max(1, int.Parse(value)); break;
                     case "debug-ropes": FTT.Diagnostics.NavAgent.DebugRopes = value != "0" && value != "false"; break;
                     case "seed": options.Seed = int.Parse(value); break;
+                    case "special-press":
+                        options.SpecialPress = value.ToLowerInvariant() switch {
+                            "gated" => SpecialPressPolicy.Gated,
+                            "confirm" => SpecialPressPolicy.Confirm,
+                            _ => throw new ArgumentException($"special-press must be gated or confirm, not '{value}'")
+                        };
+                        break;
+                    case "story-meter-scale":
+                        options.StoryMeterScale = value.ToLowerInvariant() switch {
+                            "on" or "1" => true,
+                            "off" or "0" => false,
+                            _ => throw new ArgumentException($"story-meter-scale must be on, off, 1 or 0, not '{value}'")
+                        };
+                        break;
                 }
             }
             if (string.IsNullOrEmpty(options.OutPath)) {
@@ -193,6 +220,7 @@ namespace FTT.Diagnostics {
             _pausedFrames = 0;
 
             ApplyCampaignKitOnce();
+            ApplyStoryMeterScaleOption();
             _world.Tick();
             _telemetry.Tick(tree);
             RouteInteract();
@@ -262,7 +290,7 @@ namespace FTT.Diagnostics {
 
         private void BeginRun(SceneTree tree) {
             _world = new PlaytestWorld(tree);
-            _bot = PlaytestBotFactory.Create(Options.Bot, _world, Options.Level, Options.Enemy);
+            _bot = PlaytestBotFactory.Create(Options.Bot, _world, Options.Level, Options.Enemy, Options.SpecialPress);
             int seconds = Options.MaxSeconds;
             if (seconds <= 0) {
                 // Auto: the level's Timeline Integrity budget on this difficulty
@@ -304,6 +332,23 @@ namespace FTT.Diagnostics {
             _kitApplied = true;
         }
 
+        private ulong _meterScaleHeroId;
+
+        /// <summary>
+        /// <c>--story-meter-scale=off</c> (D5 A/B): an explicit diagnostic write,
+        /// like <see cref="ApplyCampaignKitOnce"/>. Clears the D5 flag on every NEW
+        /// hero instance, so an Anchor Snap rebuild stays unscaled too. Runs before
+        /// the telemetry tick, so the meter tracker never books a scaled tick.
+        /// </summary>
+        private void ApplyStoryMeterScaleOption() {
+            if (Options.StoryMeterScale) return;
+            if (_world.Player is not FTT.Characters.PlayerController hero) return;
+            ulong id = hero.GetInstanceId();
+            if (id == _meterScaleHeroId) return;
+            hero.AppliesStoryMeterGainScale = false;
+            _meterScaleHeroId = id;
+        }
+
         private int _lastRoutedSample = -1;
         public int InteractionsRouted { get; private set; }
 
@@ -337,7 +382,8 @@ namespace FTT.Diagnostics {
             foreach (Node node in areas) {
                 if (node is not FTT.Environment.InteractionArea area || !area.OverlapsBody(hero)) continue;
                 Node owner = area.GetParent();
-                if (owner is FTT.Environment.WardenBeacon or FTT.Environment.PuzzleResetStation) continue;
+                if (owner is FTT.Environment.WardenBeacon or FTT.Environment.PuzzleResetStation
+                    or FTT.Environment.RestorationFont) continue;
                 if (area.TryInteract(hero)) {
                     InteractionsRouted++;
                     _telemetry?.Note("interact", owner?.Name ?? "");
@@ -405,6 +451,8 @@ namespace FTT.Diagnostics {
             _endReason = reason;
             InputManager.Instance?.ClearInputSource(0);
             if (Options.NavDump && _world != null) WriteNavDump("end");
+            // D6d: close open swings, finisher records and pending presses first.
+            _telemetry?.FinishPending();
             _telemetry?.Detach();
             _world?.Detach();
             if (Options.Capture) RenderingServer.FramePostDraw -= OnFramePostDraw;
@@ -423,6 +471,10 @@ namespace FTT.Diagnostics {
                 ["difficulty"] = Options.Difficulty.ToString(),
                 ["end_reason"] = _endReason,
                 ["kit"] = _kitDescription,
+                // C3: --special-press (the run name does not carry it).
+                ["special_press_policy"] = Options.SpecialPress.ToString().ToLowerInvariant(),
+                // C2: --story-meter-scale (D5 on or off for this run).
+                ["story_meter_scale"] = Options.StoryMeterScale,
                 ["interactions"] = InteractionsRouted,
                 ["nav_rebuilds"] = _world?.Nav.Rebuilds ?? 0,
                 ["dialogue_lines_skipped"] = _dialogueLinesAdvanced
@@ -434,6 +486,8 @@ namespace FTT.Diagnostics {
             string json = JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true });
             WriteReport(json);
 
+            Dictionary<string, object> combatSummary = _telemetry?.CombatSummary();
+            if (combatSummary != null) combatSummary["meter_scale"] = Options.StoryMeterScale;
             var summary = new Dictionary<string, object> {
                 ["level"] = report["level"], ["character"] = report["character"], ["bot"] = report["bot"],
                 ["difficulty"] = report["difficulty"], ["end_reason"] = _endReason,
@@ -443,6 +497,11 @@ namespace FTT.Diagnostics {
                 ["boss_defeated"] = (_telemetry?.BossDefeatedFrame ?? -1) >= 0,
                 ["player"] = report.GetValueOrDefault("player"),
                 ["enemy_summary"] = report.GetValueOrDefault("enemy_summary"),
+                // D6d: combat swings, whiff %, median re-approach after a finisher,
+                // Ultimates cast, meter at level start, refused Special presses;
+                // C3: the mob melee whiff % and the Special press policy.
+                // C2: plus the run's D5 meter scale (--story-meter-scale).
+                ["combat"] = combatSummary,
                 ["report"] = ProjectSettings.GlobalizePath(Options.OutPath)
             };
             GD.Print("PLAYTEST_RESULT " + JsonSerializer.Serialize(summary));

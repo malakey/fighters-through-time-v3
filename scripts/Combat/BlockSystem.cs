@@ -67,6 +67,21 @@ namespace FTT.Combat {
             });
         }
 
+        /// <summary>
+        /// grid-live-apply (2026-10-11): a live Resonance re-resolve moved the
+        /// shield's capacity. A higher cap is room the ordinary regen fills —
+        /// never an instant refill — and a lower cap clamps the current charges,
+        /// so a respec and re-buy loop cannot restore a spent shield. The
+        /// shatter lockout, shieldstun and regen progress are untouched.
+        /// </summary>
+        public void SetMaxCharges(int maxCharges) {
+            int capacity = Mathf.Max(0, maxCharges);
+            if (capacity == MaxCharges) return;
+            MaxCharges = capacity;
+            if (CurrentCharges > MaxCharges) CurrentCharges = MaxCharges;
+            RaiseChargesChanged();
+        }
+
         public bool IsBlocking => _isBlocking;
 
         /// <summary>
@@ -233,7 +248,29 @@ namespace FTT.Combat {
 
         /// <summary>Story-only Resonance perk key: teleport backward on guard break.</summary>
         public const string QuantumEntanglementPerkKey = "quantum_entanglement";
-        private const float QuantumEntanglementDistance = 150f;
+        /// <summary>The authored blink distance, before the relocation rule validates the landing.</summary>
+        public const float QuantumEntanglementDistance = 150f;
+
+        /// <summary>How the last Quantum Entanglement blink landed. Test seam.</summary>
+        public RelocationResult LastQuantumEntanglementLanding { get; private set; }
+
+        /// <summary>
+        /// The blink itself: <see cref="QuantumEntanglementDistance"/> backward,
+        /// resolved by <see cref="SafeRelocation"/> against Einstein's own body.
+        /// A refused landing (no floor anywhere short of where he stands) leaves
+        /// him in place; a deferred blink whose owner died or left meanwhile does
+        /// nothing.
+        /// </summary>
+        private void BlinkQuantumEntanglement(float direction) {
+            if (!GodotObject.IsInstanceValid(this) || _owner == null || !GodotObject.IsInstanceValid(_owner)) return;
+            if (_owner.CurrentState == CharacterState.Dead) return;
+            Vector2 origin = _owner.GlobalPosition;
+            Vector2 requested = origin + new Vector2(direction * QuantumEntanglementDistance, 0f);
+            RelocationResult landing = SafeRelocation.Resolve(_owner, origin, requested,
+                SafeRelocation.BodyOf(_owner, needsFloor: true, passesWalls: false));
+            LastQuantumEntanglementLanding = landing;
+            if (!landing.HeldInPlace) _owner.GlobalPosition = landing.Position;
+        }
 
         /// <summary>
         /// The shatter. <paramref name="attackerX"/> is the attacking side's X
@@ -254,8 +291,18 @@ namespace FTT.Combat {
                 // Quantum Entanglement: instead of being shoved, Einstein blinks
                 // backward out of immediate follow-up range.
                 float direction = _owner.IsFacingRight ? -1f : 1f;
-                _owner.GlobalPosition += new Vector2(direction * QuantumEntanglementDistance, 0f);
                 _owner.Velocity = new Vector2(0f, _owner.Velocity.Y);
+                // 2026-10-09: the blink is a direct position write, so it lands
+                // through the shared relocation rule — short of a wall behind him,
+                // never off his floor into a gap. A shatter normally resolves inside
+                // the hit's physics flush, where the space cannot be queried, so the
+                // blink lands on the deferred call right after the flush; a direct
+                // call (scripted depletion, tests) blinks at once.
+                if (FTT.Core.PhysicsCallbackGuard.IsInPhysicsCallback) {
+                    Callable.From(() => BlinkQuantumEntanglement(direction)).CallDeferred();
+                } else {
+                    BlinkQuantumEntanglement(direction);
+                }
             } else {
                 // Low-item decision 2026-09-26 (Package 12 W3): the fixed
                 // (2.0, -1.0) Y-down push, X AWAY FROM THE ATTACKER, unscaled

@@ -31,6 +31,11 @@ recorded in §2.13. Do not re-litigate; do record any *further* deviation in §9
   `ProcessBlocking`). Air ramps (4 accel / 8 decel Story, 4 sim) unchanged.
 - `FighterSimulationTests.GroundRunAcceleratesOverEightFrames` is rewritten for the new
   constants (14-frame ramp to `FP64` 7) and a companion decel assertion added.
+- **Superseded 2026-10-08 (user direction, ledger `USER-MOVEMENT-FEEL`; record retained, do
+  not rewrite):** the run felt sluggish, so `RunAccelerationFrames` is now **6** and
+  `RunDecelerationFrames` **4**, in both modes, counted from the stick (Story's push and
+  release ticks take the first ramp step; the sim rounds its fixed-point step up so every
+  move speed lands on the frame). The −15 % run speeds above and the air ramps are unchanged.
 
 ### 2.2 Jump height −20%
 
@@ -160,6 +165,13 @@ recorded in §2.13. Do not re-litigate; do record any *further* deviation in §9
 - Interactions (locked): drop-through then hold Down = immediate fast drop (intended);
   down-air + fast-fall stack (intended — a falling downward strike); Pocahontas glide and
   other ability floats are NOT modified in this batch beyond the Warp float cancel.
+- **Superseded twice (record retained, do not rewrite).** M01 (Package 12 W3, 2026-09-26)
+  raised the snap to 20 u/s, the sim's terminal. **2026-10-08 (user direction, ledger
+  `USER-MOVEMENT-FEEL`):** the fast-fall was "way too high", so it no longer snaps — Down held
+  while airborne under normal control scales gravity ×3 (`FastFallGravityMultiplier`) until
+  the descent reaches a lower **15** u/s cap (Story 900 px/s), and a released fast-fall eases
+  back to the shared 12 u/s terminal. Still stateless, still cancelling the Warp float, and
+  the down-air still stacks with it.
 
 ### 2.10 Platform drop-through everywhere
 
@@ -427,6 +439,13 @@ minimal geometry change.
    would already be helping by the third hit. The analytic floor of that protocol (both fighters at
    the 0.8 pushbox minimum when the finisher connects) is 2.92 for cleopatra, so the pin has margin
    against A1's reduced move speeds changing where the two fighters meet.
+   **Amended 2026-10-11 (record retained, do not rewrite; ledger `FIX-FINISHER-SEPARATION-BAR`).**
+   The "2-unit melee range" above was retired by the V7.1 reach profiles (Cleopatra's opener
+   already reaches 2.42), so the pin now asserts the larger of this section's 2.5-unit floor and a
+   per-kit bar, the kit's own hit-1 pivot reach plus 0.5. Measured that day with the same
+   protocol: cleopatra 3.19 against 2.92, leonardo 3.71 / 2.84, tesla 3.81 / 2.60, einstein
+   3.95 / 2.76, tubman 4.00 / 2.60, shakespeare 4.22 / 2.68, joan 4.33 / 2.50 (floor), mozart
+   4.42 / 2.68, lincoln 5.11 / 2.50 (floor).
 
 2. **Story finisher knockback Y scaled with the multiplier, not re-derived.** `PlayerController`
    hit three went from `(baseKB * 3, -6)` to `(baseKB * 4.5, -9)` — the same 1.5x the horizontal

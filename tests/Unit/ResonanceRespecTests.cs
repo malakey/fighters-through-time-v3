@@ -129,7 +129,13 @@ public class ResonanceRespecTests {
 
         // Nothing is granted for free: the refunded dust must be spent again
         // through the ordinary evaluator, and the new Act III Major still
-        // needs all three Act II prerequisites.
+        // needs all three Act II prerequisites. A hero parked at Level 11 has
+        // restored every Legacy slot, so the dormant-node gate (live since
+        // 2026-10-11) is not what refuses it.
+        save.UnlockedLegacyAbilities["shakespeare"] = new List<string> {
+            LegacyUnlockSchedule.MovementKey, LegacyUnlockSchedule.SpecialOneKey,
+            LegacyUnlockSchedule.SpecialTwoKey, LegacyUnlockSchedule.UltimateKey
+        };
         ResonanceGridData grid = ResonanceProgression.LoadGrid("shakespeare");
         AssertThat(ResonanceProgression.EvaluateUnlock(grid, save, "shakespeare_macbeths_curse"))
             .IsEqual(ResonanceUnlockResult.MissingPrerequisite);

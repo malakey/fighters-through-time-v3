@@ -57,6 +57,13 @@ namespace FTT.Enemies {
         /// <summary>F7 (FEEL, 2026-10-04): stamped by the firing executor after every Setup; standard-mob shots never launch the Story player.</summary>
         public bool SourceIsStandardMob { get => _hitbox?.SourceIsStandardMob ?? false; set { EnsureNodes(); _hitbox.SourceIsStandardMob = value; } }
 
+        /// <summary>
+        /// D8 (2026-10-11): the firing enemy's instance ID, stamped by the executor
+        /// after every Setup and carried on the shot's payload, so a blocked shot
+        /// opens its shooter's Punish window. 0 = no owner (pool reset in Setup).
+        /// </summary>
+        public ulong SourceActorId { get => _hitbox?.SourceActorIdOverride ?? 0UL; set { EnsureNodes(); _hitbox.SourceActorIdOverride = value; } }
+
         public override void _Ready() {
             AddToGroup(GroupName);
             AddToGroup("projectile");
@@ -117,6 +124,7 @@ namespace FTT.Enemies {
             _hitbox.OwnerPlayerIndex = -1;
             _hitbox.SourcePlayer = null;
             _hitbox.SourceIsStandardMob = false; // F7 (FEEL): pooled reset; the firing executor stamps it after Setup
+            _hitbox.SourceActorIdOverride = 0UL; // D8: pooled reset; the firing executor stamps it after Setup
             _hitbox.CollisionLayer = CollisionLayers.Projectile;
             // The centralized projectile mask (audit Low: the hand-rolled mask
             // dropped Environment, letting ranged mobs shoot through walls). The

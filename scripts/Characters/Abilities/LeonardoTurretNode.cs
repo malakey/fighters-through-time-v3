@@ -30,7 +30,16 @@ namespace FTT.Characters.Abilities {
         private static readonly Vector2 MuzzleOffset = new(0f, -20f);
 
         public int OwnerIndex { get; private set; }
+        /// <summary>
+        /// The damage a bolt's Hitbox carries: the build-time half of the
+        /// owner's Story ability-damage composition over the bolt's base damage
+        /// (the hitbox adds the item-drop buff and the AbilityDamage lane when it
+        /// lands).
+        /// </summary>
         public float BoltDamage { get; private set; }
+
+        /// <summary>The bolt's authored damage x the Story ProjectileDamage lane.</summary>
+        private float _boltBaseDamage;
         public int BoltsRemaining { get; private set; }
         public bool IsTurretDestroyed { get; private set; }
 
@@ -84,7 +93,8 @@ namespace FTT.Characters.Abilities {
             OwnerIndex = owner?.PlayerIndex ?? 0;
             // Story-only Resonance minors: ProjectileDamage raises bolt damage and
             // PersistentHealth reinforces the chassis. Both 1f outside Story Mode.
-            BoltDamage = (data?.BaseDamage ?? 5f) * (owner?.StoryProjectileDamageMultiplier ?? 1f);
+            _boltBaseDamage = (data?.BaseDamage ?? 5f) * (owner?.StoryProjectileDamageMultiplier ?? 1f);
+            BoltDamage = owner?.StoryAbilityHitboxDamage(_boltBaseDamage) ?? _boltBaseDamage;
             // Package 11 A4: V7.6 re-scopes "Minor Turret Plating" from the
             // character-wide PersistentHealth lane onto
             // ConstructHP(leonardo_clockwork_turret), and raises it to +25%.
@@ -251,7 +261,11 @@ namespace FTT.Characters.Abilities {
                 AttackID = _data?.AbilityID ?? "leonardo_clockwork_turret",
                 HitboxID = "turret_bolt",
                 AttackClass = AttackClass.Basic,
-                Damage = BoltDamage,
+                // No Hitbox delivers this fallback strike, so it takes the whole
+                // Story ability-damage composition here.
+                Damage = _ownerPlayer != null && IsInstanceValid(_ownerPlayer)
+                    ? _ownerPlayer.StoryAbilityDamage(_boltBaseDamage, _data?.AbilityID)
+                    : _boltBaseDamage,
                 Knockback = Vector2.Zero,
                 HitstunDuration = 0.15f,
                 HitOrigin = GlobalPosition,

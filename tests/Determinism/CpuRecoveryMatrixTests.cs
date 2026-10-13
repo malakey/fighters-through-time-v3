@@ -24,9 +24,10 @@ namespace FTT.Tests.Determinism;
 /// counter-example.
 /// </para>
 /// <para>
-/// The drill harness integrates with the simulation's own tick length and gravity
-/// (<c>FighterMovementSystem.FixedDeltaSeconds</c> /
-/// <c>.GravityPerSecondSquared</c>) and applies the movement ability exactly the
+/// The drill harness integrates with the simulation's own tick length and air
+/// step (<see cref="FighterAirPhysics"/>: the 2026-10-08 apex hang, fall
+/// multiplier, fall cap, fast-fall ramp and float glide, all through the same
+/// call <c>FighterMovementSystem</c> makes) and applies the movement ability exactly the
 /// way <c>FighterAbilitySystem.ApplyMovement</c> does per authored
 /// <c>MovementType</c>, reading every distance and speed from the character's own
 /// <see cref="CpuRecoveryProfile"/>. There is no CPU-only jump reset, cooldown
@@ -271,8 +272,7 @@ public class CpuRecoveryMatrixTests {
         int startJumps = -1,
         double? targetX = null) {
         var cpu = new FighterCpuController(band, seed, null, null, null, profile);
-        FP64 step = FighterMovementSystem.FixedDeltaSeconds;
-        FP64 gravity = FighterMovementSystem.GravityPerSecondSquared;
+        FP64 step = FighterAirPhysics.FixedDelta;
 
         FP64 x = FP64.FromDouble(dropX);
         FP64 y = FP64.FromDouble(startY);
@@ -388,9 +388,18 @@ public class CpuRecoveryMatrixTests {
                     ? FP64.Min(velocityX + accelerationStep, targetSpeed)
                     : FP64.Max(velocityX - accelerationStep, targetSpeed);
             }
-            FP64 appliedGravity = floatFrames > 0 ? gravity / FP64.FromInt(3) : gravity;
+            // The sim's order: the float window ticks down (TickCounters) before
+            // the gravity step reads it, and a held Down fast-falls and ends it.
             if (floatFrames > 0) floatFrames--;
-            if (gravityApplies) velocityY += appliedGravity * step;
+            if (gravityApplies) {
+                bool fastFalling = frame.IsHeld(GameplayButtons.Down);
+                if (fastFalling) floatFrames = 0;
+                velocityY = FighterAirPhysics.StepMovement(
+                    velocityY,
+                    fastFalling,
+                    floating: floatFrames > 0,
+                    jumpedThisAirtime: FighterAirPhysics.HasJumpedThisAirtime(remainingJumps, profile.MaxJumpCount));
+            }
             FP64 previousY = y;
             x = FP64.Clamp(x + velocityX * step, geometry.LeftWall, geometry.RightWall);
             y += velocityY * step;

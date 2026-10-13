@@ -3,14 +3,14 @@
 Usage:  python tools/playtest/analyze_feel.py <feel.csv> [<feel2.csv> ...]
 
 Every number is in 60 Hz game frames unless marked otherwise. The probe's
-segments (run, stop, jump, whiff_string, mash_string, hit_string, special1,
-special2, ultimate) are measured independently; see PlaytestFeel.cs for the
+segments (jump, fastfall, run, stop, whiff_string, mash_string, hit_string,
+special1, special2, ultimate) are measured independently; see PlaytestFeel.cs for the
 input timeline that produced them.
 """
 import csv
 import sys
 
-JUMP, ATTACK, S1, S2, ULT = 1, 4, 8, 16, 128
+JUMP, DOWN, ATTACK, S1, S2, ULT = 1, 2, 4, 8, 16, 128
 
 
 def rows_of(path):
@@ -71,11 +71,38 @@ def movement(rows):
             land = next((i for i in range(apex, len(jump)) if jump[i]["on_floor"]), None)
         base_y = jump[0]["y"]
         peak = min(r["y"] for r in jump)
-        lines.append(f"- Jump (held 14f): leaves floor at frame {leave}, apex at {apex}, lands at {land}; "
+        lines.append(f"- Jump (held to the apex): leaves floor at frame {leave}, apex at {apex}, lands at {land}; "
                      f"height {base_y - peak:.0f} px; air time {None if land is None or leave is None else land - leave} frames.")
         anims = runs_of([r["anim"] for r in jump])
         lines.append(f"  Jump animation sequence: {', '.join(f'{a}x{n}' for a, n in anims)}")
+    ff = fast_fall(rows)
+    if ff:
+        lines.append(f"- Fast-fall (Down held mid-rise, Jump still held): Down at frame {ff['down']}, apex at {ff['apex']} "
+                     f"({ff['cut']} frames after Down), height {ff['height']} px; peak fall {ff['peak_vy']} px/s "
+                     f"at frame {ff['peak_at']}; lands at {ff['land']}; air time {ff['air']} frames.")
     return lines
+
+
+def fast_fall(rows):
+    """The fastfall segment: how quickly held Down turns a rise into the capped dive."""
+    seg = segment(rows, "fastfall")
+    if not seg:
+        return None
+    leave = next((i for i, r in enumerate(seg) if not r["on_floor"]), None)
+    down = next((i for i, r in enumerate(seg) if r["held"] & DOWN), None)
+    if leave is None or down is None:
+        return None
+    apex = next((i for i in range(leave + 1, len(seg)) if seg[i]["vy"] >= 0), None)
+    land = next((i for i in range(leave + 2, len(seg)) if seg[i]["on_floor"]), None)
+    air = seg[leave:land] if land is not None else seg[leave:]
+    peak_vy = max(r["vy"] for r in air)
+    peak_at = leave + next(i for i, r in enumerate(air) if r["vy"] >= peak_vy - 0.5)
+    return {
+        "down": down, "apex": apex, "cut": None if apex is None else apex - down,
+        "height": round(seg[0]["y"] - min(r["y"] for r in seg)),
+        "peak_vy": round(peak_vy), "peak_at": peak_at, "land": land,
+        "air": None if land is None else land - leave,
+    }
 
 
 def presses(seg, button):
@@ -141,6 +168,10 @@ def summary(rows):
         land = next((i for i in range((leave or 0) + 2, len(jump)) if jump[i]["on_floor"]), None)
         out["air"] = (land - leave) if leave is not None and land is not None else -1
         out["jump_h"] = round(jump[0]["y"] - min(r["y"] for r in jump))
+    ff = fast_fall(rows)
+    if ff:
+        out["ff_air"] = ff["air"] if ff["air"] is not None else -1
+        out["ff_vy"] = ff["peak_vy"]
 
     def edges(seg):
         return [i for i in range(1, len(seg)) if seg[i]["hitbox_active"] and not seg[i - 1]["hitbox_active"]]
@@ -173,7 +204,7 @@ def summary(rows):
 
 
 def table(paths):
-    keys = ["run95", "stop", "slide", "air", "jump_h", "rhythm_hits", "whiff_lock", "max_pose_hold",
+    keys = ["run95", "stop", "slide", "air", "jump_h", "ff_air", "ff_vy", "rhythm_hits", "whiff_lock", "max_pose_hold",
             "mash_hits", "mash_lock", "hitstop_frames", "enemy_push", "s1_lock", "burst"]
     print("| probe | " + " | ".join(keys) + " |")
     print("|---|" + "---|" * len(keys))

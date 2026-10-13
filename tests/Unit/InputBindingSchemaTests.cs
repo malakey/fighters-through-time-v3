@@ -150,6 +150,50 @@ public class InputBindingSchemaTests {
     }
 
     [TestCase]
+    public void SaveManagerRepairsAStaleGodot3UltimateChordBeforeApplyingIt() {
+        // 2026-10-11 (PROVISIONAL-GAMEPAD-OVERRIDE-NO-MIGRATION): a row saved by a
+        // keyboard-only rebind before the gamepad defaults moved still carries the
+        // Godot 3 chord 4 + 5 (Back + Guide). The load path must hand the InputMap
+        // the authored shoulders instead. GamepadOverrideRepairTests pins the rule.
+        SaveManager manager = SaveManager.Instance;
+        AssertObject(manager).IsNotNull();
+        InputBindingSet original = manager.GlobalData.InputBindings;
+        try {
+            var overrides = new InputBindingSet();
+            overrides.Set(InputManager.Actions.Ultimate, new[] {
+                new InputBindingEvent(InputBindingKind.Key, (int)Key.Y),
+                new InputBindingEvent(InputBindingKind.JoyButton, (int)JoyButton.Back),
+                new InputBindingEvent(InputBindingKind.JoyButton, (int)JoyButton.Guide)
+            });
+            manager.GlobalData.InputBindings = overrides;
+
+            manager.ApplySavedInputBindings();
+
+            List<InputBindingEvent> ultimate = InputBindingService.CaptureAction(InputManager.Actions.Ultimate);
+            AssertThat(ultimate.Count).IsEqual(3);
+            AssertThat(ultimate.Any(binding => binding.Kind == InputBindingKind.Key && binding.Code == (int)Key.Y))
+                .OverrideFailureMessage("The player's rebound keyboard key must survive the repair.")
+                .IsTrue();
+            List<int> pad = ultimate
+                .Where(binding => binding.Kind == InputBindingKind.JoyButton)
+                .Select(binding => binding.Code)
+                .OrderBy(code => code)
+                .ToList();
+            AssertThat(string.Join(",", pad))
+                .OverrideFailureMessage($"The applied gamepad chord is [{string.Join(",", pad)}], not LB + RB.")
+                .IsEqual($"{(int)JoyButton.LeftShoulder},{(int)JoyButton.RightShoulder}");
+            // The repaired row is what the next global save writes.
+            AssertThat(manager.GlobalData.InputBindings
+                    .EventsFor(InputManager.Actions.Ultimate, InputDeviceKind.Joypad)
+                    .Any(binding => binding.Code == (int)JoyButton.Guide))
+                .IsFalse();
+        } finally {
+            manager.GlobalData.InputBindings = original;
+            InputMap.LoadFromProjectSettings();
+        }
+    }
+
+    [TestCase]
     public void ResettingRestoresProjectDefaultsPerActionAndGlobally() {
         List<InputBindingEvent> blockDefault = InputBindingService.CaptureAction(InputManager.Actions.Block);
         try {

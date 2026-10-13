@@ -2,6 +2,7 @@ using Godot;
 using System;
 using System.Collections.Generic;
 using FTT.Characters;
+using FTT.Combat;
 using FTT.Core;
 using FTT.Enemies;
 using FTT.Environment;
@@ -143,6 +144,63 @@ namespace FTT.Diagnostics {
             }
             return null;
         }
+
+        /// <summary>
+        /// World AABB of <paramref name="body"/>'s <c>Hurtbox</c> child (enemies,
+        /// bosses, arena guardians, decoys and the Mirror clone all author one by
+        /// that name), or null without one. <see cref="ShapeRect"/> dereferences
+        /// its argument, so this is the null-safe way in.
+        /// </summary>
+        public static Rect2? HurtboxRect(Node2D body) {
+            if (body == null || !GodotObject.IsInstanceValid(body)) return null;
+            Node hurtbox = body.GetNodeOrNull<Node>("Hurtbox");
+            return hurtbox != null ? ShapeRect(hurtbox) : null;
+        }
+
+        #region Hero gates — group A seams; the only place in scripts/Diagnostics/ that names a group-A member
+        // D6d telemetry (specs/C-meter-telemetry.md §4.1, P6). Group A landed in two
+        // agents, A1 (D1 hit-confirm cancel, D1a landed contacts) and A2 (the D10
+        // "not yet" flash, EventBus.OnAbilityLockoutRefused), both 2026-10-11, so
+        // every member below has its post-A body. No other file under
+        // scripts/Diagnostics/ names HitPayload.ContactLanded, PlayerController.SwingLanded,
+        // PlayerController.SpecialGateFramesRemaining or EventBus.OnAbilityLockoutRefused.
+
+        /// <summary>True once the hero has a hit-confirm Special gate distinct from the ability lockout (group A's D1).</summary>
+        public static bool HasHitConfirmGate => true;
+
+        /// <summary>True once the hero raises its own lockout-refusal event (group A's D10, agent A2).</summary>
+        public static bool HasLockoutRefusedEvent => true;
+
+        /// <summary>Frames until the hero's Specials are legal again: the D1 Special gate.</summary>
+        public static int SpecialGateFrames(PlayerController p) => p.SpecialGateFramesRemaining;
+
+        // D1a: damage applied or absorbed by a shield or barrier layer; a block, an
+        // invulnerability/ward/freeze refusal and every strike surface or prop do not
+        // land; a zero-authored-damage payload never lands.
+        /// <summary>The one telemetry seam for "this contact landed".</summary>
+        public static bool IsLandedContact(in HitPayload p, float dealt) => p.ContactLanded;
+
+        /// <summary>Reported as <c>swings.connect_basis</c>: which "landed" rule <see cref="IsLandedContact"/> applies.</summary>
+        public static string ConnectBasis => "d1a";
+
+        /// <summary>Whether the hero's current swing has landed (D1's latch).</summary>
+        public static bool? SwingLanded(PlayerController p) => p.SwingLanded;
+
+        /// <summary>Subscribes to the hero's lockout refusals (D10); returns the unsubscribe action.</summary>
+        public static Action SubscribeLockoutRefused(Action<int, PressSlot> handler) {
+            EventBus bus = EventBus.Instance;
+            if (bus == null || handler == null) return () => { };
+            Action<AbilityLockoutRefusedPayload> forward = e => handler(e.PlayerIndex, SlotOf(e.Slot));
+            bus.OnAbilityLockoutRefused += forward;
+            return () => { if (EventBus.Instance != null) EventBus.Instance.OnAbilityLockoutRefused -= forward; };
+        }
+
+        private static PressSlot SlotOf(AbilitySlot slot) => slot switch {
+            AbilitySlot.Special1 => PressSlot.Special1,
+            AbilitySlot.Special2 => PressSlot.Special2,
+            _ => PressSlot.Ultimate
+        };
+        #endregion
 
         // =================================================================
         // Enemies

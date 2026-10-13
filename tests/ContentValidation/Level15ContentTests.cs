@@ -839,15 +839,12 @@ public class Level15ContentTests {
     }
 
     /// <summary>
-    /// Closed-form jump apex for PlayerController's authored physics at Earth
-    /// gravity: PerformJump sets vy = -MaxJumpForce * 54 and ApplyGravity
-    /// accelerates at BaseGravity(18) * (0.8 + 0.4 * Weight) * 60 px/s^2.
+    /// A held full jump's apex at Earth gravity: <see cref="StoryAirPhysics.SingleJumpRise"/>,
+    /// the controller's own per-tick step integrated (apex hang included). Until
+    /// 2026-10-08 this was the continuous closed form v^2 / 2a.
     /// </summary>
-    private static float SingleJumpRise(CharacterData data) {
-        float launch = data.MaxJumpForce * 54f;
-        float acceleration = 18f * (0.8f + 0.4f * data.Weight) * 60f;
-        return launch * launch / (2f * acceleration);
-    }
+    private static float SingleJumpRise(CharacterData data) =>
+        StoryAirPhysics.SingleJumpRise(StoryAirPhysics.JumpLaunchSpeed(data.MaxJumpForce), data.Weight);
 
     private static CharacterData LoadCharacter(string characterID) {
         var data = AuthoredResources.Load<CharacterData>($"res://resources/Characters/{characterID}_data.tres");

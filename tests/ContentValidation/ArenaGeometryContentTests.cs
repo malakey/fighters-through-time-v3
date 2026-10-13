@@ -20,7 +20,7 @@ namespace FTT.Tests.ContentValidation;
 /// shield barrier's column, a sealed door's or a rockfall's) must top out above
 /// the highest point the roster can reach from any standable surface within
 /// <see cref="MaxApproachPixels"/> of it: the best double jump in the roster
-/// (PlayerController's closed form, at the level's lowest gravity scale), with
+/// (the <see cref="StoryAirPhysics"/> integrated arc, at the level's lowest gravity scale), with
 /// <see cref="JumpHeadroom"/> for Story jump modifiers, plus
 /// <see cref="MovementAllowancePixels"/> for a movement ability, from the top of
 /// any floor, platform, wall or solid breakable (an Extractor is a step stool).
@@ -455,6 +455,58 @@ public class ArenaGeometryContentTests {
         AssertThat(voidLevel.MirrorArena.HasPoint(voidLevel.MirrorSpawn)).IsTrue();
     }
 
+    /// <summary>A leashed body's shape reaches this far past its leashed centre: Boss.tscn's half-width, rounded up.</summary>
+    private const float FallNetSurfaceReachPixels = 64f;
+
+    /// <summary>
+    /// VERIFY-L04-PIT-FALL-NET (2026-10-09). The arena fall net returns a leashed
+    /// boss — and the Level 13 Mirror clone — to its anchor once its feet pass
+    /// <see cref="BossController.ArenaFallNetLineY"/>, so nothing a body can stand
+    /// on over an arena may lie on or below that line, or the net fires on a body
+    /// that is standing, not falling. Level 4's Tribunal pit floor (y 1120, 40 px
+    /// under the 1080 arena bottom) did exactly that: the surviving squad member
+    /// was put back on its spawn every time it walked into the pit. Every
+    /// upward-facing edge — floors, platforms, one-ways, walls, ramps and pit
+    /// polygons, enabled or not, and every moving-platform stop — over the
+    /// arena's x-range (widened by a body's half-width) is checked.
+    /// </summary>
+    [TestCase]
+    public void NothingABossCanStandOnLiesBelowItsArenaFallNet() {
+        var issues = new List<string>();
+        int arenasChecked = 0;
+        foreach (LevelSnapshot level in Snapshots()) {
+            if (level.LoadError != null) { issues.Add($"{level.Label}: {level.LoadError}"); continue; }
+            var arenas = new List<(string Name, Rect2 Arena)>();
+            foreach (EncounterSnapshot encounter in level.Encounters) arenas.Add((encounter.Name, encounter.Arena));
+            if (level.MirrorArena.Size.X > 0f) arenas.Add(("Mirror", level.MirrorArena));
+            var surfaces = new List<(Vector2 A, Vector2 B)>(level.Surfaces);
+            foreach ((string _, Rect2 stop) in level.MoverEndpoints) {
+                surfaces.Add((stop.Position, new Vector2(stop.End.X, stop.Position.Y)));
+            }
+            foreach ((string name, Rect2 arena) in arenas) {
+                if (arena.Size.X <= 0f || arena.Size.Y <= 0f) continue;
+                arenasChecked++;
+                float line = BossController.ArenaFallNetLineY(arena);
+                float left = arena.Position.X - FallNetSurfaceReachPixels;
+                float right = arena.End.X + FallNetSurfaceReachPixels;
+                int seen = 0;
+                foreach ((Vector2 A, Vector2 B) surface in surfaces) {
+                    float deepest = DeepestOver(surface, left, right);
+                    if (float.IsNaN(deepest)) continue;
+                    seen++;
+                    if (deepest >= line) {
+                        issues.Add($"{level.Label}: the surface {surface.A}..{surface.B} over the '{name}' arena " +
+                            $"{arena} reaches y {deepest:0}, on or below its fall net at y {line:0}");
+                    }
+                }
+                if (seen == 0) issues.Add($"{level.Label}: no surface at all over the '{name}' arena {arena}");
+            }
+        }
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+        // Levels 1–12, 14 and 15 each fight one boss encounter; Level 13 the Mirror.
+        AssertThat(arenasChecked).IsEqual(15);
+    }
+
     // === G3: moving-platform endpoints stay out of the level geometry ======
 
     /// <summary>
@@ -604,6 +656,12 @@ public class ArenaGeometryContentTests {
         public Rect2 MirrorArena;
         public Rect2 MirrorLeash;
         public Vector2 MirrorSpawn;
+        /// <summary>
+        /// Every upward-facing edge of every floor, platform, one-way, wall and
+        /// polygon (ramps and pits included), enabled or not, as global segments
+        /// (VERIFY-L04-PIT-FALL-NET).
+        /// </summary>
+        public readonly List<(Vector2 A, Vector2 B)> Surfaces = new();
     }
 
     private static List<LevelSnapshot> Snapshots() {
@@ -748,6 +806,7 @@ public class ArenaGeometryContentTests {
             AddShapes((CollisionObject2D)node, snapshot.StaticGeometry);
         }
         if (oneWay || solid) {
+            AddSurfaces((CollisionObject2D)node, snapshot.Surfaces);
             int before = snapshot.Standables.Count;
             AddShapes((CollisionObject2D)node, snapshot.Standables);
             for (int index = before; index < snapshot.Standables.Count; index++) {
@@ -833,20 +892,105 @@ public class ArenaGeometryContentTests {
     }
 
     /// <summary>
+    /// Every edge of a body something could stand on, as a global segment: a
+    /// rectangle's top, a circle's crown, a convex shape's or a solid
+    /// <see cref="CollisionPolygon2D"/>'s upward-facing edges (the polygon below
+    /// the edge, open space above it), every edge of a segment-mode polygon, a
+    /// segment or a concave shape. Disabled shapes count: a phase may enable one
+    /// mid-fight.
+    /// </summary>
+    private static void AddSurfaces(CollisionObject2D body, List<(Vector2 A, Vector2 B)> into) {
+        Godot.Collections.Array<Node> children = body.GetChildren();
+        using var childrenLifetime = children.AsDisposable();
+        foreach (Node child in children) {
+            switch (child) {
+                case CollisionShape2D { Shape: RectangleShape2D rect } shape: {
+                    Transform2D transform = shape.GlobalTransform;
+                    Vector2 half = rect.Size / 2f;
+                    Vector2[] corners = {
+                        transform * new Vector2(-half.X, -half.Y), transform * new Vector2(half.X, -half.Y),
+                        transform * new Vector2(half.X, half.Y), transform * new Vector2(-half.X, half.Y)
+                    };
+                    AddUpwardEdges(corners, into);
+                    break;
+                }
+                case CollisionShape2D { Shape: CircleShape2D circle } shape: {
+                    Vector2 centre = shape.GlobalPosition;
+                    float radius = circle.Radius * Mathf.Max(shape.GlobalScale.X, shape.GlobalScale.Y);
+                    into.Add((new Vector2(centre.X - radius, centre.Y - radius), new Vector2(centre.X + radius, centre.Y - radius)));
+                    break;
+                }
+                case CollisionShape2D { Shape: ConvexPolygonShape2D convex } shape:
+                    AddUpwardEdges(Transformed(shape.GlobalTransform, convex.Points), into);
+                    break;
+                case CollisionShape2D { Shape: SegmentShape2D segment } shape:
+                    into.Add((shape.GlobalTransform * segment.A, shape.GlobalTransform * segment.B));
+                    break;
+                case CollisionShape2D { Shape: ConcavePolygonShape2D concave } shape: {
+                    Vector2[] segments = Transformed(shape.GlobalTransform, concave.Segments);
+                    for (int index = 0; index + 1 < segments.Length; index += 2) into.Add((segments[index], segments[index + 1]));
+                    break;
+                }
+                case CollisionPolygon2D polygon when polygon.Polygon is { Length: >= 2 }: {
+                    Vector2[] points = Transformed(polygon.GlobalTransform, polygon.Polygon);
+                    if (polygon.BuildMode == CollisionPolygon2D.BuildModeEnum.Segments) {
+                        for (int index = 0; index < points.Length; index++) {
+                            into.Add((points[index], points[(index + 1) % points.Length]));
+                        }
+                    } else {
+                        AddUpwardEdges(points, into);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    private static Vector2[] Transformed(Transform2D transform, Vector2[] points) {
+        var result = new Vector2[points.Length];
+        for (int index = 0; index < points.Length; index++) result[index] = transform * points[index];
+        return result;
+    }
+
+    /// <summary>The closed polygon's non-vertical edges with the polygon just below them and open space just above.</summary>
+    private static void AddUpwardEdges(Vector2[] polygon, List<(Vector2 A, Vector2 B)> into) {
+        for (int index = 0; index < polygon.Length; index++) {
+            Vector2 a = polygon[index];
+            Vector2 b = polygon[(index + 1) % polygon.Length];
+            if (Mathf.Abs(a.X - b.X) < 0.01f) continue;
+            Vector2 middle = (a + b) * 0.5f;
+            if (Geometry2D.IsPointInPolygon(middle + new Vector2(0f, 0.5f), polygon)
+                && !Geometry2D.IsPointInPolygon(middle - new Vector2(0f, 0.5f), polygon)) {
+                into.Add((a, b));
+            }
+        }
+    }
+
+    /// <summary>
+    /// The lowest point (largest y) of a segment over the x-range
+    /// [<paramref name="left"/>, <paramref name="right"/>], or NaN when the
+    /// segment does not reach into it.
+    /// </summary>
+    private static float DeepestOver((Vector2 A, Vector2 B) segment, float left, float right) {
+        (Vector2 a, Vector2 b) = segment.A.X <= segment.B.X ? (segment.A, segment.B) : (segment.B, segment.A);
+        if (b.X < left || a.X > right) return float.NaN;
+        if (b.X - a.X < 0.01f) return Mathf.Max(a.Y, b.Y);
+        float YAt(float x) => Mathf.Lerp(a.Y, b.Y, (x - a.X) / (b.X - a.X));
+        return Mathf.Max(YAt(Mathf.Max(a.X, left)), YAt(Mathf.Min(b.X, right)));
+    }
+
+    /// <summary>
     /// The roster's best multi-jump rise at <paramref name="gravityScale"/>, with
-    /// headroom, plus one movement-ability relocation. PlayerController's closed
-    /// form (the SecretCachePlacementTests / Level 12 form): launch =
-    /// MaxJumpForce × 54 px/s, gravity = 18 × (0.8 + 0.4 × Weight) × 60 px/s²,
-    /// rise = v² / 2a, maximised over the manifest roster.
+    /// headroom, plus one movement-ability relocation, maximised over the manifest
+    /// roster. The rise is <see cref="StoryAirPhysics.MultiJumpRise"/>: the
+    /// controller's own per-tick step integrated (apex hang included), every extra
+    /// jump pressed at the apex. Until 2026-10-08 this was the continuous closed
+    /// form v² / 2a × jumps, which ran ~3% under the real discrete arc.
     /// </summary>
     private static float ReachPixels(float gravityScale) {
         float best = 0f;
         foreach (string id in CharacterRoster.IDs) {
-            var data = AuthoredResources.Load<CharacterData>($"res://resources/Characters/{id}_data.tres");
-            float launch = data.MaxJumpForce * 54f;
-            float acceleration = 18f * (0.8f + 0.4f * data.Weight) * 60f * Mathf.Max(0.05f, gravityScale);
-            float rise = launch * launch / (2f * acceleration);
-            best = Mathf.Max(best, rise * Mathf.Max(1, data.MaxJumpCount));
+            best = Mathf.Max(best, JumpBudgetRise(LoadCharacter(id), gravityScale));
         }
         return best * JumpHeadroom + MovementAllowancePixels;
     }
@@ -858,12 +1002,7 @@ public class ArenaGeometryContentTests {
     /// </summary>
     private static float WeakestJumpReachPixels() {
         float worst = float.MaxValue;
-        foreach (string id in CharacterRoster.IDs) {
-            var data = AuthoredResources.Load<CharacterData>($"res://resources/Characters/{id}_data.tres");
-            float launch = data.MaxJumpForce * 54f;
-            float acceleration = 18f * (0.8f + 0.4f * data.Weight) * 60f;
-            worst = Mathf.Min(worst, launch * launch / (2f * acceleration) * Mathf.Max(1, data.MaxJumpCount));
-        }
+        foreach (string id in CharacterRoster.IDs) worst = Mathf.Min(worst, JumpBudgetRise(LoadCharacter(id), 1f));
         return worst;
     }
 
@@ -871,11 +1010,18 @@ public class ArenaGeometryContentTests {
     private static float WeakestSingleJumpPixels() {
         float worst = float.MaxValue;
         foreach (string id in CharacterRoster.IDs) {
-            var data = AuthoredResources.Load<CharacterData>($"res://resources/Characters/{id}_data.tres");
-            float launch = data.MaxJumpForce * 54f;
-            float acceleration = 18f * (0.8f + 0.4f * data.Weight) * 60f;
-            worst = Mathf.Min(worst, launch * launch / (2f * acceleration));
+            CharacterData data = LoadCharacter(id);
+            worst = Mathf.Min(worst, StoryAirPhysics.SingleJumpRise(
+                StoryAirPhysics.JumpLaunchSpeed(data.MaxJumpForce), data.Weight));
         }
         return worst;
     }
+
+    /// <summary>A hero's whole jump budget (single, double, ...) at <paramref name="gravityScale"/>.</summary>
+    private static float JumpBudgetRise(CharacterData data, float gravityScale) =>
+        StoryAirPhysics.MultiJumpRise(StoryAirPhysics.JumpLaunchSpeed(data.MaxJumpForce), data.Weight,
+            Math.Max(1, data.MaxJumpCount), Mathf.Max(0.05f, gravityScale));
+
+    private static CharacterData LoadCharacter(string id) =>
+        AuthoredResources.Load<CharacterData>($"res://resources/Characters/{id}_data.tres");
 }

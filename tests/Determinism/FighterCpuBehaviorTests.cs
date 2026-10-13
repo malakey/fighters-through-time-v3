@@ -176,12 +176,55 @@ public class FighterCpuBehaviorTests {
     public void CommandedRecoveryClimbsBackOverTheFloorWithinTheNormalAndHardReflexWindows() {
         AssertThat(SimulateRecovery(CpuDifficulty.Hard, seed: 5150)).IsTrue();
         AssertThat(SimulateRecovery(CpuDifficulty.Normal, seed: 5150)).IsTrue();
-        // Easy is deliberately not asserted to survive. Its 30–45-frame reflex window
-        // costs more than half a second, and at the simulation's −30 u/s² gravity a
-        // fighter that has crossed the floor plane is already past the −5 blast zone
-        // by then. design-godot.md §10 says as much for Easy ("No active recovery
-        // attempts... simply falls"); the CPU still commands the recovery, which
-        // OffStageRecoverySteersTowardCentreAndSpendsJumpsOnEveryBand pins.
+        // Normal survives this depth under the 2026-10-08 heavier fall only because
+        // a stale recovery jump no longer shadows its movement ability (the next
+        // test pins that). Easy is deliberately not asserted to survive. Its
+        // 30–45-frame reflex window costs more than half a second, and under the
+        // simulation's fall gravity (−30 u/s² × 2.2, capped at 12 u/s since
+        // 2026-10-08) a fighter that has crossed the floor plane is already past
+        // the −5 blast zone by then. design-godot.md §10 says as much for Easy
+        // ("No active recovery attempts... simply falls"); the CPU still commands
+        // the recovery, which OffStageRecoverySteersTowardCentreAndSpendsJumpsOnEveryBand
+        // pins.
+    }
+
+    [TestCase]
+    public void ARecoveryJumpArrivingAfterTheJumpsAreSpentIsDroppedAndTheMovementAbilityStillFires() {
+        // Every decision carries the full reaction delay, so the jumps a falling
+        // CPU queues before its first press is observed keep arriving after the
+        // budget is spent. Delivery revalidates them on self-state, as
+        // CPU_RECOVERY.md requires before each planned action: an empty jump is
+        // dropped instead of taking the edge pulse. Pressed, it could overwrite
+        // a pending movement-ability edge, which on Easy and Normal is the one
+        // activation the episode allows. The 2026-10-08 heavier fall turned
+        // that into a lost stock in the commanded-recovery case above.
+        foreach (CpuDifficulty band in Bands()) {
+            var cpu = new FighterCpuController(band, 5150);
+            // The observation stays "falling" throughout, the worst case for
+            // stale jumps: every decision before the first press picks one.
+            CpuDecisionObservation observation = OffStage(selfX: -8, selfY: -1);
+            observation.RemainingJumps = 2;
+            PlayerInputFrame previous = default;
+            int jumpPresses = 0;
+            int upwardMovementPresses = 0;
+            for (uint tick = 0; tick < Ticks; tick++) {
+                PlayerInputFrame frame = cpu.Sample(tick, in observation, in previous);
+                previous = frame;
+                if (frame.IsPressed(GameplayButtons.Jump)) {
+                    jumpPresses++;
+                    if (observation.RemainingJumps > 0) observation.RemainingJumps--;
+                }
+                if (frame.IsPressed(GameplayButtons.MovementAbility) && frame.MoveY < -30) {
+                    upwardMovementPresses++;
+                }
+            }
+            AssertThat(jumpPresses)
+                .OverrideFailureMessage($"{band} pressed Jump {jumpPresses} times on a two-jump budget.")
+                .IsEqual(2);
+            AssertThat(upwardMovementPresses > 0)
+                .OverrideFailureMessage($"{band} never delivered its movement ability after the jumps.")
+                .IsTrue();
+        }
     }
 
     [TestCase]
@@ -778,10 +821,12 @@ public class FighterCpuBehaviorTests {
 
     /// <summary>
     /// Feeds the CPU's own commands through a point-mass proxy of
-    /// <c>FighterMovementSystem</c>'s airborne rules — gravity −30 u/s² at a
-    /// 1/60 s step, a jump impulse equal to the default loadout's 11.5 u/s jump
-    /// speed, and horizontal air control toward <c>MoveX</c> over four frames at
-    /// the default 7 u/s move speed (both retuned by the 2026-08-10 feel batch
+    /// <c>FighterMovementSystem</c>'s airborne rules — the sim's own air step
+    /// (<see cref="FighterAirPhysics.StepMovement"/>: apex hang after a jump,
+    /// the heavier fall and its cap, the fast-fall ramp) at a 1/60 s step, a
+    /// jump impulse equal to the default loadout's 11.5 u/s jump speed, and
+    /// horizontal air control toward <c>MoveX</c> over four frames at the
+    /// default 7 u/s move speed (both retuned by the 2026-08-10 feel batch
     /// §2.1/§2.2) — and reports whether the fighter climbs back
     /// over the floor plane while still inside the walls. It deliberately models
     /// only what the recovery decision can influence; the authoritative movement
@@ -789,8 +834,8 @@ public class FighterCpuBehaviorTests {
     /// </summary>
     private static bool SimulateRecovery(CpuDifficulty band, int seed) {
         var cpu = new FighterCpuController(band, seed);
-        FP64 step = FP64.One / FP64.FromInt(60);
-        FP64 gravity = FP64.FromInt(-30);
+        FP64 step = FighterAirPhysics.FixedDelta;
+        const int maxJumpCount = 2;
         FP64 jumpSpeed = FP64.FromDouble(11.5);
         FP64 moveSpeed = FP64.FromInt(7);
         FP64 leftWall = FP64.FromInt(-9);
@@ -806,7 +851,7 @@ public class FighterCpuBehaviorTests {
         // The harness modelled a single-jump kit, which no longer exists — and
         // with the §2.2 jump cut (apex 2.82 → 2.20 units) one jump can no longer
         // cover a Normal-band reaction delay from this depth.
-        int remainingJumps = 2;
+        int remainingJumps = maxJumpCount;
         int movementCooldown = 0;
         PlayerInputFrame previous = default;
 
@@ -848,7 +893,11 @@ public class FighterCpuBehaviorTests {
             velocityX = velocityX < targetSpeed
                 ? FP64.Min(velocityX + accelerationStep, targetSpeed)
                 : FP64.Max(velocityX - accelerationStep, targetSpeed);
-            velocityY += gravity * step;
+            velocityY = FighterAirPhysics.StepMovement(
+                velocityY,
+                fastFalling: frame.IsHeld(GameplayButtons.Down),
+                floating: false,
+                jumpedThisAirtime: FighterAirPhysics.HasJumpedThisAirtime(remainingJumps, maxJumpCount));
             x = FP64.Clamp(x + velocityX * step, leftWall, rightWall);
             y += velocityY * step;
 

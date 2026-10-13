@@ -42,6 +42,9 @@ public class StoryHealingLoopTests {
     [TestCase]
     public void TheRestorationFontChannelHealsOnceAndAnInterruptRefundsTheUse() {
         StoryManager.Instance?.ClearRestorationFonts();
+        // D13: a completed channel now commits synchronously (F10), so no slot.
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
         // V7.3 range anchor: the channeler must stay put, so the harness gives
         // it a floor to stand on (an unfloored player falls out of the 90 px
         // channel range within half a second of pumping).
@@ -90,6 +93,8 @@ public class StoryHealingLoopTests {
         } finally {
             InputManager.Instance?.ClearInputSource(player.PlayerIndex);
             StoryManager.Instance?.ClearRestorationFonts();
+            StoryManager.Instance?.CancelPendingHealingForRecovery();
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
             player.Free();
             font.Free();
             floor.Free();
@@ -104,6 +109,8 @@ public class StoryHealingLoopTests {
     [TestCase]
     public void LeavingTheChannelRangeInterruptsAndRefundsTheUse() {
         StoryManager.Instance?.ClearRestorationFonts();
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
         StaticBody2D floor = CreateFloor();
         PlayerController player = CreatePlayer();
         var font = new RestorationFont { Name = "RangeFont", FontID = "range_font" };
@@ -130,6 +137,8 @@ public class StoryHealingLoopTests {
         } finally {
             InputManager.Instance?.ClearInputSource(player.PlayerIndex);
             StoryManager.Instance?.ClearRestorationFonts();
+            StoryManager.Instance?.CancelPendingHealingForRecovery();
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
             player.Free();
             font.Free();
             floor.Free();
@@ -237,6 +246,366 @@ public class StoryHealingLoopTests {
         AssertThat(PauseMenu.CalculateRestartWallet(walletDust: 0, earnedThisLevel: 0)).IsEqual(0);
     }
 
+    // === D13 (2026-10-11): the placed Restoration Font ===================
+    //
+    // PROVISIONAL-FONT-PLACEMENT: RestorationFont.Create builds the whole
+    // wellspring; a completed channel commits its use and pending heal together
+    // (F10) and credits the trickle; the channeler's death cancels it without a
+    // refund even while the font is frozen; a second Easy use waits for the
+    // first restore; the font refuses while its level says so; the commit writes
+    // the wallet; and a Timer Collapse cancels a pending heal.
+
+    [TestCase]
+    public void ACreatedFontIsAWellspringWithAPromptARadialAndAGlowThatDimsPerUse() {
+        StoryManager story = StoryManager.Instance;
+        story.ClearRestorationFonts();
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
+        StaticBody2D floor = CreateFloor();
+        PlayerController player = CreatePlayer();
+        RestorationFont font = RestorationFont.Create("test.font", Vector2.Zero);
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(font);
+        try {
+            AssertString(font.FontID).IsEqual("test.font");
+            var area = font.GetNodeOrNull<InteractionArea>("InteractionArea");
+            AssertObject(area).IsNotNull();
+            AssertObject(area.GetNodeOrNull(area.TargetPath)).IsEqual(font);
+            AssertObject(area.GetNodeOrNull<Label>("Prompt")).IsNotNull();
+            var glow = font.GetNodeOrNull<Node2D>("Glow");
+            AssertObject(glow).IsNotNull();
+            AssertObject(font.ChannelRadial).IsNotNull();
+            AssertThat(font.ChannelRadial.Visible).IsFalse();
+            AssertFloat(font.ChannelRadial.Fraction).IsEqual(0f);
+            AssertThat(font.IsInGroup(RestorationFont.Group)).IsTrue();
+            AssertThat(font.RefusesWhile == null).IsTrue();
+            AssertFloat(glow.Modulate.A).IsEqualApprox(1f, 0.0001f);
+
+            player.ApplyDamage(player.MaximumHP / 2);
+            HoldInteract(player, frames: 1);
+            font.Interact(player);
+            AssertThat(font.IsChanneling).IsTrue();
+            PumpChannel(player, font, frames: 95);
+            AssertThat(font.IsChanneling).IsFalse();
+            int authored = StoryDifficultyTuning.GetRestorationFontUses(StoryDifficultyTuning.CurrentStoryDifficulty);
+            AssertFloat(glow.Modulate.A)
+                .IsEqualApprox(0.15f + 0.85f * font.UsesRemaining / (float)authored, 0.0001f);
+            AssertThat(font.ChannelRadial.Visible).IsFalse();
+        } finally {
+            InputManager.Instance?.ClearInputSource(player.PlayerIndex);
+            story.ClearRestorationFonts();
+            story.CancelPendingHealingForRecovery();
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+            player.Free();
+            font.Free();
+            floor.Free();
+        }
+    }
+
+    [TestCase]
+    public void AFontChannelCommitsItsUseAndPendingHealTogetherAndCreditsTheTrickle() {
+        StoryManager story = StoryManager.Instance;
+        story.ClearRestorationFonts();
+        story.CancelPendingHealingForRecovery();
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
+        StaticBody2D floor = CreateFloor();
+        PlayerController player = CreatePlayer();
+        RestorationFont font = RestorationFont.Create("trickle.font", Vector2.Zero);
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(font);
+        try {
+            player.ApplyDamage(player.MaximumHP - 1);
+            AssertThat(player.CurrentHP).IsEqual(1);
+            int total = StoryDifficultyTuning.ScaleHeal(player.MaximumHP,
+                StoryDifficultyTuning.GetRestorationFontFraction(StoryDifficultyTuning.CurrentStoryDifficulty));
+            AssertThat(total).IsGreater(0);
+
+            HoldInteract(player, frames: 1);
+            font.Interact(player);
+            AssertThat(font.IsChanneling).IsTrue();
+            // One tick at a time: stop on the tick that ends the channel.
+            int hpBefore = player.CurrentHP;
+            for (int tick = 0; tick < 120 && font.IsChanneling; tick++) {
+                hpBefore = player.CurrentHP;
+                PumpChannel(player, font, frames: 1);
+            }
+            AssertThat(font.IsChanneling).IsFalse();
+            // Whatever the commit tick already paid plus what is still owed is
+            // exactly the heal the channel committed.
+            AssertFloat(story.PendingHealingRemaining + (player.CurrentHP - hpBefore))
+                .OverrideFailureMessage("The use and the whole pending heal commit together at channel completion.")
+                .IsEqualApprox(total, 0.0001f);
+            AssertThat(story.GetFontUsesConsumed($"{story.CurrentLevel}:trickle.font")).IsEqual(1);
+
+            PumpChannel(player, font, frames: 130);
+            AssertFloat(story.PendingHealingRemaining)
+                .OverrideFailureMessage("Every paid tick credits the pending heal.")
+                .IsEqual(0f);
+            AssertThat(player.CurrentHP).IsEqual(Mathf.Min(player.MaximumHP, 1 + total));
+        } finally {
+            InputManager.Instance?.ClearInputSource(player.PlayerIndex);
+            story.ClearLevelAttemptState();
+            story.ClearRestorationFonts();
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+            player.Free();
+            font.Free();
+            floor.Free();
+        }
+    }
+
+    [TestCase]
+    public void ADeathMidRestoreCancelsTheRemainderWithoutRefundEvenWhileTheFontIsFrozen() {
+        StoryManager story = StoryManager.Instance;
+        story.ClearRestorationFonts();
+        story.CancelPendingHealingForRecovery();
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
+        StaticBody2D floor = CreateFloor();
+        PlayerController player = CreatePlayer();
+        RestorationFont font = RestorationFont.Create("death.font", Vector2.Zero);
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(font);
+        try {
+            player.ApplyDamage(player.MaximumHP - 1);
+            HoldInteract(player, frames: 1);
+            font.Interact(player);
+            for (int tick = 0; tick < 120 && font.IsChanneling; tick++) PumpChannel(player, font, frames: 1);
+            AssertThat(font.IsChanneling).IsFalse();
+            PumpChannel(player, font, frames: 10);
+            AssertFloat(story.PendingHealingRemaining).IsGreater(0f);
+
+            // The death rewind freezes the font, so its own tick never sees Dead:
+            // the EventBus death hook does the cancel (T01a).
+            font.SetTimeFrozen(true);
+            player.KillPlayerNonHit();
+            AssertThat(player.CurrentState).IsEqual(CharacterState.Dead);
+            player.CompleteStoryRewind(player.GlobalPosition, 30);
+            font.SetTimeFrozen(false);
+
+            PumpChannel(player, font, frames: 130);
+            AssertThat(player.CurrentHP)
+                .OverrideFailureMessage("A death mid-restore must not keep healing the revived hero after the thaw.")
+                .IsEqual(30);
+            AssertFloat(story.PendingHealingRemaining).IsEqual(0f);
+            AssertThat(story.GetFontUsesConsumed($"{story.CurrentLevel}:death.font"))
+                .OverrideFailureMessage("The completed channel's use is not refunded by the death.")
+                .IsEqual(1);
+        } finally {
+            InputManager.Instance?.ClearInputSource(player.PlayerIndex);
+            story.ClearLevelAttemptState();
+            story.ClearRestorationFonts();
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+            player.Free();
+            font.Free();
+            floor.Free();
+        }
+    }
+
+    [TestCase]
+    public void OnEasyTheSecondUseWaitsForTheFirstRestoreAndHealsInFull() {
+        StoryManager story = StoryManager.Instance;
+        story.ClearRestorationFonts();
+        story.CancelPendingHealingForRecovery();
+        Difficulty originalDifficulty = GameManager.Instance.CurrentSession.Difficulty;
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        GameManager.Instance.CurrentSession.Difficulty = Difficulty.Easy;
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
+        StaticBody2D floor = CreateFloor();
+        PlayerController player = CreatePlayer();
+        RestorationFont font = RestorationFont.Create("easy.font", Vector2.Zero);
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(font);
+        try {
+            AssertThat(font.UsesRemaining).IsEqual(2);
+            var area = font.GetNode<InteractionArea>("InteractionArea");
+            var prompt = area.GetNode<Label>("Prompt");
+            player.ApplyDamage(player.MaximumHP - 1);
+            int heal = StoryDifficultyTuning.ScaleHeal(player.MaximumHP, 0.5f);
+            area.RegisterPlayer(player);
+            AssertThat(prompt.Visible).IsTrue();
+
+            // First use.
+            HoldInteract(player, frames: 1);
+            AssertThat(area.TryInteract(player)).IsTrue();
+            for (int tick = 0; tick < 120 && font.IsChanneling; tick++) PumpChannel(player, font, frames: 1);
+            AssertThat(font.IsChanneling).IsFalse();
+
+            // During the restore the second use is refused rather than overwriting it.
+            AssertThat(area.TryInteract(player))
+                .OverrideFailureMessage("A second channel must wait for the running restore.")
+                .IsFalse();
+            AssertThat(font.IsChanneling).IsFalse();
+
+            PumpChannel(player, font, frames: 130);
+            AssertThat(player.CurrentHP).IsEqual(1 + heal);
+            AssertFloat(story.PendingHealingRemaining).IsEqual(0f);
+            AssertThat(prompt.Visible)
+                .OverrideFailureMessage("The prompt returns for the second use without leaving the area.")
+                .IsTrue();
+
+            // Second use.
+            AssertThat(area.TryInteract(player)).IsTrue();
+            for (int tick = 0; tick < 120 && font.IsChanneling; tick++) PumpChannel(player, font, frames: 1);
+            AssertThat(font.IsChanneling).IsFalse();
+            PumpChannel(player, font, frames: 130);
+            AssertThat(player.CurrentHP).IsEqual(Mathf.Min(player.MaximumHP, 1 + 2 * heal));
+            AssertThat(story.GetFontUsesConsumed($"{story.CurrentLevel}:easy.font")).IsEqual(2);
+            AssertThat(font.UsesRemaining).IsEqual(0);
+            AssertThat(prompt.Visible).IsFalse();
+        } finally {
+            InputManager.Instance?.ClearInputSource(player.PlayerIndex);
+            story.ClearLevelAttemptState();
+            story.ClearRestorationFonts();
+            GameManager.Instance.CurrentSession.Difficulty = originalDifficulty;
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+            player.Free();
+            font.Free();
+            floor.Free();
+        }
+    }
+
+    [TestCase]
+    public void TheFontRefusesWhileItsLevelSaysSoShowsItsChannelAndFinishesAPaidRestore() {
+        StoryManager story = StoryManager.Instance;
+        story.ClearRestorationFonts();
+        story.CancelPendingHealingForRecovery();
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
+        StaticBody2D floor = CreateFloor();
+        PlayerController player = CreatePlayer();
+        RestorationFont font = RestorationFont.Create("refuse.font", Vector2.Zero);
+        bool refused = false;
+        font.RefusesWhile = () => refused;
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(font);
+        try {
+            int authored = StoryDifficultyTuning.GetRestorationFontUses(StoryDifficultyTuning.CurrentStoryDifficulty);
+            player.ApplyDamage(player.MaximumHP / 2);
+            HoldInteract(player, frames: 1);
+
+            // Refused: nothing starts.
+            refused = true;
+            AssertThat(font.CanInteract(player)).IsFalse();
+            font.Interact(player);
+            AssertThat(font.IsChanneling).IsFalse();
+
+            // The radial shows the channel; a refusal mid-channel interrupts and refunds.
+            refused = false;
+            font.Interact(player);
+            AssertThat(font.IsChanneling).IsTrue();
+            PumpChannel(player, font, frames: 30);
+            AssertThat(font.ChannelRadial.Visible).IsTrue();
+            AssertFloat(font.ChannelRadial.Fraction).IsBetween(0.3f, 0.4f);
+            refused = true;
+            PumpChannel(player, font, frames: 2);
+            AssertThat(font.IsChanneling).IsFalse();
+            AssertThat(font.ChannelRadial.Visible).IsFalse();
+            AssertThat(font.UsesRemaining)
+                .OverrideFailureMessage("A refusal mid-channel refunds the use like any interrupt.")
+                .IsEqual(authored);
+
+            // A restore already paid for completes even once the font refuses.
+            refused = false;
+            int before = player.CurrentHP;
+            font.Interact(player);
+            for (int tick = 0; tick < 120 && font.IsChanneling; tick++) PumpChannel(player, font, frames: 1);
+            AssertThat(font.IsChanneling).IsFalse();
+            refused = true;
+            PumpChannel(player, font, frames: 130);
+            int heal = StoryDifficultyTuning.ScaleHeal(player.MaximumHP,
+                StoryDifficultyTuning.GetRestorationFontFraction(StoryDifficultyTuning.CurrentStoryDifficulty));
+            AssertThat(player.CurrentHP).IsEqual(Mathf.Min(player.MaximumHP, before + heal));
+        } finally {
+            InputManager.Instance?.ClearInputSource(player.PlayerIndex);
+            story.ClearLevelAttemptState();
+            story.ClearRestorationFonts();
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+            player.Free();
+            font.Free();
+            floor.Free();
+        }
+    }
+
+    [TestCase]
+    public void AFontCommitWritesTheWalletBesideTheClaimsItPersists() {
+        // VERIFY-CRITICAL-COMMIT-WALLET: the synchronous font commit persists the
+        // claims, so it must persist the wallet that paid them too.
+        StoryManager story = StoryManager.Instance;
+        SaveManager saves = SaveManager.Instance;
+        const int scratchSlot = 2;
+        StorySaveData originalSave = saves.SaveSlots[scratchSlot];
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        int before = story.ChronalDustCollected;
+        try {
+            var save = new StorySaveData { SelectedCharacterID = "einstein" };
+            saves.SaveSlots[scratchSlot] = save;
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = scratchSlot;
+            story.ClearLevelAttemptState();
+
+            EventBus.Instance.RaiseChronalDustCollected(7);
+            AssertThat(story.ChronalDustCollected).IsEqual(before + 7);
+            LevelRewardDirectory.CommitClaim("level_02.font_wallet_probe");
+
+            story.CommitFontChannelCompletion("Orleans:font_wallet", 20f, 2f);
+            AssertThat(save.LevelChronalDust)
+                .OverrideFailureMessage("The font commit must write the live wallet beside the claims.")
+                .IsEqual(before + 7);
+            AssertThat(save.ClaimedRewardSourceIDs.Contains("level_02.font_wallet_probe")).IsTrue();
+            AssertThat(save.FontUsesConsumed["Orleans:font_wallet"]).IsEqual(1);
+        } finally {
+            story.SetDust(before);
+            story.ClearLevelAttemptState();
+            story.CancelPendingHealingForRecovery();
+            saves.SaveSlots[scratchSlot] = originalSave;
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+        }
+    }
+
+    [TestCase]
+    public void ATimerCollapseCancelsAPendingFontHealWithoutRefundingTheUse() {
+        // STORY_PERSISTENCE :77: a recovery replacing HP cancels pending healing
+        // without refunding the use. The Anchor Snap already did; the Acts I-II
+        // Collapse now does too (a Timer collapse has no death to cancel it).
+        StoryManager story = StoryManager.Instance;
+        SaveManager saves = SaveManager.Instance;
+        const int scratchSlot = 2;
+        StorySaveData originalSave = saves.SaveSlots[scratchSlot];
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        CampaignLevel originalLevel = story.CurrentLevel;
+        Difficulty originalDifficulty = GameManager.Instance.CurrentSession.Difficulty;
+        string originalCharacter = GameManager.Instance.CurrentSession.SelectedCharacterID;
+        int originalWallet = story.ChronalDustCollected;
+        story.SuppressSceneLoadsForTesting = true;
+        try {
+            story.PrepareDirectLevel(CampaignLevel.Orleans, "einstein", Difficulty.Normal);
+            saves.SaveSlots[scratchSlot] = new StorySaveData { SelectedCharacterID = "einstein" };
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = scratchSlot;
+            story.BeginLevelRun();
+
+            story.CommitFontChannelCompletion("Orleans:font_collapse", 30f, 2f);
+            AssertFloat(story.PendingHealingRemaining).IsEqual(30f);
+
+            story.BeginTimelineCollapse("orleans_checkpoint_1", TimelineCollapseCause.Timer);
+            AssertFloat(story.PendingHealingRemaining)
+                .OverrideFailureMessage("A Timer Collapse replaces HP, so the pending heal is cancelled.")
+                .IsEqual(0f);
+            AssertThat(saves.SaveSlots[scratchSlot].AttemptState.PendingHealing.IsActive)
+                .OverrideFailureMessage("The collapse save must not persist an active pending heal.")
+                .IsFalse();
+            AssertThat(story.GetFontUsesConsumed("Orleans:font_collapse"))
+                .OverrideFailureMessage("The completed channel's use is not refunded by the Collapse.")
+                .IsEqual(1);
+            AssertThat(story.CurrentAttempt.Status).IsEqual(StoryAttemptStatus.AwaitingHubResume);
+        } finally {
+            story.SuppressSceneLoadsForTesting = false;
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+            saves.SaveSlots[scratchSlot] = originalSave;
+            story.PrepareDirectLevel(originalLevel,
+                string.IsNullOrEmpty(originalCharacter) ? "einstein" : originalCharacter, originalDifficulty);
+            GameManager.Instance.CurrentSession.SelectedCharacterID = originalCharacter;
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+            story.SetDust(originalWallet);
+            story.ClearLevelAttemptState();
+            story.StopLevelRun();
+        }
+    }
+
     // ---- Harness -------------------------------------------------------------
 
     private static void HoldInteract(PlayerController player, int frames) {
@@ -342,6 +711,63 @@ public class StoryHealingLoopTests {
         } finally {
             story.ClearLevelAttemptState();
             story.StopLevelRun();
+        }
+    }
+
+    /// <summary>
+    /// F10 (STORY_PERSISTENCE :77): the death recovery cancels the attempt's
+    /// pending heal even when no font is channelling, which is what a reload
+    /// mid-restore leaves (the remainder restored, no channeler;
+    /// VERIFY-FONT-PENDING-HEAL-RESUME). The use stays spent.
+    /// </summary>
+    [TestCase]
+    public void ADeathCancelsAPendingHealThatNoFontIsTracking() {
+        StoryManager story = StoryManager.Instance;
+        story.ClearRestorationFonts();
+        story.CancelPendingHealingForRecovery();
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
+        var host = new Node2D { Name = "PendingHealDeathHost" };
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(host);
+        try {
+            story.SetRewinds(3);
+            PlayerController player = CharacterFactory.CreateCharacter("einstein", 0);
+            host.AddChild(player);
+            var manager = new ChronalRewindManager { Name = "RewindManager" };
+            host.AddChild(manager);
+            for (int frame = 0; frame < 30; frame++) manager._PhysicsProcess(1.0 / 60.0);
+
+            // What a reload mid-restore restores: a spent use and an uncredited
+            // remainder, with no font channelling.
+            story.CommitFontChannelCompletion("Orleans:font_reloaded", healAmount: 18f, durationSeconds: 2f);
+            AssertThat(story.PendingHealingRemaining).IsEqual(18f);
+
+            player.KillPlayerNonHit();
+            AssertThat(manager.IsRewinding)
+                .OverrideFailureMessage("The death must start the recovery this case is about.")
+                .IsTrue();
+            AssertThat(story.PendingHealingRemaining)
+                .OverrideFailureMessage("A death recovery replaces HP, so it cancels the pending heal.")
+                .IsEqual(0f);
+            AssertThat(story.GetFontUsesConsumed("Orleans:font_reloaded"))
+                .OverrideFailureMessage("The use is not refunded.")
+                .IsEqual(1);
+
+            // Finish the recovery so nothing it holds outlives the case.
+            for (int tick = 0; tick < 900 && manager.IsRewinding; tick++) manager._PhysicsProcess(1.0 / 60.0);
+            AssertThat(manager.IsRewinding).IsFalse();
+            for (int tick = 0; tick <= ChronalRewindManager.PostLandingHoldFrames; tick++) {
+                manager._PhysicsProcess(1.0 / 60.0);
+            }
+            AssertThat(player.CurrentHP > 0).IsTrue();
+            AssertThat(story.PendingHealingRemaining).IsEqual(0f);
+        } finally {
+            host.Free();
+            story.SetIntegrityClockPause(IntegrityClockPause.DeathRewind, false);
+            story.SetRewinds(3);
+            story.ClearLevelAttemptState();
+            story.ClearRestorationFonts();
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
         }
     }
 

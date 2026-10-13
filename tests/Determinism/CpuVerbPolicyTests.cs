@@ -226,6 +226,28 @@ public class CpuVerbPolicyTests {
             .OverrideFailureMessage("Medium must still fire the Ultimate at its first legal opportunity.")
             .IsTrue();
         AssertThat(CpuBandTuning.Normal.UltimateBeatsEchoStep).IsTrue();
+
+        // The whiffed swing's own ability lockout (2026-10-08) refuses the
+        // Ultimate press for now, but the meter is still kept for it: a lockout
+        // that ends within frames does not make the Ultimate worth giving up.
+        CpuDecisionObservation locked = both;
+        locked.AbilityLockoutFrames = BasicComboRules.AbilityLockoutFrames - 5;
+        var waiting = new FighterCpuController(CpuDifficulty.Normal, 31337, null, null, tuning);
+        previous = default;
+        ultimateEdges = 0;
+        echoChords = 0;
+        for (uint tick = 0; tick < Ticks; tick++) {
+            PlayerInputFrame frame = waiting.Sample(tick, in locked, in previous);
+            previous = frame;
+            if (frame.IsPressed(GameplayButtons.Ultimate)) ultimateEdges++;
+            if (IsEchoStepChord(frame)) echoChords++;
+        }
+        AssertThat(echoChords)
+            .OverrideFailureMessage("Medium must not spend the Ultimate's meter on Echo Step inside the lockout.")
+            .IsEqual(0);
+        AssertThat(ultimateEdges)
+            .OverrideFailureMessage("The lockout still refuses the Ultimate press.")
+            .IsEqual(0);
     }
 
     [TestCase]

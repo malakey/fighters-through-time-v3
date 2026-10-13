@@ -134,8 +134,11 @@ namespace FTT.Characters.Abilities {
         }
 
         private void BiteOverlappingTargets() {
-            float damageMultiplier = _ownerPlayer != null && IsInstanceValid(_ownerPlayer)
-                ? _ownerPlayer.StorySpecialDamageMultiplier
+            // The owner's whole Story ability-damage composition (SpecialDamage,
+            // the nest's AbilityDamage lane and the item-drop damage buff), read
+            // at the bite; neutral for an ownerless nest.
+            float damageScale = _ownerPlayer != null && IsInstanceValid(_ownerPlayer)
+                ? _ownerPlayer.StoryAbilityDamageScale(_data?.AbilityID)
                 : 1f;
             // Story-only StatusDamage minors raise the bite Venom's potency.
             float intensityMultiplier = _ownerPlayer != null && IsInstanceValid(_ownerPlayer)
@@ -150,7 +153,7 @@ namespace FTT.Characters.Abilities {
                     HitboxID = "nest_bite",
                     // A01 (Package 13 W1): persistent-object hits are Basic-class.
                     AttackClass = AttackClass.Basic,
-                    Damage = (_data?.BaseDamage ?? 10f) * damageMultiplier,
+                    Damage = (_data?.BaseDamage ?? 10f) * damageScale,
                     Knockback = Vector2.Zero,
                     // The design's brief Root (1 s) lands as bite hitstun so the
                     // Venom status below is not immediately replaced.

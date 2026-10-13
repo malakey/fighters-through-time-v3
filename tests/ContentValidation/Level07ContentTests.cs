@@ -321,8 +321,9 @@ public class Level07ContentTests {
             .OverrideFailureMessage("The last rope does not reach the far hull.")
             .IsBetween(0f, budget);
 
-        // The ropes stay clear of both yards, so a sweeping rope body never shoves
-        // the player off the deck they are standing on.
+        // The ropes swing over the channel only, clear of both yards: the swing is
+        // the crossing, never a hazard over a deck. (The rope body itself has been
+        // non-solid since 2026-10-09, PendulumRopeBarTests, so it shoves nobody.)
         AssertFloat(Level07Controller.AnchorPivotsX[0] - grabReach)
             .IsGreater(Level07Controller.SwingGapStartX);
         AssertFloat(Level07Controller.AnchorPivotsX[2] + hangReach)
@@ -614,10 +615,11 @@ public class Level07ContentTests {
 
     /// <summary>
     /// Longest horizontal distance any character in the roster can cover with an
-    /// unaided jump from flat ground. Mirrors PlayerController's movement model:
-    /// jump impulse = MaxJumpForce * 54, rising gravity = 18 * (0.8 + 0.4 * Weight)
-    /// scaled by 60, falls run 1.8x that and clamp to a 600 px/s terminal velocity,
-    /// and air control tops out at MaxMoveSpeed * 60.
+    /// unaided jump from flat ground: <see cref="StoryAirPhysics.JumpDistance"/>,
+    /// the controller's own per-tick air step integrated (apex hang, fall
+    /// multiplier and terminal included; a double jump presses at the first apex)
+    /// while air control holds MaxMoveSpeed * 60 the whole way. Until 2026-10-08
+    /// this was a continuous closed form (1.8x falls, a 600 px/s terminal).
     ///
     /// Movement abilities (Leonardo's glide, warps, dashes, leaps) are excluded on
     /// purpose - the claim being pinned is that the channel beats a *jump*, which is
@@ -640,28 +642,12 @@ public class Level07ContentTests {
         return weakest == float.MaxValue ? 0f : weakest;
     }
 
-    private static float JumpDistance(CharacterData data, bool singleJumpOnly = false) {
-        const float jumpScale = 54f;
-        const float baseGravity = 18f;
-        const float fallMultiplier = 1.8f;
-        const float terminalVelocity = 600f;
-        const float speedScale = 60f;
-
-        float impulse = data.MaxJumpForce * jumpScale;
-        float riseGravity = baseGravity * (0.8f + 0.4f * data.Weight) * speedScale;
-        float fallGravity = riseGravity * fallMultiplier;
-        int jumps = singleJumpOnly ? 1 : Mathf.Max(1, data.MaxJumpCount);
-
-        float riseTime = impulse / riseGravity * jumps;
-        float riseHeight = impulse * impulse / (2f * riseGravity) * jumps;
-
-        float accelDistance = terminalVelocity * terminalVelocity / (2f * fallGravity);
-        float fallTime = riseHeight <= accelDistance
-            ? Mathf.Sqrt(2f * riseHeight / fallGravity)
-            : terminalVelocity / fallGravity + (riseHeight - accelDistance) / terminalVelocity;
-
-        return (riseTime + fallTime) * data.MaxMoveSpeed * speedScale;
-    }
+    private static float JumpDistance(CharacterData data, bool singleJumpOnly = false) =>
+        StoryAirPhysics.JumpDistance(
+            StoryAirPhysics.JumpLaunchSpeed(data.MaxJumpForce),
+            data.Weight,
+            data.MaxMoveSpeed * StoryAirPhysics.PixelsPerUnit,
+            singleJumpOnly ? 1 : Mathf.Max(1, data.MaxJumpCount));
 
     private static IEnumerable<CharacterData> RosterCharacters() {
         string[] files = Directory.GetFiles("resources/Characters", "*_data.tres");

@@ -187,10 +187,30 @@ namespace FTT.Characters.Abilities {
     /// </summary>
     public partial class TeslaLorentzPulse : BaseSpecial {
 
+        /// <summary>
+        /// The hitstun of each T01 chain arc a coil fires at the marked target, in
+        /// frames (0.1 s). Named for D4's first-Special allowance model
+        /// (<c>StoryFirstSpecialTaxTests</c>); the value is unchanged.
+        /// </summary>
+        public const int ChainArcHitstunFrames = 6;
+
         public const string LorentzAttractionPerkKey = "lorentz_attraction";
 
         /// <summary>T02 (Package 13 W7a): a 2.5-unit radial pulse.</summary>
         private const float PulseRadiusPixels = KitMotionRules.LorentzPulseRadiusUnits * KitMotionRules.StoryPixelsPerUnit;
+
+        /// <summary>
+        /// The pulse radius this cast uses: the 2.5-unit base scaled by the
+        /// Story-only Minor Pulse Radius node (<c>tesla_pulse_radius</c>,
+        /// <c>AbilityRange</c> scoped to this ability, +15%). The lane is empty,
+        /// so neutral, for every Fighter-seam build, and the sim keeps its own
+        /// fixed-point radius.
+        /// </summary>
+        public float PulseRadius => PulseRadiusPixels
+            * (Owner?.StoryScoped(
+                FTT.Environment.ResonanceStatKeys.AbilityRange,
+                Data?.AbilityID ?? "tesla_lorentz_pulse") ?? 1f);
+
         private const float AttractionStopDistancePixels = 70f;
         /// <summary>D12 (Package 13 W7a): Lorentz Attraction extends the Root by 0.5 s (the GDD), not 1.0 s.</summary>
         public const float AttractionRootBonusSeconds = 0.5f;
@@ -221,7 +241,7 @@ namespace FTT.Characters.Abilities {
                 ? FTT.Core.CollisionLayers.EnemyHurtbox
                 : FTT.Core.CollisionLayers.PlayerHurtbox;
             var query = new PhysicsShapeQueryParameters2D {
-                Shape = new CircleShape2D { Radius = PulseRadiusPixels },
+                Shape = new CircleShape2D { Radius = PulseRadius },
                 Transform = new Transform2D(0f, Owner.GlobalPosition),
                 CollideWithAreas = true,
                 CollideWithBodies = false,
@@ -249,7 +269,7 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "tesla_lorentz_pulse",
                     HitboxID = "pulse",
                     AttackClass = AttackClass.Special,
-                    Damage = (Data?.BaseDamage ?? 12f) * Owner.StorySpecialDamageMultiplier,
+                    Damage = Owner.StoryAbilityDamage(Data?.BaseDamage ?? 12f, Data?.AbilityID),
                     Knockback = Vector2.Zero,
                     HitstunDuration = Data?.HitstunDuration ?? 0.2f,
                     HitOrigin = Owner.GlobalPosition,
@@ -261,7 +281,7 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
                 });
                 float dealt = hurtbox.TakeHit(hit);
-                Credit(in hit, dealt, hurtbox.GlobalPosition);
+                Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
 
                 // F07 (Package 12 W4, parity with the sim's GAP-10a consumer): only
                 // a pulse that LANDED chains, only while one of his coils stands,
@@ -291,9 +311,9 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "tesla_lorentz_pulse",
                     HitboxID = "chain_lightning",
                     AttackClass = AttackClass.Special,
-                    Damage = KitMotionRules.LorentzChainArcDamage * Owner.StorySpecialDamageMultiplier,
+                    Damage = Owner.StoryAbilityDamage(KitMotionRules.LorentzChainArcDamage, Data?.AbilityID),
                     Knockback = Vector2.Zero,
-                    HitstunDuration = 0.1f,
+                    HitstunDuration = ChainArcHitstunFrames / 60f,
                     HitOrigin = coil.GlobalPosition,
                     AttackerFacingRight = Owner.IsFacingRight,
                     AppliedStatus = FTT.Core.StatusType.None,
@@ -304,7 +324,7 @@ namespace FTT.Characters.Abilities {
                 }, HitDelivery.DirectHit);
                 hit.Launches = false;
                 float dealt = target.TakeHit(hit);
-                Credit(in hit, dealt, target.GlobalPosition);
+                Credit(target, in hit, dealt, target.GlobalPosition);
             }
         }
 
@@ -561,7 +581,7 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "tesla_wardenclyffe_cataclysm",
                     HitboxID = "cataclysm_column",
                     AttackClass = AttackClass.Ultimate,
-                    Damage = (Data?.CinematicHitDamage(_hitsDone) ?? 10f) * Owner.StorySpecialDamageMultiplier,
+                    Damage = Owner.StoryAbilityDamage(Data?.CinematicHitDamage(_hitsDone) ?? 10f, Data?.AbilityID),
                     Knockback = Data?.KnockbackForce ?? new Vector2(0f, -6f),
                     HitstunDuration = finale ? UltimateActivationRules.FinaleHitstunSeconds : Data?.HitstunDuration ?? 0.2f,
                     HitOrigin = Owner.GlobalPosition,
@@ -576,7 +596,7 @@ namespace FTT.Characters.Abilities {
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
                 // ZERO damage-dealt meter, regardless of HP removed, target count or
                 // when it lands. Direct-hit Rally reclaim is retained (D03g).
-                Credit(in hit, dealt, hurtbox.GlobalPosition);
+                Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
             }
         }
 

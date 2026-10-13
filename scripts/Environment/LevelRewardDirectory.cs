@@ -67,11 +67,13 @@ namespace FTT.Environment {
         private static readonly HashSet<string> Issued = new(StringComparer.Ordinal);
         private static readonly HashSet<string> Claimed = new(StringComparer.Ordinal);
 
-        /// <summary>Undeposited base dust this attempt lost to a Collapse or exit fee.</summary>
+        /// <summary>
+        /// Undeposited base dust this attempt lost to a Collapse, Anchor Snap or
+        /// exit fee. In memory only: <c>StoryManager</c> keys it to the attempt
+        /// that paid and carries it across that attempt's resume reload, and a
+        /// process restart loses it (<c>PROVISIONAL-RESULTS-CARRIED-DUST</c>).
+        /// </summary>
         public static int DustLostThisAttempt { get; private set; }
-
-        /// <summary>The tier bonus paid by the last successful completion (results itemisation).</summary>
-        public static int LastTierBonusDust { get; internal set; }
 
         /// <summary>The compiled ledger for the live level, or null when the level has no manifest.</summary>
         public static LevelRewardLedger Current => _ledger;
@@ -340,7 +342,6 @@ namespace FTT.Environment {
             Issued.Clear();
             Claimed.Clear();
             DustLostThisAttempt = 0;
-            LastTierBonusDust = 0;
             _ledger = null;
             _ledgerLevelIndex = -1;
             SuppressLedgerForTest = false;
@@ -366,5 +367,13 @@ namespace FTT.Environment {
         public static void RecordDustLoss(int amount) {
             if (amount > 0) DustLostThisAttempt += amount;
         }
+
+        /// <summary>
+        /// Zeroes the loss tally alone, leaving claims, issues and the ledger
+        /// untouched. <c>StoryManager</c> calls it when a fee is charged to a
+        /// different attempt than the one the tally belongs to (another slot
+        /// loaded in the same session), so two attempts' losses never mix.
+        /// </summary>
+        public static void ClearDustLoss() => DustLostThisAttempt = 0;
     }
 }

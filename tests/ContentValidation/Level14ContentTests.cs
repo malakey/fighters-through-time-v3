@@ -858,16 +858,13 @@ public class Level14ContentTests {
     }
 
     /// <summary>
-    /// Closed-form jump apex for PlayerController's authored physics (the Level 12
-    /// derivation): PerformJump sets vy = -MaxJumpForce * 54, ApplyGravity
-    /// accelerates at BaseGravity(18) * (0.8 + 0.4 * Weight) * EnvironmentGravityScale
-    /// * 60 px/s^2 while the jump is held, so a held full jump rises v^2 / 2a.
+    /// A held full jump's apex at <paramref name="gravityScale"/>:
+    /// <see cref="StoryAirPhysics.SingleJumpRise"/>, the controller's own per-tick
+    /// step integrated (apex hang included). Until 2026-10-08 this was the
+    /// continuous closed form v^2 / 2a (the Level 12 derivation).
     /// </summary>
-    private static float SingleJumpRise(CharacterData data, float gravityScale) {
-        float launch = data.MaxJumpForce * 54f;
-        float acceleration = 18f * (0.8f + 0.4f * data.Weight) * 60f * gravityScale;
-        return launch * launch / (2f * acceleration);
-    }
+    private static float SingleJumpRise(CharacterData data, float gravityScale) =>
+        StoryAirPhysics.SingleJumpRise(StoryAirPhysics.JumpLaunchSpeed(data.MaxJumpForce), data.Weight, gravityScale);
 
     private static float HeaviestSingleJumpRise(float gravityScale) {
         float lowest = float.MaxValue;
@@ -889,7 +886,9 @@ public class Level14ContentTests {
         float best = 0f;
         foreach (string id in RosterIDs) {
             CharacterData data = LoadCharacter(id);
-            best = Mathf.Max(best, SingleJumpRise(data, gravityScale) * Mathf.Max(1, data.MaxJumpCount));
+            // The whole budget, each extra jump at the apex (was single × MaxJumpCount).
+            best = Mathf.Max(best, StoryAirPhysics.MultiJumpRise(
+                StoryAirPhysics.JumpLaunchSpeed(data.MaxJumpForce), data.Weight, Mathf.Max(1, data.MaxJumpCount), gravityScale));
         }
         return best;
     }

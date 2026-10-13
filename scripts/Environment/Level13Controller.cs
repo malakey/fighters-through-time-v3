@@ -82,6 +82,14 @@ namespace FTT.Environment {
         // the Gettysburg motif at the top of the Drift stair (one-way 4160, top
         // 1470) — the shard ride starts beside it; the shelf route stays on the floor.
         protected override Vector2? SecretCachePosition => new(4160f, 1375f);
+
+        // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, just before the
+        // PreBoss anchor (7100) - only 100 px of window after it before the one-shot arena
+        // lock. Low-gravity exception: the whole pre-arena route drifts
+        // (level_13.mashup_drift); the font stands grounded on the shelf, a post-wave heal
+        // (wave 3 spawns at PreArenaTriggerX 6500).
+        protected override Vector2? RestorationFontPosition => new(6850f, ShelfY);
+
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         protected override string InitialObjectiveKey => "void_objective_cross_rift";
@@ -122,11 +130,13 @@ namespace FTT.Environment {
         public const float ArenaPlatformOffsetX = 620f;
         /// <summary>
         /// Low, because the arena runs at Earth-normal gravity and Story physics caps
-        /// the heaviest single-jump character at about 94 px of rise. A side platform
-        /// nobody can stand on is dead geometry, so this is sized against the roster
-        /// rather than against how a Fighter stage looks. Lowered 1810 -> 1825 (a 90 px
-        /// rise to 75 px) by the 2026-08-10 movement retune, holding the same ~80% of the
-        /// heaviest character's reach it was authored at (gameplay-feel plan section 9, B2).
+        /// the heaviest character's single jump (Lincoln's) at about 133 px of rise
+        /// since the 2026-10-08 apex hang (StoryAirPhysics; it was about 94 px when
+        /// this was sized). A side platform nobody can stand on is dead geometry, so
+        /// this is sized against the roster rather than against how a Fighter stage
+        /// looks. Lowered 1810 -> 1825 (a 90 px rise to 75 px) by the 2026-08-10
+        /// movement retune, then ~80% of the heaviest character's reach (gameplay-feel
+        /// plan section 9, B2); it is well inside it now.
         /// </summary>
         public const float ArenaPlatformY = 1825f;
         public const float ArenaPlatformWidth = 340f;

@@ -9,6 +9,12 @@ namespace FTT.UI {
     /// 0.5 s of the 1.0 s life. The previous ballistic arc (gravity), whole-life
     /// fade, and the undesigned "&gt;=15 damage renders red" rule are gone — the
     /// cyan chronal shimmer shader is Package 10 art.
+    ///
+    /// <para>Two tints exist: a warded boss's refused "0" (A5, 2026-10-04) and,
+    /// D8 (2026-10-11), <c>UIPalette.GoldBright</c> for a hit that landed on a
+    /// mob's open Punish window. A punished number is also drawn larger
+    /// (<c>StoryEnemyCombatRules.PunishDamageNumberScale</c>), so the payoff
+    /// never rests on colour alone. Every other number is white at scale 1.</para>
     /// </summary>
     public partial class FloatingDamageNumber : FTT.Core.PooledNode, FTT.Core.IPoolable {
         private const string ScenePath = "res://scenes/ui/FloatingDamageNumber.tscn";
@@ -38,17 +44,21 @@ namespace FTT.UI {
             AddChild(_label);
         }
 
-        public void Initialize(int damage, Vector2 position, Color? tint = null) {
+        public void Initialize(int damage, Vector2 position, Color? tint = null, float scale = 1f) {
             GlobalPosition = position;
+            // D8: the non-colour channel of a punished hit (1 = the plain number).
+            Scale = Vector2.One * (scale > 0f ? scale : 1f);
             _label.Text = damage.ToString();
             // White for every hit; the shimmer treatment is Package 10 art. A
-            // tint marks a refused hit (a warded boss's "0", A5 2026-10-04).
+            // tint marks a refused hit (a warded boss's "0", A5 2026-10-04) or a
+            // punished one (GoldBright, D8 2026-10-11).
             _label.AddThemeColorOverride("font_color", tint ?? Colors.White);
             _lifetime = MaxLifetime;
             _velocity = new Vector2(0f, -RiseUnitsPerSecond * PixelsPerUnit);
         }
 
-        public static FloatingDamageNumber Show(int damage, Vector2 position, Node parent = null, Color? tint = null) {
+        public static FloatingDamageNumber Show(
+            int damage, Vector2 position, Node parent = null, Color? tint = null, float scale = 1f) {
             if (FTT.Core.SaveManager.Instance?.GlobalData?.DamageNumbersVisible == false) return null;
             if (FTT.Core.PoolManager.Instance == null) return null;
             _scene ??= GD.Load<PackedScene>(ScenePath);
@@ -60,7 +70,7 @@ namespace FTT.UI {
                 MaxCapacity,
                 FTT.Core.PoolOverflowPolicy.RecycleOldest);
             var number = FTT.Core.PoolManager.Instance.Spawn(_scene, position, parent) as FloatingDamageNumber;
-            number?.Initialize(damage, position, tint);
+            number?.Initialize(damage, position, tint, scale);
             return number;
         }
 
@@ -68,12 +78,14 @@ namespace FTT.UI {
             _lifetime = MaxLifetime;
             _velocity = Vector2.Zero;
             Modulate = Colors.White;
+            Scale = Vector2.One;
         }
 
         public void OnDespawn() {
             _lifetime = 0f;
             _velocity = Vector2.Zero;
             Modulate = Colors.White;
+            Scale = Vector2.One;
             if (_label != null) {
                 _label.Text = "";
                 _label.RemoveThemeColorOverride("font_color");

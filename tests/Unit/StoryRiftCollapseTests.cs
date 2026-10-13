@@ -84,6 +84,46 @@ public class StoryRiftCollapseTests {
         }
     }
 
+    [TestCase]
+    public void TheCollapseRidesItsEmcSquaredExecutionsFirstSpecialSlot() {
+        // D4 (2026-10-11) with design E01: the collapse is "a 0-damage,
+        // Special-class hit of the same E=mc² execution", so it shares the
+        // burst's first-Special slot on the mob's stun chain and charges standard
+        // poise x1.0 — never as a second, taxed Special.
+        Node2D host = CreateHost("RiftCollapseChain");
+        try {
+            PlayerController einstein = AddEinstein(host);
+            EinsteinRelativityRift rift = OpenRift(einstein);
+            Vector2 center = rift.ActiveRiftCenter;
+            EnemyController enemy = CreateEnemy("chrono_slasher", host, center + new Vector2(40f, 0f));
+            AssertThat(enemy.Data.Tier).IsEqual(EnemyTier.Standard);
+            AssertThat(enemy.Data.StunResistance).IsEqual(0f);
+
+            var emc = einstein.GetNode<EinsteinEmc2Blast>("Special1");
+            string emcID = emc.Data.AbilityID;
+            AssertThat(emcID).IsEqual("einstein_mass_energy_conversion");
+            emc.DetonateForTest(center + new Vector2(20f, 0f));
+            AssertThat(enemy.CurrentState).IsEqual(EnemyState.Stunned);
+            AssertThat(enemy.ChainFirstSpecialID).IsEqual(emcID);
+            AssertThat(rift.IsCollapsing).IsTrue();
+
+            for (int frame = 0; frame < KitMotionRules.RiftCollapsePullFrames; frame++) rift._PhysicsProcess(Step);
+            AssertThat(rift.IsCollapsing).IsFalse();
+
+            // The burst (12 frames, the first hit, x1.0) plus the collapse
+            // (30 frames, V7.4-diminished to 15, still E=mc²'s: x1.0).
+            AssertThat(enemy.ChainFirstSpecialID).IsEqual(emcID);
+            float burstFrames = emc.Data.HitstunFrames;
+            float collapseFrames = EinsteinRelativityRift.CollapseLaunchHitstunFrames
+                * FTT.Combat.EnemyStaggerRules.SpecialStunDiminishFactor;
+            AssertThat(burstFrames).IsEqual(12f);
+            AssertThat(enemy.StaggerBudgetSeconds).IsEqualApprox((burstFrames + collapseFrames) / 60f, 0.001f);
+            AssertThat(enemy.IsArmoredRecovery).IsFalse();
+        } finally {
+            host.Free();
+        }
+    }
+
     private static EinsteinRelativityRift OpenRift(PlayerController einstein) {
         var rift = einstein.GetNode<EinsteinRelativityRift>("Special2");
         AssertThat(rift.TryExecute()).IsTrue();

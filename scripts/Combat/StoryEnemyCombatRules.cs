@@ -48,15 +48,25 @@ namespace FTT.Combat {
         // === S2 (Provisional): confirm proration ===
 
         /// <summary>
-        /// A Special-class hit landing on a mob already in hitstun deals this
-        /// fraction. The chain also spans the Armored Recovery that the chain's
-        /// own S3 poise trip opens: the rest of a confirm and a second Special
-        /// landed on that armored window stay prorated, and the chain ends when
-        /// the window does. "Already in hitstun" is judged once per Special per chain, at
-        /// that Special's first hit (keyed by <c>AttackID</c>): a Special fired into
-        /// a string is prorated on every one of its hits, while a multi-hit
-        /// Special's own follow-up hits never count the hitstun its first hit
-        /// applied (the controller keeps the per-chain record).
+        /// A <i>second or later</i> Special-class hit landing on a mob already in
+        /// hitstun deals this fraction. The chain also spans the Armored Recovery
+        /// that the chain's own S3 poise trip opens: the rest of a confirm and a
+        /// second Special landed on that armored window stay prorated, and the
+        /// chain ends when the window does. "Already in hitstun" is judged once
+        /// per Special per chain, at that Special's first hit (keyed by
+        /// <c>AttackID</c>): a Special fired into a string is prorated on every
+        /// one of its hits, while a multi-hit Special's own follow-up hits never
+        /// count the hitstun its first hit applied (the controller keeps the
+        /// per-chain record).
+        ///
+        /// <para><b>D4 (user direction 2026-10-11, ledger
+        /// <c>USER-FIRST-SPECIAL-UNTAXED</c>):</b> the chain's <i>first</i>
+        /// Special (<see cref="ClassifyChainSpecial"/>) is untaxed: no x0.6 and
+        /// no chain decay on any of its hits (<see cref="ChainHitScale"/>), and
+        /// it charges standard poise x1.0. Its hits still advance the chain
+        /// counter, so the hits after it decay as before
+        /// (<c>PROVISIONAL-FIRST-SPECIAL-TAX-RULES</c>). A second or later
+        /// Special keeps this x0.6 and the decay.</para>
         /// </summary>
         public const float ConfirmSpecialOnHitstunDamageScale = 0.6f;
 
@@ -96,30 +106,119 @@ namespace FTT.Combat {
             return specialOnHitstun ? decay * ConfirmSpecialOnHitstunDamageScale : decay;
         }
 
+        // === D4 (user direction 2026-10-11): the first Special in a chain is untaxed ===
+
+        /// <summary>
+        /// D4: a hit's role in a mob's stun chain, for the S2 damage scale and the
+        /// S3 standard poise cost.
+        /// </summary>
+        public enum ChainSpecialRole {
+            /// <summary>Not a Special: a basic, a construct, a hazard, or an Ultimate-origin hit.</summary>
+            NotSpecial,
+            /// <summary>A hit of the chain's first Special: untaxed damage, poise x1.0.</summary>
+            FirstSpecial,
+            /// <summary>
+            /// A second or later Special, a movement-ability hit or a Special with
+            /// no <c>AttackID</c>: the pre-D4 S2/S3 tax.
+            /// </summary>
+            OtherSpecial
+        }
+
+        /// <summary>
+        /// D4: classifies one hit against the chain's recorded first Special
+        /// (<paramref name="chainFirstSpecialID"/>, null or empty when none).
+        /// <list type="bullet">
+        /// <item>Not the Special class, or Ultimate origin:
+        /// <see cref="ChainSpecialRole.NotSpecial"/>.</item>
+        /// <item>A movement-ability hit (Rail Charge, Wing-Dive and the Midsummer
+        /// Gust author <c>Origin = Special</c>) or one with no <c>AttackID</c>:
+        /// <see cref="ChainSpecialRole.OtherSpecial"/>. It never claims the slot.</item>
+        /// <item>No first Special recorded yet: <see cref="ChainSpecialRole.FirstSpecial"/>;
+        /// the caller records <paramref name="attackID"/> as the chain's first.</item>
+        /// <item>The recorded first Special's own <c>AttackID</c>:
+        /// <see cref="ChainSpecialRole.FirstSpecial"/>. Identity is by ability ID,
+        /// so every hit of one Special shares one role (Divine Piercing's thrusts;
+        /// E=mc2's contact, burst and Rift collapse; Requiem's pulses; Lorentz and
+        /// its arcs), and a recast of the same Special inside one chain matches the
+        /// recorded first Special (<c>PROVISIONAL-FIRST-SPECIAL-TAX-RULES</c>).</item>
+        /// <item>Anything else: <see cref="ChainSpecialRole.OtherSpecial"/>.</item>
+        /// </list>
+        /// </summary>
+        public static ChainSpecialRole ClassifyChainSpecial(
+            AttackClass attackClass, HitOrigin origin, bool sourceIsMovementAbility,
+            string attackID, string chainFirstSpecialID) {
+            if (attackClass != AttackClass.Special || origin == HitOrigin.Ultimate) return ChainSpecialRole.NotSpecial;
+            if (sourceIsMovementAbility || string.IsNullOrEmpty(attackID)) return ChainSpecialRole.OtherSpecial;
+            if (string.IsNullOrEmpty(chainFirstSpecialID)) return ChainSpecialRole.FirstSpecial;
+            return string.Equals(attackID, chainFirstSpecialID, System.StringComparison.Ordinal)
+                ? ChainSpecialRole.FirstSpecial
+                : ChainSpecialRole.OtherSpecial;
+        }
+
+        /// <summary>
+        /// D4: the S2 damage scale for chain hit <paramref name="chainHitIndex"/>
+        /// (1-based). A hit of the chain's first Special lands at x1.0 at any
+        /// index (no confirm cut, no decay); every other hit keeps
+        /// <see cref="ConfirmProrationScale"/>.
+        /// </summary>
+        public static float ChainHitScale(ChainSpecialRole role, int chainHitIndex, bool specialConfirm) =>
+            role == ChainSpecialRole.FirstSpecial ? 1f : ConfirmProrationScale(chainHitIndex, specialConfirm);
+
         // === S3 (Provisional): standard poise ===
 
         /// <summary>
         /// Standard-tier stagger budget (post-resistance applied stun, the V7.4
-        /// elite rule extended down a tier). One full basic string under the S5
-        /// floors applies 34 + 44 + 24 = 102 frames (1.70 s) and completes; a
-        /// Special-sourced stun on top (12 frames × the cost multiplier = 0.30 s)
-        /// crosses it and trips Armored Recovery.
+        /// elite rule extended down a tier), re-derived for D4 (2026-10-11,
+        /// provisional, <c>PROVISIONAL-FIRST-SPECIAL-TAX-RULES</c>; it was 1.9 s).
+        /// One full basic string under the S5 floors applies 34 + 44 + 24 = 102
+        /// frames. The chain's first Special charges x1.0, at most
+        /// <see cref="FirstSpecialStunAllowanceFrames"/> (36) in total, so a
+        /// string plus any first Special fits with 1.5 frames to spare
+        /// (102 + 36 = 138 &lt;= 139.5). That includes Joan's ruled route,
+        /// Righteous Smite -> hit 1 -> hit 2 -> hit 3 (30 + 102 = 132). A second
+        /// Special is taxed and V7.4-diminished: its smallest stunning charge is
+        /// 12 x 0.5 x 1.5 = 9 frames, so the ruled route plus any second Special
+        /// (132 + 9 = 141) trips Armored Recovery, again with 1.5 frames of
+        /// margin. There is no count rule (DECISIONS addendum, 2026-10-11): a
+        /// second Special trips only through this arithmetic, so a string plus
+        /// both Specials does not trip where first + second &lt;= 37.5 frames
+        /// (Lincoln without Kinetic Splitting, Tubman).
+        /// 139.5 frames = 2.325 s.
         /// </summary>
-        public const float StandardStaggerBudgetSeconds = 1.9f;
+        public const float StandardStaggerBudgetSeconds = 2.325f;
+
+        /// <summary>
+        /// D4 (provisional): the design bound <see cref="StandardStaggerBudgetSeconds"/>
+        /// is sized for. It is the largest worst-case <i>total</i> standard-poise
+        /// charge any Special can put on a chain as its first Special, kit and
+        /// Resonance extras included: Requiem Chord with the Requiem Crescendo
+        /// perk, 12 + 4 x 6 = 36 frames (the later pulses are V7.4-diminished).
+        /// <c>StoryFirstSpecialTaxTests</c> recomputes every authored Special
+        /// against it.
+        /// </summary>
+        public const int FirstSpecialStunAllowanceFrames = 36;
 
         /// <summary>Standard Armored Recovery: short, flinch/knockback-proof, with the committed counterattack.</summary>
         public const float StandardArmoredRecoverySeconds = 0.6f;
 
         /// <summary>
-        /// A Special-sourced stun charges a standard mob's budget at this multiple
-        /// of its applied duration (the actual stun is not lengthened). Elites
+        /// A <i>taxed</i> Special-sourced stun charges a standard mob's budget at
+        /// this multiple of its applied duration (the actual stun is not
+        /// lengthened). Since D4 (2026-10-11) "taxed" means the hit's chain role is
+        /// <see cref="ChainSpecialRole.OtherSpecial"/>: a second or later Special,
+        /// a movement-ability hit or a Special with no <c>AttackID</c>. The
+        /// chain's first Special and every non-Special stun charge x1.0. Elites
         /// keep the V7.4 one-for-one accrual.
         /// </summary>
         public const float StandardSpecialStunBudgetCostMultiplier = 1.5f;
 
-        /// <summary>The budget a stun charges on a standard mob.</summary>
-        public static float StandardBudgetCost(float appliedStunSeconds, bool fromSpecial) =>
-            fromSpecial ? appliedStunSeconds * StandardSpecialStunBudgetCostMultiplier : appliedStunSeconds;
+        /// <summary>
+        /// The budget a stun charges on a standard mob: the applied stun, times
+        /// <see cref="StandardSpecialStunBudgetCostMultiplier"/> only when
+        /// <paramref name="taxedSpecial"/> (D4).
+        /// </summary>
+        public static float StandardBudgetCost(float appliedStunSeconds, bool taxedSpecial) =>
+            taxedSpecial ? appliedStunSeconds * StandardSpecialStunBudgetCostMultiplier : appliedStunSeconds;
 
         /// <summary>
         /// Whether a hit's stun charges a <i>standard</i> mob's poise budget. An
@@ -137,13 +236,15 @@ namespace FTT.Combat {
 
         /// <summary>
         /// A standard's budget drains at this rate (seconds of credit per second)
-        /// while it is not stunned — three times the V7.4 elite rate, so the
-        /// V7.4 getup-armor window that follows a naturally expiring string
-        /// (0.6 s × 3 = 1.8 s) clears a full string's credit. Poise is therefore
-        /// spent inside one stun chain: back-to-back strings each complete, while
-        /// a Special confirm landed inside the same chain trips Armored Recovery.
+        /// while it is not stunned: four times the V7.4 elite rate (D4,
+        /// 2026-10-11, provisional; it was 3), so the V7.4 getup-armor window that
+        /// follows a naturally expiring chain (0.6 s x 4 = 2.4 s, at least the
+        /// 2.325 s budget) clears the credit of any chain that did not trip.
+        /// Poise is therefore spent inside one stun chain: back-to-back chains
+        /// each start empty, while a second Special landed inside the same chain
+        /// trips Armored Recovery.
         /// </summary>
-        public const float StandardStaggerDecayPerSecond = 3f;
+        public const float StandardStaggerDecayPerSecond = 4f;
 
         // === S4 (Provisional): basics pacing ===
 
@@ -387,5 +488,286 @@ namespace FTT.Combat {
 
         /// <summary>How far past the mob's front edge the wall probe looks.</summary>
         public const float WallProbeMarginPixels = 8f;
+
+        // === Shared: a mob melee swing's pivot reach (D8 whiff "near", D6c commit) ===
+
+        /// <summary>
+        /// The horizontal distance, pivot to pivot (both bodies' feet), at which a
+        /// mob's forward melee box still touches a target: the box's far edge
+        /// (<c>|HitboxOffset.X| + HitboxSize.X / 2</c>), plus how far a charge
+        /// carries it (<paramref name="dashTravelPixels"/>: a ChargeDash's
+        /// <c>|DashSpeed| x ResolvedActiveFrames / 60</c>, else 0), plus the
+        /// target's hurtbox half-width. Against the Story hero that is
+        /// <see cref="StoryCombatRules.HeroHurtboxWidthPixels"/> / 2 = 20 px, so
+        /// the legacy scalar melee (a 40 px box at offset 30) reaches 70 px.
+        ///
+        /// <para>The one statement of this reach (spec B §0.3 / spec D §1.5):
+        /// D8's Punish whiff "near" reads it with no dash travel (positions are
+        /// read where the swing ended), and D6c's melee commit cap reads it too.
+        /// Pure; nothing in <c>scripts/FighterSim/</c> reads it.</para>
+        /// </summary>
+        public static float MeleePivotReachPixels(
+            float hitboxOffsetX, float hitboxWidth, float dashTravelPixels, float targetHalfWidthPixels) =>
+            System.Math.Abs(hitboxOffsetX)
+            + System.Math.Max(0f, hitboxWidth) / 2f
+            + System.Math.Max(0f, dashTravelPixels)
+            + System.Math.Max(0f, targetHalfWidthPixels);
+
+        // === D8 (user direction 2026-10-11): the Punish window ===
+
+        /// <summary>
+        /// D8 (user direction, ledger <c>USER-PUNISH-WINDOW</c>): a mob or elite
+        /// whose attack the hero blocks without a shatter, Foresight-counters, or
+        /// sees whiff nearby takes ×<see cref="PunishDamageScale"/> from the
+        /// hero's direct hits for this many of its own world-clock ticks. The
+        /// window pauses only while the mob's body is frozen (Time Freeze, the
+        /// rewind freeze, the Post-Landing Hold) and keeps running through its
+        /// victim hitstop, a grab hold and a thrown flight; a re-trigger refreshes
+        /// it to this value and never stacks
+        /// (<c>PROVISIONAL-PUNISH-WINDOW-RULES</c>).
+        /// </summary>
+        public const int PunishWindowFrames = 60;
+
+        /// <summary>D8 (user direction): the damage multiplier on an eligible hit against an open window.</summary>
+        public const float PunishDamageScale = 1.2f;
+
+        /// <summary>
+        /// D8 (provisional): a mob's melee whiff opens its window only while the
+        /// hero stands within its swing's pivot reach
+        /// (<see cref="MeleePivotReachPixels"/>) plus this margin, horizontally.
+        /// </summary>
+        public const float PunishWhiffNearMarginPixels = 40f;
+
+        /// <summary>D8 (provisional): ... and within this many pixels vertically, feet to feet.</summary>
+        public const float PunishWhiffNearVerticalPixels = 96f;
+
+        /// <summary>
+        /// D8 (provisional): a punished hit's floating number is drawn at this
+        /// scale as well as in <c>UIPalette.GoldBright</c>, so the payoff is not
+        /// carried by colour alone.
+        /// </summary>
+        public const float PunishDamageNumberScale = 1.25f;
+
+        /// <summary>
+        /// D8: the hits an open window multiplies: a player-dealt
+        /// (<paramref name="attackerIndex"/> ≥ 0) direct hit that is not a hazard
+        /// — basics, directional strikes, Specials and Ultimates. Ticks, construct
+        /// hits and hazards never punish, matching the "only direct hits confirm"
+        /// rule; Story throws and bowling never reach the intake path at all.
+        /// </summary>
+        public static bool IsPunishEligible(int attackerIndex, AttackClass attackClass, HitDelivery delivery) =>
+            attackerIndex >= 0
+            && delivery == HitDelivery.DirectHit
+            && attackClass != AttackClass.Hazard;
+
+        /// <summary>
+        /// D8: a mob's melee swing that whiffed counts toward a Punish window only
+        /// when the hero was near at the end of its active window:
+        /// <paramref name="absDx"/> ≤ <paramref name="pivotReach"/> +
+        /// <see cref="PunishWhiffNearMarginPixels"/> and <paramref name="absDy"/> ≤
+        /// <see cref="PunishWhiffNearVerticalPixels"/> (feet to feet).
+        /// </summary>
+        public static bool PunishWhiffIsNear(float absDx, float absDy, float pivotReach) =>
+            absDx <= pivotReach + PunishWhiffNearMarginPixels
+            && absDy <= PunishWhiffNearVerticalPixels;
+
+        // === D6a (user direction 2026-10-11): the finisher lands one step out ===
+        // Ledger USER-FINISHER-CARRY; the agent-chosen details are
+        // PROVISIONAL-SPACING-WALLS-RULES item 1. A hero's basic-string finisher
+        // on a Standard or (user addendum, 2026-10-11) Elite mob decelerates the
+        // launch so the mob lands about one step outside that hero's hit-1 reach,
+        // instead of S1's long carry. Story only.
+
+        /// <summary>D6a (provisional): "one step" outside the attacker's reach, 0.5 u.</summary>
+        public const float FinisherLandingStepPixels = 30f;
+
+        /// <summary>
+        /// D6a (provisional): an authored horizontal finisher force
+        /// (<c>BasicAttackKnockback</c> x the profile's finisher tenths / 10) at or
+        /// above this is a heavy finisher, whose mob lands past the widest-reach
+        /// hero's target. Only Lincoln's 22.5 reaches it ("Lincoln stays the
+        /// longest carry").
+        /// </summary>
+        public const float HeavyFinisherForce = 18f;
+
+        /// <summary>D6a (provisional): how far past the widest reach's one-step target a heavy finisher lands its mob.</summary>
+        public const float HeavyFinisherMarginPixels = 15f;
+
+        /// <summary>
+        /// D6a (provisional): the safety cap on a finisher flight that outlives
+        /// its stun, in post-stun frames. Never reached on authored floors (the
+        /// longest modelled flight, Lincoln's, ends 43 frames after the stun).
+        /// </summary>
+        public const int FinisherFlightMaxPostStunFrames = 120;
+
+        /// <summary>
+        /// The template string's hit-1 far edge in Story pixels, before any
+        /// profile width or Story minor: <c>(StringBoxOffsetXUnits[0] +
+        /// StringBoxHalfWidthUnits[0])</c> x 60 = 96 px.
+        /// </summary>
+        public static float TemplateHit1FarEdgePixels =>
+            (float)((BasicComboRules.StringBoxOffsetXUnits[0] + BasicComboRules.StringBoxHalfWidthUnits[0])
+                * KitMotionRules.StoryPixelsPerUnit);
+
+        /// <summary>
+        /// D6a: the widest authored profile's hit-1 pivot reach against a mob:
+        /// the template far edge x <see cref="BasicComboRules.WidestStringReachWidthPercent"/>
+        /// (base profiles only, no Story minor) + the mob's hurtbox half-width.
+        /// </summary>
+        public static float WidestHit1PivotReachPixels(float mobHurtboxHalfWidthPixels) =>
+            TemplateHit1FarEdgePixels * BasicComboRules.WidestStringReachWidthPercent / 100f
+            + System.Math.Max(0f, mobHurtboxHalfWidthPixels);
+
+        /// <summary>
+        /// D6a: a hit arms the finisher flight only when it is a basic-string
+        /// finisher: Basic class, the <c>combo_3</c> hitbox, and authored to
+        /// launch. Lincoln's launching hit 2, the Up-Attack, the Down-Air, a
+        /// non-launching <c>combo_3</c> and every Special or Ultimate do not.
+        /// </summary>
+        public static bool IsFinisherCarry(AttackClass attackClass, string hitboxID, bool launches) =>
+            attackClass == AttackClass.Basic
+            && launches
+            && StringStepOf(hitboxID) == BasicComboRules.ComboHits - 1;
+
+        /// <summary>
+        /// D6a: where, pivot to pivot, the finisher should land its mob: one step
+        /// (<see cref="FinisherLandingStepPixels"/>) outside
+        /// <paramref name="ownHit1PivotReachPx"/>, the attacker's live hit-1 far
+        /// edge + the mob's hurtbox half-width. A heavy finisher
+        /// (<paramref name="authoredFinisherForce"/> ≥ <see cref="HeavyFinisherForce"/>)
+        /// lands it at least <see cref="HeavyFinisherMarginPixels"/> beyond the
+        /// widest-reach hero's one-step target (<paramref name="widestHit1PivotReachPx"/>).
+        /// </summary>
+        public static float FinisherLandingTargetPixels(
+            float ownHit1PivotReachPx, float widestHit1PivotReachPx, float authoredFinisherForce) {
+            float target = ownHit1PivotReachPx + FinisherLandingStepPixels;
+            if (authoredFinisherForce >= HeavyFinisherForce) {
+                float heavy = widestHit1PivotReachPx + FinisherLandingStepPixels + HeavyFinisherMarginPixels;
+                if (heavy > target) target = heavy;
+            }
+            return target;
+        }
+
+        /// <summary>D6a: how much farther the finisher must carry its mob from the gap it struck at (never negative).</summary>
+        public static float FinisherCarryPixels(float landingTargetPx, float gapAtFinisherPx) =>
+            System.Math.Max(0f, landingTargetPx - gapAtFinisherPx);
+
+        /// <summary>
+        /// D6a: the constant horizontal deceleration (px/s²) that brings a launch
+        /// of <paramref name="launchSpeedPxPerSec"/> to rest after
+        /// <paramref name="carryPx"/>, for a 60 Hz step that slows the speed
+        /// before each move: <c>v² / (2 (D + v/120))</c>; the <c>v/120</c> term
+        /// corrects the discrete step's undershoot. 0 for no launch speed. A
+        /// carry of 0 stops the mob on the first step. The caller takes the max
+        /// with S1's friction, so the rule never lengthens a carry.
+        /// </summary>
+        public static float FinisherCarryDeceleration(float launchSpeedPxPerSec, float carryPx) {
+            if (launchSpeedPxPerSec <= 0f) return 0f;
+            float carry = System.Math.Max(0f, carryPx);
+            return launchSpeedPxPerSec * launchSpeedPxPerSec / (2f * (carry + launchSpeedPxPerSec / 120f));
+        }
+
+        // === D6c (user direction 2026-10-11): melee mobs stay in range ===
+        // Ledger USER-MOB-MELEE-RANGE; PROVISIONAL-SPACING-WALLS-RULES item 3. A
+        // mob whose next attack is its MeleeStrike / ChargeDash primary commits
+        // only inside its own box's reach, and holds just outside pushbox contact
+        // while it cannot commit. Story only.
+
+        /// <summary>D6c (provisional): a capped melee primary commits this far inside its pivot reach.</summary>
+        public const float MeleeCommitMarginPixels = 10f;
+
+        /// <summary>D6c (provisional): the stand-off engage line keeps this clearance beyond pushbox contact.</summary>
+        public const float StandOffContactClearancePixels = 4f;
+
+        /// <summary>
+        /// D6c: the commit range of a capped melee primary,
+        /// <c>min(<paramref name="attackRangePixels"/>, <paramref name="pivotReachPixels"/> −
+        /// <see cref="MeleeCommitMarginPixels"/>)</c>; a reach no longer than the
+        /// margin keeps the authored range.
+        /// </summary>
+        public static float MeleeCommitRangePixels(float attackRangePixels, float pivotReachPixels) =>
+            pivotReachPixels <= MeleeCommitMarginPixels
+                ? attackRangePixels
+                : System.Math.Min(attackRangePixels, pivotReachPixels - MeleeCommitMarginPixels);
+
+        /// <summary>
+        /// D6c: the stand-off engage line of a capped melee primary while it
+        /// cannot commit: the larger of <paramref name="engageFraction"/> x the
+        /// commit range and pushbox contact (<paramref name="contactGapPixels"/>) +
+        /// <see cref="StandOffContactClearancePixels"/> + the 60 Hz worst-case
+        /// braking overshoot (one undetected frame at full speed and the
+        /// <paramref name="decelerationFrames"/> ramp: <c>v (frames + 1) / 120</c>).
+        /// </summary>
+        public static float MeleeStandOffEngagePixels(
+            float commitRangePixels, float engageFraction, float contactGapPixels,
+            float chaseSpeedPxPerSec, float decelerationFrames) =>
+            System.Math.Max(
+                engageFraction * commitRangePixels,
+                contactGapPixels + StandOffContactClearancePixels
+                    + System.Math.Max(0f, chaseSpeedPxPerSec) * (decelerationFrames + 1f) / 120f);
+
+        /// <summary>
+        /// D6c: whether a melee box's vertical span (centre
+        /// <paramref name="boxCentreY"/>, height <paramref name="boxHeight"/>,
+        /// relative to the mob's feet, y down) overlaps a target hurtbox standing
+        /// <paramref name="targetHeight"/> tall on feet <paramref name="targetFeetYRelative"/>
+        /// (relative to the mob's feet). Touching edges do not overlap.
+        /// </summary>
+        public static bool MeleeBoxReachesVertically(
+            float boxCentreY, float boxHeight, float targetFeetYRelative, float targetHeight) {
+            float halfHeight = System.Math.Max(0f, boxHeight) / 2f;
+            float boxTop = boxCentreY - halfHeight;
+            float boxBottom = boxCentreY + halfHeight;
+            float targetTop = targetFeetYRelative - System.Math.Max(0f, targetHeight);
+            return boxTop < targetFeetYRelative && targetTop < boxBottom;
+        }
+
+        // === D9 (user direction 2026-10-11): the Story wall bounce ===
+        // Ledger USER-STORY-WALL-BOUNCE; PROVISIONAL-SPACING-WALLS-RULES item 4.
+        // A player-launched (or, user addendum 2026-10-11, thrown) mob that hits
+        // an Environment wall fast bounces back and takes a small impact, once
+        // per launch. Story only; never bosses, never the Fighter sim.
+
+        /// <summary>D9 (user direction, "~300 px/s"): the strict minimum pre-move horizontal speed into the wall.</summary>
+        public const float WallBounceMinSpeedPixelsPerSecond = 300f;
+
+        /// <summary>D9 (user direction): the mob bounces back at this fraction of its speed into the wall.</summary>
+        public const float WallBounceRestitution = 0.4f;
+
+        /// <summary>D9 (user direction): the impact takes this fraction of the launching hit's damage.</summary>
+        public const float WallImpactDamageFraction = 0.1f;
+
+        /// <summary>D9 (provisional): a wall faces the mob when its normal's x is at least this against the motion.</summary>
+        public const float WallBounceMinNormalX = 0.7f;
+
+        /// <summary>
+        /// D9: a hit arms the wall bounce when it launches, is player-dealt (no
+        /// hazard, no enemy source) and the victim does not phase through walls.
+        /// </summary>
+        public static bool ArmsWallBounce(
+            int attackerIndex, AttackClass attackClass, HitDelivery delivery, bool launches, bool phasesThroughWalls) =>
+            launches && !phasesThroughWalls && IsPlayerDealt(attackerIndex, attackClass, delivery);
+
+        /// <summary>
+        /// D9: the mob was moving into the wall faster than
+        /// <see cref="WallBounceMinSpeedPixelsPerSecond"/> (strict) and the wall
+        /// faces it (<c>normal.x x sign(v) ≤ −</c><see cref="WallBounceMinNormalX"/>).
+        /// </summary>
+        public static bool BouncesOffWall(float preMoveVelocityX, float wallNormalX) =>
+            System.Math.Abs(preMoveVelocityX) > WallBounceMinSpeedPixelsPerSecond
+            && wallNormalX * System.Math.Sign(preMoveVelocityX) <= -WallBounceMinNormalX;
+
+        /// <summary>D9: the horizontal speed after the bounce, back off the wall.</summary>
+        public static float WallBounceVelocityX(float preMoveVelocityX) =>
+            -WallBounceRestitution * preMoveVelocityX;
+
+        /// <summary>
+        /// D9: the impact for one launch: 10 % of the launching hit's pre-defense
+        /// Story intake, rounded half away from zero and never below 1 for a
+        /// damaging hit (<see cref="ScaleIntakeDamage"/>); defenses then apply
+        /// once, at the impact.
+        /// </summary>
+        public static int WallImpactDamage(int launchingHitIntake) =>
+            ScaleIntakeDamage(launchingHitIntake, WallImpactDamageFraction);
     }
 }

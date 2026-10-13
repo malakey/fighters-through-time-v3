@@ -69,6 +69,12 @@ namespace FTT.Environment {
         /// </summary>
         public const float GroundRoomCameraTop = LevelHeight - 1080f;
 
+        /// <summary>The two castle decks in room 4 (centre Y; 420 px wide, the default slab thickness).</summary>
+        public const float CastleDeckY = 800f;
+        public const float WestCastleDeckX = 9100f;
+        public const float EastCastleDeckX = 10100f;
+        public const float CastleDeckWidth = 420f;
+
         public const float Room1StartX = 0f;
         public const float Room2StartX = 2880f;
         public const float Room3StartX = 6400f;
@@ -226,6 +232,12 @@ namespace FTT.Environment {
         // the rubble crest past the ruins extractor (Platform 2650/860, top 852) — a
         // dead-end perch before the seawall transition, off the floor route.
         protected override Vector2? SecretCachePosition => new(2650f, 757f);
+
+        // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, just before the
+        // PreBoss anchor (8480), between the rigging platforms, past the near-capture and the
+        // room 3 wave trigger.
+        protected override Vector2? RestorationFontPosition => new(8150f, GroundY);
+
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         protected override string InitialObjectiveKey => "berlin_objective_infiltrate";
@@ -462,14 +474,19 @@ namespace FTT.Environment {
 
             BuildFloor(Room4StartX, GroundY, 1920f);
 
-            BuildPlatform(9100f, 800f, 420f);    // west castle deck
-            BuildPlatform(10100f, 800f, 420f);   // east castle deck
+            BuildPlatform(WestCastleDeckX, CastleDeckY, CastleDeckWidth);
+            BuildPlatform(EastCastleDeckX, CastleDeckY, CastleDeckWidth);
 
             BuildPlatform(9280f, 1090f, 200f, CoverPocketColor);   // fortification
             BuildPlatform(9960f, 1090f, 200f, CoverPocketColor);   // fortification
 
             BuildWall(Room4StartX - 20f, 300f, 500f);   // partial: the entry stays open below
-            BuildWall(LevelWidth - 20f, 440f, 760f);
+            // The east boundary runs to the top of the level (2026-10-08), as Levels
+            // 2 and 6 do: it used to stop at y 440, 352 px over the east castle
+            // deck. Five heroes' double jumps already cleared that, and the apex
+            // hang added Tesla and Leonardo, so a hero could leave the level.
+            // Level09ContentTests pins the full height.
+            BuildWall(LevelWidth - 20f, 0f, GroundY);
 
             BuildRoomDecoration(Room4StartX, "berlin_room_bunker_street", new Color(0.95f, 0.35f, 0.30f));
 

@@ -1,5 +1,6 @@
 using Godot;
 using System.Collections.Generic;
+using FTT.Core;
 
 namespace FTT.Environment {
 
@@ -27,6 +28,21 @@ namespace FTT.Environment {
         [Export] public string LevelID = "";
         [Export] public string LevelDisplayName = "";
 
+        /// <summary>
+        /// D12 (<c>USER-DUST-NEVER-EXPIRES</c> / <c>PROVISIONAL-DUST-SETTLE-RULES</c>):
+        /// the group <see cref="IsLevelCompleteFor"/> searches. One member per
+        /// level scene.
+        /// </summary>
+        public const string Group = "level_manager";
+
+        /// <summary>
+        /// D12: set once by <see cref="CompleteLevel"/>, after the dust settle.
+        /// Scene-local: it dies with the scene, so every later entry (the next
+        /// level, an Act III in-place reload, a save load) starts false. From
+        /// here on no pickup under this level pays and no kill issues dust.
+        /// </summary>
+        public bool IsComplete { get; private set; }
+
         private string _lastCheckpointID;
         public string LastCheckpointID => _lastCheckpointID ?? "";
         private Vector2 _lastCheckpointPosition;
@@ -34,6 +50,7 @@ namespace FTT.Environment {
         private readonly Dictionary<string, Vector2> _checkpointPositions = new();
 
         public override void _Ready() {
+            AddToGroup(Group);
             FTT.Core.EventBus.Instance.OnCheckpointReached += OnCheckpointActivated;
         }
 
@@ -68,8 +85,44 @@ namespace FTT.Environment {
             return _lastCheckpointPosition;
         }
 
+        /// <summary>
+        /// Raises <c>OnLevelComplete</c> (advance, tier bonus, deposit, save)
+        /// exactly once. D12: dust still on the ground is banked with the level
+        /// first — the settle runs while <see cref="IsComplete"/> is still false,
+        /// so its collections pay into the wallet before the tier bonus and the
+        /// deposit read it; then the flag is set and nothing pays or issues
+        /// after. Every level type reaches completion here (the base
+        /// controller, Florence and the Tutorial), and every caller already
+        /// guards re-entry.
+        /// </summary>
         public void CompleteLevel() {
+            if (IsComplete) return;
+            ChronalDustPickup.SettleOutstandingDust(GetParent() ?? this);
+            IsComplete = true;
             FTT.Core.EventBus.Instance?.RaiseLevelComplete(LevelID);
+        }
+
+        /// <summary>
+        /// D12: true when the level that owns <paramref name="node"/> has
+        /// completed — a <see cref="LevelManager"/> in <see cref="Group"/> whose
+        /// parent (the level root, never the tree root) is an ancestor of the
+        /// node. No LevelManager (the Test Arena, unit hosts) reads false.
+        /// Skipping the tree root keeps a bare LevelManager a test parents to
+        /// the root from silencing every pickup in the session.
+        /// </summary>
+        public static bool IsLevelCompleteFor(Node node) {
+            if (node == null || !GodotObject.IsInstanceValid(node) || !node.IsInsideTree()) return false;
+            SceneTree tree = node.GetTree();
+            Godot.Collections.Array<Node> members = tree.GetNodesInGroup(Group);
+            using var lifetime = members.AsDisposable();
+            foreach (Node member in members) {
+                if (member is LevelManager manager && manager.IsComplete
+                    && manager.GetParent() is Node levelRoot && levelRoot != tree.Root
+                    && levelRoot.IsAncestorOf(node)) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 

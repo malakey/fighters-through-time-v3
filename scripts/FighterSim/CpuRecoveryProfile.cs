@@ -139,29 +139,62 @@ namespace FTT.FighterSim {
             || MovementIsDirectional;
 
         /// <summary>
-        /// Vertical gain one air jump buys, <c>v² / 2g</c> against the
-        /// simulation's own gravity. Pure planning arithmetic over normalized
-        /// numbers; nothing here is a second tuning constant.
+        /// Bound on the tick-integrated arc estimates below (ten seconds). Every
+        /// shipped jump and glide lift resolves in well under one.
         /// </summary>
-        public FP64 JumpApexHeight {
+        private const int ArcIntegrationTicks = 600;
+
+        /// <summary>
+        /// Vertical gain one air jump buys, integrated tick by tick with the
+        /// simulation's own air step (<see cref="FighterAirPhysics.StepMovement"/>,
+        /// apex hang included — an air jump has always been spent). The
+        /// 2026-10-08 air model has no closed form, so the old <c>v² / 2g</c>
+        /// would no longer be the sim's answer. Pure planning arithmetic over
+        /// normalized numbers; nothing here is a second tuning constant.
+        /// </summary>
+        public FP64 JumpApexHeight => RiseHeight(JumpSpeed, floatTicks: 0, jumpedThisAirtime: true);
+
+        /// <summary>
+        /// Horizontal ground the fighter covers across one full air jump at full
+        /// drift: the drift speed times the jump's tick-integrated airtime back
+        /// down to its take-off height (rise, apex hang, the heavier fall and its
+        /// cap). Used to decide whether a landing or ledge is plausibly reachable
+        /// before committing an action.
+        /// </summary>
+        public FP64 JumpHorizontalReach {
             get {
-                FP64 gravity = -FighterMovementSystem.GravityPerSecondSquared;
-                if (gravity <= FP64.Zero || JumpSpeed <= FP64.Zero) return FP64.Zero;
-                return JumpSpeed * JumpSpeed / (FP64.FromInt(2) * gravity);
+                if (JumpSpeed <= FP64.Zero) return FP64.Zero;
+                FP64 velocityY = JumpSpeed;
+                FP64 height = FP64.Zero;
+                int ticks = 0;
+                while (ticks < ArcIntegrationTicks) {
+                    velocityY = FighterAirPhysics.StepMovement(
+                        velocityY, fastFalling: false, floating: false, jumpedThisAirtime: true);
+                    height += velocityY * FighterAirPhysics.FixedDelta;
+                    ticks++;
+                    if (height <= FP64.Zero) break;
+                }
+                return MoveSpeed * AirControl * FP64.FromInt(ticks) / FP64.FromInt(FighterSimulation.TickRate);
             }
         }
 
         /// <summary>
-        /// Horizontal ground the fighter covers across one full air jump at full
-        /// drift. Used to decide whether a landing or ledge is plausibly
-        /// reachable before committing an action.
+        /// Height a launch of <paramref name="launchSpeed"/> climbs before it
+        /// turns over, integrated with <see cref="FighterAirPhysics.StepMovement"/>:
+        /// the float glide for the first <paramref name="floatTicks"/> ticks, then
+        /// the normal-control model.
         /// </summary>
-        public FP64 JumpHorizontalReach {
-            get {
-                FP64 gravity = -FighterMovementSystem.GravityPerSecondSquared;
-                if (gravity <= FP64.Zero) return FP64.Zero;
-                return MoveSpeed * AirControl * (FP64.FromInt(2) * JumpSpeed / gravity);
+        private static FP64 RiseHeight(FP64 launchSpeed, int floatTicks, bool jumpedThisAirtime) {
+            if (launchSpeed <= FP64.Zero) return FP64.Zero;
+            FP64 velocityY = launchSpeed;
+            FP64 height = FP64.Zero;
+            for (int tick = 0; tick < ArcIntegrationTicks; tick++) {
+                velocityY = FighterAirPhysics.StepMovement(
+                    velocityY, fastFalling: false, floating: tick < floatTicks, jumpedThisAirtime);
+                if (velocityY <= FP64.Zero) break;
+                height += velocityY * FighterAirPhysics.FixedDelta;
             }
+            return height;
         }
 
         /// <summary>
@@ -185,10 +218,11 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
-        /// Vertical gain the movement ability buys. Glide and Float launch at
-        /// half their authored speed (the simulation's <c>speed / 2</c>) and then
-        /// coast under reduced gravity; a directional ability translates by its
-        /// authored distance when aimed upward; a pure dash buys nothing.
+        /// Vertical gain the movement ability buys. A glide launches at half its
+        /// authored speed (the simulation's <c>speed / 2</c>) and then coasts
+        /// under the float glide's reduced gravity for its authored duration,
+        /// integrated tick by tick like the sim; a directional ability translates
+        /// by its authored distance when aimed upward; a pure dash buys nothing.
         /// </summary>
         public FP64 MovementLift {
             get {
@@ -205,10 +239,10 @@ namespace FTT.FighterSim {
                 }
                 if (MovementKind == MovementKindGlide) {
                     FP64 launch = MovementSpeed > FP64.Zero ? MovementSpeed : FP64.FromInt(8);
-                    FP64 gravity = -FighterMovementSystem.GravityPerSecondSquared;
-                    if (gravity <= FP64.Zero) return FP64.Zero;
-                    launch /= FP64.FromInt(2);
-                    return launch * launch / (FP64.FromInt(2) * gravity);
+                    // The glide's float window (FloatFrames = the authored
+                    // duration) carries the climb; casting it spends no jump.
+                    return RiseHeight(
+                        launch / FP64.FromInt(2), floatTicks: MovementDurationFrames, jumpedThisAirtime: false);
                 }
                 return FP64.Zero;
             }

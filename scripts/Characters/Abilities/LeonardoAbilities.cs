@@ -15,6 +15,13 @@ namespace FTT.Characters.Abilities {
     /// </summary>
     public partial class LeonardoGoldenRatio : BaseSpecial {
 
+        /// <summary>
+        /// The hitstun of every spiral tick but the last, in frames (0.1 s); the
+        /// final tick carries the authored hitstun. Named for D4's first-Special
+        /// allowance model (<c>StoryFirstSpecialTaxTests</c>); the value is unchanged.
+        /// </summary>
+        public const int ChurnTickHitstunFrames = 6;
+
         public const string MasterStrokePerkKey = "master_stroke";
 
         private const float StartRadiusPixels = 40f;
@@ -101,9 +108,9 @@ namespace FTT.Characters.Abilities {
 
             bool masterStroke = Owner.HasStoryPerk(MasterStrokePerkKey);
             bool finalTick = _ticksRemaining == 1;
-            float damage = (Data?.BaseDamage ?? 10f)
-                * (masterStroke ? MasterStrokeDamageMultiplier : 1f)
-                * Owner.StorySpecialDamageMultiplier;
+            float damage = Owner.StoryAbilityDamage(
+                (Data?.BaseDamage ?? 10f) * (masterStroke ? MasterStrokeDamageMultiplier : 1f),
+                Data?.AbilityID);
 
             uint targetHurtboxLayer = Owner.PlayerIndex == 0
                 ? FTT.Core.CollisionLayers.EnemyHurtbox
@@ -134,7 +141,7 @@ namespace FTT.Characters.Abilities {
                     AttackClass = AttackClass.Special,
                     Damage = damage,
                     Knockback = finalTick ? (Data?.KnockbackForce ?? new Vector2(3, -2)) : Vector2.Zero,
-                    HitstunDuration = finalTick ? (Data?.HitstunDuration ?? 0.2f) : 0.1f,
+                    HitstunDuration = finalTick ? (Data?.HitstunDuration ?? 0.2f) : ChurnTickHitstunFrames / 60f,
                     HitOrigin = _spiralCenter,
                     AttackerFacingRight = pushRight,
                     AppliedStatus = FTT.Core.StatusType.None,
@@ -144,7 +151,7 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
                 });
                 float dealt = hurtbox.TakeHit(hit);
-                Credit(in hit, dealt, hurtbox.GlobalPosition);
+                Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
             }
         }
 
@@ -525,7 +532,7 @@ namespace FTT.Characters.Abilities {
             int hitIndex = (Data?.CinematicHitCount ?? 8) - _ticksRemaining + 1;
             bool finale = Data?.IsFinaleHit(hitIndex) ?? false;
             bool carriesStatus = Data?.CinematicHitCarriesStatus(hitIndex) ?? !finalHit;
-            float damage = (Data?.CinematicHitDamage(hitIndex) ?? 10f) * Owner.StorySpecialDamageMultiplier;
+            float damage = Owner.StoryAbilityDamage(Data?.CinematicHitDamage(hitIndex) ?? 10f, Data?.AbilityID);
 
             foreach (Hurtbox hurtbox in QueryHurtboxesInCircle()) {
                 bool pushRight = hurtbox.GlobalPosition.X >= _matrixCenter.X;
@@ -558,7 +565,7 @@ namespace FTT.Characters.Abilities {
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
                 // ZERO damage-dealt meter, regardless of HP removed, target count or
                 // when it lands. Direct-hit Rally reclaim is retained (D03g).
-                Credit(in hit, dealt, hurtbox.GlobalPosition);
+                Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
             }
         }
 

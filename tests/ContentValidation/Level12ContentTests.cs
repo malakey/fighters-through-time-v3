@@ -562,9 +562,8 @@ public class Level12ContentTests {
         float bestTotalJump = 0f;
         foreach (string id in RosterIDs) {
             CharacterData data = LoadCharacter(id);
-            float single = SingleJumpRise(data, Level12Controller.RegolithGravityScale);
-            bestSingleJump = Mathf.Max(bestSingleJump, single);
-            bestTotalJump = Mathf.Max(bestTotalJump, single * Mathf.Max(1, data.MaxJumpCount));
+            bestSingleJump = Mathf.Max(bestSingleJump, SingleJumpRise(data, Level12Controller.RegolithGravityScale));
+            bestTotalJump = Mathf.Max(bestTotalJump, JumpBudgetRise(data, Level12Controller.RegolithGravityScale));
         }
 
         foreach ((string platformID, float bottomY, float topY) in Level12Controller.Lifts) {
@@ -645,8 +644,7 @@ public class Level12ContentTests {
         float bestTotalJump = 0f;
         foreach (string id in RosterIDs) {
             CharacterData data = LoadCharacter(id);
-            bestTotalJump = Mathf.Max(bestTotalJump,
-                SingleJumpRise(data, Level12Controller.RegolithGravityScale) * Mathf.Max(1, data.MaxJumpCount));
+            bestTotalJump = Mathf.Max(bestTotalJump, JumpBudgetRise(data, Level12Controller.RegolithGravityScale));
         }
 
         // The curtain is a slot, not a wall with a top: the only opening sits at the
@@ -701,16 +699,21 @@ public class Level12ContentTests {
     // === Helpers ===
 
     /// <summary>
-    /// Closed-form jump apex for PlayerController's authored physics:
-    /// PerformJump sets vy = -MaxJumpForce * 54, ApplyGravity accelerates at
-    /// BaseGravity(18) * (0.8 + 0.4 * Weight) * EnvironmentGravityScale * 60 px/s^2
-    /// while the jump is held. A held full jump therefore rises v^2 / 2a.
+    /// A held full jump's apex at <paramref name="gravityScale"/>:
+    /// <see cref="StoryAirPhysics.SingleJumpRise"/>, the controller's own per-tick
+    /// step integrated (apex hang included). Until 2026-10-08 this was the
+    /// continuous closed form v^2 / 2a.
     /// </summary>
-    private static float SingleJumpRise(CharacterData data, float gravityScale) {
-        float launch = data.MaxJumpForce * 54f;
-        float acceleration = 18f * (0.8f + 0.4f * data.Weight) * 60f * gravityScale;
-        return launch * launch / (2f * acceleration);
-    }
+    private static float SingleJumpRise(CharacterData data, float gravityScale) =>
+        StoryAirPhysics.SingleJumpRise(StoryAirPhysics.JumpLaunchSpeed(data.MaxJumpForce), data.Weight, gravityScale);
+
+    /// <summary>
+    /// The whole jump budget's apex (each extra jump at the apex), replacing the
+    /// old single rise × MaxJumpCount.
+    /// </summary>
+    private static float JumpBudgetRise(CharacterData data, float gravityScale) =>
+        StoryAirPhysics.MultiJumpRise(StoryAirPhysics.JumpLaunchSpeed(data.MaxJumpForce), data.Weight,
+            Mathf.Max(1, data.MaxJumpCount), gravityScale);
 
     private static CharacterData LoadCharacter(string characterID) {
         var data = AuthoredResources.Load<CharacterData>($"res://resources/Characters/{characterID}_data.tres");

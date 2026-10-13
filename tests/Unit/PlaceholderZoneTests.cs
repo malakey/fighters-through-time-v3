@@ -48,14 +48,14 @@ public class PlaceholderZoneTests {
             zone.ApplyTickTo(target);
             // 1.5 rounds half-up to 2 — the truncated 1 was the audit bug.
             AssertThat(target.CurrentHP).IsEqual(startingHP - 2);
-            // Damage dealt credits the owner's meter at 1 point per HP.
-            AssertThat(owner.CurrentUltimateMeter).IsEqualApprox(2f, 0.001f);
+            // Damage dealt credits the owner's meter at the Story rate.
+            AssertThat(owner.CurrentUltimateMeter).IsEqualApprox(2f * owner.StoryMeterGainFactor, 0.001f);
 
             // The owner's Story special-damage multiplier now reaches zone ticks.
             owner.StorySpecialDamageMultiplier = 2f;
             zone.ApplyTickTo(target);
             AssertThat(target.CurrentHP).IsEqual(startingHP - 2 - 3);
-            AssertThat(owner.CurrentUltimateMeter).IsEqualApprox(5f, 0.001f);
+            AssertThat(owner.CurrentUltimateMeter).IsEqualApprox(5f * owner.StoryMeterGainFactor, 0.001f);
         } finally {
             zone.Free();
             target.Free();

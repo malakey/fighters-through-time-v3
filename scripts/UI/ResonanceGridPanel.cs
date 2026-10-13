@@ -306,6 +306,8 @@ namespace FTT.UI {
             if (_pendingNode == null) return;
             // TryUnlock raises EventBus.OnTalentNodeUnlocked; SaveManager
             // autosaves the active story slot from that designed unlock trigger.
+            // It also raises OnResonanceProgressionChanged, from which the live
+            // campaign hero re-resolves its grid at once (RespecAll does too).
             ResonanceUnlockResult result = ResonanceProgression.TryUnlock(_grid, _save, _pendingNode.NodeID);
             _statusLabel.Text = Tr(ResultKey(result));
             ResonanceNodeData unlockedNode = _pendingNode;

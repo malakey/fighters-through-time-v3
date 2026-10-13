@@ -77,7 +77,9 @@ namespace FTT.Characters.Abilities {
             // collapses it — the same E=mc² execution, never a second cast. Who
             // is caught is decided at the detonation instant, before the burst
             // resolves, so a blocker the burst then shatters is not pulled.
-            GetOwnRift()?.TryCollapse(impactPosition);
+            // D4 (2026-10-11): the collapse carries this execution's ability ID,
+            // so a mob's stun chain counts it as part of this E=mc² Special.
+            GetOwnRift()?.TryCollapse(impactPosition, Data?.AbilityID ?? "einstein_mass_energy_conversion");
 
             // Burst flash visual only; damage is applied through the shape query so
             // per-target perk multipliers can be evaluated.
@@ -113,7 +115,7 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "einstein_mass_energy_conversion",
                     HitboxID = "burst",
                     AttackClass = AttackClass.Special,
-                    Damage = burstDamage * Owner.StorySpecialDamageMultiplier,
+                    Damage = Owner.StoryAbilityDamage(burstDamage, Data?.AbilityID),
                     Knockback = Data?.KnockbackForce ?? new Vector2(4, -2),
                     HitstunDuration = Data?.HitstunDuration ?? 0.2f,
                     HitOrigin = impactPosition,
@@ -133,7 +135,7 @@ namespace FTT.Characters.Abilities {
                 // R12: the firing cast's serial (0 = the current execution).
                 hit.SourceExecutionSerial = executionSerial;
                 float dealt = hurtbox.TakeHit(hit);
-                Credit(in hit, dealt, hurtbox.GlobalPosition);
+                Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
                 // dealt > 0 is exactly "the hit resolved into real damage":
                 // a block, an invulnerable target and a DoT-only contact all
                 // return zero, which is the design's gating list.

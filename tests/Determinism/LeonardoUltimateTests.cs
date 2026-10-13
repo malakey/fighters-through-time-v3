@@ -102,7 +102,15 @@ public class LeonardoUltimateTests {
         AssertThat(afterCharge.CurrentHP).IsEqual(ChargedHP);
         var xBeforeFinale = afterCharge.Position.x;
 
-        int next = UltimateActivationTestKit.CastAndConnect(simulation, 31, out bool connected);
+        // The special's ability lockout refuses the Ultimate until it runs
+        // out; it pauses through Leonardo's hitstop on the projectile's hit.
+        int castTick = 31;
+        for (; castTick < 90; castTick++) {
+            AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
+            if (runtime.AbilityLockoutFrames == 0) break;
+            simulation.Advance(Frame(castTick, 0, GameplayButtons.None), Frame(castTick, 0, GameplayButtons.None));
+        }
+        int next = UltimateActivationTestKit.CastAndConnect(simulation, castTick, out bool connected);
         AssertThat(connected).IsTrue();
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
         AssertThat(zone.ZoneTypeID).IsEqual((int)FighterCharacterID.Leonardo * 10 + 3);

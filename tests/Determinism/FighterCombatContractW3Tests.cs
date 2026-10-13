@@ -11,8 +11,9 @@ namespace FTT.Tests.Determinism;
 /// Package 12 W3, the Fighter-side pins: M06 (the Block escape never fires out
 /// of tumble), the guard-break push (away from the attacker, unscaled,
 /// assigned), block-cancel eligibility after a Special (the sim has no special
-/// recovery lock), M01 (fast-fall snaps to 20 and the fall is clamped at the
-/// 20 u/s terminal), and the M09 respawn state.
+/// recovery lock), M01 as amended by the 2026-10-08 air model (fast-fall ramps
+/// to a 15 u/s cap, normal falls cap at 12, launches keep the 20 u/s clamp),
+/// and the M09 respawn state.
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
@@ -131,31 +132,65 @@ public class FighterCombatContractW3Tests {
             .IsTrue();
     }
 
+    /// <summary>
+    /// Rewritten in place for the 2026-10-08 air model (user direction): M01's
+    /// snap to a shared 20 u/s terminal is gone. Fast-fall ramps in under
+    /// <c>FastFallGravityMultiplier</c> toward a 15 u/s cap, a normal-control
+    /// fall is capped at 12 u/s, a fall already past its cap eases down by one
+    /// base-gravity step a tick, and only hitstun and daze keep the 20 u/s
+    /// launch clamp.
+    /// </summary>
     [TestCase]
-    public void FastFallSnapsToTheTwentyUnitTerminalAndFallIsClamped() {
-        AssertThat(UniversalMovementRules.FastFallSpeed).IsEqual(20f);
-        AssertThat(UniversalMovementRules.TerminalFallSpeed).IsEqual(UniversalMovementRules.FastFallSpeed);
-        FP64 terminal = -FP64.FromInt(20);
-        AssertThat(FighterMovementSystem.ClampToTerminal(-FP64.FromInt(35)).RawValue).IsEqual(terminal.RawValue);
-        AssertThat(FighterMovementSystem.ClampToTerminal(-FP64.FromInt(5)).RawValue).IsEqual((-FP64.FromInt(5)).RawValue);
-        AssertThat(FighterMovementSystem.ClampToTerminal(FP64.FromInt(9)).RawValue).IsEqual(FP64.FromInt(9).RawValue);
+    public void FastFallRampsToItsFifteenUnitCapAndTheFallCapsAreTwelveAndTwenty() {
+        AssertThat(UniversalMovementRules.FastFallSpeed).IsEqual(15f);
+        AssertThat(UniversalMovementRules.TerminalFallSpeed).IsEqual(12f);
+        AssertThat(UniversalMovementRules.LaunchTerminalFallSpeed).IsEqual(20f);
+        AssertThat(UniversalMovementRules.FastFallGravityMultiplier).IsEqual(3f);
+        FP64 baseStep = FP64.FromInt(-30) * (FP64.One / FP64.FromInt(60));
+        FP64 fastFallStep = baseStep * FP64.FromDouble(UniversalMovementRules.FastFallGravityMultiplier);
+        FP64 terminal = -FP64.FromInt(12);
+        FP64 fastFallCap = -FP64.FromInt(15);
+        FP64 launchClamp = -FP64.FromInt(20);
 
-        // Live: jump, then hold Down — every airborne tick reads exactly -20.
+        // The launch clamp: hitstun and daze, flat gravity, 20 u/s.
+        AssertThat(FighterAirPhysics.StepLaunch(-FP64.FromInt(35)).RawValue).IsEqual(launchClamp.RawValue);
+        AssertThat(FighterAirPhysics.StepLaunch(-FP64.FromInt(5)).RawValue).IsEqual((-FP64.FromInt(5) + baseStep).RawValue);
+        AssertThat(FighterAirPhysics.StepLaunch(FP64.FromInt(9)).RawValue).IsEqual((FP64.FromInt(9) + baseStep).RawValue);
+        // Normal control: a fall reaching 12 stops on it; one already faster eases.
+        AssertThat(FighterAirPhysics.StepMovement(-FP64.FromDouble(11.8), false, false, false).RawValue)
+            .IsEqual(terminal.RawValue);
+        AssertThat(FighterAirPhysics.StepMovement(-FP64.FromInt(15), false, false, false).RawValue)
+            .IsEqual((-FP64.FromInt(15) - baseStep).RawValue);
+        AssertThat(FighterAirPhysics.StepMovement(-FP64.FromInt(20), false, false, false).RawValue)
+            .IsEqual((-FP64.FromInt(20) - baseStep).RawValue);
+        // Fast-falling: the cap is 15, reached and held.
+        AssertThat(FighterAirPhysics.StepMovement(-FP64.FromDouble(14.9), true, false, false).RawValue)
+            .IsEqual(fastFallCap.RawValue);
+        AssertThat(FighterAirPhysics.StepMovement(fastFallCap, true, false, false).RawValue)
+            .IsEqual(fastFallCap.RawValue);
+
+        // Live: jump, then hold Down from tick 4 — the descent ramps by one
+        // fast-fall step a tick and never passes 15, where it used to read
+        // exactly -20 on every tick.
         var simulation = new FighterSimulation(spawnDistance: 8, rules: FighterMatchRules.Disabled);
         simulation.Advance(Frame(0, GameplayButtons.Jump), Frame(0, GameplayButtons.None));
         int tick = 1;
         for (; tick < 4; tick++) simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
+        simulation.TryGetFighter(0, out FighterStateComponent rising);
+        FP64 previous = rising.Velocity.y;
         int airborneTicks = 0;
         for (; tick < 60; tick++) {
             simulation.Advance(Frame(tick, GameplayButtons.Down), Frame(tick, GameplayButtons.None));
             simulation.TryGetFighter(0, out FighterStateComponent fighter);
             if (fighter.IsGrounded != 0) break;
             airborneTicks++;
+            FP64 expected = previous + fastFallStep < fastFallCap ? fastFallCap : previous + fastFallStep;
             AssertThat(fighter.Velocity.y.RawValue)
-                .OverrideFailureMessage("Fast-fall must snap to the terminal speed, never exceed it.")
-                .IsEqual(terminal.RawValue);
+                .OverrideFailureMessage("Fast-fall must ramp by one heavier-gravity step a tick, capped at 15.")
+                .IsEqual(expected.RawValue);
+            previous = fighter.Velocity.y;
         }
-        AssertThat(airborneTicks > 0).IsTrue();
+        AssertThat(airborneTicks > 1).IsTrue();
     }
 
     [TestCase]

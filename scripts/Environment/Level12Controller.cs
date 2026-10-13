@@ -64,6 +64,13 @@ namespace FTT.Environment {
         // the upper spire-ladder cover rung (one-way 6700, top 1490) over the
         // spire-base vent — a dead-end gantry the floor route and the lift bypass.
         protected override Vector2? SecretCachePosition => new(6700f, 1395f);
+
+        // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, after the PreBoss
+        // anchor (8940) on the landing pad, 400 px short of the arena (9800). Low-gravity
+        // exception: the whole level is low gravity (pad dampers 0.48); a post-wave heal (wave
+        // 4 spawns at the 9060 pad transition).
+        protected override Vector2? RestorationFontPosition => new(9400f, SurfaceY);
+
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         /// <summary>

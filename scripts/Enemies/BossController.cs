@@ -406,6 +406,7 @@ namespace FTT.Enemies {
             MoveAndSlide();
             _pushbox?.ResolveStoryOverlaps();
             ApplyArenaLeash();
+            RecoverFromArenaFall();
         }
 
         // === Playtest pass 2026-10-04 (P1) — arena engagement and leash ===
@@ -493,6 +494,85 @@ namespace FTT.Enemies {
         /// <summary>Test seam: applies the arena clamp outside a physics step.</summary>
         internal void ApplyArenaLeashForTest() => ApplyArenaLeash();
 
+        // === 2026-10-09 — the arena fall net (VERIFY-L10-ARENA-RECESS-EXIT, boss half) ===
+        //
+        // The leash only clamps x, so a body that left its floor (a teleport past
+        // a wall before the relocation rule existed, a knockback into a gap, any
+        // write nobody has found yet) fell forever and the level could not be
+        // won: the Tragedy King under the Level 10 boards. Every authored arena
+        // runs to the bottom of its level, so a leashed body whose feet end a
+        // frame past the net line — the arena's bottom edge plus
+        // ArenaFallNetMarginPixels — has left the world. It is put back on its
+        // authored anchor — no damage, no HP, no phase, no reward, no history
+        // reset (T01b's ring and its once-only latch are untouched) — once per
+        // fall, and the event is printed so a bot run's log shows it.
+        //
+        // VERIFY-L04-PIT-FALL-NET (2026-10-09): the net first fired at the bottom
+        // edge itself, and Level 4's Tribunal pit floor sits 40 px under it, on
+        // purpose walkable, so the surviving squad member was put back on its
+        // spawn every time it walked into the pit. ArenaGeometryContentTests'
+        // NothingABossCanStandOnLiesBelowItsArenaFallNet keeps every authored
+        // surface over an arena above the line.
+
+        /// <summary>Times this body has been returned from below its arena since it last spawned. Test seam.</summary>
+        public int ArenaFallRecoveries { get; private set; }
+
+        /// <summary>Where the last arena fall put the body back. Test seam.</summary>
+        public Vector2 LastArenaFallAnchor { get; private set; }
+
+        /// <summary>
+        /// How far below its arena's bottom edge a leashed body's feet must be
+        /// before the fall net catches it. Larger than any walkable floor authored
+        /// under an arena's edge — the deepest is Level 4's Tribunal pit floor,
+        /// 40 px under the courtyard's 1080 bottom — so a body standing in a pit
+        /// is never mistaken for one leaving the world; four world units (60 px
+        /// each), small enough that a real fall is caught within about half a
+        /// second of passing the level's bottom (the boss's 980 px/s² gravity).
+        /// Shared with the Level 13 Mirror clone's net.
+        /// </summary>
+        public const float ArenaFallNetMarginPixels = 240f;
+
+        /// <summary>
+        /// The y a leashed body's feet must pass to be caught by the arena fall
+        /// net: <paramref name="arena"/>'s bottom edge plus
+        /// <see cref="ArenaFallNetMarginPixels"/>. Nothing a body can stand on
+        /// over an arena may lie on or below it.
+        /// </summary>
+        public static float ArenaFallNetLineY(Rect2 arena) => arena.End.Y + ArenaFallNetMarginPixels;
+
+        private void RecoverFromArenaFall() {
+            if (!HasArenaLeash || ArenaBounds.Size.Y <= 0f || CurrentState == BossState.Dead) return;
+            if (GlobalPosition.Y <= ArenaFallNetLineY(ArenaBounds)) return;
+            Vector2 fellAt = GlobalPosition;
+            Vector2 anchor = ResolveArenaFallAnchor();
+            GlobalPosition = anchor;
+            Velocity = Vector2.Zero;
+            ArenaFallRecoveries++;
+            LastArenaFallAnchor = anchor;
+            GD.Print($"[arena-fall] boss '{Data?.BossID}' fell below its arena at "
+                + $"({fellAt.X:0},{fellAt.Y:0}); returned to ({anchor.X:0},{anchor.Y:0}).");
+        }
+
+        /// <summary>
+        /// The authored safe anchor when there is one inside the arena (T01b's
+        /// <see cref="HistoricalRecoveryAnchor"/>), else the spawn point, which
+        /// the encounter authors on the arena floor.
+        /// </summary>
+        private Vector2 ResolveArenaFallAnchor() {
+            Node2D authored = HistoricalRecoveryAnchor;
+            if (authored != null && IsInstanceValid(authored) && authored.IsInsideTree()
+                && ArenaBounds.HasPoint(authored.GlobalPosition)) {
+                return authored.GlobalPosition;
+            }
+            if (ArenaBounds.HasPoint(_spawnPosition)) return _spawnPosition;
+            return new Vector2(
+                Mathf.Clamp(_spawnPosition.X, ArenaBounds.Position.X, ArenaBounds.End.X),
+                Mathf.Clamp(_spawnPosition.Y, ArenaBounds.Position.Y, ArenaBounds.End.Y - 1f));
+        }
+
+        /// <summary>Test seam: runs the fall net outside a physics step.</summary>
+        internal void RecoverFromArenaFallForTest() => RecoverFromArenaFall();
+
         /// <summary>
         /// Back to the standalone defaults — engaged and unleashed — so no pool
         /// cycle carries one encounter's dormancy or arena into the next
@@ -502,6 +582,7 @@ namespace FTT.Enemies {
             _engaged = true;
             ArenaBounds = default;
             WardedHitsRefused = 0;
+            ArenaFallRecoveries = 0;
         }
 
         // === A5 (2026-10-04) — the arena ward (ARENA-LEASH-EDGE-ANSWER) ===
@@ -1060,6 +1141,9 @@ namespace FTT.Enemies {
 
         /// <summary>Advances the ability executor one 60 Hz frame (state machine and tests).</summary>
         public void TickAbility(float delta) => Executor.Tick(delta);
+
+        /// <summary>How this body's last Teleport landing resolved (the 2026-10-09 relocation rule). Test seam.</summary>
+        public FTT.Combat.RelocationResult LastTeleportLanding => Executor.LastTeleportLanding;
 
         /// <summary>
         /// The archetypes a boss never uses against a target outside its arena
@@ -1855,6 +1939,11 @@ namespace FTT.Enemies {
             }
             int damageApplied = ApplyBossDamage(Mathf.Max(0, (int)Mathf.Round(hit.Damage)));
             if (damageApplied <= 0) return 0f;
+            // 2026-10-11 (D1a): damage applied is a LANDED contact. The ward
+            // above and ApplyBossDamage's invulnerability windows (phase
+            // transition, T01b, guarded, soliloquy) return before this; a boss
+            // has no shield layer.
+            _hurtbox?.ReportLanded(hit.ContactId);
             // V7.1 hitstop (victim side): a killing blow skips — the death
             // presentation owns that moment. F5 (2026-10-04): tick, construct and
             // hazard deliveries and ExemptFromHitstop payloads never freeze a boss.

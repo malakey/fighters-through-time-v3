@@ -169,6 +169,8 @@ public class PuzzleEnvironmentToolkitTests {
                     FTT.Core.StoryDifficultyTuning.CurrentStoryDifficulty);
             float earned = extractor.HazardDamage * (1f - echoFraction)
                 * FTT.Combat.UltimateMeter.PointsPerDamageTaken;
+            // D5: at the campaign hero's Story meter-gain factor.
+            earned *= player.StoryMeterGainFactor;
             AssertThat(player.CurrentUltimateMeter).IsEqualApprox(30f + earned, 0.01f);
 
             extractor.TakeEnvironmentDamage(60f);

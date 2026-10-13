@@ -82,18 +82,9 @@ namespace FTT.Characters {
 			StorySaveData save = saveManager.SaveSlots[slotIndex];
 			if (save == null) return null;
 
-			var slots = new HashSet<AbilitySlot>();
-			if (save.UnlockedLegacyAbilities != null
-				&& save.UnlockedLegacyAbilities.TryGetValue(characterID, out List<string> keys)) {
-				slots.UnionWith(LegacyUnlockSchedule.SlotsFromSavedKeys(keys));
-			}
-			// Backstop for a payload written before the schedule existed: the
-			// completed-level history is the same source of truth the milestone
-			// grant uses, so the two can never disagree.
-			foreach (AbilitySlot slot in LegacyUnlockSchedule.GatedSlots) {
-				if (LegacyUnlockSchedule.IsUnlocked(slot, save.CompletedLevels)) slots.Add(slot);
-			}
-			return slots;
+			// The persisted unlock keys, backstopped by the completed-level
+			// history — the one rule the Resonance grid's dormant nodes read too.
+			return LegacyUnlockSchedule.UnlockedSlotsFor(save, characterID);
 		}
 
 		/// <param name="applyStoryProgression">
@@ -135,45 +126,25 @@ namespace FTT.Characters {
 				UpDirection = Vector2.Up,
 				FloorStopOnSlope = true
 			};
-			if (applyStoryProgression
-				&& FTT.Environment.ResonanceProgression.TryResolveActive(characterID, out FTT.Environment.StoryStatProfile storyStats)) {
-				player.StoryMaxHPBonus = storyStats.MaxHPBonus;
-				player.StoryBlockChargeBonus = storyStats.BlockChargeBonus;
-				player.StoryMoveSpeedMultiplier = storyStats.MoveSpeedMultiplier;
-				player.StoryJumpForceMultiplier = storyStats.JumpForceMultiplier;
-				player.StoryBasicDamageMultiplier = storyStats.BasicDamageMultiplier;
-				player.StorySpecialDamageMultiplier = storyStats.SpecialDamageMultiplier;
-				player.StoryCooldownMultiplier = storyStats.CooldownMultiplier;
-				player.StoryAttackRangeMultiplier = storyStats.AttackRangeMultiplier;
-				player.StoryComboSpeedMultiplier = storyStats.ComboSpeedMultiplier;
-				player.StoryBlockRecoveryMultiplier = storyStats.BlockRecoveryMultiplier;
-				player.StoryKnockbackMultiplier = storyStats.KnockbackMultiplier;
-				player.StoryProjectileSpeedMultiplier = storyStats.ProjectileSpeedMultiplier;
-				player.StoryProjectileDamageMultiplier = storyStats.ProjectileDamageMultiplier;
-				player.StoryGlideSpeedMultiplier = storyStats.GlideSpeedMultiplier;
-				player.StoryGlideDurationMultiplier = storyStats.GlideDurationMultiplier;
-				player.StoryZoneRadiusMultiplier = storyStats.ZoneRadiusMultiplier;
-				player.StoryZoneDurationMultiplier = storyStats.ZoneDurationMultiplier;
-				player.StoryPersistentDurationMultiplier = storyStats.PersistentDurationMultiplier;
-				player.StoryPersistentRangeMultiplier = storyStats.PersistentRangeMultiplier;
-				player.StoryPersistentHealthMultiplier = storyStats.PersistentHealthMultiplier;
-				player.StoryStatusDurationMultiplier = storyStats.StatusDurationMultiplier;
-				player.StoryStatusIntensityMultiplier = storyStats.StatusIntensityMultiplier;
-				// Package 11 A4 (Resonance V7.6): three new character-wide lanes
-				// plus the one scoped bucket - a single assignment instead of
-				// six-times-N hand-copied fields.
-				player.StoryRallyEchoFractionMultiplier = storyStats.RallyEchoFractionMultiplier;
-				player.StoryUltimateBuildRateMultiplier = storyStats.UltimateBuildRateMultiplier;
-				player.StoryExtractorDamageMultiplier = storyStats.ExtractorDamageMultiplier;
-				player.StoryScopedStats = new FTT.Environment.ScopedStoryStats(storyStats.ScopedMultipliers);
-				FTT.Environment.ResonanceProgression.TryCollectActiveAbilityModifiers(
-					characterID, player.StoryAbilityPerks);
-			}
+			// The one statement of what the grid puts on a hero: the build copies
+			// it here, and a purchase or respec re-runs the same method on the
+			// live hero (ReapplyStoryProgression), so the two cannot drift.
+			if (applyStoryProgression) ApplyActiveStoryProgression(player, characterID);
+			// 2026-10-11 (grid-live-apply): only the campaign hero — the full
+			// Story path, Legacy gate included — re-resolves live. The Mirror
+			// clone (perks copied at spawn on Hard, gate never installed), Fighter
+			// Mode, the Holodeck and the drills never do.
+			player.ReceivesLiveStoryProgression = applyStoryProgression && applyLegacyUnlockLocks;
 			// Package 11 A5 (V7.5 Legacy Unlock Schedule). Story-only: the
 			// applyStoryProgression: false seam — Fighter Mode, the hub
 			// Holodeck, the Calibration Drills and the Mirror Paradox clone —
 			// never installs the gate, so those paths always run the full kit.
 			if (applyStoryProgression && applyLegacyUnlockLocks) {
+				// D5: the campaign hero earns Story meter at StoryCombatRules.MeterGainScale.
+				// The drills, the Holodeck, Fighter and the Mirror clone
+				// (applyLegacyUnlockLocks: false) never enter this branch and earn their
+				// lane alone.
+				player.AppliesStoryMeterGainScale = true;
 				HashSet<AbilitySlot> unlocked = ResolveStoryUnlockedSlots(characterID);
 				if (unlocked != null) player.ApplyLegacyUnlockLocks(unlocked);
 				// Package 11 A1b (V7.6 F10): Defy History is once per ATTEMPT.
@@ -216,6 +187,144 @@ namespace FTT.Characters {
 			SetupAbilities(player, characterID);
 			player.AddToGroup("Players");
 			return player;
+		}
+
+		/// <summary>
+		/// The one copy of the active save's Resonance grid onto a Story hero:
+		/// every resolved stat lane, the ability-scoped bucket and the purchased
+		/// perk set. <see cref="CreateCharacter"/> calls it once at build, and
+		/// <see cref="ReapplyStoryProgression"/> calls it again on the live hero
+		/// after a purchase or a respec, so the build and the live path read the
+		/// same resolution through the same assignments.
+		///
+		/// <para>Returns false and changes nothing when there is no active Story
+		/// save for <paramref name="characterID"/> (the Test Arena, a slotless
+		/// developer launch, a unit harness) — exactly what the build did there
+		/// before. It touches no live state (HP, block charges, cooldowns, the
+		/// Legacy locks, Defy); the live wrapper settles those. Story-only:
+		/// Fighter Mode, the Holodeck and the drills never call it.</para>
+		/// </summary>
+		public static bool ApplyActiveStoryProgression(PlayerController player, string characterID) {
+			if (player == null
+				|| !FTT.Environment.ResonanceProgression.TryResolveActive(
+					characterID, out FTT.Environment.StoryStatProfile storyStats)) {
+				return false;
+			}
+			player.StoryMaxHPBonus = storyStats.MaxHPBonus;
+			player.StoryBlockChargeBonus = storyStats.BlockChargeBonus;
+			player.StoryMoveSpeedMultiplier = storyStats.MoveSpeedMultiplier;
+			player.StoryJumpForceMultiplier = storyStats.JumpForceMultiplier;
+			player.StoryBasicDamageMultiplier = storyStats.BasicDamageMultiplier;
+			player.StorySpecialDamageMultiplier = storyStats.SpecialDamageMultiplier;
+			player.StoryCooldownMultiplier = storyStats.CooldownMultiplier;
+			player.StoryAttackRangeMultiplier = storyStats.AttackRangeMultiplier;
+			player.StoryComboSpeedMultiplier = storyStats.ComboSpeedMultiplier;
+			player.StoryBlockRecoveryMultiplier = storyStats.BlockRecoveryMultiplier;
+			player.StoryKnockbackMultiplier = storyStats.KnockbackMultiplier;
+			player.StoryProjectileSpeedMultiplier = storyStats.ProjectileSpeedMultiplier;
+			player.StoryProjectileDamageMultiplier = storyStats.ProjectileDamageMultiplier;
+			player.StoryGlideSpeedMultiplier = storyStats.GlideSpeedMultiplier;
+			player.StoryGlideDurationMultiplier = storyStats.GlideDurationMultiplier;
+			player.StoryZoneRadiusMultiplier = storyStats.ZoneRadiusMultiplier;
+			player.StoryZoneDurationMultiplier = storyStats.ZoneDurationMultiplier;
+			player.StoryPersistentDurationMultiplier = storyStats.PersistentDurationMultiplier;
+			player.StoryPersistentRangeMultiplier = storyStats.PersistentRangeMultiplier;
+			player.StoryPersistentHealthMultiplier = storyStats.PersistentHealthMultiplier;
+			player.StoryStatusDurationMultiplier = storyStats.StatusDurationMultiplier;
+			player.StoryStatusIntensityMultiplier = storyStats.StatusIntensityMultiplier;
+			// Package 11 A4 (Resonance V7.6): three new character-wide lanes
+			// plus the one scoped bucket - a single assignment instead of
+			// six-times-N hand-copied fields.
+			player.StoryRallyEchoFractionMultiplier = storyStats.RallyEchoFractionMultiplier;
+			player.StoryUltimateBuildRateMultiplier = storyStats.UltimateBuildRateMultiplier;
+			player.StoryExtractorDamageMultiplier = storyStats.ExtractorDamageMultiplier;
+			player.StoryScopedStats = new FTT.Environment.ScopedStoryStats(storyStats.ScopedMultipliers);
+			// Clears the set before refilling it, so a respec drops every perk.
+			FTT.Environment.ResonanceProgression.TryCollectActiveAbilityModifiers(
+				characterID, player.StoryAbilityPerks);
+			return true;
+		}
+
+		/// <summary>
+		/// 2026-10-11 (grid-live-apply): re-resolves the active save's grid onto
+		/// the LIVE campaign hero, so a node bought or a respec made at the hub
+		/// Repository or an Act III Warden Beacon reaches the fight it was bought
+		/// for ("stat modifiers are applied immediately", design-godot.md,
+		/// Resonance Grid UI Flow) instead of waiting for the next scene load.
+		///
+		/// <para>Runs <see cref="ApplyActiveStoryProgression"/> — the build's own
+		/// method — then settles what the build derived from it: the idle
+		/// factory-built kit hitboxes take the new damage lane, and
+		/// <see cref="PlayerController.SettleLiveStoryProgression"/> keeps current
+		/// HP and block charges (a raised cap never fills them, a lowered cap
+		/// clamps them, so a respec and re-buy loop never heals). It writes
+		/// nothing to the Legacy locks, Defy, cooldown timers, the meter or
+		/// anything a cast already put into the world (which, as before, reads
+		/// the hero's hit-time lanes when it lands).</para>
+		///
+		/// <para>Refuses anything but the campaign hero
+		/// (<see cref="PlayerController.ReceivesLiveStoryProgression"/>): the
+		/// Mirror clone, Fighter Mode, the Holodeck and the drills never change.
+		/// The hero itself defers a call that arrives mid-cast or mid-swing to the
+		/// end of that cast or swing
+		/// (<see cref="PlayerController.RequestLiveStoryProgression"/>).</para>
+		/// </summary>
+		public static bool ReapplyStoryProgression(PlayerController player) {
+			if (player == null || !GodotObject.IsInstanceValid(player)
+				|| !player.ReceivesLiveStoryProgression || player.IsStoryHostile) {
+				return false;
+			}
+			string characterID = player.Data?.CharacterID ?? "";
+			if (!ApplyActiveStoryProgression(player, characterID)) return false;
+			RefreshIdleBuiltHitboxDamage(player, characterID);
+			player.SettleLiveStoryProgression();
+			return true;
+		}
+
+		/// <summary>
+		/// The build-time damage of a factory-built ability hitbox: the build-time
+		/// half of the one Story ability-damage composition
+		/// (<see cref="PlayerController.StoryAbilityHitboxDamage"/>); the hitbox adds
+		/// the item-drop buff and the AbilityDamage lane when it lands.
+		/// </summary>
+		private static float AbilityHitboxDamage(AbilityData data, PlayerController player) =>
+			player.StoryAbilityHitboxDamage(data.BaseDamage);
+
+		/// <summary>
+		/// Keeps the idle factory-built kit hitboxes (<see cref="GetRequiredHitboxes"/>)
+		/// at the damage the build would bake into them under the new grid. No
+		/// kit reads that idle value today — the one such box a kit swings,
+		/// Lincoln's <c>OverheadHitbox</c>, re-sets its damage when it activates,
+		/// and the rest are never activated — so this only stops an idle box from
+		/// holding a stale build-time number. The re-resolve never runs mid-cast
+		/// (<see cref="PlayerController.RequestLiveStoryProgression"/>), and an
+		/// active box is skipped anyway.
+		///
+		/// <para>The basic <c>MeleeHitbox</c> is deliberately left alone: every
+		/// swing writes its own per-hit damage when it STARTS
+		/// (<c>StartComboHit</c> / <c>StartDirectionalAttack</c>: base ×
+		/// <c>StoryBasicDamageMultiplier</c> × the hit's tenths), so an inactive
+		/// box can already hold a swing's damage during its startup frames, and
+		/// overwriting it with the flat build value would change that swing.</para>
+		/// </summary>
+		private static void RefreshIdleBuiltHitboxDamage(PlayerController player, string characterID) {
+			if (player.Data == null) return;
+			AbilityData[] definitions = {
+				player.Data.SpecialAttackOne,
+				player.Data.SpecialAttackTwo,
+				player.Data.MovementAbility,
+				player.Data.UltimateAttack
+			};
+			for (int slot = 0; slot < AbilityNodeNames.Length; slot++) {
+				if (definitions[slot] == null) continue;
+				BaseSpecial ability = player.GetNodeOrNull<BaseSpecial>(AbilityNodeNames[slot]);
+				if (ability == null) continue;
+				foreach (string hitboxName in GetRequiredHitboxes(characterID, slot)) {
+					Hitbox hitbox = ability.GetNodeOrNull<Hitbox>(hitboxName);
+					if (hitbox == null || hitbox.IsActive) continue;
+					hitbox.Damage = AbilityHitboxDamage(definitions[slot], player);
+				}
+			}
 		}
 
 		private static void BuildVisual(PlayerController player, CharacterVisual visual, CharacterData data,
@@ -277,7 +386,6 @@ namespace FTT.Characters {
 				Shape = new RectangleShape2D { Size = new Vector2(56, 36) }
 			});
 			player.AddChild(ledgeDetector);
-			player.AddChild(new Marker2D { Name = "AerialHitboxMarker", Position = new Vector2(56, -42) });
 		}
 
 		private static void BuildHurtbox(PlayerController player, int playerIndex) {
@@ -289,8 +397,17 @@ namespace FTT.Characters {
 				Monitorable = true,
 				Monitoring = true
 			};
-			var shape = new CollisionShape2D { Name = "CollisionShape2D", Position = new Vector2(0, -32) };
-			shape.Shape = new RectangleShape2D { Size = new Vector2(40, 64) };
+			// The named Story hero hurtbox (FTT.Combat.StoryCombatRules), which the
+			// Story melee-reach rules measure enemy swings against.
+			var shape = new CollisionShape2D {
+				Name = "CollisionShape2D",
+				Position = new Vector2(0, -FTT.Combat.StoryCombatRules.HeroHurtboxHeightPixels / 2f)
+			};
+			shape.Shape = new RectangleShape2D {
+				Size = new Vector2(
+					FTT.Combat.StoryCombatRules.HeroHurtboxWidthPixels,
+					FTT.Combat.StoryCombatRules.HeroHurtboxHeightPixels)
+			};
 			hurtbox.AddChild(shape);
 			player.AddChild(hurtbox);
 		}
@@ -360,21 +477,21 @@ namespace FTT.Characters {
 				player.Data.MovementAbility,
 				player.Data.UltimateAttack
 			};
-			string[] nodeNames = { "Special1", "Special2", "MovementAbility", "Ultimate" };
-
 			for (int slot = 0; slot < implementations.Length; slot++) {
 				AbilityData definition = definitions[slot]
 					?? throw new InvalidOperationException($"'{characterID}' is missing ability data for slot {slot}.");
 				BaseSpecial implementation = implementations[slot];
-				implementation.Name = nodeNames[slot];
+				implementation.Name = AbilityNodeNames[slot];
 				implementation.Data = definition;
 				foreach (string hitboxName in GetRequiredHitboxes(characterID, slot)) {
-					implementation.AddChild(MakeHitbox(
-						hitboxName, definition, player.PlayerIndex, player.StorySpecialDamageMultiplier));
+					implementation.AddChild(MakeHitbox(hitboxName, definition, player));
 				}
 				player.AddChild(implementation);
 			}
 		}
+
+		/// <summary>The four ability node names, in slot order.</summary>
+		private static readonly string[] AbilityNodeNames = { "Special1", "Special2", "MovementAbility", "Ultimate" };
 
 		private static string[] GetRequiredHitboxes(string characterID, int slot) => (characterID, slot) switch {
 			("einstein", 3) => new[] { "UltHitbox" },
@@ -387,12 +504,13 @@ namespace FTT.Characters {
 			_ => Array.Empty<string>()
 		};
 
-		private static Hitbox MakeHitbox(string name, AbilityData data, int ownerIndex, float damageMultiplier) {
+		private static Hitbox MakeHitbox(string name, AbilityData data, PlayerController player) {
+			int ownerIndex = player.PlayerIndex;
 			var hitbox = new Hitbox {
 				Name = name,
 				AttackID = data.AbilityID,
 				HitboxID = name,
-				Damage = data.BaseDamage * damageMultiplier,
+				Damage = AbilityHitboxDamage(data, player),
 				KnockbackForce = data.KnockbackForce,
 				AppliedStatus = data.AppliedStatus,
 				StatusDuration = data.StatusDuration,

@@ -52,6 +52,43 @@ public class HudAbilityIndicatorModelTests {
         AssertThat(model.IsReady(AbilitySlot.MovementAbility)).IsTrue();
     }
 
+    /// <summary>
+    /// 2026-10-11 (PROVISIONAL-HIT-CONFIRM-RULES (9)): the Story HUD now writes
+    /// each cooldown's remaining time from the hero's own timer every frame, so
+    /// a per-hit Momentum refund, a Time Freeze pause or the Story cooldown
+    /// multiplier reach the radial. The denominator the cast armed is kept and
+    /// only ever raised.
+    /// </summary>
+    [TestCase]
+    public void ASyncedCooldownKeepsItsDenominatorAndFollowsARefund() {
+        var model = new HudAbilityIndicatorModel();
+
+        model.StartCooldown(AbilitySlot.Special1, 10f);
+        model.SyncCooldownRemaining(AbilitySlot.Special1, 6f);
+        AssertFloat(model.RemainingSeconds(AbilitySlot.Special1)).IsEqual(6f);
+        AssertFloat(model.ReadinessFraction(AbilitySlot.Special1)).IsEqualApprox(0.4f, 0.0001f);
+        AssertThat(model.IsReady(AbilitySlot.Special1)).IsFalse();
+
+        // A refund that empties the timer readies the slot at once.
+        model.SyncCooldownRemaining(AbilitySlot.Special1, 0f);
+        AssertThat(model.IsReady(AbilitySlot.Special1)).IsTrue();
+        AssertFloat(model.ReadinessFraction(AbilitySlot.Special1)).IsEqual(1f);
+
+        // An authority above the denominator (a cooldown restored on load, which
+        // raises no start event) becomes the denominator.
+        model.SyncCooldownRemaining(AbilitySlot.Special1, 12f);
+        AssertFloat(model.ReadinessFraction(AbilitySlot.Special1)).IsEqual(0f);
+        model.SyncCooldownRemaining(AbilitySlot.Special1, 3f);
+        AssertFloat(model.ReadinessFraction(AbilitySlot.Special1)).IsEqualApprox(0.75f, 0.0001f);
+
+        // The other slots are untouched, and the Ultimate never takes a cooldown.
+        AssertThat(model.IsReady(AbilitySlot.Special2)).IsTrue();
+        model.SetUltimateMeter(HudAbilityIndicatorModel.UltimateReadyMeter);
+        model.SyncCooldownRemaining(AbilitySlot.Ultimate, 5f);
+        AssertThat(model.IsReady(AbilitySlot.Ultimate)).IsTrue();
+        AssertFloat(model.RemainingSeconds(AbilitySlot.Ultimate)).IsEqual(0f);
+    }
+
     [TestCase]
     public void TheUltimateIsGatedByTheMeterAndNeverByACooldownPayload() {
         var model = new HudAbilityIndicatorModel();

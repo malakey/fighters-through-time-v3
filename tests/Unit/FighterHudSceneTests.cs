@@ -143,6 +143,66 @@ public class FighterHudSceneTests {
         }
     }
 
+    /// <summary>
+    /// D10 (2026-10-11, ledger <c>USER-NOT-YET-FLASH</c>): the driver's
+    /// classifier hands the HUD the slots the ability lockout alone refused, and
+    /// the HUD flashes that player's Special icon or meter bar — a red
+    /// <c>SelfModulate</c> tint plus a contracting frame. The readiness alpha and
+    /// the M25 ready flash live on <c>Modulate</c>, which stays untouched.
+    /// </summary>
+    [TestCase]
+    public void ANotYetRefusalFlashesThatPlayersIconOrMeter() {
+        FighterHUD hud = Mount();
+        try {
+            hud.ConfigurePlayer(0, null, 3, 3);
+            hud.ConfigurePlayer(1, null, 3, 3);
+            FighterRuntimeComponent cooling = Runtime();
+            cooling.SpecialOneCooldownFrames = 90;
+            hud.ApplyPlayerState(0, State(influence: 40f), Runtime(), TickRate);
+            hud.ApplyPlayerState(1, State(influence: 100f), cooling, TickRate);
+
+            const string Two = "SafeArea/P2_Status/Body/Column";
+            const string One = "SafeArea/P1_Status/Body/Column";
+            var twoSpecialTwo = hud.GetNode<Label>($"{Two}/PipRow/Cooldowns/S2_Cooldown");
+            var twoSpecialOne = hud.GetNode<Label>($"{Two}/PipRow/Cooldowns/S1_Cooldown");
+            var twoMeter = hud.GetNode<ProgressBar>($"{Two}/MeterBar");
+            var oneSpecialTwo = hud.GetNode<Label>($"{One}/PipRow/Cooldowns/S2_Cooldown");
+            var oneMeter = hud.GetNode<ProgressBar>($"{One}/MeterBar");
+            Color readinessTwo = twoSpecialTwo.Modulate;
+            Color readinessOne = twoSpecialOne.Modulate;
+
+            hud.FlashLockoutRefusal(1, FighterLockoutRefusal.SpecialTwo | FighterLockoutRefusal.Ultimate);
+
+            AssertThat(twoSpecialTwo.SelfModulate).IsEqual(NotYetFlash.Tint);
+            AssertThat(twoMeter.SelfModulate).IsEqual(NotYetFlash.Tint);
+            AssertObject(NotYetFlash.FrameOf(twoSpecialTwo)).IsNotNull();
+            AssertThat(NotYetFlash.FrameOf(twoSpecialTwo).Visible).IsTrue();
+            AssertObject(NotYetFlash.FrameOf(twoMeter)).IsNotNull();
+            AssertThat(NotYetFlash.FrameOf(twoMeter).Visible).IsTrue();
+            AssertThat(twoSpecialTwo.Modulate)
+                .OverrideFailureMessage("The readiness alpha (Modulate) is not the flash's to touch.")
+                .IsEqual(readinessTwo);
+
+            // Only the named slots, only that player.
+            AssertThat(twoSpecialOne.SelfModulate).IsEqual(Colors.White);
+            AssertThat(twoSpecialOne.Modulate).IsEqual(readinessOne);
+            AssertObject(NotYetFlash.FrameOf(twoSpecialOne)).IsNull();
+            AssertThat(oneSpecialTwo.SelfModulate).IsEqual(Colors.White);
+            AssertThat(oneMeter.SelfModulate).IsEqual(Colors.White);
+            AssertObject(NotYetFlash.FrameOf(oneSpecialTwo)).IsNull();
+            AssertObject(NotYetFlash.FrameOf(oneMeter)).IsNull();
+
+            // A repeat flash restarts on the same frame instead of stacking a second.
+            int children = twoSpecialTwo.GetChildCount();
+            Panel frame = NotYetFlash.FrameOf(twoSpecialTwo);
+            hud.FlashLockoutRefusal(1, FighterLockoutRefusal.SpecialTwo);
+            AssertThat(twoSpecialTwo.GetChildCount()).IsEqual(children);
+            AssertThat(NotYetFlash.FrameOf(twoSpecialTwo) == frame).IsTrue();
+        } finally {
+            hud.Free();
+        }
+    }
+
     [TestCase]
     public void EachNameTagCarriesItsSlotShape() {
         // G12: ownership never depends on colour alone — P1 ▲ / P2 ●.

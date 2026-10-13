@@ -217,7 +217,7 @@ namespace FTT.Characters.Abilities {
                 AttackID = Data?.AbilityID ?? "mozart_requiem_chord",
                 HitboxID = hitboxID,
                 AttackClass = AttackClass.Special,
-                Damage = damage * Owner.StorySpecialDamageMultiplier,
+                Damage = Owner.StoryAbilityDamage(damage, Data?.AbilityID),
                 Knockback = finalPulse ? Data?.KnockbackForce ?? new Vector2(3, -2) : Vector2.Zero,
                 HitstunDuration = Data?.HitstunDuration ?? 0.2f,
                 HitOrigin = _burstPosition,
@@ -231,7 +231,7 @@ namespace FTT.Characters.Abilities {
             if (!finalPulse) hit.Launches = false;
             hit.SourceExecutionSerial = _burstSerial;
             float dealt = hurtbox.TakeHit(hit);
-            Credit(in hit, dealt, hurtbox.GlobalPosition);
+            Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
             // M02: a pulse that dealt damage is a hit, not a block.
             if (dealt > 0f) ShaveFortissimo();
             return dealt;
@@ -326,8 +326,7 @@ namespace FTT.Characters.Abilities {
                 AttackID = abilityID,
                 HitboxID = "ground_wave",
                 AttackClass = AttackClass.Special,
-                Damage = Mathf.Round((Data?.BaseDamage ?? 24f) * Owner.StorySpecialDamageMultiplier)
-                    * Owner.StoryScoped("AbilityDamage", abilityID),
+                Damage = Owner.StoryAbilityDamage(Mathf.Round(Data?.BaseDamage ?? 24f), abilityID),
                 Knockback = (Data?.KnockbackForce ?? new Vector2(8f, -2f)) * Owner.StoryKnockbackMultiplier,
                 HitstunDuration = Data?.HitstunDuration ?? 0.2f,
                 HitOrigin = front,
@@ -340,7 +339,7 @@ namespace FTT.Characters.Abilities {
             });
             float dealt = hurtbox.TakeHit(hit);
             // The impact VFX lands inside Credit, at the wave's front.
-            Credit(in hit, dealt, front);
+            Credit(hurtbox, in hit, dealt, front);
         }
     }
 
@@ -741,7 +740,7 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "mozart_symphony_of_sorrow",
                     HitboxID = finalStrike ? "meteor_final" : "meteor",
                     AttackClass = AttackClass.Ultimate,
-                    Damage = Mathf.Round(Data?.CinematicHitDamage(strikeIndex + 1) ?? 8f) * Owner.StorySpecialDamageMultiplier,
+                    Damage = Owner.StoryAbilityDamage(Mathf.Round(Data?.CinematicHitDamage(strikeIndex + 1) ?? 8f), Data?.AbilityID),
                     // Only the closing strike launches; earlier keys pin the
                     // target inside the bombardment.
                     Knockback = finalStrike ? Data?.KnockbackForce ?? new Vector2(5, -4) : Vector2.Zero,
@@ -762,7 +761,7 @@ namespace FTT.Characters.Abilities {
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
                 // ZERO damage-dealt meter, regardless of HP removed, target count or
                 // when it lands. Direct-hit Rally reclaim is retained (D03g).
-                Credit(in hit, dealt, hurtbox.GlobalPosition);
+                Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
             }
         }
     }

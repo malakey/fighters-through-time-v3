@@ -9,9 +9,9 @@ using static GdUnit4.Assertions;
 namespace FTT.Tests.Determinism;
 
 /// <summary>
-/// Pins the V7.1 time systems in the deterministic simulation: Resonance
-/// Momentum (a connecting finisher refunds special cooldown, capped per
-/// cycle), Echo Step (Block+Roll in recovery snaps ~30 frames back for 30
+/// Pins the V7.1 time systems in the deterministic simulation: per-hit
+/// Momentum (D2, 2026-10-11: every landed basic hit refunds special cooldown —
+/// 20 / 20 / 60 frames — capped at 120 frames per slot per cycle), Echo Step (Block+Roll in recovery snaps ~30 frames back for 30
 /// meter), Overtime (the final minute flags every fighter), and Sudden Death
 /// (a true tie respawns both at 1 HP and the first KO decides it). Numbers
 /// come from <see cref="BasicComboRules"/> and <c>FighterMatchSystem</c>.
@@ -22,34 +22,38 @@ public class FighterTimeSystemsTests {
 
     [TestCase]
     public void MomentumRefundArithmeticRespectsTheFloorAndTheCap() {
+        int finisher = BasicComboRules.MomentumFinisherRefundFrames;
         var runtime = new FighterRuntimeComponent {
             SpecialOneCooldownFrames = 300,
             SpecialTwoCooldownFrames = 50
         };
         var verb = new FighterVerbComponent();
 
-        FighterCombatSystem.ApplyMomentumRefund(ref runtime, ref verb);
-        AssertThat(runtime.SpecialOneCooldownFrames).IsEqual(300 - BasicComboRules.MomentumRefundFrames);
+        FighterCombatSystem.ApplyMomentumRefund(ref runtime, ref verb, finisher);
+        AssertThat(runtime.SpecialOneCooldownFrames).IsEqual(300 - finisher);
         AssertThat(runtime.SpecialTwoCooldownFrames)
             .OverrideFailureMessage("A refund larger than the remaining cooldown floors at zero.")
             .IsEqual(0);
-        AssertThat(verb.MomentumRefundsSlotOne).IsEqual(1);
-        AssertThat(verb.MomentumRefundsSlotTwo).IsEqual(1);
+        AssertThat(verb.MomentumRefundedFramesSlotOne).IsEqual(finisher);
+        AssertThat(verb.MomentumRefundedFramesSlotTwo)
+            .OverrideFailureMessage("The cap counts the frames actually removed.")
+            .IsEqual(50);
 
-        FighterCombatSystem.ApplyMomentumRefund(ref runtime, ref verb);
-        AssertThat(runtime.SpecialOneCooldownFrames).IsEqual(300 - 2 * BasicComboRules.MomentumRefundFrames);
-        AssertThat(verb.MomentumRefundsSlotOne).IsEqual(2);
-        // Slot two's cooldown already reached zero, so no refund is consumed.
-        AssertThat(verb.MomentumRefundsSlotTwo).IsEqual(1);
+        FighterCombatSystem.ApplyMomentumRefund(ref runtime, ref verb, finisher);
+        AssertThat(runtime.SpecialOneCooldownFrames).IsEqual(300 - 2 * finisher);
+        AssertThat(verb.MomentumRefundedFramesSlotOne).IsEqual(2 * finisher);
+        // Slot two's cooldown already reached zero, so nothing is consumed.
+        AssertThat(verb.MomentumRefundedFramesSlotTwo).IsEqual(50);
 
-        // The cap: a third connecting finisher refunds nothing on slot one.
-        FighterCombatSystem.ApplyMomentumRefund(ref runtime, ref verb);
-        AssertThat(runtime.SpecialOneCooldownFrames).IsEqual(300 - 2 * BasicComboRules.MomentumRefundFrames);
-        AssertThat(verb.MomentumRefundsSlotOne).IsEqual(BasicComboRules.MomentumRefundCapPerCycle);
+        // The cap: 120 frames per cycle, so a third finisher refunds nothing on slot one.
+        AssertThat(2 * finisher).IsEqual(BasicComboRules.MomentumRefundCapFramesPerCycle);
+        FighterCombatSystem.ApplyMomentumRefund(ref runtime, ref verb, finisher);
+        AssertThat(runtime.SpecialOneCooldownFrames).IsEqual(300 - 2 * finisher);
+        AssertThat(verb.MomentumRefundedFramesSlotOne).IsEqual(BasicComboRules.MomentumRefundCapFramesPerCycle);
     }
 
     [TestCase]
-    public void AConnectingFinisherRefundsARunningCooldownInMatch() {
+    public void EveryConnectingStringHitRefundsARunningCooldownInMatch() {
         var simulation = NewSimulation(
             BuildCharacter("tesla", damage: 10f), BuildCharacter("joan", damage: 10f, maxHP: 400), seed: 951);
 
@@ -57,11 +61,11 @@ public class FighterTimeSystemsTests {
         // authored cooldown cycle.
         simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent armed)).IsTrue();
-        AssertThat(armed.SpecialOneCooldownFrames > BasicComboRules.MomentumRefundFrames).IsTrue();
+        AssertThat(armed.SpecialOneCooldownFrames > BasicComboRules.MomentumRefundCapFramesPerCycle).IsTrue();
 
         // Run off the special's hitstop first (a frozen fighter consumes no
-        // presses), then mash the string until three hits have landed — the
-        // third is the finisher and fires exactly one refund. Alternating
+        // presses), then mash the string until three hits have landed — every
+        // landed hit refunds (D2): 20 + 20 + the finisher's 60. Alternating
         // press/release keeps a fresh press edge every other tick.
         for (int tick = 1; tick <= 10; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
@@ -82,11 +86,15 @@ public class FighterTimeSystemsTests {
             previousHP = target.CurrentHP;
         }
         AssertThat(hits).IsEqual(3);
+        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent after)).IsTrue();
+        AssertThat(after.SpecialOneCooldownFrames > 0)
+            .OverrideFailureMessage("Harness: slot one must still be cooling, so every grant was its full nominal.")
+            .IsTrue();
         AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent verb)).IsTrue();
-        AssertThat(verb.MomentumRefundsSlotOne)
-            .OverrideFailureMessage("The connecting finisher must consume exactly one refund.")
-            .IsEqual(1);
-        AssertThat(verb.MomentumRefundsSlotTwo)
+        AssertThat(verb.MomentumRefundedFramesSlotOne)
+            .OverrideFailureMessage("Three landed string hits must refund 20 + 20 + 60 frames.")
+            .IsEqual(2 * BasicComboRules.MomentumStringHitRefundFrames + BasicComboRules.MomentumFinisherRefundFrames);
+        AssertThat(verb.MomentumRefundedFramesSlotTwo)
             .OverrideFailureMessage("Slot two had no running cooldown — no refund is consumed.")
             .IsEqual(0);
     }

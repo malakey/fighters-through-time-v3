@@ -42,9 +42,10 @@ public class StoryRallyTests {
             HoldInput(player, GameplayButtons.None,
                 frames: BasicComboRules.HitstopFrames(20) + BasicComboRules.EchoDrainFrames + 10);
             AssertThat(player.EchoPool).IsEqual(0f);
+            // D5: at the campaign hero's Story meter-gain factor.
             AssertThat(player.CurrentUltimateMeter)
-                .OverrideFailureMessage("Drained echo must complete the meter to damage/4.")
-                .IsEqualApprox(20f * UltimateMeter.PointsPerDamageTaken, 0.1f);
+                .OverrideFailureMessage("Drained echo must complete the meter to damage/4 at the Story rate.")
+                .IsEqualApprox(20f * UltimateMeter.PointsPerDamageTaken * player.StoryMeterGainFactor, 0.02f);
         } finally {
             InputManager.Instance?.ClearInputSource(player.PlayerIndex);
             player.Free();
@@ -108,9 +109,9 @@ public class StoryRallyTests {
         PlayerController player = CharacterFactory.CreateCharacter("einstein");
         tree.Root.AddChild(player);
         try {
-            // Fill the meter through the ordinary chokepoint (no reclaim: the
-            // pool is empty anyway, and the tutorial grant passes false too).
-            player.AddInfluenceFromDamageDealt(UltimateMeter.MaxValue, collectsEcho: false);
+            // Fill the meter with a direct set (D5 scales every gain on the
+            // campaign hero, so a gain of 100 no longer fills the bar).
+            player.SetUltimateMeter(UltimateMeter.MaxValue);
             AssertThat(player.CurrentUltimateMeter).IsEqual(UltimateMeter.MaxValue);
 
             int applied = player.ApplyDamage(player.MaximumHP);
@@ -126,7 +127,10 @@ public class StoryRallyTests {
 
             // Once per level: even with the meter refilled, the next lethal
             // hit kills normally (the Chronal Rewind takes over from there).
-            player.AddInfluenceFromDamageDealt(UltimateMeter.MaxValue, collectsEcho: false);
+            player.SetUltimateMeter(UltimateMeter.MaxValue);
+            // The refill must really be full, or "the next lethal hit kills"
+            // would pass vacuously instead of proving once-per-level.
+            AssertThat(player.CurrentUltimateMeter).IsEqual(UltimateMeter.MaxValue);
             player.ApplyDamage(player.MaximumHP);
             AssertThat(player.CurrentState).IsEqual(CharacterState.Dead);
         } finally {

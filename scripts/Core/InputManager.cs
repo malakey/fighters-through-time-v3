@@ -29,9 +29,11 @@ namespace FTT.Core {
             public const string Interact = "gameplay_interact";
             /// <summary>
             /// V7.6 Time Freeze (F03), Story Mode only. Replaced the retired
-            /// V7.2 manual-rewind action and inherited its default events
-            /// unchanged: <c>R</c> (physical keycode 82) and the gamepad
-            /// Back/Select button (index 4).
+            /// V7.2 manual-rewind action. Default events: keyboard <c>R</c>
+            /// (physical keycode 82); gamepad <b>L3</b> (<c>JoyButton.LeftStick</c>,
+            /// 7) since 2026-10-11 (user direction D11, ledger
+            /// <c>USER-GAMEPAD-TIME-FREEZE-L3</c>), until then Back (4), inherited
+            /// from the retired rewind.
             ///
             /// <para>Deliberately carries no <see cref="GameplayButtons"/> bit —
             /// that is the Story-only guarantee: the verb never reaches the
@@ -530,6 +532,13 @@ namespace FTT.Core {
         /// </summary>
         private static readonly List<JoyButton> UltimateChordScratch = new();
 
+        /// <summary>
+        /// The gamepad Ultimate chord. Its buttons are whatever joypad events the
+        /// Ultimate action carries — no index is hard-coded here. The authored
+        /// default is <see cref="JoyButton.LeftShoulder"/> +
+        /// <see cref="JoyButton.RightShoulder"/> (Godot 4's 9 + 10, the Movement
+        /// Ability and Special 2 defaults); see <c>GamepadDefaultBindingTests</c>.
+        /// </summary>
         private static bool ReadUltimatePressed(int deviceId, float stickX, float stickY) {
             if (deviceId == KeyboardDevice) return ReadActionPressed(Actions.Ultimate, deviceId, stickX, stickY);
 

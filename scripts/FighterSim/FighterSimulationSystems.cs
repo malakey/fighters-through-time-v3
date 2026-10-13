@@ -274,31 +274,13 @@ namespace FTT.FighterSim {
         private const int EchoStepButton = 1 << 12;
         /// <summary>C01c "chords are off on the originating device" flag; see GameplayButtons.DirectOrigin.</summary>
         private const int DirectOriginButton = 1 << 14;
-        private static readonly FP64 FixedDelta = FP64.One / FP64.FromInt(60);
-        private static readonly FP64 Gravity = FP64.FromInt(-30);
-        /// <summary>Signed floor for fast-fall: -<c>UniversalMovementRules.FastFallSpeed</c>.</summary>
-        private static readonly FP64 FastFallSpeed = -FP64.FromDouble(UniversalMovementRules.FastFallSpeed);
         /// <summary>
-        /// M01 (D1(a)): signed terminal fall velocity, -<c>UniversalMovementRules.TerminalFallSpeed</c>.
-        /// A stateless clamp applied after every gravity integration.
+        /// The tick length. Gravity, the fall caps and the per-tick air step
+        /// live in <see cref="FighterAirPhysics"/>, which the CPU's trajectory
+        /// probe and recovery estimates integrate with too.
         /// </summary>
-        private static readonly FP64 TerminalFallVelocity = -FP64.FromDouble(UniversalMovementRules.TerminalFallSpeed);
-
-        /// <summary>Clamps a Y-up vertical velocity at the terminal fall speed (M01).</summary>
-        internal static FP64 ClampToTerminal(FP64 velocityY) =>
-            velocityY < TerminalFallVelocity ? TerminalFallVelocity : velocityY;
+        private static readonly FP64 FixedDelta = FighterAirPhysics.FixedDelta;
         private static readonly FP64 RollSpeedMultiplier = FP64.FromDouble(UniversalMovementRules.RollSpeedMultiplier);
-
-        /// <summary>
-        /// The tick length and free-fall acceleration, exposed read-only so an
-        /// input-side consumer — the CPU's pit-risk trajectory probe (Package 11
-        /// A9) — integrates exactly the way the simulation does instead of keeping
-        /// a second copy of either number.
-        /// </summary>
-        internal static FP64 FixedDeltaSeconds => FixedDelta;
-
-        /// <inheritdoc cref="FixedDeltaSeconds"/>
-        internal static FP64 GravityPerSecondSquared => Gravity;
 
         private readonly FighterStageGeometry _geometry;
 
@@ -332,9 +314,16 @@ namespace FTT.FighterSim {
                     // frozen is buffered for the next chain hit instead of being
                     // dropped — the freeze is the impact moment players mash into.
                     FighterBasicAttackRules.BufferChainPress(ref runtime);
+                    // 2026-10-11 (addendum): a Special press inside the freeze of
+                    // this fighter's own landed swing is held for its thaw tick.
+                    FighterAbilityLockoutRules.BufferFreezePress(ref runtime);
                     verb.HitstopFrames--;
                     if (verb.HitstopFrames == 0) {
                         FighterVerbRules.ResolvePendingLaunch(ref fighter, in runtime, ref verb);
+                        // The thaw tick: the ability and combat systems read this
+                        // tick's presses (HitstopFrames is 0 for them), so the held
+                        // press joins them here and the ordinary gates decide it.
+                        FighterAbilityLockoutRules.ReleaseFreezeBuffer(ref runtime);
                     }
                     continue;
                 }
@@ -514,7 +503,10 @@ namespace FTT.FighterSim {
                 }
                 if (fighter.HitstunFrames > 0 || fighter.DazeFrames > 0) {
                     FighterUniversalMovementRules.Cancel(ref runtime);
-                    fighter.Velocity.y = ClampToTerminal(fighter.Velocity.y + Gravity * FixedDelta);
+                    // Launch gravity: flat, clamped at the launch terminal —
+                    // untouched by the 2026-10-08 air model, so launch arcs, DI
+                    // and the tech window keep their timing.
+                    fighter.Velocity.y = FighterAirPhysics.StepLaunch(fighter.Velocity.y);
                 } else {
                     bool rooted = runtime.StatusType == (int)FTT.Core.StatusType.Root;
                     FP64 statusMoveMultiplier = runtime.StatusType == (int)FTT.Core.StatusType.TimeDilation
@@ -563,6 +555,10 @@ namespace FTT.FighterSim {
                     // A03: an air dodge adds no speed; airborne it leaves normal
                     // air control running (jumps withheld), grounded it decelerates.
                     bool airDodging = FighterAirDodgeRules.IsAirDodge(runtime.UniversalMovementState);
+                    // The grounded stop ramp's step, rounded up so it ends on
+                    // exactly RunDecelerationFrames (FighterAirPhysics.RampStep).
+                    FP64 groundDecelStep = FighterAirPhysics.RampStep(
+                        tuning.MoveSpeed, UniversalMovementRules.RunDecelerationFrames);
                     // Package 12 W4 / 13 W5: Tesla's blink and Tubman's North Star Leap run
                     // as sim-local phases of the same universal-movement slot.
                     bool movementHandled = FighterKitMotion.IsKitPhase(runtime.UniversalMovementState)
@@ -570,14 +566,14 @@ namespace FTT.FighterSim {
                             ref fighter,
                             ref runtime,
                             in frame.GetReadOnly<FighterAbilityModeComponent>(entity),
-                            tuning.MoveSpeed / FP64.FromInt(UniversalMovementRules.RunDecelerationFrames),
+                            groundDecelStep,
                             // Package 13 W7a: the Warp fold's clearance check.
                             _geometry)
                         : airDodging
                             ? FighterAirDodgeRules.Advance(
                                 ref fighter,
                                 ref runtime,
-                                tuning.MoveSpeed / FP64.FromInt(UniversalMovementRules.RunDecelerationFrames))
+                                groundDecelStep)
                             : ProcessUniversalMovement(
                                 ref fighter,
                                 ref runtime,
@@ -618,12 +614,18 @@ namespace FTT.FighterSim {
                             allowDropThrough: !shieldStunned && !airDodging);
                     }
                     // Package 12 W4 / 13 W5: the blink hover/translation and the leap
-                    // carry fly straight — no gravity, no fast-fall snap.
+                    // carry fly straight — no gravity, no fast-fall.
                     if (fighter.IsGrounded == 0 && !FighterKitMotion.SuspendsGravity(in runtime)) {
-                        // Fast-fall (§2.9, 2026-08-10): a stateless rule derived
-                        // from held input every tick — no snapshot field. Holding
-                        // Down in the air cancels the warp float window and pins
-                        // vertical velocity to at least FastFallSpeed downward.
+                        // The 2026-10-08 air model (FighterAirPhysics.StepMovement,
+                        // the rule Story's ProcessAirborne applies too): one
+                        // gravity multiplier per tick — fast-fall, the float
+                        // glide, the apex hang after a jump, the fall multiplier
+                        // — then the fall cap, eased into from above.
+                        // Fast-fall (§2.9) stays a stateless rule derived from
+                        // held input every tick — no snapshot field. Holding Down
+                        // in the air, rising or falling, cancels the warp float
+                        // window and ramps the descent in under heavier gravity
+                        // toward the lower fast-fall cap; it no longer snaps.
                         // Hitstun and daze are handled by the branch above, which
                         // never reaches here; the guard is kept explicit so the
                         // rule survives a future restructure of the gate.
@@ -631,16 +633,12 @@ namespace FTT.FighterSim {
                             && fighter.HitstunFrames <= 0
                             && fighter.DazeFrames <= 0;
                         if (fastFalling) runtime.FloatFrames = 0;
-                        // Float glide (post-warp cancel) heavily reduces gravity.
-                        FP64 gravityStep = runtime.FloatFrames > 0
-                            ? Gravity * FixedDelta / FP64.FromInt(5)
-                            : Gravity * FixedDelta;
-                        fighter.Velocity.y += gravityStep;
-                        // M01 (D1(a)): fast-fall SNAPS to the terminal speed
-                        // (it no longer only floors the descent), and every
-                        // airborne fall is clamped at terminal.
-                        if (fastFalling) fighter.Velocity.y = FastFallSpeed;
-                        fighter.Velocity.y = ClampToTerminal(fighter.Velocity.y);
+                        fighter.Velocity.y = FighterAirPhysics.StepMovement(
+                            fighter.Velocity.y,
+                            fastFalling,
+                            floating: runtime.FloatFrames > 0,
+                            jumpedThisAirtime: FighterAirPhysics.HasJumpedThisAirtime(
+                                fighter.RemainingJumps, tuning.MaxJumpCount));
                     }
                 }
 
@@ -947,7 +945,7 @@ namespace FTT.FighterSim {
             // Roll startup and recovery only ever bleed speed toward zero, so they
             // take the grounded decel ramp with every other stop site (§2.1),
             // not the accel ramp they historically borrowed.
-            FP64 runStep = tuning.MoveSpeed / FP64.FromInt(UniversalMovementRules.RunDecelerationFrames);
+            FP64 runStep = FighterAirPhysics.RampStep(tuning.MoveSpeed, UniversalMovementRules.RunDecelerationFrames);
 
             switch (phase) {
                 case UniversalMovementPhase.RollStartup:
@@ -1005,30 +1003,32 @@ namespace FTT.FighterSim {
             FP64 input = rooted || lockHorizontal ? FP64.Zero : FP64.FromInt(runtime.MoveX) / FP64.FromInt(127);
             FP64 maximumSpeed = tuning.MoveSpeed * statusMoveMultiplier * speedBuffMultiplier;
             FP64 targetSpeed = input * maximumSpeed;
-            // Grounded movement runs two ramps (2026-08-10 feel batch §2.1):
-            // accelerating toward a same-signed target uses the 14-frame run
+            // Grounded movement runs two ramps (2026-08-10 feel batch §2.1,
+            // cut to 6 and 4 frames by user direction 2026-10-08): accelerating
+            // toward a same-signed target uses the RunAccelerationFrames run
             // ramp, while bleeding speed off — a released stick, a rooted or
             // block-locked zero target, or a reversal against current
-            // velocity — uses the 12-frame decel ramp. Air control keeps its
-            // single 4-frame constant in both modes.
-            int accelerationFrames;
+            // velocity — uses the RunDecelerationFrames stop ramp. Both steps
+            // round up (FighterAirPhysics.RampStep) so each ramp ends on its
+            // exact frame. Air control keeps its single 4-frame constant in
+            // both modes.
+            FP64 rampStep;
             if (fighter.IsGrounded == 0) {
-                accelerationFrames = 4;
-            } else {
-                bool decelerating = targetSpeed == FP64.Zero
-                    || (targetSpeed > FP64.Zero && fighter.Velocity.x < FP64.Zero)
-                    || (targetSpeed < FP64.Zero && fighter.Velocity.x > FP64.Zero);
-                accelerationFrames = decelerating
-                    ? UniversalMovementRules.RunDecelerationFrames
-                    : UniversalMovementRules.RunAccelerationFrames;
-            }
-            FP64 rampStep = maximumSpeed / FP64.FromInt(accelerationFrames);
-            if (fighter.IsGrounded == 0) {
+                rampStep = maximumSpeed / FP64.FromInt(4);
                 // V7.2 wiring: per-character aerial input responsiveness
                 // (CharacterData.AirControlMultiplier — 0.40 Lincoln .. 0.70
                 // Leonardo/Cleopatra). Zero from hand-built tunings reads as 1.0.
                 FP64 airControl = tuning.AirControl > FP64.Zero ? tuning.AirControl : FP64.One;
                 rampStep *= airControl;
+            } else {
+                bool decelerating = targetSpeed == FP64.Zero
+                    || (targetSpeed > FP64.Zero && fighter.Velocity.x < FP64.Zero)
+                    || (targetSpeed < FP64.Zero && fighter.Velocity.x > FP64.Zero);
+                rampStep = FighterAirPhysics.RampStep(
+                    maximumSpeed,
+                    decelerating
+                        ? UniversalMovementRules.RunDecelerationFrames
+                        : UniversalMovementRules.RunAccelerationFrames);
             }
             fighter.Velocity.x = MoveToward(
                 fighter.Velocity.x,
@@ -1330,8 +1330,8 @@ namespace FTT.FighterSim {
                 FP64 drained = FP64.Min(verb.EchoPool, verb.EchoDrainPerFrame);
                 verb.EchoPool -= drained;
                 fighter.Influence = FP64.Min(
-                    FP64.FromInt(100),
-                    fighter.Influence + drained / FP64.FromInt(4));
+                    FighterMeterRules.Cap,
+                    fighter.Influence + FighterMeterRules.FromDamageTaken(drained));
                 if (verb.EchoPool <= FP64.Zero || verb.EchoDrainPerFrame <= FP64.Zero) {
                     verb.EchoPool = FP64.Zero;
                     verb.EchoDrainPerFrame = FP64.Zero;
@@ -1349,7 +1349,8 @@ namespace FTT.FighterSim {
             // the whole point: releasing pins the fighter inside the capture box
             // they just left, and the lockout is what lets them fall out of it.
             if (runtime.LedgeRegrabLockoutFrames > 0) runtime.LedgeRegrabLockoutFrames--;
-            if (runtime.BasicCooldownFrames > 0) runtime.BasicCooldownFrames--;
+            // The ability lockout A and the D1 Special-sourced lockout S tick together.
+            FighterAbilityLockoutRules.Tick(ref runtime);
             // Block-charge regeneration, mirroring Story's BlockSystem: one charge
             // per interval, timer held at full while the stance is up and re-armed
             // when a charge is spent (FighterDamageRules resets it on block).
@@ -1763,6 +1764,20 @@ namespace FTT.FighterSim {
             (runtime.AttackFlags & VariantMask) != 0;
 
         /// <summary>
+        /// The string step a BasicAttack press would continue into right now
+        /// (the CPU's melee band, 2026-10-11): the next hit's index while a
+        /// chain swing of hit 1 or hit 2 runs, any phase, the chain hold
+        /// included; otherwise 0. The finisher cannot continue and a
+        /// directional swing stands outside the chain, so a press during
+        /// either can at most open a fresh string. Read-only.
+        /// </summary>
+        public static int NextChainStep(in FighterRuntimeComponent runtime) {
+            if (runtime.AttackPhase == PhaseNone || IsVariantSwing(in runtime)) return 0;
+            int index = runtime.ComboIndex < 0 ? 0 : runtime.ComboIndex;
+            return index < FTT.Combat.BasicComboRules.ComboHits - 1 ? index + 1 : 0;
+        }
+
+        /// <summary>
         /// Reads the swing variant out of the held input, through the shared
         /// selection rule. Quantized MoveY &lt; -30 is the sim's "Up held"
         /// (Story uses the float equivalent, -0.25); Down is the button bit,
@@ -1887,11 +1902,147 @@ namespace FTT.FighterSim {
             // a string is active), so this cancel is a no-op today. It stays so a
             // future cancel window cannot leave a phase running under a swing.
             FighterUniversalMovementRules.Cancel(ref runtime);
-            // Legacy "busy" mirror for observers (HUD, CPU pacing): the remaining
-            // swing length. No gameplay system reads it any more.
-            runtime.BasicCooldownFrames = StartupFramesFor(fighter.CharacterID, flags, runtime.ComboIndex)
-                + ActiveFramesFor(flags, runtime.ComboIndex)
-                + RecoveryFramesFor(flags, runtime.ComboIndex);
+            // Every swing start (each chain hit, the up-attack, the down-air)
+            // locks specials and the Ultimate; the swing itself is never refused.
+            // StartSwing runs in FighterMovementSystem, before the ability and
+            // combat systems, so a same-tick special or Ultimate press loses to
+            // the swing, as it does in Story (CheckAttackInput from neutral,
+            // ChainSwingStartsThisTick inside a string). D1 (2026-10-11): it also
+            // clears the landed latch, so Specials wait for THIS swing to land.
+            FighterAbilityLockoutRules.ArmSwing(ref runtime);
+        }
+    }
+
+    /// <summary>
+    /// The sim half of the ability lockout (special global cooldown, user
+    /// direction 2026-10-08). The rule and its 30 frames live in
+    /// <see cref="FTT.Combat.BasicComboRules"/>; the counter is
+    /// <see cref="FighterRuntimeComponent.AbilityLockoutFrames"/>. Every site
+    /// that accepts Special 1 or Special 2 checks <see cref="AllowsSpecial"/>
+    /// (the D1 hit-confirm gate, 2026-10-11: the Special-sourced lockout once the
+    /// current swing has landed, the whole lockout otherwise), the Ultimate
+    /// checks <see cref="AllowsUltimate"/>, and each calls
+    /// <see cref="ArmAbility"/> the moment it accepts, so a later consumer on the
+    /// same tick (S2 after S1, a melee intent after an entity special or an
+    /// accepted Ultimate) sees the lock. A swing start calls
+    /// <see cref="ArmSwing"/>. A refused press arms nothing. Which action wins a
+    /// tick is settled before that: FighterCombatSystem.UltimatePressAccepted
+    /// (and UltimatePressHeldBackByLockout, which claims the tick from the
+    /// Specials for a meter-paid Ultimate the lockout alone refuses).
+    /// </summary>
+    internal static class FighterAbilityLockoutRules {
+        private const int SpecialOneButton = 1 << 3;
+        private const int SpecialTwoButton = 1 << 4;
+        private const int UltimateButton = 1 << 7;
+
+        /// <summary>The Ultimate's gate: the whole lockout A (D1 never opens it).</summary>
+        public static bool AllowsUltimate(in FighterRuntimeComponent runtime) =>
+            !FTT.Combat.BasicComboRules.IsAbilityLocked(runtime.AbilityLockoutFrames);
+
+        /// <summary>
+        /// The Specials' gate (D1, 2026-10-11): the Special-sourced lockout S
+        /// once the current swing has landed, the whole lockout A otherwise.
+        /// </summary>
+        public static bool AllowsSpecial(in FighterRuntimeComponent runtime) =>
+            !FTT.Combat.BasicComboRules.IsSpecialLocked(
+                runtime.AbilityLockoutFrames, runtime.SpecialLockoutFrames, runtime.SwingLanded != 0);
+
+        /// <summary>
+        /// Whether <see cref="FighterAbilityEntitySystem"/> reads this fighter's
+        /// Special presses at all this tick: its exact early-continue set — out of
+        /// stocks, hitstun, daze, hitstop, a grab, a ledge hang, a combat-locked
+        /// roll or air dodge, or the block stance. The D10 "not yet" classifier
+        /// (<see cref="FighterLockoutRefusalRules"/>) reads the same predicate, so
+        /// a press the system never looked at never flashes (2026-10-11).
+        /// </summary>
+        public static bool CanReadAbilityPress(
+            in FighterStateComponent fighter,
+            in FighterRuntimeComponent runtime,
+            in FighterVerbComponent verb) =>
+            fighter.Stocks > 0
+            && fighter.HitstunFrames <= 0
+            && fighter.DazeFrames <= 0
+            // V7.1 hitstop / V7.2 grabs: a frozen, grabbing, or held fighter
+            // takes no ability action (their button presses are simply not
+            // consumed).
+            && verb.HitstopFrames <= 0
+            && !FighterGrabRules.IsBusy(in verb)
+            // A hanging fighter has no specials and no movement ability (§2.11)
+            // — the hang suppresses ability intent the way hitstun does.
+            && !FighterLedgeRules.IsHanging(in runtime)
+            && !FighterUniversalMovementRules.IsCombatLocked(in runtime)
+            // Story's Blocking state ignores ability inputs entirely; specials
+            // remain usable mid-swing because they cancel the basic string
+            // (design 1051), once the swing's own ability lockout allows them.
+            && !FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb);
+
+        /// <summary>A swing start: arms A and clears the landed latch C (and any freeze buffer).</summary>
+        public static void ArmSwing(ref FighterRuntimeComponent runtime) {
+            runtime.AbilityLockoutFrames = FTT.Combat.BasicComboRules.AbilityLockoutFrames;
+            runtime.SwingLanded = 0;
+            runtime.FreezeBufferArmed = 0;
+            runtime.FreezeBufferedSpecials = 0;
+        }
+
+        /// <summary>A Special 1 / 2 or Ultimate acceptance: arms A and S.</summary>
+        public static void ArmAbility(ref FighterRuntimeComponent runtime) {
+            runtime.AbilityLockoutFrames = FTT.Combat.BasicComboRules.AbilityLockoutFrames;
+            runtime.SpecialLockoutFrames = FTT.Combat.BasicComboRules.AbilityLockoutFrames;
+        }
+
+        /// <summary>The current swing landed (D1a): true on the 0 → 1 edge only (once per swing).</summary>
+        public static bool NoteSwingLanded(ref FighterRuntimeComponent runtime) {
+            if (runtime.SwingLanded != 0) return false;
+            runtime.SwingLanded = 1;
+            return true;
+        }
+
+        /// <summary>One unfrozen tick of A and S (TickCounters).</summary>
+        public static void Tick(ref FighterRuntimeComponent runtime) {
+            runtime.AbilityLockoutFrames = FTT.Combat.BasicComboRules.TickAbilityLockout(runtime.AbilityLockoutFrames);
+            runtime.SpecialLockoutFrames = FTT.Combat.BasicComboRules.TickAbilityLockout(runtime.SpecialLockoutFrames);
+        }
+
+        /// <summary>The F22 Sudden Death reset: A, S, C and the freeze buffer to zero.</summary>
+        public static void Clear(ref FighterRuntimeComponent runtime) {
+            runtime.AbilityLockoutFrames = 0;
+            runtime.SpecialLockoutFrames = 0;
+            runtime.SwingLanded = 0;
+            runtime.FreezeBufferArmed = 0;
+            runtime.FreezeBufferedSpecials = 0;
+        }
+
+        // === The freeze-only Special buffer (user ruling 2026-10-11, addendum) ===
+        // A Special 1/2 press read on a frozen tick of the attacker freeze of the
+        // fighter's own LANDED basic swing is held (one deep, the latest press)
+        // and joins the presses of the fighter's thaw tick — the tick the
+        // movement system takes HitstopFrames 1 → 0, whose presses the ability
+        // and combat systems read — where the ordinary gates decide it. A tick
+        // that also presses the Ultimate buffers nothing. Ledger
+        // PROVISIONAL-FREEZE-SPECIAL-BUFFER.
+
+        /// <summary>Called by ApplyBasicSwing when its landed hit froze the attacker.</summary>
+        public static void ArmFreezeBuffer(ref FighterRuntimeComponent runtime) {
+            runtime.FreezeBufferArmed = 1;
+            runtime.FreezeBufferedSpecials = 0;
+        }
+
+        /// <summary>A frozen tick (before the decrement): hold this tick's Special press, if any.</summary>
+        public static void BufferFreezePress(ref FighterRuntimeComponent runtime) {
+            if (runtime.FreezeBufferArmed == 0) return;
+            if ((runtime.PressedButtons & UltimateButton) != 0) return;
+            int specials = ((runtime.PressedButtons & SpecialOneButton) != 0 ? 1 : 0)
+                | ((runtime.PressedButtons & SpecialTwoButton) != 0 ? 2 : 0);
+            if (specials != 0) runtime.FreezeBufferedSpecials = specials;
+        }
+
+        /// <summary>The thaw tick (HitstopFrames reached 0): re-present the held press, then empty the buffer.</summary>
+        public static void ReleaseFreezeBuffer(ref FighterRuntimeComponent runtime) {
+            int specials = runtime.FreezeBufferedSpecials;
+            if ((specials & 1) != 0) runtime.PressedButtons |= SpecialOneButton;
+            if ((specials & 2) != 0) runtime.PressedButtons |= SpecialTwoButton;
+            runtime.FreezeBufferArmed = 0;
+            runtime.FreezeBufferedSpecials = 0;
         }
     }
 
@@ -2045,31 +2196,65 @@ namespace FTT.FighterSim {
         // V7 normative string hitboxes (design "Hitbox & Hurtbox Geometry"):
         // three escalating boxes offset IN FRONT of the attacker only — a swing
         // never hits behind the attacker's back. Sizes/offsets are the authored
-        // template (1.2×1.0 @ 1.0 / 1.4×1.2 @ (1.0, 0.2) / 1.8×1.4 @ 1.2),
-        // stored as half-extents; the V7.1 profile percentages scale width
-        // (size and offset together) and height. The old single symmetric
-        // 2.0×1.6 both-sides box was a recorded defect against this spec.
+        // template, read from the one cross-mode table
+        // (BasicComboRules.StringBoxHalfWidthUnits / ...HalfHeightUnits /
+        // ...OffsetXUnits / ...OffsetYUnits, 2026-10-11) and converted once here
+        // with FP64.FromDouble, exactly as the literals were, so no hash moved.
+        // The V7.1 profile percentages scale width (size and offset together)
+        // and height. The old single symmetric 2.0×1.6 both-sides box was a
+        // recorded defect against this spec.
         private static readonly FP64[] StringBoxHalfWidths = {
-            FP64.FromDouble(0.6), FP64.FromDouble(0.7), FP64.FromDouble(0.9)
+            FP64.FromDouble(FTT.Combat.BasicComboRules.StringBoxHalfWidthUnits[0]),
+            FP64.FromDouble(FTT.Combat.BasicComboRules.StringBoxHalfWidthUnits[1]),
+            FP64.FromDouble(FTT.Combat.BasicComboRules.StringBoxHalfWidthUnits[2])
         };
         private static readonly FP64[] StringBoxHalfHeights = {
-            FP64.FromDouble(0.5), FP64.FromDouble(0.6), FP64.FromDouble(0.7)
+            FP64.FromDouble(FTT.Combat.BasicComboRules.StringBoxHalfHeightUnits[0]),
+            FP64.FromDouble(FTT.Combat.BasicComboRules.StringBoxHalfHeightUnits[1]),
+            FP64.FromDouble(FTT.Combat.BasicComboRules.StringBoxHalfHeightUnits[2])
         };
         private static readonly FP64[] StringBoxOffsetsX = {
-            FP64.One, FP64.One, FP64.FromDouble(1.2)
+            FP64.FromDouble(FTT.Combat.BasicComboRules.StringBoxOffsetXUnits[0]),
+            FP64.FromDouble(FTT.Combat.BasicComboRules.StringBoxOffsetXUnits[1]),
+            FP64.FromDouble(FTT.Combat.BasicComboRules.StringBoxOffsetXUnits[2])
         };
         private static readonly FP64[] StringBoxOffsetsY = {
-            FP64.Zero, FP64.FromDouble(0.2), FP64.Zero
+            FP64.FromDouble(FTT.Combat.BasicComboRules.StringBoxOffsetYUnits[0]),
+            FP64.FromDouble(FTT.Combat.BasicComboRules.StringBoxOffsetYUnits[1]),
+            FP64.FromDouble(FTT.Combat.BasicComboRules.StringBoxOffsetYUnits[2])
         };
         /// <summary>The universal fighter hurtbox half-extents the sim uses.</summary>
         private static readonly FPVector2 VictimHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
 
         /// <summary>
+        /// The horizontal half-width of the hurtbox every basic swing is tested
+        /// against (<see cref="VictimHalfExtents"/>). Exposed so the CPU's
+        /// neutral melee band reads the live value rather than a copy
+        /// (2026-10-11; ledger <c>VERIFY-SIM-HURTBOX-WIDTH</c> may change it).
+        /// </summary>
+        internal static FP64 VictimHurtboxHalfWidth => VictimHalfExtents.x;
+
+        /// <summary>
+        /// How far in front of the attacker's pivot a profile's grounded string
+        /// box for <paramref name="step"/> reaches, in world units: the box
+        /// centre's forward offset plus its half-width, both scaled by
+        /// <paramref name="reachWidthPercent"/> exactly as
+        /// <see cref="ResolveStringBox"/> scales them. The sim's "pivot reach"
+        /// against a fighter is this plus <see cref="VictimHurtboxHalfWidth"/>.
+        /// </summary>
+        internal static FP64 StringBoxFarEdge(int reachWidthPercent, int step) {
+            int clamped = step < 0 ? 0 : step > 2 ? 2 : step;
+            FP64 widthScale = FP64.FromInt(reachWidthPercent) / FP64.FromInt(100);
+            return StringBoxOffsetsX[clamped] * widthScale + StringBoxHalfWidths[clamped] * widthScale;
+        }
+
+        /// <summary>
         /// The active string box for a combo step, in world space: offset in
         /// front of the attacker's current facing, scaled by the profile's
-        /// reach percentages.
+        /// reach percentages. Internal so StringHitboxGeometryTests can hold
+        /// the Story box to it.
         /// </summary>
-        private static void ResolveStringBox(
+        internal static void ResolveStringBox(
             in FighterStateComponent attacker,
             in FTT.Combat.BasicStringProfile profile,
             int step,
@@ -2085,7 +2270,7 @@ namespace FTT.FighterSim {
                 StringBoxHalfWidths[step] * widthScale,
                 StringBoxHalfHeights[step] * heightScale);
         }
-        private static readonly FP64 MaxInfluence = FP64.FromInt(100);
+        private static readonly FP64 MaxInfluence = FighterMeterRules.Cap;
         // The shared per-hit knockback table (BasicComboRules.KnockbackMultipliers),
         // pre-converted once to fixed point. FromDouble of a process-constant is
         // deterministic; no float math runs per tick.
@@ -2156,11 +2341,27 @@ namespace FTT.FighterSim {
             // meter, so the ultimate can never also reach a melee intent below.
             AdvanceUltimate(ref frame, first, second);
             AdvanceUltimate(ref frame, second, first);
+            // A fighter the opponent's activation strike captured just now takes
+            // no further action this tick (the movement system discards a held
+            // victim's input from the next tick on). Without this, a special the
+            // ability system held back for a same-tick Ultimate press
+            // (UltimatePressAccepted, read before the capture) would reach
+            // BuildIntent's generic melee branch as a phantom melee hit.
+            oneActing = oneActing && !FighterUltimateActivationRules.IsCaptured(
+                in frame.GetReadOnly<FighterUltimateActivationComponent>(first));
+            twoActing = twoActing && !FighterUltimateActivationRules.IsCaptured(
+                in frame.GetReadOnly<FighterUltimateActivationComponent>(second));
             if (oneActing) TryCharacterUltimate(ref frame, first, ref fighterOne, ref runtimeOne);
             if (twoActing) TryCharacterUltimate(ref frame, second, ref fighterTwo, ref runtimeTwo);
+            // §1.7 (2026-10-11): a meter-paid Ultimate the lockout alone refused
+            // still claims the tick from the melee Special intents.
+            bool oneHeldBack = UltimatePressHeldBackByLockout(
+                in fighterOne, in runtimeOne, in frame.GetReadOnly<FighterUltimateActivationComponent>(first));
+            bool twoHeldBack = UltimatePressHeldBackByLockout(
+                in fighterTwo, in runtimeTwo, in frame.GetReadOnly<FighterUltimateActivationComponent>(second));
 
-            AttackIntent firstIntent = !oneActing ? default : BuildIntent(in fighterOne, in runtimeOne, in verbOne, in tuningOne, in fighterTwo, _contracts);
-            AttackIntent secondIntent = !twoActing ? default : BuildIntent(in fighterTwo, in runtimeTwo, in verbTwo, in tuningTwo, in fighterOne, _contracts);
+            AttackIntent firstIntent = !oneActing ? default : BuildIntent(in fighterOne, in runtimeOne, in verbOne, in tuningOne, in fighterTwo, _contracts, oneHeldBack);
+            AttackIntent secondIntent = !twoActing ? default : BuildIntent(in fighterTwo, in runtimeTwo, in verbTwo, in tuningTwo, in fighterOne, _contracts, twoHeldBack);
             // Package 13 W5 (component 322): Tubman's Foresight catches a melee
             // Special intent or a basic swing on the victim's side.
             ref FighterCounterComponent counterOne = ref frame.Get<FighterCounterComponent>(first);
@@ -2584,10 +2785,17 @@ namespace FTT.FighterSim {
             // Directional attacks (§2.8) own their own boxes: the Up-Attack
             // launches upward, the Down-Air slams (A12).
             if (FighterBasicAttackRules.IsVariantSwing(in attackerRuntime)) {
-                ApplyDirectionalSwing(
+                FighterHitOutcome variantOutcome = ApplyDirectionalSwing(
                     ref attacker, ref attackerRuntime, ref attackerVerb, in attackerTuning,
                     ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
-                    ref targetKnockdown, ref targetCounter);
+                    ref targetKnockdown, ref targetCounter, out int variantDamage);
+                OnSwingResolved(
+                    ref attackerRuntime, ref attackerVerb, variantOutcome, variantDamage,
+                    FTT.Combat.BasicComboRules.MomentumRefundFramesFor(
+                        (attackerRuntime.AttackFlags & FighterBasicAttackRules.FlagUpAttack) != 0
+                            ? FTT.Combat.BasicComboRules.VariantUpAttack
+                            : FTT.Combat.BasicComboRules.VariantDownAir,
+                        0));
                 return;
             }
 
@@ -2625,7 +2833,7 @@ namespace FTT.FighterSim {
             attackerRuntime.AttackFlags |= FighterBasicAttackRules.FlagHitResolved;
             // Package 13 W5: a string swing is a strike Foresight can catch.
             if (FighterForesightRules.TryCounter(ref targetCounter, ref target)) return;
-            bool connected = FighterDamageRules.ApplyFighterHit(
+            FighterHitOutcome outcome = FighterDamageRules.ResolveFighterHit(
                 ref attacker,
                 ref attackerRuntime,
                 ref attackerVerb,
@@ -2651,13 +2859,12 @@ namespace FTT.FighterSim {
                 // M05/M07 (Package 12 W3b): the finisher launches, hits 1-2 are
                 // grounded knockback — except Lincoln's launching hit 2.
                 launches: FTT.Combat.BasicComboRules.StringHitLaunchesFor(profile, step));
-            // V7.1 Resonance Momentum: a CONNECTING finisher (never hits 1-2,
-            // a directional strike, or a blocked hit) refunds 60 frames on both
-            // special cooldowns, capped at two refunds per cooldown cycle per
-            // slot. Cooldown is earned by completing strings.
-            if (connected && finisher) {
-                ApplyMomentumRefund(ref attackerRuntime, ref attackerVerb);
-            }
+            bool connected = outcome == FighterHitOutcome.Landed;
+            // D1 / D2 (2026-10-11): a landed or absorbed swing opens the
+            // hit-confirm cancel and pays per-hit Momentum (20 / 20 / 60) once.
+            OnSwingResolved(
+                ref attackerRuntime, ref attackerVerb, outcome, damage,
+                FTT.Combat.BasicComboRules.MomentumRefundFramesFor(FTT.Combat.BasicComboRules.VariantChain, step));
             // V7.6 F07: the finisher's caster-owned MARK, applied alongside (never
             // instead of) its status. Fighter Mode always uses the BASELINE
             // duration — the tesla_conductive_hold extension is a Story-only
@@ -2669,30 +2876,46 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
-        /// Resonance Momentum's refund (V7.1): 60 frames off each RUNNING
-        /// special cooldown, at most twice per cooldown cycle per slot (the
-        /// counters reset when a slot's cooldown is armed).
+        /// D1 / D2 (2026-10-11): one resolved basic swing. A Landed or Absorbed
+        /// outcome carrying authored damage (D1a; a zero-damage payload never
+        /// lands) sets the swing-landed latch on its 0 → 1 edge and pays that
+        /// swing's per-hit Momentum once; a landing that froze the attacker arms
+        /// the freeze-only Special buffer. A Refused or Blocked outcome (a box
+        /// miss and a Foresight counter included) does neither.
+        /// </summary>
+        private static void OnSwingResolved(
+            ref FighterRuntimeComponent attackerRuntime,
+            ref FighterVerbComponent attackerVerb,
+            FighterHitOutcome outcome,
+            int damage,
+            int momentumFrames) {
+            if (damage <= 0) return;
+            if (outcome != FighterHitOutcome.Landed && outcome != FighterHitOutcome.Absorbed) return;
+            if (FighterAbilityLockoutRules.NoteSwingLanded(ref attackerRuntime)) {
+                ApplyMomentumRefund(ref attackerRuntime, ref attackerVerb, momentumFrames);
+            }
+            if (attackerVerb.HitstopFrames > 0) FighterAbilityLockoutRules.ArmFreezeBuffer(ref attackerRuntime);
+        }
+
+        /// <summary>
+        /// Per-hit Momentum (D2, 2026-10-11): <paramref name="nominalFrames"/> off
+        /// each RUNNING special cooldown, each slot capped at
+        /// <c>BasicComboRules.MomentumRefundCapFramesPerCycle</c> frames refunded
+        /// per cooldown cycle (the counters count frames removed and reset when
+        /// a slot's cooldown is armed). A ready slot takes nothing.
         /// </summary>
         internal static void ApplyMomentumRefund(
             ref FighterRuntimeComponent runtime,
-            ref FighterVerbComponent verb) {
-            const int refundFrames = FTT.Combat.BasicComboRules.MomentumRefundFrames;
-            if (runtime.SpecialOneCooldownFrames > 0
-                && verb.MomentumRefundsSlotOne < FTT.Combat.BasicComboRules.MomentumRefundCapPerCycle) {
-                runtime.SpecialOneCooldownFrames =
-                    runtime.SpecialOneCooldownFrames > refundFrames
-                        ? runtime.SpecialOneCooldownFrames - refundFrames
-                        : 0;
-                verb.MomentumRefundsSlotOne++;
-            }
-            if (runtime.SpecialTwoCooldownFrames > 0
-                && verb.MomentumRefundsSlotTwo < FTT.Combat.BasicComboRules.MomentumRefundCapPerCycle) {
-                runtime.SpecialTwoCooldownFrames =
-                    runtime.SpecialTwoCooldownFrames > refundFrames
-                        ? runtime.SpecialTwoCooldownFrames - refundFrames
-                        : 0;
-                verb.MomentumRefundsSlotTwo++;
-            }
+            ref FighterVerbComponent verb,
+            int nominalFrames) {
+            int grantOne = FTT.Combat.BasicComboRules.MomentumGrant(
+                nominalFrames, verb.MomentumRefundedFramesSlotOne, runtime.SpecialOneCooldownFrames);
+            runtime.SpecialOneCooldownFrames -= grantOne;
+            verb.MomentumRefundedFramesSlotOne += grantOne;
+            int grantTwo = FTT.Combat.BasicComboRules.MomentumGrant(
+                nominalFrames, verb.MomentumRefundedFramesSlotTwo, runtime.SpecialTwoCooldownFrames);
+            runtime.SpecialTwoCooldownFrames -= grantTwo;
+            verb.MomentumRefundedFramesSlotTwo += grantTwo;
         }
 
         /// <summary>
@@ -2701,7 +2924,7 @@ namespace FTT.FighterSim {
         /// launch the victim upward through <c>verticalKnockbackScale</c>. Same
         /// one-attempt-per-swing rule, same meter/status/block flow as the chain.
         /// </summary>
-        private static void ApplyDirectionalSwing(
+        private static FighterHitOutcome ApplyDirectionalSwing(
             ref FighterStateComponent attacker,
             ref FighterRuntimeComponent attackerRuntime,
             ref FighterVerbComponent attackerVerb,
@@ -2712,10 +2935,14 @@ namespace FTT.FighterSim {
             ref FighterDefenseComponent targetDefense,
             in FighterTuningComponent targetTuning,
             ref FighterKnockdownComponent targetKnockdown,
-            ref FighterCounterComponent targetCounter) {
+            ref FighterCounterComponent targetCounter,
+            out int damage) {
+            // 2026-10-11 (D1a): the outcome feeds the hit-confirm cancel and
+            // per-hit Momentum; a box miss and a Foresight counter are Refused.
+            damage = 0;
             bool upAttack = (attackerRuntime.AttackFlags & FighterBasicAttackRules.FlagUpAttack) != 0;
             FP64 horizontalReach = upAttack ? UpAttackHorizontalReach : DownAirHorizontalReach;
-            if (FP64.Abs(target.Position.x - attacker.Position.x) > horizontalReach) return;
+            if (FP64.Abs(target.Position.x - attacker.Position.x) > horizontalReach) return FighterHitOutcome.Refused;
 
             // World Y is up: the up-attack box sits above the attacker's origin,
             // the down-air box below it. Neither reaches past the origin plane.
@@ -2723,24 +2950,23 @@ namespace FTT.FighterSim {
                 ? target.Position.y - attacker.Position.y
                 : attacker.Position.y - target.Position.y;
             FP64 verticalReach = upAttack ? UpAttackVerticalReach : DownAirVerticalReach;
-            if (verticalOffset < FP64.Zero || verticalOffset > verticalReach) return;
+            if (verticalOffset < FP64.Zero || verticalOffset > verticalReach) return FighterHitOutcome.Refused;
 
-            int damage = ScaleDamage(attackerTuning.BasicDamage, DirectionalDamageMultiplier);
+            damage = ScaleDamage(attackerTuning.BasicDamage, DirectionalDamageMultiplier);
             attackerRuntime.AttackFlags |= FighterBasicAttackRules.FlagHitResolved;
             // Package 13 W5: the Up-Attack and the Down-Air are strikes too.
-            if (FighterForesightRules.TryCounter(ref targetCounter, ref target)) return;
+            if (FighterForesightRules.TryCounter(ref targetCounter, ref target)) return FighterHitOutcome.Refused;
             if (!upAttack) {
-                ApplyDownAirSlam(
+                return ApplyDownAirSlam(
                     ref attacker, ref attackerRuntime, ref attackerVerb, in attackerTuning,
                     ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     ref targetKnockdown, damage);
-                return;
             }
             // ApplyFighterHit derives both impulse axes from one magnitude, so the
             // small horizontal factor is folded into the magnitude and the
             // vertical scale carries the ratio back up to the authored 2.5x.
             FP64 knockback = attackerTuning.BasicKnockback * DirectionalHorizontalKnockback;
-            FighterDamageRules.ApplyFighterHit(
+            return FighterDamageRules.ResolveFighterHit(
                 ref attacker,
                 ref attackerRuntime,
                 ref attackerVerb,
@@ -2777,7 +3003,7 @@ namespace FTT.FighterSim {
         /// consumed by the movement system on the first floor or one-way surface
         /// contact. Frame data and damage are unchanged.
         /// </summary>
-        private static void ApplyDownAirSlam(
+        private static FighterHitOutcome ApplyDownAirSlam(
             ref FighterStateComponent attacker,
             ref FighterRuntimeComponent attackerRuntime,
             ref FighterVerbComponent attackerVerb,
@@ -2789,7 +3015,7 @@ namespace FTT.FighterSim {
             in FighterTuningComponent targetTuning,
             ref FighterKnockdownComponent targetKnockdown,
             int damage) {
-            bool landed = FighterDamageRules.ApplyFighterHit(
+            FighterHitOutcome outcome = FighterDamageRules.ResolveFighterHit(
                 ref attacker,
                 ref attackerRuntime,
                 ref attackerVerb,
@@ -2809,7 +3035,8 @@ namespace FTT.FighterSim {
                 launches: FTT.Combat.BasicComboRules.DirectionalAttackLaunches,
                 hasKnockbackVector: true,
                 knockbackVertical: -(attackerTuning.BasicKnockback * DownAirSlamVerticalKnockback));
-            if (landed) FighterSlamRules.TryArm(in target, in targetVerb, ref targetKnockdown);
+            if (outcome == FighterHitOutcome.Landed) FighterSlamRules.TryArm(in target, in targetVerb, ref targetKnockdown);
+            return outcome;
         }
 
         private static int ScaleDamage(int value, FP64 scale) {
@@ -2827,21 +3054,65 @@ namespace FTT.FighterSim {
             EntityRef attackerEntity,
             ref FighterStateComponent attacker,
             ref FighterRuntimeComponent attackerRuntime) {
-            if ((attackerRuntime.PressedButtons & UltimateButton) == 0
-                || attacker.Influence < MaxInfluence
-                || attacker.HitstunFrames > 0
-                || attacker.DazeFrames > 0
-                || attacker.Stocks <= 0
-                || attacker.RespawnFramesRemaining > 0
-                || FighterLedgeRules.IsHanging(in attackerRuntime)
-                || FighterUniversalMovementRules.IsCombatLocked(in attackerRuntime)) return;
             ref FighterUltimateActivationComponent activation =
                 ref frame.Get<FighterUltimateActivationComponent>(attackerEntity);
-            if (FighterUltimateActivationRules.IsCasterBusy(in activation)
-                || FighterUltimateActivationRules.IsCaptured(in activation)) return;
+            if (!UltimatePressAccepted(in attacker, in attackerRuntime, in activation)) return;
             FighterUltimateActivationRules.Accept(
                 ref attacker, ref attackerRuntime, ref activation, _contracts.UltimateFor(attacker.PlayerID));
+            FighterAbilityLockoutRules.ArmAbility(ref attackerRuntime);
         }
+
+        /// <summary>
+        /// The A02 acceptance gate for this tick's Ultimate press: pressed, a
+        /// full meter, a state that could act, the ability lockout clear (a
+        /// swing started this tick already holds it) and not already casting
+        /// or captured. A refusal leaves the meter untouched.
+        /// <see cref="FighterAbilityEntitySystem"/> reads the same gate earlier
+        /// in the tick so an accepted Ultimate claims the tick (no special or
+        /// movement ability beside it), the order Story polls in.
+        /// </summary>
+        internal static bool UltimatePressAccepted(
+            in FighterStateComponent attacker,
+            in FighterRuntimeComponent attackerRuntime,
+            in FighterUltimateActivationComponent activation) =>
+            UltimatePressPayable(in attacker, in attackerRuntime, in activation)
+            && FighterAbilityLockoutRules.AllowsUltimate(in attackerRuntime);
+
+        /// <summary>
+        /// 2026-10-11 (D1, PROVISIONAL-HIT-CONFIRM-RULES (4)): a meter-paid
+        /// Ultimate press the ability lockout ALONE refuses. It still claims the
+        /// tick from Special 1 and Special 2 (never from the movement ability):
+        /// D1 opens the Specials while the Ultimate stays locked, and the default
+        /// gamepad Ultimate is the Movement + Special 2 chord, which must not cast
+        /// its Special 2 inside a hit-confirm. Story's CheckUltimateInput sets the
+        /// same claim.
+        /// </summary>
+        internal static bool UltimatePressHeldBackByLockout(
+            in FighterStateComponent attacker,
+            in FighterRuntimeComponent attackerRuntime,
+            in FighterUltimateActivationComponent activation) =>
+            UltimatePressPayable(in attacker, in attackerRuntime, in activation)
+            && !FighterAbilityLockoutRules.AllowsUltimate(in attackerRuntime);
+
+        /// <summary>
+        /// Every term of <see cref="UltimatePressAccepted"/> except the ability
+        /// lockout: pressed, a full meter, a state that could act, and not
+        /// already casting or captured.
+        /// </summary>
+        internal static bool UltimatePressPayable(
+            in FighterStateComponent attacker,
+            in FighterRuntimeComponent attackerRuntime,
+            in FighterUltimateActivationComponent activation) =>
+            (attackerRuntime.PressedButtons & UltimateButton) != 0
+            && attacker.Influence >= MaxInfluence
+            && attacker.HitstunFrames <= 0
+            && attacker.DazeFrames <= 0
+            && attacker.Stocks > 0
+            && attacker.RespawnFramesRemaining <= 0
+            && !FighterLedgeRules.IsHanging(in attackerRuntime)
+            && !FighterUniversalMovementRules.IsCombatLocked(in attackerRuntime)
+            && !FighterUltimateActivationRules.IsCasterBusy(in activation)
+            && !FighterUltimateActivationRules.IsCaptured(in activation);
 
         /// <summary>
         /// A02: one tick of <paramref name="casterEntity"/>'s Ultimate. The
@@ -3100,7 +3371,8 @@ namespace FTT.FighterSim {
             in FighterVerbComponent attackerVerb,
             in FighterTuningComponent tuning,
             in FighterStateComponent target,
-            FighterHitContractTable contracts) {
+            FighterHitContractTable contracts,
+            bool ultimateHeldBack = false) {
             if (attacker.HitstunFrames > 0
                 || attacker.DazeFrames > 0
                 || attacker.Stocks <= 0
@@ -3115,10 +3387,21 @@ namespace FTT.FighterSim {
             // that catches grounded and airborne targets alike and spikes the
             // airborne ones — tested against its own box, not the generic 2-unit
             // melee gate.
+            // Ability lockout: a special fired by FighterAbilityEntitySystem
+            // earlier this tick, a swing started this tick or an Ultimate just
+            // accepted (TryCharacterUltimate runs first, so an accepted Ultimate
+            // claims the tick) refuses every melee special intent below at no
+            // cost. A pressed Ultimate that was NOT accepted no longer blocks
+            // Splitting Strike: the special takes the tick, as in Story.
+            // D1 (2026-10-11): the Specials' gate — S once the current swing has
+            // landed, the whole lockout otherwise. A meter-paid Ultimate the
+            // lockout alone held back claims the tick (§1.7).
+            if (ultimateHeldBack) return default;
+            bool abilityClear = FighterAbilityLockoutRules.AllowsSpecial(in attackerRuntime);
             if (attacker.CharacterID == (int)FighterCharacterID.Lincoln
+                && abilityClear
                 && (attackerRuntime.PressedButtons & SpecialTwoButton) != 0
-                && attackerRuntime.SpecialTwoCooldownFrames <= 0
-                && (attackerRuntime.PressedButtons & UltimateButton) == 0) {
+                && attackerRuntime.SpecialTwoCooldownFrames <= 0) {
                 if (!FighterReachKitRules.SplittingArcReaches(in attacker, in target)) return default;
                 FighterAbilityHitData splitting = contracts.For(attacker.PlayerID, FighterHitContractTable.SlotSpecialTwo);
                 ResolveIntentContract(splitting, LegacySpecialHitstunFrames, out int splitHitstun, out bool splitLaunches);
@@ -3154,7 +3437,7 @@ namespace FTT.FighterSim {
             // activation strike (AdvanceUltimate).
             // A01/D10 (Package 13 W1): a melee Special intent reads the
             // contract's block class (Shield-Breaker) and signed knockback.
-            if ((attackerRuntime.PressedButtons & SpecialOneButton) != 0 && attackerRuntime.SpecialOneCooldownFrames <= 0) {
+            if (abilityClear && (attackerRuntime.PressedButtons & SpecialOneButton) != 0 && attackerRuntime.SpecialOneCooldownFrames <= 0) {
                 FighterAbilityHitData contract = contracts.For(attacker.PlayerID, FighterHitContractTable.SlotSpecialOne);
                 ResolveIntentContract(contract, LegacySpecialHitstunFrames, out int hitstun, out bool launches);
                 return AttackIntent.Special(
@@ -3169,7 +3452,7 @@ namespace FTT.FighterSim {
                     launches,
                     in contract);
             }
-            if ((attackerRuntime.PressedButtons & SpecialTwoButton) != 0 && attackerRuntime.SpecialTwoCooldownFrames <= 0) {
+            if (abilityClear && (attackerRuntime.PressedButtons & SpecialTwoButton) != 0 && attackerRuntime.SpecialTwoCooldownFrames <= 0) {
                 FighterAbilityHitData contract = contracts.For(attacker.PlayerID, FighterHitContractTable.SlotSpecialTwo);
                 ResolveIntentContract(contract, LegacySpecialHitstunFrames, out int hitstun, out bool launches);
                 return AttackIntent.Special(
@@ -3211,10 +3494,12 @@ namespace FTT.FighterSim {
             if (intent.Kind == 2) {
                 attackerRuntime.SpecialOneCooldownFrames = intent.CooldownFrames > 1 ? intent.CooldownFrames : 1;
                 // A fresh cooldown cycle re-arms its Resonance Momentum refunds.
-                attackerVerb.MomentumRefundsSlotOne = 0;
+                attackerVerb.MomentumRefundedFramesSlotOne = 0;
+                FighterAbilityLockoutRules.ArmAbility(ref attackerRuntime);
             } else if (intent.Kind == 4) {
                 attackerRuntime.SpecialTwoCooldownFrames = intent.CooldownFrames > 1 ? intent.CooldownFrames : 1;
-                attackerVerb.MomentumRefundsSlotTwo = 0;
+                attackerVerb.MomentumRefundedFramesSlotTwo = 0;
+                FighterAbilityLockoutRules.ArmAbility(ref attackerRuntime);
             } else {
                 attacker.Influence = FP64.Zero;
             }
@@ -3531,8 +3816,8 @@ namespace FTT.FighterSim {
                 verb.BeingHeld = 0;
                 verb.ThrowImmunityFrames = 0;
                 verb.ClearGrabPartner();
-                verb.MomentumRefundsSlotOne = 0;
-                verb.MomentumRefundsSlotTwo = 0;
+                verb.MomentumRefundedFramesSlotOne = 0;
+                verb.MomentumRefundedFramesSlotTwo = 0;
                 // No Overtime multiplier inside the phase.
                 verb.OvertimeActive = 0;
                 // "Preserve its spent flag": DefyHistoryUsed is deliberately NOT
@@ -3543,13 +3828,14 @@ namespace FTT.FighterSim {
                 runtime.SpecialOneCooldownFrames = 0;
                 runtime.SpecialTwoCooldownFrames = 0;
                 runtime.MovementCooldownFrames = 0;
-                runtime.BasicCooldownFrames = 0;
+                // The ability lockout and its D1 hit-confirm state (S, C, the
+                // freeze-only Special buffer).
+                FighterAbilityLockoutRules.Clear(ref runtime);
                 runtime.BlockRegenFrames = 0;
                 runtime.SpeedBuffFrames = 0;
                 runtime.JumpBuffFrames = 0;
                 runtime.ZoneSpeedBonusFrames = 0;
                 runtime.FloatFrames = 0;
-                runtime.AegisHits = 0;
                 // Both status slots, plus marks and tethers.
                 runtime.StatusType = (int)FTT.Core.StatusType.None;
                 runtime.StatusFrames = 0;
@@ -3573,7 +3859,6 @@ namespace FTT.FighterSim {
                 if (frame.Has<FighterDefenseComponent>(entity)) {
                     ref FighterDefenseComponent defense = ref frame.Get<FighterDefenseComponent>(entity);
                     FighterDefenseRules.Clear(ref defense);
-                    runtime.AegisHits = 0;
                     // F22: Defy is BARRED for the rest of the match, and the bar
                     // survives the stock losses Sudden Death produces.
                     defense.DefyBarred = 1;
@@ -3743,7 +4028,11 @@ namespace FTT.FighterSim {
             // barrier. The SPENT Defy flag itself is deliberately untouched -
             // Defy is once per match, not once per stock.
             FighterDefenseRules.Clear(ref defense);
-            runtime.AegisHits = 0;
+            // 2026-10-11: the stock loss zeroes the hitstop below, so a held
+            // freeze-only Special press dies with it. The D1 lockouts S and C are
+            // left to expire on the respawn platform (TickCounters runs there).
+            runtime.FreezeBufferArmed = 0;
+            runtime.FreezeBufferedSpecials = 0;
             // V7.1: KO / stock loss clears the Echo Pool and every transient
             // verb-layer state; it never transfers across stocks.
             verb.EchoPool = FP64.Zero;
@@ -3771,7 +4060,7 @@ namespace FTT.FighterSim {
             // still resets the ring (Package 11 A1c).
             runtime.KnockoutsSuffered++;
             if (runtime.UsesStocks != 0) fighter.Stocks--;
-            fighter.Influence = fighter.Influence * FP64.FromInt(3) / FP64.FromInt(4);
+            fighter.Influence = FighterMeterRules.RetainOnStockLoss(fighter.Influence);
             fighter.CurrentHP = fighter.MaxHP;
             fighter.BlockCharges = tuning.MaxBlockCharges;
             fighter.RemainingJumps = tuning.MaxJumpCount;

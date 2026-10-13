@@ -63,6 +63,9 @@ namespace FTT.Combat {
             CurrentPhase = AbilityPhase.Startup;
             // F5: a fresh execution re-arms the once-per-execution caster freeze.
             ExecutionSerial++;
+            // D3 (2026-10-11): a fresh execution has landed nothing yet.
+            LandedDirectHitThisExecution = false;
+            _recoveryFramesElapsed = 0;
             if (armCooldown) StartCooldown();
             OnStartup();
             EmitCastVfx();
@@ -131,6 +134,45 @@ namespace FTT.Combat {
         /// <summary>Frames left in the current phase (test and presentation read).</summary>
         public int PhaseFramesRemaining => _phaseFramesRemaining;
 
+        // ---- D3 (user direction 2026-10-11): the on-hit recovery cancel's inputs --
+
+        /// <summary>
+        /// D3: true once this execution has LANDED a direct hit — the D1a
+        /// predicate (<see cref="HitPayload.ContactLanded"/>, the receiver's own
+        /// report: damage applied or a full shield/barrier absorption, never a
+        /// block, an invulnerable target, a prop or a 0-damage payload), on a
+        /// <see cref="HitDelivery.DirectHit"/> payload this execution fired (R12:
+        /// a late pooled shot from an earlier cast never arms the current one).
+        /// Ticks, constructs and zones never arm it. Cleared by
+        /// <see cref="TryExecute(bool)"/>. Story only: the owner's
+        /// <c>ProcessUsingSpecial</c> reads it in Recovery to open the D3 cancels.
+        /// </summary>
+        public bool LandedDirectHitThisExecution { get; private set; }
+
+        private int _recoveryFramesElapsed;
+
+        /// <summary>
+        /// D3: the index of the current Recovery frame on the cast clock — 0 on the
+        /// owner's first Recovery tick (the owner processes before this node), then
+        /// one more per unsuspended tick of this node, so hitstop never advances
+        /// it. −1 outside Recovery.
+        /// </summary>
+        public int RecoveryFramesElapsed =>
+            CurrentPhase == AbilityPhase.Recovery ? _recoveryFramesElapsed : -1;
+
+        /// <summary>
+        /// D3: arms <see cref="LandedDirectHitThisExecution"/> for a landed direct
+        /// hit of this execution. The first statement of
+        /// <see cref="ConfirmAbilityHit"/> — before its damage and contact-dedup
+        /// returns — so a contact a shield fully absorbed (0 dealt) still counts.
+        /// </summary>
+        private void NoteLandedHit(in HitPayload payload) {
+            if (!IsExecuting || !payload.ContactLanded) return;
+            if (payload.Delivery != HitDelivery.DirectHit) return;
+            if (payload.SourceExecutionSerial != 0 && payload.SourceExecutionSerial != ExecutionSerial) return;
+            LandedDirectHitThisExecution = true;
+        }
+
         /// <summary>
         /// Package 12 W4: a movement ability may authorize a cast while its
         /// cooldown is still running (Mozart's
@@ -176,8 +218,10 @@ namespace FTT.Combat {
             // Lincoln's Splitting Strike). One lookup here covers all three -
             // the character-wide StoryCooldownMultiplier still ticks the timers
             // down in PlayerController, and an unscoped grid reads neutral 1.0.
+            // The resolver stores a scoped reduction as the cooldown MULTIPLIER
+            // max(0.05, 1 - sum), so a -10% minor reads 0.9 here.
             float cooldown = Data.CooldownDuration
-                * Owner.StoryScoped("CooldownReduction", Data.AbilityID ?? "")
+                * Owner.StoryScoped(FTT.Environment.ResonanceStatKeys.CooldownReduction, Data.AbilityID ?? "")
                 * CooldownScaleForThisCast;
             switch (Data.Slot) {
                 case FTT.Core.AbilitySlot.Special1:
@@ -299,6 +343,10 @@ namespace FTT.Combat {
         /// they confirm nothing. A contact is confirmed at most once.
         /// </summary>
         public void ConfirmAbilityHit(in HitPayload payload, float dealt, Vector2 impactPosition) {
+            // D3 (2026-10-11): the landed latch reads the receiver's report first,
+            // so a fully absorbed (0-damage) contact still arms the cancel while
+            // the feedback below stays damage-gated.
+            NoteLandedHit(in payload);
             if (dealt <= 0f || payload.Delivery != HitDelivery.DirectHit) return;
             if (payload.ContactId != 0) {
                 if (payload.ContactId == _lastConfirmedContactId) return;
@@ -348,6 +396,8 @@ namespace FTT.Combat {
 
         public void AdvanceToRecovery() {
             CurrentPhase = AbilityPhase.Recovery;
+            // D3: recovery frame 0 starts here (the owner reads it on its next tick).
+            _recoveryFramesElapsed = 0;
             OnRecovery();
         }
 
@@ -360,6 +410,8 @@ namespace FTT.Combat {
             // F5: a frozen caster's cast holds its phase; its world effects
             // (ticked by the kit overrides around this call) do not.
             if (!IsExecuting || CastClockSuspended) return;
+            // D3: the Recovery frame index counts this node's unsuspended ticks.
+            if (CurrentPhase == AbilityPhase.Recovery) _recoveryFramesElapsed++;
             _phaseFramesRemaining--;
             if (_phaseFramesRemaining <= 0) {
                 switch (CurrentPhase) {
@@ -396,6 +448,9 @@ namespace FTT.Combat {
                 payload.Launches = data.Launches;
             }
             if (deliveryOverride.HasValue) payload.Delivery = deliveryOverride.Value;
+            // D4 (2026-10-11): a movement ability's hit never claims a stun
+            // chain's first-Special slot (StoryEnemyCombatRules.ClassifyChainSpecial).
+            payload.SourceIsMovementAbility = data != null && data.Slot == FTT.Core.AbilitySlot.MovementAbility;
             // A01 (Package 13 W1): the payload carries the resource's block
             // class. A Shield-Breaker ability's own Special-class hits spend
             // every charge; a construct hit is Basic-class and never breaks.
@@ -435,10 +490,18 @@ namespace FTT.Combat {
         /// once-per-execution caster freeze). <paramref name="impactPosition"/>
         /// is where the impact reads — the struck hurtbox, or a wave's front;
         /// it falls back to the payload's contact position.
+        /// <para>D3 (2026-10-11): a shape-query hit never passes through a
+        /// <c>Hitbox</c>, so this is where its D1a stamp happens:
+        /// <paramref name="struck"/> is the hurtbox the payload was delivered to,
+        /// and the copy carries <see cref="HitPayload.ContactLanded"/> from that
+        /// hurtbox's receiver report. There is deliberately no hurtbox-less
+        /// overload, so no kit can skip the stamp silently.</para>
         /// </summary>
-        protected void Credit(in HitPayload payload, float dealt, Vector2? impactPosition = null) {
-            CreditDealt(Owner, in payload, dealt);
-            ConfirmAbilityHit(in payload, dealt, impactPosition ?? payload.HitOrigin);
+        protected void Credit(Hurtbox struck, in HitPayload payload, float dealt, Vector2? impactPosition = null) {
+            HitPayload landed = payload;
+            landed.ContactLanded = struck != null && IsInstanceValid(struck) && struck.DidLand(payload.ContactId);
+            CreditDealt(Owner, in landed, dealt);
+            ConfirmAbilityHit(in landed, dealt, impactPosition ?? landed.HitOrigin);
         }
 
         protected PlaceholderProjectile SpawnPlaceholderProjectile(Vector2 position, float speed,
@@ -451,6 +514,12 @@ namespace FTT.Combat {
                 50);
             if (proj == null) return null;
             float damage = damageOverride >= 0f ? damageOverride : Data?.BaseDamage ?? 10f;
+            // 2026-10-11: the shot's Hitbox adds the contact-time half of the
+            // Story ability-damage composition (the item-drop buff and the
+            // AbilityDamage lane) when it lands, so its Damage takes only the
+            // build-time half here — the SpecialDamage lane, which carries the
+            // Mirror clone's F20 outgoing multiplier. Neutral outside Story.
+            if (Owner != null) damage = Owner.StoryAbilityHitboxDamage(damage);
             // Story-only ProjectileSpeed minors accelerate every placeholder
             // projectile the owner fires; neutral 1f outside Story Mode.
             proj.Setup(damage, Data?.KnockbackForce ?? new Vector2(3, -2),

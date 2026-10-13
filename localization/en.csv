@@ -789,7 +789,7 @@ fighter_countdown_go,GO!
 fighter_winner_pose,PLAYER {0} WINS!
 fighter_overtime_stamp,TIMELINE DESTABILIZING
 fighter_sudden_death_stamp,SUDDEN DEATH
-font_channel_prompt,Hold E to channel the wellspring
+font_channel_prompt,Hold Interact to channel the wellspring
 hud_integrity,Integrity {0}%
 integrity_tier_restored,Restored
 integrity_tier_stabilized,Stabilized
@@ -957,7 +957,7 @@ systems_card_rally_body,"20–50% of damage taken lingers as a reclaimable echo;
 systems_card_defy_title,Defy History
 systems_card_defy_body,"At 100 meter, a lethal hit shatters the meter instead of you — survive at 1 HP, once per match."
 systems_card_echo_title,Echo Step & Resonance Momentum
-systems_card_echo_body,"Spend 30 meter during the recovery of your own basic or directional attack to snap back 30 frames of position; a connecting finisher refunds 1 second of special cooldown."
+systems_card_echo_body,"Spend 30 meter during the recovery of your own basic or directional attack to snap back 30 frames of position. Every basic hit that lands takes time off both special cooldowns (a third of a second; a full second for the finisher), up to 2 seconds per cooldown."
 systems_card_overtime_title,Overtime
 systems_card_overtime_body,"The final 60 seconds of a timed match double the hazard cadence and raise the Rally echo by half."
 dialogue_hold_skip,"Hold {0} to skip"
@@ -972,7 +972,7 @@ hud_time_freeze_ready,Time Freeze ready
 hud_time_freeze_active,"Time frozen: {0}s"
 hud_time_freeze_cooldown,"Time Freeze in {0}s"
 hud_time_freeze_thaw,Time resuming
-tutorial_step_time_freeze,"Press R to stop time, then slip past and reach the marker"
+tutorial_step_time_freeze,"Press Time Freeze to stop time, then slip past and reach the marker"
 # Package 11 A9
 stage_layout_open,Open
 stage_layout_sealed,Sealed
@@ -1224,7 +1224,8 @@ hud_slot_lock_clear,Available
 fighter_hud_stocks_lost,Stocks lost: {0}
 fighter_hud_sudden_death_clock,Sudden Death - next death loses
 results_dust_optional,"Optional finds: {0}"
-results_dust_losses,"Lost to collapse: {0}"
+results_dust_carried,"Earned before resuming: {0}"
+results_dust_losses,"Lost to collapse or exit: {0}"
 results_dust_tier_bonus,"Integrity bonus: {0}"
 settings_reduced_temporal_effects,Reduced Temporal Effects
 settings_reduced_temporal_effects_help,"Reduces distortion, after-images and screen flashes. Keeps gameplay cues and timing unchanged."

@@ -314,6 +314,117 @@ public class Level02ContentTests {
         return collected;
     }
 
+    // === D13 (2026-10-11): the Restoration Font on the real scene ===
+
+    /// <summary>
+    /// D13 (PROVISIONAL-FONT-PLACEMENT): the Orléans font stands where a hero can
+    /// channel it, in real physics frames, and refuses once the level is complete
+    /// — completion re-keys the use registry to the next level, so a channel
+    /// running then is interrupted (with a refund) and none can start.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task TheOrleansFontIsUsableWhereItStandsAndRefusesOnceTheLevelIsComplete() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        // Completion advances the campaign: hand the position back after the
+        // fixture (declared first, so it is disposed last).
+        using var position = new CampaignPositionGuard();
+        StoryManager.Instance.PrepareDirectLevel(CampaignLevel.Orleans, "einstein", Difficulty.Normal);
+        using var fixture = new Level02Fixture(null);
+        Level02Controller level = fixture.Level;
+        FTT.Characters.PlayerController player = level.Player;
+        try {
+            AssertObject(player).IsNotNull();
+            RestorationFont font = level.PlacedRestorationFont;
+            AssertObject(font).IsNotNull();
+            AssertString(font.FontID).IsEqual("level_02.restoration_font");
+            var area = font.GetNode<InteractionArea>("InteractionArea");
+
+            // Settle the scene: drain any opening dialogue (it pauses gameplay).
+            for (int frame = 0; frame < 2; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            DialogueManager dialogue = DialogueManager.Instance;
+            for (int advance = 0; advance < 200 && dialogue != null && dialogue.IsSequenceActive; advance++) {
+                dialogue.AdvanceLine();
+            }
+            AssertThat(tree.Paused).IsFalse();
+
+            // Stand at the font, holding Interact.
+            var source = new BufferedInputSource();
+            source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, GameplayButtons.Interact));
+            InputManager.Instance.SetInputSource(player.PlayerIndex, source);
+            player.GlobalPosition = font.GlobalPosition + new Vector2(0f, -50f);
+            player.Velocity = Vector2.Zero;
+            for (int frame = 0; frame < 30 && !area.OverlapsBody(player); frame++) {
+                await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            }
+            AssertThat(area.OverlapsBody(player))
+                .OverrideFailureMessage($"The hero at {player.GlobalPosition} never entered the font's area at {font.GlobalPosition}.")
+                .IsTrue();
+            AssertThat(player.GlobalPosition.DistanceTo(font.GlobalPosition) <= font.ChannelRangePixels)
+                .OverrideFailureMessage($"The hero at {player.GlobalPosition} stands outside the channel range.")
+                .IsTrue();
+            AssertThat(area.TryInteract(player)).IsTrue();
+            AssertThat(font.IsChanneling).IsTrue();
+
+            // Completion: the running channel is interrupted, and then the font
+            // refuses, though a use remains.
+            level.ShowCompletionResults();
+            AssertThat(level.LevelComplete).IsTrue();
+            AssertThat(font.RefusesWhile()).IsTrue();
+            for (int frame = 0; frame < 2; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(font.IsChanneling)
+                .OverrideFailureMessage("A channel running at completion must be interrupted.")
+                .IsFalse();
+            AssertThat(font.ChannelRadial.Visible).IsFalse();
+            // No channel and no restore run now, and a use remains, so only the
+            // completion refusal can say no here.
+            AssertThat(font.UsesRemaining > 0).IsTrue();
+            AssertThat(area.OverlapsBody(player)).IsTrue();
+            AssertThat(font.CanInteract(player))
+                .OverrideFailureMessage("A complete level's font must refuse although a use remains.")
+                .IsFalse();
+            AssertThat(area.TryInteract(player)).IsFalse();
+            AssertThat(font.IsChanneling).IsFalse();
+        } finally {
+            if (player != null && GodotObject.IsInstanceValid(player)) {
+                InputManager.Instance?.ClearInputSource(player.PlayerIndex);
+            }
+            LevelRewardDirectory.ResetAttempt();
+        }
+    }
+
+    /// <summary>
+    /// Captures the campaign position (level, difficulty, character, slot, wallet)
+    /// and hands it back on dispose. Declare it BEFORE the level fixture so it is
+    /// disposed after it: the fixture restores the slot it captured, and
+    /// PrepareDirectLevel clears it, so the slot is restored last.
+    /// </summary>
+    private sealed class CampaignPositionGuard : IDisposable {
+        private readonly CampaignLevel _level;
+        private readonly Difficulty _difficulty;
+        private readonly string _character;
+        private readonly int _slot;
+        private readonly int _wallet;
+
+        public CampaignPositionGuard() {
+            StoryManager story = StoryManager.Instance;
+            _level = story.CurrentLevel;
+            _difficulty = GameManager.Instance.CurrentSession.Difficulty;
+            _character = GameManager.Instance.CurrentSession.SelectedCharacterID;
+            _slot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+            _wallet = story.ChronalDustCollected;
+        }
+
+        public void Dispose() {
+            StoryManager story = StoryManager.Instance;
+            story.StopLevelRun();
+            story.PrepareDirectLevel(_level, string.IsNullOrEmpty(_character) ? "einstein" : _character, _difficulty);
+            GameManager.Instance.CurrentSession.SelectedCharacterID = _character;
+            story.SetDust(_wallet);
+            story.ClearLevelAttemptState();
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = _slot;
+        }
+    }
+
     /// <summary>
     /// Instantiates the authored scene in the runner tree against an optional scratch
     /// save, then hands back every shared singleton it touched. The gameplay pause is

@@ -646,8 +646,9 @@ public class FighterHazardBehaviorTests {
         /// <summary>
         /// Clamps <paramref name="targetX"/> into the floor segment currently
         /// under player one, leaving a full unit of margin inside the ledge —
-        /// enough for the twelve-frame stop ramp, which otherwise carries a
-        /// running fighter over the edge and straight into a ledge hang.
+        /// more than the stop ramp's slide (four frames since 2026-10-08, under
+        /// a quarter unit at full speed), which otherwise carries a running
+        /// fighter over the edge and straight into a ledge hang.
         /// </summary>
         private FP64 ClampToSupportingFloor(FP64 targetX) {
             if (_geometry == null || _geometry.FloorSegments.Length == 0) return targetX;

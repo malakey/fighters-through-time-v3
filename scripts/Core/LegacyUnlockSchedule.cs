@@ -126,6 +126,41 @@ namespace FTT.Core {
             return false;
         }
 
+        /// <summary>
+        /// The slots a Story save has restored for <paramref name="characterID"/>:
+        /// its persisted <c>UnlockedLegacyAbilities</c> keys, backstopped by its
+        /// completed-level history (a payload written before the schedule existed
+        /// carries only the history, and the milestone grant reads the same
+        /// source, so the two can never disagree). The single statement of the
+        /// rule behind both the campaign hero's ability gate
+        /// (<c>CharacterFactory.ResolveStoryUnlockedSlots</c>) and the Resonance
+        /// grid's dormant nodes (<c>ResonanceProgression.IsAbilityUnlocked</c>).
+        /// A null save restores nothing. Engine-free.
+        /// </summary>
+        public static HashSet<AbilitySlot> UnlockedSlotsFor(StorySaveData save, string characterID) {
+            var slots = new HashSet<AbilitySlot>();
+            if (save == null) return slots;
+            if (characterID != null
+                && save.UnlockedLegacyAbilities != null
+                && save.UnlockedLegacyAbilities.TryGetValue(characterID, out List<string> keys)) {
+                slots.UnionWith(SlotsFromSavedKeys(keys));
+            }
+            foreach (AbilitySlot slot in GatedSlots) {
+                if (IsUnlocked(slot, save.CompletedLevels)) slots.Add(slot);
+            }
+            return slots;
+        }
+
+        /// <summary>
+        /// True when <paramref name="slot"/> is available to
+        /// <paramref name="characterID"/> on this save (see
+        /// <see cref="UnlockedSlotsFor"/>). Ungated slots are always true.
+        /// </summary>
+        public static bool IsUnlockedFor(StorySaveData save, string characterID, AbilitySlot slot) {
+            if (MilestoneLevelFor(slot) <= 0) return true;
+            return UnlockedSlotsFor(save, characterID).Contains(slot);
+        }
+
         /// <summary>Every slot unlocked by this completed-level set, as persisted keys.</summary>
         public static List<string> UnlockedKeysFor(IReadOnlyCollection<string> completedLevels) {
             var keys = new List<string>(GatedSlots.Count);

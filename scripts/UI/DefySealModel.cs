@@ -30,7 +30,7 @@ namespace FTT.UI {
     public static class DefySealModel {
 
         /// <summary>Meter value at which an unspent Defy becomes available.</summary>
-        public const float ReadyMeter = 100f;
+        public const float ReadyMeter = FTT.Combat.InfluenceMeterRules.MaxValue;
 
         /// <summary>Authored size, in reference pixels (HUD_CONTRACT).</summary>
         public const int SealSize = 20;

@@ -129,7 +129,8 @@ namespace FTT.Combat {
                         meter.AddFlat(Data.Value);
                         player.CurrentUltimateMeter = meter.CurrentValue;
                     } else {
-                        player.CurrentUltimateMeter = Mathf.Min(player.CurrentUltimateMeter + Data.Value, 100f);
+                        player.CurrentUltimateMeter = Mathf.Min(
+                            player.CurrentUltimateMeter + Data.Value, InfluenceMeterRules.MaxValue);
                     }
                     break;
                 case OrbEffect.ShieldRestore:
@@ -163,8 +164,38 @@ namespace FTT.Combat {
                     // separate one-hit shield, not a block resource.
                     player.GrantTemporalAegis();
                     break;
+                case OrbEffect.SpeedBuff:
+                case OrbEffect.DamageBoost:
+                    ApplyStoryBuff(player, Data.Effect);
+                    break;
             }
             ReturnToPool();
         }
+
+        /// <summary>
+        /// 2026-10-11 (ledger FIX-STORY-ORB-BUFF-CASES, provisional rules in
+        /// PROVISIONAL-STORY-ABILITY-DAMAGE-ROUTING): a Story speed or damage orb
+        /// grants the Story drop's temporary buff at the current Story
+        /// difficulty's profile (<see cref="FTT.Environment.StoryDropProfile"/>:
+        /// Easy x1.5 for 15 s, Normal x1.25 for 10 s), through the same two
+        /// paths a <c>StoryPickup</c> uses. The orb's own Value and Duration are
+        /// not read for these two effects. Hard authors no buff, so the orb is
+        /// consumed with no effect; it never cancels or shortens a running buff.
+        /// Nothing spawns a Story orb today.
+        /// </summary>
+        private static void ApplyStoryBuff(FTT.Characters.PlayerController player, OrbEffect effect) {
+            FTT.Environment.StoryDropProfile profile = StoryBuffProfile();
+            if (profile == null || profile.BuffMultiplier <= 1f || profile.BuffDurationSeconds <= 0f) return;
+            if (effect == OrbEffect.DamageBoost) {
+                player.ApplyStoryDamageBuff(profile.BuffMultiplier, profile.BuffDurationSeconds);
+            } else {
+                player.ApplyStorySpeedBuff(profile.BuffMultiplier, profile.BuffDurationSeconds);
+            }
+        }
+
+        /// <summary>The Story drop profile for the current Story difficulty, or null.</summary>
+        public static FTT.Environment.StoryDropProfile StoryBuffProfile() =>
+            FTT.Environment.StoryDropTable.LoadDefault()
+                ?.GetProfile(FTT.Core.StoryDifficultyTuning.CurrentStoryDifficulty);
     }
 }

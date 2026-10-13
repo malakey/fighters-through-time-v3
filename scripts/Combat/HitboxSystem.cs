@@ -229,6 +229,30 @@ namespace FTT.Combat {
         /// </summary>
         public int SourceExecutionSerial;
         /// <summary>
+        /// 2026-10-11 (D1a, ledger USER-HIT-CONFIRM-CANCEL): the contact LANDED —
+        /// the receiver applied damage, or a shield or barrier layer absorbed it,
+        /// on a combatant that was not invulnerable to it. A block, an
+        /// invulnerability / ward / Time Freeze / world-hold refusal, a strike
+        /// surface, prop or construct, and a payload with zero authored damage
+        /// never land. A Story-only OUTPUT: false on intake, stamped by
+        /// <see cref="Hitbox"/> after <see cref="Hurtbox.TakeDamage"/> from the
+        /// receiver's own report (<see cref="Hurtbox.DidLand"/>). The Fighter
+        /// simulation never reads it.
+        /// </summary>
+        public bool ContactLanded;
+        /// <summary>
+        /// 2026-10-11 (D4, ledger USER-FIRST-SPECIAL-UNTAXED): the hit came from
+        /// a movement ability (<c>AbilitySlot.MovementAbility</c>). Movement
+        /// abilities author <c>Origin = Special</c>, so without this flag a Rail
+        /// Charge, Midsummer Gust or Wing-Dive hit used to close in would claim a
+        /// stun chain's first-Special slot and tax the real Special after it. A
+        /// movement-ability hit never claims the slot and keeps the pre-D4
+        /// S2/S3 treatment. Stamped by <c>BaseSpecial.WithAbilityContract</c> and
+        /// <see cref="Hitbox.ApplyAbilityHitContract"/>. Story only: the Fighter
+        /// simulation never reads it.
+        /// </summary>
+        public bool SourceIsMovementAbility;
+        /// <summary>
         /// What authored the hit; see <see cref="FTT.Combat.HitOrigin"/>. The
         /// field is <c>Origin</c> because the older Vector2 <c>HitOrigin</c>
         /// field above is the contact POSITION and keeps its name.

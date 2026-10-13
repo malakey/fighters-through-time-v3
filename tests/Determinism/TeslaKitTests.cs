@@ -168,12 +168,17 @@ public class TeslaKitTests {
             loadout, FighterLoadout.Default(FighterCharacterID.Joan),
             seed: 55, spawnDistance: 1, rules: FighterMatchRules.Disabled);
 
+        // Two coils make the link; the second goes out the tick the first
+        // deploy's ability lockout ends.
+        int secondCoilTick = BasicComboRules.AbilityLockoutFrames;
         uninterrupted.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
         uninterrupted.Advance(Frame(1, 0, GameplayButtons.None), Frame(1, 0, GameplayButtons.None));
-        uninterrupted.Advance(Frame(2, 0, GameplayButtons.Special1), Frame(2, 0, GameplayButtons.None));
+        uninterrupted.Advance(Frame(2, 0, GameplayButtons.None), Frame(2, 0, GameplayButtons.None));
         for (int tick = 3; tick < 60; tick++) {
-            uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, -127, GameplayButtons.None));
+            GameplayButtons tesla = tick == secondCoilTick ? GameplayButtons.Special1 : GameplayButtons.None;
+            uninterrupted.Advance(Frame(tick, 0, tesla), Frame(tick, -127, GameplayButtons.None));
         }
+        AssertThat(uninterrupted.PersistentObjectCount).IsEqual(2);
 
         byte[] snapshot = uninterrupted.CaptureFullState();
         restored.RestoreFullState(snapshot);

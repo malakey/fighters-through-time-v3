@@ -130,7 +130,7 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "einstein_cosmological_constant",
                     HitboxID = isLaunchHit ? "singularity_launch" : "singularity_tick",
                     AttackClass = AttackClass.Ultimate,
-                    Damage = (Data?.CinematicHitDamage(_hitsDone) ?? 15f) * Owner.StorySpecialDamageMultiplier,
+                    Damage = Owner.StoryAbilityDamage(Data?.CinematicHitDamage(_hitsDone) ?? 15f, Data?.AbilityID),
                     Knockback = isLaunchHit
                         ? Data?.KnockbackForce ?? new Vector2(6, -4)
                         : Vector2.Zero,
@@ -149,7 +149,7 @@ namespace FTT.Characters.Abilities {
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
                 // ZERO damage-dealt meter, regardless of HP removed, target count or
                 // when it lands. Direct-hit Rally reclaim is retained (D03g).
-                Credit(in hit, dealt, hurtbox.GlobalPosition);
+                Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
             }
         }
 

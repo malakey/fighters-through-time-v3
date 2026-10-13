@@ -360,6 +360,8 @@ public class Level09ContentTests {
                 FTT.Core.StoryDifficultyTuning.CurrentStoryDifficulty);
         float earned = beam.StrikeDamage * (1f - echoFraction)
             * FTT.Combat.UltimateMeter.PointsPerDamageTaken;
+        // D5: at the campaign hero's Story meter-gain factor.
+        earned *= level.Player.StoryMeterGainFactor;
         AssertFloat(level.Player.CurrentUltimateMeter).IsEqualApprox(meterBefore + earned, 0.01f);
 
         // Leaving the beam ends the exposure clock outright.
@@ -498,7 +500,59 @@ public class Level09ContentTests {
             .OverrideFailureMessage("The radar gate is still solid after a pre-boss resume.").IsTrue();
     }
 
+    // === Layout: the east boundary ===
+
+    /// <summary>
+    /// The east boundary wall runs from the top of the level to the floor
+    /// (2026-10-08). It used to stop at y 440, 352 px over the east castle deck:
+    /// five heroes' double jumps cleared that before the apex hang and seven
+    /// after it, out of the level. Every hero's whole jump budget from the deck
+    /// must now fall short of the wall's top by a 10% margin.
+    /// </summary>
+    [TestCase]
+    public void TheEastBoundaryWallRunsTheFullHeightAndOutreachesEveryJumpFromTheCastleDeck() {
+        const float jumpMargin = 1.1f;
+        using var fixture = new BerlinFixture();
+        Rect2 wall = BodyRect(fixture.Level, $"Wall_{Mathf.RoundToInt(Level09Controller.LevelWidth - 20f)}_0");
+        Rect2 deck = BodyRect(fixture.Level,
+            $"Platform_{Mathf.RoundToInt(Level09Controller.EastCastleDeckX)}_{Mathf.RoundToInt(Level09Controller.CastleDeckY)}");
+        AssertThat(wall.Size.X > 0f && deck.Size.X > 0f)
+            .OverrideFailureMessage("The east boundary wall or the east castle deck is missing.").IsTrue();
+
+        AssertThat(wall.Position.Y <= 0f)
+            .OverrideFailureMessage($"The east boundary wall {wall} stops short of the top of the level.").IsTrue();
+        AssertThat(wall.End.Y >= Level09Controller.GroundY)
+            .OverrideFailureMessage($"The east boundary wall {wall} stops short of the floor.").IsTrue();
+        AssertThat(wall.Position.X >= deck.End.X && wall.End.X <= Level09Controller.LevelWidth)
+            .OverrideFailureMessage($"The wall {wall} is not the boundary east of the deck {deck}.").IsTrue();
+
+        float best = 0f;
+        string bestID = "";
+        foreach (string id in CharacterRoster.IDs) {
+            var data = AuthoredResources.Load<FTT.Characters.CharacterData>($"res://resources/Characters/{id}_data.tres");
+            float rise = StoryAirPhysics.MultiJumpRise(StoryAirPhysics.JumpLaunchSpeed(data.MaxJumpForce), data.Weight,
+                Math.Max(1, data.MaxJumpCount));
+            if (rise <= best) continue;
+            best = rise;
+            bestID = id;
+        }
+        float clearance = deck.Position.Y - wall.Position.Y;
+        AssertThat(clearance > best * jumpMargin)
+            .OverrideFailureMessage(
+                $"The wall's top is {clearance} px over the deck; '{bestID}' reaches {best:0} px, so the boundary can be jumped.")
+            .IsTrue();
+    }
+
     // === Helpers ===
+
+    /// <summary>The world rect of a level body's first (rectangle) collision shape; empty when missing.</summary>
+    private static Rect2 BodyRect(Node level, string bodyName) {
+        var body = level.GetNodeOrNull<StaticBody2D>(bodyName);
+        if (body == null || body.GetChildCount() == 0) return new Rect2();
+        if (body.GetChild(0) is not CollisionShape2D { Shape: RectangleShape2D rect } shape) return new Rect2();
+        Vector2 centre = body.Position + shape.Position;
+        return new Rect2(centre - rect.Size / 2f, rect.Size);
+    }
 
     private static HashSet<string> EnglishKeys() {
         var keys = new HashSet<string>(StringComparer.Ordinal);

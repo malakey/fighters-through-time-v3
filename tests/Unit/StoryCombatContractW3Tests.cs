@@ -11,7 +11,8 @@ namespace FTT.Tests.Unit;
 /// Package 12 W3, the Story-side pins: M06 (a tumbling victim never escapes
 /// into the stance — it techs on ground contact instead), the guard-break push
 /// (assigned, unscaled, away from the attacker), Block cancelling a Special's
-/// RECOVERY frames (never its startup), and M01 (fast-fall snaps to 1200 px/s).
+/// RECOVERY frames (never its startup), and fast-fall (M01's 1200 px/s snap,
+/// replaced on 2026-10-08 by a ramp toward a 900 px/s cap).
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
@@ -124,8 +125,13 @@ public class StoryCombatContractW3Tests {
         }
     }
 
+    /// <summary>
+    /// M01's snap is gone (user direction 2026-10-08): held Down mid-rise adds the
+    /// fast-fall gravity step instead of assigning 1200 px/s, and the dive then
+    /// caps at 15 u/s = 900 px/s. <c>StoryMovementFeelTests</c> pins the release ease.
+    /// </summary>
     [TestCase]
-    public void FastFallSnapsToTwelveHundredPixelsPerSecond() {
+    public void FastFallRampsTowardItsNineHundredPixelCapInsteadOfSnapping() {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
         PlayerController player = CharacterFactory.CreateCharacter("einstein");
         tree.Root.AddChild(player);
@@ -133,11 +139,16 @@ public class StoryCombatContractW3Tests {
             player.GlobalPosition = new Vector2(0f, -4000f);
             player.TransitionTo(CharacterState.Airborne);
             player.Velocity = new Vector2(0f, -300f);
+            float gravityStep = StoryAirPhysics.GravityPerFrame(player.Data.Weight);
             Step(player, GameplayButtons.Down);
             AssertThat(player.Velocity.Y)
-                .OverrideFailureMessage("M01: fast-fall snaps to 20 u/s = 1200 px/s.")
+                .OverrideFailureMessage("Fast-fall mid-rise adds 3x gravity for the tick; it never snaps.")
+                .IsEqualApprox(-300f + gravityStep * UniversalMovementRules.FastFallGravityMultiplier, 0.01f);
+            for (int frame = 0; frame < 90; frame++) Step(player, GameplayButtons.Down);
+            AssertThat(player.Velocity.Y)
+                .OverrideFailureMessage("A held fast-fall settles on 15 u/s = 900 px/s.")
                 .IsEqualApprox(UniversalMovementRules.FastFallSpeed * 60f, 0.01f);
-            AssertThat(UniversalMovementRules.FastFallSpeed * 60f).IsEqual(1200f);
+            AssertThat(UniversalMovementRules.FastFallSpeed * 60f).IsEqual(900f);
         } finally {
             InputManager.Instance?.ClearInputSource(player.PlayerIndex);
             player.Free();

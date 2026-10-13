@@ -276,6 +276,17 @@ namespace FTT.Characters.Abilities {
             }
         }
 
+        /// <summary>
+        /// A coil hit's damage under its owner's whole Story ability-damage
+        /// composition (SpecialDamage, the coil's AbilityDamage lane and the
+        /// item-drop damage buff), read when the hit lands; neutral for an
+        /// ownerless coil.
+        /// </summary>
+        private float ScaledByOwner(float damage) =>
+            _ownerPlayer != null && IsInstanceValid(_ownerPlayer)
+                ? _ownerPlayer.StoryAbilityDamage(damage, _data?.AbilityID)
+                : damage;
+
         private HitPayload BuildHitPayload(
             float damage, AttackClass attackClass, Vector2 origin,
             FTT.Core.StatusType status, float statusDuration, Vector2 knockback,
@@ -287,7 +298,7 @@ namespace FTT.Characters.Abilities {
             AttackID = _data?.AbilityID ?? "tesla_tesla_coil",
             HitboxID = hitboxID,
             AttackClass = attackClass,
-            Damage = damage,
+            Damage = ScaledByOwner(damage),
             Knockback = knockback,
             HitstunDuration = 0.15f,
             HitOrigin = origin,

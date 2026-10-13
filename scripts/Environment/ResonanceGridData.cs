@@ -184,6 +184,10 @@ namespace FTT.Environment {
         /// Reads an ability-scoped lane. Returns <paramref name="fallback"/>
         /// (1.0 by default, the neutral multiplier) when nothing was authored
         /// for that pair — locked and unauthored nodes contribute nothing.
+        /// Every scoped value is a multiplier on the ability's authored number:
+        /// 1 + sum for the additive lanes, and for a scoped
+        /// <see cref="ResonanceStatKeys.CooldownReduction"/> the cooldown
+        /// multiplier max(0.05, 1 - sum), like the character-wide lane.
         /// </summary>
         public float GetScoped(string statKey, string abilityScope, float fallback = 1f) {
             if (ScopedMultipliers == null

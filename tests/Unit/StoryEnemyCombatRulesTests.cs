@@ -100,23 +100,92 @@ public class StoryEnemyCombatRulesTests {
     }
 
     [TestCase]
-    public void AFullStringFitsTheStandardPoiseBudgetButAStringPlusSpecialDoesNot() {
-        float stringStun = (StoryEnemyCombatRules.BasicStringStunFloorFrames("combo_1")
+    public void AFullStringPlusTheLargestFirstSpecialFitsTheStandardPoiseButASecondSpecialTrips() {
+        // D4 (2026-10-11): the budget is re-derived so one full string plus the
+        // chain's first Special (charged x1.0) fits, and a second Special trips.
+        int stringFrames = StoryEnemyCombatRules.BasicStringStunFloorFrames("combo_1")
             + StoryEnemyCombatRules.BasicStringStunFloorFrames("combo_2")
-            + StoryEnemyCombatRules.BasicStringStunFloorFrames("combo_3")) / 60f;
-        AssertThat(stringStun <= StoryEnemyCombatRules.StandardStaggerBudgetSeconds)
-            .OverrideFailureMessage("One full basic string must complete on a standard mob.")
+            + StoryEnemyCombatRules.BasicStringStunFloorFrames("combo_3");
+        AssertThat(stringFrames).IsEqual(102);
+        float budget = StoryEnemyCombatRules.StandardStaggerBudgetSeconds;
+        AssertThat((stringFrames + StoryEnemyCombatRules.FirstSpecialStunAllowanceFrames + 1) / 60f <= budget)
+            .OverrideFailureMessage("A string plus the largest first Special must fit with a frame to spare.")
             .IsTrue();
 
-        // The roster's common Special hitstun is 12 frames.
-        float specialCost = StoryEnemyCombatRules.StandardBudgetCost(12 / 60f, fromSpecial: true);
-        AssertThat(specialCost).IsEqualApprox(0.3f, 0.0001f);
-        AssertThat(stringStun + specialCost > StoryEnemyCombatRules.StandardStaggerBudgetSeconds)
-            .OverrideFailureMessage("A string plus a Special confirm must trip Armored Recovery.")
+        // The smallest second Special: one 12-frame hit, V7.4-diminished (a first
+        // Special stunned the mob within 4 s) and taxed x1.5: 9 frames.
+        float secondCost = StoryEnemyCombatRules.StandardBudgetCost(
+            12 * EnemyStaggerRules.SpecialStunDiminishFactor / 60f, taxedSpecial: true);
+        AssertThat(secondCost * 60f).IsEqualApprox(9f, 0.001f);
+        // Joan's ruled route, Righteous Smite (30 frames of authored hitstun,
+        // read from the real resource in StoryFirstSpecialTaxTests) -> hit 1 ->
+        // hit 2 -> hit 3, plus any second Special trips with a frame to spare.
+        const int smiteHitstunFrames = 30;
+        AssertThat((stringFrames + smiteHitstunFrames) / 60f + secondCost > budget + 1f / 60f)
+            .OverrideFailureMessage("The ruled route plus a second Special must trip Armored Recovery.")
             .IsTrue();
-        AssertThat(StoryEnemyCombatRules.StandardBudgetCost(0.5f, fromSpecial: false)).IsEqualApprox(0.5f, 0.0001f);
+
+        AssertThat(StoryEnemyCombatRules.StandardBudgetCost(0.5f, taxedSpecial: false)).IsEqualApprox(0.5f, 0.0001f);
+        AssertThat(StoryEnemyCombatRules.StandardBudgetCost(0.5f, taxedSpecial: true)).IsEqualApprox(0.75f, 0.0001f);
+        AssertThat(StoryEnemyCombatRules.StandardSpecialStunBudgetCostMultiplier).IsEqualApprox(1.5f, 0.0001f);
         AssertThat(StoryEnemyCombatRules.StandardArmoredRecoverySeconds
                 < EnemyStaggerRules.EliteArmoredRecoverySeconds).IsTrue();
+    }
+
+    [TestCase]
+    public void TheChainsFirstSpecialIsUntaxedWhileLaterSpecialsAndMovementHitsKeepTheConfirmTax() {
+        // D4: the first Special-class, non-Ultimate hit claims the chain's slot.
+        AssertThat(StoryEnemyCombatRules.ClassifyChainSpecial(
+                AttackClass.Special, HitOrigin.Special, false, "joan_righteous_smite", null))
+            .IsEqual(StoryEnemyCombatRules.ChainSpecialRole.FirstSpecial);
+        AssertThat(StoryEnemyCombatRules.ClassifyChainSpecial(
+                AttackClass.Special, HitOrigin.Special, false, "joan_righteous_smite", ""))
+            .IsEqual(StoryEnemyCombatRules.ChainSpecialRole.FirstSpecial);
+        // Every hit of the recorded first Special shares its role.
+        AssertThat(StoryEnemyCombatRules.ClassifyChainSpecial(
+                AttackClass.Special, HitOrigin.Special, false, "joan_righteous_smite", "joan_righteous_smite"))
+            .IsEqual(StoryEnemyCombatRules.ChainSpecialRole.FirstSpecial);
+        // Any other Special is a second Special.
+        AssertThat(StoryEnemyCombatRules.ClassifyChainSpecial(
+                AttackClass.Special, HitOrigin.Special, false, "joan_divine_piercing", "joan_righteous_smite"))
+            .IsEqual(StoryEnemyCombatRules.ChainSpecialRole.OtherSpecial);
+        // A movement-ability hit never claims the slot, even on a fresh chain.
+        AssertThat(StoryEnemyCombatRules.ClassifyChainSpecial(
+                AttackClass.Special, HitOrigin.Special, true, "lincoln_rail_charge", null))
+            .IsEqual(StoryEnemyCombatRules.ChainSpecialRole.OtherSpecial);
+        // A Special with no identity is never the first.
+        AssertThat(StoryEnemyCombatRules.ClassifyChainSpecial(
+                AttackClass.Special, HitOrigin.Special, false, "", null))
+            .IsEqual(StoryEnemyCombatRules.ChainSpecialRole.OtherSpecial);
+        AssertThat(StoryEnemyCombatRules.ClassifyChainSpecial(
+                AttackClass.Special, HitOrigin.Special, false, null, null))
+            .IsEqual(StoryEnemyCombatRules.ChainSpecialRole.OtherSpecial);
+        // Ultimates (origin or class) and non-Specials are not Specials at all.
+        AssertThat(StoryEnemyCombatRules.ClassifyChainSpecial(
+                AttackClass.Special, HitOrigin.Ultimate, false, "joan_grand_crusade", null))
+            .IsEqual(StoryEnemyCombatRules.ChainSpecialRole.NotSpecial);
+        AssertThat(StoryEnemyCombatRules.ClassifyChainSpecial(
+                AttackClass.Ultimate, HitOrigin.Ultimate, false, "joan_grand_crusade", null))
+            .IsEqual(StoryEnemyCombatRules.ChainSpecialRole.NotSpecial);
+        AssertThat(StoryEnemyCombatRules.ClassifyChainSpecial(
+                AttackClass.Basic, HitOrigin.Basic, false, "joan.basic", null))
+            .IsEqual(StoryEnemyCombatRules.ChainSpecialRole.NotSpecial);
+
+        // The first Special lands x1.0 at any chain index, confirm or not.
+        foreach (int index in new[] { 1, 4, 9 }) {
+            AssertThat(StoryEnemyCombatRules.ChainHitScale(
+                    StoryEnemyCombatRules.ChainSpecialRole.FirstSpecial, index, specialConfirm: true))
+                .IsEqualApprox(1f, 0.0001f);
+            AssertThat(StoryEnemyCombatRules.ChainHitScale(
+                    StoryEnemyCombatRules.ChainSpecialRole.OtherSpecial, index, specialConfirm: true))
+                .IsEqualApprox(StoryEnemyCombatRules.ConfirmProrationScale(index, true), 0.0001f);
+            AssertThat(StoryEnemyCombatRules.ChainHitScale(
+                    StoryEnemyCombatRules.ChainSpecialRole.NotSpecial, index, specialConfirm: false))
+                .IsEqualApprox(StoryEnemyCombatRules.ConfirmProrationScale(index, false), 0.0001f);
+        }
+        AssertThat(StoryEnemyCombatRules.ChainHitScale(
+                StoryEnemyCombatRules.ChainSpecialRole.OtherSpecial, 4, specialConfirm: true))
+            .IsEqualApprox(0.85f * 0.6f, 0.0001f);
     }
 
     [TestCase]
@@ -127,6 +196,12 @@ public class StoryEnemyCombatRulesTests {
         AssertThat(StoryEnemyCombatRules.StandardStaggerDecayPerSecond * EnemyStaggerRules.GetupArmorSeconds
                 >= stringStun)
             .OverrideFailureMessage("The getup armor after one string must drain a standard's whole string credit.")
+            .IsTrue();
+        // D4: and the whole budget, so a chain that filled it without tripping
+        // (a string plus the largest first Special) starts the next chain empty.
+        AssertThat(StoryEnemyCombatRules.StandardStaggerDecayPerSecond * EnemyStaggerRules.GetupArmorSeconds
+                >= StoryEnemyCombatRules.StandardStaggerBudgetSeconds)
+            .OverrideFailureMessage("The getup armor must drain a standard's whole poise budget.")
             .IsTrue();
         AssertThat(StoryEnemyCombatRules.StandardStaggerDecayPerSecond > EnemyStaggerRules.StaggerDecayPerSecond)
             .IsTrue();
@@ -265,5 +340,166 @@ public class StoryEnemyCombatRulesTests {
         AssertThat(StoryEnemyCombatRules.KeepsChasing(leash, deAggro, targetInRoom: false)).IsTrue();
         AssertThat(StoryEnemyCombatRules.KeepsChasing(leash + 1f, deAggro, targetInRoom: false)).IsFalse();
         AssertThat(StoryEnemyCombatRules.KeepsChasing(leash * 4f, deAggro, targetInRoom: true)).IsTrue();
+    }
+
+    // === D8 (user direction 2026-10-11): the Punish window ===
+
+    [TestCase]
+    public void ThePunishWindowIsSixtyFramesAtOnePointTwoForPlayerDirectHitsOnly() {
+        // The user's numbers (USER-PUNISH-WINDOW).
+        AssertThat(StoryEnemyCombatRules.PunishWindowFrames).IsEqual(60);
+        AssertThat(StoryEnemyCombatRules.PunishDamageScale).IsEqualApprox(1.2f, 0.0001f);
+        // The non-colour channel of a punished number enlarges it.
+        AssertThat(StoryEnemyCombatRules.PunishDamageNumberScale > 1f).IsTrue();
+
+        // A player's direct hit of any class but a hazard is eligible...
+        AssertThat(StoryEnemyCombatRules.IsPunishEligible(0, AttackClass.Basic, HitDelivery.DirectHit)).IsTrue();
+        AssertThat(StoryEnemyCombatRules.IsPunishEligible(0, AttackClass.Special, HitDelivery.DirectHit)).IsTrue();
+        AssertThat(StoryEnemyCombatRules.IsPunishEligible(0, AttackClass.Ultimate, HitDelivery.DirectHit)).IsTrue();
+        // ...while ticks, construct hits, hazards and enemy-sourced hits are not.
+        AssertThat(StoryEnemyCombatRules.IsPunishEligible(0, AttackClass.Special, HitDelivery.Tick)).IsFalse();
+        AssertThat(StoryEnemyCombatRules.IsPunishEligible(0, AttackClass.Basic, HitDelivery.Construct)).IsFalse();
+        AssertThat(StoryEnemyCombatRules.IsPunishEligible(0, AttackClass.Hazard, HitDelivery.Hazard)).IsFalse();
+        AssertThat(StoryEnemyCombatRules.IsPunishEligible(0, AttackClass.Hazard, HitDelivery.DirectHit)).IsFalse();
+        AssertThat(StoryEnemyCombatRules.IsPunishEligible(-1, AttackClass.Basic, HitDelivery.DirectHit)).IsFalse();
+
+        // One composition, one rounding: Joan's 6-damage hit 1 on a punished
+        // standard is 6 x 1.25 (S4) x 1.2 = 9, against 8 unpunished; a punished
+        // first Smite is 28 x 1.2 = 33.6 -> 34.
+        AssertThat(StoryEnemyCombatRules.ScaleIntakeDamage(6,
+            StoryEnemyCombatRules.StandardBasicDamageScale * StoryEnemyCombatRules.PunishDamageScale)).IsEqual(9);
+        AssertThat(StoryEnemyCombatRules.ScaleIntakeDamage(6, StoryEnemyCombatRules.StandardBasicDamageScale))
+            .IsEqual(8);
+        AssertThat(StoryEnemyCombatRules.ScaleIntakeDamage(28, StoryEnemyCombatRules.PunishDamageScale))
+            .IsEqual(34);
+    }
+
+    [TestCase]
+    public void AMeleeWhiffIsNearOnlyInsideItsPivotReachPlusTheMargin() {
+        // The one shared reach helper (spec B §0.3 / spec D D6c): the legacy
+        // scalar melee (a 40 px box at offset 30) reaches 70 px against the
+        // Story hero's 20 px hurtbox half-width.
+        float heroHalfWidth = StoryCombatRules.HeroHurtboxWidthPixels / 2f;
+        AssertThat(heroHalfWidth).IsEqualApprox(20f, 0.0001f);
+        float reach = StoryEnemyCombatRules.MeleePivotReachPixels(30f, 40f, 0f, heroHalfWidth);
+        AssertThat(reach).IsEqualApprox(70f, 0.0001f);
+        // A mirrored (negative) authored offset reaches as far, and a charge's travel adds.
+        AssertThat(StoryEnemyCombatRules.MeleePivotReachPixels(-30f, 40f, 0f, 20f)).IsEqualApprox(70f, 0.0001f);
+        AssertThat(StoryEnemyCombatRules.MeleePivotReachPixels(30f, 40f, 65f, 20f)).IsEqualApprox(135f, 0.0001f);
+
+        // Near: within the reach plus the 40 px margin, and within 96 px vertically.
+        AssertThat(StoryEnemyCombatRules.PunishWhiffNearMarginPixels).IsEqualApprox(40f, 0.0001f);
+        AssertThat(StoryEnemyCombatRules.PunishWhiffIsNear(reach + 40f, 0f, reach)).IsTrue();
+        AssertThat(StoryEnemyCombatRules.PunishWhiffIsNear(reach + 41f, 0f, reach)).IsFalse();
+        AssertThat(StoryEnemyCombatRules.PunishWhiffIsNear(0f, 96f, reach)).IsTrue();
+        AssertThat(StoryEnemyCombatRules.PunishWhiffIsNear(0f, 97f, reach)).IsFalse();
+    }
+
+    // === D6a / D6c / D9 (user direction 2026-10-11, spec D sub-pass (ii)) ===
+
+    [TestCase]
+    public void TheFinisherLandsOneStepOutsideTheAttackersReachAndAHeavyFinisherOutlandsTheWidestReach() {
+        // The widest authored profile is Cleopatra's 120 %, so against a Standard
+        // (23 px hurtbox half-width) the widest hit-1 pivot reach is 96 x 1.2 + 23.
+        AssertThat(BasicComboRules.WidestStringReachWidthPercent).IsEqual(120);
+        AssertThat(StoryEnemyCombatRules.TemplateHit1FarEdgePixels).IsEqualApprox(96f, 0.0001f);
+        AssertThat(StoryEnemyCombatRules.WidestHit1PivotReachPixels(23f)).IsEqualApprox(138.2f, 0.001f);
+
+        // A template hero (R1 119) with an ordinary 13.5 finisher: one step out.
+        AssertThat(StoryEnemyCombatRules.FinisherLandingTargetPixels(119f, 138.2f, 13.5f)).IsEqualApprox(149f, 0.001f);
+        // A heavy finisher (Lincoln, 22.5) lands past the widest reach's step.
+        AssertThat(StoryEnemyCombatRules.FinisherLandingTargetPixels(104.6f, 138.2f, 22.5f)).IsEqualApprox(183.2f, 0.001f);
+        AssertThat(StoryEnemyCombatRules.FinisherLandingTargetPixels(142.8f, 138.2f, 22.5f)).IsEqualApprox(183.2f, 0.001f);
+        // ... and only at or above the heavy force.
+        AssertThat(StoryEnemyCombatRules.FinisherLandingTargetPixels(104.6f, 138.2f, 17.99f)).IsEqualApprox(134.6f, 0.001f);
+
+        // The carry never goes negative: the rule never lengthens a carry.
+        AssertThat(StoryEnemyCombatRules.FinisherCarryPixels(149f, 56f)).IsEqualApprox(93f, 0.001f);
+        AssertThat(StoryEnemyCombatRules.FinisherCarryPixels(149f, 200f)).IsEqual(0f);
+
+        // The deceleration, stepped at 60 Hz (speed slowed before each move),
+        // travels the carry to within half a pixel.
+        foreach ((float speed, float carry) in new[] { (686f, 103f), (1331f, 81f), (428f, 125f) }) {
+            float decel = StoryEnemyCombatRules.FinisherCarryDeceleration(speed, carry);
+            float v = speed;
+            float travelled = 0f;
+            for (int frame = 0; frame < 600 && v > 0f; frame++) {
+                v = System.Math.Max(0f, v - decel / 60f);
+                travelled += v / 60f;
+            }
+            AssertThat(System.Math.Abs(travelled - carry) <= 0.5f)
+                .OverrideFailureMessage($"{speed} px/s over {carry} px travelled {travelled:F3} px.")
+                .IsTrue();
+        }
+        AssertThat(StoryEnemyCombatRules.FinisherCarryDeceleration(0f, 100f)).IsEqual(0f);
+        AssertThat(StoryEnemyCombatRules.FinisherCarryDeceleration(-50f, 100f)).IsEqual(0f);
+        // A zero carry stops the mob on its first step.
+        float stop = StoryEnemyCombatRules.FinisherCarryDeceleration(500f, 0f);
+        AssertThat(500f - stop / 60f <= 0.0001f).IsTrue();
+
+        // Only a launching Basic combo_3 is a finisher carry.
+        AssertThat(StoryEnemyCombatRules.IsFinisherCarry(AttackClass.Basic, "combo_3", launches: true)).IsTrue();
+        AssertThat(StoryEnemyCombatRules.IsFinisherCarry(AttackClass.Basic, "combo_2", launches: true)).IsFalse();
+        AssertThat(StoryEnemyCombatRules.IsFinisherCarry(AttackClass.Basic, BasicComboRules.UpAttackHitboxID, true)).IsFalse();
+        AssertThat(StoryEnemyCombatRules.IsFinisherCarry(AttackClass.Basic, BasicComboRules.DownAirHitboxID, true)).IsFalse();
+        AssertThat(StoryEnemyCombatRules.IsFinisherCarry(AttackClass.Special, "combo_3", launches: true)).IsFalse();
+        AssertThat(StoryEnemyCombatRules.IsFinisherCarry(AttackClass.Basic, "combo_3", launches: false)).IsFalse();
+    }
+
+    [TestCase]
+    public void AMeleeMobCommitsInsideItsHitboxReachAndRestsOutsidePushboxContact() {
+        AssertThat(StoryEnemyCombatRules.MeleePivotReachPixels(30f, 40f, 0f, 20f)).IsEqualApprox(70f, 0.0001f);
+        // A ChargeDash's travel adds to its reach.
+        AssertThat(StoryEnemyCombatRules.MeleePivotReachPixels(30f, 40f, 700f * 18f / 60f, 20f))
+            .IsEqualApprox(280f, 0.001f);
+
+        AssertThat(StoryEnemyCombatRules.MeleeCommitRangePixels(90f, 70f)).IsEqualApprox(60f, 0.0001f);
+        AssertThat(StoryEnemyCombatRules.MeleeCommitRangePixels(50f, 70f)).IsEqualApprox(50f, 0.0001f);
+        AssertThat(StoryEnemyCombatRules.MeleeCommitRangePixels(90f, 8f)).IsEqualApprox(90f, 0.0001f);
+
+        // The slasher: commit 60, contact 37 (19 + 18), 300 px/s, 8-frame stop.
+        // 0.85 x 60 = 51 loses to 37 + 4 + 300 x 9 / 120 = 63.5.
+        AssertThat(StoryEnemyCombatRules.MeleeStandOffEngagePixels(60f, 0.85f, 37f, 300f, 8f))
+            .IsEqualApprox(63.5f, 0.0001f);
+        // A long commit line keeps the 0.85 fraction.
+        AssertThat(StoryEnemyCombatRules.MeleeStandOffEngagePixels(200f, 0.85f, 37f, 300f, 8f))
+            .IsEqualApprox(170f, 0.0001f);
+
+        // The legacy 40 px box at y -25 spans -45 .. -5 above the mob's feet.
+        AssertThat(StoryEnemyCombatRules.MeleeBoxReachesVertically(-25f, 40f, 0f, 64f)).IsTrue();
+        AssertThat(StoryEnemyCombatRules.MeleeBoxReachesVertically(-25f, 40f, -60f, 64f)).IsFalse();
+        // Touching edges do not overlap.
+        AssertThat(StoryEnemyCombatRules.MeleeBoxReachesVertically(-25f, 40f, -45f, 64f)).IsFalse();
+        AssertThat(StoryEnemyCombatRules.MeleeBoxReachesVertically(-25f, 40f, 69f, 64f)).IsFalse();
+        AssertThat(StoryEnemyCombatRules.MeleeBoxReachesVertically(-25f, 40f, 58f, 64f)).IsTrue();
+    }
+
+    [TestCase]
+    public void AWallBounceNeedsAFastLaunchIntoAFacingWallAndHurtsATenthOfTheIntake() {
+        AssertThat(StoryEnemyCombatRules.BouncesOffWall(301f, -1f)).IsTrue();
+        AssertThat(StoryEnemyCombatRules.BouncesOffWall(-301f, 1f)).IsTrue();
+        AssertThat(StoryEnemyCombatRules.BouncesOffWall(300f, -1f)).IsFalse();
+        AssertThat(StoryEnemyCombatRules.BouncesOffWall(500f, -0.5f)).IsFalse();
+        AssertThat(StoryEnemyCombatRules.BouncesOffWall(500f, 0.5f)).IsFalse();
+        AssertThat(StoryEnemyCombatRules.BouncesOffWall(500f, 1f)).IsFalse();
+        AssertThat(StoryEnemyCombatRules.BouncesOffWall(500f, -0.7f)).IsTrue();
+
+        AssertThat(StoryEnemyCombatRules.WallBounceVelocityX(500f)).IsEqualApprox(-200f, 0.0001f);
+        AssertThat(StoryEnemyCombatRules.WallBounceVelocityX(-500f)).IsEqualApprox(200f, 0.0001f);
+
+        AssertThat(StoryEnemyCombatRules.WallImpactDamage(10)).IsEqual(1);
+        AssertThat(StoryEnemyCombatRules.WallImpactDamage(15)).IsEqual(2);
+        AssertThat(StoryEnemyCombatRules.WallImpactDamage(16)).IsEqual(2);
+        AssertThat(StoryEnemyCombatRules.WallImpactDamage(25)).IsEqual(3);
+        AssertThat(StoryEnemyCombatRules.WallImpactDamage(4)).IsEqual(1);
+        AssertThat(StoryEnemyCombatRules.WallImpactDamage(0)).IsEqual(0);
+
+        AssertThat(StoryEnemyCombatRules.ArmsWallBounce(0, AttackClass.Basic, HitDelivery.DirectHit, launches: true, phasesThroughWalls: false)).IsTrue();
+        AssertThat(StoryEnemyCombatRules.ArmsWallBounce(0, AttackClass.Ultimate, HitDelivery.DirectHit, true, false)).IsTrue();
+        AssertThat(StoryEnemyCombatRules.ArmsWallBounce(0, AttackClass.Basic, HitDelivery.DirectHit, launches: false, phasesThroughWalls: false)).IsFalse();
+        AssertThat(StoryEnemyCombatRules.ArmsWallBounce(0, AttackClass.Hazard, HitDelivery.Hazard, true, false)).IsFalse();
+        AssertThat(StoryEnemyCombatRules.ArmsWallBounce(0, AttackClass.Basic, HitDelivery.Hazard, true, false)).IsFalse();
+        AssertThat(StoryEnemyCombatRules.ArmsWallBounce(-1, AttackClass.Basic, HitDelivery.DirectHit, true, false)).IsFalse();
+        AssertThat(StoryEnemyCombatRules.ArmsWallBounce(0, AttackClass.Basic, HitDelivery.DirectHit, true, phasesThroughWalls: true)).IsFalse();
     }
 }

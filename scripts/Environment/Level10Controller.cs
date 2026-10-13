@@ -96,6 +96,12 @@ namespace FTT.Environment {
         // the upper gallery box above the yard gate (one-way 2280/740, top 730),
         // climbed from the rail at 1980 — a dead end the yard floor passes under.
         protected override Vector2? SecretCachePosition => new(2280f, 635f);
+
+        // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, after the PreBoss
+        // anchor (8420) on the boards, 240 px short of the arena (9000) and 210 px west of the
+        // recess.
+        protected override Vector2? RestorationFontPosition => new(8760f, GroundY);
+
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         protected override string InitialObjectiveKey => "globe_objective_reach_stage";
@@ -173,6 +179,60 @@ namespace FTT.Environment {
 
         /// <summary>Capped release assist: the rigging lifts a tier, it does not launch across a gulf.</summary>
         public const float RiggingMaxLaunchSpeed = 520f;
+
+        // === The yard wall (room 3) ===
+
+        /// <summary>
+        /// The bridging span that ends the mandatory gallery run (centre x and
+        /// centre y, as <c>BuildPlatform</c> takes them): it carries the route east
+        /// over the yard wall into the tiring-house.
+        /// </summary>
+        public const float GalleryBridgeX = 8240f;
+        public const float GalleryBridgeY = 620f;
+        public const float GalleryBridgeWidth = 180f;
+
+        /// <summary>The yard wall's west face; the yard floor dead-ends against it.</summary>
+        public const float YardWallX = 8280f;
+
+        /// <summary>
+        /// The yard wall rises to meet the bridging span's underside, so the only
+        /// way east from the yard is over the span — which is the climb. It used to
+        /// stop at y 700: 420 px above the yard, with 72 px under the span, room
+        /// for the 64 px hero to slip across the wall top. The 2026-10-08 apex hang
+        /// put that inside Cleopatra's double jump (about 427 px), so the wall no
+        /// longer leaves the gap (<c>Level10ContentTests</c> pins it).
+        /// </summary>
+        public const float YardWallTopY = GalleryBridgeY + DefaultPlatformThickness / 2f;
+
+        // === The arena trap recess (room 4) ===
+
+        /// <summary>The underside of the stage boards: <see cref="GroundY"/> plus a floor's thickness.</summary>
+        public const float BoardUndersideY = GroundY + DefaultFloorThickness;
+
+        /// <summary>
+        /// West end of the prompt recess under the two arena trapdoors: the west
+        /// board's east edge, and the west edge of the west trap gap.
+        /// </summary>
+        public const float ArenaRecessWestX = 8970f;
+
+        /// <summary>
+        /// East end of the prompt recess: the east trap gap's east edge, and the
+        /// east board's west edge.
+        /// </summary>
+        public const float ArenaRecessEastX = 9670f;
+
+        /// <summary>
+        /// Top of the recess floor, 100 px under <see cref="BoardUndersideY"/>: a
+        /// step down, never a pit.
+        /// </summary>
+        public const float ArenaRecessFloorY = 1260f;
+
+        /// <summary>
+        /// The walls that close the recess at both ends run from the boards'
+        /// underside down to the recess floor's underside, so no gap is left above
+        /// or below the floor's ends.
+        /// </summary>
+        public const float ArenaRecessWallHeight = ArenaRecessFloorY + DefaultFloorThickness - BoardUndersideY;
 
         // === Audience idle-punish tuning ===
 
@@ -495,11 +555,12 @@ namespace FTT.Environment {
             // bridges the wall below into the tiring-house.
             BuildPlatform(7800, 640, 180, GalleryColor);
             BuildPlatform(8100, 600, 200, GalleryColor);
-            BuildPlatform(8240, 620, 180, GalleryColor);
+            BuildPlatform(GalleryBridgeX, GalleryBridgeY, GalleryBridgeWidth, GalleryColor);
 
             // The wall that makes the climb mandatory: the yard floor dead-ends and
-            // the only way through to the tiring-house is over the middle tier.
-            BuildWall(8280, 700, 460);
+            // the only way through to the tiring-house is over the middle tier. It
+            // rises to the bridging span's underside, so no gap is left beneath it.
+            BuildWall(YardWallX, YardWallTopY, GroundY + DefaultFloorThickness - YardWallTopY);
 
             BuildRoomDecoration(Room3StartX, "globe_room_galleries", new Color(0.86f, 0.66f, 0.94f));
 
@@ -526,6 +587,19 @@ namespace FTT.Environment {
         /// </para>
         ///
         /// <para>
+        /// The recess is closed at both ends (2026-10-09): a wall under each board
+        /// edge, flush with the outer edge of its trap gap, runs from the boards'
+        /// underside down to the recess floor's underside, so the only way out is
+        /// back up onto the stage. Until then both ends were open. The floor sat
+        /// 100 px under the boards with nothing beyond its edges, so the 64 px hero
+        /// could walk or roll out under either board, or be carried out by a
+        /// movement ability, a Special or an Ultimate, into a bottomless drop (three
+        /// Level 10 bot runs fell out of the world there, VERIFY-L10-ARENA-RECESS-EXIT).
+        /// Level10ContentTests floods the space under every trap and pins that
+        /// nothing below the boards reaches the void.
+        /// </para>
+        ///
+        /// <para>
         /// 1,920 px of arena against the Tragedy King's authored 8.0-unit ranged
         /// band, which is 480 px at BossController's 60 px per unit. Level10ContentTests
         /// asserts that against the resource, never against a literal.
@@ -536,13 +610,19 @@ namespace FTT.Environment {
                 new Color(0.19f, 0.09f, 0.13f, 0.50f));
 
             // Board segments with the two arena trap gaps at 8970..9190 and 9450..9670.
-            BuildFloor(8320, GroundY, 650);   // 8320..8970
-            BuildFloor(9670, GroundY, 570);   // 9670..10240
+            BuildFloor(Room4StartX, GroundY, ArenaRecessWestX - Room4StartX);       // 8320..8970
+            BuildFloor(ArenaRecessEastX, GroundY, LevelWidth - ArenaRecessEastX);   // 9670..10240
 
             // Prompt recess under the traps, and the drop-through island that always
             // returns the player to the boards regardless of trapdoor state.
-            BuildFloor(8970, 1260, 700, CellarColor);
+            BuildFloor(ArenaRecessWestX, ArenaRecessFloorY, ArenaRecessEastX - ArenaRecessWestX, CellarColor);
             BuildOneWayPlatform(9320, GroundY, 260);
+
+            // ...closed at both ends under the boards, so nothing leaves it sideways:
+            // 8950..8970 and 9670..9690, y 1160..1300. Each wall stands wholly under
+            // its board, so neither trap gap nor the island is narrowed.
+            BuildWall(ArenaRecessWestX - DefaultWallThickness, BoardUndersideY, ArenaRecessWallHeight, CellarColor);
+            BuildWall(ArenaRecessEastX, BoardUndersideY, ArenaRecessWallHeight, CellarColor);
 
             // Two tiered gallery balconies, one each side.
             BuildPlatform(8580, 860, 240, GalleryColor);

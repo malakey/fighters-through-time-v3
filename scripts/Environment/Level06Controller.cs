@@ -102,6 +102,12 @@ namespace FTT.Environment {
         // drop-through at 1000 — a detour over the forum floor, well before the ash-road
         // escape run.
         protected override Vector2? SecretCachePosition => new(1120f, 517f);
+
+        // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, just before the
+        // PreBoss anchor (9060), past the escape finish (8880) and west of the caldera slope;
+        // the window after PreBoss is too short.
+        protected override Vector2? RestorationFontPosition => new(8920f, GroundY);
+
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         protected override string InitialObjectiveKey => "pompeii_objective_evacuate";

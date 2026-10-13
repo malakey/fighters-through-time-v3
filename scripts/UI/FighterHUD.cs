@@ -716,6 +716,29 @@ namespace FTT.UI {
             }
         }
 
+        /// <summary>
+        /// D10 (2026-10-11, ledger <c>USER-NOT-YET-FLASH</c>): the "not yet" flash
+        /// on a player's Special 1 / Special 2 cooldown icon or meter bar, for
+        /// each slot <see cref="FighterLockoutRefusalRules"/> found refused by the
+        /// ability lockout alone. The icon or bar is both the frame host and the
+        /// tint target; the tint rides <c>SelfModulate</c>, so the readiness
+        /// alpha and the M25 ready flash (both on <c>Modulate</c>) are untouched.
+        /// </summary>
+        public void FlashLockoutRefusal(int playerIndex, FighterLockoutRefusal refused) {
+            PlayerPanel panel = PanelFor(playerIndex);
+            if (panel == null || refused == FighterLockoutRefusal.None) return;
+            if ((refused & FighterLockoutRefusal.SpecialOne) != 0) FlashCooldownIcon(panel, FighterCooldownSlot.SpecialOne);
+            if ((refused & FighterLockoutRefusal.SpecialTwo) != 0) FlashCooldownIcon(panel, FighterCooldownSlot.SpecialTwo);
+            if ((refused & FighterLockoutRefusal.Ultimate) != 0) NotYetFlash.Play(panel.Meter, panel.Meter);
+        }
+
+        private static void FlashCooldownIcon(PlayerPanel panel, FighterCooldownSlot slot) {
+            int index = System.Array.IndexOf(Slots, slot);
+            if (index < 0 || index >= panel.CooldownLabels.Length) return;
+            Label icon = panel.CooldownLabels[index];
+            NotYetFlash.Play(icon, icon);
+        }
+
         /// <summary>M25's brief ready flash: an overbright pulse that settles to normal.</summary>
         private void FlashReady(Label icon) {
             if (!icon.IsInsideTree()) return;

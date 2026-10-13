@@ -160,11 +160,20 @@ public class JoanKitTests {
             uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         uninterrupted.Advance(Frame(5, 0, GameplayButtons.MovementAbility), Frame(5, 0, GameplayButtons.None));
-        for (int tick = 6; tick < 20; tick++) {
-            uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.Block));
+        // Divine Piercing goes out once Smite's ability lockout has run out and
+        // the wing rise (a kit phase, no specials) is over.
+        int piercingTick = 6;
+        for (; piercingTick < 50; piercingTick++) {
+            AssertThat(uninterrupted.TryGetFighterRuntime(0, out FighterRuntimeComponent joan)).IsTrue();
+            if (joan.AbilityLockoutFrames == 0 && joan.UniversalMovementState == 0) break;
+            uninterrupted.Advance(Frame(piercingTick, 0, GameplayButtons.None), Frame(piercingTick, 0, GameplayButtons.Block));
         }
-        uninterrupted.Advance(Frame(20, 0, GameplayButtons.Special2), Frame(20, 0, GameplayButtons.Block));
-        for (int tick = 21; tick < 60; tick++) {
+        uninterrupted.Advance(Frame(piercingTick, 0, GameplayButtons.Special2), Frame(piercingTick, 0, GameplayButtons.Block));
+        AssertThat(uninterrupted.TryGetFighterRuntime(0, out FighterRuntimeComponent pierced)).IsTrue();
+        AssertThat(pierced.SpecialTwoCooldownFrames > 0)
+            .OverrideFailureMessage("Divine Piercing was not cast before the snapshot.")
+            .IsTrue();
+        for (int tick = piercingTick + 1; tick < 60; tick++) {
             uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, -127, GameplayButtons.None));
         }
 

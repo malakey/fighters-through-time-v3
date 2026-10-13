@@ -1,7 +1,9 @@
+using System.Collections.Generic;
 using FTT.Characters;
 using FTT.Combat;
 using FTT.Core;
 using FTT.Enemies;
+using FTT.Environment;
 using GdUnit4;
 using Godot;
 using static GdUnit4.Assertions;
@@ -66,7 +68,10 @@ public class ConductiveMarkTests {
                 .OverrideFailureMessage("Without the node the finisher marks at the baseline.")
                 .IsEqual(90);
 
-            upgraded.StoryAbilityPerks.Add(PlayerController.ConductiveHoldPerkKey);
+            // The node's lane as the real grid resolves it, copied the way
+            // CharacterFactory copies the scoped bucket.
+            ScopedStoryStats conductiveHold = ResolvedTeslaLanes("tesla_conductive_hold");
+            upgraded.StoryScopedStats = conductiveHold;
             AssertThat(upgraded.FinisherConductiveMarkFrames())
                 .OverrideFailureMessage("tesla_conductive_hold extends the finisher mark to 2.5 s.")
                 .IsEqual(150);
@@ -83,13 +88,72 @@ public class ConductiveMarkTests {
             // A non-Tesla character with the node still marks nothing.
             PlayerController einstein = CharacterFactory.CreateCharacter("einstein", applyStoryProgression: false);
             tree.Root.AddChild(einstein);
-            einstein.StoryAbilityPerks.Add(PlayerController.ConductiveHoldPerkKey);
+            einstein.StoryScopedStats = conductiveHold;
             AssertThat(einstein.FinisherConductiveMarkFrames()).IsEqual(0);
             einstein.Free();
         } finally {
             baseline.Free();
             upgraded.Free();
         }
+    }
+
+    /// <summary>
+    /// The whole production path: a campaign save that bought Minor Conductive
+    /// Hold, the factory's Story build (the active save resolved through the real
+    /// <c>tesla_grid.tres</c>), and the finisher swing itself. The mark lands at
+    /// exactly 2.5 s, extended ONCE — the node used to carry a perk key as well,
+    /// and stacking the perk's 150 on the lane's x1.667 would give 250. The same
+    /// save built through the Fighter seam marks at the baseline.
+    /// </summary>
+    [TestCase]
+    public void ABoughtConductiveHoldNodeExtendsTheCampaignFinisherMarkExactlyOnce() {
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        string originalCharacter = GameManager.Instance.CurrentSession.SelectedCharacterID;
+        StorySaveData originalSave = SaveManager.Instance.SaveSlots[0];
+        var save = new StorySaveData { SelectedCharacterID = "tesla" };
+        save.GridProgress["tesla"] = new List<string> {
+            "tesla_conductivity", "tesla_cane_edge", "tesla_conductive_hold"
+        };
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = 0;
+        GameManager.Instance.CurrentSession.SelectedCharacterID = "tesla";
+        SaveManager.Instance.SaveSlots[0] = save;
+
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        PlayerController campaign = null;
+        PlayerController normalized = null;
+        try {
+            campaign = CharacterFactory.CreateCharacter("tesla", 0, applyStoryProgression: true);
+            tree.Root.AddChild(campaign);
+            AssertThat(campaign.FinisherConductiveMarkFrames())
+                .OverrideFailureMessage("The bought node takes the finisher mark to 150 frames, applied once.")
+                .IsEqual(BasicComboRules.ConductiveMarkUpgradedFrames);
+
+            normalized = CharacterFactory.CreateCharacter("tesla", 1, applyStoryProgression: false);
+            tree.Root.AddChild(normalized);
+            AssertThat(normalized.FinisherConductiveMarkFrames())
+                .OverrideFailureMessage("The Fighter seam never carries a grid lane.")
+                .IsEqual(BasicComboRules.ConductiveMarkBaselineFrames);
+
+            // Unbought, the campaign hero marks at the baseline too.
+            save.GridProgress["tesla"].Remove("tesla_conductive_hold");
+            campaign.Free();
+            campaign = CharacterFactory.CreateCharacter("tesla", 0, applyStoryProgression: true);
+            tree.Root.AddChild(campaign);
+            AssertThat(campaign.FinisherConductiveMarkFrames()).IsEqual(BasicComboRules.ConductiveMarkBaselineFrames);
+        } finally {
+            if (campaign != null && GodotObject.IsInstanceValid(campaign)) campaign.Free();
+            if (normalized != null && GodotObject.IsInstanceValid(normalized)) normalized.Free();
+            SaveManager.Instance.SaveSlots[0] = originalSave;
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+            GameManager.Instance.CurrentSession.SelectedCharacterID = originalCharacter;
+        }
+    }
+
+    private static ScopedStoryStats ResolvedTeslaLanes(params string[] nodeIDs) {
+        ResonanceGridData grid = ResonanceProgression.LoadGrid("tesla");
+        var save = new StorySaveData { SelectedCharacterID = "tesla" };
+        save.GridProgress["tesla"] = new List<string>(nodeIDs);
+        return new ScopedStoryStats(ResonanceProgression.Resolve(grid, save).ScopedMultipliers);
     }
 
     [TestCase]

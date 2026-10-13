@@ -36,6 +36,12 @@ namespace FTT.UI {
         private Label _dustOptionalLabel;
         private Label _dustLossesLabel;
         private Label _dustTierBonusLabel;
+        /// <summary>
+        /// D12 review fix-up: the dust the attempt had earned before this level
+        /// load (a Collapse resume, an Anchor Snap, a quit-and-resume), which
+        /// the scene-local category lines never saw. Shown only when non-zero.
+        /// </summary>
+        private Label _dustCarriedLabel;
 
         /// <summary>
         /// Instantiates the authored results scene. Package 8 B1 removed the
@@ -123,19 +129,42 @@ namespace FTT.UI {
         public void ShowResults(
             string levelTitleKey, int mobDust, int extractorDust, int bossDust,
             int optionalDust, int lossDust, int tierBonusDust,
+            float completionSeconds, int rewindsUsed) =>
+            ShowResults(
+                levelTitleKey, mobDust, extractorDust, bossDust, optionalDust,
+                carriedDust: 0, lossDust, tierBonusDust, completionSeconds, rewindsUsed);
+
+        /// <summary>
+        /// The six-category itemisation plus the dust carried into this level
+        /// load (D12 review fix-up, <c>RESULTS-DUST-LINES-AFTER-RESET</c>). The
+        /// category lines are scene-local tallies, so after a Collapse resume,
+        /// an Anchor Snap or a quit-and-resume the dust the attempt already held
+        /// appears on none of them; <paramref name="carriedDust"/> is that held
+        /// dust plus the losses already taken from it
+        /// (<c>StoryManager.LastLevelDustCarriedIn</c>), so
+        /// <c>categories + carried + bonus − losses</c> is exactly what the
+        /// completion banked. Its line is hidden when it is zero, which is every
+        /// run that was never reloaded.
+        /// </summary>
+        public void ShowResults(
+            string levelTitleKey, int mobDust, int extractorDust, int bossDust,
+            int optionalDust, int carriedDust, int lossDust, int tierBonusDust,
             float completionSeconds, int rewindsUsed) {
             mobDust = Mathf.Max(0, mobDust);
             extractorDust = Mathf.Max(0, extractorDust);
             bossDust = Mathf.Max(0, bossDust);
             optionalDust = Mathf.Max(0, optionalDust);
+            carriedDust = Mathf.Max(0, carriedDust);
             lossDust = Mathf.Max(0, lossDust);
             tierBonusDust = Mathf.Max(0, tierBonusDust);
-            int total = mobDust + extractorDust + bossDust + optionalDust + tierBonusDust - lossDust;
+            int total = mobDust + extractorDust + bossDust + optionalDust + carriedDust
+                + tierBonusDust - lossDust;
             ShowResults(levelTitleKey, Mathf.Max(0, total), completionSeconds, rewindsUsed);
             SetItemizedLine(_dustMobsLabel, "results_dust_mobs", mobDust);
             SetItemizedLine(_dustExtractorsLabel, "results_dust_extractors", extractorDust);
             SetItemizedLine(_dustBossLabel, "results_dust_boss", bossDust);
             SetItemizedLine(_dustOptionalLabel, "results_dust_optional", optionalDust);
+            if (carriedDust > 0) SetItemizedLine(_dustCarriedLabel, "results_dust_carried", carriedDust);
             SetItemizedLine(_dustLossesLabel, "results_dust_losses", lossDust);
             SetItemizedLine(_dustTierBonusLabel, "results_dust_tier_bonus", tierBonusDust);
         }
@@ -151,6 +180,7 @@ namespace FTT.UI {
             SetLineVisible(_dustExtractorsLabel, false);
             SetLineVisible(_dustBossLabel, false);
             SetLineVisible(_dustOptionalLabel, false);
+            SetLineVisible(_dustCarriedLabel, false);
             SetLineVisible(_dustLossesLabel, false);
             SetLineVisible(_dustTierBonusLabel, false);
             if (_timeLabel != null) {
@@ -230,6 +260,7 @@ namespace FTT.UI {
                 // F05's three extra dust categories sit with the existing three,
                 // above the run statistics.
                 _dustOptionalLabel = AppendResultLine(layout, "DustOptional");
+                _dustCarriedLabel = AppendResultLine(layout, "DustCarried");
                 _dustLossesLabel = AppendResultLine(layout, "DustLosses");
                 _dustTierBonusLabel = AppendResultLine(layout, "DustTierBonus");
                 _integrityLabel = AppendResultLine(layout, "IntegrityLine");

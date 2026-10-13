@@ -10,7 +10,7 @@ size = Vector2(16, 320)
 size = Vector2(56, 56)
 
 [node name="PendulumAnchor" type="AnimatableBody2D" groups=["puzzle_object"]]
-collision_layer = 64
+collision_layer = 0
 collision_mask = 0
 script = ExtResource("1")
 AnchorID = "placeholder_pendulum_anchor"

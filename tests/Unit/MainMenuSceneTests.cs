@@ -17,8 +17,17 @@ namespace FTT.Tests.Unit;
 /// <para>Save discipline: every test that touches <c>SaveManager.SaveSlots</c>
 /// swaps synthetic data in memory and restores the originals in a finally block,
 /// following the repository's scratch-slot idiom. The one test that drives the
-/// real <c>DeleteStorySlot</c> — which reaches disk — first picks a slot the
-/// environment has proven empty, so it can never destroy a developer's save.</para>
+/// real <c>DeleteStorySlot</c> — which reaches disk — first picks a slot that is
+/// empty in memory <b>and</b> has no file of any kind on disk, so the deletion
+/// is a no-op against the real <c>user://saves</c> and can never destroy a
+/// developer's save or a preserved <c>.corrupt</c> candidate.</para>
+///
+/// <para>Session discipline (2026-10-11): pressing an empty slot row writes
+/// <c>ActiveSaveSlot</c> into <c>GameManager.CurrentSession</c>. <see cref="Open"/>
+/// snapshots the session and <see cref="Teardown"/> restores it, because a leaked
+/// slot index made every later suite build its heroes behind the real slot's
+/// Legacy Unlock locks (ten Story cast cases stuck in Idle/Running/Airborne) and
+/// pointed later suites' autosaves at the developer's real slot file.</para>
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
@@ -284,7 +293,7 @@ public class MainMenuSceneTests {
         // environment has proven empty — a developer's real save is never touched.
         StorySaveData[] originals = ClearAllSlots();
         if (originals == null) return;
-        int slot = FirstOriginallyEmptySlot(originals);
+        int slot = FirstSlotEmptyInMemoryAndOnDisk(originals);
         if (slot < 0) return;
 
         MainMenu menu = Open(out Node host);
@@ -598,9 +607,18 @@ public class MainMenuSceneTests {
         }
     }
 
-    private static int FirstOriginallyEmptySlot(StorySaveData[] originals) {
+    /// <summary>
+    /// A slot whose in-memory save is null and whose primary, backup, temp and
+    /// corrupt candidates are all absent on disk, so the real
+    /// <c>DeleteStorySlot</c> deletes nothing from <c>user://saves</c>. A slot
+    /// that failed to load (null in memory) can still have a preserved
+    /// <c>.corrupt</c> file, which a deletion would otherwise destroy.
+    /// </summary>
+    private static int FirstSlotEmptyInMemoryAndOnDisk(StorySaveData[] originals) {
         for (int slot = 0; slot < originals.Length; slot++) {
-            if (originals[slot] == null) return slot;
+            if (originals[slot] != null) continue;
+            if (SaveManager.HasAnyStorySlotFileOnDisk(slot)) continue;
+            return slot;
         }
         return -1;
     }
@@ -612,7 +630,17 @@ public class MainMenuSceneTests {
         LastSavedTimestamp = "2026-08-08T00:00:00.0000000Z"
     };
 
+    /// <summary>
+    /// The session as it stood when <see cref="Open"/> ran. Every test opens one
+    /// menu at a time and tears it down in a finally, so one field is enough.
+    /// </summary>
+    private static SessionData? _sessionAtOpen;
+
     private static MainMenu Open(out Node host) {
+        // The menu writes ActiveSaveSlot (an empty slot row), the calibration
+        // route and the pending selection into the shared session; Teardown
+        // hands the session back exactly as it was.
+        _sessionAtOpen = GameManager.Instance?.CurrentSession;
         host = new Node { Name = "MainMenuHost" };
         ((SceneTree)Engine.GetMainLoop()).Root.AddChild(host);
         var packed = ResourceLoader.Load<PackedScene>(ScenePath);
@@ -623,11 +651,20 @@ public class MainMenuSceneTests {
 
     /// <summary>
     /// Frees the host immediately rather than queueing it, so the authored scene's
-    /// nodes are not counted as orphans when GdUnit4 tallies at the end of a test.
+    /// nodes are not counted as orphans when GdUnit4 tallies at the end of a test,
+    /// then restores the session <see cref="Open"/> snapshotted.
     /// </summary>
     private static void Teardown(Node host) {
-        if (!GodotObject.IsInstanceValid(host)) return;
-        host.GetParent()?.RemoveChild(host);
-        host.Free();
+        try {
+            if (GodotObject.IsInstanceValid(host)) {
+                host.GetParent()?.RemoveChild(host);
+                host.Free();
+            }
+        } finally {
+            if (_sessionAtOpen.HasValue && GameManager.Instance != null) {
+                GameManager.Instance.CurrentSession = _sessionAtOpen.Value;
+            }
+            _sessionAtOpen = null;
+        }
     }
 }

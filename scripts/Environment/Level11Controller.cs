@@ -89,6 +89,11 @@ namespace FTT.Environment {
         // Alpha shield array — reached up the drop-through steps at 4650-4920; the
         // floor route never climbs it.
         protected override Vector2? SecretCachePosition => new(5150f, 465f);
+
+        // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, after the PreBoss
+        // anchor (9060) on the railcut floor, 600 px short of the arena (10000).
+        protected override Vector2? RestorationFontPosition => new(9400f, GroundY);
+
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         protected override string InitialObjectiveKey => "gettysburg_objective_advance";

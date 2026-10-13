@@ -42,11 +42,17 @@ public class CleopatraKitTests {
         AssertThat(nest.StatusFrames).IsEqual(240);
 
         // Max 1 active: a second deploy replaces the first instead of stacking.
-        for (int tick = 1; tick <= 4; tick++) {
+        // It goes out the tick the first deploy's ability lockout ends.
+        int secondDeploy = BasicComboRules.AbilityLockoutFrames;
+        for (int tick = 1; tick < secondDeploy; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
-        simulation.Advance(Frame(5, 0, GameplayButtons.Special1), Frame(5, 0, GameplayButtons.None));
+        simulation.Advance(Frame(secondDeploy, 0, GameplayButtons.Special1), Frame(secondDeploy, 0, GameplayButtons.None));
         AssertThat(simulation.PersistentObjectCount).IsEqual(1);
+        AssertThat(simulation.TryGetFirstPersistentObject(out FighterPersistentObjectComponent replacement)).IsTrue();
+        AssertThat(replacement.EntityID > nest.EntityID)
+            .OverrideFailureMessage("The second deploy must replace the first nest, not be refused.")
+            .IsTrue();
     }
 
     [TestCase]
@@ -169,12 +175,18 @@ public class CleopatraKitTests {
             loadout, FighterLoadout.Default(FighterCharacterID.Joan),
             seed: 65, spawnDistance: 2, rules: FighterMatchRules.Disabled);
 
+        // Nest, then the vortex the tick the nest's ability lockout ends.
+        int vortexTick = BasicComboRules.AbilityLockoutFrames;
         uninterrupted.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
         uninterrupted.Advance(Frame(1, 0, GameplayButtons.None), Frame(1, 0, GameplayButtons.None));
-        uninterrupted.Advance(Frame(2, 0, GameplayButtons.Special2), Frame(2, 0, GameplayButtons.None));
+        uninterrupted.Advance(Frame(2, 0, GameplayButtons.None), Frame(2, 0, GameplayButtons.None));
         for (int tick = 3; tick < 60; tick++) {
-            uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, -127, GameplayButtons.None));
+            GameplayButtons cleopatra = tick == vortexTick ? GameplayButtons.Special2 : GameplayButtons.None;
+            uninterrupted.Advance(Frame(tick, 0, cleopatra), Frame(tick, -127, GameplayButtons.None));
         }
+        // Both constructs are live in the captured state (the vortex lasts 2 s).
+        AssertThat(uninterrupted.PersistentObjectCount).IsEqual(1);
+        AssertThat(uninterrupted.ZoneCount).IsEqual(1);
 
         byte[] snapshot = uninterrupted.CaptureFullState();
         restored.RestoreFullState(snapshot);

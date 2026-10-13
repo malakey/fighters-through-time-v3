@@ -70,6 +70,14 @@ namespace FTT.Environment {
         // the crane jib above the quay (Platform 900/640, top 632), climbed from the
         // low crate at 500 — off the harbour floor route, above the mortar's strike line.
         protected override Vector2? SecretCachePosition => new(900f, 537f);
+
+        // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, after the PreBoss
+        // anchor (8420) on the flagship's west deck, outside the mortar channel, 650 px short
+        // of the arena (9350). FlagshipFireA's column (scene, x 8840–8960) starts 140 px east,
+        // so the hero's body anywhere in the 90 px channel circle keeps 30 px from it (the
+        // first placement, x 8800, put the column inside the channel circle).
+        protected override Vector2? RestorationFontPosition => new(8700f, ListDeckWestY);
+
         public override Rect2 LevelBounds => new(0f, 0f, LevelWidth, LevelHeight);
 
         protected override string InitialObjectiveKey => "nassau_objective_reach_moorings";

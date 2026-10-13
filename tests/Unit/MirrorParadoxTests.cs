@@ -240,6 +240,7 @@ public class MirrorParadoxTests {
         // Extraction guard: Observe() must copy the deterministic components
         // verbatim so the Fighter path's behaviour is unchanged by the refactor.
         var self = new FighterStateComponent {
+            CharacterID = (int)FighterCharacterID.Lincoln,
             Stocks = 3, HitstunFrames = 2, DazeFrames = 1, IsGrounded = 1,
             RemainingJumps = 2, CurrentHP = 64, MaxHP = 100,
             Influence = xpTURN.Klotho.Deterministic.Math.FP64.FromInt(60),
@@ -258,7 +259,9 @@ public class MirrorParadoxTests {
                 xpTURN.Klotho.Deterministic.Math.FP64.Zero)
         };
         var selfRuntime = new FighterRuntimeComponent {
-            SpecialOneCooldownFrames = 11, SpecialTwoCooldownFrames = 22, MovementCooldownFrames = 33
+            SpecialOneCooldownFrames = 11, SpecialTwoCooldownFrames = 22, MovementCooldownFrames = 33,
+            AbilityLockoutFrames = 17, AttackPhase = FighterBasicAttackRules.PhaseChainHold,
+            SpecialLockoutFrames = 6, SwingLanded = 1
         };
         var targetRuntime = new FighterRuntimeComponent { PressedButtons = (int)GameplayButtons.Special1 };
 
@@ -282,11 +285,23 @@ public class MirrorParadoxTests {
         AssertThat(observation.SpecialOneCooldownFrames).IsEqual(11);
         AssertThat(observation.SpecialTwoCooldownFrames).IsEqual(22);
         AssertThat(observation.MovementCooldownFrames).IsEqual(33);
+        AssertThat(observation.AbilityLockoutFrames).IsEqual(17);
+        // D1 (2026-10-11): the hit-confirm state projects losslessly too.
+        AssertThat(observation.SpecialLockoutFrames).IsEqual(6);
+        AssertThat(observation.SwingLanded).IsEqual(1);
         AssertThat(observation.TargetCurrentHP).IsEqual(12);
         AssertThat(observation.TargetMaxHP).IsEqual(100);
         AssertThat(observation.TargetHitstunFrames).IsEqual(9);
         AssertThat(observation.TargetPressedButtons).IsEqual((int)GameplayButtons.Special1);
         AssertThat(observation.TargetInfluenceRaw).IsEqual(target.Influence.RawValue);
+        // The neutral melee band's inputs (2026-10-11): the fighter's own string
+        // reach, the string step a press would start (hit 1's chain hold
+        // continues into hit 2), and the sim's universal victim half-width.
+        AssertThat(observation.SelfStringReachWidthPercent)
+            .IsEqual(FTT.Combat.BasicComboRules.StringProfileFor("lincoln").ReachWidthPercent);
+        AssertThat(observation.SelfNextStringStep).IsEqual(1);
+        AssertThat(observation.TargetHurtboxHalfWidthRaw)
+            .IsEqual(FighterCombatSystem.VictimHurtboxHalfWidth.RawValue);
         // No geometry and no world observer on this overload: every optional block
         // must read as explicitly absent rather than as a zeroed real value.
         AssertThat(observation.HasStageBounds).IsEqual(0);
@@ -304,6 +319,7 @@ public class MirrorParadoxTests {
         // off-stage recovery, orb pursuit, and hazard evasion firing in a level
         // whose floor is nowhere near world y = 0.
         MirrorParadoxController mirror = CreateMirror();
+        int cloneIndex = mirror.Clone.PlayerIndex;
         try {
             mirror.Clone.GlobalPosition = new Vector2(600f, 300f);
             CpuDecisionObservation observation = mirror.Decisions.Observe();
@@ -320,7 +336,92 @@ public class MirrorParadoxTests {
             AssertThat(observation.SelfPositionYRaw < 0).IsTrue();
             AssertThat(observation.SelfMaxHP).IsEqual(mirror.ScaledMaxHP);
             AssertThat(observation.SelfCurrentHP).IsEqual(mirror.CurrentHP);
+
+            // The melee band's self inputs (2026-10-11): the clone's own string
+            // reach, and an opener (step 0) at rest.
+            AssertThat(observation.SelfStringReachWidthPercent)
+                .IsEqual(FTT.Combat.BasicComboRules.StringProfileFor(MirroredCharacter).ReachWidthPercent);
+            AssertThat(observation.SelfNextStringStep).IsEqual(0);
+
+            // The ability lockout (2026-10-08) projects from the clone: clear
+            // at rest, the full 30 frames the tick a swing starts.
+            AssertThat(observation.AbilityLockoutFrames).IsEqual(0);
+            // D1 (2026-10-11): the hit-confirm state is clear at rest.
+            AssertThat(observation.SpecialLockoutFrames).IsEqual(0);
+            AssertThat(observation.SwingLanded).IsEqual(0);
+            for (int frame = 0; frame < 3 && mirror.Clone.CurrentState != CharacterState.Attacking; frame++) {
+                var source = new BufferedInputSource();
+                source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, GameplayButtons.BasicAttack));
+                InputManager.Instance.SetInputSource(cloneIndex, source);
+                mirror.Clone._PhysicsProcess(1.0 / 60.0);
+            }
+            AssertThat(mirror.Clone.CurrentState).IsEqual(CharacterState.Attacking);
+            AssertThat(mirror.Decisions.Observe().AbilityLockoutFrames)
+                .IsEqual(FTT.Combat.BasicComboRules.AbilityLockoutFrames);
+            // A swing start arms no Special-sourced lockout and has not landed.
+            AssertThat(mirror.Decisions.Observe().SpecialLockoutFrames).IsEqual(0);
+            AssertThat(mirror.Decisions.Observe().SwingLanded).IsEqual(0);
+            // Hit 1 is running, so a press would continue into hit 2.
+            AssertThat(mirror.Decisions.Observe().SelfNextStringStep).IsEqual(1);
         } finally {
+            InputManager.Instance?.ClearInputSource(cloneIndex);
+            FreeMirror(mirror);
+        }
+    }
+
+    [TestCase]
+    public void AShortReachCloneWalksInFromBeyondItsOpenerBandAgainstTheHerosRealHurtbox() {
+        // The melee band (2026-10-11, PROVISIONAL-CPU-MELEE-BAND) through the
+        // Story adapter: a Lincoln clone reads the hero's real 40 px hurtbox,
+        // so its opener band is 1.36 + 0.333 - 0.1 = 1.59 units. From 1.8
+        // units (108 px) Story's own hit-1 box misses the hero and the clone
+        // walks in; from 1.5 (90 px) the box reaches and the clone swings.
+        var root = ((SceneTree)Engine.GetMainLoop()).Root;
+        var mirror = new MirrorParadoxController {
+            Name = "MirrorParadoxUnderTest",
+            Data = FTT.Core.AuthoredResources.Load<BossData>(MirrorResourcePath),
+            CharacterIDOverride = "lincoln",
+            DecisionSeed = 4242,
+            ActivateOnSpawn = false
+        };
+        root.AddChild(mirror);
+        PlayerController hero = null;
+        try {
+            hero = CharacterFactory.CreateCharacter(MirroredCharacter, 0, applyStoryProgression: false);
+            root.AddChild(hero);
+            mirror.Clone.GlobalPosition = new Vector2(600f, 300f);
+            mirror.Decisions.Bind(mirror.Clone, hero);
+
+            FTT.Combat.BasicStringProfile profile = FTT.Combat.BasicComboRules.StringProfileFor("lincoln");
+            PlayerController.ResolveGroundStringBoxPixels(0, profile, 1f, out Vector2 size, out Vector2 offset);
+            float reachPixels = offset.X + size.X * 0.5f + PlayerController.HurtboxWidthPixels(hero) * 0.5f;
+
+            hero.GlobalPosition = new Vector2(708f, 300f);
+            CpuDecisionObservation outside = mirror.Decisions.Observe();
+            AssertThat(outside.SelfStringReachWidthPercent).IsEqual(profile.ReachWidthPercent);
+            AssertThat(outside.SelfNextStringStep).IsEqual(0);
+            long bandRaw = FighterCpuController.MeleeBand(
+                profile.ReachWidthPercent, outside.TargetHurtboxHalfWidthRaw).RawValue;
+            float bandPixels = (float)((double)bandRaw / xpTURN.Klotho.Deterministic.Math.FP64.One.RawValue * 60.0);
+            // The band sits inside Story's real reach, and 1.8 units is past it.
+            AssertThat(bandPixels < reachPixels).IsTrue();
+            AssertThat(108f > reachPixels).IsTrue();
+            AssertThat(bandPixels < 108f).IsTrue();
+            (int outsideEdges, int outsideWalk) = SampleBasics(outside);
+            AssertThat(outsideEdges)
+                .OverrideFailureMessage("The Lincoln clone pressed its opener from beyond Story's hit-1 reach.")
+                .IsEqual(0);
+            AssertThat(outsideWalk > 0)
+                .OverrideFailureMessage("The Lincoln clone neither swung nor walked in.")
+                .IsTrue();
+
+            hero.GlobalPosition = new Vector2(690f, 300f);
+            AssertThat(90f < bandPixels).IsTrue();
+            AssertThat(SampleBasics(mirror.Decisions.Observe()).Edges > 0)
+                .OverrideFailureMessage("The Lincoln clone did not swing from inside its band.")
+                .IsTrue();
+        } finally {
+            DetachAndFree(hero);
             FreeMirror(mirror);
         }
     }
@@ -393,6 +494,13 @@ public class MirrorParadoxTests {
             AssertThat(before.TargetInfluenceRaw).IsEqual(
                 xpTURN.Klotho.Deterministic.Math.FP64.FromFloat(42f).RawValue);
             AssertThat(before.HasHostileProjectile).IsEqual(0);
+            // The melee band reads the campaign hero's real hurtbox (2026-10-11),
+            // not the sim's 1.0-wide victim box: 40 px wide is 1/3 unit each side.
+            AssertThat(before.TargetHurtboxHalfWidthRaw).IsEqual(
+                xpTURN.Klotho.Deterministic.Math.FP64.FromFloat(
+                    PlayerController.HurtboxWidthPixels(target) * 0.5f / 60f).RawValue);
+            AssertThat(before.TargetHurtboxHalfWidthRaw
+                < FighterCombatSystem.VictimHurtboxHalfWidth.RawValue).IsTrue();
 
             // A player-owned shot 120 px left of and 60 px above the clone,
             // travelling right toward it.
@@ -882,6 +990,55 @@ public class MirrorParadoxTests {
     }
 
     [TestCase]
+    public void TheCloneIsExemptFromTheStoryMeterScaleAndKeepsItsMirroredLane() {
+        // D5 (USER-STORY-METER-SCALE): the Story meter-gain scale is the campaign
+        // hero's alone; the clone "plays Fighter rules". F20 still mirrors a Hard
+        // player's purchased grid, Mozart's build-rate node included.
+        Difficulty originalDifficulty = GameManager.Instance.CurrentSession.Difficulty;
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        string originalCharacter = GameManager.Instance.CurrentSession.SelectedCharacterID;
+        StorySaveData originalSave = SaveManager.Instance.SaveSlots[0];
+
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = 0;
+        GameManager.Instance.CurrentSession.SelectedCharacterID = "mozart";
+        SaveManager.Instance.SaveSlots[0] = new StorySaveData {
+            SelectedCharacterID = "mozart",
+            DepositedChronalDust = new Dictionary<string, int>(),
+            GridProgress = new Dictionary<string, List<string>> {
+                ["mozart"] = new() { "mozart_tempo", "mozart_baton", "mozart_resonance" }
+            }
+        };
+
+        try {
+            foreach (Difficulty tier in new[] { Difficulty.Easy, Difficulty.Normal, Difficulty.Hard }) {
+                GameManager.Instance.CurrentSession.Difficulty = tier;
+                MirrorParadoxController mirror = CreateMozartMirror();
+                try {
+                    PlayerController clone = mirror.Clone;
+                    AssertThat(clone.AppliesStoryMeterGainScale)
+                        .OverrideFailureMessage($"The {tier} clone plays Fighter rules: no D5 Story scale.")
+                        .IsFalse();
+                    AssertFloat(clone.StoryMeterGainFactor)
+                        .IsEqualApprox(clone.StoryUltimateBuildRateMultiplier, 0.0001f);
+                    clone.SetUltimateMeter(0f);
+                    clone.AddInfluenceFromDamageDealt(20f, collectsEcho: false);
+                    float expected = tier == Difficulty.Hard ? 22f : 20f;
+                    AssertFloat(clone.CurrentUltimateMeter)
+                        .OverrideFailureMessage($"The {tier} clone earns {expected} from 20 HP dealt (F20 mirrors Mozart's node on Hard only).")
+                        .IsEqualApprox(expected, 0.0001f);
+                } finally {
+                    FreeMirror(mirror);
+                }
+            }
+        } finally {
+            SaveManager.Instance.SaveSlots[0] = originalSave;
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+            GameManager.Instance.CurrentSession.SelectedCharacterID = originalCharacter;
+            GameManager.Instance.CurrentSession.Difficulty = originalDifficulty;
+        }
+    }
+
+    [TestCase]
     public void TheSavedHolodeckCpuSettingCannotChangeTheEncounter() {
         Difficulty originalDifficulty = GameManager.Instance.CurrentSession.Difficulty;
         FTT.Core.CpuDifficulty originalCpu = GameManager.Instance.CurrentSession.CpuDifficulty;
@@ -974,6 +1131,36 @@ public class MirrorParadoxTests {
 
     // === Helpers ===
 
+    /// <summary>
+    /// Feeds one fixed adapter observation to a Hard decision engine whose
+    /// band has every verb but the basic string switched off, so the
+    /// close-range branch reaches its BasicAttack fallback. Returns the
+    /// BasicAttack edges and the frames spent walking right.
+    /// </summary>
+    private static (int Edges, int WalkIn) SampleBasics(CpuDecisionObservation observation) {
+        CpuBandTuning basics = CpuBandTuning.BossOverride(FTT.Core.CpuDifficulty.Hard) with {
+            UltimatePercent = 0,
+            SpecialOneClosePercent = 0,
+            SpecialOneRangedPercent = 0,
+            SpecialTwoPercent = 0,
+            MovementAbilityPercent = 0,
+            ApproachJumpPercent = 0,
+            GrabAdmissionPercent = 0,
+            EchoStepAdmissionPercent = 0
+        };
+        var cpu = new FighterCpuController(FTT.Core.CpuDifficulty.Hard, 4242, null, null, basics);
+        PlayerInputFrame previous = default;
+        int edges = 0;
+        int walkIn = 0;
+        for (uint tick = 0; tick < 120; tick++) {
+            PlayerInputFrame frame = cpu.Sample(tick, in observation, in previous);
+            previous = frame;
+            if (frame.IsPressed(GameplayButtons.BasicAttack)) edges++;
+            if (frame.MoveX > 0) walkIn++;
+        }
+        return (edges, walkIn);
+    }
+
     private static MirrorParadoxController CreateMirror(ulong seed = 4242) {
         var mirror = new MirrorParadoxController {
             Name = "MirrorParadoxUnderTest",
@@ -984,6 +1171,19 @@ public class MirrorParadoxTests {
             // active clone would simulate on every frame the runner yields between
             // tests, spraying AI-driven attacks, VFX, and pooled objects into the
             // shared test tree.
+            ActivateOnSpawn = false
+        };
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(mirror);
+        return mirror;
+    }
+
+    private static MirrorParadoxController CreateMozartMirror() {
+        var mirror = new MirrorParadoxController {
+            Name = "MozartMirrorUnderTest",
+            Data = FTT.Core.AuthoredResources.Load<BossData>(MirrorResourcePath),
+            CharacterIDOverride = "mozart",
+            DecisionSeed = 4242,
+            // Construction and the meter only (see CreateMirror).
             ActivateOnSpawn = false
         };
         ((SceneTree)Engine.GetMainLoop()).Root.AddChild(mirror);

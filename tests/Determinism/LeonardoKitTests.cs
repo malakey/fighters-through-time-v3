@@ -122,28 +122,35 @@ public class LeonardoKitTests {
             loadout, FighterLoadout.Default(FighterCharacterID.Joan),
             seed: 64, spawnDistance: 1, rules: FighterMatchRules.Disabled);
 
+        // Spiral, then the turret the tick the spiral's ability lockout ends.
+        int turretTick = BasicComboRules.AbilityLockoutFrames;
         uninterrupted.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
-        for (int tick = 1; tick <= 5; tick++) {
+        for (int tick = 1; tick < turretTick; tick++) {
             uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
-        uninterrupted.Advance(Frame(6, 0, GameplayButtons.Special2), Frame(6, 0, GameplayButtons.None));
-        for (int tick = 7; tick < 60; tick++) {
+        uninterrupted.Advance(Frame(turretTick, 0, GameplayButtons.Special2), Frame(turretTick, 0, GameplayButtons.None));
+        for (int tick = turretTick + 1; tick < 60; tick++) {
             uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, -127, GameplayButtons.None));
         }
+        // Both are live in the captured state: the 1.5 s spiral and the turret.
+        AssertThat(uninterrupted.ZoneCount).IsEqual(1);
+        AssertThat(uninterrupted.PersistentObjectCount).IsEqual(1);
 
         byte[] snapshot = uninterrupted.CaptureFullState();
         restored.RestoreFullState(snapshot);
         AssertThat(restored.CurrentHash).IsEqual(uninterrupted.CurrentHash);
 
-        // The replayed window spans the spiral's expiry knockback and all three
-        // turret bolts plus the turret self-destruct.
-        for (int tick = 60; tick < 420; tick++) {
+        // The replayed window spans the spiral's expiry knockback and all four
+        // turret bolts (one per 2 s from the deploy) plus the turret self-destruct.
+        for (int tick = 60; tick < 560; tick++) {
             long expected = uninterrupted.Advance(
                 Frame(tick, 0, GameplayButtons.None), Frame(tick, -127, GameplayButtons.None));
             long actual = restored.Advance(
                 Frame(tick, 0, GameplayButtons.None), Frame(tick, -127, GameplayButtons.None));
             AssertThat(actual).IsEqual(expected);
         }
+        // The turret fired out and self-destructed well inside its 15 s life.
+        AssertThat(restored.PersistentObjectCount).IsEqual(0);
     }
 
     private static CharacterData BuildSpiralCharacter() => new() {

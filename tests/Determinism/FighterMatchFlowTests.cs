@@ -1195,10 +1195,25 @@ public class FighterMatchFlowTests {
             .OverrideFailureMessage("Harness: meter must be live before the buzzer.")
             .IsTrue();
 
+        // Both fighters start a swing just before the buzzer, so the ability
+        // lockout (special global cooldown) is live when the reset runs.
+        bool swung = false;
+        var lockoutBeforeReset = new int[2];
         for (int tick = 60; simulation.GetMatchState().SuddenDeathActive == 0 && tick < 400; tick++) {
-            simulation.Advance(Neutral(tick), Neutral(tick));
+            bool swing = !swung && simulation.GetMatchState().RemainingFrames <= 3;
+            swung |= swing;
+            GameplayButtons buttons = swing ? GameplayButtons.BasicAttack : GameplayButtons.None;
+            simulation.Advance(Frame(tick, 0, buttons), Frame(tick, 0, buttons));
+            if (simulation.GetMatchState().SuddenDeathActive != 0) break;
+            for (int playerID = 0; playerID < 2; playerID++) {
+                AssertThat(simulation.TryGetFighterRuntime(playerID, out FighterRuntimeComponent live)).IsTrue();
+                lockoutBeforeReset[playerID] = live.AbilityLockoutFrames;
+            }
         }
         AssertThat(simulation.GetMatchState().SuddenDeathActive).IsEqual(1);
+        AssertThat(lockoutBeforeReset[0] > 0 && lockoutBeforeReset[1] > 0)
+            .OverrideFailureMessage("Harness: both ability lockouts must be running into the buzzer.")
+            .IsTrue();
 
         for (int playerID = 0; playerID < 2; playerID++) {
             AssertThat(simulation.TryGetFighter(playerID, out FighterStateComponent state)).IsTrue();
@@ -1216,6 +1231,9 @@ public class FighterMatchFlowTests {
             AssertThat(runtime.SpecialOneCooldownFrames).IsEqual(0);
             AssertThat(runtime.SpecialTwoCooldownFrames).IsEqual(0);
             AssertThat(runtime.MovementCooldownFrames).IsEqual(0);
+            AssertThat(runtime.AbilityLockoutFrames)
+                .OverrideFailureMessage("The ability lockout must be cleared with the cooldowns.")
+                .IsEqual(0);
             AssertThat(verb.EchoStepCooldownFrames)
                 .OverrideFailureMessage("Echo Step's cooldown must be ready.")
                 .IsEqual(0);

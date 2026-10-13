@@ -118,12 +118,27 @@ public class MozartKitTests {
             seed: 74, spawnDistance: 3, rules: FighterMatchRules.Disabled);
 
         // Platform out, chord in flight, wave following — snapshot mid-lifecycle.
+        // Each special goes out on the first tick Mozart may cast it: the
+        // movement ability's kit phase and the chord's ability lockout refuse
+        // the next one until they end.
         uninterrupted.Advance(Frame(0, 0, GameplayButtons.MovementAbility), Frame(0, 0, GameplayButtons.None));
-        uninterrupted.Advance(Frame(1, 0, GameplayButtons.Special1), Frame(1, 0, GameplayButtons.None));
-        uninterrupted.Advance(Frame(2, 0, GameplayButtons.Special2), Frame(2, 0, GameplayButtons.None));
-        for (int tick = 3; tick < 60; tick++) {
-            uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, -127, GameplayButtons.None));
+        bool chordCast = false;
+        bool waveCast = false;
+        for (int tick = 1; tick < 60; tick++) {
+            AssertThat(uninterrupted.TryGetFighterRuntime(0, out FighterRuntimeComponent before)).IsTrue();
+            bool ready = before.AbilityLockoutFrames == 0
+                && !FighterUniversalMovementRules.IsCombatLocked(in before);
+            GameplayButtons mozart = !ready ? GameplayButtons.None
+                : !chordCast ? GameplayButtons.Special1
+                : !waveCast ? GameplayButtons.Special2
+                : GameplayButtons.None;
+            uninterrupted.Advance(Frame(tick, 0, mozart), Frame(tick, tick < 3 ? (sbyte)0 : (sbyte)-127, GameplayButtons.None));
+            AssertThat(uninterrupted.TryGetFighterRuntime(0, out FighterRuntimeComponent after)).IsTrue();
+            chordCast |= after.SpecialOneCooldownFrames > 0;
+            waveCast |= after.SpecialTwoCooldownFrames > 0;
         }
+        AssertThat(chordCast).OverrideFailureMessage("The chord was not cast before the snapshot.").IsTrue();
+        AssertThat(waveCast).OverrideFailureMessage("The wave was not cast before the snapshot.").IsTrue();
 
         byte[] snapshot = uninterrupted.CaptureFullState();
         restored.RestoreFullState(snapshot);

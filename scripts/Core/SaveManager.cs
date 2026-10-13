@@ -194,7 +194,7 @@ namespace FTT.Core {
             CheckpointIntegrityPercent = Math.Clamp(CheckpointIntegrityPercent, 0f, 100f);
             CurrentHP = Math.Max(0, CurrentHP);
             CurrentLives = Math.Max(0, CurrentLives);
-            CurrentUltimateMeter = Math.Clamp(CurrentUltimateMeter, 0f, 100f);
+            CurrentUltimateMeter = Math.Clamp(CurrentUltimateMeter, 0f, FTT.Combat.InfluenceMeterRules.MaxValue);
             LevelChronalDust = Math.Max(0, LevelChronalDust);
         }
     }
@@ -1126,7 +1126,16 @@ namespace FTT.Core {
         /// override keep their project defaults.
         /// </summary>
         public void ApplySavedInputBindings() {
-            InputBindingService.Apply(GlobalData?.InputBindings);
+            InputBindingSet saved = GlobalData?.InputBindings;
+            // 2026-10-11: rows saved before the gamepad defaults moved to Godot 4's
+            // shoulder numbers keep the old Back / Guide half. Repair the ones the
+            // Controls tab could not have made on purpose (PROVISIONAL-GAMEPAD-
+            // OVERRIDE-NO-MIGRATION). Idempotent, so it runs on every load; the
+            // repaired rows persist with the next global save.
+            if (saved != null && saved.RepairGodot3ShoulderRows(InputBindingService.ProjectDefaults)) {
+                GD.Print("[SaveManager] Repaired saved gamepad binding rows that still used the Godot 3 shoulder numbers.");
+            }
+            InputBindingService.Apply(saved);
         }
 
         /// <summary>
@@ -1397,6 +1406,16 @@ namespace FTT.Core {
 
         private static string GetStoryPath(int slotIndex) =>
             Path.Combine(ProjectSettings.GlobalizePath(SaveDir), $"story_slot_{slotIndex}.sav");
+
+        /// <summary>
+        /// True when any file of the slot (primary, backup, temp or a preserved
+        /// corrupt candidate) exists on disk. Lets a test that drives the real
+        /// <see cref="DeleteStorySlot"/> pick a slot whose deletion touches nothing.
+        /// </summary>
+        internal static bool HasAnyStorySlotFileOnDisk(int slotIndex) {
+            ValidateSlot(slotIndex);
+            return AtomicSaveStore.AnyCandidateExists(GetStoryPath(slotIndex));
+        }
 
         private static string GetGlobalPath() =>
             Path.Combine(ProjectSettings.GlobalizePath(SaveDir), GlobalFileName);

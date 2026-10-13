@@ -6,10 +6,14 @@ namespace FTT.UI {
     /// <summary>
     /// Story Mode pause menu: Resume / Settings / Save / Restart Level / Exit,
     /// per design-godot.md "Story Mode Pause Menu" (audit M-2). Save writes a
-    /// checkpoint-style save without leaving the level; Restart returns to the
-    /// last-reached checkpoint behind a confirmation; Exit quits to the main
-    /// menu behind a confirmation and applies the designed 50% retention on
-    /// undeposited Chronal Dust (docs/DUST_ECONOMY.md §2).
+    /// checkpoint-style save without leaving the level; Restart Level restarts
+    /// the whole level from its beginning behind a confirmation (V7.2: a fresh
+    /// attempt, every checkpoint cleared, this level's dust forfeited); Exit
+    /// quits to the main menu behind a confirmation and charges the voluntary
+    /// 20% exit fee on undeposited Chronal Dust — the player keeps 80%, rounded
+    /// down (<see cref="FTT.Core.SessionExitGuard.CalculateExitRetainedDust"/>;
+    /// docs/DUST_ECONOMY.md). The 50% retention this menu shipped with on
+    /// 2026-08-10 is superseded.
     ///
     /// Package 8 A1 moved this onto the authored, themed
     /// <c>res://scenes/ui/StoryPause.tscn</c> and onto <see cref="PauseMenuBase"/>.
@@ -351,8 +355,9 @@ namespace FTT.UI {
         /// V7.2 Restart Level — a true restart, not a free heal: the whole
         /// level restarts from its beginning (checkpoints cleared, every
         /// enemy/Extractor/pickup/Font/puzzle back to initial state via the
-        /// scene reload), the player starts fresh at 100% HP with a full
-        /// rewind pool, and every point of dust earned this level is cleared.
+        /// scene reload), the player starts fresh at 100% HP and zero Ultimate
+        /// meter with a full rewind pool, and every point of dust earned this
+        /// level is cleared.
         /// </summary>
         private void RestartLevelFromBeginning() {
             var story = FTT.Core.StoryManager.Instance;
@@ -389,6 +394,9 @@ namespace FTT.UI {
                 if (GetTree()?.GetFirstNodeInGroup("StoryPlayer") is FTT.Characters.PlayerController player) {
                     save.CurrentHP = player.MaximumHP;
                 }
+                // F10: a full Restart Level is fresh-entry initialization, so the
+                // Ultimate meter starts at zero too (the mint repeats it).
+                save.CurrentUltimateMeter = 0f;
                 saveManager.SaveStorySlot(slot);
             }
 
@@ -428,36 +436,44 @@ namespace FTT.UI {
         private void QuitToMainMenu() {
             ApplyExitDustPenalty();
             SetPaused(false);
-            FTT.Core.GameManager.Instance?.LoadScene("res://scenes/menus/MainMenu.tscn");
+            var story = FTT.Core.StoryManager.Instance;
+            if (story != null) story.ExitToMainMenu();
+            else FTT.Core.GameManager.Instance?.LoadScene(FTT.Core.StoryManager.MainMenuScenePath);
         }
 
         /// <summary>
-        /// Writes the post-penalty dust into the active story save before the
-        /// scene changes. Only the save is written: every campaign re-entry from
-        /// the main menu passes through <c>StartCampaign</c>/<c>ResumeCampaign</c>,
-        /// which reload <c>StoryManager.ChronalDustCollected</c> from the save,
-        /// so the in-memory wallet cannot leak the forfeited dust back.
+        /// Charges the exit fee and commits the orderly exit before the scene
+        /// changes, through <see cref="FTT.Core.StoryManager.CommitOrderlyExit"/>:
+        /// the post-penalty wallet replaces the in-memory wallet as well as the
+        /// saved one, the live hero's latest HP, meter and resource timers are
+        /// flushed (F10: "An orderly Save/exit flushes the latest state"), and
+        /// the level run stops, so the per-second durable snapshot can no longer
+        /// write the unpenalized wallet back over the fee under the loading
+        /// screen or in the main menu.
         /// </summary>
         private void ApplyExitDustPenalty() {
             // F03: exiting during a live Time Freeze ends it and stores 45 s.
             FTT.Core.StoryManager.Instance?.EndActiveTimeFreezeForExplicitSave();
             var story = FTT.Core.StoryManager.Instance;
+            if (story == null) return;
             var saveManager = FTT.Core.SaveManager.Instance;
             var gameManager = FTT.Core.GameManager.Instance;
-            if (story == null || saveManager == null || gameManager == null) return;
-
-            int slot = gameManager.CurrentSession.ActiveSaveSlot;
-            if (slot < 0 || slot >= saveManager.SaveSlots.Length || saveManager.SaveSlots[slot] == null) return;
+            int slot = gameManager?.CurrentSession.ActiveSaveSlot ?? -1;
+            bool hasSave = saveManager != null
+                && slot >= 0 && slot < saveManager.SaveSlots.Length
+                && saveManager.SaveSlots[slot] != null;
 
             // Package 12 W2 (H02): the whole wallet is the open attempt's
             // undeposited dust — only the level-completion transaction banks,
             // so anything a previous Collapse or exit left behind is still at
-            // stake and the 20% rule applies to all of it.
+            // stake and the 20% rule applies to all of it. A slotless developer
+            // launch has no save to charge, as before.
             int wallet = story.ChronalDustCollected;
             int unbanked = wallet;
+            int retained = hasSave ? CalculateExitWalletAfterPenalty(wallet, unbanked) : wallet;
 
-            saveManager.SaveSlots[slot].LevelChronalDust = CalculateExitWalletAfterPenalty(wallet, unbanked);
-            saveManager.SaveStorySlot(slot);
+            story.CommitOrderlyExit(retained);
+            if (!hasSave) return;
             // V7.3: the exit fee is paid — the session is settled, so the
             // abnormal-exit marker must not bill it a second time at boot.
             FTT.Core.SessionExitGuard.ClearMarker();

@@ -135,6 +135,87 @@ public class SummonRewardProvenanceTests {
         }
     }
 
+    [TestCase]
+    public void AKillAfterItsLevelCompletedIssuesNoRewardFromTheNextLevelsLedger() {
+        // D12 (PROVISIONAL-DUST-SETTLE-RULES (3)): completion deposits the wallet
+        // and re-keys the reward directory to the next level. A mob still alive
+        // under the results overlay used to claim the NEXT level's first source
+        // of its type and spawn a pickup; now its level is complete, so it
+        // issues nothing.
+        StoryManager story = StoryManager.Instance;
+        CampaignLevel originalLevel = story.CurrentLevel;
+        Difficulty originalDifficulty = GameManager.Instance.CurrentSession.Difficulty;
+        string originalCharacter = GameManager.Instance.CurrentSession.SelectedCharacterID;
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        int originalWallet = story.ChronalDustCollected;
+        var tree = (SceneTree)Engine.GetMainLoop();
+        var host = new Node2D { Name = "CompletedLevelHost" };
+        tree.Root.AddChild(host);
+        try {
+            story.PrepareDirectLevel(CampaignLevel.Orleans, "einstein", Difficulty.Normal);
+            LevelRewardDirectory.ResetAttempt();
+            var levels = new LevelManager { Name = "LevelManager", LevelID = "level_02_orleans" };
+            host.AddChild(levels);
+            var drops = new StoryDropSystem { Name = "StoryDropSystem", RandomSeed = 777UL };
+            host.AddChild(drops);
+
+            // Control: before completion a kill issues and spawns as ever.
+            EventBus.Instance.RaiseEnemyKilled(new EnemyKilledPayload {
+                EnemyID = EnemyID,
+                Position = new Vector2(100, 0),
+                ChronalDustDrop = 5
+            });
+            AssertThat(DustPickupsUnder(host).Count).IsEqual(1);
+
+            // The production chokepoint (slotless: nothing is written).
+            levels.CompleteLevel();
+            AssertThat(levels.IsComplete).IsTrue();
+            AssertThat(DustPickupsUnder(host).Count)
+                .OverrideFailureMessage("Completion must settle the pickup still on the ground.")
+                .IsEqual(0);
+            // The directory now answers for the next level.
+            AssertThat(story.CurrentLevel).IsEqual(CampaignLevel.Chicago);
+
+            LevelRewardLedger next = LevelRewardDirectory.EnsureCompiled();
+            AssertObject(next).IsNotNull();
+            var enemyIDs = new List<string>();
+            foreach (var entry in next.EnemyQueues) {
+                if (entry.Value != null && entry.Value.Count > 0) enemyIDs.Add(entry.Key);
+            }
+            AssertThat(enemyIDs.Count > 0).IsTrue();
+            enemyIDs.Sort(System.StringComparer.Ordinal);
+            string nextEnemy = enemyIDs[0];
+            string firstSource = next.EnemyQueues[nextEnemy][0];
+
+            EventBus.Instance.RaiseEnemyKilled(new EnemyKilledPayload {
+                EnemyID = nextEnemy,
+                Position = new Vector2(200, 0),
+                ChronalDustDrop = 5
+            });
+            AssertThat(DustPickupsUnder(host).Count)
+                .OverrideFailureMessage("A kill after completion must spawn no dust pickup.")
+                .IsEqual(0);
+            // Proof the kill issued nothing: the next level's first source of that
+            // type is still the next one handed out.
+            AssertThat(LevelRewardDirectory.TryIssueEnemyAward(nextEnemy, out string issuedID, out _)).IsTrue();
+            AssertString(issuedID)
+                .OverrideFailureMessage("The post-completion kill consumed the next level's source.")
+                .IsEqual(firstSource);
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(host);
+            host.GetParent()?.RemoveChild(host);
+            host.Free();
+            story.StopLevelRun();
+            story.PrepareDirectLevel(originalLevel, string.IsNullOrEmpty(originalCharacter) ? "einstein" : originalCharacter,
+                originalDifficulty);
+            GameManager.Instance.CurrentSession.SelectedCharacterID = originalCharacter;
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+            story.SetDust(originalWallet);
+            story.ClearLevelAttemptState();
+            LevelRewardDirectory.ResetAttempt();
+        }
+    }
+
     private static List<ChronalDustPickup> DustPickupsUnder(Node root) {
         var found = new List<ChronalDustPickup>();
         Godot.Collections.Array<Node> children = root.GetChildren();

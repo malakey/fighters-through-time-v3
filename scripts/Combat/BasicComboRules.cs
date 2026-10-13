@@ -157,6 +157,68 @@ namespace FTT.Combat {
         public static readonly int[] AerialActiveFrames = { 7, 8, 10 };
         public static readonly int[] AerialRecoveryFrames = { 13, 14, 18 };
 
+        // === Grounded string hitboxes: the one table (2026-10-11) ===
+        // The V7 normative template boxes (design "Hitbox & Hurtbox Geometry":
+        // 1.2×1.0 @ (1.0, 0.0) / 1.4×1.2 @ (1.0, 0.2) / 1.8×1.4 @ (1.2, 0.0)),
+        // in world units, stored as half-extents and the box centre's offset
+        // from the pivot: X forward of the attacker's facing, Y up. Both modes
+        // read this one table. The Fighter sim converts each value once with
+        // FP64.FromDouble, exactly as its own literals did, so Fighter results
+        // are bit-identical. Story derives pixels at
+        // KitMotionRules.StoryPixelsPerUnit (60). In both modes a profile's
+        // ReachWidthPercent scales the width and the X offset together, and
+        // its ReachHeightPercent scales the height (ledger
+        // VERIFY-STRING-REACH-OFFSET-SCALING: the design says offsets stay
+        // fixed). Before 2026-10-11 Story and the sim each held a hand-mirrored
+        // copy. The Story aerial string boxes take this table's x-span (D6b,
+        // the aerial vertical span below); the directional Up-Attack / Down-Air
+        // boxes are NOT in this table (ledger VERIFY-DIRECTIONAL-HIT-MODEL).
+        // Pinned by StringHitboxGeometryTests and StoryAerialStringReachTests.
+
+        /// <summary>Half the grounded string box's width per hit, in world units.</summary>
+        public static readonly double[] StringBoxHalfWidthUnits = { 0.6, 0.7, 0.9 };
+
+        /// <summary>Half the grounded string box's height per hit, in world units.</summary>
+        public static readonly double[] StringBoxHalfHeightUnits = { 0.5, 0.6, 0.7 };
+
+        /// <summary>
+        /// How far in front of the pivot the grounded string box's centre sits
+        /// per hit, in world units (before the profile's width scale).
+        /// </summary>
+        public static readonly double[] StringBoxOffsetXUnits = { 1.0, 1.0, 1.2 };
+
+        /// <summary>
+        /// How far above the hurtbox centre the grounded string box's centre
+        /// sits per hit, in world units (Y up). Hit 2 is lifted 0.2. Story
+        /// applies this lift downward (ledger VERIFY-STORY-STRING-HIT2-LIFT).
+        /// </summary>
+        public static readonly double[] StringBoxOffsetYUnits = { 0.0, 0.2, 0.0 };
+
+        // === Story aerial string hitboxes: the vertical span (2026-10-11, D6b) ===
+        // Story-only vertical span. The x-span is the grounded table's
+        // (StringBoxHalfWidthUnits / StringBoxOffsetXUnits, scaled by the
+        // profile's ReachWidthPercent and the Story AttackRange minor exactly as
+        // the grounded box is), so an aerial string hit reaches as far as its
+        // grounded twin and never behind the hero. The sim's aerial string uses
+        // the grounded boxes. Kept here, beside the grounded table, as the
+        // authored Story pixels over KitMotionRules.StoryPixelsPerUnit (60) so
+        // they stay legible; nothing in scripts/FighterSim/ reads them (ledger
+        // USER-STORY-AERIAL-REACH, which closed VERIFY-STORY-AERIAL-STRING-BOXES).
+
+        /// <summary>
+        /// Story-only: the aerial string box centre's height per hit, in world
+        /// units from the feet pivot, <b>Y down</b> (Godot's Story convention;
+        /// −46 / −50 / −12 px). The x-span is the grounded table's.
+        /// </summary>
+        public static readonly double[] AerialStringBoxCentreYUnits = { -46.0 / 60.0, -50.0 / 60.0, -12.0 / 60.0 };
+
+        /// <summary>
+        /// Story-only: the aerial string box's full height per hit, in world
+        /// units (64 / 82 / 104 px) before the profile's ReachHeightPercent and
+        /// the Story AttackRange minor, which scale it about its centre.
+        /// </summary>
+        public static readonly double[] AerialStringBoxHeightUnits = { 64.0 / 60.0, 82.0 / 60.0, 104.0 / 60.0 };
+
         // === V7.6 F07 Conductive mark durations (cross-mode) ===
 
         /// <summary>Baseline Conductive mark: 90 frames / 1.5 s.</summary>
@@ -164,9 +226,13 @@ namespace FTT.Combat {
 
         /// <summary>
         /// With the Story-only <c>tesla_conductive_hold</c> Resonance node:
-        /// 150 frames / 2.5 s. Read at the application site, never substituted
-        /// into an authored profile — this table is cross-mode and Fighter Mode
-        /// must keep the 90-frame baseline.
+        /// 150 frames / 2.5 s. The design's stated target, not a second source:
+        /// the Story application site
+        /// (<c>PlayerController.FinisherConductiveMarkFrames</c>) derives the
+        /// frames from the node's authored <c>AbilityDuration</c> lane, and
+        /// <c>ConductiveMarkTests</c> pins that the real grid resolves to exactly
+        /// this. Never substituted into an authored profile — this table is
+        /// cross-mode and Fighter Mode must keep the 90-frame baseline.
         /// </summary>
         public const int ConductiveMarkUpgradedFrames = 150;
 
@@ -229,6 +295,25 @@ namespace FTT.Combat {
             };
 
         /// <summary>
+        /// The largest <see cref="BasicStringProfile.ReachWidthPercent"/> over the
+        /// authored profiles and the template (120 today, Cleopatra), computed
+        /// once from the base profiles: no Story minor enters it. A pure
+        /// read-only accessor for the Story finisher carry's heavy-finisher
+        /// clause (D6a, <c>StoryEnemyCombatRules.WidestHit1PivotReachPixels</c>);
+        /// nothing in the Fighter simulation reads it. Declared after
+        /// <see cref="StringProfiles"/> so its initializer sees the table.
+        /// </summary>
+        public static readonly int WidestStringReachWidthPercent = ComputeWidestStringReachWidthPercent();
+
+        private static int ComputeWidestStringReachWidthPercent() {
+            int widest = TemplateStringProfile.ReachWidthPercent;
+            foreach (BasicStringProfile profile in StringProfiles.Values) {
+                if (profile.ReachWidthPercent > widest) widest = profile.ReachWidthPercent;
+            }
+            return widest;
+        }
+
+        /// <summary>
         /// Resolves a character's authored string profile; null/unknown IDs get
         /// the template. Both modes call this — Story by <c>CharacterData</c> ID,
         /// the Fighter sim through its enum-indexed cache.
@@ -255,11 +340,16 @@ namespace FTT.Combat {
         /// Knockback multipliers per hit, applied to the character's base
         /// basic-attack knockback in both modes. The finisher is deliberately
         /// far above the first two: at 4.5x it launches even the lightest
-        /// knockback kit (Cleopatra, base 2.0 into weight 0.7) past the 2-unit
-        /// melee range with margin by the time the victim's hitstun ends, so
-        /// the string always ends in separation rather than an unbroken loop
-        /// (gameplay-feel plan §2.5; pinned by
-        /// <c>FighterFinisherSeparationTests</c> across all nine kits).
+        /// knockback kit (Cleopatra, base 2.0 into weight 0.7) at least the
+        /// plan's 2.5 units clear and past its own string opener's reach (hit
+        /// 1's box far edge plus the victim's hurtbox half-width) with half a
+        /// unit to spare by the time the victim's hitstun ends, so the string
+        /// always ends in separation rather than an unbroken loop
+        /// (gameplay-feel plan §2.5; both bars pinned per kit across the whole
+        /// roster by
+        /// <c>FighterKnockbackScalingTests.TheFinisherSeparatesEveryKitBeyondMeleeRangeAtFullVictimHP</c>;
+        /// measured 2026-10-11, the tightest is Cleopatra at 3.19 units against
+        /// the 2.92 she needs).
         /// The effective impulse is additionally scaled by the victim's missing
         /// HP — see <see cref="LowHealthKnockbackScale"/>.
         /// </summary>
@@ -672,17 +762,134 @@ namespace FTT.Combat {
             return RecoveryVerb.BlockCancel;
         }
 
-        // === Resonance Momentum (V7.1, applied 2026-08-24) ===
-        // A CONNECTING basic-string finisher (Hit 3) refunds frames on both
-        // special cooldowns — never hits 1-2, the directional strikes, a
-        // blocked finisher, or construct/hazard damage. Capped per cooldown
-        // cycle per slot so a 7 s tool cannot cycle into a 3 s tool. Both
-        // modes read these numbers.
+        // === Per-hit Momentum (user direction 2026-10-11, D2; ledger USER-PER-HIT-MOMENTUM) ===
+        // Replaces V7.1's finisher-only refund (a connecting hit 3 refunded 60
+        // frames, at most twice per cycle). Every LANDED basic swing — the D1a
+        // definition (damage applied, or absorbed by a shield or barrier layer;
+        // never a block, a refusal, a whiff or a construct, prop or strike
+        // surface), on any enemy, boss included — refunds time on BOTH special
+        // cooldowns: 20 frames for string hits 1-2 and the two directional
+        // strikes, 60 for the finisher. Paid once per swing, never per target
+        // (Story's melee cleaves). The cap counts the frames actually removed:
+        // 120 per slot per cooldown cycle; a ready slot takes nothing and spends
+        // none of it; each slot's counter resets when that slot's cooldown is
+        // armed. Both modes read these numbers.
 
-        /// <summary>Frames refunded from each running special cooldown (1.0 s).</summary>
-        public const int MomentumRefundFrames = 60;
-        /// <summary>Maximum refunds per cooldown cycle per slot.</summary>
-        public const int MomentumRefundCapPerCycle = 2;
+        /// <summary>Refund for a landed string hit 1 or 2 (a third of a second).</summary>
+        public const int MomentumStringHitRefundFrames = 20;
+        /// <summary>Refund for a landed Up-Attack or Down-Air.</summary>
+        public const int MomentumDirectionalRefundFrames = 20;
+        /// <summary>Refund for a landed finisher (string hit 3, 1.0 s).</summary>
+        public const int MomentumFinisherRefundFrames = 60;
+        /// <summary>Frames refunded per slot per cooldown cycle, at most (2.0 s).</summary>
+        public const int MomentumRefundCapFramesPerCycle = 120;
+
+        /// <summary>
+        /// The nominal refund for a landed swing: a directional strike pays 20,
+        /// a chain hit pays 20 on steps 0-1 and 60 on the finisher (step 2).
+        /// </summary>
+        public static int MomentumRefundFramesFor(int variant, int comboStep) {
+            if (variant != VariantChain) return MomentumDirectionalRefundFrames;
+            return comboStep >= 2 ? MomentumFinisherRefundFrames : MomentumStringHitRefundFrames;
+        }
+
+        /// <summary>
+        /// Story's form of <see cref="MomentumRefundFramesFor"/>, keyed on the
+        /// melee hitbox's ID: <c>combo_3</c> 60, any other <c>combo_</c> ID and
+        /// the two directional IDs 20, anything else (a throw, a construct) 0.
+        /// </summary>
+        public static int MomentumRefundFramesForHitbox(string hitboxID) {
+            if (hitboxID == null) return 0;
+            if (hitboxID == "combo_3") return MomentumFinisherRefundFrames;
+            if (hitboxID.StartsWith("combo_", System.StringComparison.Ordinal)) return MomentumStringHitRefundFrames;
+            if (hitboxID == UpAttackHitboxID || hitboxID == DownAirHitboxID) return MomentumDirectionalRefundFrames;
+            return 0;
+        }
+
+        /// <summary>
+        /// Frames one landed swing removes from one slot:
+        /// <c>max(0, min(nominal, cap − refundedThisCycle, cooldownRemaining))</c>.
+        /// A ready slot (0 remaining) gets nothing and spends none of its cap.
+        /// </summary>
+        public static int MomentumGrant(int nominalFrames, int refundedThisCycle, int cooldownRemainingFrames) {
+            int grant = nominalFrames;
+            int capLeft = MomentumRefundCapFramesPerCycle - refundedThisCycle;
+            if (capLeft < grant) grant = capLeft;
+            if (cooldownRemainingFrames < grant) grant = cooldownRemainingFrames;
+            return grant > 0 ? grant : 0;
+        }
+
+        // === Ability lockout: the special global cooldown (user direction 2026-10-08) ===
+        // Ends ability spam in both modes. Starting a basic swing (any chain hit,
+        // the up-attack or the down-air), casting Special 1 or Special 2, or
+        // having the Ultimate accepted arms one shared per-fighter lockout. While
+        // it runs, Special 1, Special 2 and the Ultimate are refused (Specials:
+        // amended 2026-10-11 by the hit-confirm cancel below — a swing that lands
+        // releases them); a refused
+        // press spends nothing and arms nothing. Basic attacks are never refused,
+        // so the string chains exactly as before, and the movement ability, roll,
+        // air dodge, grab and Echo Step neither arm nor read it.
+        //
+        // It is armed at acceptance (the tick the sim fires a special) and counts
+        // down on the fighter's own clock, so it pauses in hitstop like every
+        // cooldown: armed on tick T, the next special or Ultimate is legal on
+        // tick T + 30. Same-tick presses resolve in one order in both modes —
+        // a basic swing (a chain continuation starting that tick included), then
+        // an Ultimate the meter pays for, then Special 1, then Special 2 — and
+        // the first one accepted locks the rest (ledger
+        // PROVISIONAL-ABILITY-LOCKOUT-RULES (4)). Story keeps the counter on
+        // PlayerController; the sim keeps it in
+        // FighterRuntimeComponent.AbilityLockoutFrames.
+
+        /// <summary>Frames Special 1, Special 2 and the Ultimate stay refused after an arming action (0.5 s).</summary>
+        public const int AbilityLockoutFrames = 30;
+
+        /// <summary>True while a lockout with <paramref name="remainingFrames"/> left refuses specials and the Ultimate.</summary>
+        public static bool IsAbilityLocked(int remainingFrames) => remainingFrames > 0;
+
+        /// <summary>One tick of the lockout's countdown, floored at zero.</summary>
+        public static int TickAbilityLockout(int remainingFrames) => remainingFrames > 0 ? remainingFrames - 1 : 0;
+
+        // === Hit-confirm cancel (user direction 2026-10-11, D1; ledger USER-HIT-CONFIRM-CANCEL) ===
+        // A basic swing that LANDS (D1a, see the Momentum region above) may
+        // cancel straight into Special 1 or Special 2. Two companions to the
+        // lockout A above carry it:
+        //   S — the Special-sourced lockout, armed to 30 together with A whenever
+        //       Special 1, Special 2 or the Ultimate is accepted, ticked with A
+        //       (so it pauses in the fighter's own hitstop and under Story's Time
+        //       Freeze exactly like A) and cleared with it;
+        //   C — the swing-landed latch: every swing start clears it, the swing's
+        //       first landed contact sets it.
+        // Specials are refused while SpecialGateFrames(A, S, C) = C ? S : A is
+        // positive; the Ultimate keeps reading A alone (no hit-confirm for the
+        // Ultimate, in either mode). S is only ever armed with A, so A >= S, a
+        // whiffed swing (C = 0) still gates on the full 30 frames, and a Special
+        // accepted inside the last 30 frames keeps the other Special refused
+        // whatever lands afterwards (S2 is legal on the 30th unfrozen tick after
+        // S1). Story keeps S and C on PlayerController; the sim packs them into
+        // one int of FighterRuntimeComponent.
+        //
+        // The freeze-only Special buffer (user ruling 2026-10-11, addendum; ledger
+        // PROVISIONAL-FREEZE-SPECIAL-BUFFER): a Special 1/2 press made during the
+        // attacker freeze of its own LANDED basic swing is held (one deep, the
+        // latest press) and fires on the first tick after the freeze, if it is
+        // legal then. It is not a lockout buffer: a press the lockout refuses is
+        // dropped as before, a tick that also presses the Ultimate buffers
+        // nothing (the Ultimate is never buffered, and the chord's Special 2 must
+        // not fire on its own), and a freeze from any other source (a victim, a
+        // block, a Special's own landing) buffers nothing.
+
+        /// <summary>
+        /// The frames Special 1 and Special 2 still wait (D1): the
+        /// Special-sourced lockout once the current swing has landed, the full
+        /// lockout otherwise.
+        /// </summary>
+        public static int SpecialGateFrames(int lockoutFrames, int specialLockoutFrames, bool swingLanded) =>
+            swingLanded ? specialLockoutFrames : lockoutFrames;
+
+        /// <summary>True while the D1 gate refuses Special 1 and Special 2.</summary>
+        public static bool IsSpecialLocked(int lockoutFrames, int specialLockoutFrames, bool swingLanded) =>
+            SpecialGateFrames(lockoutFrames, specialLockoutFrames, swingLanded) > 0;
 
         // === Rally / Desperation Resonance (V7.1, applied 2026-08-24) ===
         // A fraction of every hit taken becomes a briefly reclaimable "echo":

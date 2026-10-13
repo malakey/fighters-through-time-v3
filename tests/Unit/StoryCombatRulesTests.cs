@@ -35,6 +35,36 @@ public class StoryCombatRulesTests {
         AssertThat(StoryCombatRules.HyperArmorPreventsInterruption(false, AbilityPhase.Active, AttackClass.Basic)).IsFalse();
     }
 
+    /// <summary>
+    /// D3 (user direction 2026-10-11): a landed Special's recovery opens the
+    /// roll and jump cancels at recovery frame 0 and the basic-attack and
+    /// movement-ability cancels at frame 6; a whiff (not landed) opens nothing,
+    /// and no gate opens outside Recovery (frame -1). A buffered cancel press
+    /// holds for six unfrozen ticks (provisional).
+    /// </summary>
+    [TestCase]
+    public void ALandedSpecialsRecoveryOpensEvadesAtFrameZeroActionsAtFrameSixAndBuffersSixFrames() {
+        AssertThat(StoryCombatRules.SpecialRecoveryEvadeCancelFrame).IsEqual(0);
+        AssertThat(StoryCombatRules.SpecialRecoveryActionCancelFrame).IsEqual(6);
+        AssertThat(StoryCombatRules.SpecialCancelBufferFrames).IsEqual(6);
+        foreach (int frame in new[] { -1, 0, 5, 6 }) {
+            AssertThat(StoryCombatRules.SpecialRecoveryAllowsEvade(false, frame)).IsFalse();
+            AssertThat(StoryCombatRules.SpecialRecoveryAllowsAction(false, frame)).IsFalse();
+        }
+        AssertThat(StoryCombatRules.SpecialRecoveryAllowsEvade(true, -1)).IsFalse();
+        AssertThat(StoryCombatRules.SpecialRecoveryAllowsEvade(true, 0)).IsTrue();
+        AssertThat(StoryCombatRules.SpecialRecoveryAllowsEvade(true, 5)).IsTrue();
+        AssertThat(StoryCombatRules.SpecialRecoveryAllowsEvade(true, 6)).IsTrue();
+        AssertThat(StoryCombatRules.SpecialRecoveryAllowsAction(true, -1)).IsFalse();
+        AssertThat(StoryCombatRules.SpecialRecoveryAllowsAction(true, 0)).IsFalse();
+        AssertThat(StoryCombatRules.SpecialRecoveryAllowsAction(true, 5)).IsFalse();
+        AssertThat(StoryCombatRules.SpecialRecoveryAllowsAction(true, 6)).IsTrue();
+        AssertThat(StoryCombatRules.SpecialCancelBufferHolds(0)).IsTrue();
+        AssertThat(StoryCombatRules.SpecialCancelBufferHolds(6)).IsTrue();
+        AssertThat(StoryCombatRules.SpecialCancelBufferHolds(7)).IsFalse();
+        AssertThat(StoryCombatRules.SpecialCancelBufferHolds(-1)).IsFalse();
+    }
+
     [TestCase]
     public void CrouchingResizesBodyAndHurtboxFromTheBottomAndRestoresThem() {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();

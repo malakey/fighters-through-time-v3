@@ -325,6 +325,14 @@ namespace FTT.Core {
             RestoreAttemptRecord(save);
             StoryAttemptStatus status = save.AttemptState?.Status ?? StoryAttemptStatus.Active;
             if (status == StoryAttemptStatus.Smothered) {
+                // The Game Over's only door is a full Restart Level of the
+                // level the Smothered attempt is parked on, and
+                // RestartFromGameOver reads it from CollapsedLevel. That field
+                // is in-memory only, so a reload must restore it exactly as
+                // EnterSmothered set it: on a fresh boot it still read the
+                // Tutorial, and in a long session another slot's collapse.
+                CollapsedLevel = CurrentLevel;
+                CollapsedCheckpointID = save.LastCheckpointID ?? "";
                 LoadGameOverScreen();
                 return;
             }
@@ -423,8 +431,12 @@ namespace FTT.Core {
                 // new attempt ID. The parked record is the attempt. With no slot
                 // at all (a developer direct launch) the live in-memory attempt
                 // IS the record - reading a null save here would wipe it.
+                // A resume (an ordinary load, a Collapse resume-from-anchor, an
+                // Anchor Snap) keeps the durable HP and meter: no fresh hero.
+                _freshAttemptHeroPendingID = "";
                 StorySaveData parked = GetActiveSave();
                 if (parked != null) RestoreAttemptStateFromSave(parked);
+                CaptureLevelDustCarriedIn();
                 return;
             }
             ClearLevelAttemptState();
@@ -439,7 +451,36 @@ namespace FTT.Core {
             // other is an explicit full Restart Level, which reaches this same
             // branch because it clears LastCheckpointID first.
             MintFreshAttempt();
+            CaptureLevelDustCarriedIn();
         }
+
+        /// <summary>
+        /// Dust the attempt had already earned when this level load began: the
+        /// wallet it carried in plus the losses already taken from that wallet
+        /// (results itemisation; D12 review fix-up,
+        /// <c>RESULTS-DUST-LINES-AFTER-RESET</c>). The level controllers'
+        /// per-source tallies are scene-local and start at zero on every load,
+        /// so after a Collapse resume, an Anchor Snap or a quit-and-resume the
+        /// held dust would otherwise be on no results line at all, and the
+        /// panel's total would subtract a fee from dust it never counted. With
+        /// this line, <c>lines + carried + bonus − losses</c> equals what the
+        /// completion banks. Zero on a production fresh entry (the wallet is
+        /// empty there). Set by <see cref="BeginLevelRun"/>; frozen into
+        /// <see cref="LastLevelDustCarriedIn"/> by <see cref="CompleteLevelRun"/>.
+        /// </summary>
+        public int LevelDustCarriedIn { get; private set; }
+
+        /// <summary>
+        /// <see cref="LevelDustCarriedIn"/> of the most recent completed level,
+        /// frozen beside <see cref="LastLevelDustLost"/> before the completion's
+        /// attempt reset. Session-scoped, and kept unchanged when the run timer
+        /// was not running, like the other "last level" figures.
+        /// </summary>
+        public int LastLevelDustCarriedIn { get; private set; }
+
+        private void CaptureLevelDustCarriedIn() =>
+            LevelDustCarriedIn = Mathf.Max(0, ChronalDustCollected)
+                + FTT.Environment.LevelRewardDirectory.DustLostThisAttempt;
 
         /// <summary>Stops the clock without publishing a completion result.</summary>
         public void StopLevelRun() {
@@ -460,6 +501,11 @@ namespace FTT.Core {
             LastLevelRewindsUsed = LevelRewindsUsed;
             LastLevelIntegrityPercent = TimelineIntegrityPercent;
             LastLevelSecretsFound = LevelSecretsFound;
+            // D12 results itemisation (RESULTS-DUST-LINES-AFTER-RESET): frozen
+            // here, first in OnLevelComplete, before AdvanceToNextLevel's
+            // attempt reset zeroes the directory's loss tally.
+            LastLevelDustLost = FTT.Environment.LevelRewardDirectory.DustLostThisAttempt;
+            LastLevelDustCarriedIn = LevelDustCarriedIn;
             // Package 11 A8, ruling 2.A: the Chronal Rating is retired by V7.6.
             // Nothing computes or stores it any more; the Integrity tier is the
             // single grade the results overlay shows.
@@ -920,6 +966,12 @@ namespace FTT.Core {
             // the next one. Previously deposited dust is untouched.
             FTT.Environment.LevelRewardDirectory.ResetAttempt();
             // === end Package 11 A10 region ===
+            // The loss tally just reset belongs to no attempt any more, and the
+            // carried-in figure is re-captured by the next BeginLevelRun (a
+            // same-attempt resume carries the tally across this reset itself;
+            // see RestoreAttemptStateFromSave).
+            _dustLossAttemptID = "";
+            LevelDustCarriedIn = 0;
             _activatedCheckpoints.Clear();
             _destroyedExtractors.Clear();
             _foundSecrets.Clear();
@@ -946,6 +998,9 @@ namespace FTT.Core {
             // Package 11 A1b (V7.6 F10): only a fresh entry or a full Restart
             // Level hands the run back its one saved life.
             StoryDefyHistoryUsed = false;
+            // The cleared record has no hero to initialize; MintFreshAttempt
+            // arms a new one.
+            _freshAttemptHeroPendingID = "";
         }
 
         /// <summary>
@@ -1024,18 +1079,174 @@ namespace FTT.Core {
         /// whatever player happens to be in the tree is not this attempt's hero,
         /// and capturing it would hand the attempt a full, fresh set of resources
         /// — exactly the load-time refill F10 forbids.</para>
+        ///
+        /// <para>The same holds while a scene load is in flight (see
+        /// <see cref="TryGetAttemptHero"/>): the level run is already armed, but
+        /// the hero in the tree belongs to the scene being left.</para>
         /// </summary>
         private void CapturePlayerResources(StorySaveData save) {
             if (!IsLevelTimerRunning || !_attempt.HasAttempt) return;
-            if (GetTree()?.GetFirstNodeInGroup("StoryPlayer") is not FTT.Characters.PlayerController player
-                || !IsInstanceValid(player) || !player.IsInsideTree()) {
-                return;
-            }
+            if (!TryGetAttemptHero(out FTT.Characters.PlayerController player)) return;
             player.CaptureStoryResourceTimers(_attempt.PlayerResourceTimers);
             if (save != null) save.CurrentUltimateMeter = player.CurrentUltimateMeter;
         }
 
         // === end Package 12 W2 region (resource publisher) ==================
+
+        // === level-start-reset region: the attempt's hero and fresh entry ====
+        // F10 (docs/design-contracts/STORY_PERSISTENCE.md): "Fresh level entry:
+        // 100% HP, full difficulty rewind pool, full block charges, zero Ultimate
+        // meter, abilities ready", and a full Restart Level is "the same
+        // initialization". Before this the save's root HP and meter simply rode
+        // along: a completed level left its last durable HP/meter on the save,
+        // the next level's entry read them back, and neither Restart path zeroed
+        // the meter.
+
+        /// <summary>
+        /// Test seam standing in for <see cref="GameManager.IsLoadingScene"/>:
+        /// a case cannot run a real threaded scene change, so it declares the
+        /// loading window instead. <c>null</c> reads the real flag.
+        /// </summary>
+        internal bool? SceneTransitionInProgressOverrideForTesting { get; set; }
+
+        /// <summary>True while a scene load is in flight (the loading screen is up).</summary>
+        public bool IsSceneTransitionInProgress =>
+            SceneTransitionInProgressOverrideForTesting ?? (GameManager.Instance?.IsLoadingScene == true);
+
+        /// <summary>
+        /// The Story hero whose live resources belong to this attempt, or false.
+        /// <see cref="BeginLevelRun"/> arms the run <b>before</b> the scene
+        /// changes, and the old scene — the hub, or the previous Act III level —
+        /// stays in the tree under the loading screen for at least two seconds.
+        /// Its hero is not this attempt's hero: capturing it wrote the hub's
+        /// full-HP, zero-meter hero over a resumed attempt's durable values, and
+        /// the previous level's wounded, charged hero over the next level's
+        /// fresh entry. Nothing is captured until the scene change lands.
+        ///
+        /// <para>Skipping the hero for the whole load is only safe because no
+        /// load leaves the attempt's own hero behind with the run still live:
+        /// a level entry or Restart mints or resumes into the next scene, and
+        /// every exit stops the run before it loads (Quit to Main Menu through
+        /// <see cref="CommitOrderlyExit"/>, the hub through
+        /// <see cref="ReturnToHub"/>, Game Over through
+        /// <see cref="EnterSmothered"/>, completion through
+        /// <see cref="CompleteLevelRun"/>).</para>
+        /// </summary>
+        private bool TryGetAttemptHero(out FTT.Characters.PlayerController hero) {
+            hero = null;
+            if (IsSceneTransitionInProgress) return false;
+            if (GetTree()?.GetFirstNodeInGroup("StoryPlayer") is not FTT.Characters.PlayerController player
+                || !IsInstanceValid(player) || !player.IsInsideTree()) {
+                return false;
+            }
+            hero = player;
+            return true;
+        }
+
+        /// <summary>The attempt ID whose hero has not been initialized yet, or "".</summary>
+        private string _freshAttemptHeroPendingID = "";
+
+        /// <summary>
+        /// True between minting a fresh attempt (fresh entry or a full Restart
+        /// Level) and the level controller building that attempt's hero. A
+        /// resume, a Collapse resume-from-anchor and an Anchor Snap never set it.
+        /// </summary>
+        public bool IsFreshAttemptHeroPending =>
+            HasLiveAttempt && _freshAttemptHeroPendingID == _attempt.AttemptID;
+
+        /// <summary>
+        /// Consumes the pending fresh-hero initialization: true exactly once per
+        /// freshly minted attempt. Read by
+        /// <see cref="FTT.Environment.StoryLevelControllerBase.RestoreDurableResources"/>.
+        /// </summary>
+        public bool TryConsumeFreshAttemptHero() {
+            bool pending = IsFreshAttemptHeroPending;
+            _freshAttemptHeroPendingID = "";
+            return pending;
+        }
+
+        /// <summary>
+        /// The durable half of fresh-attempt initialization, run where the
+        /// attempt is minted: the save's root HP becomes the hero's maximum and
+        /// its Ultimate meter zero, so nothing the previous attempt (or the
+        /// previous level) left on the root can reach the new one — including a
+        /// save written before this rule, parked at the hub with a carried meter
+        /// (no schema change: the reset is derived at mint). The level controller
+        /// finishes the job on the freshly built hero, whose own maximum may
+        /// include a grid node bought since the hub's hero was built.
+        /// </summary>
+        private void ResetDurableResourcesForFreshAttempt() {
+            _freshAttemptHeroPendingID = _attempt.AttemptID;
+            StorySaveData save = GetActiveSave();
+            if (save == null) return;
+            save.CurrentHP = GetSelectedCharacterMaximumHP();
+            save.CurrentUltimateMeter = 0f;
+        }
+
+        // === Orderly exit (level-start-reset fix-up) ==========================
+        // F10 (STORY_PERSISTENCE.md): "An orderly Save/exit flushes the latest
+        // state." Quit to Main Menu never stopped the level run, so the run stayed
+        // armed through the loading screen and on into the main menu. The
+        // per-second durable snapshot then kept writing the unpenalized in-memory
+        // wallet over the 20% exit fee the pause menu had just charged, once a
+        // second, refunding it. And once the snapshot skipped the Story hero
+        // during a scene load, the one HP/meter capture an exit used to get
+        // (from under the loading screen) was gone, so the save kept the values
+        // from up to a second before the pause.
+
+        /// <summary>The main menu, where Quit to Main Menu lands.</summary>
+        public const string MainMenuScenePath = "res://scenes/menus/MainMenu.tscn";
+
+        /// <summary>
+        /// The orderly-exit chokepoint for Quit to Main Menu. Sets the wallet to
+        /// <paramref name="retainedWallet"/> (the post-fee wallet the caller
+        /// computed) in memory as well as on the save. Inside a live level run it
+        /// also captures the attempt's hero — HP, the Ultimate meter and the
+        /// resource timers, exactly as the per-second snapshot does — and the
+        /// rewind pool and the attempt record. It then commits the save
+        /// synchronously and <b>stops the run</b>, so nothing captures or drains
+        /// for this attempt after the exit. Outside a live run (the hub) only the
+        /// wallet is written, as before: the attempt registries are not live
+        /// there, and rewriting them could wipe the parked attempt.
+        /// Returns whether the commit landed (false with no save slot).
+        /// </summary>
+        public bool CommitOrderlyExit(int retainedWallet) {
+            int before = ChronalDustCollected;
+            ChronalDustCollected = Mathf.Max(0, retainedWallet);
+            // D12 review fix-up: the exit fee is a loss like the Collapse fee
+            // (LevelRewardDirectory.DustLostThisAttempt: "a Collapse or exit
+            // fee"), itemised on the results of the attempt it was charged to.
+            RecordAttemptDustLoss(before - ChronalDustCollected);
+            bool liveRun = IsLevelTimerRunning && _attempt.HasAttempt
+                && _attempt.Status != StoryAttemptStatus.Smothered;
+            bool written = false;
+            StorySaveData save = GetActiveSave();
+            if (save != null) {
+                save.LevelChronalDust = ChronalDustCollected;
+                if (liveRun) {
+                    if (TryGetAttemptHero(out FTT.Characters.PlayerController hero)) {
+                        save.CurrentHP = hero.CurrentHP;
+                        save.CurrentUltimateMeter = hero.CurrentUltimateMeter;
+                    }
+                    save.CurrentLives = ChronalRewindsRemaining;
+                    _attempt.Bump();
+                    WriteAttemptStateToSave(save);
+                }
+                int slot = GameManager.Instance?.CurrentSession.ActiveSaveSlot ?? -1;
+                written = SaveManager.Instance?.SaveStorySlot(slot) == true;
+            }
+            StopLevelRun();
+            return written;
+        }
+
+        /// <summary>
+        /// Leaves for the main menu through the same scene-request seam as every
+        /// other campaign route (<see cref="SuppressSceneLoadsForTesting"/>).
+        /// Call <see cref="CommitOrderlyExit"/> first.
+        /// </summary>
+        public void ExitToMainMenu() => RequestScene(MainMenuScenePath);
+
+        // === end level-start-reset region ====================================
 
         /// <summary>
         /// Pulls a saved attempt record back into the live manager, migrating a
@@ -1063,7 +1274,24 @@ namespace FTT.Core {
 
         /// <summary>Mid-level resume: the parked attempt comes back whole.</summary>
         public void RestoreAttemptStateFromSave(StorySaveData save) {
+            // D12 review fix-up (RESULTS-DUST-LINES-AFTER-RESET): the loss
+            // tally is in memory only, and every fee (Collapse, Anchor Snap,
+            // exit) is followed by exactly this reload before the level can
+            // complete - so the reset below used to zero it every time, and the
+            // results' losses line read 0 in every slotted run. A resume of the
+            // attempt that paid the fee (its GUID matches the tally's) keeps it;
+            // any other attempt starts from zero. A process restart loses it
+            // (PROVISIONAL-RESULTS-CARRIED-DUST).
+            string carriedLossAttemptID = _dustLossAttemptID;
+            int carriedLoss = !string.IsNullOrEmpty(carriedLossAttemptID)
+                && save?.AttemptState?.AttemptID == carriedLossAttemptID
+                    ? FTT.Environment.LevelRewardDirectory.DustLostThisAttempt
+                    : 0;
             ClearLevelAttemptState();
+            if (carriedLoss > 0) {
+                FTT.Environment.LevelRewardDirectory.RecordDustLoss(carriedLoss);
+                _dustLossAttemptID = carriedLossAttemptID;
+            }
             if (save == null) return;
             foreach (string id in save.ActivatedCheckpointIDs ?? new List<string>()) {
                 if (!string.IsNullOrWhiteSpace(id)) _activatedCheckpoints.Add(id);
@@ -1214,7 +1442,26 @@ namespace FTT.Core {
             // results overlay of a run that survives to completion after an
             // Anchor Snap. It never unclaims a collected source — lost dust
             // cannot be recovered by killing the same source again.
-            FTT.Environment.LevelRewardDirectory.RecordDustLoss(before - ChronalDustCollected);
+            RecordAttemptDustLoss(before - ChronalDustCollected);
+        }
+
+        /// <summary>The attempt the in-memory loss tally belongs to ("" when none).</summary>
+        private string _dustLossAttemptID = "";
+
+        /// <summary>
+        /// Records a Collapse, Anchor Snap or exit fee against the live attempt
+        /// for the results' losses line (F05 itemisation). The tally is keyed
+        /// by the attempt's GUID so a same-attempt resume can carry it across
+        /// <see cref="RestoreAttemptStateFromSave"/>'s reset; a fee charged to a
+        /// different attempt than the one the tally holds (another slot loaded
+        /// in the same session) starts the tally over rather than mixing the two.
+        /// </summary>
+        private void RecordAttemptDustLoss(int amount) {
+            if (amount <= 0) return;
+            string attemptID = _attempt?.AttemptID ?? "";
+            if (_dustLossAttemptID != attemptID) FTT.Environment.LevelRewardDirectory.ClearDustLoss();
+            FTT.Environment.LevelRewardDirectory.RecordDustLoss(amount);
+            _dustLossAttemptID = attemptID;
         }
 
         public static int CalculateTimelineCollapseDust(int carriedDust) =>
@@ -1271,6 +1518,9 @@ namespace FTT.Core {
             // reload before the portal resume never grants one (plan D3(a)).
             _collapseRecoveryHoldEligible = true;
             ApplyTimelineCollapseDustPenalty();
+            // D13 / STORY_PERSISTENCE :77: Collapse replaces HP, so a pending Font heal
+            // is cancelled without refunding the use (BeginAnchorSnap does the same).
+            _attempt.PendingHealing.Clear();
 
             Difficulty difficulty = GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal;
             ChronalRewindsRemaining = FTT.Environment.ChronalRewindManager.GetMaximumRewinds(difficulty);
@@ -1321,6 +1571,9 @@ namespace FTT.Core {
                 save.CurrentLevelID = GetCurrentLevelPath();
                 save.LastCheckpointID = resumeFromTimelineAnchor ? CollapsedCheckpointID : "";
                 save.CurrentHP = GetSelectedCharacterMaximumHP();
+                // F10: the resume keeps the attempt's meter; restarting from the
+                // beginning is a full Restart Level, which starts at zero.
+                if (!resumeFromTimelineAnchor) save.CurrentUltimateMeter = 0f;
                 save.CurrentLives = ChronalRewindsRemaining;
                 save.LevelChronalDust = ChronalDustCollected;
                 WriteAttemptStateToSave(save);
@@ -1425,6 +1678,18 @@ namespace FTT.Core {
         public int LastLevelTierBonusDust { get; private set; }
 
         /// <summary>
+        /// The Collapse/Snap/exit losses of the most recent completed level,
+        /// frozen in <see cref="CompleteLevelRun"/> before the completion's
+        /// attempt reset (results itemisation; D12, <c>RESULTS-DUST-LINES-AFTER-RESET</c>).
+        /// The tally survives the same attempt's resume reload (see
+        /// <see cref="RestoreAttemptStateFromSave"/>), which every fee is
+        /// followed by; a process restart in between loses it.
+        /// Session-scoped like <see cref="LastLevelCompletionSeconds"/>, and
+        /// kept unchanged when the run timer was not running.
+        /// </summary>
+        public int LastLevelDustLost { get; private set; }
+
+        /// <summary>
         /// F05: <c>bonus = floor(retainedBaseDust x tierRate)</c> at Restored
         /// >=50% 10% / Stabilized >=20% 5% / Fractured &lt;20% 0%, calculated
         /// <b>exactly once</b> on successful completion.
@@ -1442,13 +1707,11 @@ namespace FTT.Core {
         /// </summary>
         private void ApplyIntegrityTierBonus() {
             LastLevelTierBonusDust = 0;
-            FTT.Environment.LevelRewardDirectory.LastTierBonusDust = 0;
             bool levelIsTimed = ParSecondsForCurrentLevel > 0f;
             int bonus = FTT.Environment.RewardAllocator.TierBonus(
                 ChronalDustCollected, LastLevelIntegrityPercent, levelIsTimed);
             if (bonus <= 0) return;
             LastLevelTierBonusDust = bonus;
-            FTT.Environment.LevelRewardDirectory.LastTierBonusDust = bonus;
             // CollectDust rather than the wallet event: the level controllers
             // tally OnChronalDustCollected into their results total, and the
             // bonus is rendered as its own line on top of that total.
@@ -1719,6 +1982,9 @@ namespace FTT.Core {
             AnchorChargesRemaining = anchors;
             AnchorChargeMaximum = anchors;
             PublishAnchorCharges();
+            // F10 fresh entry / full Restart Level: 100% HP and zero Ultimate
+            // meter, whatever the root carried from the previous attempt.
+            ResetDurableResourcesForFreshAttempt();
         }
 
         /// <summary>
@@ -1942,6 +2208,8 @@ namespace FTT.Core {
                 save.LevelChronalDust = 0;
                 save.CurrentLives = ChronalRewindsRemaining;
                 save.CurrentHP = GetSelectedCharacterMaximumHP();
+                // F10: a full Restart Level is fresh-entry initialization.
+                save.CurrentUltimateMeter = 0f;
             });
             LoadCurrentLevel();
         }
@@ -2111,7 +2379,9 @@ namespace FTT.Core {
             _attempt.PendingHealing.UncreditedAmount = Mathf.Max(0f, healAmount);
             _attempt.PendingHealing.RemainingSeconds = Mathf.Max(0f, durationSeconds);
             _attempt.Bump();
-            CommitCriticalEvent();
+            // D13 / VERIFY-CRITICAL-COMMIT-WALLET: the claims this write persists ride
+            // with the wallet that paid them (the pair the durable snapshot writes).
+            PersistAttempt(save => save.LevelChronalDust = ChronalDustCollected);
         }
 
         /// <summary>Credits part of a pending heal. Only the uncredited remainder survives a reload.</summary>
@@ -2232,7 +2502,8 @@ namespace FTT.Core {
         internal void CaptureDurableSnapshot() {
             StorySaveData save = GetActiveSave();
             if (save == null) return;
-            if (GetTree()?.GetFirstNodeInGroup("StoryPlayer") is FTT.Characters.PlayerController player) {
+            // Never the outgoing scene's hero during a scene load (TryGetAttemptHero).
+            if (TryGetAttemptHero(out FTT.Characters.PlayerController player)) {
                 save.CurrentHP = player.CurrentHP;
                 save.CurrentUltimateMeter = player.CurrentUltimateMeter;
             }

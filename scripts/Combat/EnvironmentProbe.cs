@@ -72,10 +72,15 @@ namespace FTT.Combat {
         /// duration of this call — it is emptied again before returning, so a
         /// reused query never carries a stale exclusion). A null query allocates
         /// one for this call.
+        ///
+        /// <para><paramref name="hitFromInside"/> (2026-10-09, the relocation
+        /// rule's floor probe) also reports a shape the segment starts inside, at
+        /// distance 0; it is written on every call, so a reused query never keeps
+        /// another caller's setting.</para>
         /// </summary>
         public static float FirstHitDistance(Node2D from, PhysicsRayQueryParameters2D query,
             Vector2 origin, Vector2 destination, uint mask = CollisionLayers.Environment,
-            bool ignoreBodiesAtOrigin = false) {
+            bool ignoreBodiesAtOrigin = false, bool hitFromInside = false) {
             if (from == null || !GodotObject.IsInstanceValid(from) || !from.IsInsideTree()) return -1f;
             if (PhysicsCallbackGuard.IsInPhysicsCallback) return -1f;
             PhysicsDirectSpaceState2D space = from.GetWorld2D()?.DirectSpaceState;
@@ -84,6 +89,7 @@ namespace FTT.Combat {
             query.From = origin;
             query.To = destination;
             query.CollisionMask = mask;
+            query.HitFromInside = hitFromInside;
             // The exclusion lists are Godot arrays (disposed here, after the query
             // that copied them has run); the queries are RefCounted and are left to
             // reference counting (never Dispose a RefCounted).

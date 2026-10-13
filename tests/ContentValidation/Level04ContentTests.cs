@@ -265,6 +265,92 @@ public class Level04ContentTests {
         AssertThat(slope < 45f).IsTrue();
     }
 
+    /// <summary>
+    /// VERIFY-L04-PIT-FALL-NET (2026-10-09), in real physics frames. The pit floor
+    /// (<see cref="Level04Controller.TribunalPitFloorY"/>, y 1120) sits 40 px under
+    /// the courtyard arena's bottom edge (y 1080), and it is walkable on purpose.
+    /// The arena fall net — which returns a leashed boss whose feet have left the
+    /// world — used to fire on it: a survivor standing on the pit floor was put
+    /// back on member 1's spawn every time it walked in. (A body dropped from that
+    /// spawn rests on the east ramp at about y 1079, just above the old line, so
+    /// the drop half passed even then; the pit-floor half is the one that failed.)
+    /// Neither a body dropped from member 1's spawn into the open pit nor the
+    /// survivor standing on the pit floor is ever returned.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task TheSquadSurvivorStandsInTheOpenPitWithoutTheFallNetReturningIt() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        using var fixture = new ParisFixture();
+        // Real frames: go slotless so no snapshot or checkpoint write reaches a slot file.
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
+        Level04Controller level = fixture.Level;
+        BossEncounterController encounter = level.TribunalEncounter;
+        AssertObject(encounter).IsNotNull();
+        AssertThat(encounter.Members.Count).IsEqual(2);
+        BossController survivor = encounter.Members[1];
+        Vector2 spawn = survivor.GlobalPosition;
+        AssertThat(spawn.X > Level04Controller.TribunalPitLeftX && spawn.X < Level04Controller.TribunalPitRightX)
+            .OverrideFailureMessage($"Member 1 spawns at {spawn}, no longer over the pit.")
+            .IsTrue();
+        AssertThat(survivor.HasArenaLeash).IsTrue();
+        AssertFloat(Level04Controller.TribunalPitFloorY).IsGreater(survivor.ArenaBounds.End.Y);
+
+        encounter.Members[0].TakeDamage(99999);
+        AssertThat(level.TribunalPitOpen).IsTrue();
+        // The hit woke the squad into its reveal: play out the boss-intro beat
+        // (it pauses gameplay) and the name-card hold, as the player would.
+        DialogueManager dialogue = DialogueManager.Instance;
+        for (int advance = 0; advance < 200 && dialogue != null && dialogue.IsSequenceActive; advance++) {
+            dialogue.AdvanceLine();
+        }
+        AssertThat(tree.Paused).IsFalse();
+        for (int frame = 0; frame < 240 && (encounter.IsIntroBeatRunning || survivor.IsStoryRewindFrozen); frame++) {
+            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        }
+        AssertThat(survivor.IsStoryRewindFrozen).IsFalse();
+        // Hold the survivor still: this pins the net, not the AI's chase.
+        survivor.IsEngaged = false;
+        await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+
+        // Member 1 drops from its spawn into the open pit.
+        survivor.GlobalPosition = spawn;
+        survivor.Velocity = Vector2.Zero;
+        float deepest = survivor.GlobalPosition.Y;
+        for (int frame = 0; frame < 120; frame++) {
+            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            deepest = Mathf.Max(deepest, survivor.GlobalPosition.Y);
+        }
+        AssertThat(survivor.ArenaFallRecoveries)
+            .OverrideFailureMessage($"Dropped from its spawn {spawn} into the pit (deepest y {deepest:0.0}), " +
+                $"the survivor was returned {survivor.ArenaFallRecoveries} time(s) by the arena fall net.")
+            .IsEqual(0);
+        AssertFloat(survivor.GlobalPosition.Y).IsGreater(Level04Controller.BossArenaBounds.End.Y - 40f);
+
+        // The survivor on the pit's flat floor, for three seconds.
+        float floorX = (Level04Controller.TribunalPitLeftX + Level04Controller.TribunalPitRightX) * 0.5f;
+        float floorY = Level04Controller.TribunalPitFloorY;
+        survivor.GlobalPosition = new Vector2(floorX, floorY - 1f);
+        survivor.Velocity = Vector2.Zero;
+        float lowest = survivor.GlobalPosition.Y;
+        float minX = floorX;
+        float maxX = floorX;
+        for (int frame = 0; frame < 180; frame++) {
+            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            lowest = Mathf.Max(lowest, survivor.GlobalPosition.Y);
+            minX = Mathf.Min(minX, survivor.GlobalPosition.X);
+            maxX = Mathf.Max(maxX, survivor.GlobalPosition.X);
+        }
+        AssertThat(survivor.ArenaFallRecoveries)
+            .OverrideFailureMessage($"Standing on the pit floor at x {floorX}, y {floorY}, the survivor was returned " +
+                $"{survivor.ArenaFallRecoveries} time(s) by the arena fall net (last to {survivor.LastArenaFallAnchor}).")
+            .IsEqual(0);
+        AssertFloat(lowest).IsEqualApprox(floorY, 2f);
+        AssertFloat(survivor.GlobalPosition.Y).IsEqualApprox(floorY, 2f);
+        AssertThat(minX >= floorX - 2f && maxX <= floorX + 2f)
+            .OverrideFailureMessage($"The survivor drifted over x {minX:0.0}..{maxX:0.0} on the pit floor.")
+            .IsTrue();
+    }
+
     // === Era mechanic 1: searchlights drain the Ultimate meter ===
 
     [TestCase]

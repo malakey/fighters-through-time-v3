@@ -110,7 +110,7 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "shakespeare_yoricks_lament",
                     HitboxID = "sonic_wave",
                     AttackClass = AttackClass.Special,
-                    Damage = (Data?.BaseDamage ?? 14f) * Owner.StorySpecialDamageMultiplier,
+                    Damage = Owner.StoryAbilityDamage(Data?.BaseDamage ?? 14f, Data?.AbilityID),
                     // Story-only KnockbackForce minors strengthen the wave's shove.
                     Knockback = (Data?.KnockbackForce ?? new Vector2(3, -2)) * Owner.StoryKnockbackMultiplier,
                     HitstunDuration = Data?.HitstunDuration ?? 0.2f,
@@ -129,7 +129,7 @@ namespace FTT.Characters.Abilities {
                 // R12: the throwing cast's serial (0 = the current execution).
                 hit.SourceExecutionSerial = executionSerial;
                 float dealt = hurtbox.TakeHit(hit);
-                Credit(in hit, dealt, hurtbox.GlobalPosition);
+                Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
 
                 if (macbethsCurse) ApplyMacbethVenom(hurtbox);
             }
@@ -224,6 +224,9 @@ namespace FTT.Characters.Abilities {
             // nothing, and cannot bypass a Suppression or a Time Freeze.
             if (Owner != null && Owner.HasStoryPerk(TempestApexJumpPerkKey)) {
                 Owner.RemainingJumps = Owner.Data?.MaxJumpCount ?? 2;
+                // A refill ends the airtime the apex hang reads, as the sim's
+                // jump refills do; the next jump starts a fresh one.
+                Owner.JumpedThisAirtime = false;
             }
         }
 
@@ -424,7 +427,7 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "shakespeare_prosperos_flight",
                     HitboxID = "gust_strike",
                     AttackClass = AttackClass.Special,
-                    Damage = MidsummerGustDamage * Owner.StorySpecialDamageMultiplier,
+                    Damage = Owner.StoryAbilityDamage(MidsummerGustDamage, Data?.AbilityID),
                     Knockback = new Vector2(2, -1),
                     HitstunDuration = 0.1f,
                     HitOrigin = Owner.GlobalPosition,
@@ -436,7 +439,7 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeDuration = 0.05f
                 });
                 float dealt = hurtbox.TakeHit(hit);
-                Credit(in hit, dealt, hurtbox.GlobalPosition);
+                Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
             }
         }
     }
@@ -535,7 +538,7 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "shakespeare_all_the_worlds_a_stage",
                     HitboxID = $"phantom_strike_{_strikesDone}",
                     AttackClass = AttackClass.Ultimate,
-                    Damage = (Data?.CinematicHitDamage(_strikesDone) ?? 14f) * Owner.StorySpecialDamageMultiplier,
+                    Damage = Owner.StoryAbilityDamage(Data?.CinematicHitDamage(_strikesDone) ?? 14f, Data?.AbilityID),
                     Knockback = finale
                         ? (Data?.KnockbackForce ?? new Vector2(5f, -3f)) * Owner.StoryKnockbackMultiplier
                         : Vector2.Zero,
@@ -552,7 +555,7 @@ namespace FTT.Characters.Abilities {
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
                 // ZERO damage-dealt meter, regardless of HP removed, target count or
                 // when it lands. Direct-hit Rally reclaim is retained (D03g).
-                Credit(in hit, dealt, hurtbox.GlobalPosition);
+                Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
             }
         }
     }

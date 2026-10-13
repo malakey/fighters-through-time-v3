@@ -216,6 +216,38 @@ namespace FTT.Environment {
             BuildRoom3();
             BuildRoom4BossArena();
             BuildExtractors();
+            BuildRestorationFont();
+        }
+
+        // === D13: the Restoration Font (2026-10-11) ===
+
+        /// <summary>
+        /// D13 (PROVISIONAL-FONT-PLACEMENT): Florence's Restoration Font ID. Florence
+        /// does not extend <see cref="StoryLevelControllerBase"/>, so it places its
+        /// own font, exactly as it places its own Extractors.
+        /// </summary>
+        public const string RestorationFontID = "level_01.restoration_font";
+
+        /// <summary>
+        /// D13: on the workshop floor (top 900), past the Middle anchor
+        /// (<c>florence_checkpoint_1</c>) and west of <c>florence_extractor_2</c>;
+        /// the antechamber before the arena is too short. It stands midway between
+        /// the second spike run (x 9500–9580) and the scene-authored
+        /// <c>SteamGeyser</c> column (x 9860–9980, y 670–890), so the hero's body
+        /// anywhere in the 90 px channel circle keeps 30 px from both (the first
+        /// placement, x 9900, stood inside the geyser).
+        /// </summary>
+        public static readonly Vector2 RestorationFontPosition = new(Room3OffsetX + 1080f, 900f);
+
+        /// <summary>The font Florence placed. Test seam.</summary>
+        public RestorationFont PlacedRestorationFont { get; private set; }
+
+        private void BuildRestorationFont() {
+            PlacedRestorationFont = RestorationFont.Create(RestorationFontID, RestorationFontPosition);
+            // Completion re-keys the use registry to the next level, so the font
+            // refuses once the level is complete.
+            PlacedRestorationFont.RefusesWhile = () => _levelComplete;
+            AddChild(PlacedRestorationFont);
         }
 
         /// <summary>
@@ -1068,7 +1100,9 @@ namespace FTT.Environment {
             // Package 11 A10 (F05): the six-category itemisation. Level 1 has no
             // Integrity clock, so it can never pay a tier bonus — which is
             // precisely why the all-Restored maxima are 787 / 1,094 and not
-            // 792 / 1,100.
+            // 792 / 1,100. The losses line reads the value the completion froze
+            // before its attempt reset (D12, RESULTS-DUST-LINES-AFTER-RESET), and
+            // the dust held across a reload rides the carried-in line beside it.
             results.ShowResults(
                 "florence_level_title",
                 Mathf.Max(0, _dustEarnedThisLevel - _bossDustEarned
@@ -1076,7 +1110,8 @@ namespace FTT.Environment {
                 _extractorDustEarned,
                 _bossDustEarned,
                 _optionalDustEarned,
-                FTT.Environment.LevelRewardDirectory.DustLostThisAttempt,
+                StoryManager.Instance?.LastLevelDustCarriedIn ?? 0,
+                StoryManager.Instance?.LastLevelDustLost ?? 0,
                 0,
                 StoryManager.Instance?.LastLevelCompletionSeconds ?? 0f,
                 StoryManager.Instance?.LastLevelRewindsUsed ?? 0);

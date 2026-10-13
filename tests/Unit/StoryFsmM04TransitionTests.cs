@@ -12,7 +12,8 @@ namespace FTT.Tests.Unit;
 /// Package 12 W3 — M04 (D2(a) adopted). Pins the GDD's new FSM rows on the
 /// Story <see cref="PlayerController"/> where they are expressible: Running →
 /// Special/Ultimate; Crouching → Blocking/Rolling/Airborne/Special;
-/// Attacking → Airborne/Rolling (recovery only) and → Ultimate (any point);
+/// Attacking → Airborne/Rolling (recovery only) and → Ultimate (any point
+/// once the 2026-10-08 ability lockout has run out);
 /// aerial Attacking → Idle on landing; Blocking → Rolling/Airborne. Under
 /// D2(a) the landing tech and the Echo Step wind-up stay FLAGS, not state
 /// moves — the tech pin below records that mapping (see the ledger entry
@@ -30,7 +31,7 @@ public class StoryFsmM04TransitionTests {
             AssertThat(player.CurrentState).IsEqual(CharacterState.UsingSpecial);
         });
         Run(player => {
-            player.AddInfluenceFromDamageDealt(UltimateMeter.MaxValue, collectsEcho: false);
+            player.SetUltimateMeter(UltimateMeter.MaxValue);
             HoldUntil(player, GameplayButtons.None, 1f, CharacterState.Running);
             Step(player, GameplayButtons.Ultimate, 1f);
             AssertThat(player.CurrentState).IsEqual(CharacterState.UsingUltimate);
@@ -85,13 +86,40 @@ public class StoryFsmM04TransitionTests {
     }
 
     [TestCase]
-    public void TheUltimateCancelsASwingAtAnyPoint() {
+    public void TheUltimateCancelsASwingOnceTheAbilityLockoutEnds() {
+        // Design 1051: the Ultimate cancels a swing and resets the chain. Since
+        // 2026-10-08 every swing start arms the ability lockout, so the cancel
+        // opens only once it runs out — here inside the finisher, which still
+        // has frames left to swing.
+        BasicStringProfile profile = BasicComboRules.StringProfileFor("einstein");
+        int finisherTotal = profile.GroundStartupFrames[2]
+            + BasicComboRules.GroundActiveFrames[2] + BasicComboRules.GroundRecoveryFrames[2];
+        AssertThat(finisherTotal > BasicComboRules.AbilityLockoutFrames).IsTrue();
         Run(player => {
-            player.AddInfluenceFromDamageDealt(UltimateMeter.MaxValue, collectsEcho: false);
+            player.SetUltimateMeter(UltimateMeter.MaxValue);
             Step(player, GameplayButtons.BasicAttack, 0f);
-            AssertThat(player.CurrentState).IsEqual(CharacterState.Attacking);
+            for (int frame = 0; frame < 120 && player.ComboCounter < 2; frame++) {
+                Step(player, GameplayButtons.BasicAttack, 0f);
+            }
+            AssertThat(player.ComboCounter).IsEqual(2);
+            AssertThat(player.AbilityLockoutFramesRemaining).IsEqual(BasicComboRules.AbilityLockoutFrames);
+
+            // Inside the lockout the press is refused: the finisher swings on
+            // and the meter stays full.
+            for (int frame = 1; frame < BasicComboRules.AbilityLockoutFrames; frame++) {
+                Step(player, GameplayButtons.Ultimate, 0f);
+                AssertThat(player.CurrentState)
+                    .OverrideFailureMessage($"The Ultimate cancelled the finisher {frame} frames in, inside the lockout.")
+                    .IsEqual(CharacterState.Attacking);
+                AssertThat(player.ComboCounter).IsEqual(2);
+                AssertThat(player.CurrentUltimateMeter).IsEqual(UltimateMeter.MaxValue);
+            }
+
             Step(player, GameplayButtons.Ultimate, 0f);
             AssertThat(player.CurrentState).IsEqual(CharacterState.UsingUltimate);
+            AssertThat(player.ComboCounter)
+                .OverrideFailureMessage("The cancel must reset the chain.")
+                .IsEqual(0);
         });
     }
 

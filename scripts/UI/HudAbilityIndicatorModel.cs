@@ -41,7 +41,7 @@ namespace FTT.UI {
     public sealed class HudAbilityIndicatorModel {
 
         /// <summary>Meter value at which the ultimate becomes usable (0-100).</summary>
-        public const float UltimateReadyMeter = 100f;
+        public const float UltimateReadyMeter = FTT.Combat.InfluenceMeterRules.MaxValue;
 
         private const int SlotCount = 4;
 
@@ -106,6 +106,29 @@ namespace FTT.UI {
             float duration = durationSeconds > 0f ? durationSeconds : 0f;
             _remaining[index] = duration;
             _durations[index] = duration;
+        }
+
+        /// <summary>
+        /// 2026-10-11: overwrites a cooldown slot's remaining time from the
+        /// authoritative owner (the hero's timer), the cooldown counterpart of
+        /// <see cref="SyncStatusFromAuthority"/>. A per-hit Momentum refund, a
+        /// Time Freeze pause or the Story cooldown multiplier then reach the
+        /// radial. The denominator the cast armed is kept, raised only if the
+        /// authority exceeds it (a cooldown restored on load arrives with no
+        /// start event); a value at or below zero clears the slot. The ultimate
+        /// slot is ignored, as in <see cref="StartCooldown"/>.
+        /// </summary>
+        public void SyncCooldownRemaining(AbilitySlot slot, float remainingSeconds) {
+            if (slot == AbilitySlot.Ultimate) return;
+            int index = IndexOf(slot);
+            if (index < 0 || float.IsNaN(remainingSeconds)) return;
+            if (remainingSeconds <= 0f) {
+                _remaining[index] = 0f;
+                _durations[index] = 0f;
+                return;
+            }
+            _remaining[index] = remainingSeconds;
+            if (remainingSeconds > _durations[index]) _durations[index] = remainingSeconds;
         }
 
         /// <summary>Reports the meter; also what makes the ultimate slot ready.</summary>

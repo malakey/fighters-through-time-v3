@@ -192,6 +192,14 @@ namespace FTT.Core {
         private ScenePoolCatalog _scenePoolCatalog;
         private const double MinLoadingDisplayTime = 2.0;
 
+        /// <summary>
+        /// True from <see cref="LoadScene"/> until the new scene replaces the old
+        /// one. During that window the scene being left — and any Story hero in
+        /// it — is still in the tree, so nothing may read it as the destination's
+        /// state (F10: <c>StoryManager</c>'s durable snapshot skips the hero then).
+        /// </summary>
+        public bool IsLoadingScene => _isLoading;
+
         public override void _Ready() {
             Instance = this;
             CurrentSession = new SessionData {

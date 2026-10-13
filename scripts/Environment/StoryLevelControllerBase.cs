@@ -252,6 +252,8 @@ namespace FTT.Environment {
             // F05 secret cache and the N01
             // sealing anchor, both at per-level authored positions.
             BuildAuthoredSecretCache();
+            // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font.
+            BuildAuthoredRestorationFont();
             BuildGenericSealingAnchor();
             SpawnPlayer();
             SpawnInitialEnemies();
@@ -585,16 +587,33 @@ namespace FTT.Environment {
         /// record.</para>
         ///
         /// <para>A fresh entry restores nothing: its attempt was just minted, and
-        /// a stale record from another attempt must never deplete a new hero.</para>
+        /// a stale record from another attempt must never deplete a new hero.
+        /// F10 makes that literal (level-start-reset): the hero of a freshly
+        /// minted attempt — first entry into a level, the Act III gauntlet's next
+        /// level, a full Restart Level, Restart from Game Over — keeps the
+        /// factory kit (100% HP, full block charges, abilities ready) and starts
+        /// at <b>zero</b> Ultimate meter. The save's root HP and meter are
+        /// rewritten to match and the attempt's resource record is discarded,
+        /// so nothing the previous level left behind can be read back.</para>
         /// </summary>
         /// <returns>The meter value the hero should be restored with.</returns>
         public static float RestoreDurableResources(PlayerController player, StorySaveData save, bool resumedMidLevel) {
-            float settledMeter = save?.CurrentUltimateMeter ?? 0f;
             StoryManager story = StoryManager.Instance;
+            // Consumed on every path, so a resume can never leave it armed.
+            bool freshAttempt = story != null && story.TryConsumeFreshAttemptHero() && !resumedMidLevel;
+            if (freshAttempt) {
+                story.CurrentAttempt.PlayerResourceTimers = new StoryPlayerResourceTimers();
+                if (save != null) {
+                    if (player != null) save.CurrentHP = player.MaximumHP;
+                    save.CurrentUltimateMeter = 0f;
+                }
+                return 0f;
+            }
+            float settledMeter = save?.CurrentUltimateMeter ?? 0f;
             if (story == null || save == null) return settledMeter;
             StoryPlayerResourceTimers timers = story.CurrentAttempt.PlayerResourceTimers;
             if (timers.RallyUncreditedMeter > 0f) {
-                settledMeter = Mathf.Min(FTT.Combat.UltimateMeter.MaxValue, settledMeter + timers.RallyUncreditedMeter);
+                settledMeter = Mathf.Min(FTT.Combat.InfluenceMeterRules.MaxValue, settledMeter + timers.RallyUncreditedMeter);
                 timers.RallyUncreditedMeter = 0f;
                 save.CurrentUltimateMeter = settledMeter;
                 story.CurrentAttempt.Bump();
@@ -1504,6 +1523,47 @@ namespace FTT.Environment {
 
         // === end Package 12 W8 region (secret cache) =========================
 
+        // === D13 region: the Restoration Font (2026-10-11) ===================
+        //
+        // Design :2131-2132 ("Story Mode Healing Loop"): one font per level,
+        // between the mid checkpoint and the boss. User direction D13 placed the
+        // designed font in every campaign level; the positions, the use rules
+        // and the exceptions are agent-chosen (ledger PROVISIONAL-FONT-PLACEMENT,
+        // pinned by SecretCachePlacementTests).
+
+        /// <summary>The font's stable ID, <c>{DialoguePrefix}.restoration_font</c>.</summary>
+        public virtual string RestorationFontID => $"{DialoguePrefix}.restoration_font";
+
+        /// <summary>
+        /// Where this level stands its Restoration Font (the floor top under it),
+        /// or null for none. Authored per level: at least 110 px past the Middle
+        /// checkpoint and 120 px short of the boss arena, preferring the stretch
+        /// after the PreBoss anchor (PROVISIONAL-FONT-PLACEMENT).
+        /// </summary>
+        protected virtual Vector2? RestorationFontPosition => null;
+
+        /// <summary>Read-only view of <see cref="RestorationFontPosition"/> for content validation.</summary>
+        public Vector2? AuthoredRestorationFontPosition => RestorationFontPosition;
+
+        /// <summary>The font this level placed, or null. Test seam.</summary>
+        public RestorationFont PlacedRestorationFont { get; private set; }
+
+        /// <summary>
+        /// D13: completion re-keys the font registry to the next level, so a placed
+        /// font refuses once the level is complete (PROVISIONAL-FONT-PLACEMENT).
+        /// There is deliberately no boss-fight refusal.
+        /// </summary>
+        protected virtual bool RestorationFontRefused => LevelComplete;
+
+        private void BuildAuthoredRestorationFont() {
+            if (RestorationFontPosition is not Vector2 position) return;
+            PlacedRestorationFont = RestorationFont.Create(RestorationFontID, position);
+            PlacedRestorationFont.RefusesWhile = () => RestorationFontRefused;
+            AddChild(PlacedRestorationFont);
+        }
+
+        // === end D13 region (Restoration Font) ===============================
+
         // === Package 12 W8 region: the N01 sealing anchor (GAP-05, D12(a)) ====
         //
         // N01: boss defeat does not complete the level. It commits AwaitingSeal
@@ -1984,15 +2044,24 @@ namespace FTT.Environment {
             // Package 11 A10 (F05): the six-category itemisation — required
             // enemies, boss, Extractors, secret/other optional, losses, and the
             // Integrity tier bonus. Every value is what the wallet was actually
-            // paid; the panel never computes an economy number of its own.
+            // paid; the panel never computes an economy number of its own. The
+            // losses and the tier bonus are read from StoryManager, where the
+            // completion froze them before AdvanceToNextLevel's attempt reset
+            // zeroed the reward directory (D12, RESULTS-DUST-LINES-AFTER-RESET;
+            // both lines used to read 0 on every level). The category tallies
+            // are this scene load's only, so the dust the attempt already held
+            // when the level was reloaded (a Collapse resume, an Anchor Snap, a
+            // quit-and-resume) rides its own carried-in line, frozen beside the
+            // losses, and the total equals what the level banked.
             results.ShowResults(
                 LevelTitleKey,
                 MobDustEarned,
                 ExtractorDustEarned,
                 BossDustEarned,
                 OptionalDustEarned,
-                LevelRewardDirectory.DustLostThisAttempt,
-                LevelRewardDirectory.LastTierBonusDust,
+                StoryManager.Instance?.LastLevelDustCarriedIn ?? 0,
+                StoryManager.Instance?.LastLevelDustLost ?? 0,
+                StoryManager.Instance?.LastLevelTierBonusDust ?? 0,
                 StoryManager.Instance?.LastLevelCompletionSeconds ?? 0f,
                 StoryManager.Instance?.LastLevelRewindsUsed ?? 0);
             return results;

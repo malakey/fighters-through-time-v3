@@ -192,10 +192,24 @@ public class ShakespeareKitTests {
 
         uninterrupted.Advance(Frame(0, 0, GameplayButtons.Special2), Frame(0, 0, GameplayButtons.None));
         uninterrupted.Advance(Frame(1, 0, GameplayButtons.MovementAbility), Frame(1, 0, GameplayButtons.None));
-        uninterrupted.Advance(Frame(2, 0, GameplayButtons.Special1), Frame(2, 0, GameplayButtons.None));
-        for (int tick = 3; tick < 60; tick++) {
-            uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, -127, GameplayButtons.None));
+        // Yorick goes out on the first tick Shakespeare may cast it: the
+        // Tempest's ability lockout and the gust burst's kit phase refuse it
+        // until both end.
+        bool lamentCast = false;
+        for (int tick = 2; tick < 60; tick++) {
+            AssertThat(uninterrupted.TryGetFighterRuntime(0, out FighterRuntimeComponent before)).IsTrue();
+            bool press = !lamentCast
+                && before.AbilityLockoutFrames == 0
+                && !FighterUniversalMovementRules.IsCombatLocked(in before);
+            uninterrupted.Advance(
+                Frame(tick, 0, press ? GameplayButtons.Special1 : GameplayButtons.None),
+                Frame(tick, tick < 3 ? (sbyte)0 : (sbyte)-127, GameplayButtons.None));
+            AssertThat(uninterrupted.TryGetFighterRuntime(0, out FighterRuntimeComponent after)).IsTrue();
+            lamentCast |= after.SpecialOneCooldownFrames > 0;
         }
+        AssertThat(uninterrupted.TryGetFighterRuntime(0, out FighterRuntimeComponent cast)).IsTrue();
+        AssertThat(cast.SpecialTwoCooldownFrames > 0).OverrideFailureMessage("The Tempest was not cast.").IsTrue();
+        AssertThat(lamentCast).OverrideFailureMessage("Yorick's Lament was not cast before the snapshot.").IsTrue();
 
         byte[] snapshot = uninterrupted.CaptureFullState();
         restored.RestoreFullState(snapshot);

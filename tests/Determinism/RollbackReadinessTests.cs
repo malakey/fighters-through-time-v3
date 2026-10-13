@@ -80,8 +80,15 @@ public class RollbackReadinessTests {
     /// <summary>
     /// Deterministic scripted input. Not idle: the generator walks, jumps,
     /// crouches, blocks, throws basics, both specials, the movement ability, and
-    /// the ultimate, on per-player prime cycles so the two fighters desynchronize
+    /// the ultimate, on per-player cycles so the two fighters desynchronize
     /// their action phases and cover overlapping entity lifetimes.
+    ///
+    /// <para>Every swing start arms the 30-frame ability lockout, and basics
+    /// are dense here, so specials and the Ultimate are cast from ability
+    /// windows: each cycle opens with a window that stops basics and re-presses
+    /// Special 1 and Special 2 alternately every other tick (the Ultimate takes
+    /// Special 2's turn in every fourth window), so whichever the lockout and
+    /// the cooldowns allow next goes out; basics fill the rest of the cycle.</para>
     /// </summary>
     private sealed class ScriptedInputs {
         private readonly int _seed;
@@ -90,8 +97,9 @@ public class RollbackReadinessTests {
         private GameplayButtons _previousHeld;
 
         /// <param name="spamSpecials">
-        /// Presses both specials and the movement ability on their shortest legal
-        /// cadence, for the worst-case entity-load harness.
+        /// Longer ability windows that cast both specials on (close to) their
+        /// shortest legal cadence, and a faster movement-ability cadence, for the
+        /// worst-case entity-load harness.
         /// </param>
         public ScriptedInputs(int seed, int playerID, bool spamSpecials = false) {
             _seed = seed;
@@ -105,17 +113,26 @@ public class RollbackReadinessTests {
             if (noise % 11 == 0) horizontal = 0f;
             float vertical = noise % 23 == 0 ? -1f : noise % 29 == 0 ? 1f : 0f;
 
-            int specialOnePeriod = _spamSpecials ? 31 : 91;
-            int specialTwoPeriod = _spamSpecials ? 47 : 127;
+            int cyclePeriod = _spamSpecials ? 150 : 120;
+            int windowTicks = _spamSpecials ? 120 : 75;
+            // The first presses wait for a typical swing's lockout to run out.
+            int firstPress = _spamSpecials ? 10 : 20;
             int movementPeriod = _spamSpecials ? 61 : 173;
+            int shifted = tick + _playerID * 41;
+            int phase = shifted % cyclePeriod;
+            int window = shifted / cyclePeriod;
+            bool inWindow = phase < windowTicks;
             GameplayButtons held = GameplayButtons.None;
             if (noise % 13 == _playerID) held |= GameplayButtons.Jump;
-            if (noise % 7 == _playerID) held |= GameplayButtons.BasicAttack;
-            if (tick % specialOnePeriod == 5 + _playerID * 7) held |= GameplayButtons.Special1;
-            if (tick % specialTwoPeriod == 11 + _playerID * 9) held |= GameplayButtons.Special2;
+            if (!inWindow && noise % 7 == _playerID) held |= GameplayButtons.BasicAttack;
+            if (inWindow && phase >= firstPress && ((phase - firstPress) & 1) == 0) {
+                bool slotOneTurn = ((phase - firstPress) & 2) == 0;
+                held |= slotOneTurn ? GameplayButtons.Special1
+                    : window % 4 == 3 ? GameplayButtons.Ultimate
+                    : GameplayButtons.Special2;
+            }
             if (tick % movementPeriod == 21 + _playerID * 13) held |= GameplayButtons.MovementAbility;
             if (noise % 17 == 3) held |= GameplayButtons.Block;
-            if (tick % 401 == 90 + _playerID * 31) held |= GameplayButtons.Ultimate;
             if (vertical < 0f) held |= GameplayButtons.Down;
 
             PlayerInputFrame frame = PlayerInputFrame.Create((uint)tick, horizontal, vertical, held, _previousHeld);
@@ -151,12 +168,35 @@ public class RollbackReadinessTests {
             stageGeometry: geometry);
 
     /// <summary>
-    /// Runs one delayed-input rollback match between two peers and asserts the
-    /// two independent simulations agree on every confirmed tick. Returns the
-    /// peak observed hazard/orb counts so callers can prove the run crossed the
-    /// spawn cycles it claims to cross.
+    /// Counts accepted specials per player from cooldown rises — a cast arms
+    /// its slot's cooldown, a refused press (lockout, cooldown, hitstun) does not.
+    /// Observe once per advanced tick of a plain, never-rolled-back simulation.
     /// </summary>
-    private static (int PeakHazards, int PeakOrbs) RunConvergence(
+    private sealed class AcceptedSpecialCounter {
+        private readonly int[] _lastOne = new int[2];
+        private readonly int[] _lastTwo = new int[2];
+        public readonly int[] PerPlayer = new int[2];
+
+        public void Observe(FighterSimulation simulation) {
+            for (int player = 0; player < 2; player++) {
+                if (!simulation.TryGetFighterRuntime(player, out FighterRuntimeComponent runtime)) continue;
+                if (runtime.SpecialOneCooldownFrames > _lastOne[player]) PerPlayer[player]++;
+                if (runtime.SpecialTwoCooldownFrames > _lastTwo[player]) PerPlayer[player]++;
+                _lastOne[player] = runtime.SpecialOneCooldownFrames;
+                _lastTwo[player] = runtime.SpecialTwoCooldownFrames;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Runs one delayed-input rollback match between two peers and asserts the
+    /// two independent simulations agree on every confirmed tick, and with a
+    /// plain local replay of both scripts. Returns the peak observed hazard/orb
+    /// counts so callers can prove the run crossed the spawn cycles it claims to
+    /// cross, and the replay's accepted specials per player so they can prove
+    /// the scripts really cast specials through the ability lockout.
+    /// </summary>
+    private static (int PeakHazards, int PeakOrbs, int[] AcceptedSpecials) RunConvergence(
         FighterCharacterID playerOne,
         FighterCharacterID playerTwo,
         FighterStageGeometry geometry,
@@ -219,7 +259,22 @@ public class RollbackReadinessTests {
                 .OverrideFailureMessage($"{context}: recorded hashes differ at tick {tick}.")
                 .IsEqual(secondSimulation.GetRecordedHash(tick));
         }
-        return (peakHazards, peakOrbs);
+
+        // The session applies inputs on their own tick, so the converged state is
+        // exactly a plain replay of both scripts — which is also where the
+        // accepted specials can be counted without rollback noise.
+        FighterSimulation replay = BuildSimulation(playerOne, playerTwo, geometry, seed, stocks);
+        var replayOne = new ScriptedInputs(seed, 0);
+        var replayTwo = new ScriptedInputs(seed, 1);
+        var specials = new AcceptedSpecialCounter();
+        for (int tick = 0; tick < ticks; tick++) {
+            replay.Advance(replayOne.Next(tick), replayTwo.Next(tick));
+            specials.Observe(replay);
+        }
+        AssertThat(replay.CurrentHash)
+            .OverrideFailureMessage($"{context}: the converged peers differ from a plain replay of both scripts.")
+            .IsEqual(firstSimulation.CurrentHash);
+        return (peakHazards, peakOrbs, specials.PerPlayer);
     }
 
     // ------------------------------------------------- convergence sweep (A4.1)
@@ -244,7 +299,7 @@ public class RollbackReadinessTests {
         AssertThat(geometries.Count).IsGreater(1);
         int seed = 6100 + playerOne * 13 + playerTwo;
         foreach (FighterStageGeometry geometry in geometries) {
-            RunConvergence(
+            (_, _, int[] specials) = RunConvergence(
                 (FighterCharacterID)playerOne,
                 (FighterCharacterID)playerTwo,
                 geometry,
@@ -252,6 +307,14 @@ public class RollbackReadinessTests {
                 ticks: 420,
                 latencyPolls: 3,
                 stocks: 9);
+            // Both kits really cast specials inside the rolled-back window.
+            for (int player = 0; player < 2; player++) {
+                AssertThat(specials[player])
+                    .OverrideFailureMessage(
+                        $"{playerOne} vs {playerTwo} on '{geometry.StageID}': player {player} "
+                        + $"cast only {specials[player]} specials in 420 ticks.")
+                    .IsGreaterEqual(2);
+            }
             seed++;
         }
     }
@@ -267,7 +330,7 @@ public class RollbackReadinessTests {
         IReadOnlyList<FighterStageGeometry> geometries = AuthoredGeometries();
         int seed = 6900;
         foreach (FighterStageGeometry geometry in geometries) {
-            (int peakHazards, int peakOrbs) = RunConvergence(
+            (int peakHazards, int peakOrbs, int[] specials) = RunConvergence(
                 FighterCharacterID.Tesla,
                 FighterCharacterID.Leonardo,
                 geometry,
@@ -275,6 +338,10 @@ public class RollbackReadinessTests {
                 ticks: 2200,
                 latencyPolls: 3,
                 stocks: 30);
+            AssertThat(specials[0] + specials[1])
+                .OverrideFailureMessage(
+                    $"'{geometry.StageID}': only {specials[0] + specials[1]} specials cast inside 2200 ticks.")
+                .IsGreaterEqual(30);
             AssertThat(peakHazards)
                 .OverrideFailureMessage($"'{geometry.StageID}': no stage hazard spawned inside 2200 ticks.")
                 .IsGreater(0);
@@ -576,6 +643,17 @@ public class RollbackReadinessTests {
         AssertThat(peakEntities)
             .OverrideFailureMessage("The worst-case window carried no simulated entities.")
             .IsGreater(0);
+        // Worst case means the kits' specials are really live under the ability
+        // lockout: Mozart's two projectile specials, Tesla's coils and his zone.
+        AssertThat(peakProjectiles)
+            .OverrideFailureMessage($"'{geometry.StageID}': no special projectile was live in the measured window.")
+            .IsGreater(0);
+        AssertThat(peakConstructs)
+            .OverrideFailureMessage($"'{geometry.StageID}': no construct was live in the measured window.")
+            .IsGreater(0);
+        AssertThat(peakZones)
+            .OverrideFailureMessage($"'{geometry.StageID}': no special zone was live in the measured window.")
+            .IsGreater(0);
 
         samples.Sort();
         double median = samples[samples.Count / 2];
@@ -632,9 +710,20 @@ public class RollbackReadinessTests {
             scriptTwo[tick] = playerTwoInputs.Next(tick);
         }
 
+        var specials = new AcceptedSpecialCounter();
         for (int tick = 0; tick < SnapshotTick; tick++) {
             source.Advance(scriptOne[tick], scriptTwo[tick]);
+            specials.Observe(source);
         }
+        // "Worst case" only if the spam scripts really cast through the ability
+        // lockout, leaving special entities live in the captured state.
+        AssertThat(specials.PerPlayer[0])
+            .OverrideFailureMessage($"Tesla cast only {specials.PerPlayer[0]} specials before the snapshot.")
+            .IsGreaterEqual(20);
+        AssertThat(specials.PerPlayer[1])
+            .OverrideFailureMessage($"Mozart cast only {specials.PerPlayer[1]} specials before the snapshot.")
+            .IsGreaterEqual(20);
+        AssertThat(source.PersistentObjectCount + source.ProjectileCount + source.ZoneCount).IsGreater(0);
 
         byte[] snapshot = source.CaptureFullState();
         restored.RestoreFullState(snapshot);

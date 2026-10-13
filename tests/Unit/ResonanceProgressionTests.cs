@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using FTT.Core;
 using FTT.Environment;
 using GdUnit4;
@@ -139,23 +140,71 @@ public class ResonanceProgressionTests {
         AssertThat(ResonanceProgression.TryUnlock(grid, save, "test_root_a"))
             .IsEqual(ResonanceUnlockResult.Unlocked);
 
-        // No probe installed (A5's Legacy Unlock Schedule absent): gates are
-        // transparent, which is the pre-V7.6 behaviour.
-        AssertThat(ResonanceProgression.EvaluateUnlock(grid, save, "test_gated"))
-            .IsEqual(ResonanceUnlockResult.Unlocked);
-
+        // With no test override the gate reads the evaluated save's own Legacy
+        // Unlock Schedule state (it was transparent until 2026-10-11, because
+        // nothing ever installed the probe). A fresh save has not restored
+        // Special 2, and the gate reports its OWN reason, ahead of dust and
+        // prerequisites, so the UI can draw a dormant star rather than a price tag.
+        Func<string, string, bool> previous = ResonanceProgression.AbilityUnlockProbe;
+        ResonanceProgression.AbilityUnlockProbe = null;
         try {
-            ResonanceProgression.AbilityUnlockProbe = (_, slot) => slot != ResonanceAbilitySlots.Special2;
-            // The gate reports its OWN reason, ahead of dust and prerequisites,
-            // so the UI can draw a dormant star rather than a price tag.
             AssertThat(ResonanceProgression.EvaluateUnlock(grid, save, "test_gated"))
                 .IsEqual(ResonanceUnlockResult.AbilityLocked);
             AssertThat(ResonanceProgression.TryUnlock(grid, save, "test_gated"))
                 .IsEqual(ResonanceUnlockResult.AbilityLocked);
             AssertThat(save.GridProgress["einstein"].Contains("test_gated")).IsFalse();
             AssertThat(save.DepositedChronalDust["einstein"]).IsEqual(450);
+
+            // The persisted unlock key restores the slot, and the node sells.
+            save.UnlockedLegacyAbilities["einstein"] = new List<string> { LegacyUnlockSchedule.SpecialTwoKey };
+            AssertThat(ResonanceProgression.EvaluateUnlock(grid, save, "test_gated"))
+                .IsEqual(ResonanceUnlockResult.Unlocked);
+
+            // The test override still wins over the save.
+            ResonanceProgression.AbilityUnlockProbe = (_, slot) => slot != ResonanceAbilitySlots.Special2;
+            AssertThat(ResonanceProgression.EvaluateUnlock(grid, save, "test_gated"))
+                .IsEqual(ResonanceUnlockResult.AbilityLocked);
         } finally {
-            ResonanceProgression.AbilityUnlockProbe = null;
+            ResonanceProgression.AbilityUnlockProbe = previous;
+        }
+    }
+
+    /// <summary>
+    /// The dormant gate on a real grid, against the Legacy Unlock Schedule:
+    /// Joan's Minor Piercing Cooldown is gated on Special 2, which Level 3's
+    /// completion restores. Before it the node is a dormant star that cannot be
+    /// bought, whatever the dust and prerequisites; the completed-level history
+    /// alone restores it (the backstop for a payload written before the schedule
+    /// had persisted keys), and the purchase then goes through.
+    /// </summary>
+    [TestCase]
+    public void ARealGatedNodeStaysDormantUntilTheSavesScheduleRestoresItsSlot() {
+        Func<string, string, bool> previous = ResonanceProgression.AbilityUnlockProbe;
+        ResonanceProgression.AbilityUnlockProbe = null;
+        try {
+            ResonanceGridData joan = LoadGrid("joan");
+            StorySaveData save = BuildSave(1000, "joan");
+            save.GridProgress["joan"] = new List<string> {
+                "joan_zeal", "joan_vigor", "joan_wings_refresh", "joan_smite_damage"
+            };
+            save.CompletedLevels.AddRange(new[] { "level_00_tutorial", "level_01_florence", "level_02_orleans" });
+
+            AssertThat(ResonanceProgression.EvaluateUnlock(joan, save, "joan_piercing_cooldown"))
+                .OverrideFailureMessage("Special 2 is still dormant after Level 2.")
+                .IsEqual(ResonanceUnlockResult.AbilityLocked);
+            AssertThat(ResonanceProgression.TryUnlock(joan, save, "joan_piercing_cooldown"))
+                .IsEqual(ResonanceUnlockResult.AbilityLocked);
+            AssertThat(save.DepositedChronalDust["joan"]).IsEqual(1000);
+            // An ungated node still sells.
+            AssertThat(ResonanceProgression.EvaluateUnlock(joan, save, "joan_martyrs_resolve"))
+                .IsEqual(ResonanceUnlockResult.Unlocked);
+
+            save.CompletedLevels.Add("level_03_chicago");
+            AssertThat(ResonanceProgression.TryUnlock(joan, save, "joan_piercing_cooldown"))
+                .IsEqual(ResonanceUnlockResult.Unlocked);
+            AssertThat(save.DepositedChronalDust["joan"]).IsEqual(925);
+        } finally {
+            ResonanceProgression.AbilityUnlockProbe = previous;
         }
     }
 
@@ -210,6 +259,97 @@ public class ResonanceProgressionTests {
         AssertThat(profile.MaxHPBonus).IsEqual(15);
         AssertThat(profile.MoveSpeedMultiplier).IsEqual(1.02f);
         AssertThat(profile.BasicDamageMultiplier).IsEqual(1f);
+    }
+
+    /// <summary>
+    /// A scoped CooldownReduction is a REDUCTION, resolved like the
+    /// character-wide lane: max(0.05, 1 - sum). It used to resolve to 1 + sum,
+    /// which BaseSpecial multiplies into the cooldown, so Joan's Piercing,
+    /// Mozart's Wave and Lincoln's Splitting minors each made their Special's
+    /// cooldown 10% LONGER. The additive scoped lanes are untouched.
+    /// </summary>
+    [TestCase]
+    public void AScopedCooldownReductionResolvesToAMultiplierBelowOne() {
+        var grid = new ResonanceGridData {
+            GridID = "test_cooldown_grid",
+            CharacterID = "einstein",
+            Nodes = new[] {
+                ScopedNode("cd_a", ResonanceStatKeys.CooldownReduction, "einstein_relativity_rift", 0.1f),
+                ScopedNode("cd_b", ResonanceStatKeys.CooldownReduction, "einstein_relativity_rift", 0.25f),
+                ScopedNode("cd_huge", ResonanceStatKeys.CooldownReduction, "einstein_mass_energy_conversion", 3f),
+                ScopedNode("range", ResonanceStatKeys.AbilityRange, "relativity_rift", 0.1f)
+            }
+        };
+        StorySaveData save = BuildSave(0);
+        save.GridProgress["einstein"] = new List<string> { "cd_a", "cd_b", "cd_huge", "range" };
+        StoryStatProfile profile = ResonanceProgression.Resolve(grid, save);
+
+        AssertFloat(profile.GetScoped(ResonanceStatKeys.CooldownReduction, "einstein_relativity_rift"))
+            .IsEqualApprox(0.65f, 0.0001f);
+        AssertFloat(profile.GetScoped(ResonanceStatKeys.CooldownReduction, "einstein_mass_energy_conversion"))
+            .OverrideFailureMessage("A scoped cooldown floors at 5%, like the character-wide lane.")
+            .IsEqualApprox(ResonanceProgression.MinimumCooldownMultiplier, 0.0001f);
+        AssertFloat(profile.GetScoped(ResonanceStatKeys.AbilityRange, "relativity_rift"))
+            .OverrideFailureMessage("An additive scoped lane still resolves to 1 + sum.")
+            .IsEqualApprox(1.1f, 0.0001f);
+        AssertThat(profile.CooldownMultiplier)
+            .OverrideFailureMessage("A scoped reduction never leaks into the character-wide lane.")
+            .IsEqual(1f);
+        AssertThat(profile.GetScoped(ResonanceStatKeys.CooldownReduction, "relativity_rift")).IsEqual(1f);
+
+        // The three authored scoped cooldown minors: -10% each, on their own Special only.
+        string[][] authored = {
+            new[] { "joan", "joan_piercing_cooldown", "joan_divine_piercing" },
+            new[] { "mozart", "mozart_wave_cooldown", "mozart_fortissimo_wave" },
+            new[] { "lincoln", "lincoln_splitting_cooldown", "lincoln_splitting_strike" }
+        };
+        foreach (string[] row in authored) {
+            StorySaveData owned = BuildSave(0, row[0]);
+            owned.GridProgress[row[0]] = new List<string> { row[1] };
+            StoryStatProfile resolved = ResonanceProgression.Resolve(LoadGrid(row[0]), owned);
+            AssertFloat(resolved.GetScoped(ResonanceStatKeys.CooldownReduction, row[2]))
+                .OverrideFailureMessage($"{row[1]} must shorten {row[2]}'s cooldown by 10%.")
+                .IsEqualApprox(0.9f, 0.0001f);
+            AssertThat(resolved.CooldownMultiplier).IsEqual(1f);
+        }
+    }
+
+    /// <summary>
+    /// The scoped cooldown through the cast: each authored minor shortens its
+    /// own Special 2 to 90% of the authored cooldown and leaves Special 1 alone.
+    /// </summary>
+    [TestCase]
+    public void AScopedCooldownMinorShortensItsOwnCastAndNoOther() {
+        string[][] authored = {
+            new[] { "joan", "joan_piercing_cooldown" },
+            new[] { "mozart", "mozart_wave_cooldown" },
+            new[] { "lincoln", "lincoln_splitting_cooldown" }
+        };
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        foreach (string[] row in authored) {
+            StorySaveData owned = BuildSave(0, row[0]);
+            owned.GridProgress[row[0]] = new List<string> { row[1] };
+            StoryStatProfile resolved = ResonanceProgression.Resolve(LoadGrid(row[0]), owned);
+
+            FTT.Characters.PlayerController hero =
+                FTT.Characters.CharacterFactory.CreateCharacter(row[0], 0, applyStoryProgression: false);
+            tree.Root.AddChild(hero);
+            try {
+                hero.StoryScopedStats = new ScopedStoryStats(resolved.ScopedMultipliers);
+                var special2 = hero.GetNode<FTT.Combat.BaseSpecial>("Special2");
+                var special1 = hero.GetNode<FTT.Combat.BaseSpecial>("Special1");
+                AssertThat(special2.TryExecute()).IsTrue();
+                AssertFloat(hero.SpecialTwoCooldownTimer)
+                    .OverrideFailureMessage($"{row[1]}: Special 2 must arm 90% of its authored cooldown.")
+                    .IsEqualApprox(special2.Data.CooldownDuration * 0.9f, 0.0001f);
+                AssertThat(special1.TryExecute()).IsTrue();
+                AssertFloat(hero.SpecialOneCooldownTimer)
+                    .OverrideFailureMessage($"{row[1]}: Special 1 keeps its authored cooldown.")
+                    .IsEqualApprox(special1.Data.CooldownDuration, 0.0001f);
+            } finally {
+                hero.Free();
+            }
+        }
     }
 
     [TestCase]
@@ -696,6 +836,17 @@ public class ResonanceProgressionTests {
         }
         return best;
     }
+
+    private static ResonanceNodeData ScopedNode(string nodeID, string statKey, string scope, float value) => new() {
+        NodeID = nodeID,
+        Tier = 1,
+        UnlockCost = 50,
+        PrerequisiteNodeIDs = System.Array.Empty<string>(),
+        StatModifierKey = statKey,
+        AbilityScope = scope,
+        StatModifierValue = value,
+        StatModifierIsPercent = true
+    };
 
     private static StorySaveData BuildSave(int dust, string characterID = "einstein") => new() {
         SelectedCharacterID = characterID,

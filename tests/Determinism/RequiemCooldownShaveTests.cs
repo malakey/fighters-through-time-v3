@@ -23,15 +23,19 @@ public class RequiemCooldownShaveTests {
     public void AHittingExecutionShavesTwoSecondsOffFortissimoExactlyOnce() {
         var simulation = NewMatch(spawnDistance: 5);
         // Fortissimo first (its 6-unit wall stops short of the opponent 10
-        // units away), then the chord.
+        // units away), then the chord once Fortissimo's 30-frame ability
+        // lockout has run out (tick 30).
         simulation.Advance(Frame(0, 0, GameplayButtons.Special2), Frame(0, 0, GameplayButtons.None));
-        simulation.Advance(Frame(1, 0, GameplayButtons.Special1), Frame(1, 0, GameplayButtons.None));
+        int chordTick = IdleUntilAbilityReady(simulation, 1);
+        simulation.Advance(Frame(chordTick, 0, GameplayButtons.Special1), Frame(chordTick, 0, GameplayButtons.None));
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent start)).IsTrue();
+        AssertThat(start.SpecialOneCooldownFrames > 0).OverrideFailureMessage("The chord was not cast.").IsTrue();
         int previous = start.SpecialTwoCooldownFrames;
+        // 720 frames, minus the ticks spent waiting: the shave still has room.
         AssertThat(previous > 600).IsTrue();
 
         int shaves = 0;
-        for (int tick = 2; tick <= 90; tick++) {
+        for (int tick = chordTick + 1; tick <= chordTick + 89; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
             int drop = previous - runtime.SpecialTwoCooldownFrames;
@@ -52,15 +56,19 @@ public class RequiemCooldownShaveTests {
     public void AChordThatHitsNothingBurstsAtTheWallAndShavesNothing() {
         var simulation = NewMatch(spawnDistance: 5);
         simulation.Advance(Frame(0, 0, GameplayButtons.Special2), Frame(0, 0, GameplayButtons.None));
-        // Turn away from the opponent: the chord flies to the left wall.
-        simulation.Advance(Frame(1, -127, GameplayButtons.None), Frame(1, 0, GameplayButtons.None));
-        simulation.Advance(Frame(2, 0, GameplayButtons.Special1), Frame(2, 0, GameplayButtons.None));
+        // Wait out Fortissimo's ability lockout, then turn away from the
+        // opponent: the chord flies to the left wall.
+        int turnTick = IdleUntilAbilityReady(simulation, 1);
+        simulation.Advance(Frame(turnTick, -127, GameplayButtons.None), Frame(turnTick, 0, GameplayButtons.None));
+        int chordTick = turnTick + 1;
+        simulation.Advance(Frame(chordTick, 0, GameplayButtons.Special1), Frame(chordTick, 0, GameplayButtons.None));
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent start)).IsTrue();
+        AssertThat(start.SpecialOneCooldownFrames > 0).OverrideFailureMessage("The chord was not cast.").IsTrue();
         int previous = start.SpecialTwoCooldownFrames;
 
         bool burstAtWall = false;
         var zones = new List<FighterZoneComponent>();
-        for (int tick = 3; tick <= 60; tick++) {
+        for (int tick = chordTick + 1; tick <= chordTick + 58; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
             AssertThat(previous - runtime.SpecialTwoCooldownFrames <= 1).IsTrue();
@@ -96,6 +104,19 @@ public class RequiemCooldownShaveTests {
         seed: 95,
         spawnDistance: spawnDistance,
         rules: FighterMatchRules.Disabled);
+
+    /// <summary>Idles both players until Mozart's ability lockout has run out; returns the next tick.</summary>
+    private static int IdleUntilAbilityReady(FighterSimulation simulation, int startTick) {
+        int tick = startTick;
+        for (int limit = startTick + 60; tick < limit; tick++) {
+            AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
+            if (runtime.AbilityLockoutFrames == 0) break;
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        }
+        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent ready)).IsTrue();
+        AssertThat(ready.AbilityLockoutFrames).IsEqual(0);
+        return tick;
+    }
 
     private static PlayerInputFrame Frame(int tick, sbyte moveX, GameplayButtons pressed) => new() {
         Tick = (uint)tick,

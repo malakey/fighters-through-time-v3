@@ -139,6 +139,57 @@ public class TutorialCalibrationContentTests {
             .IsEqual(0);
     }
 
+    /// <summary>
+    /// Part 3's double-jump gate asks every hero for the second jump: the gated
+    /// step stands above the best single jump on the roster and under the worst
+    /// double jump, each by a 5% margin, integrated through the controller's own
+    /// arc (<see cref="StoryAirPhysics"/>). Since the 2026-10-08 apex hang lifted
+    /// Lincoln's single jump to ~133 px the old 130 px step asked nobody for it.
+    /// The first step stays inside every hero's reach.
+    /// </summary>
+    [TestCase]
+    public void TheDoubleJumpGateNeedsTheSecondJumpFromEveryHero() {
+        const float margin = 0.05f;
+        float firstTop = FTT.Environment.Level00Controller.DoubleJumpFirstStepY
+            - FTT.Environment.Level00Controller.TutorialPlatformThickness / 2f;
+        float gatedTop = FTT.Environment.Level00Controller.DoubleJumpGatedStepY
+            - FTT.Environment.Level00Controller.TutorialPlatformThickness / 2f;
+        float firstStep = FTT.Environment.Level00Controller.TutorialFloorTopY - firstTop;
+        float gatedStep = firstTop - gatedTop;
+
+        float bestSingle = 0f, worstDouble = float.MaxValue;
+        string bestSingleID = "", worstDoubleID = "";
+        foreach (string id in CharacterRoster.IDs) {
+            var data = AuthoredResources.Load<FTT.Characters.CharacterData>($"res://resources/Characters/{id}_data.tres");
+            AssertThat(data.MaxJumpCount)
+                .OverrideFailureMessage($"'{id}' has no double jump, so the gate cannot ask it for one.")
+                .IsGreaterEqual(2);
+            float launch = StoryAirPhysics.JumpLaunchSpeed(data.MaxJumpForce);
+            float single = StoryAirPhysics.SingleJumpRise(launch, data.Weight);
+            float twice = StoryAirPhysics.DoubleJumpRise(launch, data.Weight);
+            if (single > bestSingle) {
+                bestSingle = single;
+                bestSingleID = id;
+            }
+            if (twice < worstDouble) {
+                worstDouble = twice;
+                worstDoubleID = id;
+            }
+        }
+
+        AssertThat(gatedStep > bestSingle * (1f + margin))
+            .OverrideFailureMessage(
+                $"The gated step is {gatedStep} px; '{bestSingleID}' clears {bestSingle:0.0} px on one jump.")
+            .IsTrue();
+        AssertThat(gatedStep < worstDouble * (1f - margin))
+            .OverrideFailureMessage(
+                $"The gated step is {gatedStep} px; '{worstDoubleID}' reaches only {worstDouble:0.0} px on two jumps.")
+            .IsTrue();
+        AssertThat(firstStep < worstDouble * (1f - margin))
+            .OverrideFailureMessage($"The first step ({firstStep} px) is out of '{worstDoubleID}''s reach.")
+            .IsTrue();
+    }
+
     private static HashSet<string> EnglishCsvKeys() {
         var keys = new HashSet<string>(StringComparer.Ordinal);
         foreach (string line in File.ReadAllLines("localization/en.csv")) {

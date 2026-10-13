@@ -440,7 +440,9 @@ namespace FTT.FighterSim {
             FP64.One,
             // Movement feel batch 2026-08-10 §2.1/§2.2: synthetic default kit
             // moves at the roster's post-retune mid speed (8 → 7) and jumps to
-            // the post-retune envelope (13 → 11.5; apex ≈2.11, double ≈4.21).
+            // the post-retune envelope (13 → 11.5). Under the 2026-10-08 air
+            // model (apex hang, heavier fall) that is an apex of ≈2.15 on the
+            // 25th tick, a double jump of ≈4.29, and 48 ticks of airtime.
             FP64.FromInt(7),
             FP64.FromDouble(11.5),
             FP64.FromInt(3),
@@ -490,7 +492,19 @@ namespace FTT.FighterSim {
     [KlothoComponent(305, MaxCount = 2)]
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
     public partial struct FighterRuntimeComponent : IComponent {
-        public int BasicCooldownFrames;
+        /// <summary>
+        /// The ability lockout (special global cooldown, user direction
+        /// 2026-10-08): frames before the Ultimate may be accepted again, and
+        /// Special 1 / Special 2 too unless the current swing has landed (D1,
+        /// 2026-10-11 — then <see cref="SpecialLockoutFrames"/> gates them).
+        /// Armed to <c>BasicComboRules.AbilityLockoutFrames</c> by
+        /// a swing start, a special cast or an Ultimate acceptance through
+        /// <see cref="FighterAbilityLockoutRules"/>; ticked in TickCounters (so it
+        /// pauses in hitstop) and zeroed by the Sudden Death reset. This slot was
+        /// the unread legacy <c>BasicCooldownFrames</c> busy mirror, reused so the
+        /// component stays exactly 128 bytes.
+        /// </summary>
+        public int AbilityLockoutFrames;
         public int SpecialOneCooldownFrames;
         public int SpecialTwoCooldownFrames;
         public int MovementCooldownFrames;
@@ -514,7 +528,21 @@ namespace FTT.FighterSim {
         public int ReleasedButtons;
         public int SpeedBuffFrames;
         public int JumpBuffFrames;
-        public int AegisHits;
+        /// <summary>
+        /// 2026-10-11 (D1, ledger USER-HIT-CONFIRM-CANCEL /
+        /// PROVISIONAL-HIT-CONFIRM-RULES, PROVISIONAL-FREEZE-SPECIAL-BUFFER): the
+        /// hit-confirm half of the ability lockout, packed into one int because
+        /// this component is full. The slot was <c>AegisHits</c>, an unread
+        /// presentation mirror since D02e moved Temporal Aegis to
+        /// <c>FighterDefenseComponent.AegisActive</c> (Package 11 A1b) — reused
+        /// exactly as <see cref="AbilityLockoutFrames"/> reused
+        /// <c>BasicCooldownFrames</c> on 2026-10-08. Bits 0-15
+        /// <see cref="SpecialLockoutFrames"/>, bit 16 <see cref="SwingLanded"/>,
+        /// bit 17 <see cref="FreezeBufferArmed"/>, bits 18-19
+        /// <see cref="FreezeBufferedSpecials"/>. Read and write through those
+        /// properties only.
+        /// </summary>
+        private int _hitConfirmPacked;
         public int UsesStocks;
         public int KnockoutsSuffered;
         public int UniversalMovementState;
@@ -555,6 +583,37 @@ namespace FTT.FighterSim {
         // through FP64.FromInt(n) / FP64.FromInt(1000) identically every frame.
         private int _controlStatusIntensityMilli;
         private int _damageStatusIntensityMilli;
+
+        /// <summary>
+        /// D1: frames left on the Special-sourced lockout S (0..30), armed with
+        /// <see cref="AbilityLockoutFrames"/> by every Special 1 / 2 or Ultimate
+        /// acceptance and ticked beside it.
+        /// </summary>
+        public int SpecialLockoutFrames {
+            readonly get => _hitConfirmPacked & 0xFFFF;
+            set => _hitConfirmPacked = (_hitConfirmPacked & unchecked((int)0xFFFF0000)) | (value & 0xFFFF);
+        }
+        /// <summary>D1: 1 once the swing that last armed the lockout has landed (D1a).</summary>
+        public int SwingLanded {
+            readonly get => (_hitConfirmPacked >> 16) & 1;
+            set => _hitConfirmPacked = (_hitConfirmPacked & ~(1 << 16)) | ((value & 1) << 16);
+        }
+        /// <summary>
+        /// The freeze-only Special buffer (2026-10-11): 1 while the fighter's
+        /// current hitstop is the attacker freeze of its own landed basic swing.
+        /// </summary>
+        public int FreezeBufferArmed {
+            readonly get => (_hitConfirmPacked >> 17) & 1;
+            set => _hitConfirmPacked = (_hitConfirmPacked & ~(1 << 17)) | ((value & 1) << 17);
+        }
+        /// <summary>
+        /// The Special presses held through that freeze, re-presented on the
+        /// fighter's thaw tick: bit 0 Special 1, bit 1 Special 2.
+        /// </summary>
+        public int FreezeBufferedSpecials {
+            readonly get => (_hitConfirmPacked >> 18) & 3;
+            set => _hitConfirmPacked = (_hitConfirmPacked & ~(3 << 18)) | ((value & 3) << 18);
+        }
 
         /// <summary>Control-slot status type (TimeDilation / StaticCharge / Root).</summary>
         public int StatusType {
@@ -678,9 +737,10 @@ namespace FTT.FighterSim {
         public int DefyHistoryUsed;
         /// <summary>1 while the match is in Overtime (final minute of a timed match).</summary>
         public int OvertimeActive;
-        // --- Resonance Momentum (V7.1) ---
-        public int MomentumRefundsSlotOne;
-        public int MomentumRefundsSlotTwo;
+        // --- Per-hit Momentum (V7.1; D2 2026-10-11: FRAMES refunded this
+        // cooldown cycle, 0..120, no longer a refund count) ---
+        public int MomentumRefundedFramesSlotOne;
+        public int MomentumRefundedFramesSlotTwo;
         // --- Echo Step (V7.1) ---
         public int EchoStepCooldownFrames;
         public int EchoStepWindupFrames;

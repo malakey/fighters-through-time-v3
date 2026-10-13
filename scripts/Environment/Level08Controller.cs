@@ -94,6 +94,11 @@ namespace FTT.Environment {
         // the high dune spire in the siege line (Platform 3950/430, top 422), climbed
         // from the ledge at 3500 — a dead-end lookout above the dampening dunes.
         protected override Vector2? SecretCachePosition => new(3950f, 327f);
+
+        // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, after the PreBoss
+        // anchor (8420) on the chamber floor, 240 px short of the arena (8900).
+        protected override Vector2? RestorationFontPosition => new(8660f, TombFloorY);
+
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         /// <summary>The authored Cleopatra scene; see design-godot.md 3368-3374.</summary>

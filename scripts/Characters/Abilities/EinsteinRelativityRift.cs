@@ -37,7 +37,12 @@ namespace FTT.Characters.Abilities {
         /// <summary>The wall probe runs this far above the feet so a floor lip never stops the throw.</summary>
         private const float WallProbeHeight = 30f;
         private const float GroundProbeDepth = 400f;
-        private const float CollapseLaunchHitstun = 0.5f;
+        /// <summary>
+        /// E01: the hitstun of the collapse's 0-damage launch, in frames (0.5 s).
+        /// Named for D4's first-Special allowance model
+        /// (<c>StoryFirstSpecialTaxTests</c>); the value is unchanged.
+        /// </summary>
+        public const int CollapseLaunchHitstunFrames = 30;
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
@@ -72,6 +77,14 @@ namespace FTT.Characters.Abilities {
         private readonly System.Collections.Generic.List<CharacterBody2D> _collapseTargets = new();
         private readonly System.Collections.Generic.List<Hurtbox> _collapseHurtboxes = new();
         private int _collapseFramesRemaining;
+        /// <summary>
+        /// D4 (2026-10-11): the <c>AttackID</c> of the E=mc2 execution whose burst
+        /// collapsed the rift, carried on the collapse's launch so it rides that
+        /// execution's first-Special slot (design E01: "a 0-damage, Special-class
+        /// hit of the same E=mc2 execution"). Null = the rift's own ID. Set by
+        /// <see cref="TryCollapse"/>, cleared once the caught targets launch.
+        /// </summary>
+        private string _collapseSourceAttackID;
 
         /// <summary>The deployed rift's effective radius after Story minors. Test seam.</summary>
         public float ActiveRiftRadiusPixels => _riftRadius;
@@ -128,6 +141,7 @@ namespace FTT.Characters.Abilities {
             _riftCenter = ResolvePlacement(_riftRadius);
             _riftLifetime = Data?.Lifetime > 0f ? Data.Lifetime : 3f;
             _collapseFramesRemaining = 0;
+            _collapseSourceAttackID = null;
             _riftZone = SpawnPlaceholderZone(
                 _riftCenter,
                 Data?.BaseDamage ?? 1.5f,
@@ -197,10 +211,16 @@ namespace FTT.Characters.Abilities {
         /// E01 trigger, called by E=mc²'s burst. True when the burst point lies
         /// inside this rift while it is open: the rift ends at once (ticks and the
         /// speed buff with it) and the caught opponents begin their 6-frame pull.
+        /// <paramref name="sourceAttackID"/> is the collapsing E=mc² execution's
+        /// ability ID: the collapse's launch carries it as its <c>AttackID</c>, so
+        /// a mob's stun chain counts the collapse as part of that E=mc² Special
+        /// (D4). Nothing else reads the collapse's <c>AttackID</c>: it is a
+        /// 0-damage tick, so S2, meter, Rally and the landed-hit report never see it.
         /// </summary>
-        public bool TryCollapse(Vector2 burstPoint) {
+        public bool TryCollapse(Vector2 burstPoint, string sourceAttackID = null) {
             if (!RiftActive || _collapseFramesRemaining > 0) return false;
             if (burstPoint.DistanceTo(_riftCenter) > _riftRadius) return false;
+            _collapseSourceAttackID = sourceAttackID;
             _collapseTargets.Clear();
             _collapseHurtboxes.Clear();
             foreach (Hurtbox hurtbox in QueryOpponentsInRift(_riftRadius)) {
@@ -233,6 +253,7 @@ namespace FTT.Characters.Abilities {
             }
             _collapseTargets.Clear();
             _collapseHurtboxes.Clear();
+            _collapseSourceAttackID = null;
         }
 
         private void LaunchCaughtTarget(Hurtbox hurtbox) {
@@ -242,12 +263,13 @@ namespace FTT.Characters.Abilities {
             if (FindBody(hurtbox) is PlayerController player && player.CurrentState == CharacterState.Blocking) return;
             HitPayload hit = Stamp(new HitPayload {
                 AttackerIndex = Owner.PlayerIndex,
-                AttackID = Data?.AbilityID ?? "einstein_relativity_rift",
+                // D4: the collapse belongs to the E=mc² execution that burst it (E01).
+                AttackID = _collapseSourceAttackID ?? Data?.AbilityID ?? "einstein_relativity_rift",
                 HitboxID = "rift_collapse",
                 AttackClass = AttackClass.Special,
                 Damage = 0f,
                 Knockback = new Vector2(0f, -KitMotionRules.RiftCollapseLaunchUnits),
-                HitstunDuration = CollapseLaunchHitstun,
+                HitstunDuration = CollapseLaunchHitstunFrames / 60f,
                 HitOrigin = _riftCenter,
                 AttackerFacingRight = Owner.IsFacingRight,
                 AppliedStatus = FTT.Core.StatusType.None,
@@ -260,7 +282,7 @@ namespace FTT.Characters.Abilities {
             // 0 damage: TakeHit returns 0 and Credit awards nothing — no meter,
             // no Rally, exactly the design's "earns nothing of its own".
             float dealt = hurtbox.TakeHit(hit);
-            Credit(in hit, dealt, hurtbox.GlobalPosition);
+            Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
             // The player damage path stops at a zero-damage hit (enemies still
             // take its knockback and stun), so a caught PlayerController — the
             // Level 13 Mirror, a sparring partner — gets the launch directly.

@@ -132,6 +132,12 @@ namespace FTT.Environment {
         // the barricade crest (Platform 3000/560, top 552) one hop past the barricade
         // extractor — a dead-end perch over the gatehouse exit, off the floor route.
         protected override Vector2? SecretCachePosition => new(3000f, 457f);
+
+        // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, just before the
+        // PreBoss anchor (8480) - the courtyard starts 160 px after it - east of cell 2's far
+        // wall.
+        protected override Vector2? RestorationFontPosition => new(8200f, GroundY);
+
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         protected override string InitialObjectiveKey => "paris_objective_breach";
@@ -384,6 +390,12 @@ namespace FTT.Environment {
         public const float TribunalPitDepth = 120f;
         /// <summary>Horizontal run of each ramp (≈40.6° — under the 45° walkable limit).</summary>
         public const float TribunalPitRampRun = 140f;
+        /// <summary>
+        /// The pit's flat floor, 40 px under the courtyard arena's bottom edge
+        /// (<see cref="BossArenaBounds"/>, the level's bottom) — which is why the
+        /// arena fall net keeps a margin (<see cref="BossController.ArenaFallNetMarginPixels"/>).
+        /// </summary>
+        public const float TribunalPitFloorY = PitFloorY + TribunalPitDepth;
 
         private BossEncounterController _tribunalEncounter;
         private StaticBody2D _tribunalPitLid;
@@ -403,7 +415,7 @@ namespace FTT.Environment {
         /// </summary>
         private void BuildTribunalPit() {
             float top = PitFloorY;
-            float bottom = PitFloorY + TribunalPitDepth;
+            float bottom = TribunalPitFloorY;
             var outline = new[] {
                 new Vector2(TribunalPitLeftX, top),
                 new Vector2(TribunalPitLeftX + TribunalPitRampRun, bottom),

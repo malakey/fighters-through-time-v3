@@ -184,6 +184,23 @@ namespace FTT.Environment {
         /// <summary>The hold's scripted swing: small, Basic-class, blockable.</summary>
         public const float GuardSwingDamage = 5f;
 
+        // === Part 3 double-jump gate geometry (2026-10-08) ===================
+
+        /// <summary>The top of the Calibration Bay floor (BuildFloor's collision starts here).</summary>
+        public const float TutorialFloorTopY = 900f;
+        /// <summary>BuildPlatform's slab thickness.</summary>
+        public const float TutorialPlatformThickness = 16f;
+        /// <summary>The double-jump gate's first step: centre (1700, 780), top 772 — a 128 px single hop.</summary>
+        public const float DoubleJumpFirstStepX = 1700f;
+        public const float DoubleJumpFirstStepY = 780f;
+        /// <summary>
+        /// The gated step: centre (1900, 540), top 532 — 240 px above the first
+        /// step's top, beyond every hero's single jump and inside every double jump.
+        /// The gate zone sits directly on it.
+        /// </summary>
+        public const float DoubleJumpGatedStepX = 1900f;
+        public const float DoubleJumpGatedStepY = 540f;
+
         private bool _holdStarted;
 
         /// <summary>
@@ -773,8 +790,10 @@ namespace FTT.Environment {
                 if (_calibration.SkipDefyLesson()) BeginRewindDemonstration();
                 return;
             }
-            // A scripted meter grant, not a landed hit — never a Rally reclaim.
-            _player.AddInfluenceFromDamageDealt(FTT.Combat.UltimateMeter.MaxValue, collectsEcho: false);
+            // A scripted meter grant, not a landed hit: a direct set to the full
+            // bar — never a Rally reclaim, and never scaled by a Story gain factor
+            // (Mozart's build rate), so the lesson always lights a full bar.
+            _player.SetUltimateMeter(FTT.Combat.InfluenceMeterRules.MaxValue);
             PublishDefySeal(DefySealState.Ready);
             _services.HUD?.SetObjective("tutorial_step_defy");
             _defyCountdownFrames = DefyBeatDelayFrames;
@@ -962,24 +981,32 @@ namespace FTT.Environment {
             _phase = TutorialPhase.Mobility;
             _services.HUD?.SetObjective("tutorial_step_double_jump");
 
-            AddCheckpoint("l00_checkpoint_mobility", new Vector2(1500, 850));
+            AddCheckpoint("l00_checkpoint_mobility", MobilityCheckpointPosition);
 
             // Double-jump gate: a marker above a platform stack only reachable
             // with a full jump chain.
             //
-            // Both hops are sized against Lincoln, the roster's floor: he clears
-            // 93.75 px on one jump and 187.5 px on two (force 10.0 × 54 px/s
-            // against 18 × (0.8 + 0.4 × 1.6) base gravity), so a 128 px step
-            // demands the second jump and still leaves ~46% headroom. The stack
+            // Both hops were sized against Lincoln, the roster's floor, when he
+            // cleared 93.75 px on one jump and 187.5 px on two (force 10.0 then),
+            // so a 128 px step demanded the second jump. Since the 2026-08-15
+            // jump compression (force 11.5) and the 2026-10-08 apex hang his
+            // integrated single jump rises about 133 px (StoryAirPhysics), and
+            // the 128/130 px steps stopped asking anyone for the second jump.
+            // The gated step is now 240 px (2026-10-08): above every hero's single
+            // jump (Cleopatra's ~214 px is the best) and under every double jump
+            // (Lincoln's ~265 px is the worst), so the gate enforces the double
+            // jump for the whole roster; TutorialCalibrationContentTests pins both
+            // bounds. The first step stays a single hop for everyone. The stack
             // used to ask for 188 px from the floor and another 240 px on top,
             // which no character has ever cleared — the five single-jump kits
             // could not even reach the lower platform, and the 2026-08-10 jump
             // retune (feel batch §2.2) would have left it unclearable for
             // everyone. See that plan's §9.
-            BuildPlatform(1700, 780, 200);
-            BuildPlatform(1900, 650, 180);
-            _doubleJumpGate = BuildGateZone("DoubleJumpGate", new Vector2(1900, 570), new Vector2(160, 140),
-                new Color(0.2f, 0.9f, 0.5f, 0.25f), "tutorial_gate_double_jump");
+            BuildPlatform(DoubleJumpFirstStepX, DoubleJumpFirstStepY, 200);
+            BuildPlatform(DoubleJumpGatedStepX, DoubleJumpGatedStepY, 180);
+            float gatedTop = DoubleJumpGatedStepY - TutorialPlatformThickness / 2f;
+            _doubleJumpGate = BuildGateZone("DoubleJumpGate", new Vector2(DoubleJumpGatedStepX, gatedTop - 70f),
+                new Vector2(160, 140), new Color(0.2f, 0.9f, 0.5f, 0.25f), "tutorial_gate_double_jump");
 
             // V7.6: the movement-ability corridor is DELETED. The Movement
             // Ability unlocks after Level 1 under the Legacy Unlock Schedule, so
@@ -1099,8 +1126,53 @@ namespace FTT.Environment {
 
         private void BeginCombatTrial() {
             _phase = TutorialPhase.CombatTrial;
-            AddCheckpoint("l00_checkpoint_trial", new Vector2(3400, 850));
+            AddCheckpoint("l00_checkpoint_trial", TrialCheckpointPosition);
+            BuildRestorationFont();
             SpawnWave1();
+        }
+
+        /// <summary>
+        /// Test seam: the Combat Trial without walking the calibration and the
+        /// mobility gates (the <c>StoryManager.SuppressSceneLoadsForTesting</c>
+        /// precedent).
+        /// </summary>
+        internal void BeginCombatTrialForTesting() => BeginCombatTrial();
+
+        // === D13: the Restoration Font (2026-10-11) ===
+
+        /// <summary>The mobility gates' checkpoint position.</summary>
+        public static readonly Vector2 MobilityCheckpointPosition = new(1500, 850);
+        /// <summary>The Combat Trial's checkpoint position (the font's anchor).</summary>
+        public static readonly Vector2 TrialCheckpointPosition = new(3400, 850);
+        /// <summary>The Calibration Bay's east wall.</summary>
+        public const float CalibrationBayEastWallX = 4780f;
+
+        /// <summary>
+        /// D13 (PROVISIONAL-FONT-PLACEMENT): the Tutorial's Restoration Font ID.
+        /// Level 0 does not extend <see cref="StoryLevelControllerBase"/>.
+        /// </summary>
+        public const string RestorationFontID = "level_00.restoration_font";
+
+        /// <summary>
+        /// D13: on the Calibration Bay floor past the trial anchor. The design's
+        /// "between the mid checkpoint and the boss" has no meaning here, and the
+        /// Part 1 home-era hold shares this space, so the font is built only when
+        /// the Combat Trial starts — never during the hold, the calibration, the
+        /// mobility gates or the Skip path (no Warden wellspring in the hero's own
+        /// era: the "two kinds of door" grammar).
+        /// </summary>
+        public static readonly Vector2 RestorationFontPosition = new(4300f, TutorialFloorTopY);
+
+        /// <summary>The font the Combat Trial placed, or null before it. Test seam.</summary>
+        public RestorationFont PlacedRestorationFont { get; private set; }
+
+        private void BuildRestorationFont() {
+            if (PlacedRestorationFont != null) return;
+            PlacedRestorationFont = RestorationFont.Create(RestorationFontID, RestorationFontPosition);
+            // Completion re-keys the use registry to the next level, so the font
+            // refuses once the tutorial is complete.
+            PlacedRestorationFont.RefusesWhile = () => _levelComplete;
+            AddChild(PlacedRestorationFont);
         }
 
         private void SpawnWave1() {
@@ -1201,7 +1273,7 @@ namespace FTT.Environment {
             bg.Color = new Color(0.03f, 0.05f, 0.12f);
             AddChild(bg);
 
-            BuildFloor(0, 900, 4800);
+            BuildFloor(0, TutorialFloorTopY, 4800);
 
             BuildPlatform(300, 700, 250);
             BuildPlatform(700, 550, 200);
@@ -1213,7 +1285,7 @@ namespace FTT.Environment {
             BuildPlatform(4000, 550, 200);
 
             BuildWall(0, 0, 1080);
-            BuildWall(4780, 0, 1080);
+            BuildWall(CalibrationBayEastWallX, 0, 1080);
 
             BuildFracturePresentation();
             BuildDecoration();
@@ -1442,13 +1514,13 @@ namespace FTT.Environment {
 
             var col = new CollisionShape2D();
             var shape = new RectangleShape2D();
-            shape.Size = new Vector2(width, 16);
+            shape.Size = new Vector2(width, TutorialPlatformThickness);
             col.Shape = shape;
             plat.AddChild(col);
 
             var visual = new ColorRect();
-            visual.Size = new Vector2(width, 16);
-            visual.Position = new Vector2(-width / 2f, -8);
+            visual.Size = new Vector2(width, TutorialPlatformThickness);
+            visual.Position = new Vector2(-width / 2f, -TutorialPlatformThickness / 2f);
             visual.Color = new Color(0.08f, 0.12f, 0.22f);
             plat.AddChild(visual);
 

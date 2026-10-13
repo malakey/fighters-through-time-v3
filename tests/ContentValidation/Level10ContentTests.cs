@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using FTT.Characters;
 using FTT.Core;
 using FTT.Enemies;
@@ -416,6 +417,129 @@ public class Level10ContentTests {
         }
     }
 
+    // === The space under the boards (VERIFY-L10-ARENA-RECESS-EXIT) ===
+
+    /// <summary>
+    /// Nothing that goes below the boards can leave sideways into the void
+    /// (2026-10-09). The arena recess used to end at its floor's edges, 100 px
+    /// under the boards with nothing beyond, and three bot runs walked or were
+    /// carried out under a board and fell out of the world.
+    ///
+    /// <para>From under every trapdoor and every board-height one-way (the room 2
+    /// stair head and the arena island), a hero-sized box is flooded through every
+    /// position it fits in below the boards' underside, moving freely in all four
+    /// directions. That over-approximates walking, rolling, jumping, air drift and
+    /// being carried by an ability. Solid level geometry blocks the box; one-way
+    /// platforms and trapdoors do not. The box is the hero's body at its smallest
+    /// (40 wide, crouched to 70 % of 64), so a gap a crouch slide could squeeze
+    /// through counts as open. The flood must never reach the bottom of the level
+    /// or its sides, and the space under the arena traps must be the authored
+    /// recess, wall to wall.</para>
+    /// </summary>
+    [TestCase]
+    public void NothingBelowTheBoardsOpensSidewaysOntoTheVoid() {
+        using var fixture = new GlobeFixture();
+        Level10Controller level = fixture.Level;
+
+        var seeds = new List<(string Label, float X)>();
+        foreach (TrapdoorPlatform door in level.AllTrapdoors) seeds.Add((door.TrapdoorID, door.Position.X));
+        foreach (Node child in level.GetChildren()) {
+            if (child is OneWayPlatform oneWay && Mathf.IsEqualApprox(oneWay.Position.Y, Level10Controller.GroundY)) {
+                seeds.Add((oneWay.Name.ToString(), oneWay.Position.X));
+            }
+        }
+        // Five trapdoors, the room 2 stair head and the arena island.
+        AssertThat(seeds.Count).IsEqual(Level10Controller.TrapdoorCentresX.Length + 2);
+
+        var flood = new UnderBoardFlood(SolidLevelRects(level), HeroWidth,
+            HeroHeight * FTT.Combat.StoryCombatRules.CrouchHurtboxScale);
+        var issues = new List<string>();
+        foreach ((string label, float x) in seeds) {
+            UnderBoardFlood.Region region = flood.From(x);
+            if (region == null) {
+                issues.Add($"no room for a body under '{label}' (x {x})");
+            } else if (region.Escape is Vector2 at) {
+                issues.Add($"from under '{label}' (x {x}) a body reaches {at}, out of the level " +
+                    $"(it spreads over x {region.MinX:0}..{region.MaxX:0} under the boards)");
+            }
+        }
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+
+        // Both arena traps open onto the one recess, and it is exactly the authored one.
+        AssertThat(level.ArenaTrapdoors.Count).IsEqual(2);
+        foreach (TrapdoorPlatform door in level.ArenaTrapdoors) {
+            UnderBoardFlood.Region region = flood.From(door.Position.X);
+            AssertFloat(region.MinX).IsEqualApprox(Level10Controller.ArenaRecessWestX, 0.01f);
+            AssertFloat(region.MaxX).IsEqualApprox(Level10Controller.ArenaRecessEastX, 0.01f);
+            AssertFloat(region.MaxY).IsEqualApprox(Level10Controller.ArenaRecessFloorY, FloodStep);
+        }
+    }
+
+    /// <summary>
+    /// The same closure in real physics frames: a Story hero set down in the arena
+    /// recess and driven east, then west, at a full run with a roll every half
+    /// second, reaches both walls and never leaves the recess or drops below its
+    /// floor. Against the open recess the hero ran off the east end under the
+    /// board and fell out of the world.
+    /// </summary>
+    [TestCase]
+    public async Task AHeroDrivenHardBothWaysInTheArenaRecessStaysInIt() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        using var fixture = new GlobeFixture();
+        // The resume has been read. This case runs real frames, so go slotless:
+        // no per-second snapshot or checkpoint write may reach a real slot file.
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
+        Level10Controller level = fixture.Level;
+        // The recess lies inside the King's arena, whose reveal starts a dialogue
+        // that pauses the tree; this case is about the walls, not the boss.
+        AssertObject(level.KingEncounter).IsNotNull();
+        level.KingEncounter.ProcessMode = Node.ProcessModeEnum.Disabled;
+        level.AudienceWatchEnabled = false;
+
+        PlayerController hero = level.Player;
+        var input = new BufferedInputSource();
+        InputManager.Instance.SetInputSource(hero.PlayerIndex, input);
+        try {
+            hero.GlobalPosition = new Vector2(9320f, Level10Controller.ArenaRecessFloorY - 1f);
+            hero.Velocity = Vector2.Zero;
+            float westmost = Level10Controller.ArenaRecessWestX + HeroWidth / 2f;
+            float eastmost = Level10Controller.ArenaRecessEastX - HeroWidth / 2f;
+            float minX = hero.GlobalPosition.X;
+            float maxX = hero.GlobalPosition.X;
+            float lowestFeet = hero.GlobalPosition.Y;
+            bool paused = false;
+            uint tick = 0;
+            foreach ((float direction, int frames) in new[] { (1f, 100), (-1f, 180) }) {
+                for (int frame = 0; frame < frames && !paused; frame++) {
+                    GameplayButtons held = frame % 30 == 10 ? GameplayButtons.Roll : GameplayButtons.None;
+                    input.SetNextFrame(PlayerInputFrame.Create(tick++, direction, 0f, held));
+                    await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+                    paused = tree.Paused;
+                    Vector2 at = hero.GlobalPosition;
+                    minX = Mathf.Min(minX, at.X);
+                    maxX = Mathf.Max(maxX, at.X);
+                    lowestFeet = Mathf.Max(lowestFeet, at.Y);
+                }
+            }
+            AssertThat(paused).OverrideFailureMessage("Something paused the tree mid-drive.").IsFalse();
+            AssertThat(maxX <= eastmost + 0.5f && minX >= westmost - 0.5f)
+                .OverrideFailureMessage(
+                    $"The hero left the recess sideways: its centre ranged over x {minX:0.0}..{maxX:0.0}, " +
+                    $"and the recess holds it within {westmost}..{eastmost}.")
+                .IsTrue();
+            AssertThat(lowestFeet <= Level10Controller.ArenaRecessFloorY + 0.5f)
+                .OverrideFailureMessage($"The hero's feet dropped to y {lowestFeet:0.0}, below the recess floor.")
+                .IsTrue();
+            // ...and it really was driven into both walls.
+            AssertThat(maxX >= eastmost - 2f && minX <= westmost + 2f)
+                .OverrideFailureMessage(
+                    $"The hero only ranged over x {minX:0.0}..{maxX:0.0}; it never reached both walls.")
+                .IsTrue();
+        } finally {
+            InputManager.Instance.ClearInputSource(hero.PlayerIndex);
+        }
+    }
+
     // === Era mechanic 2: the gallery rigging ===
 
     [TestCase]
@@ -479,6 +603,63 @@ public class Level10ContentTests {
             AssertThat(galleries.HasPoint(anchor.Position))
                 .OverrideFailureMessage($"'{anchor.AnchorID}' hangs outside the gallery room.").IsTrue();
         }
+    }
+
+    /// <summary>
+    /// The climb is the route (2026-10-08). The yard wall used to stop at y 700:
+    /// 420 px above the yard, with 72 px under the bridging span, room for the
+    /// 64 px hero to slip across its top, and the apex hang put that inside
+    /// Cleopatra's double jump. The wall now rises to the span, so no gap a hero
+    /// fits through is left between them, and the span itself stands beyond every
+    /// hero's whole jump budget from the yard (the <see cref="StoryAirPhysics"/>
+    /// integrated arc, with 10% to spare). Movement abilities are out of scope
+    /// here, as they were for the original wall.
+    /// </summary>
+    [TestCase]
+    public void TheYardWallLeavesNoGapUnderTheBridgeAndTheBridgeIsBeyondEveryJump() {
+        const float heroHeight = 64f;
+        const float jumpMargin = 1.1f;
+        using var fixture = new GlobeFixture();
+        Rect2 wall = BodyRect(fixture.Level,
+            $"Wall_{Mathf.RoundToInt(Level10Controller.YardWallX)}_{Mathf.RoundToInt(Level10Controller.YardWallTopY)}");
+        Rect2 bridge = BodyRect(fixture.Level,
+            $"Platform_{Mathf.RoundToInt(Level10Controller.GalleryBridgeX)}_{Mathf.RoundToInt(Level10Controller.GalleryBridgeY)}");
+        AssertThat(wall.Size.X > 0f && bridge.Size.X > 0f)
+            .OverrideFailureMessage("The yard wall or the bridging span is missing.").IsTrue();
+
+        // The wall stands under the span, from the yard floor up.
+        AssertThat(wall.Position.X >= bridge.Position.X && wall.End.X <= bridge.End.X)
+            .OverrideFailureMessage($"The yard wall {wall} does not stand under the span {bridge}.").IsTrue();
+        AssertThat(wall.End.Y >= Level10Controller.GroundY).IsTrue();
+        float gap = wall.Position.Y - bridge.End.Y;
+        AssertThat(gap < heroHeight)
+            .OverrideFailureMessage($"{gap} px between the span and the yard wall lets a {heroHeight} px hero across.")
+            .IsTrue();
+
+        float best = 0f;
+        string bestID = "";
+        foreach (string id in CharacterRoster.IDs) {
+            var data = AuthoredResources.Load<CharacterData>($"res://resources/Characters/{id}_data.tres");
+            float rise = StoryAirPhysics.MultiJumpRise(StoryAirPhysics.JumpLaunchSpeed(data.MaxJumpForce), data.Weight,
+                Math.Max(1, data.MaxJumpCount));
+            if (rise <= best) continue;
+            best = rise;
+            bestID = id;
+        }
+        float bridgeRise = Level10Controller.GroundY - bridge.Position.Y;
+        AssertThat(bridgeRise > best * jumpMargin)
+            .OverrideFailureMessage(
+                $"The span stands {bridgeRise} px over the yard; '{bestID}' reaches {best:0} px, so the climb can be jumped.")
+            .IsTrue();
+    }
+
+    /// <summary>The world rect of a level body's first (rectangle) collision shape; empty when missing.</summary>
+    private static Rect2 BodyRect(Node level, string bodyName) {
+        var body = level.GetNodeOrNull<StaticBody2D>(bodyName);
+        if (body == null || body.GetChildCount() == 0) return new Rect2();
+        if (body.GetChild(0) is not CollisionShape2D { Shape: RectangleShape2D rect } shape) return new Rect2();
+        Vector2 centre = body.Position + shape.Position;
+        return new Rect2(centre - rect.Size / 2f, rect.Size);
     }
 
     // === Era mechanic 3: the audience ===
@@ -685,6 +866,147 @@ public class Level10ContentTests {
     }
 
     // === Helpers ===
+
+    /// <summary>The Story hero's body (CharacterFactory: 40 x 64).</summary>
+    private const float HeroWidth = 40f;
+    private const float HeroHeight = 64f;
+
+    /// <summary>
+    /// The under-board flood's grid, in pixels. Every authored coordinate below
+    /// the boards is even, so a 2 px grid sets the box flush against every face.
+    /// </summary>
+    private const float FloodStep = 2f;
+
+    /// <summary>
+    /// Every solid rectangle of the level's static geometry in world space: the
+    /// Environment-layer static bodies (floors, platforms, walls). One-way
+    /// platforms, trapdoors and every other moving body are left out, so the
+    /// flood treats them as open.
+    /// </summary>
+    private static List<Rect2> SolidLevelRects(Node level) {
+        var rects = new List<Rect2>();
+        var stack = new Stack<Node>();
+        stack.Push(level);
+        while (stack.Count > 0) {
+            Node node = stack.Pop();
+            Godot.Collections.Array<Node> children = node.GetChildren();
+            using var lifetime = children.AsDisposable();
+            foreach (Node child in children) stack.Push(child);
+            if (node is not StaticBody2D body || body is AnimatableBody2D || body is OneWayPlatform) continue;
+            if ((body.CollisionLayer & CollisionLayers.Environment) == 0) continue;
+            foreach (Node child in children) {
+                if (child is not CollisionShape2D { Shape: RectangleShape2D rect } shape || shape.Disabled) continue;
+                Transform2D transform = shape.GlobalTransform;
+                Vector2 half = rect.Size / 2f;
+                Vector2 a = transform * new Vector2(-half.X, -half.Y);
+                Vector2 b = transform * new Vector2(half.X, half.Y);
+                rects.Add(new Rect2(new Vector2(Mathf.Min(a.X, b.X), Mathf.Min(a.Y, b.Y)),
+                    (b - a).Abs()));
+            }
+        }
+        return rects;
+    }
+
+    /// <summary>
+    /// A hero-sized box flooded on a <see cref="FloodStep"/> grid through every
+    /// position below <see cref="Level10Controller.BoardUndersideY"/> where it
+    /// overlaps no solid, stepping in all four directions. The grid runs one
+    /// column past each side of the level and below its bottom, so a box that
+    /// gets there has left the level. Each connected region is flooded once and
+    /// shared by every seed inside it.
+    /// </summary>
+    private sealed class UnderBoardFlood {
+        public sealed class Region {
+            /// <summary>The westmost left edge and eastmost right edge the box reached.</summary>
+            public float MinX = float.MaxValue;
+            public float MaxX = float.MinValue;
+            /// <summary>The lowest bottom edge the box reached inside the level.</summary>
+            public float MaxY = float.MinValue;
+            /// <summary>The centre of the nearest box position outside the level, or null.</summary>
+            public Vector2? Escape;
+        }
+
+        private const float Epsilon = 0.01f;
+        private readonly List<Rect2> _solids = new();
+        private readonly float _width;
+        private readonly float _height;
+        private readonly float _originX;
+        private readonly float _originY = Level10Controller.BoardUndersideY;
+        private readonly int _columns;
+        private readonly int _rows;
+        private readonly int[] _labels;
+        private readonly List<Region> _regions = new() { null };
+
+        public UnderBoardFlood(List<Rect2> solids, float width, float height) {
+            _width = width;
+            _height = height;
+            foreach (Rect2 solid in solids) {
+                if (solid.End.Y > _originY + Epsilon) _solids.Add(solid);
+            }
+            _originX = -width - FloodStep;
+            _columns = Mathf.CeilToInt((Level10Controller.LevelWidth + FloodStep - _originX) / FloodStep) + 1;
+            _rows = Mathf.CeilToInt((Level10Controller.LevelHeight - _originY) / FloodStep) + 1;
+            _labels = new int[_columns * _rows];
+        }
+
+        /// <summary>
+        /// The region a body that goes below the boards at <paramref name="centreX"/>
+        /// can reach, or null when no body fits right under the boards there.
+        /// </summary>
+        public Region From(float centreX) {
+            int start = Mathf.RoundToInt((centreX - _width / 2f - _originX) / FloodStep);
+            if (start < 0 || start >= _columns || !IsFree(start, 0)) return null;
+            if (_labels[start] != 0) return _regions[_labels[start]];
+
+            var region = new Region();
+            _regions.Add(region);
+            int label = _regions.Count - 1;
+            var queue = new Queue<int>();
+            _labels[start] = label;
+            queue.Enqueue(start);
+            while (queue.Count > 0) {
+                int index = queue.Dequeue();
+                int column = index % _columns;
+                int row = index / _columns;
+                Rect2 box = Box(column, row);
+                if (box.Position.X < 0f || box.End.X > Level10Controller.LevelWidth
+                    || box.End.Y > Level10Controller.LevelHeight) {
+                    region.Escape ??= box.GetCenter();
+                    continue;
+                }
+                region.MinX = Mathf.Min(region.MinX, box.Position.X);
+                region.MaxX = Mathf.Max(region.MaxX, box.End.X);
+                region.MaxY = Mathf.Max(region.MaxY, box.End.Y);
+                Visit(column - 1, row, label, queue);
+                Visit(column + 1, row, label, queue);
+                Visit(column, row - 1, label, queue);
+                Visit(column, row + 1, label, queue);
+            }
+            return region;
+        }
+
+        private void Visit(int column, int row, int label, Queue<int> queue) {
+            if (column < 0 || column >= _columns || row < 0 || row >= _rows) return;
+            int index = row * _columns + column;
+            if (_labels[index] != 0 || !IsFree(column, row)) return;
+            _labels[index] = label;
+            queue.Enqueue(index);
+        }
+
+        private Rect2 Box(int column, int row) =>
+            new(_originX + column * FloodStep, _originY + row * FloodStep, _width, _height);
+
+        private bool IsFree(int column, int row) {
+            Rect2 box = Box(column, row);
+            foreach (Rect2 solid in _solids) {
+                if (box.Position.X < solid.End.X - Epsilon && box.End.X > solid.Position.X + Epsilon
+                    && box.Position.Y < solid.End.Y - Epsilon && box.End.Y > solid.Position.Y + Epsilon) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
 
     /// <summary>Steps the idle watch one frame at a time until the galleries arm.</summary>
     private static int TickUntilArmed(Level10Controller level) {

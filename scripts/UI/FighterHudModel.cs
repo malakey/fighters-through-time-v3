@@ -35,7 +35,7 @@ namespace FTT.UI {
         /// contract and <c>FighterSimulationSystems</c> clamps to the same number;
         /// this is the display range, not a second tuning value.
         /// </summary>
-        public const float MaxInfluence = 100f;
+        public const float MaxInfluence = FTT.Combat.InfluenceMeterRules.MaxValue;
 
         /// <summary>Below this fraction the HP bar reads amber.</summary>
         public const float HpCautionFraction = 0.5f;

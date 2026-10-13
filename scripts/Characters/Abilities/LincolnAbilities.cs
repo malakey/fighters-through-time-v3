@@ -27,7 +27,11 @@ namespace FTT.Characters.Abilities {
         private const float WaveLeadPixels = 50f;
 
         private readonly StoryGroundWave _wave = new();
-        private float _waveDamage;
+        /// <summary>
+        /// The wave's authored damage (with Executive Order's bonus) for this
+        /// cast. The Story ability-damage composition is applied per contact.
+        /// </summary>
+        private float _waveBaseDamage;
         private int _waveVisualCountdown;
 
         /// <summary>The live shockwave (test seam).</summary>
@@ -55,12 +59,11 @@ namespace FTT.Characters.Abilities {
             // Package 11 A4: V7.6 re-scopes "Minor Shockwave Damage" from the
             // character-wide SpecialDamage lane onto
             // AbilityDamage(lincoln_emancipator). The wave resolves its hits
-            // through a direct TakeHit, so the lane is read here rather than in
+            // through a direct TakeHit, so each contact applies the whole Story
+            // ability-damage composition (that lane included) rather than
             // Hitbox.CreatePayload.
-            _waveDamage = (Data?.BaseDamage ?? 20f)
-                * (executiveOrder ? ExecutiveOrderDamageMultiplier : 1f)
-                * Owner.StorySpecialDamageMultiplier
-                * Owner.StoryScoped("AbilityDamage", Data?.AbilityID ?? "lincoln_emancipator");
+            _waveBaseDamage = (Data?.BaseDamage ?? 20f)
+                * (executiveOrder ? ExecutiveOrderDamageMultiplier : 1f);
             _wave.Start(
                 Owner.GetWorld2D()?.DirectSpaceState,
                 Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? WaveLeadPixels : -WaveLeadPixels, 0f),
@@ -105,7 +108,7 @@ namespace FTT.Characters.Abilities {
                 AttackID = Data?.AbilityID ?? "lincoln_emancipator",
                 HitboxID = "ground_wave",
                 AttackClass = AttackClass.Special,
-                Damage = _waveDamage,
+                Damage = Owner.StoryAbilityDamage(_waveBaseDamage, Data?.AbilityID ?? "lincoln_emancipator"),
                 Knockback = Data?.KnockbackForce ?? new Vector2(2f, -6f),
                 HitstunDuration = Data?.HitstunDuration ?? 0.2f,
                 HitOrigin = front,
@@ -117,7 +120,7 @@ namespace FTT.Characters.Abilities {
                 ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
             });
             float dealt = hurtbox.TakeHit(hit);
-            Credit(in hit, dealt, hurtbox.GlobalPosition);
+            Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
         }
 
     }
@@ -184,7 +187,10 @@ namespace FTT.Characters.Abilities {
             _overheadHitbox = GetOrCreateChildHitbox("OverheadHitbox");
             if (_overheadHitbox == null || Owner == null) return;
 
-            _overheadHitbox.Damage = (Data?.BaseDamage ?? 18f) * Owner.StorySpecialDamageMultiplier;
+            // A Hitbox delivers this strike, so it takes only the build-time half
+            // of the Story ability-damage composition; the hitbox adds the
+            // item-drop buff and the AbilityDamage lane when it lands.
+            _overheadHitbox.Damage = Owner.StoryAbilityHitboxDamage(Data?.BaseDamage ?? 18f);
             // LN03 (Package 13 W7b): the authored vector is the airborne spike;
             // a grounded target takes its horizontal half as grounded knockback
             // (no launch), and SpikeAirborneTargets drives the airborne ones
@@ -440,7 +446,7 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "lincoln_rail_charge",
                     HitboxID = "ram",
                     AttackClass = AttackClass.Special,
-                    Damage = (Data?.BaseDamage ?? 6f) * Owner.StorySpecialDamageMultiplier,
+                    Damage = Owner.StoryAbilityDamage(Data?.BaseDamage ?? 6f, Data?.AbilityID),
                     Knockback = Data?.KnockbackForce ?? new Vector2(5f, 0f),
                     HitstunDuration = Data?.HitstunDuration ?? 0.2f,
                     HitOrigin = contactCenter,
@@ -455,7 +461,7 @@ namespace FTT.Characters.Abilities {
                 // Contact stops the charge whether the ram landed or was blocked.
                 _contactStopPending = true;
                 if (dealt > 0f) {
-                    Credit(in hit, dealt, hurtbox.GlobalPosition);
+                    Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
                     if (Owner.HasStoryPerk(HomesteadBulwarkPerkKey)) {
                         Owner.ApplyStoryHyperArmor(HomesteadBulwarkArmorSeconds);
                     }
@@ -580,7 +586,7 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "lincoln_union_indestructible",
                     HitboxID = finalSmash ? "fence_shatter_smash" : $"rail_smash_{_smashesDone}",
                     AttackClass = AttackClass.Ultimate,
-                    Damage = (Data?.CinematicHitDamage(_smashesDone) ?? 8f) * Owner.StorySpecialDamageMultiplier,
+                    Damage = Owner.StoryAbilityDamage(Data?.CinematicHitDamage(_smashesDone) ?? 8f, Data?.AbilityID),
                     Knockback = finalSmash ? Data?.KnockbackForce ?? new Vector2(12f, -8f) : Vector2.Zero,
                     HitstunDuration = Data?.HitstunDuration ?? 0.5f,
                     HitOrigin = _penCenter,
@@ -595,7 +601,7 @@ namespace FTT.Characters.Abilities {
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
                 // ZERO damage-dealt meter, regardless of HP removed, target count or
                 // when it lands. Direct-hit Rally reclaim is retained (D03g).
-                Credit(in hit, dealt, hurtbox.GlobalPosition);
+                Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
             }
         }
 

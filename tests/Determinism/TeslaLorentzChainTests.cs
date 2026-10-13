@@ -17,13 +17,17 @@ namespace FTT.Tests.Determinism;
 /// each fires its own 8-damage direct Special-class arc. Static Charge alone,
 /// another Tesla's mark, or no coil never chains. The pulse here is authored as
 /// three ticks (5-frame interval over 0.25 s), which is what makes "once per
-/// pulse" observable.
+/// pulse" observable. Each special waits out the previous one's ability
+/// lockout; a coil's first own arc is 120 frames after its deploy, after every
+/// window read here.
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
 public class TeslaLorentzChainTests {
     private const int PulseTicks = 3;
     private const int PulseDamage = 12;
+    /// <summary>A coil deploy arms the ability lockout; the next special is legal this many ticks later.</summary>
+    private const int LockoutTicks = BasicComboRules.AbilityLockoutFrames;
 
     [TestCase]
     public void AMarkedTargetChainsOncePerPulseAndTheMarkIsConsumed() {
@@ -67,24 +71,28 @@ public class TeslaLorentzChainTests {
             tesla, FighterLoadout.Default(FighterCharacterID.Joan),
             seed: 1403, spawnDistance: 1, rules: FighterMatchRules.Disabled);
 
-        for (int tick = 0; tick < 40; tick++) {
-            if (tick == 5) {
+        // The pulse goes out the tick the coil's ability lockout ends.
+        const int pulseTick = LockoutTicks;
+        const int lateFrom = pulseTick + 1;
+        const int lateTo = pulseTick + 6;
+        for (int tick = 0; tick < pulseTick + 34; tick++) {
+            if (tick == pulseTick - 1) {
                 // Seeded between ticks, before every snapshot the correction
                 // below can roll back to.
                 authoritative.SeedFighterConductiveForTest(1, 0, BasicComboRules.ConductiveMarkBaselineFrames);
                 predicted.SeedFighterConductiveForTest(1, 0, BasicComboRules.ConductiveMarkBaselineFrames);
             }
             PlayerInputFrame one = tick == 0 ? Frame(tick, GameplayButtons.Special1)
-                : tick == 6 ? Frame(tick, GameplayButtons.Special2)
+                : tick == pulseTick ? Frame(tick, GameplayButtons.Special2)
                 : Frame(tick, GameplayButtons.None);
-            // The remote's real input (drift right) arrives late for ticks 7-12,
-            // straddling all three pulse ticks and the chain.
-            PlayerInputFrame two = tick >= 7 && tick <= 12 ? Frame(tick, GameplayButtons.None, 127) : Frame(tick, GameplayButtons.None);
+            // The remote's real input (drift right) arrives late for the six
+            // ticks after the pulse, straddling all three pulse ticks and the chain.
+            PlayerInputFrame two = tick >= lateFrom && tick <= lateTo ? Frame(tick, GameplayButtons.None, 127) : Frame(tick, GameplayButtons.None);
             authoritative.Advance(one, two);
-            if (tick >= 7 && tick <= 12) predicted.AdvanceWithPredictedPlayerTwo(one);
+            if (tick >= lateFrom && tick <= lateTo) predicted.AdvanceWithPredictedPlayerTwo(one);
             else predicted.Advance(one, two);
         }
-        for (int tick = 7; tick <= 12; tick++) {
+        for (int tick = lateFrom; tick <= lateTo; tick++) {
             AssertThat(predicted.CorrectPlayerTwoInput(tick, Frame(tick, GameplayButtons.None, 127))).IsTrue();
         }
 
@@ -107,16 +115,21 @@ public class TeslaLorentzChainTests {
             FighterLoadoutFactory.FromCharacterData(ChainTesla()),
             FighterLoadout.Default(FighterCharacterID.Joan),
             seed: 1404, spawnDistance: 1, rules: FighterMatchRules.Disabled);
+        // Coil, coil, pulse — each one ability lockout after the last.
+        const int secondCoilTick = LockoutTicks;
+        const int pulseTick = 2 * LockoutTicks;
         simulation.Advance(Frame(0, GameplayButtons.Special1), Frame(0, GameplayButtons.None));
-        simulation.Advance(Frame(1, GameplayButtons.None), Frame(1, GameplayButtons.None));
-        simulation.Advance(Frame(2, GameplayButtons.Special1), Frame(2, GameplayButtons.None));
-        for (int tick = 3; tick < 5; tick++) {
+        for (int tick = 1; tick < secondCoilTick; tick++) {
+            simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
+        }
+        simulation.Advance(Frame(secondCoilTick, GameplayButtons.Special1), Frame(secondCoilTick, GameplayButtons.None));
+        for (int tick = secondCoilTick + 1; tick < pulseTick; tick++) {
             simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
         }
         AssertThat(simulation.PersistentObjectCount).IsEqual(2);
         simulation.SeedFighterConductiveForTest(1, 0, BasicComboRules.ConductiveMarkBaselineFrames);
-        simulation.Advance(Frame(5, GameplayButtons.Special2), Frame(5, GameplayButtons.None));
-        for (int tick = 6; tick < 30; tick++) {
+        simulation.Advance(Frame(pulseTick, GameplayButtons.Special2), Frame(pulseTick, GameplayButtons.None));
+        for (int tick = pulseTick + 1; tick < pulseTick + 25; tick++) {
             simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
@@ -167,16 +180,20 @@ public class TeslaLorentzChainTests {
             FighterLoadoutFactory.FromCharacterData(ChainTesla()),
             FighterLoadout.Default(FighterCharacterID.Joan),
             seed: 1401, spawnDistance: 1, rules: FighterMatchRules.Disabled);
+        // The pulse goes out the tick the coil's ability lockout ends.
+        const int pulseTick = LockoutTicks;
         simulation.Advance(Frame(0, GameplayButtons.Special1), Frame(0, GameplayButtons.None));
-        for (int tick = 1; tick < 5; tick++) {
+        for (int tick = 1; tick < pulseTick; tick++) {
             simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
         }
         AssertThat(simulation.PersistentObjectCount).IsEqual(1);
         if (markSource >= 0) {
             simulation.SeedFighterConductiveForTest(1, markSource, BasicComboRules.ConductiveMarkBaselineFrames);
         }
-        simulation.Advance(Frame(5, GameplayButtons.Special2), Frame(5, GameplayButtons.None));
-        for (int tick = 6; tick < 30; tick++) {
+        simulation.Advance(Frame(pulseTick, GameplayButtons.Special2), Frame(pulseTick, GameplayButtons.None));
+        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent pulsed)).IsTrue();
+        AssertThat(pulsed.SpecialTwoCooldownFrames > 0).OverrideFailureMessage("The pulse was not cast.").IsTrue();
+        for (int tick = pulseTick + 1; tick < pulseTick + 25; tick++) {
             simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
         }
         return simulation;

@@ -293,7 +293,8 @@ namespace FTT.FighterSim {
             while (filter.Next(out EntityRef entity)) {
                 ref FighterStateComponent fighter = ref _simulation.Frame.Get<FighterStateComponent>(entity);
                 if (fighter.PlayerID != playerID) continue;
-                int clamped = influence < 0 ? 0 : influence > 100 ? 100 : influence;
+                int cap = FighterMeterRules.CapPoints;
+                int clamped = influence < 0 ? 0 : influence > cap ? cap : influence;
                 fighter.Influence = FP64.FromInt(clamped);
                 return true;
             }
@@ -311,6 +312,43 @@ namespace FTT.FighterSim {
                 ref readonly FighterStateComponent fighter = ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
                 if (fighter.PlayerID != playerID) continue;
                 _simulation.Frame.Get<FighterDefenseComponent>(entity).AegisActive = 1;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 2026-10-11 test seam (D1a, ledger PROVISIONAL-HIT-CONFIRM-RULES (10)):
+        /// grants a fighter invulnerability frames directly, so the hit-confirm
+        /// suite can prove a swing refused by invulnerability neither confirms
+        /// nor refunds. Writes deterministic state (it moves the hash).
+        /// </summary>
+        internal bool SeedFighterInvulnerabilityForTest(int playerID, int frames) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref FighterStateComponent fighter = ref _simulation.Frame.Get<FighterStateComponent>(entity);
+                if (fighter.PlayerID != playerID) continue;
+                fighter.InvulnerabilityFrames = frames;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 2026-10-11 test seam (D2, ledger PROVISIONAL-HIT-CONFIRM-RULES (10)):
+        /// sets both Special cooldowns directly, so the per-hit Momentum suites
+        /// can run a string against cooling slots without casting toward the
+        /// target first. It arms no cooldown cycle (the Momentum counters are
+        /// untouched). Writes deterministic state (it moves the hash).
+        /// </summary>
+        internal bool SeedFighterSpecialCooldownsForTest(int playerID, int specialOneFrames, int specialTwoFrames) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterRuntimeComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref readonly FighterStateComponent fighter = ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
+                if (fighter.PlayerID != playerID) continue;
+                ref FighterRuntimeComponent runtime = ref _simulation.Frame.Get<FighterRuntimeComponent>(entity);
+                runtime.SpecialOneCooldownFrames = specialOneFrames;
+                runtime.SpecialTwoCooldownFrames = specialTwoFrames;
                 return true;
             }
             return false;

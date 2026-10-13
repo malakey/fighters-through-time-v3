@@ -205,6 +205,9 @@ namespace FTT.Combat {
             _hitbox.Launches = knockback != Vector2.Zero;
             _hitbox.Delivery = HitDelivery.DirectHit;
             _hitbox.Origin = HitOrigin.Special;
+            // D4 (2026-10-11): a data-less shot (a construct bolt) is never a
+            // movement-ability hit; ApplyAbilityHitContract rewrites it from data.
+            _hitbox.SourceIsMovementAbility = false;
             _hitbox.ApplyAbilityHitContract(data);
             _hitbox.Damage = damage;
             _hitbox.KnockbackForce = knockback;

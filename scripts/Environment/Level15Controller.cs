@@ -90,6 +90,12 @@ namespace FTT.Environment {
         // the Stacks mezzanine rung (one-way 4790, top 1150) — mid-climb to the
         // scriptorium, off the floor route and far west of the firestorm escape corridor.
         protected override Vector2? SecretCachePosition => new(4790f, 1055f);
+
+        // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, after the PreBoss
+        // anchor (9180) on the rotunda floor, past the firestorm finish, 190 px short of the
+        // arena (9750); a post-wave heal (wave 4 spawns at the 9460 transition).
+        protected override Vector2? RestorationFontPosition => new(9560f, FloorY);
+
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         /// <summary>Sarah at the rotunda door, before the Eraser reveals.</summary>
@@ -129,11 +135,12 @@ namespace FTT.Environment {
 
         /// <summary>
         /// Gallery altitudes. Every step is 80 px because Lincoln - the heaviest
-        /// character, single jump only - clears about 94 px at Earth gravity, and this
-        /// level has no gravity mechanic to lift him. The step was 100 px against his
-        /// pre-retune 113 px; the 2026-08-10 movement retune cut jump height about 20%
-        /// and the tiers came down with it, holding the same ~85% of his reach
-        /// (gameplay-feel plan section 9, B2).
+        /// character, single jump only - cleared about 94 px at Earth gravity when the
+        /// tiers were sized, and this level has no gravity mechanic to lift him. The
+        /// step was 100 px against his pre-retune 113 px; the 2026-08-10 movement
+        /// retune cut jump height about 20% and the tiers came down with it, holding
+        /// ~85% of his reach (gameplay-feel plan section 9, B2). Since the 2026-10-08
+        /// apex hang he clears about 133 px (StoryAirPhysics), so the steps are easy.
         /// </summary>
         public const float Tier1Y = 1320f;
         public const float Tier2Y = 1240f;

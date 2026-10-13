@@ -14,6 +14,8 @@ namespace FTT.Characters {
         private float _respawnTimer;
         private Vector2 _spawnPosition;
         private bool _dead;
+        /// <summary>The created hurtbox, kept so a landed contact can be reported on it (D1a).</summary>
+        private FTT.Combat.Hurtbox _hurtbox;
 
         // === Scripted telegraphed attack (tutorial block calibration, audit M-3) ===
         // The dummy is otherwise passive; the tutorial's block step arms this
@@ -118,12 +120,16 @@ namespace FTT.Characters {
             hurtbox.AddChild(hbShape);
             AddChild(hurtbox);
             hurtbox.OnHit += OnHit;
+            _hurtbox = hurtbox;
         }
 
         private float OnHit(FTT.Combat.HitPayload hit) {
             if (_dead) return 0f;
             int previousHP = CurrentHP;
             int dmg = Mathf.Max(0, (int)Mathf.Round(hit.Damage));
+            // 2026-10-11 (D1a): the dummy is the Level 0 enemy stand-in on the
+            // EnemyHurtbox layer — a live dummy takes every damaging contact.
+            if (dmg > 0) _hurtbox?.ReportLanded(hit.ContactId);
             CurrentHP = Mathf.Max(0, CurrentHP - dmg);
             int damageApplied = previousHP - CurrentHP;
             SpawnDamageNumber(damageApplied, hit.HitOrigin);

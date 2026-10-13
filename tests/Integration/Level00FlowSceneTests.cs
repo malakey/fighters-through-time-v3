@@ -140,6 +140,72 @@ public class Level00FlowSceneTests {
         }
     }
 
+    /// <summary>
+    /// D13 (PROVISIONAL-FONT-PLACEMENT): the Tutorial's Restoration Font is built
+    /// only when the Combat Trial starts, past the trial anchor — never during the
+    /// Part 1 hold, so no Warden wellspring stands in the hero's own era.
+    /// </summary>
+    [TestCase]
+    public void TheTutorialFontAppearsOnlyWithTheCombatTrialPastItsAnchor() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        bool originalPaused = tree.Paused;
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
+        Level00Controller level = null;
+        try {
+            level = ResourceLoader.Load<PackedScene>(ScenePath).Instantiate<Level00Controller>();
+            tree.Root.AddChild(level);
+            AssertThat(level.Phase).IsEqual(Level00Controller.TutorialPhase.Hold);
+            AssertObject(level.PlacedRestorationFont).IsNull();
+            // A recursive type check: FindChildren's type filter matches only native
+            // and global classes, and RestorationFont is neither.
+            AssertThat(CountFontsUnder(level))
+                .OverrideFailureMessage("No Warden wellspring may stand in the hero's own era during the hold.")
+                .IsEqual(0);
+
+            level.BeginCombatTrialForTesting();
+            AssertThat(level.Phase).IsEqual(Level00Controller.TutorialPhase.CombatTrial);
+            RestorationFont font = level.PlacedRestorationFont;
+            AssertObject(font).IsNotNull();
+            AssertObject(font.GetParent()).IsEqual(level);
+            AssertString(font.FontID).IsEqual(Level00Controller.RestorationFontID);
+            AssertString(font.FontID).IsEqual("level_00.restoration_font");
+            AssertThat(font.Position).IsEqual(Level00Controller.RestorationFontPosition);
+            AssertObject(font.GetNodeOrNull<InteractionArea>("InteractionArea")).IsNotNull();
+            AssertObject(font.GetNodeOrNull<Node2D>("Glow")).IsNotNull();
+            AssertObject(font.ChannelRadial).IsNotNull();
+            AssertThat(font.RefusesWhile != null).IsTrue();
+            AssertThat(font.RefusesWhile()).IsFalse();
+
+            Vector2 position = font.Position;
+            AssertThat(position.X >= Level00Controller.TrialCheckpointPosition.X + 110f)
+                .OverrideFailureMessage($"The font at {position} is not 110 px past the trial anchor.")
+                .IsTrue();
+            AssertThat(position.X <= Level00Controller.CalibrationBayEastWallX - 120f)
+                .OverrideFailureMessage($"The font at {position} crowds the bay's east wall.")
+                .IsTrue();
+            AssertFloat(position.Y).IsEqual(Level00Controller.TutorialFloorTopY);
+            AssertThat(position.DistanceTo(Level00Controller.TrialCheckpointPosition) >= 110f).IsTrue();
+            AssertThat(position.DistanceTo(Level00Controller.MobilityCheckpointPosition) >= 110f).IsTrue();
+            AssertThat(CountFontsUnder(level))
+                .OverrideFailureMessage("The Combat Trial builds exactly one font.")
+                .IsEqual(1);
+        } finally {
+            PoolManager.Instance?.ReleaseActiveInGroup("Enemies");
+            FreeLevel(level);
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+            tree.Paused = originalPaused;
+        }
+    }
+
+    private static int CountFontsUnder(Node node) {
+        int count = node is RestorationFont ? 1 : 0;
+        Godot.Collections.Array<Node> children = node.GetChildren();
+        using var childrenLifetime = children.AsDisposable();
+        foreach (Node child in children) count += CountFontsUnder(child);
+        return count;
+    }
+
     private static void FreeLevel(Node level) {
         if (level == null || !GodotObject.IsInstanceValid(level)) return;
         level.GetParent()?.RemoveChild(level);

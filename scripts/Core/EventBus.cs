@@ -476,6 +476,20 @@ namespace FTT.Core {
     }
 
     /// <summary>
+    /// D10 (user direction 2026-10-11, ledger <c>USER-NOT-YET-FLASH</c>): a
+    /// Special 1, Special 2 or Ultimate press the ability lockout ALONE refused —
+    /// the slot was unlocked and off cooldown (or the meter full), and the
+    /// fighter was in a state that reads the press. Raised by
+    /// <c>PlayerController</c> at the refusal site; the Story HUD flashes the
+    /// slot for player 0. A presentation edge, never gameplay: nothing reads it
+    /// back, nothing is buffered, nothing is persisted.
+    /// </summary>
+    public struct AbilityLockoutRefusedPayload {
+        public int PlayerIndex;
+        public AbilitySlot Slot;
+    }
+
+    /// <summary>
     /// Package 12 Phase C: the N01 sealing anchor's two presentation edges.
     /// <see cref="Armed"/> — the boss is down and the anchor can take the seal;
     /// <see cref="Sealed"/> — the seal was accepted (the level's completion
@@ -629,6 +643,19 @@ namespace FTT.Core {
         public event Action<string> OnTalentNodeUnlocked;
         public void RaiseTalentNodeUnlocked(string nodeID) => OnTalentNodeUnlocked?.Invoke(nodeID);
 
+        /// <summary>
+        /// A character's purchased Resonance set changed — a node bought or the
+        /// free respec cleared the grid — carrying that character's ID. Raised by
+        /// <c>ResonanceProgression.TryUnlock</c> and <c>RespecAll</c>, never by a
+        /// save load. The live campaign hero re-resolves its grid from it
+        /// ("stat modifiers are applied immediately", design-godot.md
+        /// Resonance Grid UI Flow); the autosave stays on
+        /// <see cref="OnTalentNodeUnlocked"/>.
+        /// </summary>
+        public event Action<string> OnResonanceProgressionChanged;
+        public void RaiseResonanceProgressionChanged(string characterID) =>
+            OnResonanceProgressionChanged?.Invoke(characterID);
+
         public event Action<int> OnChronalDustDeposited;
         public void RaiseChronalDustDeposited(int totalDust) => OnChronalDustDeposited?.Invoke(totalDust);
 
@@ -712,6 +739,19 @@ namespace FTT.Core {
         public event Action<AbilitySlotLockPayload> OnAbilitySlotLockChanged;
         public void RaiseAbilitySlotLockChanged(AbilitySlotLockPayload payload) =>
             OnAbilitySlotLockChanged?.Invoke(payload);
+
+        // === D10 (2026-10-11): the "not yet" flash ===
+        /// <summary>
+        /// D10 presentation edge; never gameplay. Raised by <c>PlayerController</c>
+        /// when the ability lockout alone refuses a ready Special 1, Special 2 or
+        /// Ultimate press (see <see cref="AbilityLockoutRefusedPayload"/>). The
+        /// Story HUD flashes that slot for player 0; the Fighter HUD gets the same
+        /// flash from <c>FighterSimulationDriver</c>'s own classifier, never from
+        /// this event.
+        /// </summary>
+        public event Action<AbilityLockoutRefusedPayload> OnAbilityLockoutRefused;
+        public void RaiseAbilityLockoutRefused(AbilityLockoutRefusedPayload payload) =>
+            OnAbilityLockoutRefused?.Invoke(payload);
 
 // === Package 11 A5 declares / A1b takes over in Wave 2 (plan §2.9) ===
         // The F13 Defy seal. A5 publishes the Level 0 calibration's forced

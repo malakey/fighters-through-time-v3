@@ -23,8 +23,9 @@ namespace FTT.Diagnostics {
     // against the level's solid rectangles. A Dijkstra search over the
     // segments plans a route; NavAgent turns the route into pad input.
     //
-    // Diagnostics only: nothing here writes gameplay state. The one piece of
-    // reflection (PathMovingPlatform's private path origin) only reads.
+    // Diagnostics only: nothing here writes gameplay state. The two pieces of
+    // reflection (PathMovingPlatform's private path origin, PlayerController's
+    // per-airtime ledge-grab count) only read.
     // =====================================================================
 
     public enum NavRectKind { Static, Moving, Trapdoor, Crumbling, Breakable, Rigid }
@@ -192,20 +193,21 @@ namespace FTT.Diagnostics {
         public override string ToString() => $"{Kind}{(Kind == NavEdgeKind.Jump ? Jumps.ToString() : "")} {From}->{To} @{Mathf.RoundToInt(LaunchX)}->{Mathf.RoundToInt(LandX)}";
     }
 
-    /// <summary>The hero's Story movement constants, read from the live PlayerController.</summary>
+    /// <summary>
+    /// The hero's Story movement, read from the live PlayerController. The air
+    /// rules themselves (gravity bands, terminals, the apex hang) are
+    /// <see cref="StoryAirPhysics"/>, the same rulebook the controller steps.
+    /// </summary>
     public struct HeroPhysics {
         public float JumpSpeed;      // px/s
+        public float Weight;
         public float GravityPerFrame; // px/s added per frame at multiplier 1 (before zone scale)
         public float RunSpeed;       // px/s
         public float AirControl;
         public int MaxJumps;
 
-        // PlayerController constants (Story rules, mirrored for the planner).
-        public const float FallMultiplier = 1.8f;
-        public const float ShortHopMultiplier = 2.5f;
-        public const float Terminal = 600f;
-        public const float AirAccelRamp = 4f;
-        public const float AirDecelRamp = 8f;
+        public const float AirAccelRamp = StoryAirPhysics.AirAccelerationFrames;
+        public const float AirDecelRamp = StoryAirPhysics.AirDecelerationFrames;
         public const float BodyHalfWidth = 20f;
         public const float BodyHeight = 64f;
 
@@ -213,18 +215,23 @@ namespace FTT.Diagnostics {
             CharacterData data = player.Data;
             float weight = data?.Weight ?? 1f;
             return new HeroPhysics {
-                JumpSpeed = (data?.MaxJumpForce ?? 14f) * player.StoryJumpForceMultiplier * player.StatusJumpMultiplier * 54f,
-                GravityPerFrame = 18f * (0.8f + 0.4f * weight),
+                JumpSpeed = StoryAirPhysics.JumpLaunchSpeed(
+                    (data?.MaxJumpForce ?? 14f) * player.StoryJumpForceMultiplier * player.StatusJumpMultiplier),
+                Weight = weight,
+                GravityPerFrame = StoryAirPhysics.GravityPerFrame(weight),
                 RunSpeed = (data?.MaxMoveSpeed ?? 8f) * player.StoryMoveSpeedMultiplier * player.StatusMovementMultiplier * 60f,
                 AirControl = data?.AirControlMultiplier ?? 1f,
                 MaxJumps = Math.Max(1, data?.MaxJumpCount ?? 1)
             };
         }
 
-        public float SingleRise(float gravityScale) {
-            float g = GravityPerFrame * 60f * Mathf.Max(0.05f, gravityScale);
-            return JumpSpeed * JumpSpeed / (2f * g);
-        }
+        /// <summary>The highest a single held jump lifts the feet (the integrated Story arc).</summary>
+        public float SingleRise(float gravityScale) =>
+            StoryAirPhysics.SingleJumpRise(JumpSpeed, Weight, Mathf.Max(0.05f, gravityScale));
+
+        /// <summary>The highest the hero's whole jump budget lifts the feet (each extra jump at the apex).</summary>
+        public float BestRise(float gravityScale) =>
+            StoryAirPhysics.MultiJumpRise(JumpSpeed, Weight, MaxJumps, Mathf.Max(0.05f, gravityScale));
     }
 
     public sealed class PlaytestNav {
@@ -769,9 +776,34 @@ namespace FTT.Diagnostics {
             return edges;
         }
 
+        // The edge prefilters ask for every segment pair, so the integrated arcs
+        // are memoized per hero, gravity scale and (8 px) landing drop.
+        private readonly Dictionary<(float, float, int, int), float> _riseCache = new();
+        private readonly Dictionary<(float, float, int, int, int), float> _airCache = new();
+        /// <summary>Slack on the prefilter's airtime: the simulation, not the prefilter, decides an edge.</summary>
+        private const float PrefilterAirtimeMargin = 1.25f;
+
+        /// <summary>The highest the hero's whole jump budget reaches (<see cref="HeroPhysics.BestRise"/>).</summary>
         private float MaxRise(float gravityScale) {
-            float single = Hero.SingleRise(gravityScale);
-            return Hero.MaxJumps >= 2 ? single * 1.95f : single;
+            var key = (Hero.JumpSpeed, Hero.Weight, Hero.MaxJumps, Mathf.RoundToInt(gravityScale * 1000f));
+            if (!_riseCache.TryGetValue(key, out float rise)) _riseCache[key] = rise = Hero.BestRise(gravityScale);
+            return rise;
+        }
+
+        /// <summary>
+        /// Seconds the hero's whole jump budget stays airborne before its feet come
+        /// down to <paramref name="dropPixels"/> below the take-off (rounded up to
+        /// the next 8 px); a landing the arc never descends to counts the rise.
+        /// </summary>
+        private float BestAirSeconds(float gravityScale, float dropPixels) {
+            int bucket = Mathf.CeilToInt(dropPixels / 8f);
+            var key = (Hero.JumpSpeed, Hero.Weight, Hero.MaxJumps, Mathf.RoundToInt(gravityScale * 1000f), bucket);
+            if (_airCache.TryGetValue(key, out float seconds)) return seconds;
+            StoryJumpArc arc = StoryAirPhysics.SimulateJump(Hero.JumpSpeed, Hero.Weight,
+                Mathf.Max(0.05f, gravityScale), Hero.MaxJumps, bucket * 8f);
+            seconds = (arc.AirtimeFrames >= 0 ? arc.AirtimeFrames : arc.RiseFrames) / 60f;
+            _airCache[key] = seconds;
+            return seconds;
         }
 
         private void AddEdgesTo(NavSegment a, NavSegment b, List<NavEdge> edges) {
@@ -781,8 +813,7 @@ namespace FTT.Diagnostics {
             float rise = MaxRise(gScale);
             float dyTop = b.Top - a.Top; // positive: b lower
             if (-dyTop > rise + 8f) return;
-            float airSeconds = 2f * Hero.JumpSpeed / (Hero.GravityPerFrame * 60f * Mathf.Max(0.05f, gScale)) * 1.6f
-                + Mathf.Sqrt(Mathf.Max(0f, dyTop + rise) * 2f / (Hero.GravityPerFrame * 60f * HeroPhysics.FallMultiplier * Mathf.Max(0.05f, gScale)));
+            float airSeconds = BestAirSeconds(gScale, dyTop) * PrefilterAirtimeMargin;
             float reach = Hero.RunSpeed * airSeconds + 60f;
             if (gap > reach) return;
             if (dyTop > 1600f) return;
@@ -969,15 +1000,43 @@ namespace FTT.Diagnostics {
             public float TargetX;
             public NavSegment IgnoreOneWay;
             public float DropStartY;
+            /// <summary>A jump has been spent this airtime: the apex hang applies (a walk-off or drop gets none).</summary>
+            public bool Jumped;
+            /// <summary>
+            /// The first frame is the jump tick itself: the controller sets the
+            /// launch velocity and moves at it with no gravity. (A rope release
+            /// starts already past its jump tick: <see cref="ReleaseFlight"/>.)
+            /// </summary>
+            public bool Launching;
+            /// <summary>
+            /// A rope release's first gravity frame reads <see cref="LaunchLatch"/>
+            /// instead of the previous frame's held flag: the controller's ledge
+            /// jump-off never runs the jump check, so its <c>_jumpHeld</c> still
+            /// holds the value from before the catch on the tick after the release.
+            /// One-shot; cleared once used.
+            /// </summary>
+            public bool HasLaunchLatch;
+            /// <summary>The controller's Jump-held latch at the release (<see cref="PlayerController.JumpHeldLatch"/>).</summary>
+            public bool LaunchLatch;
         }
+
+        /// <summary>A flight that jumps from <paramref name="feet"/> on its first frame (the jump tick).</summary>
+        public Flight JumpFlight(Vector2 feet, float vx, float targetX) => new() {
+            Pos = feet, Vel = new Vector2(vx, -Hero.JumpSpeed), Holding = true, TargetX = targetX,
+            Jumped = true, Launching = true, DropStartY = feet.Y
+        };
 
         public enum FlightStep { Flying, Landed, Crashed }
 
         /// <summary>
-        /// Advances a flight one frame: steering (full speed toward TargetX,
-        /// braking to stop over it), jump hold / air jumps, gravity with the
-        /// fall and short-hop multipliers, landing on any surface top while
-        /// descending, head bumps on undersides, and a crash on any wall.
+        /// Advances a flight one frame in PlayerController's tick order:
+        /// steering (full speed toward TargetX, braking to stop over it), the
+        /// bot's jump input for the frame (held to the apex, released, the next
+        /// jump pressed), gravity through <see cref="StoryAirPhysics.StepVertical"/>
+        /// with the previous frame's held flag (what the controller's
+        /// <c>_jumpHeld</c> holds when ApplyGravity runs), the air jump overwriting
+        /// it, then the move: landing on any surface top while descending, head
+        /// bumps on undersides, and a crash on any wall.
         /// </summary>
         public FlightStep StepFlight(ref Flight f, List<NavRect> obstacles, out NavSegment landedOn) {
             landedOn = null;
@@ -988,15 +1047,30 @@ namespace FTT.Diagnostics {
             float ramp = accelerating ? HeroPhysics.AirAccelRamp : HeroPhysics.AirDecelRamp;
             f.Vel.X = Mathf.MoveToward(f.Vel.X, desired, maxSpeed / ramp * Hero.AirControl);
 
+            // The bot decides from the velocity before the tick (NavAgent.Drive).
+            bool heldBefore = f.Holding;
+            bool pressJump = false;
             if (f.Holding && f.Vel.Y >= 0f) f.Holding = false;
             else if (!f.Holding && f.UseAirJumps && f.AirJumps > 0 && f.Vel.Y > -40f) {
+                f.Holding = true;
+                pressJump = true;
+            }
+            if (f.Launching) {
+                f.Launching = false;
+            } else {
+                bool gravityHeld = heldBefore;
+                if (f.HasLaunchLatch) {
+                    gravityHeld = f.LaunchLatch;
+                    f.HasLaunchLatch = false;
+                }
+                f.Vel.Y = StoryAirPhysics.StepVertical(f.Vel.Y, Hero.Weight, GravityScaleAt(f.Pos.X, f.Pos.Y - 30f), 1f / 60f,
+                    fastFalling: false, floatActive: false, jumpHeld: gravityHeld, jumpedThisAirtime: f.Jumped, launch: false);
+            }
+            if (pressJump) {
                 f.Vel.Y = -Hero.JumpSpeed;
                 f.AirJumps--;
-                f.Holding = true;
+                f.Jumped = true;
             }
-            float g = Hero.GravityPerFrame * GravityScaleAt(f.Pos.X, f.Pos.Y - 30f);
-            float mult = f.Vel.Y > 0f ? HeroPhysics.FallMultiplier : (!f.Holding && f.Vel.Y < 0f ? HeroPhysics.ShortHopMultiplier : 1f);
-            f.Vel.Y = Mathf.Min(f.Vel.Y + g * mult, HeroPhysics.Terminal);
 
             Vector2 next = f.Pos + f.Vel / 60f;
             if (f.Vel.Y > 0f) {
@@ -1052,6 +1126,8 @@ namespace FTT.Diagnostics {
             if (jumps > 0) {
                 flight.Vel.Y = -Hero.JumpSpeed;
                 flight.Holding = true;
+                flight.Jumped = true;
+                flight.Launching = true;
             } else if (dropThrough) {
                 flight.Vel.Y = 90f;
             }
@@ -1217,7 +1293,10 @@ namespace FTT.Diagnostics {
 
         // =================================================================
         // Ropes (PendulumAnchor): catch and release, both predicted frame by
-        // frame against the rope's deterministic swing.
+        // frame against the rope's deterministic swing. The rope body is not
+        // solid (2026-10-09, PendulumAnchorTemplate on no layer): a flight
+        // passes through every bar, and the only contact is a grab box, which
+        // catches on the frame the hero's ledge detector enters it.
         // =================================================================
 
         /// <summary>The ledge-grab point's world position <paramref name="frames"/> physics frames from now.</summary>
@@ -1246,131 +1325,101 @@ namespace FTT.Diagnostics {
         private static bool DetectorTouches(Vector2 feet, Vector2 grab) =>
             Mathf.Abs(feet.X - grab.X) < 56f && feet.Y - 34f > grab.Y - 28f && feet.Y - 70f < grab.Y + 28f;
 
-        /// <summary>Frames until a flight starting now catches <paramref name="rope"/> (-1 when it does not).</summary>
-        public int PredictCatch(Flight flight, PendulumAnchor rope, int maxFrames = 150, PendulumAnchor leaving = null) {
-            List<NavRect> obstacles = ObstaclesBetween(flight.Pos.X, rope.GlobalPosition.X);
-            int start = flight.Frame;
-            while (flight.Frame - start < maxFrames) {
-                FlightStep step = StepFlight(ref flight, obstacles, out _);
-                if (step != FlightStep.Flying) return -1;
-                int t = flight.Frame - start;
-                Vector2 grab = RopeGrabPoint(rope, t, out _);
-                if (flight.Vel.Y >= -140f && DetectorTouches(flight.Pos, grab)) return t;
-                // Every bar is solid: meeting one above its grab box (the target's
-                // included) bounces the hero off or lands it on the bar.
-                if (!RopeBarsStep(ref flight, t, leaving, out _)) return -1;
-            }
-            return -1;
+        /// <summary>
+        /// The grab gate (<see cref="PlayerController.LedgeGrabMaximumRiseSpeed"/>,
+        /// -150 px/s) with 10 px/s to spare: a prediction never counts on a
+        /// borderline grab.
+        /// </summary>
+        private const float CatchMaxRiseSpeed = PlayerController.LedgeGrabMaximumRiseSpeed + 10f;
+
+        private static readonly FieldInfo LedgeGrabsField =
+            typeof(PlayerController).GetField("_ledgeGrabsThisAirtime", BindingFlags.NonPublic | BindingFlags.Instance);
+
+        /// <summary>
+        /// Ledge and rope grabs the hero has left this airtime: the V7.3 budget
+        /// (<see cref="FTT.Combat.BasicComboRules.LedgeRegrabsPerAirtime"/>),
+        /// refilled by floor contact. A rope chain spends one per catch.
+        /// </summary>
+        public static int GrabsLeft(PlayerController player) {
+            int budget = FTT.Combat.BasicComboRules.LedgeRegrabsPerAirtime;
+            if (player == null || player.IsOnFloor()) return budget;
+            int used = LedgeGrabsField?.GetValue(player) is int n ? n : 0;
+            return Math.Max(0, budget - used);
         }
 
         /// <summary>
-        /// The ropes are solid swinging bars (16 x 320, Environment layer): a
-        /// flight that meets one lands on it or bounces off. Pose predicted
-        /// <paramref name="frames"/> ahead.
+        /// The grab boxes a flight can meet and whether the detector overlaps
+        /// each one now. A box catches only on the frame the detector enters it
+        /// (<c>Area2D.AreaEntered</c>), not rising faster than the grab gate, and
+        /// only while the airtime's grab budget lasts - so the rope just let go
+        /// of (which the detector starts inside) needs an exit and a re-entry.
         /// </summary>
-        /// <summary>Debug: why a catch flight fails (first bar contact or crash).</summary>
-        public string ExplainCatch(Flight flight, PendulumAnchor rope, int maxFrames, PendulumAnchor leaving) {
-            List<NavRect> obstacles = ObstaclesBetween(flight.Pos.X, rope.GlobalPosition.X);
-            int start = flight.Frame;
-            Vector2 v0 = flight.Vel;
-            float closest = float.MaxValue;
-            while (flight.Frame - start < maxFrames) {
-                FlightStep step = StepFlight(ref flight, obstacles, out _);
-                int t = flight.Frame - start;
-                if (step != FlightStep.Flying) return $"v0={v0} {step} t={t} at {flight.Pos}";
-                Vector2 grab = RopeGrabPoint(rope, t, out _);
-                closest = Mathf.Min(closest, grab.DistanceTo(flight.Pos + new Vector2(0f, -52f)));
-                if (flight.Vel.Y >= -140f && DetectorTouches(flight.Pos, grab)) return $"v0={v0} catch t={t}";
-                if (!RopeBarsStep(ref flight, t, leaving, out string hit))
-                    return $"v0={v0} bar {hit} t={t} at {flight.Pos} v={flight.Vel} grab={grab}";
-            }
-            return $"v0={v0} miss closest={closest:0}";
+        private sealed class RopeWatch {
+            public readonly List<PendulumAnchor> Ropes = new();
+            public readonly List<bool> Touching = new();
+            public int GrabsLeft;
         }
 
-        /// <summary>
-        /// One flight frame against the swinging bars. A bar the hero runs into
-        /// is a crash (it bounces off or lands on it) — except the bar just let
-        /// go of sweeping into the hero from behind, which pushes it along.
-        /// Returns false on a crash.
-        /// </summary>
-        private bool RopeBarsStep(ref Flight flight, int frames, PendulumAnchor leaving, out string hit) {
-            hit = null;
+        private RopeWatch WatchRopes(Vector2 feet, float x0, float x1, int frames, int grabsLeft) {
+            var watch = new RopeWatch { GrabsLeft = grabsLeft };
+            float lo = Mathf.Min(x0, x1) - 420f, hi = Mathf.Max(x0, x1) + 420f;
             foreach (PendulumAnchor rope in _ropes) {
-                if (!GodotObject.IsInstanceValid(rope) || Mathf.Abs(rope.GlobalPosition.X - flight.Pos.X) > 420f) continue;
-                // A hanging hero's head overlaps the bottom of the bar it lets go
-                // of, and the engine pushes it clear (observed: a release never
-                // bumps on the bar's lower end), so only the upper part of that
-                // bar counts.
-                if (rope == leaving && frames < 8) continue;
-                if (!TouchesRopeBar(rope, flight.Pos, frames, rope == leaving && frames < 16 ? 100f : 28f)) continue;
-                if (rope == leaving && PushedByBar(rope, ref flight, frames)) continue;
-                hit = rope.Name;
-                return false;
+                if (!GodotObject.IsInstanceValid(rope) || rope.Ledge == null) continue;
+                RopeArc(rope, out float left, out float right, out float _, out float _);
+                if (right < lo || left > hi) continue;
+                watch.Ropes.Add(rope);
+                watch.Touching.Add(DetectorTouches(feet, RopeGrabPoint(rope, frames, out _)));
             }
-            return true;
+            return watch;
         }
 
-        /// <summary>The bar sweeping into the hero from behind carries it: true when that is the contact.</summary>
-        private static bool PushedByBar(PendulumAnchor rope, ref Flight flight, int frames) {
-            Vector2 pivot = rope.GlobalPosition;
-            Vector2 grab = RopeGrabPoint(rope, frames, out _);
-            Vector2 next = RopeGrabPoint(rope, frames + 1, out _);
-            float length = Mathf.Max(1f, (grab - pivot).Length());
-            Vector2 axis = (grab - pivot) / length;
-            var normal = new Vector2(-axis.Y, axis.X);
-            Vector2 center = flight.Pos + new Vector2(0f, -HeroPhysics.BodyHeight / 2f);
-            float r = Mathf.Clamp((center - pivot).Dot(axis), 0f, length);
-            float sweep = (next - grab).Dot(normal) * 60f * (r / length); // the bar's speed across itself at the hero
-            float side = (center - pivot).Dot(normal);
-            if (Mathf.Abs(sweep) < 20f || Mathf.Sign(side) != Mathf.Sign(sweep)) return false;
-            // Swept up into from below is a landing on the bar, not a push.
-            if ((normal * Mathf.Sign(side)).Y < -0.45f) return false;
-            float heroAcross = flight.Vel.Dot(normal);
-            if (Mathf.Abs(heroAcross) < Mathf.Abs(sweep)) flight.Vel += normal * (sweep - heroAcross);
-            float support = HeroPhysics.BodyHalfWidth * Mathf.Abs(normal.X) + HeroPhysics.BodyHeight / 2f * Mathf.Abs(normal.Y);
-            float clear = Mathf.Sign(sweep) * (8f + support + 1f);
-            flight.Pos += normal * (clear - side);
-            return true;
-        }
-
-        private static bool TouchesRopeBar(PendulumAnchor rope, Vector2 feet, int frames, float trimBottom = 28f) {
-            var box = new Rect2(feet.X - HeroPhysics.BodyHalfWidth + 1f, feet.Y - HeroPhysics.BodyHeight + 1f,
-                HeroPhysics.BodyHalfWidth * 2f - 2f, HeroPhysics.BodyHeight - 2f);
-            {
-                Vector2 grab = RopeGrabPoint(rope, frames, out _);
-                Vector2 axis = (grab - rope.GlobalPosition).Normalized();
-                // The solid bar runs from the pivot to the grab point; the bottom
-                // of it sits inside the grab box, where a touch is a catch.
-                float length = Mathf.Max(20f, (grab - rope.GlobalPosition).Length() - trimBottom);
-                var bar = new NavRect {
-                    Center = rope.GlobalPosition + axis * (length / 2f),
-                    AxisY = axis, AxisX = new Vector2(-axis.Y, axis.X),
-                    Half = new Vector2(8f, length / 2f),
-                    AxisAligned = false
-                };
-                bar.RecomputeAabb();
-                return bar.Overlaps(box);
+        /// <summary>The rope whose grab box catches the flight on this frame (null when none does).</summary>
+        private static PendulumAnchor CatchStep(RopeWatch watch, in Flight flight, int frames) {
+            PendulumAnchor caught = null;
+            for (int i = 0; i < watch.Ropes.Count; i++) {
+                bool touching = DetectorTouches(flight.Pos, RopeGrabPoint(watch.Ropes[i], frames, out _));
+                if (touching && !watch.Touching[i] && caught == null && watch.GrabsLeft > 0
+                    && flight.Vel.Y >= CatchMaxRiseSpeed) {
+                    caught = watch.Ropes[i];
+                }
+                watch.Touching[i] = touching;
             }
+            return caught;
         }
 
-        /// <summary>A release / jump flight that also treats the swinging bars as obstacles.</summary>
-        public SimResult FlyAmongRopes(ref Flight flight, NavSegment target, int maxFrames, List<NavRect> obstacles, PendulumAnchor leaving = null) {
+        /// <summary>
+        /// Runs a flight until it lands, crashes, times out or a grab box catches
+        /// it (<paramref name="caught"/>; <see cref="SimResult.Frames"/> is then the
+        /// catch frame). Lands like <see cref="Fly"/>. A flight's frame counts
+        /// from now (a rope release starts at frame 1), and the swing is read at
+        /// that frame.
+        /// </summary>
+        public SimResult FlyCatching(ref Flight flight, NavSegment target, int maxFrames, List<NavRect> obstacles, int grabsLeft,
+            out PendulumAnchor caught) {
+            caught = null;
             var result = new SimResult();
-            int start = flight.Frame;
-            while (flight.Frame - start < maxFrames) {
+            RopeWatch watch = WatchRopes(flight.Pos, flight.Pos.X, flight.TargetX, flight.Frame, grabsLeft);
+            while (flight.Frame < maxFrames) {
                 FlightStep step = StepFlight(ref flight, obstacles, out NavSegment landed);
+                int t = flight.Frame;
                 result.EndPos = flight.Pos;
-                if (step == FlightStep.Crashed || !RopeBarsStep(ref flight, flight.Frame - start, leaving, out _)) {
+                if (step == FlightStep.Crashed) {
                     result.Crashed = true;
                     return result;
                 }
                 if (step == FlightStep.Landed) {
                     result.LandedOn = landed;
-                    if (landed == target) {
+                    if (landed == target || (target != null && landed.Platform != null && landed.Platform == target.Platform
+                        && landed.PlatformEndpoint == target.PlatformEndpoint)) {
                         result.Success = true;
-                        result.Frames = flight.Frame - start;
+                        result.Frames = t;
                         result.LandX = flight.Pos.X;
                     }
+                    return result;
+                }
+                caught = CatchStep(watch, flight, t);
+                if (caught != null) {
+                    result.Frames = t;
                     return result;
                 }
                 if (target != null && flight.Pos.Y > target.Top + 900f) return result;
@@ -1378,18 +1427,68 @@ namespace FTT.Diagnostics {
             return result;
         }
 
+        /// <summary>
+        /// Frames until a flight starting now catches <paramref name="rope"/> (-1
+        /// when it lands, crashes or misses first, or another grab box catches it).
+        /// </summary>
+        public int PredictCatch(Flight flight, PendulumAnchor rope, int grabsLeft, int maxFrames = 150) {
+            SimResult result = FlyCatching(ref flight, null, maxFrames,
+                ObstaclesBetween(flight.Pos.X, rope.GlobalPosition.X), grabsLeft, out PendulumAnchor caught);
+            return caught == rope ? result.Frames : -1;
+        }
+
+        /// <summary>Debug: what a catch flight meets (the catch, a landing, a crash or the closest pass).</summary>
+        public string ExplainCatch(Flight flight, PendulumAnchor rope, int maxFrames, int grabsLeft) {
+            List<NavRect> obstacles = ObstaclesBetween(flight.Pos.X, rope.GlobalPosition.X);
+            RopeWatch watch = WatchRopes(flight.Pos, flight.Pos.X, rope.GlobalPosition.X, flight.Frame, grabsLeft);
+            Vector2 v0 = flight.Vel;
+            float closest = float.MaxValue;
+            while (flight.Frame < maxFrames) {
+                FlightStep step = StepFlight(ref flight, obstacles, out _);
+                int t = flight.Frame;
+                if (step != FlightStep.Flying) return $"v0={v0} {step} t={t} at {flight.Pos}";
+                Vector2 grab = RopeGrabPoint(rope, t, out _);
+                closest = Mathf.Min(closest, grab.DistanceTo(flight.Pos + new Vector2(0f, -52f)));
+                PendulumAnchor caught = CatchStep(watch, flight, t);
+                if (caught != null) {
+                    return caught == rope ? $"v0={v0} catch t={t}" : $"v0={v0} caught by {caught.Name} t={t} at {flight.Pos}";
+                }
+            }
+            return $"v0={v0} miss closest={closest:0} grabs={grabsLeft}";
+        }
+
         /// <summary>The flight a jump-release from the rope right now would start (hang point, jump + swing launch).</summary>
         public Flight ReleaseFlight(PendulumAnchor rope, PlayerController player, float targetX) {
-            Vector2 launch = rope.AnchorVelocity * rope.ReleaseLaunchAssist;
+            // The tap is sampled at the start of the next frame (frame 1), after
+            // the rope has carried the hero one more step: the jump tick moves
+            // from the next hang position, straight up, with no launch and no
+            // gravity. The rope adds its launch on frame 2, before the hero's
+            // own tick, measured over that frame's swing (PendulumAnchor
+            // UpdateOccupant). So the flight starts at frame 1, already stepped.
+            RopeGrabPoint(rope, 1, out Vector2 hang1);
+            RopeGrabPoint(rope, 2, out Vector2 hang2);
+            Vector2 launch = (hang2 - hang1) * 60f * rope.ReleaseLaunchAssist;
             if (launch.Length() > rope.MaxLaunchSpeed) launch = launch.Normalized() * rope.MaxLaunchSpeed;
-            float jump = (player.Data?.MaxJumpForce ?? 14f) * player.StoryJumpForceMultiplier * player.StatusJumpMultiplier * 45f;
+            float jump = StoryAirPhysics.LedgeJumpLaunchSpeed(
+                (player.Data?.MaxJumpForce ?? 14f) * player.StoryJumpForceMultiplier * player.StatusJumpMultiplier);
             return new Flight {
-                Pos = player.GlobalPosition,
+                Frame = 1,
+                Pos = hang1 + new Vector2(0f, -jump / 60f),
                 Vel = new Vector2(launch.X, -jump + launch.Y),
                 Holding = true,
                 AirJumps = Mathf.Max(0, player.RemainingJumps),
                 UseAirJumps = true,
-                TargetX = targetX
+                TargetX = targetX,
+                // A rope (or ledge) jump-off is a jump: its arc always gets the
+                // apex hang (PlayerController.JumpedThisAirtime), though it spends
+                // nothing from the jump budget.
+                Jumped = true,
+                // The tick after the release runs gravity on the controller's
+                // stale Jump latch from before the catch, not on this release's
+                // input; PredictRelease's held and tapped variants differ only
+                // from that tick's input on.
+                HasLaunchLatch = true,
+                LaunchLatch = player.JumpHeldLatch
             };
         }
 
@@ -1433,93 +1532,6 @@ namespace FTT.Diagnostics {
             }
             _edgeCache[rope] = edges;
             return edges;
-        }
-
-        /// <summary>
-        /// True when a jump launched now along <paramref name="edge"/> lands (or
-        /// catches a rope on the way) without running into a swinging rope's
-        /// solid bar. Ropes swing through the gaps between galleries, so such a
-        /// jump has to be timed.
-        /// </summary>
-        public bool JumpClearsRopes(Vector2 start, float vx0, NavEdge edge) => JumpClearsRopes(start, vx0, edge, out _);
-
-        public bool JumpClearsRopes(Vector2 start, float vx0, NavEdge edge, out PendulumAnchor blocking) {
-            blocking = null;
-            if (_ropes.Count == 0 || edge.Jumps <= 0) return true;
-            float lo = Mathf.Min(start.X, edge.LandX) - 80f;
-            float hi = Mathf.Max(start.X, edge.LandX) + 80f;
-            var near = new List<PendulumAnchor>();
-            foreach (PendulumAnchor rope in _ropes) {
-                if (!GodotObject.IsInstanceValid(rope)) continue;
-                RopeArc(rope, out float left, out float right, out float _, out float _);
-                if (right >= lo && left <= hi) near.Add(rope);
-            }
-            if (near.Count == 0) return true;
-            var flight = new Flight {
-                Pos = start, Vel = new Vector2(vx0, -Hero.JumpSpeed), Holding = true, TargetX = edge.LandX,
-                SteerDelay = edge.SteerDelay, UseAirJumps = edge.Jumps >= 2, AirJumps = Mathf.Max(0, edge.Jumps - 1),
-                DropStartY = start.Y
-            };
-            List<NavRect> obstacles = ObstaclesBetween(start.X, edge.LandX);
-            while (flight.Frame < 240) {
-                FlightStep step = StepFlight(ref flight, obstacles, out _);
-                if (step != FlightStep.Flying) return true;
-                // Only the solid bar spoils the jump: a grab box met on the way
-                // is a catch, and a hang is handled like any other rope.
-                foreach (PendulumAnchor rope in near) {
-                    Vector2 grab = RopeGrabPoint(rope, flight.Frame, out _);
-                    if (flight.Vel.Y >= -150f && DetectorTouches(flight.Pos, grab)) return true;
-                    if (TouchesRopeBar(rope, flight.Pos, flight.Frame)) {
-                        blocking = rope;
-                        return false;
-                    }
-                }
-            }
-            return true;
-        }
-
-        /// <summary>The catch edge from <paramref name="from"/> onto <paramref name="rope"/>, if the graph has one.</summary>
-        public NavEdge CatchEdge(NavSegment from, PendulumAnchor rope) {
-            if (from == null || rope == null) return null;
-            foreach (NavEdge e in EdgesFrom(from)) if (e.Kind == NavEdgeKind.Catch && e.To.Rope == rope) return e;
-            return null;
-        }
-
-        /// <summary>The swinging rope bar the hero is standing on, if any.</summary>
-        public PendulumAnchor StandingOnRope(PlayerController player) {
-            int count = player.GetSlideCollisionCount();
-            for (int i = 0; i < count; i++) {
-                KinematicCollision2D collision = player.GetSlideCollision(i);
-                if (collision != null && collision.GetNormal().Y < -0.5f && collision.GetCollider() is PendulumAnchor rope) return rope;
-            }
-            // The slide report can miss a frame: also accept feet resting on a bar.
-            if (!player.IsOnFloor()) return null;
-            Vector2 feet = player.GlobalPosition;
-            foreach (PendulumAnchor rope in _ropes) {
-                if (!GodotObject.IsInstanceValid(rope) || Mathf.Abs(rope.GlobalPosition.X - feet.X) > 340f) continue;
-                Vector2 pivot = rope.GlobalPosition;
-                Vector2 grab = RopeGrabPoint(rope, 0, out _);
-                Vector2 closest = Geometry2D.GetClosestPointToSegment(feet, pivot, grab);
-                if (closest.DistanceTo(feet) < 34f && closest.Y >= feet.Y - 4f) return rope;
-            }
-            return null;
-        }
-
-        /// <summary>The nearest other rope between <paramref name="from"/> and the goal side (null if none within reach).</summary>
-        public PendulumAnchor NextRopeToward(PendulumAnchor from, Vector2 goal) {
-            PendulumAnchor best = null;
-            float bestDistance = 1000f;
-            float dir = Mathf.Sign(goal.X - from.GlobalPosition.X);
-            foreach (PendulumAnchor rope in _ropes) {
-                if (rope == from || !GodotObject.IsInstanceValid(rope)) continue;
-                float dx = rope.GlobalPosition.X - from.GlobalPosition.X;
-                if (Mathf.Sign(dx) != dir) continue;
-                if (Mathf.Abs(dx) < bestDistance) {
-                    bestDistance = Mathf.Abs(dx);
-                    best = rope;
-                }
-            }
-            return best;
         }
 
         /// <summary>The rope the hero is hanging on, if any.</summary>
@@ -1669,47 +1681,6 @@ namespace FTT.Diagnostics {
             }
 
             // --- grounded ---
-            // Standing on a swinging rope's bar (a release that met the bar
-            // again): jump on toward the next rope when the jump catches it.
-            PendulumAnchor bar = _nav.StandingOnRope(player);
-            if (bar != null) {
-                if (_barRope != bar) {
-                    _barRope = bar;
-                    _barStart = frame;
-                }
-                PendulumAnchor next = _nav.NextRopeToward(bar, goal);
-                Description = $"bar {bar.Name}->{next?.Name}";
-                intent.MoveX = 0f;
-                if (next != null) {
-                    for (int jumps = 1; jumps <= 2; jumps++) {
-                        var flight = new PlaytestNav.Flight {
-                            Pos = feet, Vel = new Vector2(player.Velocity.X, -_nav.Hero.JumpSpeed), Holding = true,
-                            AirJumps = jumps - 1, UseAirJumps = jumps > 1, TargetX = next.GlobalPosition.X
-                        };
-                        if (_nav.PredictCatch(flight, next, 150, bar) >= 0) {
-                            NavSegment target = _nav.RopeSegment(next);
-                            var hop = new NavEdge {
-                                From = null, To = target, Kind = NavEdgeKind.Catch, LaunchX = feet.X,
-                                LandX = next.GlobalPosition.X, Jumps = jumps
-                            };
-                            StartJump(hop, ref intent, jumps);
-                            Notes.Add($"bar-jump {bar.Name}->{next.Name} jumps={jumps}");
-                            return true;
-                        }
-                    }
-                }
-                // No jump on: walk off the bar's free end and fall past its own
-                // grab, which catches (the rope then carries on as a hang).
-                Vector2 grabEnd = PlaytestNav.RopeGrabPoint(bar, 0, out _);
-                intent.MoveX = Mathf.Abs(grabEnd.X - feet.X) > 6f ? Mathf.Sign(grabEnd.X - feet.X) : Mathf.Sign(grabEnd.X - bar.GlobalPosition.X);
-                if (intent.MoveX == 0f) intent.MoveX = Mathf.Sign(goal.X - feet.X);
-                if (frame - _barStart > 150) {
-                    intent.Held |= GameplayButtons.Jump;
-                    intent.MoveX = Mathf.Sign(goal.X - feet.X);
-                }
-                return true;
-            }
-            _barRope = null;
             NavSegment here = _nav.Locate(player);
             Current = here;
             if (_air != null && !_airborneSeen && frame - _launchFrame > 20 && _dropFrame < 0) {
@@ -1886,11 +1857,10 @@ namespace FTT.Diagnostics {
                     _stuckFrame = frame; // waiting for the swing is not being stuck
                     Description = "wait-rope " + edge;
                     for (int jumps = 1; jumps <= Mathf.Clamp(_nav.Hero.MaxJumps, 1, 2); jumps++) {
-                        var flight = new PlaytestNav.Flight {
-                            Pos = feet, Vel = new Vector2(player.Velocity.X, -_nav.Hero.JumpSpeed), Holding = true,
-                            AirJumps = jumps - 1, UseAirJumps = jumps > 1, TargetX = edge.LandX
+                        PlaytestNav.Flight flight = _nav.JumpFlight(feet, player.Velocity.X, edge.LandX) with {
+                            AirJumps = jumps - 1, UseAirJumps = jumps > 1
                         };
-                        if (_nav.PredictCatch(flight, edge.To.Rope) >= 0) {
+                        if (_nav.PredictCatch(flight, edge.To.Rope, PlaytestNav.GrabsLeft(player)) >= 0) {
                             StartJump(edge, ref intent, jumps);
                             return true;
                         }
@@ -1914,7 +1884,7 @@ namespace FTT.Diagnostics {
                         if (distance < 200f && Mathf.Abs(player.Velocity.X) > 60f && edge.SteerDelay == 0
                             && Mathf.Sign(player.Velocity.X) == Mathf.Sign(edge.LandX - feet.X)) {
                             PlaytestNav.SimResult r = _nav.Simulate(feet, player.Velocity.X, edge.Jumps, false, edge.From, edge.To, edge.LandX);
-                            if (r.Success && _nav.JumpClearsRopes(feet, player.Velocity.X, edge)) {
+                            if (r.Success) {
                                 StartJump(edge, ref intent);
                                 return true;
                             }
@@ -1925,32 +1895,6 @@ namespace FTT.Diagnostics {
                     if (Mathf.Abs(player.Velocity.X) > 90f && Mathf.Sign(player.Velocity.X) != Mathf.Sign(edge.LandX - feet.X)) {
                         intent.MoveX = 0f; // settle before a precise jump
                         return true;
-                    }
-                    // A swinging rope crosses the jump: wait for the gap (a few
-                    // swings at most, then let the planner look elsewhere).
-                    if (!_nav.JumpClearsRopes(feet, player.Velocity.X, edge, out PendulumAnchor blocking)) {
-                        if (_ropeWaitEdge != edge) {
-                            _ropeWaitEdge = edge;
-                            _ropeWaitStart = frame;
-                        }
-                        if (frame - _ropeWaitStart < 150) {
-                            _stuckFrame = frame;
-                            Description = "wait-swing " + edge;
-                            intent.MoveX = 0f;
-                            return true;
-                        }
-                        _ropeWaitEdge = null;
-                        // No clean window in a swing and a half: the rope in the
-                        // way is the way across - catch it, and let the hang pick
-                        // the best release. Without a catch edge, jump anyway.
-                        NavEdge viaRope = _nav.CatchEdge(edge.From, blocking);
-                        if (viaRope != null && _plan != null && _index < _plan.Edges.Count && _plan.Edges[_index] == edge) {
-                            Notes.Add($"no rope gap for {edge} after 150f; catching {blocking.Name} instead");
-                            _plan.Edges[_index] = viaRope;
-                            edge.Failures += 1;
-                            return true;
-                        }
-                        Notes.Add($"no rope gap for {edge} after 150f; jumping");
                     }
                     StartJump(edge, ref intent);
                     return true;
@@ -1974,18 +1918,21 @@ namespace FTT.Diagnostics {
         public static bool DebugRopes;
         private int _flightJumps = 1;
         private int _releaseJumps = 1;
-        private NavEdge _ropeWaitEdge;
+        /// <summary>The chosen rope release lets go of Jump at once (the short hop).</summary>
+        private bool _releaseTapped;
         private readonly Dictionary<NavSegment, float> _remainingCost = new();
         private NavSegment _expectedLanding;
         private int _costHangStart = -1;
-        private int _ropeWaitStart;
         private float _maxBelow = 260f;
         private PendulumAnchor _hangRope;
-        private PendulumAnchor _barRope;
-        private int _barStart;
         private int _hangStart;
         private NavEdge _catchWaitEdge;
         private int _catchWaitStart;
+        // The release edges this hang has predicted onto their own target at some
+        // point of the swing, and the hang whose swing has been audited.
+        private readonly HashSet<NavEdge> _releasesSeen = new();
+        private int _releasesSeenHang = -1;
+        private int _auditedHang = -1;
 
         /// <summary>
         /// Hanging on a swinging rope: plan from the rope and let go on the
@@ -2039,27 +1986,35 @@ namespace FTT.Diagnostics {
             float hereScore = RemainingCost(node);
             if (DebugRopes && edge != null && hung % 6 == 0 && hung < 160) {
                 PlaytestNav.Flight debugFlight = _nav.ReleaseFlight(rope, player, edge.LandX);
+                int grabs = PlaytestNav.GrabsLeft(player);
                 if (edge.To.IsRope) {
-                    Notes.Add($"why h={hung} {rope.Name}@{player.GlobalPosition} -> {_nav.ExplainCatch(debugFlight, edge.To.Rope, 150, rope)}");
+                    Notes.Add($"why h={hung} {rope.Name}@{player.GlobalPosition} -> {_nav.ExplainCatch(debugFlight, edge.To.Rope, 150, grabs)}");
                 } else {
                     debugFlight.AirJumps = Mathf.Max(0, player.RemainingJumps);
                     debugFlight.UseAirJumps = true;
-                    PlaytestNav.SimResult r = _nav.FlyAmongRopes(ref debugFlight, edge.To, 240,
-                        _nav.ObstaclesBetween(player.GlobalPosition.X, edge.LandX), rope);
-                    Notes.Add($"why h={hung} {rope.Name}@{player.GlobalPosition} -> {edge.To} ok={r.Success} crash={r.Crashed} landed={r.LandedOn} end={r.EndPos} v={debugFlight.Vel}");
+                    PlaytestNav.SimResult r = _nav.FlyCatching(ref debugFlight, edge.To, 240,
+                        _nav.ObstaclesBetween(player.GlobalPosition.X, edge.LandX), grabs, out PendulumAnchor caught);
+                    Notes.Add($"why h={hung} {rope.Name}@{player.GlobalPosition} -> {edge.To} ok={r.Success} crash={r.Crashed} landed={r.LandedOn} caught={caught?.Name} end={r.EndPos} v={debugFlight.Vel}");
                 }
+            }
+            if (_releasesSeenHang != _hangStart) {
+                _releasesSeen.Clear();
+                _releasesSeenHang = _hangStart;
             }
             float bestScore = float.MaxValue;
             int bestFrames = -1, bestJumps = 1;
+            bool bestTapped = false;
             NavSegment bestLanding = null;
             foreach (NavEdge candidate in candidates) {
-                int frames = PredictRelease(player, rope, candidate, out NavSegment landed, out int jumps);
+                int frames = PredictRelease(player, rope, candidate, out NavSegment landed, out int jumps, out bool tapped);
                 if (frames < 0 || landed == null) continue;
                 float score = RemainingCost(landed);
+                if (landed == candidate.To) _releasesSeen.Add(candidate);
                 if (score < bestScore) {
                     bestScore = score;
                     bestFrames = frames;
                     bestJumps = jumps;
+                    bestTapped = tapped;
                     bestLanding = landed;
                     chosen = candidate;
                 }
@@ -2069,11 +2024,31 @@ namespace FTT.Diagnostics {
                     || (hung > 120 && bestScore < hereScore - 0.5f)
                     || hung > 230;
             }
+            // The graph's release edges are guesses (no flight checks them). Once a
+            // whole swing has been predicted - and the hero's jumps and grabs do
+            // not change during a hang - a release that never reached its own
+            // target is not on from here: set those edges aside and re-plan from
+            // the rope over the ones that are, instead of waiting out the
+            // fallbacks for the cheapest guess.
+            if (!release && _auditedHang != _hangStart && hung > Mathf.CeilToInt(rope.PeriodSeconds * 60f) + 2) {
+                _auditedHang = _hangStart;
+                var refused = new List<string>();
+                foreach (NavEdge candidate in candidates) {
+                    if (_releasesSeen.Contains(candidate) || !_banned.Add(candidate)) continue;
+                    refused.Add(candidate.To.ToString());
+                }
+                if (refused.Count > 0) {
+                    _plan = null;
+                    _remainingCost.Clear();
+                    Notes.Add($"no release {rope.Name}->{string.Join(",", refused)} in a whole swing; re-planning");
+                }
+            }
             if (release) {
                 _releaseJumps = bestJumps;
+                _releaseTapped = bestTapped;
                 _expectedLanding = bestLanding;
                 if (chosen != edge || bestLanding != chosen.To) _plan = null; // re-plan from the landing
-                Notes.Add($"release {rope.Name}->{bestLanding} via {chosen.To} predicted={bestFrames}f jumps={bestJumps}/{player.RemainingJumps} hung={hung}f score={bestScore:0.0} plan={(plannedScore < 1e6f ? plannedScore.ToString("0.0") : "-")} here={hereScore:0.0}");
+                Notes.Add($"release {rope.Name}->{bestLanding} via {chosen.To} predicted={bestFrames}f jumps={bestJumps}/{player.RemainingJumps}{(bestTapped ? " tapped" : "")} hung={hung}f score={bestScore:0.0} plan={(plannedScore < 1e6f ? plannedScore.ToString("0.0") : "-")} here={hereScore:0.0}");
             } else {
                 chosen = null;
             }
@@ -2088,7 +2063,8 @@ namespace FTT.Diagnostics {
                 _airborneSeen = false;
                 _launchFrame = frame;
                 _airFrames = 0;
-                _jumpHeld = true;
+                // A tapped release lets go of Jump at once: the short hop.
+                _jumpHeld = chosen == null || !_releaseTapped;
                 _jumpsPressed = 1;
                 _flightJumps = chosen != null ? _releaseJumps : 1 + Mathf.Max(0, player.RemainingJumps);
                 _hangRope = null;
@@ -2109,49 +2085,58 @@ namespace FTT.Diagnostics {
         }
 
         /// <summary>
-        /// Frames until a jump-release now lands (-1 when it crashes or lands
-        /// nowhere useful), with the surface it lands on - the edge's target, or
-        /// any other solid surface on the way - and the jumps it uses.
+        /// Frames until a jump-release now lands or catches (-1 when it crashes
+        /// or comes down nowhere useful), with where it ends - the edge's target,
+        /// any other solid surface on the way, or the rope whose grab box catches
+        /// it first - the jumps it uses, and whether Jump is tapped (let go at
+        /// once, the short hop) rather than held. The rope bars are not solid, so
+        /// a release may be timed anywhere in the swing; the flight decides.
         /// </summary>
-        private int PredictRelease(PlayerController player, PendulumAnchor rope, NavEdge edge, out NavSegment landedOn, out int jumpsUsed) {
+        private int PredictRelease(PlayerController player, PendulumAnchor rope, NavEdge edge, out NavSegment landedOn,
+            out int jumpsUsed, out bool tapped) {
             landedOn = null;
             jumpsUsed = 1;
+            tapped = false;
             PlaytestNav.Flight flight = _nav.ReleaseFlight(rope, player, edge.LandX);
-            // The rope is a solid swinging bar: only let go while it carries the
-            // hero toward the target, so the hero flies out ahead of it.
-            float toward = Mathf.Sign(edge.LandX - player.GlobalPosition.X);
-            bool forward = Mathf.Abs(edge.LandX - player.GlobalPosition.X) < 40f
-                || (Mathf.Sign(flight.Vel.X) == toward && Mathf.Abs(flight.Vel.X) > 120f);
-            if (!forward) return -1;
+            List<NavRect> obstacles = _nav.ObstaclesBetween(player.GlobalPosition.X, edge.LandX);
+            int grabs = PlaytestNav.GrabsLeft(player);
             // The single jump first (a double jump usually sails over the next
-            // grab), then the double; the better landing wins.
+            // grab), then the double, then a tapped single (the short hop); the
+            // better landing wins, the earlier variant on a tie. Since the
+            // 2026-10-08 apex hang a held release floats higher for longer, and
+            // the short hop is the lower arc that can still meet a grab box the
+            // held one sails over.
             int airJumps = Mathf.Max(0, player.RemainingJumps);
             int bestFrames = -1;
             float bestScore = float.MaxValue;
-            for (int variant = 0; variant < 2; variant++) {
-                if (variant == 1 && airJumps == 0) break;
+            for (int variant = 0; variant < 3; variant++) {
+                if (variant == 1 && airJumps == 0) continue;
                 PlaytestNav.Flight attempt = flight;
-                attempt.AirJumps = variant == 0 ? 0 : airJumps;
+                attempt.AirJumps = variant == 1 ? airJumps : 0;
                 attempt.UseAirJumps = variant == 1;
+                attempt.Holding = variant != 2;
+                PlaytestNav.SimResult r = _nav.FlyCatching(ref attempt, edge.To.IsRope ? null : edge.To, 240, obstacles, grabs,
+                    out PendulumAnchor caught);
                 int frames;
                 NavSegment landed;
-                if (edge.To.IsRope) {
-                    frames = _nav.PredictCatch(attempt, edge.To.Rope, 150, rope);
-                    landed = frames >= 0 ? edge.To : null;
+                if (caught == rope) {
+                    // Swept back into the rope just let go of: no progress, and a
+                    // grab spent from the airtime's three.
+                    frames = -1;
+                    landed = null;
+                } else if (caught != null) {
+                    // A grab box catches the flight: the target rope, or one met on the way.
+                    landed = caught == edge.To.Rope ? edge.To : _nav.RopeSegment(caught);
+                    frames = landed != null ? Mathf.Max(1, r.Frames) : -1;
+                } else if (r.Success) {
+                    frames = r.Frames;
+                    landed = edge.To;
+                } else if (!r.Crashed && r.LandedOn != null && !r.LandedOn.IsDynamic && !r.LandedOn.IsRope) {
+                    frames = Mathf.Max(1, attempt.Frame);
+                    landed = r.LandedOn;
                 } else {
-                    int startFrame = attempt.Frame;
-                    PlaytestNav.SimResult r = _nav.FlyAmongRopes(ref attempt, edge.To, 240,
-                        _nav.ObstaclesBetween(player.GlobalPosition.X, edge.LandX), rope);
-                    if (r.Success) {
-                        frames = r.Frames;
-                        landed = edge.To;
-                    } else if (!r.Crashed && r.LandedOn != null && !r.LandedOn.IsDynamic && !r.LandedOn.IsRope) {
-                        frames = Mathf.Max(1, attempt.Frame - startFrame);
-                        landed = r.LandedOn;
-                    } else {
-                        frames = -1;
-                        landed = null;
-                    }
+                    frames = -1;
+                    landed = null;
                 }
                 if (frames < 0) continue;
                 float score = RemainingCost(landed);
@@ -2160,6 +2145,7 @@ namespace FTT.Diagnostics {
                     bestFrames = frames;
                     landedOn = landed;
                     jumpsUsed = 1 + (variant == 1 ? airJumps : 0);
+                    tapped = variant == 2;
                 }
             }
             return bestFrames;
@@ -2206,8 +2192,10 @@ namespace FTT.Diagnostics {
             float dx = targetX - player.GlobalPosition.X;
             if (Mathf.Abs(dx) <= tolerance) return 0f;
             float vx = player.Velocity.X;
-            // ~12-frame decel ramp at run speed: stopping distance ~ v^2 / (2 * v / 0.2 s).
-            float stopping = Mathf.Abs(vx) * 0.11f;
+            // The grounded decel ramp bleeds full speed over RunDecelerationFrames,
+            // so a stop from vx slides about vx * (N - 1) / 120 px; (N + 1) / 120
+            // keeps a frame of margin (0.11 at the old 12-frame ramp).
+            float stopping = Mathf.Abs(vx) * (UniversalMovementRules.RunDecelerationFrames + 1) / 120f;
             if (Mathf.Sign(vx) == Mathf.Sign(dx) && stopping >= Mathf.Abs(dx)) return 0f;
             return Mathf.Sign(dx);
         }

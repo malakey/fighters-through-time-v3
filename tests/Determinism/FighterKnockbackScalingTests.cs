@@ -20,16 +20,42 @@ namespace FTT.Tests.Determinism;
 ///    it without a second copy of the rule.
 /// 2. <b>The finisher creates separation.</b> With
 ///    <c>BasicComboRules.KnockbackMultipliers[2]</c> at 4.5x, the third hit of
-///    the string leaves every one of the nine authored kits more than the
-///    2-unit melee range apart by the time the victim's hitstun ends — even at
-///    <i>full</i> victim HP, where the scaling above contributes nothing.
+///    the string leaves every authored kit at least 2.5 units apart (the
+///    plan's locked floor, §2.5) <i>and</i> at least its own string opener's
+///    reach plus half a unit apart by the time the victim's hitstun ends —
+///    even at <i>full</i> victim HP, where the scaling above contributes
+///    nothing. The opener is what would restart the loop, so its reach (hit 1's
+///    box far edge from the one cross-mode string table, scaled by the kit's
+///    reach width, plus the sim's victim hurtbox half-width) is the second
+///    bar, added 2026-10-11 on top of the floor: the floor was pegged to a
+///    "2-unit melee range" the V7.1 reach profiles retired, and Cleopatra's
+///    opener already reaches 2.42.
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
 public class FighterKnockbackScalingTests {
 
-    /// <summary>Melee reach in <c>FighterCombatSystem</c>, plus the design margin.</summary>
-    private static readonly FP64 RequiredFinisherSeparation = FP64.FromDouble(2.5);
+    /// <summary>
+    /// The gameplay-feel plan's locked finisher separation (§2.5: "at least
+    /// 2.5 units horizontal separation"). It stays a floor under the per-kit
+    /// reach bar, so a knockback or weight change cannot shrink a short-reach
+    /// kit's separation below it while staying green.
+    /// </summary>
+    private static readonly FP64 FinisherSeparationFloor = FP64.FromDouble(2.5);
+
+    /// <summary>How far past the kit's opener reach the finisher must leave the victim.</summary>
+    private static readonly FP64 FinisherSeparationMargin = FP64.FromDouble(0.5);
+
+    /// <summary>
+    /// The kit's string-opener pivot reach in the sim, read from the live box
+    /// and hurtbox (never a copy), plus <see cref="FinisherSeparationMargin"/>.
+    /// Measured 2026-10-11 against this suite's protocol, every kit clears it
+    /// and the floor: the tightest is Cleopatra, 3.19 against 2.92.
+    /// </summary>
+    private static FP64 ReachFinisherSeparation(string characterID) =>
+        FighterCombatSystem.StringBoxFarEdge(BasicComboRules.StringProfileFor(characterID).ReachWidthPercent, 0)
+        + FighterCombatSystem.VictimHurtboxHalfWidth
+        + FinisherSeparationMargin;
 
     /// <summary>
     /// Package 11 A6b: the roster is the content manifest, never a literal
@@ -47,8 +73,12 @@ public class FighterKnockbackScalingTests {
             if (victimHP != victimMaxHP) {
                 issues.Add($"{id}: the finisher must land at full victim HP (was {victimHP}/{victimMaxHP}).");
             }
-            if (separation < RequiredFinisherSeparation) {
-                issues.Add($"{id}: finisher separation {Describe(separation)} < required 2.5 units.");
+            FP64 reachBar = ReachFinisherSeparation(id);
+            FP64 required = FP64.Max(FinisherSeparationFloor, reachBar);
+            if (separation < required) {
+                issues.Add($"{id}: finisher separation {Describe(separation)} < required {Describe(required)} units "
+                    + $"(the larger of the {Describe(FinisherSeparationFloor)} floor and the opener's reach + 0.5, "
+                    + $"{Describe(reachBar)}).");
             }
         }
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
@@ -104,7 +134,8 @@ public class FighterKnockbackScalingTests {
     /// <summary>
     /// Walks the shared string to its finisher against a mirror of the same
     /// authored kit while keeping the victim at full HP: hits one and two are
-    /// deliberately whiffed from outside the 2-unit melee range, both fighters
+    /// deliberately whiffed from 4 units apart, beyond every kit's hit-1 and
+    /// hit-2 reach (Cleopatra's hit 2, the longest, reaches 2.54), both fighters
     /// close in during hit two's recovery, and only the finisher connects. The
     /// attacker's input is released at the press so it has decelerated to a
     /// stop before the launch, leaving the victim's travel as the whole of the

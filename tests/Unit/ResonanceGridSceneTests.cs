@@ -116,6 +116,16 @@ public class ResonanceGridSceneTests {
                     AssertThat(edge.Satisfied).IsFalse();
                 }
 
+                // The dormant-node gate is live (2026-10-11): a fresh save has
+                // restored no Legacy slot, so a node gated on Special 2 is an
+                // unnamed dormant star while an ungated root shows its name.
+                string dormant = TranslationServer.Translate("resonance_dormant_node").ToString();
+                AssertThat(grid.GetNode<Button>("einstein_rift_range").Text).IsEqual(dormant);
+                AssertThat(grid.GetNode<Button>("einstein_mass").Text).IsNotEqual(dormant);
+                AssertThat(grid.GetNode<Button>("einstein_mass").Text
+                        .StartsWith(TranslationServer.Translate("resonance_einstein_mass_name").ToString()))
+                    .IsTrue();
+
                 // The balance line resolves its format string rather than showing a key.
                 AssertThat(panel.Root.GetNode<Label>(Layout + "Balance").Text)
                     .IsNotEqual("resonance_balance");

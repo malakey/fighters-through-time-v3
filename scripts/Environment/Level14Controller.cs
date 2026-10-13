@@ -93,6 +93,16 @@ namespace FTT.Environment {
         // the third perimeter-gantry rung (one-way 860/1460, top 1450), off the
         // breach-gallery floor route and short of the hold-node landing above it.
         protected override Vector2? SecretCachePosition => new(860f, 1355f);
+
+        // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, after the PreBoss
+        // anchor (9180) on the security-core floor, between Security Core lanes 1 (column
+        // x 9540-9660) and 2 (10200-10320), which arm in Phase 2. The hero's body anywhere in
+        // the 90 px channel circle keeps 80 px from lane 1 and 240 px from lane 2, so a
+        // mid-fight heal is not struck by a lane. The first placement (x 9480) put lane 1
+        // inside the circle; west of the lane, the Beacon's 200 px leaves no room. 350 px
+        // short of the arena (10200); a post-wave heal (wave 4 spawns at the 9360 transition).
+        protected override Vector2? RestorationFontPosition => new(9850f, DeckY);
+
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         protected override string InitialObjectiveKey => "neo_earth_objective_breach";

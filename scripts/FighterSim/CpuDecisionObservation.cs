@@ -56,6 +56,57 @@ namespace FTT.FighterSim {
         public int SpecialOneCooldownFrames;
         public int SpecialTwoCooldownFrames;
         public int MovementCooldownFrames;
+        /// <summary>
+        /// Frames left on the self ability lockout A (special global cooldown,
+        /// user direction 2026-10-08): while positive the Ultimate would be
+        /// refused, and so would Special 1 and Special 2 unless the current
+        /// swing has landed (D1, 2026-10-11 — see <see cref="SpecialLockoutFrames"/>
+        /// and <see cref="SwingLanded"/>), so the decision table does not pick
+        /// them. The sim fills it from
+        /// <c>FighterRuntimeComponent.AbilityLockoutFrames</c>, Story from
+        /// <c>PlayerController.AbilityLockoutFramesRemaining</c>; 0 (a hand-built
+        /// observation) means clear.
+        /// </summary>
+        public int AbilityLockoutFrames;
+        /// <summary>
+        /// D1 (2026-10-11): frames left on the Special-sourced lockout S (armed
+        /// with A by every Special or Ultimate acceptance). The sim fills it from
+        /// <c>FighterRuntimeComponent.SpecialLockoutFrames</c>, Story from
+        /// <c>PlayerController.SpecialLockoutFramesRemaining</c>; 0 by default.
+        /// </summary>
+        public int SpecialLockoutFrames;
+        /// <summary>
+        /// D1 (2026-10-11): 1 once the CPU's current swing has landed (D1a), so
+        /// its Specials read <see cref="SpecialLockoutFrames"/> instead of
+        /// <see cref="AbilityLockoutFrames"/>. 0 (a hand-built observation)
+        /// keeps the Special gate equal to the whole lockout.
+        /// </summary>
+        public int SwingLanded;
+        /// <summary>
+        /// The fighter's basic-string reach-width percent
+        /// (<c>BasicStringProfile.ReachWidthPercent</c>, 85–120), the one input
+        /// the neutral melee band needs from the fighter's own kit
+        /// (<see cref="FighterCpuController.MeleeBand(int,int,long)"/>, 2026-10-11). The sim
+        /// fills it from the fighter's character ID, the Mirror adapter from the
+        /// clone's hero ID. 0 (a hand-built observation) means unknown, and the
+        /// neutral BasicAttack press then keeps the legacy close range.
+        /// </summary>
+        public int SelfStringReachWidthPercent;
+        /// <summary>
+        /// The string step a BasicAttack press would continue into right now:
+        /// the next hit's index (1 or 2) while the fighter's own chain swing of
+        /// hit 1 or hit 2 runs, any phase, the chain hold included; otherwise 0.
+        /// It is 0 at rest, during the finisher (which cannot continue) and
+        /// during a directional swing (which stands outside the chain), because
+        /// a press there can at most open a fresh string. The melee band reads
+        /// this step's box (<see cref="FighterCpuController.MeleeBand(int,int,long)"/>),
+        /// at decision time and again, from the then-current value, when the
+        /// press is delivered. The sim fills it from
+        /// <c>FighterBasicAttackRules.NextChainStep</c>, Story from
+        /// <c>PlayerController.NextChainStepForPress</c>; 0 (a hand-built
+        /// observation) reads an opener.
+        /// </summary>
+        public int SelfNextStringStep;
 
         // === Target ===
         public long TargetPositionXRaw;
@@ -67,6 +118,13 @@ namespace FTT.FighterSim {
         public int TargetPressedButtons;
         /// <summary>Opponent Ultimate meter, raw <c>FP64</c> on the 0–100 scale.</summary>
         public long TargetInfluenceRaw;
+        /// <summary>
+        /// Horizontal half-width of the hurtbox a basic swing must reach on the
+        /// opponent, raw <c>FP64</c> world units. The sim fills its universal
+        /// victim half-width, the Mirror adapter the campaign hero's real
+        /// hurtbox. 0 (a hand-built observation) means the sim's value.
+        /// </summary>
+        public long TargetHurtboxHalfWidthRaw;
 
         // === Stage bounds (absent when HasStageBounds == 0) ===
         public int HasStageBounds;

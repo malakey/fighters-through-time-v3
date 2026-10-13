@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using FTT.Characters;
+using FTT.Combat;
 using FTT.Core;
 using FTT.Enemies;
 using FTT.Environment;
@@ -88,8 +89,13 @@ namespace FTT.Diagnostics {
         public void Attach(PlaytestWorld world, PlaytestBot bot) {
             _world = world;
             _bot = bot;
+            // D6d: hear the hero's melee contacts from the first frame on.
+            PlayerController hero = world?.Player;
+            if (hero != null && hero.PlayerIndex == 0) EnsureMeleeSubscription(hero);
             EventBus bus = EventBus.Instance;
             if (bus == null) return;
+            _unsubscribeLockoutRefused = PlaytestWorld.SubscribeLockoutRefused(OnLockoutRefused);
+            bus.OnUltimateActivation += OnUltimateActivation;
             bus.OnPlayerHPChanged += OnPlayerHP;
             bus.OnPlayerDied += OnPlayerDied;
             bus.OnRewindTriggered += OnRewind;
@@ -106,8 +112,14 @@ namespace FTT.Diagnostics {
         }
 
         public void Detach() {
+            UnsubscribeMelee();
+            CloseOpenMobSwings();
+            UnsubscribeMobs();
+            _unsubscribeLockoutRefused?.Invoke();
+            _unsubscribeLockoutRefused = null;
             EventBus bus = EventBus.Instance;
             if (bus == null) return;
+            bus.OnUltimateActivation -= OnUltimateActivation;
             bus.OnPlayerHPChanged -= OnPlayerHP;
             bus.OnPlayerDied -= OnPlayerDied;
             bus.OnRewindTriggered -= OnRewind;
@@ -181,8 +193,14 @@ namespace FTT.Diagnostics {
                         ["nav"] = _bot?.NavDescription ?? "",
                         ["target"] = _bot?.CurrentTarget is Node2D target && GodotObject.IsInstanceValid(target)
                             ? $"{target.Name}@{Mathf.RoundToInt(target.GlobalPosition.X)},{Mathf.RoundToInt(target.GlobalPosition.Y)}"
-                            : ""
+                            : "",
+                        // D6d: the Ultimate meter and the ability lockout.
+                        ["meter"] = Math.Round(player.CurrentUltimateMeter, 1),
+                        ["lock"] = player.AbilityLockoutFramesRemaining
                     });
+                    if (PlaytestWorld.HasHitConfirmGate && Trace[^1] is Dictionary<string, object> sample) {
+                        sample["sgate"] = PlaytestWorld.SpecialGateFrames(player);
+                    }
                     if (_bot?.CurrentTarget == null && Trace.Count > 0 && Trace[^1] is Dictionary<string, object> last) {
                         // Idle: name the nearest foe so a stalled run shows what it is waiting on.
                         Node2D nearestFoe = null;
@@ -206,6 +224,21 @@ namespace FTT.Diagnostics {
                 }
             }
 
+            // D6d combat telemetry (specs/C-meter-telemetry.md §1.4). The Mirror
+            // clone leaves StoryPlayer, so this is the hero; the index check is
+            // insurance.
+            if (player != null && player.PlayerIndex == 0) {
+                TrackPlayerInstance(player);
+                TrackMeter(player);
+                // Before anything this tick can close the finisher record.
+                NoteFinisherTargetHealth();
+                TrackSwing(player);
+                TrackAbilitySerials(player);
+                TrackPresses(player);
+                SampleFinisherTarget(player);
+                _finishers.Tick(Frame);
+            }
+
             if (Frame % 10 == 0) TrackObjectives(tree);
 
             var seen = new HashSet<ulong>();
@@ -223,7 +256,7 @@ namespace FTT.Diagnostics {
                         alive = enemy.IsAlive && body.IsVisibleInTree();
                         attacking = enemy.CurrentState == EnemyState.Attacking;
                         id = enemy.Data?.EnemyID ?? body.Name;
-                        kind = enemy.Data?.Tier.ToString().ToLowerInvariant() ?? "standard";
+                        kind = KindOf(enemy);
                     } else if (body is BossController boss) {
                         hp = boss.CurrentHP;
                         alive = boss.IsAlive && body.IsVisibleInTree();
@@ -244,12 +277,18 @@ namespace FTT.Diagnostics {
                         };
                         _live[key] = record;
                         Enemies.Add(record);
+                        // C3: hear this mob's melee contacts (once per instance; a
+                        // pooled respawn keeps the same hitbox and subscription).
+                        if (body is EnemyController mob) EnsureMobSubscription(mob);
                     }
                     if (record.Closed) continue;
                     seen.Add(key);
                     Observe(record, body, hp, alive, attacking, playerPosition, player != null);
+                    if (body is EnemyController melee) TrackMobSwing(melee, player);
                 }
             }
+            // C3: a mob that died, despawned or left the group mid-swing cuts it.
+            CloseUntrackedMobSwings();
 
             // A body that left the group (freed / pooled out) while alive counts as gone, not killed.
             foreach (KeyValuePair<ulong, EnemyRecord> entry in _live) {
@@ -309,6 +348,7 @@ namespace FTT.Diagnostics {
 
         private void OnPlayerHP(PlayerHPPayload payload) {
             if (payload.PlayerIndex != 0 || payload.DamageAmount <= 0f) return;
+            _finishers.OnHeroHit();
             int damage = Mathf.RoundToInt(payload.DamageAmount);
             PlayerDamageTaken += damage;
             PlayerHitsTaken++;
@@ -375,6 +415,7 @@ namespace FTT.Diagnostics {
 
         private void OnPlayerDied(int playerIndex) {
             if (playerIndex != 0) return;
+            _finishers.OnHeroDied(Frame);
             PlayerDeaths++;
             PlayerController player = _world?.Player;
             var detail = new Dictionary<string, object> {
@@ -418,9 +459,718 @@ namespace FTT.Diagnostics {
 
         private void OnHitConfirm(HitConfirmPayload payload) {
             if (payload.PlayerIndex != 0) return;
+            // D6d self-check: every basic confirm the bus carries is raised by the
+            // hero's own melee handler, which runs before OnMeleeContact.
+            if (!payload.IsHeavy) _busBasicConfirms++;
             string key = string.IsNullOrEmpty(payload.AttackID) ? "unknown" : payload.AttackID;
             (int count, float damage) = HitConfirms.GetValueOrDefault(key);
             HitConfirms[key] = (count + 1, damage + payload.DamageApplied);
+        }
+
+        // =================================================================
+        // D6d combat telemetry (user direction 2026-10-11; specs/C-meter-telemetry.md
+        // §1.4 (a)–(d), package C1). Observation only. Every read of a group-A
+        // seam goes through PlaytestWorld's "Hero gates" region.
+        // =================================================================
+
+        private readonly List<SwingRecord> _swings = new();
+        private SwingRecord _openSwing;
+        private readonly FinisherReapproachTracker _finishers = new();
+        private readonly AbilityPressTracker _presses = new();
+        private readonly MeterTracker _meter = new();
+        private readonly int[] _lastSerial = new int[3];
+        private readonly int[] _serialNow = new int[3];
+        private ulong _lastPlayerId;
+        private PlayerController _trackedPlayer;
+        private Hitbox _meleeHitbox;
+        private ulong _meleeHitboxId;
+        private int _busBasicConfirms;
+        private int _meleeDamagingContacts;
+        private int _lastPressSample = -1;
+        private Action _unsubscribeLockoutRefused;
+        private readonly int[] _lockoutEvents = new int[3];
+        private readonly List<int> _ultimateFrames = new();
+        /// <summary>The finisher target's EnemyRecord, captured at the connect (a pooled respawn is a new record).</summary>
+        private EnemyRecord _finisherTargetRecord;
+        private FinisherReapproachTracker.Record _finisherTargetFor;
+
+        /// <summary>Every hero swing, in order (the open one last, with an empty outcome).</summary>
+        public IReadOnlyList<SwingRecord> Swings => _swings;
+        public FinisherReapproachTracker Finishers => _finishers;
+        public AbilityPressTracker Presses => _presses;
+        public MeterTracker Meter => _meter;
+        /// <summary>Basic hit confirms the bus carried minus the damaging melee contacts heard; 0 unless a hitbox was missed.</summary>
+        public int OrphanBasicHits => _busBasicConfirms - _meleeDamagingContacts;
+        /// <summary>Lockout refusals the hero reported per slot (group A's event; always 0 before it lands). C3 reports them.</summary>
+        public IReadOnlyList<int> LockoutEvents => _lockoutEvents;
+
+        /// <summary>
+        /// Closes everything still open at the end of a run: pending presses
+        /// become unresolved, an open finisher record is lost, an open swing is
+        /// closed as it stands, and the melee subscription is dropped.
+        /// </summary>
+        public void FinishPending() {
+            _presses.AbandonPending();
+            _finishers.AbandonOpen(Frame);
+            CloseOpenSwing();
+            UnsubscribeMelee();
+            // C3: open mob swings close as they stand (cut), and every mob hitbox is let go.
+            CloseOpenMobSwings();
+            UnsubscribeMobs();
+        }
+
+        public static string KindOf(Node2D body) => body switch {
+            EnemyController enemy => enemy.Data?.Tier.ToString().ToLowerInvariant() ?? "standard",
+            ArenaGuardian => "guardian",
+            _ => "boss"
+        };
+
+        private static string FoeIdOf(Node2D body) => body switch {
+            EnemyController enemy => enemy.Data?.EnemyID ?? body.Name,
+            BossController boss => boss.Data?.BossID ?? body.Name,
+            _ => body.Name
+        };
+
+        private void EnsureMeleeSubscription(PlayerController player) {
+            Hitbox melee = player.GetNodeOrNull<Hitbox>("MeleeHitbox");
+            ulong id = melee?.GetInstanceId() ?? 0UL;
+            if (id == _meleeHitboxId && id != 0UL) return;
+            UnsubscribeMelee();
+            if (melee == null) return;
+            melee.HitConfirmed += OnMeleeContact;
+            _meleeHitbox = melee;
+            _meleeHitboxId = id;
+        }
+
+        private void UnsubscribeMelee() {
+            if (_meleeHitbox != null && GodotObject.IsInstanceValid(_meleeHitbox)) {
+                _meleeHitbox.HitConfirmed -= OnMeleeContact;
+            }
+            _meleeHitbox = null;
+            _meleeHitboxId = 0UL;
+        }
+
+        private void TrackPlayerInstance(PlayerController player) {
+            ulong id = player.GetInstanceId();
+            if (id != _lastPlayerId) {
+                if (_lastPlayerId != 0UL) {
+                    // A rebuilt hero (an Anchor Snap, a Collapse resume): what the
+                    // old instance had open cannot be resolved against the new one.
+                    _presses.AbandonPending();
+                    if (_openSwing != null) {
+                        _openSwing.Outcome = "dropped";
+                        _openSwing = null;
+                    }
+                    _finishers.AbandonOpen(Frame);
+                }
+                _lastPlayerId = id;
+                _trackedPlayer = player;
+                ReadSerials(player, _lastSerial);
+                _meter.Rebaseline(Frame, player.CurrentUltimateMeter, player.StoryDefyHistoryUsed);
+            }
+            EnsureMeleeSubscription(player);
+        }
+
+        private void TrackMeter(PlayerController player) =>
+            _meter.Sample(Frame, player.CurrentUltimateMeter, player.StoryDefyHistoryUsed);
+
+        private static void ReadSerials(PlayerController player, int[] into) {
+            into[0] = player.GetNodeOrNull<BaseSpecial>("Special1")?.ExecutionSerial ?? 0;
+            into[1] = player.GetNodeOrNull<BaseSpecial>("Special2")?.ExecutionSerial ?? 0;
+            into[2] = player.GetNodeOrNull<BaseSpecial>("Ultimate")?.ExecutionSerial ?? 0;
+        }
+
+        /// <summary>The §1.4(a) per-tick table: open, keep (lowering gmin), switch or close the hero's swing.</summary>
+        private void TrackSwing(PlayerController player) {
+            Hitbox melee = _meleeHitbox != null && GodotObject.IsInstanceValid(_meleeHitbox) ? _meleeHitbox : null;
+            if (melee == null || !melee.IsActive) {
+                CloseOpenSwing();
+                return;
+            }
+            string hit = melee.HitboxID ?? "";
+            if (_openSwing != null && _openSwing.Hit != hit) CloseOpenSwing();
+            if (_openSwing == null) {
+                OpenSwing(player, melee, Frame, hit, includeOpenRecords: false);
+                return;
+            }
+            Rect2? box = PlaytestWorld.ShapeRect(melee);
+            if (!box.HasValue) return;
+            FoeGeometry? nearest = NearestFoeGeometry(box.Value, player.GlobalPosition, player.IsFacingRight, includeOpenRecords: false);
+            if (nearest.HasValue && (_openSwing.GapMin < 0 || nearest.Value.Gap < _openSwing.GapMin)) {
+                _openSwing.GapMin = nearest.Value.Gap;
+            }
+        }
+
+        private void CloseOpenSwing() {
+            if (_openSwing == null) return;
+            _openSwing.Close();
+            _openSwing = null;
+        }
+
+        private void OpenSwing(PlayerController player, Hitbox melee, int frame, string hit, bool includeOpenRecords) {
+            var swing = new SwingRecord {
+                F = frame,
+                Hit = hit ?? "",
+                Air = !player.IsOnFloor(),
+                Act = _bot?.CurrentAction ?? ""
+            };
+            Rect2? box = PlaytestWorld.ShapeRect(melee);
+            if (box.HasValue) {
+                FoeGeometry? nearest = NearestFoeGeometry(box.Value, player.GlobalPosition, player.IsFacingRight, includeOpenRecords);
+                if (nearest.HasValue) {
+                    FoeGeometry g = nearest.Value;
+                    swing.Gap = g.Gap;
+                    swing.GapMin = g.Gap;
+                    swing.Piv = g.Piv;
+                    swing.Foe = g.Foe;
+                    swing.Kind = g.Kind;
+                    swing.Behind = g.Behind;
+                    swing.TargetId = g.TargetId;
+                    swing.TargetX = g.TargetX;
+                }
+            }
+            _swings.Add(swing);
+            _openSwing = swing;
+            _finishers.OnSwingStart(frame, _swings.Count - 1);
+        }
+
+        private readonly struct FoeGeometry {
+            public readonly int Gap;
+            public readonly int Piv;
+            public readonly string Foe;
+            public readonly string Kind;
+            public readonly bool Behind;
+            public readonly ulong TargetId;
+            public readonly float TargetX;
+            public FoeGeometry(int gap, int piv, string foe, string kind, bool behind, ulong targetId, float targetX) {
+                Gap = gap; Piv = piv; Foe = foe; Kind = kind; Behind = behind; TargetId = targetId; TargetX = targetX;
+            }
+        }
+
+        /// <summary>
+        /// The foe hurtbox nearest to the hitbox rect <paramref name="box"/>
+        /// (ties to the smaller pivot gap). The candidates are the live foes, plus
+        /// — for a swing opened inside the contact flush — every body whose
+        /// EnemyRecord is still open, because a lethal contact earlier in the same
+        /// flush has already zeroed its HP.
+        /// </summary>
+        private FoeGeometry? NearestFoeGeometry(Rect2 box, Vector2 pivot, bool facingRight, bool includeOpenRecords) {
+            List<Node2D> candidates = _world.Foes();
+            if (includeOpenRecords) {
+                foreach (KeyValuePair<ulong, EnemyRecord> entry in _live) {
+                    if (entry.Value.Closed) continue;
+                    if (GodotObject.InstanceFromId(entry.Key) is Node2D body && GodotObject.IsInstanceValid(body)
+                        && !candidates.Contains(body)) {
+                        candidates.Add(body);
+                    }
+                }
+            }
+            FoeGeometry? best = null;
+            foreach (Node2D foe in candidates) {
+                Rect2? hurt = PlaytestWorld.HurtboxRect(foe);
+                if (!hurt.HasValue) continue;
+                Rect2 r = hurt.Value;
+                int gap = (int)MathF.Round(PlaytestCombatMath.AabbGap(
+                    box.Position.X, box.Position.Y, box.End.X, box.End.Y,
+                    r.Position.X, r.Position.Y, r.End.X, r.End.Y));
+                int piv = (int)MathF.Round(PlaytestCombatMath.HorizontalGap(pivot.X, r.Position.X, r.End.X));
+                if (best.HasValue && (gap > best.Value.Gap || (gap == best.Value.Gap && piv >= best.Value.Piv))) continue;
+                float centreX = r.GetCenter().X;
+                bool behind = facingRight ? centreX < pivot.X : centreX > pivot.X;
+                best = new FoeGeometry(gap, piv, FoeIdOf(foe), KindOf(foe), behind, foe.GetInstanceId(), foe.GlobalPosition.X);
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// The hero's MeleeHitbox delivered a contact (inside the physics flush,
+        /// before this frame's Tick: read-only). A first-active-frame contact
+        /// arrives before any Tick has seen the box active, so it opens the swing.
+        /// </summary>
+        private void OnMeleeContact(HitPayload payload, float dealt) {
+            PlayerController player = _trackedPlayer != null && GodotObject.IsInstanceValid(_trackedPlayer)
+                ? _trackedPlayer
+                : _world?.Player;
+            if (dealt > 0f) _meleeDamagingContacts++;
+            if (player == null || _meleeHitbox == null || !GodotObject.IsInstanceValid(_meleeHitbox)) return;
+            string hit = payload.HitboxID ?? "";
+            if (_openSwing == null || _openSwing.Hit != hit) {
+                CloseOpenSwing();
+                OpenSwing(player, _meleeHitbox, Frame + 1, hit, includeOpenRecords: true);
+            }
+            SwingRecord swing = _openSwing;
+            swing.Contacts++;
+            if (!PlaytestWorld.IsLandedContact(in payload, dealt)) {
+                swing.NoLanding++;
+                return;
+            }
+            bool firstLanded = swing.Landed == 0;
+            swing.Landed++;
+            swing.Damage += dealt;
+            if (firstLanded && hit == "combo_3" && swing.TargetId != 0UL) {
+                // The knockback is not integrated until the target's own update, so
+                // its position now is its position at the connect.
+                float targetX = GodotObject.InstanceFromId(swing.TargetId) is Node2D target && GodotObject.IsInstanceValid(target)
+                    ? target.GlobalPosition.X
+                    : swing.TargetX;
+                _finishers.OnFinisherConnect(Frame + 1, swing.TargetId, swing.Kind, swing.Air, targetX, swing.Foe);
+                _finisherTargetFor = _finishers.Open;
+                _finisherTargetRecord = _live.TryGetValue(swing.TargetId, out EnemyRecord record) && !record.Closed ? record : null;
+            }
+        }
+
+        private void TrackAbilitySerials(PlayerController player) {
+            ReadSerials(player, _serialNow);
+            if (_serialNow[0] > _lastSerial[0] || _serialNow[1] > _lastSerial[1]) _finishers.OnAbilityAccepted(Frame, ultimate: false);
+            if (_serialNow[2] > _lastSerial[2]) _finishers.OnAbilityAccepted(Frame, ultimate: true);
+        }
+
+        /// <summary>
+        /// Registers this tick's bot presses with the serials read now (after the
+        /// hero's previous update, before the update that consumes them), then
+        /// resolves the earlier ones. Reads <see cref="_serialNow"/>, filled by
+        /// <see cref="TrackAbilitySerials"/> this tick. C3: each press carries the
+        /// hero's pre-update <see cref="PressSnapshot"/>, so a refusal books every
+        /// readable condition that held.
+        /// </summary>
+        private void TrackPresses(PlayerController player) {
+            if (_bot != null && _bot.SampleCount != _lastPressSample) {
+                _lastPressSample = _bot.SampleCount;
+                GameplayButtons pressed = _bot.LastPressed;
+                if ((pressed & GameplayButtons.Special1) != 0) {
+                    _presses.Register(Frame, PressSlot.Special1, _serialNow[0], SnapshotFor(player, PressSlot.Special1));
+                }
+                if ((pressed & GameplayButtons.Special2) != 0) {
+                    _presses.Register(Frame, PressSlot.Special2, _serialNow[1], SnapshotFor(player, PressSlot.Special2));
+                }
+                if ((pressed & GameplayButtons.Ultimate) != 0) {
+                    _presses.Register(Frame, PressSlot.Ultimate, _serialNow[2], SnapshotFor(player, PressSlot.Ultimate));
+                }
+            }
+            _presses.Resolve(Frame, _serialNow[0], _serialNow[1], _serialNow[2]);
+            Array.Copy(_serialNow, _lastSerial, _lastSerial.Length);
+        }
+
+        private static string SlotNodeName(PressSlot slot) => slot switch {
+            PressSlot.Special1 => "Special1",
+            PressSlot.Special2 => "Special2",
+            _ => "Ultimate"
+        };
+
+        /// <summary>
+        /// The hero's directly readable state for a press of <paramref name="slot"/>
+        /// (spec C §1.4(d), C3). Read on the registering tick, before the hero's
+        /// update consumes the press. The Ultimate reads the ability lockout, never
+        /// the Special gate (D1: no hit-confirm for the Ultimate).
+        /// </summary>
+        internal static PressSnapshot SnapshotFor(PlayerController player, PressSlot slot) {
+            bool ultimate = slot == PressSlot.Ultimate;
+            AbilitySlot abilitySlot = slot switch {
+                PressSlot.Special1 => AbilitySlot.Special1,
+                PressSlot.Special2 => AbilitySlot.Special2,
+                _ => AbilitySlot.Ultimate
+            };
+            return new PressSnapshot {
+                Slot = slot,
+                HitstopFrames = player.HitstopFramesRemaining,
+                State = player.CurrentState.ToString(),
+                TimeFrozen = player.TimeFrozen,
+                Suppressed = player.HasStatusEffect(StatusType.Suppression),
+                GateFrames = ultimate ? player.AbilityLockoutFramesRemaining : PlaytestWorld.SpecialGateFrames(player),
+                SlotUnlocked = player.IsAbilityUnlocked(abilitySlot),
+                CooldownSeconds = slot switch {
+                    PressSlot.Special1 => player.SpecialOneCooldownTimer,
+                    PressSlot.Special2 => player.SpecialTwoCooldownTimer,
+                    _ => 0f
+                },
+                MeterFull = player.CurrentUltimateMeter >= InfluenceMeterRules.MaxValue,
+                AbilityExecuting = player.GetNodeOrNull<BaseSpecial>(SlotNodeName(slot))?.IsExecuting ?? false
+            };
+        }
+
+        // =================================================================
+        // C3: mob melee swings (spec C §1.4(e)). EnemyController bodies only,
+        // MeleeStrike and ChargeDash active windows only; bosses are excluded.
+        // =================================================================
+
+        private sealed class MobHitboxSubscription {
+            public Hitbox Hitbox;
+            public Action<HitPayload, float> Handler;
+        }
+
+        private sealed class OpenMobSwing {
+            public MobSwingRecord Record;
+            public EnemyAbilityData Ability;
+        }
+
+        private readonly List<MobSwingRecord> _mobSwings = new();
+        private readonly Dictionary<ulong, OpenMobSwing> _openMobSwings = new();
+        private readonly Dictionary<ulong, MobHitboxSubscription> _mobHitboxes = new();
+        private readonly HashSet<ulong> _mobsTrackedThisTick = new();
+
+        /// <summary>Every mob melee swing, in open order (open ones have an empty outcome).</summary>
+        public IReadOnlyList<MobSwingRecord> MobSwings => _mobSwings;
+
+        private static bool IsMobMelee(EnemyAbilityData ability) =>
+            ability != null && ability.Archetype is EnemyAbilityArchetype.MeleeStrike or EnemyAbilityArchetype.ChargeDash;
+
+        /// <summary>Subscribes once per enemy instance to its attack hitbox's contacts (the lookup EnemyController uses).</summary>
+        private void EnsureMobSubscription(EnemyController enemy) {
+            ulong id = enemy.GetInstanceId();
+            if (_mobHitboxes.ContainsKey(id)) return;
+            Hitbox hitbox = enemy.GetNodeOrNull<Hitbox>("Hitbox") ?? enemy.GetNodeOrNull<Hitbox>("AttackHitbox");
+            if (hitbox == null) return;
+            Action<HitPayload, float> handler = (payload, dealt) => OnMobContact(id, payload, dealt);
+            hitbox.HitConfirmed += handler;
+            _mobHitboxes[id] = new MobHitboxSubscription { Hitbox = hitbox, Handler = handler };
+        }
+
+        private void UnsubscribeMobs() {
+            foreach (MobHitboxSubscription subscription in _mobHitboxes.Values) {
+                if (subscription.Hitbox != null && GodotObject.IsInstanceValid(subscription.Hitbox)) {
+                    subscription.Hitbox.HitConfirmed -= subscription.Handler;
+                }
+            }
+            _mobHitboxes.Clear();
+        }
+
+        /// <summary>
+        /// A mob's attack hitbox delivered a contact (inside the physics flush,
+        /// before this frame's Tick: read-only). Only a contact on the hero's
+        /// hurtbox (<c>TargetIndex == 0</c>, a block included) counts. A
+        /// first-active-frame contact arrives before any Tick has seen the phase,
+        /// so it opens the swing at <c>Frame + 1</c>.
+        /// </summary>
+        private void OnMobContact(ulong enemyId, HitPayload payload, float dealt) {
+            if (payload.TargetIndex != 0) return;
+            if (_openMobSwings.TryGetValue(enemyId, out OpenMobSwing open)) {
+                open.Record.Contacts++;
+                return;
+            }
+            if (GodotObject.InstanceFromId(enemyId) is not EnemyController enemy || !GodotObject.IsInstanceValid(enemy)) return;
+            EnemyAbilityData ability = enemy.ActiveAbility;
+            if (enemy.AbilityPhase != EnemyAbilityPhase.Active || !IsMobMelee(ability)) return;
+            PlayerController player = _trackedPlayer != null && GodotObject.IsInstanceValid(_trackedPlayer)
+                ? _trackedPlayer
+                : _world?.Player;
+            OpenMobSwing opened = OpenMobSwingFor(enemy, ability, Frame + 1, player);
+            opened.Record.Contacts++;
+        }
+
+        /// <summary>The §1.4(e) per-tick rule for one mob: open, keep, or close its melee swing.</summary>
+        private void TrackMobSwing(EnemyController enemy, PlayerController player) {
+            ulong id = enemy.GetInstanceId();
+            _mobsTrackedThisTick.Add(id);
+            EnemyAbilityData ability = enemy.ActiveAbility;
+            EnemyAbilityPhase phase = enemy.AbilityPhase;
+            bool activeMelee = phase == EnemyAbilityPhase.Active && IsMobMelee(ability);
+            if (_openMobSwings.TryGetValue(id, out OpenMobSwing open)) {
+                if (activeMelee && ReferenceEquals(open.Ability, ability)) return;
+                open.Record.Close(natural: phase == EnemyAbilityPhase.Recovery);
+                _openMobSwings.Remove(id);
+            }
+            if (activeMelee) OpenMobSwingFor(enemy, ability, Frame, player);
+        }
+
+        private OpenMobSwing OpenMobSwingFor(EnemyController enemy, EnemyAbilityData ability, int frame, PlayerController player) {
+            ulong id = enemy.GetInstanceId();
+            var record = new MobSwingRecord {
+                F = frame,
+                Foe = FoeIdOf(enemy),
+                Kind = KindOf(enemy),
+                Ability = string.IsNullOrEmpty(ability.AbilityID) ? ability.ResourceName ?? "" : ability.AbilityID
+            };
+            Hitbox hitbox = _mobHitboxes.TryGetValue(id, out MobHitboxSubscription subscription)
+                && subscription.Hitbox != null && GodotObject.IsInstanceValid(subscription.Hitbox)
+                ? subscription.Hitbox
+                : null;
+            Rect2? box = hitbox != null ? PlaytestWorld.ShapeRect(hitbox) : null;
+            Rect2? hurt = player != null ? PlaytestWorld.HurtboxRect(player) : null;
+            if (box.HasValue && hurt.HasValue) {
+                Rect2 a = box.Value;
+                Rect2 b = hurt.Value;
+                record.Gap = (int)MathF.Round(PlaytestCombatMath.AabbGap(
+                    a.Position.X, a.Position.Y, a.End.X, a.End.Y,
+                    b.Position.X, b.Position.Y, b.End.X, b.End.Y));
+            }
+            _mobSwings.Add(record);
+            var open = new OpenMobSwing { Record = record, Ability = ability };
+            _openMobSwings[id] = open;
+            return open;
+        }
+
+        /// <summary>Open mob swings whose enemy this tick's loop did not reach (dead, despawned, out of the group) are cut.</summary>
+        private void CloseUntrackedMobSwings() {
+            if (_openMobSwings.Count > 0) {
+                var gone = new List<ulong>();
+                foreach (ulong id in _openMobSwings.Keys) {
+                    if (!_mobsTrackedThisTick.Contains(id)) gone.Add(id);
+                }
+                foreach (ulong id in gone) {
+                    _openMobSwings[id].Record.Close(natural: false);
+                    _openMobSwings.Remove(id);
+                }
+            }
+            _mobsTrackedThisTick.Clear();
+        }
+
+        /// <summary>The end of the run: every open mob swing closes as it stands, as a cut.</summary>
+        private void CloseOpenMobSwings() {
+            foreach (OpenMobSwing open in _openMobSwings.Values) open.Record.Close(natural: false);
+            _openMobSwings.Clear();
+        }
+
+        /// <summary>
+        /// The carry-sampled finisher target's HP at the start of this tick: the
+        /// baseline while its record is open, and after a swing close the test
+        /// for a later hit that voids the carry (<see cref="FinisherReapproachTracker.NoteTargetHealth"/>).
+        /// </summary>
+        private void NoteFinisherTargetHealth() {
+            FinisherReapproachTracker.Record record = _finishers.Sampled;
+            if (record == null) return;
+            if (GodotObject.InstanceFromId(record.TargetId) is Node2D body && GodotObject.IsInstanceValid(body)) {
+                _finishers.NoteTargetHealth(PlaytestWorld.HealthOf(body));
+            }
+        }
+
+        private void SampleFinisherTarget(PlayerController player) {
+            FinisherReapproachTracker.Record record = _finishers.Sampled;
+            if (record == null) return;
+            EnemyRecord captured = record == _finisherTargetFor ? _finisherTargetRecord : null;
+            Node2D body = GodotObject.InstanceFromId(record.TargetId) as Node2D;
+            bool alive = body != null && GodotObject.IsInstanceValid(body) && PlaytestWorld.HealthOf(body) > 0;
+            if (alive && captured != null) {
+                alive = !captured.Closed && _live.TryGetValue(record.TargetId, out EnemyRecord current) && current == captured;
+            }
+            if (!alive) {
+                _finishers.OnTargetSample(Frame, alive: false, grounded: true, 0f, 0f);
+                return;
+            }
+            bool grounded = body is not CharacterBody2D characterBody || characterBody.IsOnFloor();
+            Rect2? hurt = PlaytestWorld.HurtboxRect(body);
+            float landGap = hurt.HasValue
+                ? PlaytestCombatMath.HorizontalGap(player.GlobalPosition.X, hurt.Value.Position.X, hurt.Value.End.X)
+                : MathF.Abs(body.GlobalPosition.X - player.GlobalPosition.X);
+            _finishers.OnTargetSample(Frame, alive: true, grounded, body.GlobalPosition.X, landGap);
+        }
+
+        private void OnUltimateActivation(UltimateActivationPayload payload) {
+            if (payload.PlayerIndex == 0) _ultimateFrames.Add(Frame);
+        }
+
+        private void OnLockoutRefused(int playerIndex, PressSlot slot) {
+            if (playerIndex == 0) _lockoutEvents[(int)slot]++;
+        }
+
+        private static List<object> Boxed(IEnumerable<int> values) => values.Select(v => (object)v).ToList();
+
+        private Dictionary<string, object> SwingsReport() {
+            List<SwingRecord> counted = _swings.Where(s => s.IsCounted).ToList();
+            List<SwingRecord> combat = counted.Where(s => s.IsCombat).ToList();
+            List<SwingRecord> whiffs = combat.Where(s => s.Outcome == "w").ToList();
+            var byHit = new Dictionary<string, object>();
+            foreach (IGrouping<string, SwingRecord> group in combat.GroupBy(s => s.Hit + (s.Air ? "_air" : "")).OrderBy(g => g.Key)) {
+                List<SwingRecord> groupWhiffs = group.Where(s => s.Outcome == "w").ToList();
+                byHit[group.Key] = new Dictionary<string, object> {
+                    ["count"] = group.Count(),
+                    ["connected"] = group.Count(s => s.Outcome == "c"),
+                    ["contact_no_landing"] = group.Count(s => s.Outcome == "x"),
+                    ["whiffed"] = groupWhiffs.Count,
+                    ["whiff_gap_px_median"] = PlaytestCombatMath.Median(groupWhiffs.Select(s => s.GapMin).ToList())
+                };
+            }
+            return new Dictionary<string, object> {
+                ["count"] = counted.Count,
+                ["combat"] = combat.Count,
+                ["non_combat"] = counted.Count - combat.Count,
+                ["connected"] = combat.Count(s => s.Outcome == "c"),
+                ["contact_no_landing"] = combat.Count(s => s.Outcome == "x"),
+                ["whiffed"] = whiffs.Count,
+                ["whiff_in_reach"] = whiffs.Count(s => s.GapMin == 0),
+                ["whiff_out_of_reach"] = whiffs.Count(s => s.GapMin > 0),
+                ["orphan_basic_hits"] = OrphanBasicHits,
+                ["connect_basis"] = PlaytestWorld.ConnectBasis,
+                ["whiff_gap_px_median"] = PlaytestCombatMath.Median(whiffs.Select(s => s.GapMin).ToList()),
+                ["connect_gap_px_median"] = PlaytestCombatMath.Median(combat.Where(s => s.Outcome == "c").Select(s => s.Gap).ToList()),
+                ["by_hit"] = byHit
+            };
+        }
+
+        private List<object> SwingLog() => _swings.Where(s => s.IsCounted).Take(2000).Select(s => (object)new Dictionary<string, object> {
+            ["f"] = s.F,
+            ["hit"] = s.Hit,
+            ["air"] = s.Air,
+            ["act"] = s.Act,
+            ["out"] = s.Outcome,
+            ["dmg"] = Math.Round(s.Damage, 1),
+            ["n"] = s.Landed,
+            ["n0"] = s.NoLanding,
+            ["gap"] = s.Gap,
+            ["gmin"] = s.GapMin,
+            ["piv"] = s.Piv,
+            ["foe"] = s.Foe,
+            ["kind"] = s.Kind,
+            ["behind"] = s.Behind
+        }).ToList();
+
+        /// <summary>Whether the swing that closed a <c>swing</c>-outcome record connected; null otherwise.</summary>
+        private bool? NextConnected(FinisherReapproachTracker.Record record) {
+            if (record.Outcome != "swing" || record.ClosedBySwingIndex < 0 || record.ClosedBySwingIndex >= _swings.Count) return null;
+            SwingRecord next = _swings[record.ClosedBySwingIndex];
+            if (next.Outcome == "dropped") return null;
+            return next.IsOpen ? next.Landed > 0 : next.Outcome == "c";
+        }
+
+        private Dictionary<string, object> FinishersReport() {
+            List<FinisherReapproachTracker.Record> records = _finishers.Records;
+            var outcomes = new Dictionary<string, object>();
+            foreach (string outcome in new[] { "swing", "killed", "special", "ultimate", "death", "lost" }) {
+                outcomes[outcome] = records.Count(r => r.Outcome == outcome);
+            }
+            List<int> reapproach = _finishers.SwingFrames();
+            List<bool> nextConnected = records.Select(NextConnected).Where(v => v.HasValue).Select(v => v.Value).ToList();
+            var byKind = new Dictionary<string, object>();
+            foreach (IGrouping<string, FinisherReapproachTracker.Record> group in records.GroupBy(r => r.TargetKind).OrderBy(g => g.Key)) {
+                byKind[group.Key] = new Dictionary<string, object> {
+                    ["n"] = group.Count(),
+                    ["reapproach_median"] = PlaytestCombatMath.Median(group.Where(r => r.Outcome == "swing").Select(r => r.Frames).ToList()),
+                    // §1.4(b): medians use swing outcomes only, like the re-approach.
+                    ["carry_px_median"] = PlaytestCombatMath.Median(group.Where(r => r.Outcome == "swing" && r.CarryPx >= 0).Select(r => r.CarryPx).ToList()),
+                    ["land_gap_px_median"] = PlaytestCombatMath.Median(group.Where(r => r.Outcome == "swing" && r.LandGapPx >= 0).Select(r => r.LandGapPx).ToList())
+                };
+            }
+            return new Dictionary<string, object> {
+                ["connected"] = records.Count,
+                ["outcomes"] = outcomes,
+                ["reapproach_frames_median"] = PlaytestCombatMath.Median(reapproach),
+                ["reapproach_frames_p90"] = PlaytestCombatMath.Percentile(reapproach, 90),
+                ["next_swing_connect_pct"] = nextConnected.Count == 0
+                    ? -1.0
+                    : Math.Round(100.0 * nextConnected.Count(v => v) / nextConnected.Count, 1),
+                ["by_kind"] = byKind,
+                ["log"] = records.Take(500).Select(r => (object)new Dictionary<string, object> {
+                    ["f"] = r.ConnectFrame,
+                    ["foe"] = r.Foe,
+                    ["kind"] = r.TargetKind,
+                    ["air"] = r.Air,
+                    ["outcome"] = r.IsOpen ? "open" : r.Outcome,
+                    ["frames"] = r.Frames,
+                    ["carry"] = r.CarryPx,
+                    ["land_gap"] = r.LandGapPx,
+                    ["carry_void"] = r.CarryVoided,
+                    ["hit_taken"] = r.HitTaken,
+                    ["next_connected"] = NextConnected(r)
+                }).ToList()
+            };
+        }
+
+        private Dictionary<string, object> MeterReport() {
+            int fillMedian = PlaytestCombatMath.Median(_meter.FillFrames);
+            return new Dictionary<string, object> {
+                ["level_start"] = Math.Round(_meter.LevelStart, 1),
+                ["end"] = Math.Round(_meter.End, 1),
+                ["gained"] = Math.Round(_meter.Gained, 1),
+                ["spent"] = Math.Round(_meter.Spent, 1),
+                ["gain_per_min"] = _meter.TrackedFrames > 0
+                    ? Math.Round(_meter.Gained / (_meter.TrackedFrames / 3600.0), 1)
+                    : -1.0,
+                ["first_full_frame"] = _meter.FirstFullFrame,
+                ["full_frames"] = _meter.FullFrames,
+                ["fill_frames"] = Boxed(_meter.FillFrames),
+                ["fills_dirty"] = _meter.FillsDirty,
+                ["fill_seconds_median"] = fillMedian >= 0 ? Math.Round(fillMedian / 60.0, 2) : -1.0,
+                ["ultimates_cast"] = _ultimateFrames.Count,
+                ["ultimate_frames"] = Boxed(_ultimateFrames),
+                ["defy_procs"] = _meter.DefyProcs
+            };
+        }
+
+        /// <summary>The bot's Special press policy (<c>gated</c> | <c>confirm</c>), or null without a Story bot.</summary>
+        private string PressPolicy => _bot is StoryBot story ? story.Policy.ToString().ToLowerInvariant() : null;
+
+        private static Dictionary<string, object> Table(Dictionary<string, int> counts) =>
+            counts.OrderBy(kv => kv.Key, StringComparer.Ordinal).ToDictionary(kv => kv.Key, kv => (object)kv.Value);
+
+        private Dictionary<string, object> PressesReport() {
+            var report = new Dictionary<string, object> {
+                // C3: which Special press policy the bot ran (--special-press).
+                ["policy"] = PressPolicy
+            };
+            foreach (PressSlot slot in new[] { PressSlot.Special1, PressSlot.Special2, PressSlot.Ultimate }) {
+                AbilityPressTracker.Counts counts = _presses.For(slot);
+                report[slot.ToString().ToLowerInvariant()] = new Dictionary<string, object> {
+                    ["pressed"] = counts.Pressed,
+                    ["accepted"] = counts.Accepted,
+                    ["refused"] = counts.Refused,
+                    ["unresolved"] = counts.Unresolved,
+                    // C3 (§1.4(d)): every readable condition that held at a refused
+                    // press's snapshot; conditions present, not the hero's check order.
+                    ["refused_with"] = Table(counts.RefusedWith),
+                    ["refused_sole"] = Table(counts.RefusedSole),
+                    ["refused_none"] = counts.RefusedNone,
+                    ["refused_state"] = Table(counts.RefusedState),
+                    // The hero's own lockout-refusal event (group A's D10, agent A2); null before it lands.
+                    ["lockout_events"] = PlaytestWorld.HasLockoutRefusedEvent ? (object)_lockoutEvents[(int)slot] : null
+                };
+            }
+            return report;
+        }
+
+        /// <summary>C3: the mob melee swings block (§1.4(e)). Aggregates use natural closes only.</summary>
+        private Dictionary<string, object> MobSwingsReport() {
+            List<MobSwingRecord> closed = _mobSwings.Where(s => !s.IsOpen).ToList();
+            List<MobSwingRecord> natural = closed.Where(s => s.Natural).ToList();
+            List<MobSwingRecord> whiffs = natural.Where(s => s.Outcome == "w").ToList();
+            var byEnemy = new Dictionary<string, object>();
+            foreach (IGrouping<string, MobSwingRecord> group in natural.GroupBy(s => s.Foe).OrderBy(g => g.Key, StringComparer.Ordinal)) {
+                List<MobSwingRecord> groupWhiffs = group.Where(s => s.Outcome == "w").ToList();
+                byEnemy[group.Key] = new Dictionary<string, object> {
+                    ["count"] = group.Count(),
+                    ["whiffed"] = groupWhiffs.Count,
+                    ["whiff_gap_px_median"] = PlaytestCombatMath.Median(groupWhiffs.Where(s => s.Gap >= 0).Select(s => s.Gap).ToList())
+                };
+            }
+            return new Dictionary<string, object> {
+                ["count"] = closed.Count,
+                ["natural"] = natural.Count,
+                ["cut"] = closed.Count - natural.Count,
+                ["connected"] = natural.Count(s => s.Outcome == "c"),
+                ["whiffed"] = whiffs.Count,
+                ["whiff_out_of_reach"] = whiffs.Count(s => s.Gap > 0),
+                ["whiff_gap_px_median"] = PlaytestCombatMath.Median(whiffs.Where(s => s.Gap >= 0).Select(s => s.Gap).ToList()),
+                ["by_enemy"] = byEnemy,
+                ["log"] = closed.Take(500).Select(s => (object)new Dictionary<string, object> {
+                    ["f"] = s.F,
+                    ["foe"] = s.Foe,
+                    ["kind"] = s.Kind,
+                    ["ability"] = s.Ability,
+                    ["out"] = s.Outcome,
+                    ["natural"] = s.Natural,
+                    ["gap"] = s.Gap
+                }).ToList()
+            };
+        }
+
+        private double MobWhiffPercent() {
+            List<MobSwingRecord> natural = _mobSwings.Where(s => !s.IsOpen && s.Natural).ToList();
+            return natural.Count > 0 ? Math.Round(100.0 * natural.Count(s => s.Outcome == "w") / natural.Count, 1) : -1.0;
+        }
+
+        /// <summary>The runner's one-line <c>PLAYTEST_RESULT</c> combat summary.</summary>
+        public Dictionary<string, object> CombatSummary() {
+            List<SwingRecord> combat = _swings.Where(s => s.IsCounted && s.IsCombat).ToList();
+            int whiffs = combat.Count(s => s.Outcome == "w");
+            return new Dictionary<string, object> {
+                ["swings"] = combat.Count,
+                ["whiff_pct"] = combat.Count > 0 ? Math.Round(100.0 * whiffs / combat.Count, 1) : -1.0,
+                ["reapproach_med"] = PlaytestCombatMath.Median(_finishers.SwingFrames()),
+                ["ults"] = _ultimateFrames.Count,
+                ["meter_start"] = Math.Round(_meter.LevelStart, 1),
+                ["s_refused"] = _presses.For(PressSlot.Special1).Refused + _presses.For(PressSlot.Special2).Refused,
+                // C3: natural mob melee swings that whiffed, and the bot's Special press policy.
+                ["mob_whiff_pct"] = MobWhiffPercent(),
+                ["policy"] = PressPolicy
+            };
         }
 
         /// <summary>Plain dictionary tree for JSON serialization.</summary>
@@ -490,6 +1240,14 @@ namespace FTT.Diagnostics {
                 }).ToList(),
                 ["objectives_broken_frame"] = Objectives.ToDictionary(kv => kv.Key, kv => (object)kv.Value),
                 ["rooms"] = Rooms.Select(r => (object)new Dictionary<string, object> { ["frame"] = r.Frame, ["room"] = r.Room }).ToList(),
+                // D6d combat telemetry (specs/C-meter-telemetry.md §4.1 step 3.8).
+                ["swings"] = SwingsReport(),
+                ["swing_log"] = SwingLog(),
+                ["finishers"] = FinishersReport(),
+                ["meter"] = MeterReport(),
+                ["ability_presses"] = PressesReport(),
+                // C3 (§4.3 step 2.4): mob MeleeStrike/ChargeDash active windows.
+                ["mob_swings"] = MobSwingsReport(),
                 ["trace"] = Trace
             };
         }

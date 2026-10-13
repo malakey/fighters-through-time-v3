@@ -53,6 +53,24 @@ public class RollbackProtocolTests {
         AssertThat(lateInput).IsFalse();
         AssertThat(firstSimulation.CurrentTick).IsEqual(secondSimulation.CurrentTick);
         AssertThat(firstSimulation.CurrentHash).IsEqual(secondSimulation.CurrentHash);
+
+        // The converged timeline is the plain local replay of both scripts, and
+        // that replay really casts specials through the ability lockout.
+        var reference = new FighterSimulation(seed: 781);
+        int[] lastCooldowns = new int[4];
+        int acceptedSpecials = 0;
+        for (int tick = 0; tick < 300; tick++) {
+            reference.Advance(Input(tick, 0), Input(tick, 1));
+            for (int player = 0; player < 2; player++) {
+                reference.TryGetFighterRuntime(player, out FighterRuntimeComponent runtime);
+                if (runtime.SpecialOneCooldownFrames > lastCooldowns[player * 2]) acceptedSpecials++;
+                if (runtime.SpecialTwoCooldownFrames > lastCooldowns[player * 2 + 1]) acceptedSpecials++;
+                lastCooldowns[player * 2] = runtime.SpecialOneCooldownFrames;
+                lastCooldowns[player * 2 + 1] = runtime.SpecialTwoCooldownFrames;
+            }
+        }
+        AssertThat(reference.CurrentHash).IsEqual(firstSimulation.CurrentHash);
+        AssertThat(acceptedSpecials).IsGreaterEqual(3);
     }
 
     /// <summary>
@@ -117,12 +135,24 @@ public class RollbackProtocolTests {
         return new RollbackInputPacket(sessionID, sequence, 0, 1, tick, input, -1, 0L).Serialize();
     }
 
+    /// <summary>
+    /// A basic every 29 ticks and a special window every 113: basics stop 60
+    /// ticks before the window (each swing start arms the 30-frame ability
+    /// lockout), then the special is re-pressed every other tick for 30 ticks.
+    /// Windows alternate Special 1 and Special 2.
+    /// </summary>
     private static PlayerInputFrame Input(int tick, int playerID) {
         sbyte direction = ((tick / 45 + playerID) & 1) == 0 ? (sbyte)100 : (sbyte)-100;
-        GameplayButtons held = tick % 29 == playerID
+        // Phase 0 is the window's first press: tick 20 (+ playerID) of each cycle.
+        int shifted = tick + 113 - 20 - playerID;
+        int phase = shifted % 113;
+        bool slotOne = ((shifted / 113) & 1) == 1;
+        bool pressingSpecial = phase < 30;
+        bool basicsQuiet = pressingSpecial || phase >= 113 - 60;
+        GameplayButtons held = !basicsQuiet && tick % 29 == playerID
             ? GameplayButtons.BasicAttack
-            : tick % 113 == 20 + playerID
-                ? GameplayButtons.Special1
+            : pressingSpecial && (phase & 1) == 0
+                ? slotOne ? GameplayButtons.Special1 : GameplayButtons.Special2
                 : GameplayButtons.None;
         return new PlayerInputFrame {
             Tick = (uint)tick,

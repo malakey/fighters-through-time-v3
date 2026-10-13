@@ -82,9 +82,9 @@ namespace FTT.Characters.Abilities {
                 AttackClass = AttackClass.Special,
                 // Minor Smite Damage is ability-scoped (AbilityDamage keyed by
                 // the ability ID); the wave delivers through a direct TakeHit, so
-                // the lane is read here as the Emancipator's wave always did.
-                Damage = (Data?.BaseDamage ?? 28f) * Owner.StorySpecialDamageMultiplier
-                    * Owner.StoryScoped("AbilityDamage", abilityID),
+                // the whole Story ability-damage composition (SpecialDamage, that
+                // lane and the item-drop damage buff) is applied here, once.
+                Damage = Owner.StoryAbilityDamage(Data?.BaseDamage ?? 28f, abilityID),
                 Knockback = (Data?.KnockbackForce ?? new Vector2(2f, -1f)) * Owner.StoryKnockbackMultiplier,
                 HitstunDuration = Data?.HitstunDuration ?? 0.5f,
                 HitOrigin = front,
@@ -98,7 +98,7 @@ namespace FTT.Characters.Abilities {
             float dealt = hurtbox.TakeHit(hit);
             // The impact VFX, HitConfirm and caster freeze land inside Credit, at
             // the wave's front (2026-10-04 feel pass).
-            Credit(in hit, dealt, front);
+            Credit(hurtbox, in hit, dealt, front);
             if (dealt > 0f) {
                 // Wings Refresh reads "a direct Righteous Smite hit" off the
                 // shared hit-landed hook the Hitbox path raises.
@@ -210,7 +210,7 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "joan_divine_piercing",
                     HitboxID = $"thrust_{_thrustsDone}",
                     AttackClass = AttackClass.Special,
-                    Damage = (Data?.BaseDamage ?? 8f) * Owner.StorySpecialDamageMultiplier,
+                    Damage = Owner.StoryAbilityDamage(Data?.BaseDamage ?? 8f, Data?.AbilityID),
                     Knockback = finalThrust ? Data?.KnockbackForce ?? new Vector2(4f, -1f) : Vector2.Zero,
                     HitstunDuration = Data?.HitstunDuration ?? 0.2f,
                     HitOrigin = Owner.GlobalPosition,
@@ -224,7 +224,7 @@ namespace FTT.Characters.Abilities {
                 // Only the final thrust launches; the others hold.
                 if (!finalThrust) hit.Launches = false;
                 float dealt = hurtbox.TakeHit(hit);
-                Credit(in hit, dealt, hurtbox.GlobalPosition);
+                Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
             }
         }
 
@@ -449,7 +449,7 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "joan_grand_crusade",
                     HitboxID = $"trample_{_hitsDone}",
                     AttackClass = AttackClass.Ultimate,
-                    Damage = (Data?.CinematicHitDamage(_hitsDone) ?? 12f) * Owner.StorySpecialDamageMultiplier,
+                    Damage = Owner.StoryAbilityDamage(Data?.CinematicHitDamage(_hitsDone) ?? 12f, Data?.AbilityID),
                     Knockback = finalHit ? Data?.KnockbackForce ?? new Vector2(8f, -2f) : Vector2.Zero,
                     HitstunDuration = finale ? UltimateActivationRules.FinaleHitstunSeconds : Data?.HitstunDuration ?? 0.2f,
                     HitOrigin = Owner.GlobalPosition,
@@ -464,7 +464,7 @@ namespace FTT.Characters.Abilities {
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards
                 // its caster ZERO damage-dealt meter. Direct-hit Rally reclaim
                 // from an Ultimate impact is retained (D03g).
-                Credit(in hit, dealt, hurtbox.GlobalPosition);
+                Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
             }
         }
     }

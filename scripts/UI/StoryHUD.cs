@@ -72,7 +72,10 @@ namespace FTT.UI {
         private RadialProgress _controlStatusRadial;
         private FTT.Combat.StatusController _statusAuthority;
 
-        // Meter ring, lock overlay and Defy seal.
+        // Meter ring, lock overlay and Defy seal. The BG is a plain Control that
+        // draws nothing: it hosts the D10 "not yet" frame, while the fill (the
+        // RadialProgress) takes the tint.
+        private Control _meterHost;
         private RadialProgress _meterFill;
         private Label _meterLockOverlay;
         private Label _defySeal;
@@ -224,6 +227,7 @@ namespace FTT.UI {
                 bus.OnCollapseTremorChanged += OnCollapseTremorChanged;
                 bus.OnTimeFreezeStateChanged += OnTimeFreezeStateChanged;
                 bus.OnAbilitySlotLockChanged += OnAbilitySlotLockChanged;
+                bus.OnAbilityLockoutRefused += OnAbilityLockoutRefused;
                 bus.OnAnchorChargesChanged += OnAnchorChargesChanged;
                 bus.OnDefySealChanged += OnDefySealChanged;
                 bus.OnRallyEchoChanged += OnRallyEchoChanged;
@@ -256,6 +260,7 @@ namespace FTT.UI {
             bus.OnCollapseTremorChanged -= OnCollapseTremorChanged;
             bus.OnTimeFreezeStateChanged -= OnTimeFreezeStateChanged;
             bus.OnAbilitySlotLockChanged -= OnAbilitySlotLockChanged;
+            bus.OnAbilityLockoutRefused -= OnAbilityLockoutRefused;
             bus.OnAnchorChargesChanged -= OnAnchorChargesChanged;
             bus.OnDefySealChanged -= OnDefySealChanged;
             bus.OnRallyEchoChanged -= OnRallyEchoChanged;
@@ -271,6 +276,9 @@ namespace FTT.UI {
             _uiScale.Apply(_root);
             SyncStatusAuthority();
             _indicators.Tick((float)delta);
+            // After the fallback tick, so the drawn arc is the hero's own value
+            // this frame rather than one frame ahead of it.
+            SyncCooldownAuthority();
             RefreshIndicators();
             RefreshEchoBand();
             RefreshTimeFreeze((float)delta);
@@ -306,6 +314,25 @@ namespace FTT.UI {
             _indicators.SyncStatusFromAuthority(
                 _statusAuthority.ControlStatusType, _statusAuthority.ControlStatusRemaining,
                 _statusAuthority.DamageStatusType, _statusAuthority.DamageStatusRemaining);
+        }
+
+        /// <summary>
+        /// The cooldown radials' clock (2026-10-11, PROVISIONAL-HIT-CONFIRM-RULES
+        /// (9)). The radials used to count down on their own from the
+        /// <c>OnCooldownStarted</c> duration, so they never saw a per-hit Momentum
+        /// refund (D2), a Time Freeze pause, the Story cooldown multiplier or a
+        /// cooldown restored on load. HUD_CONTRACT: "fill is written by the owner
+        /// of the authoritative value" — so every frame the hero's three cooldown
+        /// timers overwrite the model's remaining time, keeping the denominator the
+        /// cast armed (raised only if the authority exceeds it). With no hero
+        /// reachable the local countdown stays the fallback.
+        /// </summary>
+        private void SyncCooldownAuthority() {
+            FTT.Characters.PlayerController player = ResolveStoryPlayer();
+            if (player == null || !IsInstanceValid(player) || player.PlayerIndex != 0) return;
+            _indicators.SyncCooldownRemaining(FTT.Core.AbilitySlot.Special1, player.SpecialOneCooldownTimer);
+            _indicators.SyncCooldownRemaining(FTT.Core.AbilitySlot.Special2, player.SpecialTwoCooldownTimer);
+            _indicators.SyncCooldownRemaining(FTT.Core.AbilitySlot.MovementAbility, player.MovementAbilityCooldownTimer);
         }
 
         private FTT.Characters.PlayerController ResolveStoryPlayer() {
@@ -681,6 +708,25 @@ namespace FTT.UI {
         private void OnCooldownComplete(FTT.Core.AbilitySlot slot) =>
             _indicators.StartCooldown(slot, 0f);
 
+        /// <summary>
+        /// D10 (2026-10-11): the "not yet" flash on the refused slot — the cooldown
+        /// icon for a Special, the meter ring for the Ultimate (the BG hosts the
+        /// frame, the fill takes the tint). Player 0 only: the Level 13 Mirror
+        /// clone raises the event too, and its refusals are not the hero's.
+        /// </summary>
+        private void OnAbilityLockoutRefused(FTT.Core.AbilityLockoutRefusedPayload payload) {
+            if (payload.PlayerIndex != 0) return;
+            if (payload.Slot == FTT.Core.AbilitySlot.Ultimate) {
+                NotYetFlash.Play(_meterHost, _meterFill);
+                return;
+            }
+            if (payload.Slot is not (FTT.Core.AbilitySlot.Special1 or FTT.Core.AbilitySlot.Special2)) return;
+            int index = System.Array.IndexOf(CooldownSlots, payload.Slot);
+            if (index < 0) return;
+            Label icon = _cooldownIcons[index];
+            NotYetFlash.Play(icon, icon);
+        }
+
         private void OnStatusEffectApplied(FTT.Core.StatusEffectPayload payload) {
             if (payload.TargetIndex != 0) return;
             _indicators.ApplyStatus(payload.Type, payload.Duration);
@@ -724,7 +770,8 @@ namespace FTT.UI {
 
         private void UpdateMeter(float value) {
             if (_meterFill == null) return;
-            _meterFill.Fraction = Mathf.Clamp(value, 0f, 100f) / 100f;
+            _meterFill.Fraction = Mathf.Clamp(value, 0f, FTT.Combat.InfluenceMeterRules.MaxValue)
+                / FTT.Combat.InfluenceMeterRules.MaxValue;
             _meterFill.FillColor = value >= HudAbilityIndicatorModel.UltimateReadyMeter
                 ? UIPalette.GoldBright
                 : UIPalette.Cyan;
@@ -935,6 +982,7 @@ namespace FTT.UI {
             _controlStatusRadial = GetNodeOrNull<RadialProgress>(
                 $"{VitalsPath}/StatusEffects_Panel/ControlStatus_Indicator/ControlStatus_DurationRadial");
 
+            _meterHost = GetNodeOrNull<Control>($"{VitalsPath}/MeterRow/UltimateMeter_BG");
             _meterFill = GetNodeOrNull<RadialProgress>(
                 $"{VitalsPath}/MeterRow/UltimateMeter_BG/UltimateMeter_Fill");
             _meterLockOverlay = GetNodeOrNull<Label>(

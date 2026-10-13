@@ -419,10 +419,11 @@ namespace FTT.FighterSim {
         /// a high central canopy. Hecklers pelt from the three gallery anchors.
         ///
         /// <para>The tiring-house balcony sat at 4.4 until the 2026-08-10 feel
-        /// batch cut jump force 20% (§2.2): the post-retune double-jump ceiling is
-        /// ≈4.21, so 4.4 became the one authored platform nobody could reach. It
-        /// is 4.0 now — the same height as the Orléans centre platform, which
-        /// keeps ≈0.2 units of clearance.</para>
+        /// batch cut jump force 20% (§2.2): the post-retune double-jump ceiling
+        /// was ≈4.21, so 4.4 became the one authored platform nobody could reach.
+        /// It is 4.0 now — the same height as the Orléans centre platform. The
+        /// 2026-10-08 apex hang lifted the lowest jump's (11.5 u/s) double-jump
+        /// ceiling to ≈4.29, so 4.0 keeps ≈0.3 units of clearance.</para>
         /// </summary>
         public static FighterStageGeometry Globe { get; } = new(
             stageID: "globe_theatre",

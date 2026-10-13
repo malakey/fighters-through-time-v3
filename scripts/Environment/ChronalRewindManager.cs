@@ -168,6 +168,12 @@ namespace FTT.Environment {
         private void OnPlayerDied(int playerIndex) {
             ResolvePlayer();
             if (_player == null || _player.PlayerIndex != playerIndex) return;
+            // F10 (STORY_PERSISTENCE :77): the recovery this death starts replaces
+            // HP, so it cancels the attempt's pending Font heal without refunding
+            // the use. Cancelled here, at the attempt level, rather than only by the
+            // channelling font: a heal a reload restored has no font channeler
+            // (VERIFY-FONT-PENDING-HEAL-RESUME). A Collapse clears it again.
+            StoryManager.Instance?.CancelPendingHealingForRecovery();
             if (RemainingRewinds <= 0) {
                 CollapseTimeline();
                 return;

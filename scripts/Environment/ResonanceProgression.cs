@@ -11,23 +11,40 @@ namespace FTT.Environment {
         public const string GridResourceDirectory = "res://resources/Resonance";
 
         /// <summary>
-        /// V7.6 dormant-node gate. A5's Legacy Unlock Schedule installs the
-        /// real probe — <c>(characterID, abilitySlot) =&gt; bool</c>. Until it
-        /// merges the probe is null and every gated node behaves as unlocked,
-        /// which is the pre-V7.6 behaviour.
-        /// TODO(A5): wire this to the Legacy Unlock Schedule's
-        /// <c>IsAbilityUnlocked</c> at campaign load.
+        /// The floor every cooldown multiplier resolves to, character-wide and
+        /// ability-scoped alike: no stack of CooldownReduction nodes can take a
+        /// cooldown below 5% of its authored length.
+        /// </summary>
+        public const float MinimumCooldownMultiplier = 0.05f;
+
+        /// <summary>
+        /// Test override for the V7.6 dormant-node gate,
+        /// <c>(characterID, abilitySlot) =&gt; bool</c>. Production leaves it
+        /// null, and the gate then reads the Legacy Unlock Schedule state of the
+        /// save being evaluated (<see cref="IsAbilityUnlocked"/>). A test that
+        /// installs one must restore the previous value in a <c>finally</c>.
         /// </summary>
         public static Func<string, string, bool> AbilityUnlockProbe;
 
         /// <summary>
-        /// True when a node's gated ability slot is available in the current
-        /// Story context. Ungated nodes and an uninstalled probe both pass.
+        /// V7.6 dormant-node gate (A4's side of the A5 handshake): true when the
+        /// node's gated ability slot is available. An ungated node always passes.
+        /// With no test override installed the answer is the evaluated save's
+        /// own Legacy Unlock Schedule state for <paramref name="characterID"/>
+        /// (<see cref="LegacyUnlockSchedule.IsUnlockedFor"/>: the persisted
+        /// unlock keys, backstopped by the completed-level history), which is
+        /// exactly the gate <c>CharacterFactory</c> installs on the campaign
+        /// hero. The grid is only ever opened over the active Story save (the
+        /// hub Repository, an Act III Warden Beacon), so Fighter Mode, the
+        /// Holodeck, the drills and the Test Arena never reach it. An unknown
+        /// slot name reads as ungated; <see cref="ValidateGrid"/> rejects one.
         /// </summary>
-        public static bool IsAbilityUnlocked(string characterID, string abilitySlot) {
+        public static bool IsAbilityUnlocked(StorySaveData save, string characterID, string abilitySlot) {
             if (string.IsNullOrWhiteSpace(abilitySlot)) return true;
             Func<string, string, bool> probe = AbilityUnlockProbe;
-            return probe == null || probe(characterID, abilitySlot);
+            if (probe != null) return probe(characterID, abilitySlot);
+            if (!LegacyUnlockSchedule.TryParseSlotKey(abilitySlot, out AbilitySlot slot)) return true;
+            return LegacyUnlockSchedule.IsUnlockedFor(save, characterID, slot);
         }
 
         /// <summary>
@@ -55,6 +72,10 @@ namespace FTT.Environment {
             save.DepositedChronalDust[grid.CharacterID] = balance - node.UnlockCost;
             GetUnlockedNodes(save, grid.CharacterID).Add(node.NodeID);
             EventBus.Instance?.RaiseTalentNodeUnlocked(node.NodeID);
+            // "Stat modifiers are applied immediately" (design, Resonance Grid UI
+            // Flow, Purchase):
+            // the live campaign hero re-resolves its grid from this event.
+            EventBus.Instance?.RaiseResonanceProgressionChanged(grid.CharacterID);
             return ResonanceUnlockResult.Unlocked;
         }
 
@@ -75,7 +96,7 @@ namespace FTT.Environment {
             if (node == null) return ResonanceUnlockResult.MissingNode;
             List<string> unlocked = GetUnlockedNodes(save, grid.CharacterID);
             if (unlocked.Contains(node.NodeID)) return ResonanceUnlockResult.AlreadyUnlocked;
-            if (!IsAbilityUnlocked(grid.CharacterID, node.GatedAbilityID)) {
+            if (!IsAbilityUnlocked(save, grid.CharacterID, node.GatedAbilityID)) {
                 return ResonanceUnlockResult.AbilityLocked;
             }
             if (!PrerequisitesSatisfied(node, unlocked)) {
@@ -230,6 +251,8 @@ namespace FTT.Environment {
             int balance = save.DepositedChronalDust.GetValueOrDefault(grid.CharacterID);
             save.DepositedChronalDust[grid.CharacterID] = checked(balance + refund);
             unlocked.Clear();
+            // The respec reverts the live hero at once, like a purchase.
+            EventBus.Instance?.RaiseResonanceProgressionChanged(grid.CharacterID);
             return refund;
         }
 
@@ -318,15 +341,17 @@ namespace FTT.Environment {
         /// <para>"Data crosses the field, matter doesn't." At an Act III Warden
         /// Beacon the player may buy grid nodes and respec for free, but dust
         /// collected in the level they are standing in is not bankable until that
-        /// level completes and the auto-deposit seals it — so Level 13's earnings
-        /// first become spendable at Level 14's Beacon. Restarting a level clears
-        /// those undeposited earnings under the existing rule, so repeating a
-        /// level cannot bank repeat rewards.</para>
+        /// level completes and its completion transaction banks it — so Level
+        /// 13's earnings first become spendable at Level 14's Beacon. Restarting
+        /// a level clears those undeposited earnings under the existing rule, so
+        /// repeating a level cannot bank repeat rewards.</para>
         ///
-        /// <para>The hub Repository resolves to the same number by a different
-        /// route: it deposits <i>first</i> and then opens, so by the time its
-        /// panel reads a balance the level earnings are already deposited. This
-        /// accessor is the one place that states the rule.</para>
+        /// <para>The hub Repository reads the same number and deposits nothing
+        /// itself: since H02 (Package 12 W2) dust banks only in
+        /// <c>StoryManager.CommitCompletionTransaction</c> at level completion,
+        /// and the old deposit-then-open route is deleted, so an attempt's held
+        /// wallet is never spendable at the hub either. This accessor is the one
+        /// place that states the rule.</para>
         /// </summary>
         public static int SpendableBalance(StorySaveData save, string characterID) =>
             save == null || string.IsNullOrWhiteSpace(characterID)
@@ -371,6 +396,7 @@ namespace FTT.Environment {
             float ultimateBuildRate = 1f;
             float extractorDamage = 1f;
             Dictionary<ScopedStatKey, float> scoped = null;
+            Dictionary<ScopedStatKey, float> scopedCooldownReduction = null;
             foreach (ResonanceNodeData node in grid.Nodes ?? Array.Empty<ResonanceNodeData>()) {
                 if (node == null || !unlocked.Contains(node.NodeID)) continue;
                 // V7.6 ability-scoped lanes. Additive on top of the neutral 1.0
@@ -378,8 +404,20 @@ namespace FTT.Environment {
                 // the character-wide lanes do.
                 if (Array.IndexOf(ResonanceStatKeys.ScopableKeys, node.StatModifierKey) >= 0
                     && !string.IsNullOrWhiteSpace(node.AbilityScope)) {
-                    scoped ??= new Dictionary<ScopedStatKey, float>();
                     var scopeKey = new ScopedStatKey(node.StatModifierKey, node.AbilityScope);
+                    if (node.StatModifierKey == ResonanceStatKeys.CooldownReduction) {
+                        // A REDUCTION, not a multiplier: summed here and turned
+                        // into max(0.05, 1 - sum) below, exactly like the
+                        // character-wide lane. Storing 1 + 0.1 made Joan's
+                        // Piercing, Mozart's Wave and Lincoln's Splitting
+                        // cooldown minors lengthen their cooldown by 10%,
+                        // because BaseSpecial multiplies the cooldown by it.
+                        scopedCooldownReduction ??= new Dictionary<ScopedStatKey, float>();
+                        scopedCooldownReduction[scopeKey] =
+                            scopedCooldownReduction.GetValueOrDefault(scopeKey, 0f) + PercentValue(node);
+                        continue;
+                    }
+                    scoped ??= new Dictionary<ScopedStatKey, float>();
                     scoped[scopeKey] = scoped.GetValueOrDefault(scopeKey, 1f) + PercentValue(node);
                     continue;
                 }
@@ -419,9 +457,15 @@ namespace FTT.Environment {
                     // StoryAbilityPerks through AbilityModifierKey instead.
                 }
             }
+            if (scopedCooldownReduction != null) {
+                scoped ??= new Dictionary<ScopedStatKey, float>();
+                foreach (KeyValuePair<ScopedStatKey, float> reduction in scopedCooldownReduction) {
+                    scoped[reduction.Key] = Mathf.Max(MinimumCooldownMultiplier, 1f - reduction.Value);
+                }
+            }
             return new StoryStatProfile(
                 maxHP, blockCharges, moveSpeed, jumpForce, basicDamage, specialDamage,
-                cooldownMultiplier: Mathf.Max(0.05f, 1f - cooldownReduction),
+                cooldownMultiplier: Mathf.Max(MinimumCooldownMultiplier, 1f - cooldownReduction),
                 attackRangeMultiplier: attackRange,
                 comboSpeedMultiplier: comboSpeed,
                 blockRecoveryMultiplier: blockRecovery,

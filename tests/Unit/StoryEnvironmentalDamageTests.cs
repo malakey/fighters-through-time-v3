@@ -41,8 +41,8 @@ public class StoryEnvironmentalDamageTests {
                 .OverrideFailureMessage("An environmental hit must stash its Rally echo like any hit.")
                 .IsEqualApprox(expectedEcho, 0.05f);
             AssertThat(player.CurrentUltimateMeter)
-                .OverrideFailureMessage("The victim meter must earn the permanent (non-echo) portion.")
-                .IsEqualApprox((20f - expectedEcho) * UltimateMeter.PointsPerDamageTaken, 0.05f);
+                .OverrideFailureMessage("The victim meter must earn the permanent (non-echo) portion at the Story rate.")
+                .IsEqualApprox((20f - expectedEcho) * UltimateMeter.PointsPerDamageTaken * player.StoryMeterGainFactor, 0.02f);
         } finally {
             InputManager.Instance?.ClearInputSource(player.PlayerIndex);
             player.Free();
@@ -55,8 +55,9 @@ public class StoryEnvironmentalDamageTests {
         PlayerController player = CharacterFactory.CreateCharacter("einstein");
         tree.Root.AddChild(player);
         try {
-            // Full meter, then a lethal environmental hit: Defy History fires.
-            player.AddInfluenceFromDamageDealt(UltimateMeter.MaxValue, collectsEcho: false);
+            // Full meter (a direct set: D5 scales every gain on the campaign
+            // hero), then a lethal environmental hit: Defy History fires.
+            player.SetUltimateMeter(UltimateMeter.MaxValue);
             AssertThat(player.CurrentUltimateMeter).IsEqual(UltimateMeter.MaxValue);
             player.ApplyEnvironmentalDamage(player.MaximumHP);
             AssertThat(player.CurrentState)

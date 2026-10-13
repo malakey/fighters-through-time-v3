@@ -69,6 +69,12 @@ namespace FTT.Environment {
         /// <para>With <b>no</b> ledger (the Test Arena, a unit-test scene, any
         /// level without a manifest) the authored resource value still applies,
         /// so sandbox and harness behaviour is unchanged.</para>
+        ///
+        /// <para>D12 (<c>PROVISIONAL-DUST-SETTLE-RULES</c> (3)): after completion
+        /// the reward directory is re-keyed to the next level (or Level 15's own
+        /// is reset), so a kill under the results overlay issues nothing — it
+        /// would otherwise mark a next-level source Issued and spawn a pickup
+        /// that could never pay.</para>
         /// </summary>
         private void SpawnKillDust(EnemyKilledPayload payload) {
             // Package 12 W2 (GAP-04): a summon is never a finite reward source.
@@ -77,6 +83,7 @@ namespace FTT.Environment {
             // when the summon happens to die first — so it issues nothing, on
             // the ledger path and the advisory fallback alike.
             if (payload.IsSummoned) return;
+            if (LevelManager.IsLevelCompleteFor(this)) return;
             int amount = Mathf.Max(1, payload.ChronalDustDrop);
             string sourceID = "";
             if (LevelRewardDirectory.EnsureCompiled() != null) {

@@ -66,6 +66,26 @@ namespace FTT.Combat {
         public bool SourceIsStandardMob { get; set; }
 
         /// <summary>
+        /// 2026-10-11 (D4): the hitbox delivers a movement ability's hit, copied
+        /// into <see cref="HitPayload.SourceIsMovementAbility"/> so it never
+        /// claims a stun chain's first-Special slot. Written by every
+        /// <see cref="ApplyAbilityHitContract"/>; pooled projectiles reset it per
+        /// spawn. Story-only — the Fighter simulation never reads it.
+        /// </summary>
+        public bool SourceIsMovementAbility { get; set; }
+
+        /// <summary>
+        /// 2026-10-11 (D8): the owning non-player actor's instance ID, copied into
+        /// <see cref="HitPayload.SourceActorId"/> when there is no
+        /// <see cref="SourcePlayer"/>. Stamped by <c>EnemyController</c> on its
+        /// attack hitbox and set (and pool-reset) by <c>EnemyProjectile</c>, so
+        /// the hero's hit chokepoint can tell which mob it blocked or countered and
+        /// open that mob's Punish window. 0 = no owner. Story-only — the Fighter
+        /// simulation never reads it.
+        /// </summary>
+        public ulong SourceActorIdOverride { get; set; }
+
+        /// <summary>
         /// 2026-10-04 fix pass (M1), Story-only: when true, a contact with an
         /// enemy or boss hurtbox lands only if the segment between the hurtbox's
         /// centre and <see cref="SourcePlayer"/>'s body centre is clear of
@@ -145,10 +165,13 @@ namespace FTT.Combat {
                 // Package 11 A4: the V7.6 ability-scoped AbilityDamage lane
                 // applies to every hit an ability authors, keyed by its
                 // AttackID (which is the AbilityID everywhere in the kit code).
-                // Neutral 1.0 for basics, enemies and Fighter Mode.
+                // Neutral 1.0 for basics, enemies and Fighter Mode. 2026-10-11:
+                // the lane and the item-drop damage buff are the contact-time
+                // half of the one Story ability-damage composition
+                // (PlayerController.StoryHitboxContactDamageScale); Damage
+                // already holds the build-time half, so each applies once.
                 Damage = Mathf.Max(0f, Damage)
-                    * (SourcePlayer?.StoryTemporaryDamageMultiplier ?? 1f)
-                    * (SourcePlayer?.StoryScoped("AbilityDamage", AttackID ?? "") ?? 1f),
+                    * (SourcePlayer?.StoryHitboxContactDamageScale(AttackID) ?? 1f),
                 Knockback = KnockbackForce * (SourcePlayer?.StoryKnockbackMultiplier ?? 1f),
                 HitstunDuration = Mathf.Max(0f, HitstunDuration),
                 HitOrigin = GlobalPosition,
@@ -166,13 +189,16 @@ namespace FTT.Combat {
                 ShieldBreaker = ShieldBreaker && AttackClass == AttackClass.Special,
                 ComboMark = ComboMark,
                 ComboMarkFrames = Mathf.Max(0, ComboMarkFrames),
+                // D8 (2026-10-11): a mob's hitbox has no SourcePlayer and carries
+                // its owner in SourceActorIdOverride instead.
                 SourceActorId = SourcePlayer != null && IsInstanceValid(SourcePlayer)
                     ? SourcePlayer.GetInstanceId()
-                    : 0UL,
+                    : SourceActorIdOverride,
                 Launches = Launches,
                 Delivery = Delivery,
                 Origin = Origin,
                 SourceIsStandardMob = SourceIsStandardMob,
+                SourceIsMovementAbility = SourceIsMovementAbility,
                 SourceExecutionSerial = SourceExecutionSerial,
                 // Package 13 W7a (L03): a construct's pooled bolt carries no
                 // hitstop, the V7.3 construct rule every direct construct
@@ -202,6 +228,7 @@ namespace FTT.Combat {
             Launches = data.Launches;
             Delivery = data.Delivery;
             Origin = data.Origin;
+            SourceIsMovementAbility = data.Slot == FTT.Core.AbilitySlot.MovementAbility;
         }
 
         /// <summary>
@@ -252,6 +279,10 @@ namespace FTT.Combat {
             // M08: one identity per confirmed contact.
             payload.ContactId = HitClassification.NextContactId();
             float damageApplied = hurtbox.TakeDamage(in payload);
+            // 2026-10-11 (D1a): whether the contact LANDED is the receiver's
+            // call, read back from the struck hurtbox; HitConfirmed carries it
+            // (the hit-confirm cancel and per-hit Momentum read it).
+            payload.ContactLanded = hurtbox.DidLand(payload.ContactId);
             // V7.6 D03h (Package 11 A1b), M08 (Package 12 W3): the shared
             // strike path is the one place every Ultimate hitbox lands, and the
             // meter rule now reads the payload's AUTHORED origin rather than
@@ -271,10 +302,14 @@ namespace FTT.Combat {
             // hit" surface without a second chokepoint.
             if (damageApplied > 0f) {
                 SourcePlayer?.NotifyStoryHitLanded(payload);
-                // 2026-10-04 feel pass (F5): an ability-authored hit gets its
-                // impact VFX, HitConfirm and caster freeze at the struck hurtbox.
-                SourcePlayer?.ConfirmAbilityHitboxHit(payload, damageApplied, hurtbox.GlobalPosition);
             }
+            // 2026-10-04 feel pass (F5): an ability-authored hit gets its impact
+            // VFX, HitConfirm and caster freeze at the struck hurtbox — all of
+            // them damage-gated inside BaseSpecial.ConfirmAbilityHit. D3
+            // (2026-10-11): the call runs for every contact, after the D1a stamp
+            // above, so a contact a shield fully absorbed (0 damage) still arms
+            // the landed-Special latch there.
+            SourcePlayer?.ConfirmAbilityHitboxHit(payload, damageApplied, hurtbox.GlobalPosition);
             HitConfirmed?.Invoke(payload, damageApplied);
         }
 

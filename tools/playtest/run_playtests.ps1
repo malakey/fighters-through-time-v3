@@ -89,6 +89,8 @@ foreach ($r in $done) {
     }
     $x = ("$result".Substring("PLAYTEST_RESULT ".Length)) | ConvertFrom-Json
     $e = $x.enemy_summary
+    # D6d (2026-10-11): the combat summary; absent from older runners.
+    $c = $x.combat
     $rows += [pscustomobject]@{
         level = $x.level; character = $x.character; bot = $x.bot; difficulty = $x.difficulty
         end = ($x.end_reason -replace 'res://scenes/campaign/', '' -replace '\.tscn', '')
@@ -98,6 +100,15 @@ foreach ($r in $done) {
         seen = $e.seen; killed = $e.killed; passed_alive = $e.passed_while_alive; passed_hit = $e.passed_then_hit_player
         gave_up = $e.bot_gave_up_unreachable
         median_ttk_f = $e.median_frames_to_kill; ttk_le_2s = $e.killed_within_2s_of_first_hit; one_burst = $e.killed_by_one_burst
+        whiff_pct = $(if ($c) { $c.whiff_pct } else { $null })
+        ults = $(if ($c) { $c.ults } else { $null })
+        s_refused = $(if ($c) { $c.s_refused } else { $null })
+        meter0 = $(if ($c) { $c.meter_start } else { $null })
+        # C3 (2026-10-11): mob melee whiff % and the Special press policy (--special-press).
+        mob_whiff_pct = $(if ($c) { $c.mob_whiff_pct } else { $null })
+        policy = $(if ($c) { $c.policy } else { $null })
+        # C2 (2026-10-11): the run's D5 Story meter scale (--story-meter-scale).
+        meter_scale = $(if ($c) { $c.meter_scale } else { $null })
     }
 }
 

@@ -72,6 +72,16 @@ namespace FTT.Enemies {
         public event Action<EnemyAbilityData> AbilityActivated;
 
         /// <summary>
+        /// D8 (2026-10-11): raised when an ability's active window ends NATURALLY
+        /// (Active → Recovery through <see cref="Tick"/>, the Siphon channel's
+        /// break included), before the recovery starts. A telegraph interruption
+        /// (<see cref="CancelIntoRecovery"/>) and a hard stop (<see cref="Cancel"/>:
+        /// a stun, death, a freeze, a despawn) never raise it. The owning mob reads
+        /// it to decide whether a melee swing whiffed near the hero.
+        /// </summary>
+        public event Action<EnemyAbilityData> ActiveWindowEnded;
+
+        /// <summary>
         /// Package 12 W9 (GAP-07): the bodies one SummonMinions cast actually put
         /// on the field, so an owner can treat them as a guarded scene (the
         /// Tragedy King's actors). Raised once per cast, possibly with an empty list.
@@ -242,6 +252,10 @@ namespace FTT.Enemies {
         }
 
         private void EnterRecovery() {
+            // D8: only Active reaches here, so this is the natural end of the
+            // active window. Raised before the hitbox state is cleared so a
+            // listener can still read LastHitboxWallBlocked for this swing.
+            ActiveWindowEnded?.Invoke(ActiveAbility);
             _hitbox?.Deactivate();
             _wallClipped = false;
             _wallClipFollowsOwner = false;
@@ -360,6 +374,9 @@ namespace FTT.Enemies {
                 _owner.GlobalPosition, ability.AbilityID, "siphon_snare");
             if (blocked != FTT.Combat.BlockResult.NotBlocked) {
                 LastSiphonResult = SiphonAttachResult.Blocked;
+                // D8: a non-shatter block of the cast opens the caster's Punish
+                // window (a shatter opens nothing), exactly as a blocked strike does.
+                if (blocked == FTT.Combat.BlockResult.Blocked) (_owner as EnemyController)?.OpenPunishWindow();
                 return;
             }
 
@@ -694,7 +711,12 @@ namespace FTT.Enemies {
                 var projectile = PoolManager.Instance.Spawn(ProjectilePoolID, origin, parent) as EnemyProjectile;
                 projectile?.Setup(ability, direction * Mathf.Max(1f, ability.ProjectileSpeed), damage, SourceID,
                     lockVertical, ActiveGuardCrush, ActiveUnblockable);
-                if (projectile != null) projectile.SourceIsStandardMob = _owner is EnemyController { Data.Tier: EnemyTier.Standard }; // F7 (FEEL)
+                if (projectile != null) {
+                    projectile.SourceIsStandardMob = _owner is EnemyController { Data.Tier: EnemyTier.Standard }; // F7 (FEEL)
+                    // D8: the shot names its shooter, so blocking it opens that
+                    // mob's Punish window (a boss shooter fails the hero's type check).
+                    projectile.SourceActorId = _owner.GetInstanceId();
+                }
             }
         }
 
@@ -704,27 +726,87 @@ namespace FTT.Enemies {
             if (parent == null) return;
             int count = Math.Max(1, ability.SummonCount);
             var spawned = new System.Collections.Generic.List<EnemyController>(count);
+            Vector2 origin = _owner.GlobalPosition;
             for (int index = 0; index < count; index++) {
                 float offsetX = (index % 2 == 0 ? -1f : 1f) * (96f + 48f * (index / 2));
+                Vector2 requested = origin + new Vector2(offsetX, 0f);
                 // Package 12 W2 (GAP-04): summons carry their provenance to death,
                 // so they can never draw another encounter's finite reward.
-                EnemyController minion = EnemyFactory.SpawnSummoned(
-                    ability.SummonEnemyID, parent, _owner.GlobalPosition + new Vector2(offsetX, 0f));
-                if (minion != null) spawned.Add(minion);
+                EnemyController minion = EnemyFactory.SpawnSummoned(ability.SummonEnemyID, parent, requested);
+                if (minion == null) continue;
+                PlaceSummon(minion, origin, requested);
+                spawned.Add(minion);
             }
             MinionsSummoned?.Invoke(ability, spawned);
         }
+
+        /// <summary>
+        /// 2026-10-09: a summon's spawn point is a direct position write, so it
+        /// meets the world through <see cref="FTT.Combat.RelocationRules.ResolveSummon"/>
+        /// — the minion's own collision box is swept out from the summoner and
+        /// stops short of a wall, and (unless the minion flies) its own centre
+        /// needs a floor where it lands, stepping back toward the summoner
+        /// otherwise. It emerges from the part of the summoner that gives it a
+        /// floor (<see cref="FTT.Combat.RelocationRules.EmergencePoint"/>), so a
+        /// narrow minion summoned by a body standing on a ledge with its centre
+        /// past the edge lands on the ledge, not over the void; a refused point
+        /// puts it there. The minion is measured from its own collision shape, so
+        /// it is spawned first and re-anchored (spawn point, patrol waypoints,
+        /// leash room) before any physics step runs.
+        /// </summary>
+        private void PlaceSummon(EnemyController minion, Vector2 origin, Vector2 requested) {
+            float summonerHalfWidth = FTT.Combat.SafeRelocation
+                .BodyOf(_owner, needsFloor: true, passesWalls: false)?.HalfWidth ?? 0f;
+            FTT.Combat.RelocationResult landing = FTT.Combat.SafeRelocation.ResolveSummon(
+                _owner, origin, summonerHalfWidth, requested, RelocationBodyOf(minion), minion);
+            Vector2 at = landing.Position;
+            if (at.DistanceSquaredTo(requested) > 0.0001f) minion.ConfigureSpawn(at);
+        }
+
+        /// <summary>How the last Teleport's landing resolved. Test seam.</summary>
+        public FTT.Combat.RelocationResult LastTeleportLanding { get; private set; }
 
         private void Teleport(EnemyAbilityData ability) {
             Vector2 vacated = _owner.GlobalPosition;
             float span = Mathf.Max(0f, ability.TeleportRangeMax - ability.TeleportRangeMin);
             float distance = ability.TeleportRangeMin + (float)Rng.NextDouble() * span;
             // Reappear on the far side of the target so the reposition reads clearly.
-            float side = _owner.GlobalPosition.X <= _targetPosition.X ? 1f : -1f;
-            _owner.GlobalPosition = new Vector2(
-                _targetPosition.X + side * Mathf.Max(1f, distance),
-                _owner.GlobalPosition.Y);
+            float side = vacated.X <= _targetPosition.X ? 1f : -1f;
+            var requested = new Vector2(_targetPosition.X + side * Mathf.Max(1f, distance), vacated.Y);
+            // P1: a leashed boss reappears inside its arena (the leash would clamp it
+            // there after the move anyway), and that point is the one validated.
+            if (_owner is BossController { HasArenaLeash: true } boss) {
+                requested.X = Mathf.Clamp(requested.X, boss.ArenaBounds.Position.X, boss.ArenaBounds.End.X);
+            }
+            // 2026-10-09 (VERIFY-L10-ARENA-RECESS-EXIT, boss half): the landing is
+            // validated — never through a wall, never over nothing. The authored
+            // range and telegraph are untouched; only where the body lands is.
+            // The Tragedy King's exit_stage_left used to put him past the Level 10
+            // recess wall, under the boards, falling forever.
+            FTT.Combat.RelocationResult landing = FTT.Combat.SafeRelocation.Resolve(
+                _owner, vacated, requested, RelocationBodyOf(_owner));
+            LastTeleportLanding = landing;
+            // A refused write (no supported point short of where it stands) is no
+            // teleport at all: nothing moves and no decoy is left on the spot.
+            if (landing.HeldInPlace || landing.Position.DistanceSquaredTo(vacated) < 0.25f) return;
+            _owner.GlobalPosition = landing.Position;
             Teleported?.Invoke(ability, vacated);
+        }
+
+        /// <summary>
+        /// A body's relocation profile: grounded and solid by default; an
+        /// <see cref="EnemyController"/> reads its authored behaviour — a flyer
+        /// ignores floors, and a wall-phaser (the Rift Phantom, whose blink is
+        /// rift-space) ignores walls.
+        /// </summary>
+        private static FTT.Combat.RelocationBody? RelocationBodyOf(Node2D body) {
+            bool needsFloor = true;
+            bool passesWalls = false;
+            if (body is EnemyController { Data: EnemyData data }) {
+                needsFloor = data.Behavior != DefaultBehavior.Flying;
+                passesWalls = data.PhasesThroughWalls;
+            }
+            return FTT.Combat.SafeRelocation.BodyOf(body, needsFloor, passesWalls);
         }
 
         private static bool EnsureProjectilePool() {

@@ -52,11 +52,28 @@ namespace FTT.FighterSim {
         public const int HardReactionDelayMinFrames = 4;
         public const int HardReactionDelayMaxFrames = 8;
 
+        /// <summary>
+        /// The neutral close range. It gates the threat roll/block, the
+        /// Ultimate commit (<see cref="UltimateActivationCanConnect"/>), the grab
+        /// and the close-range Special ladder, and the Echo Step punish threat.
+        /// It no longer decides whether a neutral BasicAttack (an opener or a
+        /// string continuation) can land:
+        /// that is the per-fighter <see cref="MeleeBand(int,int,long)"/> (2026-10-11).
+        /// </summary>
         private static readonly FP64 CloseRange = FP64.FromInt(2);
         private static readonly FP64 FarRange = FP64.FromInt(5);
+
+        /// <summary>
+        /// How far inside a string opener's exact pivot reach the CPU keeps its
+        /// neutral BasicAttack band, in world units (2026-10-11, provisional:
+        /// ledger <c>PROVISIONAL-CPU-MELEE-BAND</c>). The playtest bots read the
+        /// same margin for their strike range.
+        /// </summary>
+        public const double MeleeBandMarginUnits = 0.1;
+        private static readonly FP64 MeleeBandMargin = FP64.FromDouble(MeleeBandMarginUnits);
         private static readonly FP64 OrbAwarenessRange = FP64.FromInt(8);
         private static readonly FP64 OrbClimbHeight = FP64.One;
-        private static readonly FP64 MaxInfluence = FP64.FromInt(100);
+        private static readonly FP64 MaxInfluence = FighterMeterRules.Cap;
         private static readonly FP64 CorneredMargin = FP64.FromDouble(1.5);
         /// <summary>Incoming shots beyond this horizontal gap are not yet a threat.</summary>
         private static readonly FP64 ProjectileAwarenessRange = FP64.FromInt(7);
@@ -177,6 +194,17 @@ namespace FTT.FighterSim {
         private CpuVerbAction _pendingVerb;
         /// <summary>Whether the decision being built spends a movement activation.</summary>
         private bool _pendingMovementActivation;
+        /// <summary>Whether the decision being built is a recovery jump.</summary>
+        private bool _pendingRecoveryJump;
+        /// <summary>
+        /// Whether the decision being built is a neutral BasicAttack the melee
+        /// band admitted, and the decision-time gap it was admitted at (signed,
+        /// target minus self). Delivery re-reads which string step the press
+        /// would then start and drops it if that step's band no longer covers
+        /// the gap (<see cref="ScheduledDecision.GatesBasicAttack"/>).
+        /// </summary>
+        private bool _pendingBasicAttackGate;
+        private long _pendingBasicAttackDeltaRaw;
 
         public FighterCpuController(CpuDifficulty difficulty, int seed)
             : this(difficulty, seed, null, null) {
@@ -246,8 +274,8 @@ namespace FTT.FighterSim {
             in FighterStateComponent target,
             in FighterRuntimeComponent targetRuntime,
             in PlayerInputFrame previousFrame) {
-            CpuDecisionObservation observation =
-                Observe(in self, in selfRuntime, in target, in targetRuntime, _geometry, _world);
+            CpuDecisionObservation observation = Observe(
+                in self, in selfRuntime, in target, in targetRuntime, _geometry, _world, _profile.MaxJumpCount);
             return Sample(tick, in observation, in previousFrame);
         }
 
@@ -268,6 +296,9 @@ namespace FTT.FighterSim {
             if (tick % DecisionIntervalTicks == 0) {
                 _pendingVerb = CpuVerbAction.None;
                 _pendingMovementActivation = false;
+                _pendingRecoveryJump = false;
+                _pendingBasicAttackGate = false;
+                _pendingBasicAttackDeltaRaw = 0;
                 GameplayButtons decision = Decide(in observation, out sbyte moveX, out sbyte moveY);
                 int deliveryTick = checked((int)tick + NextReactionDelay());
                 int slot = deliveryTick % ScheduleCapacity;
@@ -277,7 +308,10 @@ namespace FTT.FighterSim {
                     MoveY = moveY,
                     Held = decision,
                     Verb = _pendingVerb,
-                    SpendsMovementActivation = _pendingMovementActivation
+                    SpendsMovementActivation = _pendingMovementActivation,
+                    RecoveryJump = _pendingRecoveryJump,
+                    GatesBasicAttack = _pendingBasicAttackGate,
+                    BasicAttackDeltaRaw = _pendingBasicAttackDeltaRaw
                 };
                 if (_pendingMovementActivation) _movementActivationDeliveryTick = deliveryTick;
             }
@@ -305,6 +339,33 @@ namespace FTT.FighterSim {
                     outputMoveY = delivery.MoveY;
                     _sustainedHeld = delivery.Held & ~EdgeButtons;
                     GameplayButtons edges = delivery.Held & EdgeButtons;
+                    // A recovery jump planned while jumps remained is dropped
+                    // once none do (the same revalidation, on self-state).
+                    // Decisions every three ticks each carry the full reaction
+                    // delay, so jumps queued before the first one is observed
+                    // still arrive after the budget is spent. Pressed anyway,
+                    // the empty jump took the edge pulse and could overwrite a
+                    // pending movement-ability edge, losing the one action
+                    // still able to save the fighter.
+                    if (delivery.RecoveryJump && observation.RemainingJumps <= 0) {
+                        edges &= ~GameplayButtons.Jump;
+                    }
+                    // The melee band, revalidated on self-state (2026-10-11):
+                    // whether the press continues the CPU's own string or opens
+                    // a fresh one is read again now, because a press decided
+                    // mid-string can arrive after that string has ended (the
+                    // finisher, a lapsed chain hold, a landing) and would then
+                    // swing an opener from beyond the opener's reach. The gap
+                    // stays the decision-time one, so the opponent read is not
+                    // refreshed. A dropped press walks in, as the decision
+                    // would have chosen for that step.
+                    if (delivery.GatesBasicAttack
+                        && (edges & GameplayButtons.BasicAttack) != 0
+                        && Absolute(delivery.BasicAttackDeltaRaw)
+                            > BasicAttackBandRaw(in observation, CloseRange.RawValue)) {
+                        edges &= ~GameplayButtons.BasicAttack;
+                        outputMoveX = delivery.BasicAttackDeltaRaw >= 0 ? (sbyte)110 : (sbyte)-110;
+                    }
                     if (edges != GameplayButtons.None) _pendingEdges = edges;
                 }
             }
@@ -463,6 +524,10 @@ namespace FTT.FighterSim {
         /// <summary>
         /// Full deterministic projection: fighter components plus the stage geometry
         /// handed to the controller at construction plus the live world entities.
+        /// <paramref name="maxJumpCount"/> is the fighter's jump budget (the
+        /// recovery profile's copy of the loadout's); the pit-risk probe needs it
+        /// for the apex hang's jumped-this-airtime test, and 0 (no profile)
+        /// predicts no hang.
         /// </summary>
         public static CpuDecisionObservation Observe(
             in FighterStateComponent self,
@@ -470,7 +535,8 @@ namespace FTT.FighterSim {
             in FighterStateComponent target,
             in FighterRuntimeComponent targetRuntime,
             FighterStageGeometry geometry,
-            ICpuWorldObserver world) {
+            ICpuWorldObserver world,
+            int maxJumpCount = 0) {
             var observation = new CpuDecisionObservation {
                 SelfPositionXRaw = self.Position.x.RawValue,
                 SelfPositionYRaw = self.Position.y.RawValue,
@@ -490,11 +556,18 @@ namespace FTT.FighterSim {
                 SpecialOneCooldownFrames = selfRuntime.SpecialOneCooldownFrames,
                 SpecialTwoCooldownFrames = selfRuntime.SpecialTwoCooldownFrames,
                 MovementCooldownFrames = selfRuntime.MovementCooldownFrames,
+                AbilityLockoutFrames = selfRuntime.AbilityLockoutFrames,
+                SpecialLockoutFrames = selfRuntime.SpecialLockoutFrames,
+                SwingLanded = selfRuntime.SwingLanded,
+                SelfStringReachWidthPercent =
+                    FighterBasicAttackRules.StringProfileFor(self.CharacterID).ReachWidthPercent,
+                SelfNextStringStep = FighterBasicAttackRules.NextChainStep(in selfRuntime),
                 TargetCurrentHP = target.CurrentHP,
                 TargetMaxHP = target.MaxHP,
                 TargetHitstunFrames = target.HitstunFrames,
                 TargetPressedButtons = targetRuntime.PressedButtons,
-                TargetInfluenceRaw = target.Influence.RawValue
+                TargetInfluenceRaw = target.Influence.RawValue,
+                TargetHurtboxHalfWidthRaw = FighterCombatSystem.VictimHurtboxHalfWidth.RawValue
             };
 
             if (geometry != null) {
@@ -517,7 +590,7 @@ namespace FTT.FighterSim {
                     observation.NearestPlatformSurfaceYRaw = geometry.Platforms[nearest].SurfaceY.RawValue;
                     observation.NearestPlatformHalfWidthRaw = geometry.Platforms[nearest].HalfWidth.RawValue;
                 }
-                FillFloorTopology(ref observation, in self, geometry);
+                FillFloorTopology(ref observation, in self, in selfRuntime, maxJumpCount, geometry);
             }
 
             if (world != null) {
@@ -606,6 +679,8 @@ namespace FTT.FighterSim {
         private static void FillFloorTopology(
             ref CpuDecisionObservation observation,
             in FighterStateComponent self,
+            in FighterRuntimeComponent selfRuntime,
+            int maxJumpCount,
             FighterStageGeometry geometry) {
             observation.HasFloorSupportUnderSelf = geometry.HasFloorSupport(self.Position.x) ? 1 : 0;
             if (!geometry.IsOpenStage) return;
@@ -624,32 +699,45 @@ namespace FTT.FighterSim {
             if (observation.HasFloorSupportUnderSelf == 0 && hasLeft && hasRight) {
                 observation.CurrentGapWidthRaw = (rightEdge - leftEdge).RawValue;
             }
-            observation.LaunchTrajectoryCrossesGap = TrajectoryEndsOverGap(in self, geometry) ? 1 : 0;
+            observation.LaunchTrajectoryCrossesGap =
+                TrajectoryEndsOverGap(in self, in selfRuntime, maxJumpCount, geometry) ? 1 : 0;
         }
 
         /// <summary>
         /// Ballistic pit-risk probe: integrates the fighter's current position and
-        /// velocity forward with the simulation's own tick length and gravity until
-        /// they reach a landing surface, and reports whether that surface is a gap.
-        /// Horizontal input and air control are deliberately ignored — the question
-        /// is where the CURRENT trajectory ends, which is exactly what DI and
-        /// recovery planning need to know. Pure fixed point, no allocation, and
-        /// bounded at <see cref="TrajectoryProbeTicks"/>.
+        /// velocity forward with the simulation's own tick length and air step
+        /// (<see cref="FighterAirPhysics"/>) until they reach a landing surface,
+        /// and reports whether that surface is a gap. Horizontal input, air
+        /// control and fast-fall are deliberately ignored — the question is where
+        /// the CURRENT trajectory ends, which is exactly what DI and recovery
+        /// planning need to know. A fighter in hitstun or daze integrates under
+        /// launch gravity until that clock would run out (the sim decrements it
+        /// before the gravity step, so one tick sooner than its value reads), then
+        /// under the normal-control model with its float window and apex hang.
+        /// Pure fixed point, no allocation, and bounded at
+        /// <see cref="TrajectoryProbeTicks"/>.
         /// </summary>
         private static bool TrajectoryEndsOverGap(
-            in FighterStateComponent self, FighterStageGeometry geometry) {
+            in FighterStateComponent self,
+            in FighterRuntimeComponent selfRuntime,
+            int maxJumpCount,
+            FighterStageGeometry geometry) {
             if (self.IsGrounded != 0) return false;
-            FP64 delta = FighterMovementSystem.FixedDeltaSeconds;
-            FP64 gravityStep = FighterMovementSystem.GravityPerSecondSquared * delta;
+            FP64 delta = FighterAirPhysics.FixedDelta;
             FP64 x = self.Position.x;
             FP64 y = self.Position.y;
             FP64 velocityX = self.Velocity.x;
             FP64 velocityY = self.Velocity.y;
+            int launchTicks = (self.HitstunFrames > self.DazeFrames ? self.HitstunFrames : self.DazeFrames) - 1;
+            int floatTicks = selfRuntime.FloatFrames - 1;
+            bool jumped = FighterAirPhysics.HasJumpedThisAirtime(self.RemainingJumps, maxJumpCount);
 
             for (int tick = 0; tick < TrajectoryProbeTicks; tick++) {
                 FP64 previousY = y;
-                // M01: the probe integrates exactly like the sim, terminal clamp included.
-                velocityY = FighterMovementSystem.ClampToTerminal(velocityY + gravityStep);
+                velocityY = tick < launchTicks
+                    ? FighterAirPhysics.StepLaunch(velocityY)
+                    : FighterAirPhysics.StepMovement(
+                        velocityY, fastFalling: false, floating: tick < floatTicks, jumpedThisAirtime: jumped);
                 x += velocityX * delta;
                 y += velocityY * delta;
                 if (x < geometry.LeftWall) x = geometry.LeftWall;
@@ -882,6 +970,7 @@ namespace FTT.FighterSim {
 
             if (jumpsLeft && falling && !preferAbilityFirst
                 && (desperate || NextPercent() < _tuning.RecoveryJumpPercent)) {
+                _pendingRecoveryJump = true;
                 return held | GameplayButtons.Jump;
             }
             if (movementReady && (desperate || NextPercent() < _tuning.RecoveryMovementPercent)) {
@@ -893,6 +982,7 @@ namespace FTT.FighterSim {
             // the ability has fired or turned out to be unavailable.
             if (jumpsLeft && falling
                 && (desperate || NextPercent() < _tuning.RecoveryJumpPercent)) {
+                _pendingRecoveryJump = true;
                 return held | GameplayButtons.Jump;
             }
             // The validated optional mobility Special. CPU_RECOVERY.md forbids
@@ -927,10 +1017,36 @@ namespace FTT.FighterSim {
             || _episodeMobilitySpecialActivations + _episodeMovementActivations
                 < _tuning.RecoveryMovementActivationsPerEpisode;
 
+        /// <summary>
+        /// The ability lockout (2026-10-08) as it will stand when this decision
+        /// reaches the sim: a press is scheduled at least the band's minimum
+        /// reaction delay ahead, so a lockout that runs out within that delay
+        /// does not refuse it. Judging by the lockout at decision time instead
+        /// let a basic decided during the lockout land first, re-arm it and
+        /// starve every special and Ultimate the CPU picked once it looked clear.
+        /// A lockout stretched by hitstop can still refuse the press; that costs
+        /// nothing. The band minimum is used rather than the drawn delay so the
+        /// RNG stream is unchanged.
+        /// </summary>
+        private bool AbilityLockoutClearAtDelivery(in CpuDecisionObservation observation) =>
+            observation.AbilityLockoutFrames <= GetReactionDelayBounds(out _);
+
+        /// <summary>
+        /// D1 (2026-10-11): the Specials' gate as it will stand at delivery — the
+        /// Special-sourced lockout once the CPU's own swing has landed, the whole
+        /// lockout otherwise. The Ultimate keeps <see cref="AbilityLockoutClearAtDelivery"/>.
+        /// No delivery-time revalidation: a press the gate still refuses costs nothing.
+        /// </summary>
+        private bool SpecialLockoutClearAtDelivery(in CpuDecisionObservation observation) =>
+            FTT.Combat.BasicComboRules.SpecialGateFrames(
+                observation.AbilityLockoutFrames, observation.SpecialLockoutFrames, observation.SwingLanded != 0)
+                <= GetReactionDelayBounds(out _);
+
         private bool MobilitySpecialReady(in CpuDecisionObservation observation) =>
-            _profile.MobilitySpecial == CpuMobilitySpecialSlot.SpecialOne
+            SpecialLockoutClearAtDelivery(in observation)
+            && (_profile.MobilitySpecial == CpuMobilitySpecialSlot.SpecialOne
                 ? observation.SpecialOneCooldownFrames <= 0
-                : observation.SpecialTwoCooldownFrames <= 0;
+                : observation.SpecialTwoCooldownFrames <= 0);
 
         /// <summary>
         /// Which way the return lies. Over a pit with A9's floor topology in hand
@@ -1088,7 +1204,11 @@ namespace FTT.FighterSim {
             if (observation.SelfAttackMadeContact != 0) return false;
             if (!IsSafeEchoStepDestination(in observation)) return false;
 
-            bool ultimateLegal = CanCommitUltimate(in observation);
+            // The ability lockout is not consulted here: Echo Step only starts in
+            // the CPU's own swing recovery, which nearly always sits inside that
+            // swing's 30-frame lockout, and a lockout that ends within frames
+            // does not make a viable Ultimate worth spending meter on.
+            bool ultimateLegal = UltimateSetupViable(in observation);
             // Medium keeps its immediate-Ultimate policy: when both are legal in
             // one decision, the Ultimate takes priority. Hard values a viable
             // Ultimate setup for the same reason without the hard rule.
@@ -1420,30 +1540,51 @@ namespace FTT.FighterSim {
                 if (defenseRoll < _tuning.BlockPercent) return held | GameplayButtons.Block;
             }
 
+            // The close-range branch keeps CloseRange for every verb in it (the
+            // Ultimate commit, the lockout wait, the grab, the Special ladder):
+            // only the BasicAttack fallback reads the fighter's own melee band
+            // (2026-10-11), for the string step the press would start. Inside
+            // close range but beyond that band the swing would whiff, so the
+            // CPU walks in instead of pressing it.
             if (absoluteRaw <= closeRaw) {
                 if (CanCommitUltimate(in observation) && NextPercent() < _tuning.UltimatePercent) {
                     held |= GameplayButtons.Ultimate;
+                } else if (UltimateSetupViable(in observation) && !AbilityLockoutClearAtDelivery(in observation)) {
+                    // A viable Ultimate waits on the CPU's own ability lockout. A
+                    // BasicAttack now would buffer the next chain hit, re-arm the
+                    // lockout at the swing boundary and push the Ultimate past the
+                    // string, so the CPU lets the swing finish instead. No RNG draw.
+                    return held;
                 } else if (TryDecideGrab(in observation, out GameplayButtons grab)) {
                     // The grab answers the block stance. It is evaluated after the
                     // Ultimate (which bypasses shields outright) and before the
                     // specials ladder, because a shielding opponent is precisely
                     // the case the specials ladder handles worst.
                     return held | grab;
-                } else if (observation.SpecialOneCooldownFrames <= 0
+                } else if (SpecialLockoutClearAtDelivery(in observation)
+                    && observation.SpecialOneCooldownFrames <= 0
                     && NextPercent() < _tuning.SpecialOneClosePercent) {
                     held |= GameplayButtons.Special1;
-                } else if (observation.SpecialTwoCooldownFrames <= 0
+                } else if (SpecialLockoutClearAtDelivery(in observation)
+                    && observation.SpecialTwoCooldownFrames <= 0
                     && NextPercent() < _tuning.SpecialTwoPercent) {
                     held |= GameplayButtons.Special2;
-                } else {
+                } else if (absoluteRaw <= BasicAttackBandRaw(in observation, closeRaw)) {
                     held |= GameplayButtons.BasicAttack;
+                    if (observation.SelfStringReachWidthPercent > 0) {
+                        _pendingBasicAttackGate = true;
+                        _pendingBasicAttackDeltaRaw = deltaRaw;
+                    }
+                } else {
+                    moveX = deltaRaw >= 0 ? (sbyte)110 : (sbyte)-110;
                 }
                 return held;
             }
 
             // Ranged neutral: zoning special first, then the far-range movement
             // ability as the gap-closer.
-            if (observation.SpecialOneCooldownFrames <= 0
+            if (SpecialLockoutClearAtDelivery(in observation)
+                && observation.SpecialOneCooldownFrames <= 0
                 && NextPercent() < _tuning.SpecialOneRangedPercent) {
                 held |= GameplayButtons.Special1;
             } else if (absoluteRaw > farRaw && observation.MovementCooldownFrames <= 0
@@ -1454,10 +1595,18 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
+        /// The Ultimate press is legal at delivery: the ability lockout will have
+        /// run out and <see cref="UltimateSetupViable"/> holds.
+        /// </summary>
+        private bool CanCommitUltimate(in CpuDecisionObservation observation) =>
+            AbilityLockoutClearAtDelivery(in observation) && UltimateSetupViable(in observation);
+
+        /// <summary>
         /// Meter gate plus, on Hard, the design's "confirmed kill setup" requirement:
         /// the opponent is in hitstun, low enough to finish, or cornered against a wall.
+        /// The ability lockout is deliberately not part of it.
         /// </summary>
-        private bool CanCommitUltimate(in CpuDecisionObservation observation) {
+        private bool UltimateSetupViable(in CpuDecisionObservation observation) {
             if (_tuning.UltimatePercent <= 0) return false;
             if (observation.InfluenceRaw < MaxInfluence.RawValue) return false;
             if (!UltimateActivationCanConnect(in observation)) return false;
@@ -1495,6 +1644,51 @@ namespace FTT.FighterSim {
                 && observation.TargetIsGrounded != 0;
         }
 
+        /// <summary>
+        /// The neutral melee band for a string opener (2026-10-11):
+        /// <see cref="MeleeBand(int,int,long)"/> at step 0. In the sim that is
+        /// Lincoln 1.76, Joan 1.84, the template exactly 2.0 (the close range)
+        /// and Cleopatra 2.32 units.
+        /// </summary>
+        public static FP64 MeleeBand(int reachWidthPercent, long targetHurtboxHalfWidthRaw) =>
+            MeleeBand(reachWidthPercent, 0, targetHurtboxHalfWidthRaw);
+
+        /// <summary>
+        /// The neutral melee band (2026-10-11): the pivot-to-pivot gap inside
+        /// which a fighter's string hit <paramref name="step"/> lands, less
+        /// <see cref="MeleeBandMarginUnits"/>. It is that hit's box far edge,
+        /// from the one cross-mode string table scaled by the fighter's
+        /// <paramref name="reachWidthPercent"/>
+        /// (<see cref="FighterCombatSystem.StringBoxFarEdge"/>), plus the
+        /// target's hurtbox half-width. A non-positive
+        /// <paramref name="targetHurtboxHalfWidthRaw"/> reads the sim's live
+        /// victim half-width. Hit 2 and the finisher reach further than the
+        /// opener for every profile, but not always as far as the close range:
+        /// Lincoln's hit 2 band is 1.845 units, Joan's 1.93. Fixed point only.
+        /// </summary>
+        public static FP64 MeleeBand(int reachWidthPercent, int step, long targetHurtboxHalfWidthRaw) {
+            FP64 targetHalfWidth = targetHurtboxHalfWidthRaw > 0
+                ? FP64.FromRaw(targetHurtboxHalfWidthRaw)
+                : FighterCombatSystem.VictimHurtboxHalfWidth;
+            return FighterCombatSystem.StringBoxFarEdge(reachWidthPercent, step) + targetHalfWidth - MeleeBandMargin;
+        }
+
+        /// <summary>
+        /// The gap inside which the close-range branch may press BasicAttack:
+        /// the fighter's <see cref="MeleeBand(int,int,long)"/> for the step the
+        /// press would start (<see cref="CpuDecisionObservation.SelfNextStringStep"/>:
+        /// the next chain hit while the CPU's own string can continue, else an
+        /// opener). A fighter whose reach is unknown (a hand-built observation)
+        /// keeps the legacy close range (<paramref name="closeRaw"/>).
+        /// </summary>
+        private static long BasicAttackBandRaw(in CpuDecisionObservation observation, long closeRaw) {
+            if (observation.SelfStringReachWidthPercent <= 0) return closeRaw;
+            return MeleeBand(
+                observation.SelfStringReachWidthPercent,
+                observation.SelfNextStringStep,
+                observation.TargetHurtboxHalfWidthRaw).RawValue;
+        }
+
         private static long Absolute(long value) => value < 0 ? -value : value;
 
         private int NextReactionDelay() {
@@ -1518,6 +1712,15 @@ namespace FTT.FighterSim {
             public GameplayButtons Held;
             public CpuVerbAction Verb;
             public bool SpendsMovementActivation;
+            public bool RecoveryJump;
+            /// <summary>
+            /// A neutral BasicAttack the melee band admitted; delivery re-reads
+            /// the step the press would start and drops it, walking in, when
+            /// that step's band no longer covers <see cref="BasicAttackDeltaRaw"/>.
+            /// </summary>
+            public bool GatesBasicAttack;
+            /// <summary>The decision-time gap, target minus self, raw FP64.</summary>
+            public long BasicAttackDeltaRaw;
         }
     }
 

@@ -198,6 +198,129 @@ public class StoryDropsAndRewindTests {
         }
     }
 
+    // === D12 (2026-10-11): mob dust never expires =========================
+
+    [TestCase]
+    public void AMobPickupThatReachesItsTimerIsCollectedIntoTheWalletWithItsClaimCommitted() {
+        // USER-DUST-NEVER-EXPIRES: the 10 s timer collects a mob pickup (claim,
+        // wallet, attribution) instead of discarding it unpaid. No LevelManager
+        // here, so nothing about completion applies.
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        var parent = new Node2D { Name = "MobTimerParent" };
+        tree.Root.AddChild(parent);
+        var pools = new PoolManager { Name = "MobTimerPools" };
+        tree.Root.AddChild(pools);
+        LevelRewardDirectory.ResetAttempt();
+
+        int awards = 0;
+        int awarded = 0;
+        var attributions = new System.Collections.Generic.List<DustAwardCollectedPayload>();
+        void OnDust(int amount) { awards++; awarded += amount; }
+        void OnAttributed(DustAwardCollectedPayload payload) => attributions.Add(payload);
+        EventBus.Instance.OnChronalDustCollected += OnDust;
+        EventBus.Instance.OnDustAwardCollected += OnAttributed;
+        try {
+            const string sourceID = "test.mob#0";
+            // Far from any player, so the magnet never resolves it.
+            ChronalDustPickup pickup = StoryDropSystem.SpawnDustAward(
+                4, new Vector2(40000f, -40000f), parent, DustAwardSource.Mob, sourceID);
+            AssertObject(pickup).IsNotNull();
+            AssertThat(pickup.NeverExpires).IsFalse();
+
+            // Before the timer: nothing pays, the pickup stays on the ground.
+            for (int frame = 0; frame < 590; frame++) pickup._PhysicsProcess(1.0 / 60.0);
+            AssertThat(awards).IsEqual(0);
+            AssertThat(pickup.GetParent() == parent).IsTrue();
+            AssertThat(LevelRewardDirectory.IsClaimed(sourceID)).IsFalse();
+
+            // At the timer: collected exactly as a touched pickup would be.
+            for (int frame = 0; frame < 30 && awards == 0 && pickup.GetParent() == parent; frame++) {
+                pickup._PhysicsProcess(1.0 / 60.0);
+            }
+            AssertThat(awards)
+                .OverrideFailureMessage("A mob pickup at its timer must pay the wallet, not vanish.")
+                .IsEqual(1);
+            AssertThat(awarded).IsEqual(4);
+            AssertThat(attributions.Count).IsEqual(1);
+            AssertThat(attributions[0].Amount).IsEqual(4);
+            AssertThat(attributions[0].Source).IsEqual(DustAwardSource.Mob);
+            AssertThat(LevelRewardDirectory.IsClaimed(sourceID))
+                .OverrideFailureMessage("The auto-collection must commit the source claim.")
+                .IsTrue();
+            AssertThat(pickup.IsCollected).IsTrue();
+            AssertThat(pickup.GetParent() == parent)
+                .OverrideFailureMessage("The collected pickup must return to its pool.")
+                .IsFalse();
+
+            // Idempotent: a stray tick or a second collection on the parked
+            // node pays nothing.
+            for (int frame = 0; frame < 5; frame++) pickup._PhysicsProcess(1.0 / 60.0);
+            pickup.Collect();
+            AssertThat(awards).IsEqual(1);
+            AssertThat(attributions.Count).IsEqual(1);
+        } finally {
+            EventBus.Instance.OnChronalDustCollected -= OnDust;
+            EventBus.Instance.OnDustAwardCollected -= OnAttributed;
+            LevelRewardDirectory.ResetAttempt();
+            pools.ClearAllPools();
+            pools.Free();
+            parent.Free();
+        }
+    }
+
+    [TestCase]
+    public void AMobPickupsTimerPausesUnderTimeFreezeAndResumesWhereItStopped() {
+        // The timer runs on live ticks only: 300 live, 900 frozen, then 290
+        // more live ticks (590 in all) must still pay nothing, and the payment
+        // must land within 40 further ticks. A timer that kept ticking through
+        // the freeze pays during it; one that restarted at the thaw pays only
+        // 600 ticks after it. Either fails here.
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        var parent = new Node2D { Name = "MobFreezeParent" };
+        tree.Root.AddChild(parent);
+        var pools = new PoolManager { Name = "MobFreezePools" };
+        tree.Root.AddChild(pools);
+        LevelRewardDirectory.ResetAttempt();
+
+        int awards = 0;
+        void OnDust(int amount) => awards++;
+        EventBus.Instance.OnChronalDustCollected += OnDust;
+        try {
+            ChronalDustPickup pickup = StoryDropSystem.SpawnDustAward(
+                4, new Vector2(40000f, -40000f), parent, DustAwardSource.Mob, "test.mob#1");
+            AssertObject(pickup).IsNotNull();
+
+            for (int frame = 0; frame < 300; frame++) pickup._PhysicsProcess(1.0 / 60.0);
+            AssertThat(awards).IsEqual(0);
+
+            pickup.SetTimeFrozen(true);
+            for (int frame = 0; frame < 900; frame++) pickup._PhysicsProcess(1.0 / 60.0);
+            AssertThat(awards)
+                .OverrideFailureMessage("A frozen pickup's timer must not run.")
+                .IsEqual(0);
+            AssertThat(pickup.GetParent() == parent).IsTrue();
+
+            pickup.SetTimeFrozen(false);
+            for (int frame = 0; frame < 290; frame++) pickup._PhysicsProcess(1.0 / 60.0);
+            AssertThat(awards)
+                .OverrideFailureMessage("The timer must resume where it stopped, not skip ahead.")
+                .IsEqual(0);
+
+            for (int frame = 0; frame < 40 && awards == 0 && pickup.GetParent() == parent; frame++) {
+                pickup._PhysicsProcess(1.0 / 60.0);
+            }
+            AssertThat(awards)
+                .OverrideFailureMessage("The timer must resume with its remaining time, not restart at the thaw.")
+                .IsEqual(1);
+        } finally {
+            EventBus.Instance.OnChronalDustCollected -= OnDust;
+            LevelRewardDirectory.ResetAttempt();
+            pools.ClearAllPools();
+            pools.Free();
+            parent.Free();
+        }
+    }
+
     // === Package 11 A10 — the F05 authored-budget reward ledger =============
 
     [TestCase]

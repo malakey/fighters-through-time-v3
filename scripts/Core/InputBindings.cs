@@ -322,6 +322,122 @@ namespace FTT.Core {
             return true;
         }
 
+        /// <summary>
+        /// The Godot 3 joypad numbers <c>project.godot</c> used for the shoulders
+        /// until 2026-10-11. Godot 4's <c>JoyButton</c> reads 4 as <b>Back</b> and
+        /// 5 as <b>Guide</b>; the shoulders are 9 and 10.
+        /// </summary>
+        public const int Godot3LeftShoulderButton = 4;
+
+        /// <inheritdoc cref="Godot3LeftShoulderButton"/>
+        public const int Godot3RightShoulderButton = 5;
+
+        /// <summary>
+        /// 2026-10-11 (ledger <c>PROVISIONAL-GAMEPAD-OVERRIDE-NO-MIGRATION</c>):
+        /// repairs saved override rows that still carry the Godot 3 shoulder
+        /// numbers, rewriting their gamepad half onto the current project default.
+        /// Idempotent and pure data; <see cref="SaveManager.ApplySavedInputBindings"/>
+        /// runs it on every load just before the overrides are applied. It is not a
+        /// schema step and stamps nothing.
+        ///
+        /// <para><b>Why a row can be stale.</b> <see cref="InputBindingService.BuildOverrides"/>
+        /// stores an action's <i>whole</i> event list once any of it differs from
+        /// the defaults, so a keyboard-only rebind of the Movement Ability, Special
+        /// 2 or the Ultimate made before the fix froze that action's old gamepad
+        /// half (4, 5 or 4 + 5) into the payload.</para>
+        ///
+        /// <para><b>Why only these rows.</b> The repair touches a row only when the
+        /// Controls tab could not have produced it on purpose. A capture replaces a
+        /// device half with exactly one event (there is no chord editor), and
+        /// <see cref="InputBindingConflicts"/> refuses an event that any action
+        /// already holds. So:</para>
+        /// <list type="bullet">
+        /// <item>an Ultimate gamepad half of exactly Back + Guide is the old
+        /// default and nothing else, and is always repaired;</item>
+        /// <item>a Movement Ability half of exactly Back, or a Special 2 half of
+        /// exactly Guide, is repaired only while another action (judged on the
+        /// payload as loaded) also holds that button — two actions sharing one
+        /// button is the old default's fingerprint. Alone, it may be a deliberate
+        /// bind made after the fix and is left as it is.</item>
+        /// </list>
+        /// <para>Returns true when the set changed.</para>
+        /// </summary>
+        public bool RepairGodot3ShoulderRows(InputBindingSet projectDefaults) {
+            if (projectDefaults == null || Actions == null || Actions.Count == 0) return false;
+            Normalize();
+            // Every rule is judged against the payload as it was loaded, so the
+            // order of the repairs below cannot change the outcome.
+            InputBindingSet loaded = Clone();
+            bool changed = RepairStaleJoypadHalf(loaded, projectDefaults, InputManager.Actions.Ultimate,
+                new[] { Godot3LeftShoulderButton, Godot3RightShoulderButton }, requireSharedButton: false);
+            changed |= RepairStaleJoypadHalf(loaded, projectDefaults, InputManager.Actions.MovementAbility,
+                new[] { Godot3LeftShoulderButton }, requireSharedButton: true);
+            changed |= RepairStaleJoypadHalf(loaded, projectDefaults, InputManager.Actions.Special2,
+                new[] { Godot3RightShoulderButton }, requireSharedButton: true);
+            return changed;
+        }
+
+        private bool RepairStaleJoypadHalf(
+            InputBindingSet loaded,
+            InputBindingSet projectDefaults,
+            string action,
+            int[] staleButtons,
+            bool requireSharedButton) {
+            if (!loaded.HasOverride(action) || loaded.IsUnbound(action, InputDeviceKind.Joypad)) return false;
+            if (!IsExactlyJoyButtons(loaded.EventsFor(action, InputDeviceKind.Joypad), staleButtons)) return false;
+
+            List<InputBindingEvent> target = projectDefaults.EventsFor(action, InputDeviceKind.Joypad);
+            // No default to restore, or a project file that still ships the old
+            // numbers: nothing to repair towards.
+            if (target.Count == 0 || IsExactlyJoyButtons(target, staleButtons)) return false;
+            if (requireSharedButton
+                && !AnotherActionHoldsJoyButton(loaded, projectDefaults, action, staleButtons[0])) {
+                return false;
+            }
+
+            List<InputBindingEvent> rebuilt = For(action)
+                .Where(existing => existing.DeviceKind != InputDeviceKind.Joypad)
+                .Select(existing => existing.Clone())
+                .ToList();
+            rebuilt.AddRange(target);
+            Set(action, rebuilt);
+            return true;
+        }
+
+        /// <summary>True when <paramref name="events"/> is exactly these joypad buttons, in any order.</summary>
+        private static bool IsExactlyJoyButtons(List<InputBindingEvent> events, int[] buttons) {
+            if (events == null || events.Count != buttons.Length) return false;
+            foreach (InputBindingEvent binding in events) {
+                if (binding.Kind != InputBindingKind.JoyButton) return false;
+                if (Array.IndexOf(buttons, binding.Code) < 0) return false;
+            }
+            return events.Select(binding => binding.Code).Distinct().Count() == buttons.Length;
+        }
+
+        /// <summary>
+        /// Whether an action other than <paramref name="action"/> resolves a
+        /// gamepad half holding <paramref name="button"/>: its override row when it
+        /// has one, nothing when its gamepad slot is explicitly Unbound, and the
+        /// project default otherwise.
+        /// </summary>
+        private static bool AnotherActionHoldsJoyButton(
+            InputBindingSet loaded, InputBindingSet projectDefaults, string action, int button) {
+            var actions = new HashSet<string>(StringComparer.Ordinal);
+            if (loaded.Actions != null) actions.UnionWith(loaded.Actions.Keys);
+            if (projectDefaults.Actions != null) actions.UnionWith(projectDefaults.Actions.Keys);
+            actions.Remove(action);
+            foreach (string other in actions) {
+                if (loaded.IsUnbound(other, InputDeviceKind.Joypad)) continue;
+                List<InputBindingEvent> pad = loaded.HasOverride(other)
+                    ? loaded.EventsFor(other, InputDeviceKind.Joypad)
+                    : projectDefaults.EventsFor(other, InputDeviceKind.Joypad);
+                foreach (InputBindingEvent binding in pad) {
+                    if (binding.Kind == InputBindingKind.JoyButton && binding.Code == button) return true;
+                }
+            }
+            return false;
+        }
+
         /// <summary>True when this action's events differ from the supplied reference set.</summary>
         public bool DiffersFrom(InputBindingSet reference, string action) {
             IReadOnlyList<InputBindingEvent> mine = For(action);
@@ -353,7 +469,14 @@ namespace FTT.Core {
     /// </summary>
     public static class InputShortcuts {
 
-        /// <summary>Direct Ultimate action (already in the InputMap as an LB+RB chord reader).</summary>
+        /// <summary>
+        /// Direct Ultimate action. Its authored gamepad events are the chord itself:
+        /// <c>JoyButton.LeftShoulder</c> (9) + <c>JoyButton.RightShoulder</c> (10),
+        /// the Movement Ability and Special 2 defaults, which
+        /// <c>InputManager.ReadUltimatePressed</c> reads as a conjunction. (Until
+        /// 2026-10-11 project.godot carried the Godot 3 numbers 4 + 5, which Godot 4
+        /// reads as Back + Guide; <c>GamepadDefaultBindingTests</c> pins the fix.)
+        /// </summary>
         public const string UltimateAction = "gameplay_ultimate";
 
         /// <summary>Direct Grab action. Added by A1c; absent until then.</summary>

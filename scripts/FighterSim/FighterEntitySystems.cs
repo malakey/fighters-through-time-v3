@@ -319,10 +319,22 @@ namespace FTT.FighterSim {
             in FighterDefenseComponent defense, bool defyUsed, bool alive, FP64 influence) {
             if (!alive || defense.DefyBarred != 0) return FTT.Core.DefySealState.Barred;
             if (defyUsed) return FTT.Core.DefySealState.Spent;
-            return influence >= FP64.FromInt(100)
+            return influence >= FighterMeterRules.Cap
                 ? FTT.Core.DefySealState.Ready
                 : FTT.Core.DefySealState.Building;
         }
+    }
+
+    /// <summary>
+    /// How one fighter contact resolved (2026-10-11, D1a). Landed and Absorbed
+    /// count as a landed hit for the hit-confirm cancel and per-hit Momentum;
+    /// Refused and Blocked do not.
+    /// </summary>
+    internal enum FighterHitOutcome {
+        Refused = 0,
+        Blocked = 1,
+        Absorbed = 2,
+        Landed = 3
     }
 
     internal static class FighterDamageRules {
@@ -333,7 +345,7 @@ namespace FTT.FighterSim {
         /// <summary>A blocked hazard tick costs exactly one shield charge (design §10).</summary>
         public const int HazardBlockChargeCost = 1;
         private const int BlockButton = 1 << 6;
-        private static readonly FP64 MaxInfluence = FP64.FromInt(100);
+        private static readonly FP64 MaxInfluence = FighterMeterRules.Cap;
         // Desperation Resonance (V7.1): echoFraction = 0.20 + 0.30 × missingHP,
         // ×1.5 capped at 0.60 during Overtime.
         // Fixed-point mirrors of the shared BasicComboRules Rally numbers
@@ -366,7 +378,81 @@ namespace FTT.FighterSim {
             return defenderFacingRight ? -1 : 1;
         }
 
+        /// <summary>
+        /// The historical bool form of <see cref="ResolveFighterHit"/>: true
+        /// only when damage applied (<see cref="FighterHitOutcome.Landed"/>).
+        /// Every pre-2026-10-11 caller keeps it, so the split is hash-neutral.
+        /// </summary>
         public static bool ApplyFighterHit(
+            ref FighterStateComponent attacker,
+            ref FighterRuntimeComponent attackerRuntime,
+            ref FighterVerbComponent attackerVerb,
+            ref FighterStateComponent target,
+            ref FighterRuntimeComponent targetRuntime,
+            ref FighterVerbComponent targetVerb,
+            ref FighterDefenseComponent targetDefense,
+            in FighterTuningComponent targetTuning,
+            int attackClass,
+            int damage,
+            FP64 knockback,
+            int hitstunFrames,
+            int statusType,
+            int statusFrames,
+            FP64 statusIntensity,
+            FP64 hitOriginX,
+            bool creditInfluence = true,
+            int blockChargeCost = 0,
+            FP64 verticalKnockbackScale = default,
+            bool collectsEcho = true,
+            bool appliesHitstop = true,
+            bool blockCancelableHitstun = true,
+            bool bypassesFiniteShields = false,
+            bool launches = true,
+            bool shieldBreaker = false,
+            bool hasKnockbackVector = false,
+            FP64 knockbackVertical = default) =>
+            ResolveFighterHit(
+                ref attacker,
+                ref attackerRuntime,
+                ref attackerVerb,
+                ref target,
+                ref targetRuntime,
+                ref targetVerb,
+                ref targetDefense,
+                in targetTuning,
+                attackClass,
+                damage,
+                knockback,
+                hitstunFrames,
+                statusType,
+                statusFrames,
+                statusIntensity,
+                hitOriginX,
+                creditInfluence,
+                blockChargeCost,
+                verticalKnockbackScale,
+                collectsEcho,
+                appliesHitstop,
+                blockCancelableHitstun,
+                bypassesFiniteShields,
+                launches,
+                shieldBreaker,
+                hasKnockbackVector,
+                knockbackVertical) == FighterHitOutcome.Landed;
+
+        /// <summary>
+        /// The one fighter-hit pipeline, returning how the contact resolved
+        /// (2026-10-11, D1a): <see cref="FighterHitOutcome.Refused"/> for
+        /// invulnerability frames, an out-of-stocks target or the D04 Defy
+        /// window; <see cref="FighterHitOutcome.Absorbed"/> when Temporal Aegis or
+        /// a full barrier took it; <see cref="FighterHitOutcome.Blocked"/> when the
+        /// block stance took it (a shatter included — a partial barrier absorb
+        /// followed by a block is a block); <see cref="FighterHitOutcome.Landed"/>
+        /// when damage applied (a Defy-saved lethal hit included). Landed and
+        /// Absorbed are the D1a "landed" contacts the hit-confirm cancel and
+        /// per-hit Momentum read.
+        /// </summary>
+        internal static FighterHitOutcome ResolveFighterHit(
             ref FighterStateComponent attacker,
             ref FighterRuntimeComponent attackerRuntime,
             ref FighterVerbComponent attackerVerb,
@@ -405,14 +491,14 @@ namespace FTT.FighterSim {
             // by the same weight / low-HP rule. Without it the historical scalar
             // form stands: one magnitude on both axes, the vertical biased by
             // verticalKnockbackScale.
-            if (target.InvulnerabilityFrames > 0 || target.Stocks <= 0) return false;
+            if (target.InvulnerabilityFrames > 0 || target.Stocks <= 0) return FighterHitOutcome.Refused;
             // V7.6 D04 (Package 11 A1b): the Defy protected-recovery gate sits
             // ABOVE every other layer. A rejected contact spends no Aegis, no
             // barrier capacity and no block charge, applies no hitstun, launch
             // or status, and grants the attacker no damage, Rally or block
             // reward. It covers every attacker, damaging status tick and
             // damaging stage hazard, and is not immunity to non-hit deaths.
-            if (FighterDefenseRules.IsDefyProtected(in targetDefense)) return false;
+            if (FighterDefenseRules.IsDefyProtected(in targetDefense)) return FighterHitOutcome.Refused;
 
             // V7.6 D02b (Package 11 A1b): eligible projectile immunity →
             // Temporal Aegis → HP barriers → ordinary block, stopping at the
@@ -430,7 +516,7 @@ namespace FTT.FighterSim {
                     // D03e: Aegis prevents the absorbed contact's damage,
                     // hitstun, knockback and attached status outright.
                     targetDefense.AegisActive = 0;
-                    return false;
+                    return FighterHitOutcome.Absorbed;
                 }
                 if (targetDefense.BarrierPoints > 0) {
                     int absorbed = targetDefense.BarrierPoints < resolvedIncoming
@@ -441,7 +527,7 @@ namespace FTT.FighterSim {
                     damage = resolvedIncoming - absorbed;
                     // D03a: a full absorb — including one that exactly depletes
                     // the barrier — suppresses the hit's attached effects too.
-                    if (damage <= 0) return false;
+                    if (damage <= 0) return FighterHitOutcome.Absorbed;
                 }
             }
 
@@ -499,7 +585,7 @@ namespace FTT.FighterSim {
                         FighterVerbRules.ApplyHitstop(
                             ref attackerVerb, ref targetVerb, FTT.Combat.BasicComboRules.ShatterFreezeFrames);
                     }
-                    return false;
+                    return FighterHitOutcome.Blocked;
                 }
                 // V7.3 shieldstun: a non-shatter blocked hit locks the blocker
                 // into the stance — no grab, roll, jump, drop-through, or release.
@@ -509,7 +595,7 @@ namespace FTT.FighterSim {
                     FighterVerbRules.ApplyHitstop(
                         ref attackerVerb, ref targetVerb, FTT.Combat.BasicComboRules.BlockedHitstopFrames);
                 }
-                return false;
+                return FighterHitOutcome.Blocked;
             }
 
             int resolvedDamage = damage > 0 ? damage : 0;
@@ -565,7 +651,8 @@ namespace FTT.FighterSim {
 
             int actualDamage = previousHP - target.CurrentHP;
             if (creditInfluence) {
-                attacker.Influence = FP64.Min(MaxInfluence, attacker.Influence + FP64.FromInt(actualDamage));
+                attacker.Influence = FP64.Min(
+                    MaxInfluence, attacker.Influence + FighterMeterRules.FromDamageDealt(actualDamage));
             }
 
             // Rally / Desperation Resonance (V7.1): a fraction of every hit taken
@@ -593,7 +680,7 @@ namespace FTT.FighterSim {
             if (!defied) {
                 target.Influence = FP64.Min(
                     MaxInfluence,
-                    target.Influence + (FP64.FromInt(actualDamage) - echoAmount) / FP64.FromInt(4));
+                    target.Influence + FighterMeterRules.FromDamageTaken(FP64.FromInt(actualDamage) - echoAmount));
             }
 
             // Rally reclaim (V7.3): a connecting *direct* hit (never a construct
@@ -719,7 +806,7 @@ namespace FTT.FighterSim {
             if (target.CurrentHP <= 0) {
                 FighterSimulationRules.ApplyStockLoss(ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning);
             }
-            return true;
+            return FighterHitOutcome.Landed;
         }
 
         /// <summary>
@@ -790,7 +877,7 @@ namespace FTT.FighterSim {
             if (!defied) {
                 target.Influence = FP64.Min(
                     MaxInfluence,
-                    target.Influence + (FP64.FromInt(actualDamage) - echoAmount) / FP64.FromInt(4));
+                    target.Influence + FighterMeterRules.FromDamageTaken(FP64.FromInt(actualDamage) - echoAmount));
             }
 
             if (target.CurrentHP <= 0) {
@@ -988,27 +1075,71 @@ namespace FTT.FighterSim {
                 ref readonly FighterTuningComponent tuning = ref frame.GetReadOnly<FighterTuningComponent>(entity);
                 ref readonly FighterAbilityModeComponent modes = ref frame.GetReadOnly<FighterAbilityModeComponent>(entity);
                 ref readonly FighterVerbComponent verbState = ref frame.GetReadOnly<FighterVerbComponent>(entity);
-                if (fighter.Stocks <= 0
-                    || fighter.HitstunFrames > 0
-                    || fighter.DazeFrames > 0
-                    // V7.1 hitstop / V7.2 grabs: a frozen, grabbing, or held
-                    // fighter takes no ability action (their button presses are
-                    // simply not consumed).
-                    || verbState.HitstopFrames > 0
-                    || FighterGrabRules.IsBusy(in verbState)
-                    // A hanging fighter has no specials and no movement ability
-                    // (§2.11) — the hang suppresses ability intent the way
-                    // hitstun does.
-                    || FighterLedgeRules.IsHanging(in runtime)
-                    || FighterUniversalMovementRules.IsCombatLocked(in runtime)) continue;
-
-                // Story's Blocking state ignores ability inputs entirely; specials
-                // remain usable mid-swing because they cancel the basic string
-                // (design 1051 — resolved below via the cooldown edge).
-                bool blockStance = FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verbState);
-                if (blockStance) continue;
+                // Out of stocks, hitstun, daze, hitstop, a grab, a ledge hang, a
+                // combat-locked roll or air dodge, or the block stance: no ability
+                // action, the presses simply not consumed. One predicate, shared
+                // with the D10 "not yet" classifier (2026-10-11), so a press this
+                // system never reads never flashes.
+                if (!FighterAbilityLockoutRules.CanReadAbilityPress(in fighter, in runtime, in verbState)) continue;
                 int specialOneCooldownBefore = runtime.SpecialOneCooldownFrames;
                 int specialTwoCooldownBefore = runtime.SpecialTwoCooldownFrames;
+
+                // Same-tick priority (2026-10-08): an Ultimate press that
+                // FighterCombatSystem will accept later this tick claims the
+                // tick, so no special and no movement ability starts beside it.
+                // Story polls CheckUltimateInput before both. It is also what
+                // lets the default gamepad Ultimate, the Movement + Special 2
+                // chord, fire instead of its component verbs.
+                ref readonly FighterUltimateActivationComponent ultimateActivation =
+                    ref frame.GetReadOnly<FighterUltimateActivationComponent>(entity);
+                bool ultimateClaimsTick = FighterCombatSystem.UltimatePressAccepted(
+                    in fighter, in runtime, in ultimateActivation);
+                // §1.7 (2026-10-11, PROVISIONAL-HIT-CONFIRM-RULES (4)): a
+                // meter-paid Ultimate the lockout alone refuses still claims the
+                // tick from the Specials (not from the movement ability), so the
+                // Movement + Special 2 chord cannot cast Special 2 inside a
+                // hit-confirm.
+                bool ultimateHeldBack = FighterCombatSystem.UltimatePressHeldBackByLockout(
+                    in fighter, in runtime, in ultimateActivation);
+
+                // Ability lockout (user direction 2026-10-08): every acceptance
+                // below checks it and arms it at once, so the first special
+                // accepted this tick refuses the rest. Special 1 is resolved
+                // before every Special 2 path (Foresight, Divine Piercing, the
+                // generic slot) so a same-tick S1+S2 casts Special 1 alone, as
+                // Story's CheckSpecialInput does.
+                if (!ultimateClaimsTick
+                    && !ultimateHeldBack
+                    && (runtime.PressedButtons & SpecialOneButton) != 0
+                    && runtime.SpecialOneCooldownFrames <= 0
+                    && FighterAbilityLockoutRules.AllowsSpecial(in runtime)) {
+                    if (modes.SpecialOneExecutionType == ProjectileExecutionType) {
+                        SpawnSpecialProjectile(
+                            ref frame, in fighter, 1, tuning.SpecialOneDamage, tuning.SpecialOneKnockback,
+                            tuning.SpecialOneStatusType, tuning.SpecialOneStatusFrames,
+                            tuning.SpecialOneStatusIntensity, modes.SpecialOneProjectileLifetimeFrames,
+                            modes.SpecialOneProjectileSpeed);
+                        runtime.SpecialOneCooldownFrames = PositiveCooldown(tuning.SpecialOneCooldownFrames);
+                        FighterAbilityLockoutRules.ArmAbility(ref runtime);
+                    } else if (modes.SpecialOneExecutionType == PersistentExecutionType) {
+                        SpawnPersistent(
+                            ref frame, in fighter, modes.SpecialOnePersistentTypeID,
+                            modes.SpecialOneMaxActiveObjects, modes.SpecialOnePersistentLifetimeFrames,
+                            tuning.SpecialOneDamage, tuning.SpecialOneKnockback,
+                            tuning.SpecialOneStatusType, tuning.SpecialOneStatusFrames);
+                        runtime.SpecialOneCooldownFrames = PositiveCooldown(tuning.SpecialOneCooldownFrames);
+                        FighterAbilityLockoutRules.ArmAbility(ref runtime);
+                    } else if (modes.SpecialOneExecutionType == AreaExecutionType) {
+                        SpawnZone(
+                            ref frame, ref fighter, 1,
+                            modes.SpecialOneMaxActiveObjects, modes.SpecialOnePersistentLifetimeFrames,
+                            modes.SpecialOneTickIntervalFrames, tuning.SpecialOneDamage,
+                            tuning.SpecialOneStatusType, tuning.SpecialOneStatusFrames,
+                            tuning.SpecialOneStatusIntensity, _geometry);
+                        runtime.SpecialOneCooldownFrames = PositiveCooldown(tuning.SpecialOneCooldownFrames);
+                        FighterAbilityLockoutRules.ArmAbility(ref runtime);
+                    }
+                }
 
                 // Package 13 W5: Tubman's Foresight is a counter stance, not a
                 // range-gated melee intent. It is accepted whether or not the
@@ -1016,9 +1147,13 @@ namespace FTT.FighterSim {
                 // system's melee intent from also firing), and component 322
                 // runs the 4 / 20 / 24 stance (FighterForesightRules).
                 if (fighter.CharacterID == (int)FighterCharacterID.Tubman
+                    && !ultimateClaimsTick
+                    && !ultimateHeldBack
                     && (runtime.PressedButtons & SpecialTwoButton) != 0
-                    && runtime.SpecialTwoCooldownFrames <= 0) {
+                    && runtime.SpecialTwoCooldownFrames <= 0
+                    && FighterAbilityLockoutRules.AllowsSpecial(in runtime)) {
                     runtime.SpecialTwoCooldownFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
+                    FighterAbilityLockoutRules.ArmAbility(ref runtime);
                     FighterForesightRules.Begin(ref frame.Get<FighterCounterComponent>(entity));
                 }
 
@@ -1030,42 +1165,24 @@ namespace FTT.FighterSim {
                 // Keyed on the authored Melee execution (her Divine Piercing), so a
                 // synthetic loadout that gives the slot another shape keeps it.
                 if (fighter.CharacterID == (int)FighterCharacterID.Joan
+                    && !ultimateClaimsTick
+                    && !ultimateHeldBack
                     && modes.SpecialTwoExecutionType == MeleeExecutionType
                     && (runtime.PressedButtons & SpecialTwoButton) != 0
-                    && runtime.SpecialTwoCooldownFrames <= 0) {
+                    && runtime.SpecialTwoCooldownFrames <= 0
+                    && FighterAbilityLockoutRules.AllowsSpecial(in runtime)) {
                     runtime.SpecialTwoCooldownFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
+                    FighterAbilityLockoutRules.ArmAbility(ref runtime);
                     FighterAbilityHitData piercing = _contracts.For(fighter.PlayerID, FighterHitContractTable.SlotSpecialTwo);
                     FighterKitMotion.StartPiercingLunge(
                         ref runtime, fighter.FacingRight != 0 ? 1 : -1, piercing.ActiveFrames);
                 }
 
-                if ((runtime.PressedButtons & SpecialOneButton) != 0 && runtime.SpecialOneCooldownFrames <= 0) {
-                    if (modes.SpecialOneExecutionType == ProjectileExecutionType) {
-                        SpawnSpecialProjectile(
-                            ref frame, in fighter, 1, tuning.SpecialOneDamage, tuning.SpecialOneKnockback,
-                            tuning.SpecialOneStatusType, tuning.SpecialOneStatusFrames,
-                            tuning.SpecialOneStatusIntensity, modes.SpecialOneProjectileLifetimeFrames,
-                            modes.SpecialOneProjectileSpeed);
-                        runtime.SpecialOneCooldownFrames = PositiveCooldown(tuning.SpecialOneCooldownFrames);
-                    } else if (modes.SpecialOneExecutionType == PersistentExecutionType) {
-                        SpawnPersistent(
-                            ref frame, in fighter, modes.SpecialOnePersistentTypeID,
-                            modes.SpecialOneMaxActiveObjects, modes.SpecialOnePersistentLifetimeFrames,
-                            tuning.SpecialOneDamage, tuning.SpecialOneKnockback,
-                            tuning.SpecialOneStatusType, tuning.SpecialOneStatusFrames);
-                        runtime.SpecialOneCooldownFrames = PositiveCooldown(tuning.SpecialOneCooldownFrames);
-                    } else if (modes.SpecialOneExecutionType == AreaExecutionType) {
-                        SpawnZone(
-                            ref frame, ref fighter, 1,
-                            modes.SpecialOneMaxActiveObjects, modes.SpecialOnePersistentLifetimeFrames,
-                            modes.SpecialOneTickIntervalFrames, tuning.SpecialOneDamage,
-                            tuning.SpecialOneStatusType, tuning.SpecialOneStatusFrames,
-                            tuning.SpecialOneStatusIntensity, _geometry);
-                        runtime.SpecialOneCooldownFrames = PositiveCooldown(tuning.SpecialOneCooldownFrames);
-                    }
-                }
-
-                if ((runtime.PressedButtons & SpecialTwoButton) != 0 && runtime.SpecialTwoCooldownFrames <= 0) {
+                if (!ultimateClaimsTick
+                    && !ultimateHeldBack
+                    && (runtime.PressedButtons & SpecialTwoButton) != 0
+                    && runtime.SpecialTwoCooldownFrames <= 0
+                    && FighterAbilityLockoutRules.AllowsSpecial(in runtime)) {
                     if (modes.SpecialTwoExecutionType == ProjectileExecutionType) {
                         SpawnSpecialProjectile(
                             ref frame, in fighter, 2, tuning.SpecialTwoDamage, tuning.SpecialTwoKnockback,
@@ -1073,6 +1190,7 @@ namespace FTT.FighterSim {
                             tuning.SpecialTwoStatusIntensity, modes.SpecialTwoProjectileLifetimeFrames,
                             modes.SpecialTwoProjectileSpeed);
                         runtime.SpecialTwoCooldownFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
+                        FighterAbilityLockoutRules.ArmAbility(ref runtime);
                     } else if (modes.SpecialTwoExecutionType == PersistentExecutionType) {
                         SpawnPersistent(
                             ref frame, in fighter, modes.SpecialTwoPersistentTypeID,
@@ -1080,6 +1198,7 @@ namespace FTT.FighterSim {
                             tuning.SpecialTwoDamage, tuning.SpecialTwoKnockback,
                             tuning.SpecialTwoStatusType, tuning.SpecialTwoStatusFrames);
                         runtime.SpecialTwoCooldownFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
+                        FighterAbilityLockoutRules.ArmAbility(ref runtime);
                     } else if (modes.SpecialTwoExecutionType == AreaExecutionType) {
                         // Package 13 W7b (C01): the Sandstorm Vortex is thrown up
                         // to five units ahead and ground-snapped.
@@ -1093,6 +1212,7 @@ namespace FTT.FighterSim {
                             hasAnchor: vortex,
                             anchor: vortex ? FighterReachKitRules.VortexAnchor(_geometry, in fighter) : default);
                         runtime.SpecialTwoCooldownFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
+                        FighterAbilityLockoutRules.ArmAbility(ref runtime);
                     }
                 }
 
@@ -1104,16 +1224,25 @@ namespace FTT.FighterSim {
                     FighterBasicAttackRules.CancelString(ref runtime);
                     // A fresh cooldown cycle re-arms its Resonance Momentum refunds.
                     ref FighterVerbComponent verb = ref frame.Get<FighterVerbComponent>(entity);
-                    if (armedSlotOne) verb.MomentumRefundsSlotOne = 0;
-                    if (armedSlotTwo) verb.MomentumRefundsSlotTwo = 0;
+                    if (armedSlotOne) verb.MomentumRefundedFramesSlotOne = 0;
+                    if (armedSlotTwo) verb.MomentumRefundedFramesSlotTwo = 0;
                 }
 
                 // Story never polls the movement ability during a swing.
                 // A05/D11 (Package 13 W1): Root is a true immobilize — it refuses
                 // the movement ability here as Story's IsMovementRooted does
                 // (attacks, specials and block remain). A refused press spends
-                // nothing: the cooldown is only armed by ApplyMovement.
-                if (runtime.AttackPhase == FighterBasicAttackRules.PhaseNone
+                // nothing: the cooldown is only armed by ApplyMovement. The
+                // movement ability neither arms nor reads the ability lockout,
+                // but an Ultimate claiming this tick, or a special accepted above
+                // this tick, takes precedence: Story polls both before
+                // CheckMovementAbilityInput. (A melee-intent special such as
+                // Splitting Strike resolves later, in BuildIntent, and is not
+                // covered: VERIFY-SAME-TICK-VERB-PARITY.)
+                if (!ultimateClaimsTick
+                    && !armedSlotOne
+                    && !armedSlotTwo
+                    && runtime.AttackPhase == FighterBasicAttackRules.PhaseNone
                     && (runtime.PressedButtons & MovementButton) != 0
                     && runtime.MovementCooldownFrames <= 0
                     && runtime.StatusType != (int)StatusType.Root) {
@@ -2647,7 +2776,7 @@ namespace FTT.FighterSim {
         private const int BuffDurationFrames = 480;
         /// <summary>M24 effect type 4.</summary>
         public const int ResonanceSurgeEffectType = 4;
-        private static readonly FP64 MaxInfluence = FP64.FromInt(100);
+        private static readonly FP64 MaxInfluence = FighterMeterRules.Cap;
         private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
 
         private readonly FighterStageGeometry _geometry;
@@ -2821,10 +2950,10 @@ namespace FTT.FighterSim {
                 // growing charge count. A pickup while already protected is
                 // consumed with no second charge, reserve, duration, HP, meter
                 // or replacement reward — which is exactly what an idempotent
-                // assignment to 1 expresses. AegisHits on the runtime component
-                // is retained as a presentation mirror only.
+                // assignment to 1 expresses. (The unread AegisHits mirror on the
+                // runtime component was retired on 2026-10-11; its slot now holds
+                // the D1 hit-confirm state.)
                 defense.AegisActive = 1;
-                runtime.AegisHits = 1;
             }
         }
     }

@@ -244,6 +244,72 @@ public class EnemyRosterContentTests {
     }
 
     [TestCase]
+    public void EveryMeleePrimaryCommitsInsideItsReachAndCanCommitFromItsStandOffRest() {
+        // D6c (user direction 2026-10-11): a mob whose next attack is its
+        // MeleeStrike / ChargeDash primary commits only inside that box's pivot
+        // reach against the Story hero minus the margin, and its stand-off rest
+        // (the band's engage line less the 3.5-frame braking ramp) can still commit.
+        var tree = (SceneTree)Engine.GetMainLoop();
+        float heroHalfWidth = FTT.Combat.StoryCombatRules.HeroHurtboxWidthPixels / 2f;
+        int capped = 0;
+        foreach (string path in TopLevelResources(EnemyDirectory)) {
+            EnemyData canonical = FTT.Core.AuthoredResources.Load<EnemyData>(path);
+            var data = (EnemyData)canonical.Duplicate();
+            EnemyAbilityData primary = data.PrimaryAttack;
+            EnemyAbilityArchetype archetype = primary?.Archetype ?? EnemyAbilityArchetype.MeleeStrike;
+            if (archetype is not (EnemyAbilityArchetype.MeleeStrike or EnemyAbilityArchetype.ChargeDash)) continue;
+            capped++;
+
+            PackedScene scene = ResourceLoader.Load<PackedScene>(EnemyFactory.ScenePathForTier(data.Tier));
+            var enemy = scene.Instantiate<EnemyController>();
+            enemy.Data = data;
+            tree.Root.AddChild(enemy);
+            try {
+                enemy.OnSpawn();
+                // An elite at spawn throws its signature ability next; step the
+                // alternation once so the next attack is the primary.
+                if (!IsPrimary(enemy.PreviewNextAttack(), data)) enemy.SelectNextAttack();
+                AssertThat(IsPrimary(enemy.PreviewNextAttack(), data))
+                    .OverrideFailureMessage($"{path}: the next attack never became the primary.")
+                    .IsTrue();
+
+                // The legacy synthesized melee is a 40 px box at offset 30.
+                float offsetX = primary?.HitboxOffset.X ?? 30f;
+                float width = primary?.HitboxSize.X ?? 40f;
+                float dash = archetype == EnemyAbilityArchetype.ChargeDash
+                    ? Mathf.Abs(primary.DashSpeed) * primary.ResolvedActiveFrames / 60f
+                    : 0f;
+                float pivotReach = FTT.Combat.StoryEnemyCombatRules.MeleePivotReachPixels(offsetX, width, dash, heroHalfWidth);
+                float commit = enemy.PrimaryCommitRangePixels;
+                AssertThat(commit <= enemy.AttackRangePixels + 0.001f)
+                    .OverrideFailureMessage($"{path}: commits at {commit:F1} px, beyond its authored {enemy.AttackRangePixels:F1} px.")
+                    .IsTrue();
+                if (pivotReach > FTT.Combat.StoryEnemyCombatRules.MeleeCommitMarginPixels) {
+                    AssertThat(commit <= pivotReach - FTT.Combat.StoryEnemyCombatRules.MeleeCommitMarginPixels + 0.001f)
+                        .OverrideFailureMessage($"{path}: commits at {commit:F1} px against a {pivotReach:F1} px reach.")
+                        .IsTrue();
+                }
+                AssertThat(enemy.CommitRangePixels).IsEqualApprox(commit, 0.001f);
+                float speed = data.MoveSpeed * 60f;
+                float bestRest = enemy.StandOffEngagePixels - 3.5f * speed / 60f;
+                AssertThat(bestRest <= commit + 0.001f)
+                    .OverrideFailureMessage(
+                        $"{path}: its stand-off rest ({bestRest:F1} px) sits outside its {commit:F1} px commit line.")
+                    .IsTrue();
+            } finally {
+                enemy.Free();
+            }
+        }
+        // Spec D §1.3: five standards and eleven elites run a melee primary today.
+        AssertThat(capped).IsEqual(16);
+    }
+
+    private static bool IsPrimary(EnemyAbilityData ability, EnemyData data) =>
+        ability != null && (data.PrimaryAttack != null
+            ? ReferenceEquals(ability, data.PrimaryAttack)
+            : ability.AbilityID == $"{data.EnemyID}.basic");
+
+    [TestCase]
     public void EnglishTranslationTableHasNoDuplicateKeys() {
         // A duplicated key silently shadows one of the two entries after import.
         var seen = new HashSet<string>();

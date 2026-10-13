@@ -142,16 +142,22 @@ namespace FTT.Combat {
         /// <summary>
         /// One damage/status pulse against an overlapping combatant body (audit
         /// Low "Kits/talents", Einstein rift incoherence). All zones share the
-        /// same rules: damage is scaled by the owner's Story special-damage
-        /// multiplier, rounded half-up to match the Fighter loadout convention
+        /// same rules: damage is scaled by the owner's Story ability-damage
+        /// composition (<c>PlayerController.StoryAbilityDamageScale</c>: the
+        /// SpecialDamage lane, the zone ability's AbilityDamage lane and the
+        /// item-drop damage buff), rounded half-up to match the Fighter loadout convention
         /// (authored 1.5 ticks 2 in both modes, not a truncated 1), and dealt
         /// damage credits the owner's Ultimate Meter — the same contract the
         /// bespoke tick paths (e.g. Cleopatra's vortex) already honored. Public
         /// so tests can pulse a constructed target without a physics frame.
         /// </summary>
         public void ApplyTickTo(Node2D body) {
+            // 2026-10-11: the owner's whole Story ability-damage composition
+            // (SpecialDamage x the zone ability's AbilityDamage lane x the
+            // item-drop damage buff), read at the tick; neutral for an ownerless
+            // zone and in Fighter Mode.
             int tickDamage = _damage > 0f
-                ? ComputeTickDamage(_damage, _ownerPlayer?.StorySpecialDamageMultiplier ?? 1f)
+                ? ComputeTickDamage(_damage, _ownerPlayer?.StoryAbilityDamageScale(AbilityID) ?? 1f)
                 : 0;
             if (body is FTT.Characters.PlayerController pc) {
                 if (pc.PlayerIndex == _ownerIndex) return;
@@ -213,9 +219,9 @@ namespace FTT.Combat {
         /// <c>FighterLoadoutFactory.RoundDamage</c>, so an authored 1.5-damage
         /// tick means 2 in Story just as it does in Fighter.
         /// </summary>
-        public static int ComputeTickDamage(float damage, float specialDamageMultiplier) =>
+        public static int ComputeTickDamage(float damage, float damageScale) =>
             System.Math.Max(0, (int)System.MathF.Round(
-                damage * specialDamageMultiplier,
+                damage * damageScale,
                 System.MidpointRounding.AwayFromZero));
 
         /// <summary>

@@ -49,6 +49,11 @@ namespace FTT.Environment {
         // the upper Midway balcony (Platform 1000/1100, top 1092) above the first
         // arc lamp, climbed from the low stand at 500 — a detour the floor route passes under.
         protected override Vector2? SecretCachePosition => new(1000f, 997f);
+
+        // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, after the PreBoss
+        // anchor (8420) on the court floor, 240 px short of the arena (9000).
+        protected override Vector2? RestorationFontPosition => new(8760f, GroundY);
+
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         protected override string InitialObjectiveKey => "chicago_objective_fairgrounds";

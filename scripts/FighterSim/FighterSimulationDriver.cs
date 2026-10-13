@@ -54,6 +54,11 @@ namespace FTT.FighterSim {
         private readonly List<FighterHazardComponent> _hazards = new(16);
         private readonly List<FighterOrbComponent> _orbs = new(16);
         private readonly List<FighterZoneComponent> _zones = new(8);
+        // D10 (2026-10-11): the "not yet" flash's pre-tick baselines, one per
+        // fighter, rewritten before every local Simulation.Advance. Presentation
+        // state only — never fed back into the simulation.
+        private readonly LockoutRefusalBaseline[] _refusalBaselines = new LockoutRefusalBaseline[2];
+        private readonly bool[] _refusalBaselineValid = new bool[2];
 
         public event Action<FighterMatchResult> MatchCompleted;
 
@@ -297,10 +302,54 @@ namespace FTT.FighterSim {
             }
             playerOneInput.Tick = tick;
             playerTwoInput.Tick = tick;
+            CaptureLockoutRefusalBaselines();
             Simulation.Advance(playerOneInput, playerTwoInput);
             SyncPresentation();
+            FlashLockoutRefusals();
             PublishMatchFlowPresentation();
             RaiseCompletionIfNeeded();
+        }
+
+        /// <summary>
+        /// D10 (2026-10-11): reads each fighter's pre-tick hitstop, Special
+        /// cooldowns, meter and Ultimate phase for the "not yet" classifier. Local
+        /// matches only (P1, a local P2 or the CPU); a LAN session never flashes.
+        /// </summary>
+        private void CaptureLockoutRefusalBaselines() {
+            for (int playerID = 0; playerID < _refusalBaselines.Length; playerID++) {
+                _refusalBaselineValid[playerID] = false;
+                if (!Simulation.TryGetFighter(playerID, out FighterStateComponent fighter)
+                    || !Simulation.TryGetFighterRuntime(playerID, out FighterRuntimeComponent runtime)
+                    || !Simulation.TryGetFighterVerb(playerID, out FighterVerbComponent verb)
+                    || !Simulation.TryGetFighterUltimateActivation(playerID, out FighterUltimateActivationComponent activation)) {
+                    continue;
+                }
+                _refusalBaselines[playerID] = LockoutRefusalBaseline.Capture(in runtime, in verb, in fighter, in activation);
+                _refusalBaselineValid[playerID] = true;
+            }
+        }
+
+        /// <summary>
+        /// D10: after the tick, flashes the HUD slot of every Special 1, Special
+        /// 2 or Ultimate press the ability lockout alone refused
+        /// (<see cref="FighterLockoutRefusalRules"/>). Visual only — it reads the
+        /// components the tick produced and writes nothing back.
+        /// </summary>
+        private void FlashLockoutRefusals() {
+            if (_hud == null) return;
+            for (int playerID = 0; playerID < _refusalBaselines.Length; playerID++) {
+                if (!_refusalBaselineValid[playerID]) continue;
+                _refusalBaselineValid[playerID] = false;
+                if (!Simulation.TryGetFighter(playerID, out FighterStateComponent fighter)
+                    || !Simulation.TryGetFighterRuntime(playerID, out FighterRuntimeComponent runtime)
+                    || !Simulation.TryGetFighterVerb(playerID, out FighterVerbComponent verb)
+                    || !Simulation.TryGetFighterUltimateActivation(playerID, out FighterUltimateActivationComponent activation)) {
+                    continue;
+                }
+                FighterLockoutRefusal refused = FighterLockoutRefusalRules.Evaluate(
+                    in _refusalBaselines[playerID], in fighter, in runtime, in verb, in activation);
+                if (refused != FighterLockoutRefusal.None) _hud.FlashLockoutRefusal(playerID, refused);
+            }
         }
 
         public bool TryGetFighter(int playerID, out FighterStateComponent state) {
@@ -624,8 +673,7 @@ namespace FTT.FighterSim {
         private bool _lowHealthPresented;
         private bool _slotIndicatorsPushed;
 
-        private static readonly xpTURN.Klotho.Deterministic.Math.FP64 FullInfluence =
-            xpTURN.Klotho.Deterministic.Math.FP64.FromInt(100);
+        private static readonly xpTURN.Klotho.Deterministic.Math.FP64 FullInfluence = FighterMeterRules.Cap;
         // Mirror of the sim's fighter hurt volume (FighterEntitySystems), used only
         // for the presentation-side "was that damage a hazard?" classification.
         private static readonly xpTURN.Klotho.Deterministic.Math.FP64 FighterHalfWidth =
@@ -929,7 +977,7 @@ namespace FTT.FighterSim {
             _cueHP[playerID] = state.CurrentHP;
 
             // Ultimate ready: once per fill, when the meter first reaches full.
-            bool full = state.Influence >= xpTURN.Klotho.Deterministic.Math.FP64.FromInt(100);
+            bool full = state.Influence >= FullInfluence;
             if (full && !_cueMeterFull[playerID]) cues?.Play(FTT.Core.CoreMechanicCueIDs.UltimateReady);
             _cueMeterFull[playerID] = full;
 

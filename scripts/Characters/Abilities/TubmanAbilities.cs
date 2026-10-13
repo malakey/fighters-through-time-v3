@@ -166,7 +166,7 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "tubman_conductors_call",
                     HitboxID = "conductors_call",
                     AttackClass = AttackClass.Special,
-                    Damage = (Data?.BaseDamage ?? 18f) * Owner.StorySpecialDamageMultiplier,
+                    Damage = Owner.StoryAbilityDamage(Data?.BaseDamage ?? 18f, Data?.AbilityID),
                     Knockback = Data?.KnockbackForce ?? new Vector2(4f, 0f),
                     HitstunDuration = Data?.HitstunDuration ?? 0.4f,
                     // The scouts push the target onward, along the rush.
@@ -180,7 +180,7 @@ namespace FTT.Characters.Abilities {
                 });
                 float dealt = hurtbox.TakeHit(hit);
                 // The impact VFX lands inside Credit.
-                Credit(in hit, dealt, hurtbox.GlobalPosition);
+                Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
             }
         }
 
@@ -272,6 +272,12 @@ namespace FTT.Characters.Abilities {
         protected override void OnInterrupted() {
             _triggered = false;
             _answerDelayFrames = 0;
+            // D3 (2026-10-11): after a counter the recovery IS the sidestep, so a
+            // cancel out of it (the D3 roll/jump/basic/movement cancels, and the
+            // Package 12 W3 Block cancel, which used to keep the invulnerability
+            // by accident) ends the sidestep with it. Stun and death cannot
+            // interrupt a sidestepping Tubman, who is untouchable.
+            _sidestepFrames = 0;
         }
 
         public override void _PhysicsProcess(double delta) {
@@ -339,7 +345,7 @@ namespace FTT.Characters.Abilities {
                 AttackID = Data?.AbilityID ?? "tubman_foresight",
                 HitboxID = "foresight_answer",
                 AttackClass = AttackClass.Special,
-                Damage = (Data?.BaseDamage ?? 20f) * Owner.StorySpecialDamageMultiplier,
+                Damage = Owner.StoryAbilityDamage(Data?.BaseDamage ?? 20f, Data?.AbilityID),
                 Knockback = Data?.KnockbackForce ?? new Vector2(4f, -5f),
                 HitstunDuration = Data?.HitstunDuration ?? 0.5f,
                 HitOrigin = Owner.GlobalPosition,
@@ -352,7 +358,7 @@ namespace FTT.Characters.Abilities {
             });
             float dealt = nearest.TakeHit(hit);
             // The impact VFX lands inside Credit.
-            Credit(in hit, dealt, nearest.GlobalPosition);
+            Credit(nearest, in hit, dealt, nearest.GlobalPosition);
             if (dealt > 0f) {
                 if (Owner.HasStoryPerk(NeverLostAPassengerPerkKey)) {
                     Owner.ReclaimRallyEchoFraction(NeverLostAPassengerEchoFraction);
@@ -558,7 +564,7 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "tubman_freedom_line",
                     HitboxID = $"freedom_line_{hitIndex}",
                     AttackClass = AttackClass.Ultimate,
-                    Damage = (Data?.CinematicHitDamage(hitIndex) ?? 8f) * Owner.StorySpecialDamageMultiplier,
+                    Damage = Owner.StoryAbilityDamage(Data?.CinematicHitDamage(hitIndex) ?? 8f, Data?.AbilityID),
                     // The train carries its passengers along the line: only the
                     // final rush throws them, along her facing.
                     Knockback = finale ? Data?.KnockbackForce ?? new Vector2(6f, -4f) : Vector2.Zero,
@@ -573,7 +579,7 @@ namespace FTT.Characters.Abilities {
                 });
                 float dealt = hurtbox.TakeHit(hit);
                 // D03h: Ultimate-origin damage earns no meter; Rally reclaim retained (D03g).
-                Credit(in hit, dealt, hurtbox.GlobalPosition);
+                Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
             }
         }
     }

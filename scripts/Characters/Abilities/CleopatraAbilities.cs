@@ -271,7 +271,7 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "cleopatra_sandstorm_vortex",
                     HitboxID = "vortex_tick",
                     AttackClass = AttackClass.Special,
-                    Damage = (Data?.BaseDamage ?? 2f) * Owner.StorySpecialDamageMultiplier,
+                    Damage = Owner.StoryAbilityDamage(Data?.BaseDamage ?? 2f, Data?.AbilityID),
                     Knockback = finalTick ? Data?.KnockbackForce ?? Vector2.Zero : Vector2.Zero,
                     HitstunDuration = finalTick ? Data?.HitstunDuration ?? 0.2f : 0f,
                     HitOrigin = _vortexCenter,
@@ -285,7 +285,7 @@ namespace FTT.Characters.Abilities {
                 // Only the final tick carries the authored launch; the churn ticks never do.
                 tick.Launches = finalTick && (Data?.Launches ?? false);
                 float dealt = hurtbox.TakeHit(tick);
-                Credit(in tick, dealt, hurtbox.GlobalPosition);
+                Credit(hurtbox, in tick, dealt, hurtbox.GlobalPosition);
                 return dealt;
         }
 
@@ -599,7 +599,7 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "cleopatra_wrath_of_the_nile",
                     HitboxID = "sandstorm_tick",
                     AttackClass = AttackClass.Ultimate,
-                    Damage = (Data?.CinematicHitDamage(hitIndex) ?? 9f) * Owner.StorySpecialDamageMultiplier,
+                    Damage = Owner.StoryAbilityDamage(Data?.CinematicHitDamage(hitIndex) ?? 9f, Data?.AbilityID),
                     Knockback = Vector2.Zero,
                     HitstunDuration = 0f,
                     HitOrigin = _stormCenter,
@@ -618,7 +618,7 @@ namespace FTT.Characters.Abilities {
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
                 // ZERO damage-dealt meter, regardless of HP removed, target count or
                 // when it lands. Direct-hit Rally reclaim is retained (D03g).
-                Credit(in hit, dealt, hurtbox.GlobalPosition);
+                Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
             }
         }
 

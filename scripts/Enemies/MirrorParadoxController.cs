@@ -245,6 +245,9 @@ namespace FTT.Enemies {
             // player (the Mirror Paradox clone) uses the Fighter activation-strike
             // version" — its Ultimate must connect before the cinematic plays.
             Clone.UsesFighterUltimateActivation = true;
+            // D5: the clone plays Fighter rules, so it gets no Story scale. On Hard
+            // it keeps the build-rate lane it mirrors from the player's grid (F20).
+            Clone.AppliesStoryMeterGainScale = false;
             // Hostile marker: the clone's projectiles join the enemy_projectile
             // group so a rewind's world clear removes them (audit H-8).
             Clone.IsStoryHostile = true;
@@ -295,9 +298,10 @@ namespace FTT.Enemies {
         /// pair of Story damage multipliers, which both the basic string
         /// (<c>StartComboHit</c> / <c>StartDirectionalAttack</c> recompute
         /// <c>BasicAttackDamage x StoryBasicDamageMultiplier</c> every swing) and
-        /// every <c>BaseSpecial</c> (which reads
-        /// <c>Owner.StorySpecialDamageMultiplier</c> when it builds a hitbox) already
-        /// consume. On Hard those lanes may already carry the mirrored Resonance
+        /// every <c>BaseSpecial</c>, construct and zone (all of which read
+        /// <c>StorySpecialDamageMultiplier</c> through the one Story ability-damage
+        /// composition, <c>PlayerController.StoryAbilityDamage</c> /
+        /// <c>StoryAbilityHitboxDamage</c>) already consume. On Hard those lanes may already carry the mirrored Resonance
         /// damage perks, so this composes with them rather than replacing them —
         /// each modifier applied once, which is exactly F20's rule.
         /// </para>
@@ -385,10 +389,40 @@ namespace FTT.Enemies {
                 || (clamped >= ArenaBounds.End.X && velocity.X > 0f);
             if (!Mathf.IsEqualApprox(x, clamped)) Clone.GlobalPosition = new Vector2(clamped, Clone.GlobalPosition.Y);
             if (outward) Clone.Velocity = new Vector2(0f, velocity.Y);
+            RecoverCloneFromArenaFall();
         }
 
         /// <summary>Test seam: applies the arena clamp outside a physics step.</summary>
         internal void ApplyArenaLeashForTest() => ApplyArenaLeash();
+
+        /// <summary>Times the clone has been returned from below its arena. Test seam.</summary>
+        public int ArenaFallRecoveries { get; private set; }
+
+        /// <summary>
+        /// 2026-10-09: the clone's half of BossController's arena fall net
+        /// (VERIFY-L10-ARENA-RECESS-EXIT, boss half). The leash only clamps x, so
+        /// a clone whose feet end a frame past the arena's fall net — its bottom
+        /// edge (the level's bottom) plus the boss net's margin, through the one
+        /// shared <see cref="BossController.ArenaFallNetLineY"/>
+        /// (VERIFY-L04-PIT-FALL-NET) — has left the world and the encounter could
+        /// not be won; it is put back on its spawn point with no damage, no HP or
+        /// reward change, once per fall, and the event is printed for bot logs.
+        /// </summary>
+        private void RecoverCloneFromArenaFall() {
+            if (ArenaBounds.Size.Y <= 0f || IsDefeated) return;
+            if (Clone.GlobalPosition.Y <= BossController.ArenaFallNetLineY(ArenaBounds)) return;
+            Vector2 fellAt = Clone.GlobalPosition;
+            Vector2 anchor = ArenaBounds.HasPoint(_spawnPosition)
+                ? _spawnPosition
+                : new Vector2(
+                    Mathf.Clamp(_spawnPosition.X, ArenaBounds.Position.X, ArenaBounds.End.X),
+                    Mathf.Clamp(_spawnPosition.Y, ArenaBounds.Position.Y, ArenaBounds.End.Y - 1f));
+            Clone.GlobalPosition = anchor;
+            Clone.Velocity = Vector2.Zero;
+            ArenaFallRecoveries++;
+            GD.Print($"[arena-fall] mirror clone fell below its arena at ({fellAt.X:0},{fellAt.Y:0}); "
+                + $"returned to ({anchor.X:0},{anchor.Y:0}).");
+        }
 
         // === Boss events ===
 
@@ -527,6 +561,8 @@ namespace FTT.Enemies {
 
         private readonly FighterCpuController _cpu;
         private PlayerController _self;
+        private PlayerController _hurtboxCachedTarget;
+        private long _targetHurtboxHalfWidthRaw;
 
         /// <summary>
         /// Package 11 A7b (F20). The tier is supplied by the encounter, mapped from
@@ -565,6 +601,21 @@ namespace FTT.Enemies {
         public void Bind(PlayerController self, PlayerController target) {
             _self = self;
             Target = target;
+        }
+
+        /// <summary>
+        /// The hero's hurtbox half-width in raw FP64 units, read once per bound
+        /// target (2026-10-11): it never changes during the encounter, and
+        /// reading it walks the hurtbox's children, which would allocate a
+        /// Godot array wrapper every tick of the fight.
+        /// </summary>
+        private long TargetHurtboxHalfWidthRaw() {
+            if (!ReferenceEquals(_hurtboxCachedTarget, Target)) {
+                _hurtboxCachedTarget = Target;
+                _targetHurtboxHalfWidthRaw = FP64.FromFloat(
+                    PlayerController.HurtboxWidthPixels(Target) * 0.5f / StoryPixelsPerUnit).RawValue;
+            }
+            return _targetHurtboxHalfWidthRaw;
         }
 
         public PlayerInputFrame Sample(uint tick, in PlayerInputFrame previousFrame) {
@@ -619,6 +670,20 @@ namespace FTT.Enemies {
                 SpecialOneCooldownFrames = ToFrames(_self.SpecialOneCooldownTimer),
                 SpecialTwoCooldownFrames = ToFrames(_self.SpecialTwoCooldownTimer),
                 MovementCooldownFrames = ToFrames(_self.MovementAbilityCooldownTimer),
+                AbilityLockoutFrames = _self.AbilityLockoutFramesRemaining,
+                // D1 (2026-10-11): the clone's hit-confirm state, so its Fighter
+                // CPU reads the Special gate the clone's own Story rules apply.
+                SpecialLockoutFrames = _self.SpecialLockoutFramesRemaining,
+                SwingLanded = _self.SwingLanded ? 1 : 0,
+                // The neutral melee band (2026-10-11): the clone's own string
+                // reach, the string step a press would start (Story's chain,
+                // chain hold included, lives inside Attacking), and the
+                // campaign hero's real hurtbox rather than the sim's 1.0-wide
+                // victim box.
+                SelfStringReachWidthPercent =
+                    BasicComboRules.StringProfileFor(_self.Data?.CharacterID).ReachWidthPercent,
+                SelfNextStringStep = _self.NextChainStepForPress,
+                TargetHurtboxHalfWidthRaw = targetValid ? TargetHurtboxHalfWidthRaw() : 0,
                 TargetCurrentHP = targetValid ? Target.CurrentHP : 0,
                 TargetMaxHP = targetValid ? Target.MaximumHP : 0,
                 TargetHitstunFrames = targetValid && Target.CurrentState == CharacterState.Stunned ? 1 : 0,

@@ -122,7 +122,8 @@ public class DirectionalAttackTests {
         AssertThat(chain.AttackPhaseFrames).IsEqual(BasicComboRules.GroundStartupFrames[0]);
 
         // Airborne Down + BasicAttack: the down-air. Thrown from the apex — the
-        // jump goes up first (Down held on the rise would fast-fall instantly),
+        // jump goes up first (Down held on the rise would cut it short under
+        // fast-fall's heavier gravity),
         // which also keeps Down+Jump off the same tick so it cannot read as a
         // platform drop-through.
         var airborne = NewOverlappingSimulation(seed: 504);
@@ -233,9 +234,10 @@ public class DirectionalAttackTests {
 
     [TestCase]
     public void LandingCancelsTheDownAirWithNoLag() {
-        // Thrown from the apex, and §2.9's fast-fall drags the attacker down at
-        // 20 units/s (M01) while the 32-frame swing runs — so the fall finishes first
-        // and the landing is genuinely what ends the swing.
+        // Thrown from the apex, and §2.9's fast-fall drags the attacker down
+        // under triple gravity toward its 15 u/s cap (2026-10-08) while the
+        // 32-frame swing runs — so the fall finishes first and the landing is
+        // genuinely what ends the swing.
         var simulation = NewOverlappingSimulation(seed: 508);
         int diveTick = JumpToApex(simulation, 0);
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent falling)).IsTrue();
@@ -271,8 +273,8 @@ public class DirectionalAttackTests {
         // The ground snap happens after the phase machine has already run for
         // that tick, so the cancel lands on the very next tick — which is what
         // "no landing lag" means here, and is the aerial string's behaviour too.
-        // M01 (Package 12 W3): at the 20 u/s fast-fall the dive can connect on
-        // the landing tick itself, and a connected hit's hitstop suspends the
+        // At fast-fall speed the dive can connect on the landing tick itself
+        // (M01, Package 12 W3), and a connected hit's hitstop suspends the
         // attacker's phase machine. "No lag" is measured on the first tick the
         // attacker is actually running again.
         int nextTick = landingTick + 1;
@@ -316,7 +318,7 @@ public class DirectionalAttackTests {
             // both variant bits, their hit application, and the launch impulse
             // all pass through the snapshot and the state hash. The down-air is
             // thrown ~22 frames after the jump (near the apex) because §2.9's
-            // fast-fall makes a Down-held rise impossible.
+            // fast-fall cuts a Down-held rise short.
             int phase = tick % 90;
             sbyte moveY = 0;
             GameplayButtons pressed = GameplayButtons.None;
@@ -373,10 +375,11 @@ public class DirectionalAttackTests {
     /// </summary>
     /// <summary>
     /// Jumps player one and advances, without holding Down, to the top of the
-    /// arc. §2.9's fast-fall clamps a Down-held airborne fighter straight to
-    /// 16 units/s downward, so a down-air cannot be thrown on the way up at
-    /// all — it has to come from height. Returns the tick the caller should
-    /// press on; the fighter is airborne and no longer rising.
+    /// arc. §2.9's fast-fall pulls a Down-held airborne fighter down under
+    /// triple gravity toward its 15 u/s cap (2026-10-08), so a down-air thrown
+    /// on the way up would cut the rise short — it comes from height. Returns
+    /// the tick the caller should press on; the fighter is airborne and no
+    /// longer rising.
     /// </summary>
     private static int JumpToApex(FighterSimulation simulation, int startTick) {
         Advance(simulation, startTick, p1Buttons: GameplayButtons.Jump);

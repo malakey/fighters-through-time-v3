@@ -144,7 +144,7 @@ public class StoryEnemyCombatTests {
     // === S3: standard poise ===
 
     [TestCase]
-    public void AStandardTakesAFullStringButAStringPlusSpecialTripsItsShortArmoredRecovery() {
+    public void AStandardTakesAStringAndOneSpecialButASecondSpecialTripsItsShortArmoredRecovery() {
         EnemyController enemy = CreateEnemy("chrono_slasher");
         try {
             var hurtbox = enemy.GetNode<Hurtbox>("Hurtbox");
@@ -158,15 +158,27 @@ public class StoryEnemyCombatTests {
             }
             AssertThat(enemy.StaggerBudgetSeconds > 1.5f).IsTrue();
 
-            // The Special confirm crosses the budget: short armored answer.
-            hurtbox.TakeHit(Hit(AttackClass.Special, "special_test", 1f, hitstun: 12 / 60f));
+            // D4 (2026-10-11): the chain's first Special charges x1.0, so a
+            // 30-frame Special on top of the string fits (102 + 30 = 132 frames).
+            hurtbox.TakeHit(Hit(AttackClass.Special, "special_test", 1f, hitstun: 30 / 60f,
+                attackID: "test.special_a"));
+            AssertThat(enemy.IsArmoredRecovery)
+                .OverrideFailureMessage("A string plus the chain's first Special must fit a standard's poise.")
+                .IsFalse();
+            AssertThat(enemy.StaggerBudgetSeconds).IsEqualApprox(132f / 60f, 0.001f);
+            for (int frame = 0; frame < 6; frame++) enemy._PhysicsProcess(Step);
+
+            // A second Special (12 frames, V7.4-diminished and taxed x1.5: 9)
+            // crosses the budget: short armored answer.
+            hurtbox.TakeHit(Hit(AttackClass.Special, "special_test", 1f, hitstun: 12 / 60f,
+                attackID: "test.special_b"));
             AssertThat(enemy.IsArmoredRecovery).IsTrue();
             AssertThat(enemy.CurrentState).IsEqual(EnemyState.Attacking);
             AssertThat(enemy.ActiveAbility).IsNotNull();
             AssertThat(enemy.StaggerBudgetSeconds).IsEqualApprox(0f, 0.0001f);
             // The trip does not end the stun chain: the armored window is the
             // same exchange (S2 keeps prorating through it).
-            AssertThat(enemy.ConfirmChainHits).IsEqual(BasicComboRules.ComboHits + 1);
+            AssertThat(enemy.ConfirmChainHits).IsEqual(BasicComboRules.ComboHits + 2);
 
             int armorFrames = Mathf.RoundToInt(StoryEnemyCombatRules.StandardArmoredRecoverySeconds * 60f);
             for (int frame = 0; frame < armorFrames - 6; frame++) enemy._PhysicsProcess(Step);
@@ -185,7 +197,8 @@ public class StoryEnemyCombatTests {
 
     [TestCase]
     public void AStringPlusAMultiHitSpecialStaysProratedThroughThePoiseTripAndItsArmoredWindow() {
-        const int specialDamage = 8;
+        // Small enough that the whole case stays under an Easy-scaled 28 HP.
+        const int specialDamage = 6;
         EnemyController enemy = CreateEnemy("chrono_slasher");
         try {
             var hurtbox = enemy.GetNode<Hurtbox>("Hurtbox");
@@ -209,25 +222,34 @@ public class StoryEnemyCombatTests {
             AssertThat(enemy.IsArmoredRecovery).IsFalse();
             AssertThat(enemy.ConfirmChainHits).IsEqual(BasicComboRules.ComboHits);
 
-            // A three-hit Special (one AttackID) confirms off the string. Its
-            // first hit trips the poise budget; every one of its hits is prorated.
-            AssertThat(Dealt(Special("test.special_a"))).IsEqual(Expected(4));
+            // D4 (2026-10-11): the chain's first Special (30 frames) lands in full
+            // at chain hit 4 and fits the poise budget (132 frames).
+            AssertThat(Dealt(Hit(AttackClass.Special, "special_test", specialDamage, hitstun: 30 / 60f,
+                    attackID: "test.special_0")))
+                .OverrideFailureMessage("The chain's first Special must land untaxed.")
+                .IsEqual(specialDamage);
+            AssertThat(enemy.IsArmoredRecovery).IsFalse();
+
+            // A three-hit second Special (one AttackID) confirms off the string.
+            // Its first hit trips the poise budget (141 frames); every one of its
+            // hits is prorated.
+            AssertThat(Dealt(Special("test.special_a"))).IsEqual(Expected(5));
             AssertThat(enemy.IsArmoredRecovery)
-                .OverrideFailureMessage("String + Special must trip the standard's poise.")
+                .OverrideFailureMessage("String + first Special + second Special must trip the standard's poise.")
                 .IsTrue();
             AssertThat(Dealt(Special("test.special_a")))
                 .OverrideFailureMessage("The confirm's second hit lands on the armored window and stays prorated.")
-                .IsEqual(Expected(5));
-            AssertThat(Dealt(Special("test.special_a"))).IsEqual(Expected(6));
-            AssertThat(Expected(6) < specialDamage).IsTrue();
+                .IsEqual(Expected(6));
+            AssertThat(Dealt(Special("test.special_a"))).IsEqual(Expected(7));
+            AssertThat(Expected(7) < specialDamage).IsTrue();
 
-            // A second Special fired during the armored window is a confirm too.
+            // A third Special fired during the armored window is a confirm too.
             for (int frame = 0; frame < 6; frame++) enemy._PhysicsProcess(Step);
             AssertThat(enemy.IsArmoredRecovery).IsTrue();
             AssertThat(Dealt(Special("test.special_b")))
-                .OverrideFailureMessage("A second Special during the armored window must be prorated.")
-                .IsEqual(Expected(7));
-            AssertThat(enemy.ConfirmChainHits).IsEqual(BasicComboRules.ComboHits + 4);
+                .OverrideFailureMessage("A later Special during the armored window must be prorated.")
+                .IsEqual(Expected(8));
+            AssertThat(enemy.ConfirmChainHits).IsEqual(BasicComboRules.ComboHits + 5);
 
             // The chain ends with the window; the next Special opens a fresh one in full.
             int guard = 0;

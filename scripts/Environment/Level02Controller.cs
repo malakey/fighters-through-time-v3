@@ -53,6 +53,12 @@ namespace FTT.Environment {
         // a dead-end perch two double-jump hops up from the low step at 500 — the floor
         // route walks straight under it.
         protected override Vector2? SecretCachePosition => new(900f, 467f);
+
+        // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, after the PreBoss
+        // anchor (9060), 120 px short of the arena (9300) - room 4's only flat ground before
+        // the fight.
+        protected override Vector2? RestorationFontPosition => new(9180f, GroundY);
+
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         protected override string InitialObjectiveKey => "orleans_objective_advance";

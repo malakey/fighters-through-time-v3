@@ -65,6 +65,12 @@ namespace FTT.Environment {
         // of the stair-deck climb — a dead end the deck route walks beneath, and high
         // above the rising hull flood.
         protected override Vector2? SecretCachePosition => new(3050f, 775f);
+
+        // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, after the PreBoss
+        // anchor (8650) on the stern rail, outside the hull flood (x < 8800), 300 px short of
+        // the arena (9400).
+        protected override Vector2? RestorationFontPosition => new(9100f, DeckBoat);
+
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         /// <summary>Act I finale: the extra beat between the last wave and the boss.</summary>

@@ -121,4 +121,108 @@ public class Level01ContentTests {
             level.Free();
         }
     }
+
+    /// <summary>
+    /// D13 (PROVISIONAL-FONT-PLACEMENT): Florence places its own Restoration Font
+    /// (it does not extend the base controller), on the workshop floor past the
+    /// Middle anchor, outside the boss reveal and clear of its Extractors and
+    /// checkpoints, with its completion refusal wired.
+    /// </summary>
+    [TestCase]
+    public void FlorenceAuthorsOneRestorationFontInTheWorkshopBeforeTheBossRoom() {
+        // The real scene, not a bare controller: its SteamGeyser is scene-authored,
+        // and the first placement stood inside it.
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        bool originalPaused = tree.Paused;
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
+        Level01Controller level = null;
+        try {
+            level = ResourceLoader.Load<PackedScene>(FlorenceScenePath).Instantiate<Level01Controller>();
+            level.Name = "FlorenceFontFixture";
+            tree.Root.AddChild(level);
+            RestorationFont font = level.PlacedRestorationFont;
+            AssertObject(font).IsNotNull();
+            AssertString(font.FontID).IsEqual(Level01Controller.RestorationFontID);
+            AssertString(font.FontID).IsEqual("level_01.restoration_font");
+            AssertThat(font.Position).IsEqual(Level01Controller.RestorationFontPosition);
+            AssertThat(font.RefusesWhile != null).IsTrue();
+            AssertThat(font.RefusesWhile()).IsFalse();
+            AssertObject(font.GetNodeOrNull<InteractionArea>("InteractionArea")).IsNotNull();
+            AssertObject(font.ChannelRadial).IsNotNull();
+
+            Vector2 position = font.GlobalPosition;
+            var issues = new List<string>();
+            CheckpointTrigger middle = null;
+            var checkpoints = new List<CheckpointTrigger>();
+            Godot.Collections.Array<Node> children = level.GetChildren();
+            using (children.AsDisposable()) {
+                foreach (Node child in children) {
+                    if (child is not CheckpointTrigger checkpoint) continue;
+                    checkpoints.Add(checkpoint);
+                    if (checkpoint.CheckpointID == "florence_checkpoint_1") middle = checkpoint;
+                }
+            }
+            AssertObject(middle).IsNotNull();
+            if (position.X < middle.GlobalPosition.X + 110f) {
+                issues.Add($"font x {position.X} is not 110 px past florence_checkpoint_1 ({middle.GlobalPosition.X})");
+            }
+            float arenaWest = Level01Controller.BossArenaBounds.Position.X;
+            if (position.X > arenaWest - 120f) issues.Add($"font x {position.X} is within 120 px of the arena ({arenaWest})");
+            foreach (ChronalExtractor extractor in level.Extractors) {
+                if (position.DistanceTo(extractor.GlobalPosition) < 320f) {
+                    issues.Add($"font is within 320 px of {extractor.ObjectID}");
+                }
+            }
+            foreach (CheckpointTrigger checkpoint in checkpoints) {
+                if (position.DistanceTo(checkpoint.GlobalPosition) < 110f) {
+                    issues.Add($"font is within 110 px of {checkpoint.CheckpointID}");
+                }
+            }
+            // The workshop floor (top 900) lies in [y - 2, y + 16] under the font.
+            if (!(900f >= position.Y - 2f && 900f <= position.Y + 16f)) {
+                issues.Add($"the room 3 floor top (900) is not under the font at {position}");
+            }
+            bool floorUnder = false;
+            Godot.Collections.Array<Node> floors = level.FindChildren("Floor_*", nameof(StaticBody2D), true, false);
+            using var floorsLifetime = floors.AsDisposable();
+            foreach (Node child in floors) {
+                if (child is not StaticBody2D body) continue;
+                Godot.Collections.Array<Node> shapes = body.GetChildren();
+                using var shapesLifetime = shapes.AsDisposable();
+                foreach (Node shapeNode in shapes) {
+                    if (shapeNode is not CollisionShape2D { Shape: RectangleShape2D rect } shape) continue;
+                    float left = shape.GlobalPosition.X - rect.Size.X / 2f;
+                    float right = shape.GlobalPosition.X + rect.Size.X / 2f;
+                    float top = shape.GlobalPosition.Y - rect.Size.Y / 2f;
+                    if (position.X >= left && position.X <= right
+                        && top >= position.Y - 2f && top <= position.Y + 16f) floorUnder = true;
+                }
+            }
+            if (!floorUnder) issues.Add($"no Floor_* surface stands under the font at {position}");
+
+            // No damaging hazard reaches a hero channelling anywhere in the circle:
+            // the scene's SteamGeyser and the two workshop spike strips among them.
+            List<FontHazardClearance.Hazard> hazards = FontHazardClearance.CollectUnder(level);
+            bool sawGeyser = false;
+            foreach (FontHazardClearance.Hazard hazard in hazards) {
+                if (hazard.Label.Contains("level_01.steam_geyser")) sawGeyser = true;
+            }
+            AssertThat(sawGeyser)
+                .OverrideFailureMessage("The scene's SteamGeyser was not collected, so the hazard check proves nothing.")
+                .IsTrue();
+            FontHazardClearance.Check("Florence", position, font.ChannelRangePixels, hazards, issues);
+            if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+        } finally {
+            PoolManager.Instance?.ReleaseActiveInGroup("Enemies");
+            if (level != null && GodotObject.IsInstanceValid(level)) {
+                level.GetParent()?.RemoveChild(level);
+                level.Free();
+            }
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+            tree.Paused = originalPaused;
+        }
+    }
+
+    private const string FlorenceScenePath = "res://scenes/campaign/Level_01_Florence.tscn";
 }

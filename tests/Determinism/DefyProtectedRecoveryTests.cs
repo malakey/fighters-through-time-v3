@@ -194,7 +194,10 @@ public class DefyProtectedRecoveryTests {
             PlayerID = 1, Stocks = 3, MaxHP = 100, CurrentHP = 0,
             BlockCharges = 0, Weight = FP64.One
         };
-        var runtime = new FighterRuntimeComponent { UsesStocks = 1, AegisHits = 1 };
+        // The retired AegisHits slot now holds the D1 hit-confirm word
+        // (2026-10-11): a stock loss leaves S and C to expire on the respawn
+        // platform, so they are seeded here and must come through untouched.
+        var runtime = new FighterRuntimeComponent { UsesStocks = 1, SpecialLockoutFrames = 12, SwingLanded = 1 };
         var verb = new FighterVerbComponent { DefyHistoryUsed = 1 };
         var defense = new FighterDefenseComponent {
             AegisActive = 1, BarrierPoints = 10, BarrierCapacity = 10, BarrierRemainingFrames = 200
@@ -206,7 +209,10 @@ public class DefyProtectedRecoveryTests {
 
         AssertThat(FighterDefenseRules.IsDefyProtected(in defense)).IsFalse();
         AssertThat(defense.AegisActive).IsEqual(0);
-        AssertThat(runtime.AegisHits).IsEqual(0);
+        AssertThat(runtime.SpecialLockoutFrames)
+            .OverrideFailureMessage("The stock loss must leave the new tenant of the AegisHits slot alone.")
+            .IsEqual(12);
+        AssertThat(runtime.SwingLanded).IsEqual(1);
         AssertThat(defense.BarrierPoints).IsEqual(0);
         AssertThat(verb.DefyHistoryUsed)
             .OverrideFailureMessage("Defy is once per MATCH: a stock loss does not hand it back.")

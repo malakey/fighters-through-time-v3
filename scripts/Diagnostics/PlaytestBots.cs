@@ -117,6 +117,27 @@ namespace FTT.Diagnostics {
     }
 
     /// <summary>
+    /// How the Spam and Play bots press their Specials (<c>--special-press</c>;
+    /// spec C §1.4(f), package C3; diagnostics only).
+    /// </summary>
+    public enum SpecialPressPolicy {
+        /// <summary>
+        /// The default: Specials only in the Specials phase after the string, and
+        /// only while the hero's own Special gate reads open — so lockout refusals
+        /// are about 0 by construction.
+        /// </summary>
+        Gated,
+        /// <summary>
+        /// Also, once per swing, a Special on hit-confirm timing: on the first
+        /// sample after the swing has landed and the impact freeze is over, the
+        /// first ready Special is tapped instead of that frame's basic attack,
+        /// without reading the lockout or the gate. Before group A's D1 these
+        /// presses are refused by the lockout; after it they are accepted.
+        /// </summary>
+        Confirm
+    }
+
+    /// <summary>
     /// The Story campaign bot. Every frame it picks one job, in priority order:
     /// seal an armed anchor; get out of a hot hazard; outrun an escape front;
     /// fight (its <see cref="FightStyle"/>); work the nearest reachable level
@@ -132,13 +153,17 @@ namespace FTT.Diagnostics {
 
         private readonly FightStyle _style;
         private readonly PlaytestRouteHints _hints;
+        private readonly SpecialPressPolicy _policy;
 
-        public StoryBot(PlaytestWorld world, FightStyle style, CampaignLevel level) : base(world) {
+        public StoryBot(PlaytestWorld world, FightStyle style, CampaignLevel level,
+            SpecialPressPolicy policy = SpecialPressPolicy.Gated) : base(world) {
             _style = style;
             _hints = PlaytestRouteHints.For(level);
+            _policy = policy;
         }
 
         public FightStyle Style => _style;
+        public SpecialPressPolicy Policy => _policy;
         public override string Name => _style switch {
             FightStyle.Bypass => "bypass",
             FightStyle.Spam => "spam",
@@ -150,8 +175,11 @@ namespace FTT.Diagnostics {
         private bool Defends => _style is FightStyle.Basics or FightStyle.Play;
 
         protected override void Decide(PlayerController player, ref BotIntent intent) {
+            // The target the swings now in flight were thrown at (the confirm
+            // policy's HP fallback reads it before this frame re-chooses).
+            Node2D swingTarget = CurrentTarget;
             CurrentTarget = null;
-            UpdateSwingCounter(player);
+            UpdateSwingCounter(player, swingTarget);
 
             if (player.CurrentState == CharacterState.LedgeHanging) {
                 // On a swinging rope the agent times the release toward the
@@ -323,7 +351,31 @@ namespace FTT.Diagnostics {
 
         private const float EngageRadius = 620f;
         private const float BossEngageRadius = 1500f;
-        private const float StrikeRange = 92f;
+        /// <summary>Extra gap past the strike range before a mid-string target counts as slid away.</summary>
+        private const float StringChaseSlack = 70f;
+
+        /// <summary>
+        /// The feet-to-feet gap from which this hero's string opener reaches
+        /// this target (2026-10-11; it was a fixed 92 px for every hero and
+        /// foe): hit 1's grounded box far edge, from the one cross-mode table
+        /// through <see cref="PlayerController.ResolveGroundStringBoxPixels"/>
+        /// with the hero's reach profile and AttackRange minor, plus the
+        /// target's hurtbox half-width, less the CPU's melee-band margin in
+        /// pixels (<see cref="FTT.FighterSim.FighterCpuController.MeleeBandMarginUnits"/>).
+        /// </summary>
+        internal static float StrikeRangeFor(PlayerController player, Node2D target) {
+            PlayerController.ResolveGroundStringBoxPixels(
+                0,
+                BasicComboRules.StringProfileFor(player.Data?.CharacterID),
+                player.StoryAttackRangeMultiplier,
+                out Vector2 size,
+                out Vector2 offset);
+            float farEdge = offset.X + size.X * 0.5f;
+            float targetHalfWidth = PlayerController.HurtboxWidthPixels(target) * 0.5f;
+            float margin = (float)(FTT.FighterSim.FighterCpuController.MeleeBandMarginUnits * KitMotionRules.StoryPixelsPerUnit);
+            return farEdge + targetHalfWidth - margin;
+        }
+
         private const int TargetGiveUpFrames = 720;
         private readonly Dictionary<ulong, int> _ignoredUntil = new();
         private ulong _targetId;
@@ -341,17 +393,81 @@ namespace FTT.Diagnostics {
         /// public field can lag it (it is not resynced after a cast).
         /// </summary>
         private static bool MeterFull(PlayerController player) =>
-            player.GetNodeOrNull<UltimateMeter>("UltimateMeter")?.IsFull ?? player.CurrentUltimateMeter >= 100f;
+            player.GetNodeOrNull<UltimateMeter>("UltimateMeter")?.IsFull
+                ?? player.CurrentUltimateMeter >= InfluenceMeterRules.MaxValue;
 
         private int _blockFrames;
         private int _ultimateTapFrames;
         private int _ultimateRefusedUntil;
         private int _airStrikeFrame = -1000;
 
-        private void UpdateSwingCounter(PlayerController player) {
+        // C3 (--special-press=confirm): one hit-confirm Special per swing, and the
+        // pre-group-A "landed" fallback (the swing's target lost HP since its box
+        // went active).
+        private bool _confirmPressedThisSwing;
+        private int _swingTargetHp = -1;
+        private ulong _swingTargetId;
+        private int _preSwingTargetHp = -1;
+        private ulong _preSwingTargetId;
+
+        private void UpdateSwingCounter(PlayerController player, Node2D target) {
             bool hitboxActive = player.GetNodeOrNull<FTT.Combat.Hitbox>("MeleeHitbox")?.IsActive ?? false;
-            if (hitboxActive && !_lastHitboxActive) _swingsSeen++;
+            bool hasTarget = target != null && GodotObject.IsInstanceValid(target);
+            ulong targetId = hasTarget ? target.GetInstanceId() : 0UL;
+            int targetHp = hasTarget ? PlaytestWorld.HealthOf(target) : -1;
+            if (hitboxActive && !_lastHitboxActive) {
+                _swingsSeen++;
+                _confirmPressedThisSwing = false;
+                // The box went active in the hero's update after the previous
+                // sample, and a contact on its first active frame was delivered
+                // in this frame's physics flush, before this sample: the HP
+                // baseline is the previous sample's reading, not this one.
+                _swingTargetId = targetId;
+                _swingTargetHp = hasTarget && targetId == _preSwingTargetId ? _preSwingTargetHp : targetHp;
+            }
+            if (!hitboxActive) {
+                _preSwingTargetId = targetId;
+                _preSwingTargetHp = targetHp;
+            }
             _lastHitboxActive = hitboxActive;
+        }
+
+        /// <summary>
+        /// Whether the swing now in flight (or just ended) has landed: the hero's
+        /// own record once group A is in (<see cref="PlaytestWorld.SwingLanded"/>),
+        /// else whether the bot's target lost HP since the swing's box went active.
+        /// </summary>
+        private bool CurrentSwingLanded(PlayerController player, Node2D target) {
+            bool? landed = PlaytestWorld.SwingLanded(player);
+            if (landed.HasValue) return landed.Value;
+            return _swingTargetHp > 0 && target != null && GodotObject.IsInstanceValid(target)
+                && target.GetInstanceId() == _swingTargetId
+                && PlaytestWorld.HealthOf(target) < _swingTargetHp;
+        }
+
+        /// <summary>
+        /// The <see cref="SpecialPressPolicy.Confirm"/> press (Spam and Play):
+        /// once per swing, on the first sample after it has landed and the hero's
+        /// impact freeze is over (a press during the freeze is dropped), tap the
+        /// first unlocked Special whose cooldown is ready instead of this frame's
+        /// basic attack. It deliberately reads neither the lockout nor the Special
+        /// gate: it presses on hit-confirm timing, as a person would.
+        /// </summary>
+        private bool TryConfirmSpecial(PlayerController player, Node2D target, ref BotIntent intent) {
+            if (_policy != SpecialPressPolicy.Confirm || _style is not (FightStyle.Spam or FightStyle.Play)) return false;
+            if (_confirmPressedThisSwing || player.HitstopFramesRemaining != 0
+                || player.CurrentState == CharacterState.UsingSpecial || !CurrentSwingLanded(player, target)) return false;
+            if (player.IsAbilityUnlocked(AbilitySlot.Special1) && player.SpecialOneCooldownTimer <= 0f) {
+                intent.Tap |= GameplayButtons.Special1;
+                CurrentAction = "confirm_special1";
+            } else if (player.IsAbilityUnlocked(AbilitySlot.Special2) && player.SpecialTwoCooldownTimer <= 0f) {
+                intent.Tap |= GameplayButtons.Special2;
+                CurrentAction = "confirm_special2";
+            } else {
+                return false;
+            }
+            _confirmPressedThisSwing = true;
+            return true;
         }
 
         private bool Ignored(Node2D body) =>
@@ -469,8 +585,10 @@ namespace FTT.Diagnostics {
             if (_style == FightStyle.Play && MeterFull(player) && player.IsAbilityUnlocked(AbilitySlot.Ultimate) && !busy && distance < 320f && Mathf.Abs(delta.Y) < 200f
                 && Frame >= _ultimateRefusedUntil) {
                 // A press that never starts the cast is refused by the game:
-                // record it once and fight on instead of pressing forever.
-                if (++_ultimateTapFrames > 40) {
+                // record it once and fight on instead of pressing forever. Frames
+                // spent waiting out the ability lockout (at most 30 after the last
+                // swing or special) are expected refusals and do not count.
+                if (player.AbilityLockoutFramesRemaining <= 0 && ++_ultimateTapFrames > 40) {
                     _ultimateTapFrames = 0;
                     _ultimateRefusedUntil = Frame + 600;
                     BaseSpecial ultimate = player.GetNodeOrNull<BaseSpecial>("Ultimate");
@@ -496,8 +614,9 @@ namespace FTT.Diagnostics {
                 return;
             }
 
+            float strikeRange = StrikeRangeFor(player, target);
             if (_phase == Phase.Idle) {
-                bool inRange = distance <= StrikeRange && Mathf.Abs(delta.Y) < 80f;
+                bool inRange = distance <= strikeRange && Mathf.Abs(delta.Y) < 80f;
                 if (!inRange) {
                     CurrentAction = "approach";
                     float side = feet.X <= target.GlobalPosition.X ? -1f : 1f;
@@ -520,6 +639,8 @@ namespace FTT.Diagnostics {
             int phaseFrame = Frame - _phaseStart;
             if (_phase == Phase.String) {
                 CurrentAction = "string";
+                // C3: the confirm policy's hit-confirm Special replaces this frame's basic attack.
+                if (TryConfirmSpecial(player, target, ref intent)) return;
                 if (phaseFrame % 6 == 0) intent.Tap |= GameplayButtons.BasicAttack;
                 bool hitboxActive = player.GetNodeOrNull<FTT.Combat.Hitbox>("MeleeHitbox")?.IsActive ?? false;
                 bool stringDone = (_swingsSeen >= 3 && !hitboxActive) || phaseFrame > 130;
@@ -528,14 +649,21 @@ namespace FTT.Diagnostics {
                     _phaseStart = Frame;
                 }
                 // Target slid out of range mid-string: chase.
-                if (distance > StrikeRange + 70f) _phase = Phase.Idle;
+                if (distance > strikeRange + StringChaseSlack) _phase = Phase.Idle;
                 return;
             }
 
             // Phase.Specials: each Special as soon as it is off cooldown and the
-            // hero is free to cast; a Special cancels a swing, so Spam does not wait.
+            // hero is free to cast. Since 2026-10-08 a swing start or a cast
+            // locks specials for 30 frames (BasicComboRules.AbilityLockoutFrames),
+            // so the bot waits the hero's own Special gate out rather than
+            // spending a refused tap. Before group A's D1 that gate is the
+            // ability lockout; after it, the hit-confirm gate, so a landed swing
+            // opens it at once (spec C §1.4(f)). The Ultimate keeps reading the
+            // ability lockout, as the game does.
             CurrentAction = "specials";
-            bool free = player.CurrentState != CharacterState.UsingSpecial;
+            bool free = player.CurrentState != CharacterState.UsingSpecial
+                && PlaytestWorld.SpecialGateFrames(player) <= 0;
             // The campaign kit (Legacy Unlock Schedule) may not have restored a slot yet.
             if (!player.IsAbilityUnlocked(AbilitySlot.Special1)) _special1Done = true;
             if (!player.IsAbilityUnlocked(AbilitySlot.Special2)) _special2Done = true;
@@ -572,14 +700,29 @@ namespace FTT.Diagnostics {
                 }
                 if (Frame - _airStrikeFrame > 50) {
                     _airStrikeFrame = Frame;
+                    _airStrikeHopStage = 0;
                     intent.Held |= GameplayButtons.Jump;
                 }
                 return;
             }
             intent.MoveX = Mathf.Abs(dx) > 20f ? Mathf.Sign(dx) * 0.6f : 0f;
-            int t = Frame - _airStrikeFrame;
-            if (t < 26) intent.Held |= GameplayButtons.Jump;
-            else if (t == 27 && feet.Y - target.GlobalPosition.Y > 160f && player.RemainingJumps > 0) intent.Held |= GameplayButtons.Jump;
+            // Velocity-driven like StrikeRect: hold to the apex, release one frame,
+            // and press the second jump while the target is still well above.
+            switch (_airStrikeHopStage) {
+                case 0:
+                    intent.Held |= GameplayButtons.Jump;
+                    if (player.Velocity.Y >= 0f) {
+                        _airStrikeHopStage = feet.Y - target.GlobalPosition.Y > 160f && player.RemainingJumps > 0 ? 1 : 3;
+                    }
+                    break;
+                case 1:
+                    _airStrikeHopStage = 2; // one frame released, so the next press is an edge
+                    break;
+                case 2:
+                    intent.Held |= GameplayButtons.Jump;
+                    if (player.Velocity.Y >= 0f) _airStrikeHopStage = 3;
+                    break;
+            }
             float gap = feet.Y - 150f - target.GlobalPosition.Y;
             if (gap < 40f && player.Velocity.Y > -260f) {
                 intent.MoveY = -1f;
@@ -930,9 +1073,15 @@ namespace FTT.Diagnostics {
         private Rect2 _airStrikeArea;
         private bool _airStrikeDown;
         private int _airStrikeStage;
+        /// <summary>AirStrike's jump stage: 0 first rise, 1 released, 2 second rise, 3 done.</summary>
+        private int _airStrikeHopStage;
 
-        /// <summary>How far above the feet a jumping up-attack reaches (double-jump rise + the 150 px box).</summary>
-        private float JumpStrikeReach => World.Nav.Hero.SingleRise(1f) * (World.Nav.Hero.MaxJumps >= 2 ? 1.9f : 0.95f) + 140f;
+        /// <summary>
+        /// How far above the feet a jumping up-attack reaches: the jump budget's
+        /// rise, 10% short because the swing has to land near the apex, + the
+        /// 150 px box (the same reach the old closed-form 1.9 x single rise gave).
+        /// </summary>
+        private float JumpStrikeReach => World.Nav.Hero.BestRise(1f) * 0.9f + 140f;
         private bool _airStrikeSwung;
         private Rect2 _strikePointArea;
         private (Vector2, float) _strikePoint;
@@ -1063,11 +1212,12 @@ namespace FTT.Diagnostics {
     }
 
     public static class PlaytestBotFactory {
-        public static PlaytestBot Create(string name, PlaytestWorld world, CampaignLevel level, string enemyID = "chrono_slasher") => name switch {
-            "bypass" => new StoryBot(world, FightStyle.Bypass, level),
-            "spam" => new StoryBot(world, FightStyle.Spam, level),
-            "basics" => new StoryBot(world, FightStyle.Basics, level),
-            "play" => new StoryBot(world, FightStyle.Play, level),
+        public static PlaytestBot Create(string name, PlaytestWorld world, CampaignLevel level, string enemyID = "chrono_slasher",
+            SpecialPressPolicy policy = SpecialPressPolicy.Gated) => name switch {
+            "bypass" => new StoryBot(world, FightStyle.Bypass, level, policy),
+            "spam" => new StoryBot(world, FightStyle.Spam, level, policy),
+            "basics" => new StoryBot(world, FightStyle.Basics, level, policy),
+            "play" => new StoryBot(world, FightStyle.Play, level, policy),
             "feel" => new FeelProbeBot(world, enemyID),
             _ => throw new ArgumentException($"Unknown playtest bot '{name}' (bypass | spam | basics | play | feel).")
         };

@@ -6,10 +6,15 @@ namespace FTT.Combat {
 
     public partial class UltimateMeter : Node {
         public float CurrentValue { get; private set; }
-        public const float MaxValue = 100f;
-        public const float PointsPerDamageDealt = 1.0f;
-        public const float PointsPerDamageTaken = 0.25f;
-        public const float StockLossRetention = 0.75f;
+        // The numbers live once, in InfluenceMeterRules (shared with the Fighter
+        // sim); these names forward to it for the Story call sites. The stock-loss
+        // retention has no Story caller today (Story has no stocks); it is kept,
+        // forwarding to the same rulebook value the sim applies, for
+        // ApplyStockLossRetention and its pin in UltimateMeterTests.
+        public const float MaxValue = InfluenceMeterRules.MaxValue;
+        public const float PointsPerDamageDealt = InfluenceMeterRules.PointsPerDamageDealt;
+        public const float PointsPerDamageTaken = InfluenceMeterRules.PointsPerDamageTaken;
+        public const float StockLossRetention = InfluenceMeterRules.StockLossRetention;
 
         private int _playerIndex;
         /// <summary>The controller whose <c>CurrentUltimateMeter</c> mirrors this node (G2).</summary>
@@ -23,11 +28,23 @@ namespace FTT.Combat {
 
         public bool IsFull => CurrentValue >= MaxValue;
 
+        /// <summary>
+        /// The Story-only multiplier on meter GAIN, read from the owning
+        /// controller: D5's Story scale on the campaign hero times Mozart's
+        /// build-rate lane (<see cref="PlayerController.StoryMeterGainFactor"/>). It scales
+        /// the two gain paths below — damage dealt, and damage taken including
+        /// Rally echo as it drains — and nothing else: flat grants
+        /// (<see cref="AddFlat"/>), spends and direct sets never read it. A node
+        /// with no controller (a bare test node) gains at the rulebook rate.
+        /// </summary>
+        private float GainFactor =>
+            (_owner ?? GetParent() as PlayerController)?.StoryMeterGainFactor ?? 1f;
+
         public void AddFromDamageDealt(float damageAmount) =>
-            SetValue(CurrentValue + Mathf.Max(0f, damageAmount) * PointsPerDamageDealt);
+            SetValue(CurrentValue + InfluenceMeterRules.GainFromDamageDealt(damageAmount, GainFactor));
 
         public void AddFromDamageTaken(float damageAmount) =>
-            SetValue(CurrentValue + Mathf.Max(0f, damageAmount) * PointsPerDamageTaken);
+            SetValue(CurrentValue + InfluenceMeterRules.GainFromDamageTaken(damageAmount, GainFactor));
 
         public void AddFlat(float points) => SetValue(CurrentValue + Mathf.Max(0f, points));
 

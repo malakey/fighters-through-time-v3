@@ -20,6 +20,13 @@ namespace FTT.Environment {
     ///     horizontal momentum. On release this node adds its own measured tangential
     ///     velocity, scaled by <see cref="ReleaseLaunchAssist"/> and capped by
     ///     <see cref="MaxLaunchSpeed"/>. Set the assist to 0 for a dead-stop anchor.
+    ///
+    /// The rope itself is not solid (2026-10-09): the body only carries the swing
+    /// and is authored on no collision layer with an empty mask
+    /// (<c>PendulumAnchorTemplate.tscn</c>), so it blocks no hero, enemy,
+    /// projectile or ray and nobody can stand on it. Its 16 x 320 rope shape is
+    /// inert. The child <see cref="LedgeGrabPoint"/> (Trigger layer, Player mask)
+    /// is the one part that touches the hero. <c>PendulumRopeBarTests</c> pins it.
     /// </summary>
     public partial class PendulumAnchor : AnimatableBody2D, IStoryRewindable, IStoryTimeFreezable {
         [Signal] public delegate void OccupantLaunchedEventHandler(int playerIndex, Vector2 launchVelocity);
@@ -141,7 +148,7 @@ namespace FTT.Environment {
         /// <summary>
         /// Stops simulating in place. Nothing else is mutated, so the phase, the
         /// timer and the position all survive and resume with no catch-up tick —
-        /// the collision shape stays live throughout.
+        /// the grab point stays live throughout.
         /// </summary>
         public void SetTimeFrozen(bool frozen) => _timeFrozen = frozen;
 

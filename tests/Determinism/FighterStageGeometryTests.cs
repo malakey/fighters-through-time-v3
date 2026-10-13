@@ -80,7 +80,7 @@ public class FighterStageGeometryTests {
             new[] { -4.0, 0.0, 4.0 },
             new[] { (-6.5, 4.1), (6.5, 4.1), (0.0, 0.5) }),
         // The tiring-house balcony dropped 4.4 → 4.0 with the 2026-08-10 jump
-        // retune (feel batch §2.2): the double-jump ceiling is ≈4.21 now.
+        // retune (feel batch §2.2): the double-jump ceiling was ≈4.21; ≈4.29 since the 2026-10-08 apex hang.
         new("globe_theatre", 9,
             new[] { (-5.0, 2.4, 1.4), (5.0, 2.4, 1.4), (0.0, 4.0, 1.2) },
             new[] { -5.0, 0.0, 5.0 },
@@ -541,8 +541,9 @@ public class FighterStageGeometryTests {
     /// spending the second jump the instant the first stalls, and returns the tick
     /// it came to rest there (−1 if it never did). The 2026-08-10 jump retune
     /// (feel batch §2.2) put the default loadout's single-jump apex at ≈2.11
-    /// units, below Florence's 2.4 gear platforms, so these platform cases climb
-    /// with the jump chain every kit now carries rather than one hop.
+    /// units (≈2.15 with the 2026-10-08 apex hang), below Florence's 2.4 gear
+    /// platforms, so these platform cases climb with the jump chain every kit
+    /// now carries rather than one hop.
     /// </summary>
     private static int RiseOntoPlatform(FighterSimulation simulation, FP64 surfaceY, int startTick) {
         bool spentAirJump = false;

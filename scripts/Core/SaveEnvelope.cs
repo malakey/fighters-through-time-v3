@@ -241,17 +241,28 @@ namespace FTT.Core {
         }
 
         public static void DeleteAllCandidates(string path) {
+            foreach (string candidate in AllCandidates(path)) {
+                if (File.Exists(candidate)) File.Delete(candidate);
+            }
+        }
+
+        /// <summary>True when any file <see cref="DeleteAllCandidates"/> would remove exists.</summary>
+        public static bool AnyCandidateExists(string path) {
+            foreach (string candidate in AllCandidates(path)) {
+                if (File.Exists(candidate)) return true;
+            }
+            return false;
+        }
+
+        private static string[] AllCandidates(string path) {
             if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("Save path is required.", nameof(path));
-            string[] candidates = {
+            return new[] {
                 path,
                 path + ".bak",
                 path + ".tmp",
                 path + ".corrupt",
                 path + ".bak.corrupt"
             };
-            foreach (string candidate in candidates) {
-                if (File.Exists(candidate)) File.Delete(candidate);
-            }
         }
     }
 

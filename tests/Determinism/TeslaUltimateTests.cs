@@ -116,12 +116,10 @@ public class TeslaUltimateTests {
         int tick = FillMeter(simulation, 0);
         tick = AdvanceNeutral(simulation, tick, 30);
 
-        // Deploy both coils just before the ultimate (their 2 s arc cooldown
-        // means no arcs fire in this window).
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Special1), Frame(tick, 0, GameplayButtons.None));
-        tick++;
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Special1), Frame(tick, 0, GameplayButtons.None));
-        tick++;
+        // Deploy both coils just before the ultimate, each press one ability
+        // lockout after the last (their 2 s arc cooldown means no arcs fire
+        // before the beam connects).
+        tick = DeployTwoCoilsThenWaitForUltimate(simulation, tick);
         AssertThat(simulation.PersistentObjectCount).IsEqual(2);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
 
@@ -147,15 +145,15 @@ public class TeslaUltimateTests {
         var simulation = NewSimulation(withCoils: true, seed: 77);
         int tick = FillMeter(simulation, 0);
         tick = AdvanceNeutral(simulation, tick, 30);
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Special1), Frame(tick, 0, GameplayButtons.None));
-        tick++;
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Special1), Frame(tick, 0, GameplayButtons.None));
-        tick++;
+        tick = DeployTwoCoilsThenWaitForUltimate(simulation, tick);
         AssertThat(simulation.PersistentObjectCount).IsEqual(2);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
 
         // The opponent jumps over the straight beam as it fires.
         simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
+        AssertThat(UltimateActivationTestKit.Phase(simulation, 0))
+            .OverrideFailureMessage("The Ultimate was not accepted.")
+            .IsEqual(FighterUltimateActivationRules.PhaseWindup);
         tick++;
         simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.Jump));
         tick++;
@@ -180,10 +178,8 @@ public class TeslaUltimateTests {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.Block));
             tick++;
         }
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Special1), Frame(tick, 0, GameplayButtons.Block));
-        tick++;
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Special1), Frame(tick, 0, GameplayButtons.Block));
-        tick++;
+        tick = DeployTwoCoilsThenWaitForUltimate(simulation, tick, victimHeld: GameplayButtons.Block);
+        AssertThat(simulation.PersistentObjectCount).IsEqual(2);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
         AssertThat(before.BlockCharges).IsEqual(3);
 
@@ -210,10 +206,8 @@ public class TeslaUltimateTests {
 
         int tick = FillMeter(uninterrupted, 0);
         tick = AdvanceNeutral(uninterrupted, tick, 30);
-        uninterrupted.Advance(Frame(tick, 0, GameplayButtons.Special1), Frame(tick, 0, GameplayButtons.None));
-        tick++;
-        uninterrupted.Advance(Frame(tick, 0, GameplayButtons.Special1), Frame(tick, 0, GameplayButtons.None));
-        tick++;
+        tick = DeployTwoCoilsThenWaitForUltimate(uninterrupted, tick);
+        AssertThat(uninterrupted.PersistentObjectCount).IsEqual(2);
 
         // Snapshot just before the ultimate so the restored simulation replays
         // the acceptance, the beam, the contact, the column and the coil
@@ -234,6 +228,11 @@ public class TeslaUltimateTests {
             actual = restored.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             AssertThat(actual).IsEqual(expected);
         }
+        // The replayed window really held the Cataclysm: meter spent and both
+        // coils detonated (nothing else destroys them inside their 30 s life).
+        AssertThat(restored.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
+        AssertThat(caster.Influence == FP64.Zero).IsTrue();
+        AssertThat(restored.PersistentObjectCount).IsEqual(0);
     }
 
     private static FighterSimulation NewSimulation(bool withCoils, int seed) => new(
@@ -293,6 +292,35 @@ public class TeslaUltimateTests {
         tick++;
         // Settle frames so the retreat momentum dies before the press.
         return AdvanceNeutral(simulation, tick, 20);
+    }
+
+    /// <summary>
+    /// Deploys two coils, each one ability lockout after the previous special,
+    /// then idles until the second deploy's lockout has run out so an Ultimate
+    /// pressed on the returned tick is accepted. The coils' 2 s arc cooldown
+    /// keeps them quiet until well after the beam connects.
+    /// </summary>
+    private static int DeployTwoCoilsThenWaitForUltimate(
+        FighterSimulation simulation, int startTick, GameplayButtons victimHeld = GameplayButtons.None) {
+        int tick = startTick;
+        for (int coil = 0; coil < 2; coil++) {
+            tick = IdleUntilAbilityReady(simulation, tick, victimHeld);
+            simulation.Advance(Frame(tick, 0, GameplayButtons.Special1), Frame(tick, 0, victimHeld));
+            tick++;
+        }
+        return IdleUntilAbilityReady(simulation, tick, victimHeld);
+    }
+
+    private static int IdleUntilAbilityReady(FighterSimulation simulation, int startTick, GameplayButtons victimHeld) {
+        int tick = startTick;
+        for (int limit = startTick + 60; tick < limit; tick++) {
+            AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
+            if (runtime.AbilityLockoutFrames == 0) break;
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, victimHeld));
+        }
+        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent ready)).IsTrue();
+        AssertThat(ready.AbilityLockoutFrames).IsEqual(0);
+        return tick;
     }
 
     private static int AdvanceNeutral(FighterSimulation simulation, int startTick, int frames) {
