@@ -188,6 +188,11 @@ namespace FTT.Combat {
                 });
                 CreditOwner(playerDealt);
             } else if (body is FTT.Enemies.EnemyController enemy) {
+                // FIX-E (2026-10-13): the encounter lock's dormant ward. The
+                // enemy tick bypasses the hurtbox (OnHurtboxHit holds the ward),
+                // so a dormant member is skipped here: no damage, no status and no
+                // damage-dealt meter for the owner.
+                if (enemy.IsEncounterDormant) return;
                 if (tickDamage > 0) CreditOwner(enemy.TakeDamage(tickDamage));
                 if (_appliedStatus != StatusType.None && _statusDuration > 0f) {
                     enemy.ApplyStatusEffect(_appliedStatus, _statusDuration, _statusIntensity);

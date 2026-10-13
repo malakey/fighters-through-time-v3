@@ -580,6 +580,22 @@ namespace FTT.Combat {
             return pools.Spawn(PlaceholderProjectilePoolID, position, parent) as PlaceholderProjectile;
         }
 
+        /// <summary>
+        /// FIX-E (2026-10-13): the kits' positional pulls (the Sandstorm Vortex,
+        /// the Cosmological Constant's singularity, Lorentz Attraction) move a
+        /// caught body through its own collision so a wall or a closed
+        /// encounter-lock barrier stops it (GU-E, plan §2.3) — the horizontal half
+        /// first, then the vertical half. One diagonal <c>MoveAndCollide</c>
+        /// stops at the first contact without sliding, so a target standing on
+        /// footing above the pull point met its own floor at once and lost the
+        /// horizontal pull as well.
+        /// </summary>
+        protected static void PullThroughCollision(CharacterBody2D body, Vector2 motion) {
+            if (body == null || !IsInstanceValid(body)) return;
+            if (motion.X != 0f) body.MoveAndCollide(new Vector2(motion.X, 0f));
+            if (motion.Y != 0f) body.MoveAndCollide(new Vector2(0f, motion.Y));
+        }
+
         protected Hitbox GetOrCreateChildHitbox(string name) {
             var existing = GetNodeOrNull<Hitbox>(name);
             if (existing != null) return existing;

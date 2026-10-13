@@ -227,6 +227,9 @@ namespace FTT.Enemies {
             foreach (Node node in enemies) {
                 if (node is not EnemyController other || other == this) continue;
                 if (other.CurrentState == EnemyState.Dead || other._thrownFlight || other._isHeldByPlayer) continue;
+                // FIX-E (2026-10-13): the dormant ward — a thrown body never bowls a
+                // dormant lock member (no damage, knockback or stun).
+                if (other.IsEncounterDormant) continue;
                 if (!_bowledVictims.Add(other.GetInstanceId())) continue;
                 if (other.GlobalPosition.DistanceTo(GlobalPosition) > 55f) {
                     _bowledVictims.Remove(other.GetInstanceId());

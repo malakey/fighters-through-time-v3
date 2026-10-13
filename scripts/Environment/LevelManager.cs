@@ -136,7 +136,9 @@ namespace FTT.Environment {
     /// (<see cref="SelfActivating"/>), since the player just arrived through
     /// it. Once-per-attempt facts (the Mending heal, the rewind refresh) are
     /// gated by <see cref="FTT.Core.StoryManager.TryActivateCheckpoint"/>;
-    /// respawn anchor and save update on every activation.
+    /// respawn anchor and save update on every activation. Since FIX-E
+    /// (2026-10-13) an encounter lock can hold a fracture shut
+    /// (<see cref="IsHeldByEncounterLock"/>).
     /// </summary>
     public partial class CheckpointTrigger : Area2D {
         [Export] public string CheckpointID = "";
@@ -162,8 +164,16 @@ namespace FTT.Environment {
         /// <summary>Local visual state; the once-per-attempt authority is StoryManager's registry.</summary>
         public bool IsActivated { get; private set; }
 
+        /// <summary>
+        /// FIX-E (2026-10-13): the notice a refused strike posts while an
+        /// encounter lock holds this fracture (<see cref="IsHeldByEncounterLock"/>).
+        /// </summary>
+        public const string HeldByEncounterLockNoticeKey = "checkpoint_held_by_encounter_lock";
+
         private Label _strikePrompt;
         private bool _playerNearby;
+        private ulong _lastHeldNoticeFrame;
+        private bool _heldNoticePosted;
 
         public override void _Ready() {
             BodyEntered += OnBodyEntered;
@@ -255,6 +265,14 @@ namespace FTT.Environment {
             // nothing, heals nothing, refreshes nothing and never locks the
             // clock — the earlier real anchor stays the destination.
             if (Inert) return;
+            // FIX-E (2026-10-13): an encounter lock this anchor's baseline lists
+            // must be cleared first, and no fracture is stabilized from inside a
+            // lock — else a strike through a barrier committed a baseline that a
+            // reload then built Cleared, skipping the fight.
+            if (IsHeldByEncounterLock) {
+                PostHeldByEncounterLockNotice();
+                return;
+            }
             bool firstActivation = FTT.Core.StoryManager.Instance?.TryActivateCheckpoint(CheckpointID) ?? !IsActivated;
             IsActivated = true;
             var levelManager = GetTree()?.CurrentScene?.GetNodeOrNull<LevelManager>("LevelManager");
@@ -281,6 +299,54 @@ namespace FTT.Environment {
             // ...then the persistence half, so the save is always post-refresh.
             FTT.Core.EventBus.Instance?.RaiseCheckpointCommitted(CheckpointID);
             UpdatePresentation();
+        }
+
+        /// <summary>
+        /// FIX-E (2026-10-13): true while an encounter lock holds this fracture,
+        /// which then refuses activation outright — no Mending, no rewind
+        /// refresh, no Integrity bank, no record and no save. Two rules:
+        /// <list type="bullet">
+        /// <item>a lock this anchor's F10 baseline lists
+        ///       (<see cref="FTT.Core.StoryManager.GetEncounterBaseline"/>) is not
+        ///       yet Cleared — the baseline is what a reload builds Cleared, so it
+        ///       may only be committed once those fights are won;</item>
+        /// <item>the hero stands inside any lock that is not Cleared (belt and
+        ///       braces: a strike surface is a PersistentObject area, and an
+        ///       area-to-area hit passes through a barrier).</item>
+        /// </list>
+        /// A lock ID with no live lock in the tree does not hold.
+        /// </summary>
+        public bool IsHeldByEncounterLock {
+            get {
+                if (!IsInsideTree()) return false;
+                IReadOnlyList<string> baseline = FTT.Core.StoryManager.Instance?.GetEncounterBaseline(CheckpointID);
+                Godot.Collections.Array<Node> locks = GetTree().GetNodesInGroup(EncounterLock.Group);
+                using var locksLifetime = locks.AsDisposable();
+                foreach (Node node in locks) {
+                    if (node is not EncounterLock encounterLock || !IsInstanceValid(encounterLock)
+                        || encounterLock.State == EncounterLockState.Cleared) continue;
+                    if (Lists(baseline, encounterLock.LockID) || encounterLock.HeroStandsInside) return true;
+                }
+                return false;
+            }
+        }
+
+        private static bool Lists(IReadOnlyList<string> ids, string id) {
+            if (ids == null || string.IsNullOrEmpty(id)) return false;
+            for (int index = 0; index < ids.Count; index++) {
+                if (ids[index] == id) return true;
+            }
+            return false;
+        }
+
+        /// <summary>The refusal's notice, at most once per notice lifetime (a string strikes three times).</summary>
+        private void PostHeldByEncounterLockNotice() {
+            ulong frame = Engine.GetPhysicsFrames();
+            ulong interval = (ulong)Mathf.CeilToInt(EnvironmentNotice.DefaultSeconds * Engine.PhysicsTicksPerSecond);
+            if (_heldNoticePosted && frame - _lastHeldNoticeFrame < interval) return;
+            _heldNoticePosted = true;
+            _lastHeldNoticeFrame = frame;
+            EnvironmentNotice.Post(HeldByEncounterLockNoticeKey, this);
         }
 
         /// <summary>Inactive fractures read dull orange with a strike prompt in

@@ -111,10 +111,14 @@ namespace FTT.Enemies {
         /// Puts the member to sleep or wakes it. Going dormant drops whatever the
         /// mob was doing — the attack in flight, the target, a stun, a launch —
         /// and keeps its HP; waking leaves it idle until <see cref="Engage"/>.
+        /// FIX-E (2026-10-13): going dormant also leaves the engagement director,
+        /// so a dormant body holds no slot or wait role (plan §2.6: dormant lock
+        /// members never join) and a re-engage queues it afresh by priority.
         /// </summary>
         public void SetEncounterDormant(bool dormant) {
             _encounterDormant = dormant;
             if (!dormant || CurrentState == EnemyState.Dead) return;
+            StoryEngagementDirector.Leave(this);
             Executor.Cancel();
             _attackHitbox?.Deactivate();
             _attackCommitted = false;
@@ -133,7 +137,11 @@ namespace FTT.Enemies {
         /// <summary>
         /// The lock's engage: wakes the member into Chase on <paramref name="hero"/>,
         /// whatever its aggro radius says. A member already fighting keeps what
-        /// it is doing.
+        /// it is doing. FIX-E (2026-10-13): a member woken into Chase joins the
+        /// engagement director here, before any member ticks, so the first melee
+        /// grant of a lock's simultaneous wake sees every woken member and the
+        /// plan §2.6 priority (elites first) decides it — not tree order. The
+        /// join is idempotent; a lone mob's ordinary aggro path is untouched.
         /// </summary>
         public void Engage(FTT.Characters.PlayerController hero) {
             if (CurrentState == EnemyState.Dead) return;
@@ -144,6 +152,7 @@ namespace FTT.Enemies {
                 CurrentState = EnemyState.Chase;
                 _standOffEngaged = false;
             }
+            if (CurrentState == EnemyState.Chase) StoryEngagementDirector.Join(this, hero);
         }
 
         /// <summary>True while an engaged member has lost its target and needs re-engaging. The lock's poll.</summary>
