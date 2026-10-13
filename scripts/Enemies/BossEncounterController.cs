@@ -101,7 +101,10 @@ namespace FTT.Enemies {
             if (SpawnOnReady) SpawnBoss();
         }
 
-        public override void _ExitTree() => UnbindEvents();
+        public override void _ExitTree() {
+            UnbindEvents();
+            ReleaseArenaFraming();
+        }
 
         private void BindEvents() {
             if (_eventsBound || EventBus.Instance == null) return;
@@ -279,6 +282,7 @@ namespace FTT.Enemies {
         private void Reveal(bool skipIntroBeat) {
             if (IsRevealed) return;
             IsRevealed = true;
+            RequestArenaFraming();
             bool alreadyFighting = skipIntroBeat || AnyMemberEngaged();
             SetMembersEngaged(true);
             bool skipIntro = alreadyFighting
@@ -385,6 +389,34 @@ namespace FTT.Enemies {
             Reveal(skipIntroBeat: true);
         }
 
+        // === Arena framing (GU-B, gameplay update 2026-10-12) ==================
+
+        /// <summary>The hero's Story camera holding this encounter's framing request, cached at the reveal.</summary>
+        private StoryCameraConfiner _framingCamera;
+
+        /// <summary>
+        /// GU-B: the closer Story camera (<see cref="StoryCameraRules.ViewZoom"/>)
+        /// would reveal most bosses off-screen, so every reveal — the first
+        /// viewing's intro beat, a seen intro's skip and a dormant boss woken by a
+        /// hit — asks the hero's camera to frame the arena (eased out no wider
+        /// than <see cref="StoryCameraRules.BossFramingMinZoom"/>) until the
+        /// defeat or the encounter's teardown. A radius-only encounter (no
+        /// <see cref="ArenaBounds"/>) frames nothing.
+        /// </summary>
+        private void RequestArenaFraming() {
+            if (!HasArena || !IsInsideTree()) return;
+            if (_player == null || !IsInstanceValid(_player)) {
+                _player = GetTree()?.GetFirstNodeInGroup("StoryPlayer") as FTT.Characters.PlayerController;
+            }
+            _framingCamera = StoryCameraConfiner.FindOn(_player);
+            _framingCamera?.RequestFraming(this, ArenaBounds, StoryCameraRules.BossFramingMinZoom);
+        }
+
+        private void ReleaseArenaFraming() {
+            if (_framingCamera != null && IsInstanceValid(_framingCamera)) _framingCamera.ReleaseFraming(this);
+            _framingCamera = null;
+        }
+
         private bool AnyMemberEngaged() {
             foreach (BossController body in _members) {
                 if (body != null && IsInstanceValid(body) && body.IsEngaged) return true;
@@ -399,6 +431,7 @@ namespace FTT.Enemies {
             // member falls, so this runs exactly once for the whole squad.
             IsDefeated = true;
             HUD?.HideBossBar();
+            ReleaseArenaFraming();
             // V7.3 Single Icon Rule: the award is a physical pickup at the
             // boss's fall position — the wallet is paid (and the boss results
             // line attributed) at collection. Never expires; Large tier.

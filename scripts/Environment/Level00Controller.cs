@@ -393,6 +393,29 @@ namespace FTT.Environment {
         public static readonly Vector2 RiftGatePosition = new(670, 820);
 
         /// <summary>
+        /// GU-B (gameplay update 2026-10-12): the watcher stands this far inside
+        /// the left edge of what the camera shows when the beam breaks. Its old
+        /// fixed spot, x 120 by the tear, is off-screen at the closer Story zoom
+        /// once the hold has carried the hero east. Provisional.
+        /// </summary>
+        public const float WatcherViewInsetPixels = 160f;
+
+        /// <summary>Where the watcher stood before the closer camera, used when no Story camera is found.</summary>
+        private const float WatcherFallbackX = 120f;
+
+        /// <summary>
+        /// The watcher's spot: <see cref="WatcherViewInsetPixels"/> inside the
+        /// hero camera's visible left edge, standing on the floor.
+        /// </summary>
+        public Vector2 EraserWatcherPosition() {
+            StoryCameraConfiner camera = StoryCameraConfiner.FindOn(_player);
+            float x = camera != null
+                ? camera.VisibleWorldRect.Position.X + WatcherViewInsetPixels
+                : WatcherFallbackX;
+            return new Vector2(x, TutorialFloorTopY);
+        }
+
+        /// <summary>
         /// The watcher (S10): a lean visored figure with a long lance at the edge
         /// of the jagged tear, ~2 s, wordless. Placeholder silhouette; the Level 5
         /// debut reuses the same shape so the player recognizes it.
@@ -400,7 +423,7 @@ namespace FTT.Environment {
         private void ShowEraserWatcher() {
             var watcher = new Node2D {
                 Name = "EraserWatcher",
-                Position = new Vector2(120, 850),
+                Position = EraserWatcherPosition(),
                 Modulate = new Color(1f, 1f, 1f, 0f)
             };
             watcher.AddChild(new ColorRect {

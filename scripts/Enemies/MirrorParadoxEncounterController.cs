@@ -57,14 +57,18 @@ namespace FTT.Enemies {
         }
 
         /// <summary>
-        /// Only global registrations are released here. Godot is already destroying
+        /// Only registrations are released here (the EventBus subscriptions and
+        /// the hero camera's framing request). Godot is already destroying
         /// the encounter subtree, and <see cref="MirrorParadoxController._ExitTree"/>
         /// releases the CPU input slot on its own — doing tree surgery from inside a
         /// parent's <c>_ExitTree</c> would fight that teardown. Levels that end the
         /// encounter while the scene stays loaded call
         /// <see cref="MirrorParadoxController.DespawnMirror"/> explicitly instead.
         /// </summary>
-        public override void _ExitTree() => UnbindEvents();
+        public override void _ExitTree() {
+            UnbindEvents();
+            ReleaseArenaFraming();
+        }
 
         private void BindEvents() {
             if (_eventsBound || EventBus.Instance == null) return;
@@ -120,6 +124,7 @@ namespace FTT.Enemies {
         public void Reveal() {
             if (IsRevealed) return;
             IsRevealed = true;
+            RequestArenaFraming();
             Mirror?.BeginEncounter();
             HUD?.ShowBossBar(
                 string.IsNullOrWhiteSpace(Data?.DisplayNameKey) ? "boss_mirror_paradox_name" : Data.DisplayNameKey,
@@ -139,6 +144,7 @@ namespace FTT.Enemies {
             if (!string.IsNullOrEmpty(Data?.BossID) && payload.BossID != Data.BossID) return;
             IsDefeated = true;
             HUD?.HideBossBar();
+            ReleaseArenaFraming();
             // Package 11 A10 (F05): the Mirror Paradox follows the same 25-dust
             // physical-pickup rule as every other boss — its wallet-direct path
             // is removed. The wallet is paid, the claim committed and the boss
@@ -159,6 +165,32 @@ namespace FTT.Enemies {
 
         public void SetStoryRewindFrozen(bool frozen) {
             if (Mirror != null && IsInstanceValid(Mirror)) Mirror.SetStoryRewindFrozen(frozen);
+        }
+
+        // === Arena framing (GU-B, gameplay update 2026-10-12) ==================
+
+        /// <summary>The hero's Story camera holding this encounter's framing request, cached at the reveal.</summary>
+        private StoryCameraConfiner _framingCamera;
+
+        /// <summary>
+        /// GU-B: at the closer Story zoom the clone stands off-screen at the
+        /// reveal (the two fighters start 1,200 px apart), so the reveal asks the
+        /// hero's camera to frame <see cref="ArenaBounds"/>, exactly as
+        /// <see cref="BossEncounterController"/> frames a boss arena, until the
+        /// defeat or the encounter's teardown. An unbounded encounter frames nothing.
+        /// </summary>
+        private void RequestArenaFraming() {
+            if (ArenaBounds.Size.X <= 0f || !IsInsideTree()) return;
+            if (_player == null || !IsInstanceValid(_player)) {
+                _player = GetTree()?.GetFirstNodeInGroup("StoryPlayer") as FTT.Characters.PlayerController;
+            }
+            _framingCamera = StoryCameraConfiner.FindOn(_player);
+            _framingCamera?.RequestFraming(this, ArenaBounds, StoryCameraRules.BossFramingMinZoom);
+        }
+
+        private void ReleaseArenaFraming() {
+            if (_framingCamera != null && IsInstanceValid(_framingCamera)) _framingCamera.ReleaseFraming(this);
+            _framingCamera = null;
         }
     }
 }

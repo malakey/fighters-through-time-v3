@@ -48,13 +48,28 @@ namespace FTT.Core {
             _noiseOffset += dt * 100f;
             float offsetX = _noise.GetNoise2D(_noiseOffset, 0) * intensity;
             float offsetY = _noise.GetNoise2D(0, _noiseOffset) * intensity;
-            _camera.Offset = new Vector2(offsetX, offsetY);
+            _camera.Offset = ScreenStableOffset(_camera, new Vector2(offsetX, offsetY));
 
             if (_shakeTimer <= 0) {
                 _camera.Offset = Vector2.Zero;
                 _shakeIntensity = 0;
                 _shakeDuration = 0;
             }
+        }
+
+        /// <summary>
+        /// GU-B (gameplay update 2026-10-12): <see cref="Camera2D.Offset"/> is in
+        /// world pixels, which the camera's zoom magnifies on screen. The Story
+        /// camera is zoomed in (<c>StoryCameraRules.ViewZoom</c>, eased out to
+        /// frame a boss), so its offset is divided by its current zoom and a shake
+        /// reads the same size on screen as it did at the old 1.0 view. Shake
+        /// intensities stay authored in world pixels; the Fighter camera's offset
+        /// is unchanged.
+        /// </summary>
+        internal static Vector2 ScreenStableOffset(Camera2D camera, Vector2 worldOffset) {
+            if (camera is not FTT.Environment.StoryCameraConfiner story) return worldOffset;
+            Vector2 zoom = story.Zoom;
+            return new Vector2(worldOffset.X / Mathf.Max(0.01f, zoom.X), worldOffset.Y / Mathf.Max(0.01f, zoom.Y));
         }
     }
 }
