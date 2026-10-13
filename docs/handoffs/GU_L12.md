@@ -30,7 +30,7 @@ The space between each level's last approach area and its boss arena is narrower
 | 14 | Security Core apron | 900 px |
 | 15 | rotunda apron | 350 px |
 
-So each level's wave 4 (the pre-boss garrison, which used to spawn on that apron or inside the arena) is now the **second wave of the last approach lock**. It is `WhenAliveAtMost(1)`: the reinforcements arrive through Severed tears once one defender is left. The PreBoss anchor, the pre-boss beat, the font and the arena keep their places. No member spawns in, or west of, a boss arena's reveal.
+So each level's wave 4 (the pre-boss garrison, which used to spawn on that apron or inside the arena) is now the **second wave of the last approach lock**. It is `AfterPreviousCleared`: the garrison arrives through Severed tears once the first wave is down, a true second wave rather than a pile-on (§6 has why this was not `WhenAliveAtMost`). The PreBoss anchor, the pre-boss beat, the font and the arena keep their places. No member spawns in, or west of, a boss arena's reveal.
 
 ### Salted hunters are manifest sources now
 
@@ -56,7 +56,7 @@ Effects of the fold:
 |---|---|---|---|---|---|
 | `LockTranquility` | `level_12_lunar_lock_tranquility` | 320–3000 | 300–320 | 3000–3020 | `level_12.wave1`, OnBuild |
 | `LockVentField` | `level_12_lunar_lock_vent_field` | 3020–5860 | 3000–3020 | 5860–5880 | `level_12.wave2`, **OnEngage** |
-| `LockRelaySpire` | `level_12_lunar_lock_relay_spire` | 6220–7540 (the spire base) | 6200–6220 | 7540–7560, full height. It stands in the 80 px gap between the mast head (ends 7500) and the highline ferry's west stop (deck from 7580), so it cuts no platform and crosses no mover's path. | `level_12.wave3` OnBuild; `level_12.wave4` WhenAliveAtMost(1); GO points **Up** |
+| `LockRelaySpire` | `level_12_lunar_lock_relay_spire` | 6220–7540 (the spire base) | 6200–6220 | 7540–7560, full height. It stands in the 80 px gap between the mast head (ends 7500) and the highline ferry's west stop (deck from 7580), so it cuts no platform and crosses no mover's path. | `level_12.wave3` OnBuild; `level_12.wave4` AfterPreviousCleared; GO points **Up** |
 
 - **The ruling's dead end:** wave 3's three troopers on the floor east of the lift moved onto the route, inside the spire lock: digger 7600 → 7420, slasher 8220 → 6420, void_enforcer 8400 → 7230.
 - **The lift hold** (the ruling's other option, taken as well): `LiftSpire` is held at its bottom stop until the spire clears.
@@ -115,7 +115,7 @@ New public surface:
 |---|---|---|---|---|---|
 | `LockBreachGallery` | `level_14_neo_earth_lock_breach_gallery` | 320–2900 | 300–320 | 2900–2920 | `level_14.wave1`, OnBuild |
 | `LockContainmentWing` | `level_14_neo_earth_lock_containment_wing` | 2920–5782 | 2900–2920 | 5782–5802, **y ColumnTopY–700, standing on the bulkhead's top**. It seals the high deck, the wing's natural single exit through the beta pocket; the wall below already seals the lab deck. GO **Up** | `level_14.wave2`, OnBuild |
-| `LockFabricationSpine` | `level_14_neo_earth_lock_fabrication_spine` | 6640–9030 | 6620–6640 | 9030–9050 | `level_14.wave3` OnBuild; `level_14.wave4` WhenAliveAtMost(1) |
+| `LockFabricationSpine` | `level_14_neo_earth_lock_fabrication_spine` | 6640–9030 | 6620–6640 | 9030–9050 | `level_14.wave3` OnBuild; `level_14.wave4` AfterPreviousCleared |
 
 - **Grid pause:** a corridor grid is paused while the lock it runs through is Engaged, and re-armed on its authored phase offsets when that lock clears or reverts.
   - The pairs are perimeter/Breach Gallery, containment/wing and core/spine.
@@ -140,7 +140,7 @@ New public surface:
 |---|---|---|---|---|---|
 | `LockPortico` | `level_15_alexandria_lock_portico` | 320–3000 | 300–320 | 3000–3020 | `level_15.wave1`, OnBuild |
 | `LockStacks` | `level_15_alexandria_lock_stacks` | 3020–5900 | 3000–3020 | 5900–5920 | `level_15.wave2`, OnBuild |
-| `LockCollapsingHall` | `level_15_alexandria_lock_collapsing_hall` | 6420–7900 | 6400–6420 | 7900–7920 (between the second and third shelves) | `level_15.wave3` OnBuild; `level_15.wave4` (the rotunda guard sallies) WhenAliveAtMost(1) |
+| `LockCollapsingHall` | `level_15_alexandria_lock_collapsing_hall` | 6420–7900 | 6400–6420 | 7900–7920 (between the second and third shelves) | `level_15.wave3` OnBuild; `level_15.wave4` (the rotunda guard sallies) AfterPreviousCleared |
 
 - **The firestorm starts on the hall lock's clear, not on entering the hall.**
   - The handler is `OnCollapsingHallLockStateChanged`, which ignores a `RestoredCleared` lock.
@@ -180,14 +180,14 @@ No scene file changed. There are no `en.csv` edits and no framework edits.
 
 ## 3. Decisions (Provisional; for the closeout's ledger)
 
-1. **The pre-boss garrisons fold into the last approach lock** (Levels 12, 14, 15) as a `WhenAliveAtMost(1)` reinforcement wave, because their aprons (1216 / 900 / 350 px) are narrower than a lock.
+1. **The pre-boss garrisons fold into the last approach lock** (Levels 12, 14, 15) as an `AfterPreviousCleared` second wave, because their aprons (1216 / 900 / 350 px) are narrower than a lock.
    - The alternative for Level 12 and Level 14 is to move the boss arena's west edge, so the pad or apron can hold a ≥ 1280 px lock plus a PreBoss anchor and font. That needs a ruling, because it reshapes a boss arena.
 2. **Salted hunters are manifest sources** (§1), so they can be lock members. That means they pay an elite-weight share of the fixed pool.
 3. **Lock triggers:**
    - Level 12 vent field: OnEngage (the troopers come up out of the vents).
    - Level 13 approach: OnEngage (the scripted ambush).
    - Every other first wave: OnBuild (pre-placed and dormant).
-   - Every fold: WhenAliveAtMost(1).
+   - Every fold: AfterPreviousCleared. It keeps the peak at one wave's members (5–6 rather than 6–7) and gives a beat between waves.
 4. **Mover holds:**
    - Level 12: the spire lift (the ruling);
    - Level 13: the Titanic deck and Globe stage shards (each crosses an exit barrier).
@@ -197,7 +197,7 @@ No scene file changed. There are no `en.csv` edits and no framework edits.
    - The spire lock ends in the mast-head/ferry gap (7540), so the vent-and-Extractor cul-de-sac stays an optional detour rather than a forced fight on two cyclic vents and a discharging Extractor.
 6. **Level 14 pauses each corridor grid while its lock is engaged**, rather than keeping areas out of the corridors. Every first-room area overlaps its grid, and a 1280 px area cannot fit beside one.
 7. **Level 15's front starts 432 px behind the hero** at the clear, never west of 6500. Starting at 6500 regardless would give a hero who cleared at the lock's east end a 1300 px lead.
-8. **Checkpoint and swing clearance.** Every Middle and PreBoss strike surface stands past the longest basic swing (GU-E's `LongestBasicSwingPixels`, about 156 px) of a hero pressed against the closed exit of each lock its baseline lists, with 14–34 px to spare. In Act III, each Warden Beacon's interaction box stays outside the next lock's entry barrier.
+8. **Checkpoint and swing clearance.** Every Middle and PreBoss strike surface stands past the longest basic swing (GU-E's `LongestBasicSwingPixels`, about 156 px) of a hero pressed against the closed exit of each lock its baseline lists, with at least about 24 px to spare (`LevelLockTestKit.LayoutIssues` pins it with the computed reach). In Act III, each Warden Beacon's interaction box stays outside the next lock's entry barrier.
 9. **Every area spans the full height** (`EncounterLockSpec.Span` from `ColumnTopY`), including Level 13's, so no shard ride or lunar jump leaves an area upward.
 
 ## 4. Deviations from the plan
@@ -236,14 +236,46 @@ Runs, each holding `D:/Projects/.ftt-gdunit-lock`:
     - the endpoint check (§2);
     - the Level 13 font, which I had first put on the Mirror arena floor (7400). The font rule wants it 120 px west of the arena, so it moved to 6970.
   - The rerun covered the Arena / SecretCache / Level 13 / EncounterLockContent / StoryHealingLoop suites.
-- **Full suite: `Passed! - Failed: 0, Passed: 3134, Skipped: 0, Total: 3134` (1 m 39 s) = 3125 + 9.**
+- A full run before the bot-driven fixes: `Passed! - Failed: 0, Passed: 3134, Total: 3134` (1 m 39 s).
+- After the Level 12 spire narrowing, the Level 15 finish fix and the `AfterPreviousCleared` folds: Level 12 / 15 / Arena / EncounterLockContent / SecretCache **76/76**.
+- **Final full suite: `Passed! - Failed: 0, Passed: 3134, Skipped: 0, Total: 3134` (1 m 34 s) = 3125 + 9.** The `[TestCase]` count rises by exactly the 9 new cases.
 
 ## 6. Measurements
 
 - **Smoke** (`--headless --quit-after 300`): Levels 12, 13, 14 and 15 all exit 0 with no script error.
-  - One of three Level 13 runs printed "6 ObjectDB instances leaked / 3 resources still in use at exit". The other two runs, and Levels 12, 14 and 15, printed nothing.
-  - That is the nondeterministic at-exit noise CLAUDE.md describes, not a regression.
-- **Bots:** see the result appended below (one `play` run per level, Joan, Normal, `--max-seconds=420`, tag `gul12`).
+  - Level 13 sometimes prints "6 ObjectDB instances leaked / 3 resources still in use at exit" (2 of 5 runs); Levels 12, 14 and 15 printed nothing.
+  - **Control:** four runs of the **base** (`7aaae7d`) Level 13 controller and manifest printed 8/4, 2/1, 2/1 and 6/3. So this is the pre-existing, nondeterministic at-exit noise CLAUDE.md describes (the Mirror clone), not a regression.
+- **Bots** (one `play` run per level, Joan, Normal, `--max-seconds=420`; the Phase A bots, which are not lock-aware). Reports are in `user://playtest/`.
+  - **First batch, tag `gul12`** (the first cut of Level 12, before the Level 15 finish fix):
+
+    | Level | End | Time (s) | Progress (px) | Kills | Deaths |
+    |---|---|---|---|---|---|
+    | 12 | collapse | 161.7 | 8300 | 17/18 | 4 |
+    | 13 | timeout | 420 | 9304 | 28/33 | 9 |
+    | 14 | timeout | 420 | 11112 | 45/55 | 9 |
+    | 15 | timeout | 420 | 8950 | 15/16 | 0 |
+
+    - Level 12: all four deaths were in the cul-de-sac (cache vents, the cache Extractor, the void enforcer). That is why the spire lock was narrowed (§1).
+    - Level 13: three deaths on the first approach ambush, the rest at the Mirror, then a refight after an Anchor Snap.
+    - Level 14: every lock was cleared and the boss reached; then three deaths to Archive Prime, a Snap, and refights.
+    - Level 15: every lock was cleared and the firestorm started on the clear, but the bot then idled at x 9170 with its `escape` task for five minutes. That is the escape-completion bug fixed in §1.
+  - **Intermediate rerun, tag `gul12b`, Levels 12 and 15:**
+    - Level 12: three deaths in the 10-member spire fight (then a `WhenAliveAtMost(1)` fold), which led to the `AfterPreviousCleared` folds.
+    - Level 15: past the escape to the boss. Smothered after repeated deaths to the Apex Eraser.
+  - **Final batch, tag `gul12c`** (this commit):
+
+    | Level | End | Time (s) | Progress (px) | Kills | Deaths |
+    |---|---|---|---|---|---|
+    | 12 | timeout | 420 | 8320 | 17 of 17 planned | 2 |
+    | 13 | **level_complete** | 186.8 | 9304 | 11/11 | 0 |
+    | 14 | timeout | 420 | 10778 | 44 | 9 |
+    | 15 | timeout | 420 | 10533 | 45 | 9 |
+
+    - Level 12: every lock cleared, then the bot walked into the cache cul-de-sac and sat "stuck" against the curtain at 8540 until the timeout. Earlier batches in the same directory show the **pre-existing** Level 12 bot stall at progress 8320 many times (`collapse(Timer)` at 8320 on Easy), so this is a nav weakness, not a lock.
+    - Level 13: no deaths and the Mirror defeated.
+    - Level 14: cleared all three locks and activated checkpoint 2 by about 141 s; the rest of the run was deaths to Archive Prime and refights after Anchor Snaps.
+    - Level 15: cleared all three locks and reached the boss by about 88 s; the rest of the run was deaths to the Apex Eraser.
+  - **The Level 15 bot never strikes checkpoint 2.** It runs past it to the boss, so its Snaps go back to checkpoint 1. Bot-side; for GU-BOT.
 - **Lock widths:**
 
   | Level | Areas (px) |
@@ -271,7 +303,9 @@ Runs, each holding `D:/Projects/.ftt-gdunit-lock`:
   - the spire fight with the lift held;
   - the paused Bastion grids;
   - the Level 15 escape head start.
-- **The bots do not know about locks yet** (GU-BOT).
+- **The bots do not know about locks yet** (GU-BOT). Bot-side issues these runs surfaced:
+  - the pre-existing Level 12 stall on the cul-de-sac floor (progress 8320) against the curtain;
+  - the Level 15 bot running past checkpoint 2.
 - **The hunters now pay dust.** This touches the held `VERIFY-ERASER-DUST`.
 - **Pre-existing, not changed: Level 15's firestorm does not survive a death mid-escape.** `EscapeSequenceController` restores its checkpoint-captured state on a rewind (front at 6500, not running), and `FirestormTriggered` stays latched, so after a death the front stops for good.
 - **Level 12 movement abilities and the mast head:** during the spire fight, a high-mobility hero might reach the mast head without the lift, from the ladder rung at 1500, in lunar gravity with a double jump plus a movement ability (not measured). It does not matter for progress: the lock's full-height exit barrier fills the mast-head/ferry gap, so the mast head is a dead end until the clear.
@@ -296,6 +330,10 @@ Runs, each holding `D:/Projects/.ftt-gdunit-lock`:
 - Amend `USER-MOVEMENT-SPEED-CUT` / the escape-front row: the Level 15 front now starts on the hall clear with a 432 px head start.
 - Note under `ARENA-*`: Level 12's Eraser and Level 14's drone are no longer inside or beside their arenas.
 - New `VERIFY-L15-ESCAPE-REWIND-HALT`: the pre-existing escape stop after a death mid-escape (§7).
+- New, closed `FIX-L15-ESCAPE-NEVER-COMPLETED`.
+  - The bug: the finish trigger is centred on the finish line, so a walking hero always entered it short of the line, and the run was only ever halted at the rotunda.
+  - The fix: `WireFirestormFinishLine` now also completes the run on the front's `FrontAdvanced` tick.
+  - Level 6's Pompeii escape uses the same template and finish pattern ("the Level 6 pattern"). GU-L4 should check whether it has the same bug.
 
 **`design-godot.md` lines owed** (repo mirror numbering)
 - :271 (Level 12: the spire lock and the held lift)
