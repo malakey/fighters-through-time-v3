@@ -59,8 +59,9 @@ public class FighterMovementFeelTests {
     /// <summary>
     /// The grounded ramps land on their exact tick: full speed on tick 6 and a
     /// standstill on tick 4 — not a tick late — for speeds whose division by
-    /// six or four is inexact in fixed point (7.25, 7.75, 4.75, the default 7)
-    /// as well as exact ones (6.0, 6.75).
+    /// six or four is inexact in fixed point. Since the 2026-10-12 20% cut
+    /// (GU-C) the sampled roster speeds are 3.8, 4.8, 5.4, 5.8 and 6.2, none of
+    /// them exact in binary, beside the hand-built default's 7.
     /// </summary>
     [TestCase]
     public void TheGroundedRunReachesFullSpeedOnTickSixAndStopsOnTickFourAtEveryRosterSpeed() {

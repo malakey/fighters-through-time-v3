@@ -443,6 +443,11 @@ namespace FTT.FighterSim {
             // the post-retune envelope (13 → 11.5). Under the 2026-10-08 air
             // model (apex hang, heavier fall) that is an apex of ≈2.15 on the
             // 25th tick, a double jump of ≈4.29, and 48 ticks of airtime.
+            // The 2026-10-12 gameplay update (GU-C) cut every roster
+            // MaxMoveSpeed by 20% (now 3.8–6.2) but deliberately left this
+            // hand-built test loadout at 7, so the CPU, hazard and recovery
+            // suites that run on it keep their premises; it is now faster
+            // than every roster hero.
             FP64.FromInt(7),
             FP64.FromDouble(11.5),
             FP64.FromInt(3),

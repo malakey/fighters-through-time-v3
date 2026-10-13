@@ -31,7 +31,8 @@ public class TubmanContentTests {
         AssertThat(data.DisplayNameKey).IsEqual("character_tubman_name");
         AssertThat(data.MaxHP).IsEqual(100);
         AssertFloat(data.Weight).IsEqual(1.0f);
-        AssertFloat(data.MaxMoveSpeed).IsEqual(6.75f);
+        // 6.75 x 0.8: the 2026-10-12 gameplay update's 20% movement cut (GU-C).
+        AssertFloat(data.MaxMoveSpeed).IsEqual(5.4f);
         AssertFloat(data.AirControlMultiplier).IsEqual(0.55f);
         AssertFloat(data.BasicAttackDamage).IsEqual(5.5f);
         AssertThat(data.MaxJumpCount).IsEqual(2);

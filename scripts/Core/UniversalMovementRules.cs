@@ -95,7 +95,17 @@ namespace FTT.Core {
         public const int RollTravelFrames = 12;
         public const int RollInvulnerabilityFrames = 8;
         public const int RollRecoveryFrames = 10;
-        public const float RollSpeedMultiplier = 1.5f;
+
+        /// <summary>
+        /// Roll travel speed (and the knockdown roll get-up's) as a multiple of the
+        /// fighter's run speed, in both modes. Raised 1.5 → 1.875 (= 1.5 / 0.8) by
+        /// the 2026-10-12 gameplay update (GU-C, provisional) in the same change
+        /// that cut every <c>MaxMoveSpeed</c> by 20% (user request "reduce the
+        /// movement speed by about 20%"), so the roll and the get-up keep the
+        /// distance they had before the cut: Lincoln keeps his Story roll-through
+        /// of a standard mob and his Fighter cross-up.
+        /// </summary>
+        public const float RollSpeedMultiplier = 1.875f;
 
         public const int RollTotalFrames = RollStartupFrames + RollTravelFrames + RollRecoveryFrames;
 
