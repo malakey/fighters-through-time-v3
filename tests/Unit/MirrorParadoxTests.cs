@@ -374,6 +374,83 @@ public class MirrorParadoxTests {
     }
 
     [TestCase]
+    public void TheStoryAdapterProjectsTheStringStepAGroundedClonesNextPressWouldStart() {
+        // The melee band (2026-10-11, PROVISIONAL-CPU-MELEE-BAND) reads the step
+        // a press would start: mid-string on the ground that is the next chain
+        // hit, not the opener (review fix 2026-10-13 — the floor-less adapter
+        // case above now presses the air strike, so it only ever sees step 0).
+        MirrorParadoxController mirror = CreateMirror();
+        int cloneIndex = mirror.Clone.PlayerIndex;
+        var floor = new StaticBody2D {
+            Name = "MirrorStringStepFloor",
+            CollisionLayer = CollisionLayers.Environment,
+            CollisionMask = 0,
+            Position = new Vector2(600f, 300f)
+        };
+        floor.AddChild(new CollisionShape2D {
+            Shape = new RectangleShape2D { Size = new Vector2(2000f, 40f) },
+            Position = new Vector2(0f, 20f)
+        });
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(floor);
+        try {
+            PlayerController clone = mirror.Clone;
+            clone.GlobalPosition = new Vector2(600f, 292f);
+            for (int frame = 0; frame < 120 && !clone.IsOnFloor(); frame++) {
+                clone.Velocity = new Vector2(0f, 400f);
+                StepClone(clone, cloneIndex, GameplayButtons.None, GameplayButtons.None);
+            }
+            for (int frame = 0; frame < 60 && clone.CurrentState != CharacterState.Idle; frame++) {
+                StepClone(clone, cloneIndex, GameplayButtons.None, GameplayButtons.None);
+            }
+            AssertThat(clone.IsOnFloor() && clone.CurrentState == CharacterState.Idle)
+                .OverrideFailureMessage($"Harness: the clone is {clone.CurrentState}, on floor {clone.IsOnFloor()}.")
+                .IsTrue();
+            AssertThat(mirror.Decisions.Observe().SelfNextStringStep).IsEqual(0);
+
+            var hitbox = clone.GetNode<FTT.Combat.Hitbox>("MeleeHitbox");
+            StepClone(clone, cloneIndex, GameplayButtons.BasicAttack, GameplayButtons.None);
+            AssertThat(clone.CurrentState).IsEqual(CharacterState.Attacking);
+            AssertThat(hitbox.HitboxID).IsEqual("combo_1");
+            // Hit 1 runs: a press would continue into hit 2.
+            AssertThat(clone.NextChainStepForPress).IsEqual(1);
+            AssertThat(mirror.Decisions.Observe().SelfNextStringStep)
+                .OverrideFailureMessage("The adapter did not project the clone's next string step during hit 1.")
+                .IsEqual(1);
+
+            // Holding Attack carries the string into hit 2 (step 2), then into
+            // the finisher, which cannot continue (step 0 again).
+            int expectedIndex = 1;
+            for (int call = 0; call < 200 && expectedIndex < FTT.Combat.BasicComboRules.ComboHits; call++) {
+                StepClone(clone, cloneIndex, GameplayButtons.BasicAttack, GameplayButtons.BasicAttack);
+                if (clone.ComboCounter != expectedIndex) continue;
+                int expectedStep = expectedIndex < FTT.Combat.BasicComboRules.ComboHits - 1 ? expectedIndex + 1 : 0;
+                AssertThat(clone.NextChainStepForPress)
+                    .OverrideFailureMessage($"Hit {expectedIndex + 1}: the Story step is {clone.NextChainStepForPress}.")
+                    .IsEqual(expectedStep);
+                AssertThat(mirror.Decisions.Observe().SelfNextStringStep)
+                    .OverrideFailureMessage($"Hit {expectedIndex + 1}: the adapter did not forward the clone's step.")
+                    .IsEqual(expectedStep);
+                expectedIndex++;
+            }
+            AssertThat(expectedIndex)
+                .OverrideFailureMessage("Harness: the held string never reached the finisher.")
+                .IsEqual(FTT.Combat.BasicComboRules.ComboHits);
+        } finally {
+            InputManager.Instance?.ClearInputSource(cloneIndex);
+            FreeMirror(mirror);
+            floor.Free();
+        }
+    }
+
+    /// <summary>One clone tick holding <paramref name="held"/> against last tick's <paramref name="previousHeld"/>.</summary>
+    private static void StepClone(PlayerController clone, int cloneIndex, GameplayButtons held, GameplayButtons previousHeld) {
+        var source = new BufferedInputSource();
+        source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, held, previousHeld));
+        InputManager.Instance.SetInputSource(cloneIndex, source);
+        clone._PhysicsProcess(1.0 / 60.0);
+    }
+
+    [TestCase]
     public void AShortReachCloneWalksInFromBeyondItsOpenerBandAgainstTheHerosRealHurtbox() {
         // The melee band (2026-10-11, PROVISIONAL-CPU-MELEE-BAND) through the
         // Story adapter: a Lincoln clone reads the hero's real 40 px hurtbox,

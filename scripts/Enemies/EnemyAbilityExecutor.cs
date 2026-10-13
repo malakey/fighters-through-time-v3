@@ -766,12 +766,20 @@ namespace FTT.Enemies {
         /// <summary>How the last Teleport's landing resolved. Test seam.</summary>
         public FTT.Combat.RelocationResult LastTeleportLanding { get; private set; }
 
+        /// <summary>
+        /// The Teleport's far-side rule: the side of the target (−1 left, +1
+        /// right) a body standing at <paramref name="vacatedX"/> reappears on.
+        /// The one statement of it — the Story engagement director judges an
+        /// engage blink's melee slot against the same side.
+        /// </summary>
+        internal static int TeleportLandingSide(float vacatedX, float targetX) => vacatedX <= targetX ? 1 : -1;
+
         private void Teleport(EnemyAbilityData ability) {
             Vector2 vacated = _owner.GlobalPosition;
             float span = Mathf.Max(0f, ability.TeleportRangeMax - ability.TeleportRangeMin);
             float distance = ability.TeleportRangeMin + (float)Rng.NextDouble() * span;
             // Reappear on the far side of the target so the reposition reads clearly.
-            float side = vacated.X <= _targetPosition.X ? 1f : -1f;
+            float side = TeleportLandingSide(vacated.X, _targetPosition.X);
             var requested = new Vector2(_targetPosition.X + side * Mathf.Max(1f, distance), vacated.Y);
             // P1: a leashed boss reappears inside its arena (the leash would clamp it
             // there after the move anyway), and that point is the one validated.

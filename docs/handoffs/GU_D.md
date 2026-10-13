@@ -211,3 +211,14 @@ Story knockback no longer depends on difficulty. Easy's ×0.7 HP and Hard's ×1.
   - the elites: Joan 15.9, Lincoln 78.2;
   - the forward-throw bounce list above;
   - "whether a hit bounces now depends on the hero and the mob, never on its HP".
+
+## Review fixes (2026-10-13)
+
+One confirmed Phase A review finding (low, a test defect), fixed by the GU-F review-fix workstream on branch `worktree-wf_0734101c-91c-2` from `199e260`. No game code changed for it; the build's hero knockback was already static.
+
+**"Hero static-knockback pin never reaches its 'fifth of max HP' case (`Mathf.Max` instead of `Min`)."** `StoryCombatRulesTests.StoryKnockbackOnTheHeroIsStaticAtEveryHP` set the third hit's HP with `Mathf.Max(hpAfterSecond − 1, MaximumHP / 5)`, which for the harness Einstein (100 HP, 10-damage hits) is 79, so §5's "and at a fifth of max HP" never ran. Nothing reset `Velocity` between the three direct `TakeHit` calls either, so hits 2 and 3 would have passed on hit 1's leftover velocity had they written none.
+
+- **Rewritten in place (no count change):** the same test. `Velocity` is zeroed before hits 2 and 3, so each proves it wrote its own impulse. The third hit lands at exactly `MaximumHP / 5` (20 → 10 HP), with a harness check that this is below the second hit's HP and above one hit's damage, and an assertion that the hero ends at 20 % HP or less. §5's description is now true as written.
+- **Checked by temporary revert:** with a low-HP-only change in `PlayerController.ResolveIncomingHit` (the knockback written only at 50 % HP or more), the rewritten test failed ("at a fifth of max HP: vx 0.000, static 120.000"), where the old test would have passed at 79 HP. Restored.
+- **Not done (optional in the finding):** a low-HP pin for `ResolveStoryThrow`'s static launch. Its HP independence is still pinned only by inspection.
+- Test delta for this finding: 0 new, 1 rewritten. The review-fix branch's full suite read `Passed: 3114, Total: 3114` (3109 + 5; `GU_F.md`'s review-fix section has the runs).

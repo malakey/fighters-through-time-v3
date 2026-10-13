@@ -1470,15 +1470,19 @@ namespace FTT.Enemies {
         /// except that (GU-F, request 6) its engage line never holds farther than
         /// <see cref="FTT.Combat.StoryEngagementRules.RangedHoldMaxPixels"/>, so a
         /// shooter whose projectile-widened range would hold it off the closer
-        /// camera's screen stays on it. The release keeps the same hysteresis
-        /// ratio.
+        /// camera's screen stays on it. A capped band's release keeps the same
+        /// hysteresis ratio but never sits past
+        /// <see cref="FTT.Combat.StoryEngagementRules.RangedHoldReleaseMaxPixels"/>
+        /// (review fix 2026-10-13), so a waiting shooter follows a hero who backs
+        /// away before it would stand off screen.
         /// </summary>
         private void StandOffBandFor(EnemyAbilityData ability, out float engage, out float resume) {
             if (!IsCappedMeleePrimary(ability)) {
                 float uncapped = AttackRangePixels * StandOffEngageFraction;
                 engage = FTT.Combat.StoryEngagementRules.CappedHoldEngagePixels(uncapped);
                 resume = engage < uncapped
-                    ? engage * StandOffResumeFraction / StandOffEngageFraction
+                    ? FTT.Combat.StoryEngagementRules.CappedHoldResumePixels(
+                        engage * StandOffResumeFraction / StandOffEngageFraction)
                     : AttackRangePixels * StandOffResumeFraction;
                 return;
             }
@@ -1536,6 +1540,23 @@ namespace FTT.Enemies {
         }
 
         /// <summary>
+        /// <see cref="TryEngageBlink"/>'s trigger test on its own (the engagement
+        /// director's blink gate reads it too): a valid target beyond
+        /// <see cref="EngageBlinkMinRangeFactor"/> × the attack range and inside
+        /// the aggro radius, the executor idle and the secondary cooldown up.
+        /// </summary>
+        private bool EngageBlinkReady(out EnemyAbilityData teleport) {
+            teleport = null;
+            if (_target == null || !IsInstanceValid(_target)) return false;
+            if (Executor.IsBusy || _eliteCooldownTimer > 0f) return false;
+            teleport = FindStandardTeleport();
+            if (teleport == null) return false;
+            float distance = GlobalPosition.DistanceTo(_target.GlobalPosition);
+            if (distance <= AttackRangePixels * EngageBlinkMinRangeFactor) return false;
+            return distance <= (Data?.AggroRadius ?? 400f);
+        }
+
+        /// <summary>
         /// The Rift Phantom's Teleport line (design §6: "the roster's Teleport line",
         /// M20): a standard whose target sits beyond
         /// <see cref="EngageBlinkMinRangeFactor"/> × its attack range, but inside
@@ -1545,16 +1566,11 @@ namespace FTT.Enemies {
         /// Public so tests can pin the trigger geometry.
         /// </summary>
         public bool TryEngageBlink() {
-            if (_target == null || !IsInstanceValid(_target)) return false;
-            if (Executor.IsBusy || _eliteCooldownTimer > 0f) return false;
-            EnemyAbilityData teleport = FindStandardTeleport();
-            if (teleport == null) return false;
-            float distance = GlobalPosition.DistanceTo(_target.GlobalPosition);
-            if (distance <= AttackRangePixels * EngageBlinkMinRangeFactor) return false;
-            if (distance > (Data?.AggroRadius ?? 400f)) return false;
+            if (!EngageBlinkReady(out EnemyAbilityData teleport)) return false;
 
             _eliteCooldownTimer = Mathf.Max(0f, Data.ActiveSecondaryCooldown);
             _secondaryBlinkInFlight = true;
+            _engagementBlinkLandingSide = EngageBlinkLandingSide; // GU-F: the slot counts on the side it lands on.
             CurrentState = EnemyState.Attacking;
             _attackCommitted = true;
             _reactionFramesRemaining = 0;

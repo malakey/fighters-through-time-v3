@@ -268,3 +268,50 @@ Never gated: `BeginAttack`, `CommitArmoredAnswer` (an owed answer bypasses the r
 - `:3004` (the Stand-Off Band; add the turn-taking ring and the 560 px ranged hold).
 
 The recon cited `:3005` against the pre-plan tree.
+
+## Review fixes (2026-10-13)
+
+Three confirmed Phase A review findings against this workstream, plus one hygiene request from the orchestrator. Branch `worktree-wf_0734101c-91c-2`, from `199e260` (main's merged Phase A). Nobody has played any of it; the evidence is headless GdUnit cases in real frames.
+
+### What changed, per finding
+
+1. **"An elite that hands off its slot takes it straight back" (medium).** `StoryEngagementRules.ComparePriority` now compares **rest before tier**: a rested waiter outranks a resting one, and an elite outranks a standard only within the same rest state. A holder that hands off is resting, and with elites ranked first it won Easy's slot straight back on the next grant (after its attack), or in the same call (the stale path asks for a grant right after `HandOffEngagementSlot`). So neither the hand-off nor the 120-frame stale rule ever passed an elite's turn to a standard. Decision 2 above ("a resting waiter … takes a free slot only when no rested waiter wants it") now holds as written. A resting mob still takes a free slot on a side no rested candidate can use (`SelectGrants`' per-side caps).
+   - **A deviation from the plan, for the closeout's `PROVISIONAL-ENGAGEMENT-DIRECTOR-RULES` row:** plan §2.6 lists the priority as "elite before standard → rest elapsed → …". Read literally, that order cancels the plan's own hand-off and stale rules for an elite holder with standard waiters. The build's order is now rest elapsed → elite → side with fewer holders → waited frames → gap bucket → instance id. The "What a player will see" rotation bullets above should read "elites come first among the rested waiters".
+2. **"The engage blink is granted a slot on the side it stands on, then lands on the far side" (low).** The blink's melee slot is now judged against the side it **lands on**:
+   - `EnemyAbilityExecutor.TeleportLandingSide(vacatedX, targetX)` is the one statement of the Teleport's far-side rule; `Teleport` and the director both read it.
+   - `EnemyController.EngageBlinkReady` is `TryEngageBlink`'s trigger test, split out unchanged so the gate can read it; `TryEngageBlink` records the landing side when it fires.
+   - `EngagementPermitsEngageBlink`: when the blink would fire this tick, a waiter is granted a slot only as a candidate on the landing side (`StoryEngagementDirector.IsGrantedMeleeSlot(mob, sideOverride)`, a new optional parameter), and a holder blinks only when the landing side stays inside its per-side cap (`StoryEngagementDirector.SideHasRoomForHolder`, through `StoryEngagementRules.SideHasFreeSlot`). Refused, a waiter falls through to the wait ring, where it may still take its own side's slot and walk in; a refused holder keeps its slot and walks in. When the blink would not fire, the gate stays out of the way, as before.
+   - A blink in flight counts on its landing side from its first telegraph frame (`EnemyController.EngagementHolderSide`, read by the director's holder count and the hand-off test), so no other mob is granted that side's slot during the 20-frame telegraph.
+   - Known limit: the landing side is taken against the hero's position (the executor's target), while the director's sides are taken against `TargetAimPosition`. With a live Cleopatra sand decoy the two can differ.
+   - `Join`, `Leave` and every existing director entry point keep their signatures; `IsGrantedMeleeSlot` only gained an optional parameter.
+3. **"The ranged hold cap's release line lets a shooter stand still up to 724.7 px out" (low).** A capped band's release line is now capped too: `StoryEngagementRules.RangedHoldReleaseMaxPixels` = the zoomed half view less `RangedHoldReleaseViewMarginPixels` (640 − 40 = **600**), applied through `CappedHoldResumePixels` in `EnemyController.StandOffBandFor`. The infrared border sentry's band is now engage 560 / release **600** (was 724.7). A waiting sentry follows a hero who backs away instead of standing off screen. An uncapped band keeps `AttackRange × 1.10` exactly, so no other roster mob changes. §6's "release 891 → 724.7 px" becomes "891 → 600 px".
+4. **Hygiene: the hold cap derives from the camera.** `StoryEngagementRules.ZoomedHalfViewPixels` = `StoryCameraRules.ReferenceViewportWidth / StoryCameraRules.ViewZoom / 2` (640), a compile-time `const`, so the rulebook stays engine-free (the pure-C# host never loads `StoryCameraRules`). `RangedHoldViewMarginPixels` (80) is its own named const, and `RangedHoldMaxPixels` = 640 − 80 = 560 is derived from both. A zoom change now moves both lines.
+
+### Tests
+
+- **New: +4 cases**, all in `StoryEngagementDirectorTests` (19 cases now):
+  - `AnEliteHandsItsTurnToARestedStandardAndOnlyGetsItBackAfterTheStandardsTurn` (Easy: a `chrono_guard_elite` and a `chrono_slasher`; the elite opens, the slasher commits next, the elite later commits again);
+  - `AStaleEliteHolderHandsItsSlotToTheRestedStandardForGood` (Easy: an elite that never commits goes stale after 120 frames; the slasher takes the slot and the elite does not take it back through its rest);
+  - `AWaitingShooterFollowsAHeroWhoBacksAwayBeforeItWouldStandOffScreen` (Normal: a held sentry stays held inside its 560–600 dead band, releases and walks after a hero who backs off to 620 px, never stands still past 600 px, and re-holds at 560 px or less);
+  - `TheEngageBlinkIsGrantedTheSlotOnTheSideItLandsOn` (Normal: with a slasher holding the far side the `rift_phantom` never blinks, takes the near slot and attacks from its own side, one holder and one attacker per side; with the near side held and the far side free it blinks there on its first Chase tick while the slasher still holds, and lands on the far side).
+- **Rewritten in place (no count change):**
+  - `StoryEngagementRulesTests.PriorityRanksElitesThenRestThenSideBalanceThenRoundRobinThenGapThenId` → **`PriorityRanksRestThenElitesThenSideBalanceThenRoundRobinThenGapThenId`** (a resting elite loses to a rested standard; elites still win within one rest state);
+  - `StoryEngagementRulesTests.GrantsRespectTheTotalAndPerSideCapsInPriorityOrder` (two added grants: Easy's slot goes to the rested standard over a resting elite, and a resting elite still takes a slot on a side the rested standard cannot use);
+  - `StoryEngagementRulesTests.TheRangedHoldCapKeepsAShooterInsideTheZoomedHalfView` (pins the relationship to `StoryCameraRules` and the two margins rather than a literal, plus the release line and `CappedHoldResumePixels`);
+  - `StoryEngagementDirectorTests.AnEliteTakesTheNextSlotBeforeALongerWaitingStandard` (900 frames instead of 400, and the longer-waiting standard commits after the elite's turn);
+  - `StoryEngagementDirectorTests.AShooterHoldsInsideTheZoomedViewNotAtItsWidenedRange` (the release pin 724.7 → `RangedHoldReleaseMaxPixels`).
+- **Checked against the unfixed code by temporary revert** (all three fixes reverted at once, then restored from a backup): the 2 rewritten rules cases and 6 of the director cases failed, each on the reverted behaviour — the elite took every turn (`0,0,0,0,0,0,0,0`), the stale elite never let go, the sentry still held at 620 px past its 600 px release, the resume pin read 724.7, and the phantom blinked onto the slasher's side. The phantom case's second half (blinks to a free far side while the near holder still holds) fails on the old code by construction: the old gate judged the phantom against its own, full side, so its first blink came only after the near holder handed off.
+- **Runs** (each holding `D:/Projects/.ftt-gdunit-lock`, `GODOT_BIN` set, after a warm-cache `--import`):
+  - `dotnet build`: 0 errors, the three pre-existing warnings only (CS8632, CS0649, KLSG_ECS004); no `KLOTHO_DET002`.
+  - Targeted — `StoryEngagementRulesTests` 9, `StoryEngagementDirectorTests` 19, `MirrorParadoxTests` 31, `StoryAirAttackTests` 4, `StoryCombatRulesTests` 20, `RiftPhantomTeleportTests` 3: `Passed: 86, Total: 86`, equal to their `[TestCase]` count.
+  - The revert check above: the same suites less the last two, `Failed: 10, Passed: 69, Total: 79` — exactly the ten cases these fixes pin (including the GU-A and GU-D findings, `GU_A.md` and `GU_D.md`).
+  - **Full suite: `Passed! - Failed: 0, Passed: 3114, Skipped: 0, Total: 3114`** (1 m 32 s). Reconciliation: 3109 + 5 = 3114 (the four director cases here and one `MirrorParadoxTests` case, `GU_A.md`); the `[TestCase]` attribute count under `tests/` is 3114.
+
+### Phase B authoring rules
+
+None changed. Level authors place shooters and Rift Phantoms as before.
+
+### For the closeout
+
+- `PROVISIONAL-ENGAGEMENT-DIRECTOR-RULES`: the priority order (rest before tier, the plan deviation above), the blink's landing-side grant and count, the 600 px capped release line and its 40 px margin.
+- Amend `USER-MOB-MELEE-RANGE`: the sentry holds at 560 and releases at 600 (not 724.7).

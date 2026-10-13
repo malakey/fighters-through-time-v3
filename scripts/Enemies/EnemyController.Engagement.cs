@@ -70,6 +70,9 @@ namespace FTT.Enemies {
         // of a permit (ranged fairness), and whether it asked in the last tick.
         private int _engagementRangedRefusedFrames;
         private bool _engagementRangedAsked;
+        // The side of the target the engage blink in flight lands on (read only
+        // while IsEngageBlinking).
+        private int _engagementBlinkLandingSide;
 
         // === Test seams ===
 
@@ -115,6 +118,19 @@ namespace FTT.Enemies {
 
         /// <summary>The side a waiter rings: the side it is crossing to, else the side it stands on.</summary>
         internal int EngagementRingSide => _engagementCrossing && _engagementRingSide != 0 ? _engagementRingSide : EngagementSide;
+
+        /// <summary>
+        /// The side a slot holder counts on: an engage blink in flight counts on
+        /// the side it lands on from its first telegraph frame (review fix
+        /// 2026-10-13), so no other mob is granted that side's slot while the
+        /// blinker still stands on the near side; otherwise the side it stands on.
+        /// </summary>
+        internal int EngagementHolderSide =>
+            IsEngageBlinking && _engagementBlinkLandingSide != 0 ? _engagementBlinkLandingSide : EngagementSide;
+
+        /// <summary>The side of the target an engage blink fired now lands on (the executor's far-side rule).</summary>
+        private int EngageBlinkLandingSide =>
+            EnemyAbilityExecutor.TeleportLandingSide(GlobalPosition.X, _target.GlobalPosition.X);
 
         /// <summary>The horizontal gap to its aim, pivot to pivot, in pixels.</summary>
         internal float EngagementGapPixels => Mathf.Abs(GlobalPosition.X - TargetAimPosition.X);
@@ -176,6 +192,7 @@ namespace FTT.Enemies {
             _engagementBlockedAway = false;
             _engagementRangedRefusedFrames = 0;
             _engagementRangedAsked = false;
+            _engagementBlinkLandingSide = 0;
         }
 
         // === Hooks (one-line calls from EnemyController.cs) ===
@@ -211,13 +228,25 @@ namespace FTT.Enemies {
 
         /// <summary>
         /// The engage-blink gate: the blink is a melee commit from range, so it
-        /// needs one of the target's melee slots (taken here when one is free and
-        /// this mob is the candidate it goes to). A mob without a standard
-        /// Teleport is never refused here — its blink check fails on its own.
+        /// needs one of the target's melee slots — <b>on the side it lands
+        /// on</b>, the target's far side (review fix 2026-10-13: the slot used to
+        /// be judged against the side the mob stood on and then spent on the
+        /// other, which put two attackers on one side on Normal). A waiter is
+        /// granted a slot here only when that side has room; a holder blinks only
+        /// when that side stays inside its per-side cap, and otherwise keeps its
+        /// slot and walks in. A mob without a standard Teleport, or whose blink
+        /// would not fire this tick, is never refused here —
+        /// <see cref="TryEngageBlink"/> refuses on its own and the wait ring
+        /// decides.
         /// </summary>
         private bool EngagementPermitsEngageBlink() {
             if (FindStandardTeleport() == null || !EnsureEngaged()) return true;
-            return HoldsOrTakesMeleeSlot();
+            if (!EngageBlinkReady(out _)) return true;
+            int landingSide = EngageBlinkLandingSide;
+            if (_engagementRole == StoryEngagementRules.EngagementRole.Slot) {
+                return StoryEngagementDirector.SideHasRoomForHolder(this, landingSide);
+            }
+            return HoldsOrTakesMeleeSlot(landingSide);
         }
 
         /// <summary>
@@ -288,9 +317,15 @@ namespace FTT.Enemies {
             return false;
         }
 
-        private bool HoldsOrTakesMeleeSlot() {
+        /// <summary>
+        /// True when the mob holds a melee slot, taking a free one it is granted.
+        /// <paramref name="sideOverride"/> (±1) judges the grant as if the mob
+        /// stood on that side (the engage blink's landing side); 0 uses the side
+        /// it stands on.
+        /// </summary>
+        private bool HoldsOrTakesMeleeSlot(int sideOverride = 0) {
             if (_engagementRole == StoryEngagementRules.EngagementRole.Slot) return true;
-            if (!StoryEngagementDirector.IsGrantedMeleeSlot(this)) return false;
+            if (!StoryEngagementDirector.IsGrantedMeleeSlot(this, sideOverride)) return false;
             EndEngagementCrossing(armCooldown: false);
             _engagementRole = StoryEngagementRules.EngagementRole.Slot;
             _engagementWaitFrames = 0;

@@ -132,12 +132,42 @@ namespace FTT.Combat {
         public const int StaleSlotFrames = 120;
 
         /// <summary>
-        /// The farthest a mob's AttackRange-based stand-off band may hold, in
-        /// pixels: the 1.5-zoom half view (640) less 80, so a shooter whose
-        /// projectile-widened range would hold it off screen stays on screen.
-        /// Only the hold line is capped; the commit range is unchanged.
+        /// Half the zoomed Story view's world width, in pixels: the reference
+        /// viewport width over <c>StoryCameraRules.ViewZoom</c>, halved
+        /// (1920 / 1.5 / 2 = 640). Derived at compile time — the camera rulebook
+        /// owns the zoom, and const arithmetic keeps this class engine-free.
         /// </summary>
-        public const float RangedHoldMaxPixels = 560f;
+        public const float ZoomedHalfViewPixels =
+            FTT.Environment.StoryCameraRules.ReferenceViewportWidth / FTT.Environment.StoryCameraRules.ViewZoom / 2f;
+
+        /// <summary>How far inside the half view the ranged hold line sits, in pixels.</summary>
+        public const float RangedHoldViewMarginPixels = 80f;
+
+        /// <summary>
+        /// How far inside the half view a capped hold band's release line sits,
+        /// in pixels: the band keeps a 40 px dead band above the hold line and
+        /// still releases on screen.
+        /// </summary>
+        public const float RangedHoldReleaseViewMarginPixels = 40f;
+
+        /// <summary>
+        /// The farthest a mob's AttackRange-based stand-off band may hold, in
+        /// pixels: the zoomed half view less <see cref="RangedHoldViewMarginPixels"/>
+        /// (640 − 80 = 560), so a shooter whose projectile-widened range would
+        /// hold it off screen stays on screen. Only the hold line is capped; the
+        /// commit range is unchanged.
+        /// </summary>
+        public const float RangedHoldMaxPixels = ZoomedHalfViewPixels - RangedHoldViewMarginPixels;
+
+        /// <summary>
+        /// The farthest a capped hold band's release line may sit, in pixels: the
+        /// zoomed half view less <see cref="RangedHoldReleaseViewMarginPixels"/>
+        /// (640 − 40 = 600). A capped shooter waiting in its band (for its
+        /// cooldown or a ranged permit) follows a hero who backs away before the
+        /// hero's step takes it off screen (review fix 2026-10-13: the release
+        /// used to keep the uncapped hysteresis ratio, 724.7 px for the sentry).
+        /// </summary>
+        public const float RangedHoldReleaseMaxPixels = ZoomedHalfViewPixels - RangedHoldReleaseViewMarginPixels;
 
         /// <summary>A waiter's approach toward its ring position, as a fraction of its own chase speed.</summary>
         public const float WaiterApproachSpeedFraction = 0.8f;
@@ -207,6 +237,13 @@ namespace FTT.Combat {
         /// </summary>
         public static float CappedHoldEngagePixels(float engagePixels) => Math.Min(engagePixels, RangedHoldMaxPixels);
 
+        /// <summary>
+        /// The release line of a band whose engage line the ranged hold cap
+        /// moved: its own hysteresis line, never past
+        /// <see cref="RangedHoldReleaseMaxPixels"/>.
+        /// </summary>
+        public static float CappedHoldResumePixels(float resumePixels) => Math.Min(resumePixels, RangedHoldReleaseMaxPixels);
+
         /// <summary>True when a holder's stale count has reached <see cref="StaleSlotFrames"/>.</summary>
         public static bool IsStale(int staleFrames) => staleFrames >= StaleSlotFrames;
 
@@ -255,9 +292,9 @@ namespace FTT.Combat {
         public readonly struct Candidate {
             /// <summary>The mob's stable tie-break identity (its Godot instance id).</summary>
             public readonly ulong InstanceId;
-            /// <summary>An elite ranks before any standard.</summary>
+            /// <summary>An elite ranks before any standard in the same rest state.</summary>
             public readonly bool IsElite;
-            /// <summary>Its rest after a hand-off has run out.</summary>
+            /// <summary>Its rest after a hand-off has run out (the first priority key).</summary>
             public readonly bool Rested;
             /// <summary>−1: left of the target; +1: right of it.</summary>
             public readonly int Side;
@@ -277,16 +314,23 @@ namespace FTT.Combat {
         }
 
         /// <summary>
-        /// The priority order for a free melee slot, best first: an elite before a
-        /// standard; a rested waiter before a resting one; the side with fewer
-        /// holders; more waited frames (round-robin, so a mob that just handed
-        /// off goes to the back); the nearer <see cref="PriorityGapBucketPixels"/>
-        /// bucket; and the lower instance id. Negative when
-        /// <paramref name="a"/> ranks first.
+        /// The priority order for a free melee slot, best first: a rested waiter
+        /// before a resting one; then an elite before a standard; the side with
+        /// fewer holders; more waited frames (round-robin, so a mob that just
+        /// handed off goes to the back); the nearer
+        /// <see cref="PriorityGapBucketPixels"/> bucket; and the lower instance
+        /// id. Negative when <paramref name="a"/> ranks first.
+        ///
+        /// <para>Rest outranks tier (review fix 2026-10-13, a deviation from the
+        /// plan's literal "elite → rest" order): a holder that has just handed
+        /// off is resting, and an elite ranked ahead of every rested standard
+        /// took its slot straight back, so the hand-off and the stale rule never
+        /// passed an elite's turn on. Elites still go first among rested
+        /// waiters (and among resting ones).</para>
         /// </summary>
         public static int ComparePriority(in Candidate a, in Candidate b, int holdersLeft, int holdersRight) {
-            if (a.IsElite != b.IsElite) return a.IsElite ? -1 : 1;
             if (a.Rested != b.Rested) return a.Rested ? -1 : 1;
+            if (a.IsElite != b.IsElite) return a.IsElite ? -1 : 1;
             int aSideHolders = a.Side < 0 ? holdersLeft : holdersRight;
             int bSideHolders = b.Side < 0 ? holdersLeft : holdersRight;
             if (aSideHolders != bSideHolders) return aSideHolders < bSideHolders ? -1 : 1;

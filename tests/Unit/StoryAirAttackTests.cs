@@ -192,6 +192,13 @@ public class StoryAirAttackTests {
                 .OverrideFailureMessage("Control: a held grounded string must continue into hit 2.")
                 .IsEqual(1);
             AssertThat(player.CurrentState).IsEqual(CharacterState.Attacking);
+            // Mid-string on the ground a press continues the chain, so the CPU
+            // band's step (the Mirror projects it) names the finisher (review
+            // fix 2026-10-13: the only non-zero Story pin was lost with the air
+            // strike).
+            AssertThat(player.NextChainStepForPress)
+                .OverrideFailureMessage("Control: during grounded hit 2 a press continues into the finisher (step 2).")
+                .IsEqual(2);
         });
 
         // Held through hit 1 while walking off the edge: the held continuation
