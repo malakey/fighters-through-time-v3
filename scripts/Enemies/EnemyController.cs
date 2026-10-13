@@ -493,6 +493,7 @@ namespace FTT.Enemies {
 
         public override void _ExitTree() {
             UnbindEvents();
+            LeaveEngagement(); // GU-F: a freed or reparented body frees its slot.
         }
 
         private void ResolveNodes() {
@@ -684,6 +685,7 @@ namespace FTT.Enemies {
             if (_attackCooldownTimer > 0) _attackCooldownTimer -= dt;
             if (_eliteCooldownTimer > 0) _eliteCooldownTimer -= dt;
             TickStaggerDiscipline(dt);
+            TickEngagementCounters(); // GU-F: rest, waited and stale run on the mob's own clock.
             Executor.Tick(dt);
 
             if (_finisherFlight && CurrentState != EnemyState.Stunned) {
@@ -844,6 +846,7 @@ namespace FTT.Enemies {
             if (!IsOnFloor()
                 && _finisherFlightPostStunFrames < FTT.Combat.StoryEnemyCombatRules.FinisherFlightMaxPostStunFrames) return;
             ResetLaunchCarry();
+            EngagementOnFinisherTouchdown(); // GU-F: hands the slot off only to an eligible waiter.
             TryPressureExitAttack();
         }
 
@@ -1002,7 +1005,8 @@ namespace FTT.Enemies {
             // blank triggers it ahead of the ordinary attack commit.
             if (TryReactivePhaseSkip()) return;
             // M20: a standard's Teleport is the opposite — a gap-closer from range.
-            if (TryEngageBlink()) return;
+            // GU-F: as a melee commit from range, it needs one of the target's melee slots.
+            if (EngagementPermitsEngageBlink() && TryEngageBlink()) return;
 
             // D6c (user direction 2026-10-11): a capped melee primary commits only
             // inside its own reach (horizontal gap and height band); every other
@@ -1012,10 +1016,15 @@ namespace FTT.Enemies {
             EnemyAbilityData next = PreviewNextAttack();
             bool cappedPrimary = IsCappedMeleePrimary(next);
             bool answerOwed = ArmoredAnswerOwed;
+            // GU-F (request 6): a melee mob without a slot holds on the wait ring
+            // instead of walking in. An owed answer is retaliation and never waits.
+            if (!answerOwed && EngagementHoldsOnWaitRing(next, aim, dt)) return;
             bool attackReady = _attackCooldownTimer <= 0 || answerOwed;
             bool commits = cappedPrimary
                 ? attackReady && InCappedMeleeReach(next, aim)
                 : attackReady && dist <= AttackRangePixels;
+            // GU-F: a ranged commit waits for one of the target's ranged permits.
+            if (commits && !answerOwed && !EngagementPermitsCommit(next)) commits = false;
             if (commits) {
                 if (answerOwed) {
                     // The answer swings now, inside its armored window, exactly as
@@ -1062,8 +1071,12 @@ namespace FTT.Enemies {
                     if (horizontalGap <= engage) _standOffEngaged = true;
                     else if (horizontalGap > resume) _standOffEngaged = false;
                 }
-            } else if (dist <= AttackRangePixels * StandOffEngageFraction) _standOffEngaged = true;
-            else if (dist > AttackRangePixels * StandOffResumeFraction) _standOffEngaged = false;
+            } else {
+                // GU-F: StandOffBandFor carries the ranged hold cap.
+                StandOffBandFor(next, out float engage, out float resume);
+                if (dist <= engage) _standOffEngaged = true;
+                else if (dist > resume) _standOffEngaged = false;
+            }
 
             if (_standOffEngaged) {
                 float decel = StandOffDecelerationPerSecond * dt;
@@ -1300,6 +1313,8 @@ namespace FTT.Enemies {
 
             if (!Executor.IsBusy) {
                 _attackCommitted = false;
+                // GU-F: a holder hands its slot to an eligible waiter (never after a blink).
+                EngagementOnAttackEnded(engageBlink: _secondaryBlinkInFlight);
                 // M20: a finished engage blink hands straight back to Chase without
                 // arming the primary's cooldown — the ambush swing follows.
                 if (_secondaryBlinkInFlight) {
@@ -1447,13 +1462,20 @@ namespace FTT.Enemies {
         /// D6c: the stand-off band for <paramref name="ability"/>. A capped
         /// primary engages at <c>max(0.85 C, contact + 4 + 4.5 v/60)</c> on the
         /// horizontal gap, so its rest sits outside pushbox contact; every other
-        /// attack keeps today's 0.85 / 1.10 of <see cref="AttackRangePixels"/>.
-        /// The release keeps the same hysteresis ratio.
+        /// attack keeps today's 0.85 / 1.10 of <see cref="AttackRangePixels"/>,
+        /// except that (GU-F, request 6) its engage line never holds farther than
+        /// <see cref="FTT.Combat.StoryEngagementRules.RangedHoldMaxPixels"/>, so a
+        /// shooter whose projectile-widened range would hold it off the closer
+        /// camera's screen stays on it. The release keeps the same hysteresis
+        /// ratio.
         /// </summary>
         private void StandOffBandFor(EnemyAbilityData ability, out float engage, out float resume) {
             if (!IsCappedMeleePrimary(ability)) {
-                engage = AttackRangePixels * StandOffEngageFraction;
-                resume = AttackRangePixels * StandOffResumeFraction;
+                float uncapped = AttackRangePixels * StandOffEngageFraction;
+                engage = FTT.Combat.StoryEngagementRules.CappedHoldEngagePixels(uncapped);
+                resume = engage < uncapped
+                    ? engage * StandOffResumeFraction / StandOffEngageFraction
+                    : AttackRangePixels * StandOffResumeFraction;
                 return;
             }
             float ownHalfWidth = _pushbox != null ? _pushbox.BoxSize.X * 0.5f : _bodyHalfWidth;
@@ -1848,6 +1870,7 @@ namespace FTT.Enemies {
         }
 
         private void StartReturning() {
+            LeaveEngagement(); // GU-F
             _target = null;
             _standOffEngaged = false;
             _armoredAnswerPending = false;
@@ -1953,6 +1976,7 @@ namespace FTT.Enemies {
                 _hurtbox.SetMonitorableSafe(false);
             }
             _pushbox?.SetPushEnabled(false);
+            LeaveEngagement(); // GU-F: a death frees the slot at once.
             PlayAnimation("death");
             _glow?.ClearAllStates();
             _deathTimer = DeathAnimationSeconds;
@@ -2350,7 +2374,9 @@ namespace FTT.Enemies {
             Godot.Collections.Array<Node> players = GetTree().GetNodesInGroup("Players");
             using var playersLifetime = players.AsDisposable();
             foreach (var node in players) {
-                if (node is FTT.Characters.PlayerController pc && pc.CurrentState != FTT.Characters.CharacterState.Dead) {
+                // GU-F: a Story-hostile body (the Level 13 Mirror clone) is never a target.
+                if (node is FTT.Characters.PlayerController pc && !pc.IsStoryHostile
+                    && pc.CurrentState != FTT.Characters.CharacterState.Dead) {
                     float d = GlobalPosition.DistanceTo(pc.GlobalPosition);
                     if (d < nearestDist) { nearestDist = d; nearest = pc; }
                 }
@@ -2434,6 +2460,7 @@ namespace FTT.Enemies {
             _eliteAbilityIndex = -1;
             _lastAttackWasElite = false;
             _secondaryBlinkInFlight = false;
+            LeaveEngagement(); // GU-F: a recycled body starts outside every rotation.
             _target = null;
             _rewindFrozen = false;
             _checkpointCaptured = false;
@@ -2471,6 +2498,7 @@ namespace FTT.Enemies {
                 _hurtbox.Monitoring = false;
                 _hurtbox.Monitorable = false;
             }
+            LeaveEngagement(); // GU-F: a parked body frees its slot.
             _target = null;
             _rewindFrozen = false;
             _deathTimer = 0f;
@@ -2554,6 +2582,7 @@ namespace FTT.Enemies {
             bool useCheckpoint = RewindPolicy == StoryRewindPolicy.RestoreCheckpointState && _checkpointCaptured;
             GlobalPosition = useCheckpoint ? _checkpointPosition : _spawnPosition;
             CurrentHP = useCheckpoint && _checkpointHP > 0 ? _checkpointHP : ScaledMaxHP;
+            LeaveEngagement(); // GU-F: the restored body has not engaged yet.
             CurrentState = EnemyState.Patrol;
             _target = null;
             _attackCooldownTimer = 0f;

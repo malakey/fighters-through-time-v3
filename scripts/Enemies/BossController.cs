@@ -2039,7 +2039,9 @@ namespace FTT.Enemies {
             Godot.Collections.Array<Node> players = GetTree().GetNodesInGroup("Players");
             using var playersLifetime = players.AsDisposable();
             foreach (var node in players) {
-                if (node is FTT.Characters.PlayerController pc && pc.CurrentState != FTT.Characters.CharacterState.Dead) {
+                // GU-F: a Story-hostile body (the Level 13 Mirror clone) is never a target.
+                if (node is FTT.Characters.PlayerController pc && !pc.IsStoryHostile
+                    && pc.CurrentState != FTT.Characters.CharacterState.Dead) {
                     float d = GlobalPosition.DistanceTo(pc.GlobalPosition);
                     if (d < nearestDist) { nearestDist = d; nearest = pc; }
                 }
