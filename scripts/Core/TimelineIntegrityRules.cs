@@ -67,6 +67,22 @@ namespace FTT.Core {
         /// </summary>
         public const float MinimumRawFactor = 0.9f;
 
+        /// <summary>
+        /// <i>Provisional</i> (gameplay update 2026-10-12, GU-E;
+        /// <c>VERIFY-PAR-SECONDS</c>): encounter locks, the 20 % slower hero and
+        /// enemy turn-taking all lengthen every run, and every authored par is
+        /// still a seeded guess. Until par is re-measured, the par a level hands
+        /// <c>StoryManager</c> — and every F11 remaining-route budget it registers,
+        /// so the recovery minima keep their point values — is multiplied by this
+        /// once, where <c>StoryManager</c> receives it. The level controllers keep
+        /// their authored values; the Tutorial and Florence stay untimed (0 x 1.5).
+        /// </summary>
+        public const float ProvisionalParScale = 1.5f;
+
+        /// <summary>An authored par (or route budget) as the clock uses it: times <see cref="ProvisionalParScale"/>.</summary>
+        public static float ProvisionallyScaledSeconds(float authoredSeconds) =>
+            Math.Max(0f, authoredSeconds) * ProvisionalParScale;
+
         /// <summary>Par is multiplied by this per difficulty: Easy 2.0, Normal 1.5, Hard 1.2.</summary>
         public static float DifficultyTimeMultiplier(Difficulty difficulty) => difficulty switch {
             Difficulty.Easy => 2.0f,

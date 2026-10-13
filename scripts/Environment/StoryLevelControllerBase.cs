@@ -152,7 +152,12 @@ namespace FTT.Environment {
         /// <summary>Build graybox geometry, checkpoints, room triggers, puzzles, and boss anchors.</summary>
         protected abstract void BuildLevel();
 
-        /// <summary>Enemies present the moment the level opens (later waves use wave triggers).</summary>
+        /// <summary>
+        /// Enemies present the moment the level opens (later waves use wave
+        /// triggers). GU-E (2026-10-12): an encounter lock's pre-placed members are
+        /// its <see cref="EncounterWaveTrigger.OnBuild"/> wave instead — a level
+        /// converted to locks (Level 2) spawns nothing here.
+        /// </summary>
         protected virtual void SpawnInitialEnemies() { }
 
         /// <summary>
@@ -256,6 +261,9 @@ namespace FTT.Environment {
             BuildAuthoredRestorationFont();
             BuildGenericSealingAnchor();
             SpawnPlayer();
+            // GU-E (2026-10-12): the encounter locks arm once the resume baseline
+            // (applied inside SpawnPlayer) has said which of them are Cleared.
+            ArmEncounterLocks();
             SpawnInitialEnemies();
             ApplyResumedAttemptState();
             // V7.6 F01: arm the level clock AFTER the world is built (so the
@@ -350,10 +358,13 @@ namespace FTT.Environment {
         }
 
         /// <summary>
-        /// A 15 s rewind routinely lands in an earlier room, whose forward-only
+        /// A 5 s rewind routinely lands in an earlier room, whose forward-only
         /// transition trigger will not re-fire; without this the camera stays
         /// confined to the room the player died in and the landing is
-        /// off-screen. Mirrors <see cref="ApplyResumeCameraBounds"/>.
+        /// off-screen. Mirrors <see cref="ApplyResumeCameraBounds"/>. While an
+        /// encounter lock holds the camera (GU-E) this only updates the stored
+        /// room rect; a landing outside the lock's area reverts the lock, which
+        /// eases the camera back to that room.
         /// </summary>
         private void OnRewindLanded(Vector2 landingPosition) {
             if (Camera == null) return;
@@ -630,9 +641,12 @@ namespace FTT.Environment {
         /// The current layout version of every explicit encounter-baseline map.
         /// Package 11's derived <c>{LevelID}_wave_N</c> IDs were version 1; a
         /// persisted checkpoint record carrying an older version is ignored in
-        /// favour of the level's current map.
+        /// favour of the level's current map. Version 3 (GU-E, 2026-10-12): the
+        /// maps list encounter-lock IDs, and a version-2 record names the waves
+        /// the locks replaced — a checkpoint-record layout version, not a save
+        /// schema.
         /// </summary>
-        public const int ExplicitEncounterBaselineVersion = 2;
+        public const int ExplicitEncounterBaselineVersion = 3;
 
         /// <summary>
         /// The level's explicit checkpoint → cleared-encounter map (F10:
@@ -672,7 +686,12 @@ namespace FTT.Environment {
         /// </summary>
         protected void ApplyResumedEncounterBaseline(string checkpointID) {
             IReadOnlyList<string> baseline = ResolveResumeEncounterBaseline(checkpointID);
-            foreach (string encounterID in baseline) MarkEncounterCleared(encounterID);
+            foreach (string encounterID in baseline) {
+                // GU-E: an encounter lock in the baseline builds Cleared — no
+                // members, barriers open. The level still hears the ID.
+                RestoreEncounterLockCleared(encounterID);
+                MarkEncounterCleared(encounterID);
+            }
             AppliedEncounterBaseline = baseline;
         }
 
@@ -766,6 +785,7 @@ namespace FTT.Environment {
 
         protected void SetObjective(string translationKey, params object[] arguments) {
             if (string.IsNullOrWhiteSpace(translationKey)) return;
+            RememberLevelObjective(translationKey, arguments); // GU-E: what a lock's release restores
             HUD?.SetObjective(translationKey, arguments);
         }
 
@@ -1289,7 +1309,14 @@ namespace FTT.Environment {
                 // Wave callbacks spawn collision bodies, which the engine
                 // forbids during the in/out flush this signal runs in; fire
                 // the callback right after the flush.
-                Callable.From(() => onEntered?.Invoke()).CallDeferred();
+                Callable.From(() => {
+                    onEntered?.Invoke();
+                    // GU-E: a wave spawned while Time Freeze (or a recovery
+                    // hold) stops the world freezes before it takes a tick.
+                    if (IsInstanceValid(trigger) && trigger.IsInsideTree()) {
+                        TimeFreezeController.FreezeActivatedRoom(trigger.GetTree());
+                    }
+                }).CallDeferred();
             };
             AddChild(trigger);
             return trigger;

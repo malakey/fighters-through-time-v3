@@ -42,6 +42,13 @@ namespace FTT.Environment {
         public override void _Ready() => SetBounds(ActiveBounds);
 
         public void SetBounds(Rect2 bounds) {
+            // GU-E: a room change while an encounter lock holds the camera only
+            // updates the stored room rect (Levels 3 and 7 re-fire room
+            // triggers on every crossing); the lock's release eases back to it.
+            _roomBounds = bounds.Abs();
+            _roomBoundsKnown = true;
+            if (_hasLockBounds) return;
+            _boundsEasing = false;
             ActiveBounds = bounds.Abs();
             LimitLeft = Mathf.RoundToInt(ActiveBounds.Position.X);
             LimitTop = Mathf.RoundToInt(ActiveBounds.Position.Y);
@@ -83,9 +90,107 @@ namespace FTT.Environment {
         }
 
         public override void _PhysicsProcess(double delta) {
+            StepBoundsEase((float)delta); // GU-E: the lock-bounds ease, before the rig confines
             if (!IsFollowing) return;
             StepFollow((float)delta);
         }
+
+        // === GU-E (2026-10-12): the encounter-lock bounds layer ===============
+        //
+        // An engaged EncounterLock overrides the room rect with its own camera
+        // rect; a room SetBounds while it holds only updates the stored room
+        // rect, so a repeatable room-trigger pair cannot overwrite the clamp, and
+        // the base level's rewind and resume re-confinement defer to it for free.
+        // The limits ease in and out (EncounterLockRules.CameraEaseSeconds) rather
+        // than snapping. Zoom, the view size and boss framing are GU-B's.
+
+        private Rect2 _roomBounds;
+        private bool _roomBoundsKnown;
+        private bool _hasLockBounds;
+        private Rect2 _lockBounds;
+        private bool _boundsEasing;
+        private Rect2 _easedBounds;
+        private Rect2 _easeTarget;
+
+        /// <summary>True while an encounter lock's rect overrides the room rect.</summary>
+        public bool HasLockBounds => _hasLockBounds;
+
+        /// <summary>The encounter lock's rect, while one is set.</summary>
+        public Rect2 LockBounds => _lockBounds;
+
+        /// <summary>The last room rect a room trigger or the level set (the rect a lock release returns to).</summary>
+        public Rect2 RoomBounds => _roomBoundsKnown ? _roomBounds : ActiveBounds;
+
+        /// <summary>True while the limits are still easing toward a lock rect or back to the room.</summary>
+        public bool IsEasingBounds => _boundsEasing;
+
+        /// <summary>
+        /// The limits the camera currently confines to (eased), as a rect. Equal to
+        /// <see cref="ActiveBounds"/> once an ease has settled. Test seam.
+        /// </summary>
+        public Rect2 CurrentLimits => new(LimitLeft, LimitTop, LimitRight - LimitLeft, LimitBottom - LimitTop);
+
+        /// <summary>
+        /// An engaged encounter lock takes the camera: its rect overrides the room
+        /// rect, eased in. <see cref="ActiveBounds"/> reads the lock rect at once.
+        /// </summary>
+        public void SetLockBounds(Rect2 bounds) {
+            if (!_roomBoundsKnown) {
+                _roomBounds = ActiveBounds;
+                _roomBoundsKnown = true;
+            }
+            _hasLockBounds = true;
+            _lockBounds = bounds.Abs();
+            BeginBoundsEase(_lockBounds);
+        }
+
+        /// <summary>The lock released the camera: ease back to the stored room rect.</summary>
+        public void ClearLockBounds() {
+            if (!_hasLockBounds) return;
+            _hasLockBounds = false;
+            BeginBoundsEase(RoomBounds);
+        }
+
+        private void BeginBoundsEase(Rect2 target) {
+            ActiveBounds = target;
+            if (!IsFollowing || !IsInsideTree()) {
+                // No rig to pan smoothly: the built-in limits apply at once.
+                _boundsEasing = false;
+                WriteLimits(target);
+            } else {
+                _easedBounds = _boundsEasing ? _easedBounds : CurrentLimits;
+                _easeTarget = target;
+                _boundsEasing = true;
+            }
+            EmitSignal(SignalName.BoundsChanged, ActiveBounds);
+        }
+
+        /// <summary>
+        /// One step of the limit ease. Public so tests can drive it frame by
+        /// frame; the camera's own physics step runs it.
+        /// </summary>
+        public void StepBoundsEase(float delta) {
+            if (!_boundsEasing) return;
+            float factor = StoryCameraRules.DampFactor(EncounterLockRules.CameraEaseSeconds, delta);
+            Vector2 start = _easedBounds.Position.Lerp(_easeTarget.Position, factor);
+            Vector2 end = _easedBounds.End.Lerp(_easeTarget.End, factor);
+            if (start.DistanceTo(_easeTarget.Position) < 0.5f && end.DistanceTo(_easeTarget.End) < 0.5f) {
+                start = _easeTarget.Position;
+                end = _easeTarget.End;
+                _boundsEasing = false;
+            }
+            _easedBounds = new Rect2(start, end - start);
+            WriteLimits(_easedBounds);
+        }
+
+        private void WriteLimits(Rect2 bounds) {
+            LimitLeft = Mathf.RoundToInt(bounds.Position.X);
+            LimitTop = Mathf.RoundToInt(bounds.Position.Y);
+            LimitRight = Mathf.RoundToInt(bounds.End.X);
+            LimitBottom = Mathf.RoundToInt(bounds.End.Y);
+        }
+
+        // === end GU-E region ==================================================
 
         /// <summary>One rig step. Public so tests can drive it frame by frame.</summary>
         public void StepFollow(float delta) {

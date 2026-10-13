@@ -1649,3 +1649,8 @@ hero_name_tubman,Tubman
 hero_address_tubman,Miss Tubman
 hero_possessive_tubman,Tubman's
 hero_home_era_tubman,Maryland
+# GU-E
+# Gameplay update 2026-10-12 (user request 3): encounter locks - the HUD counter and GO prompt and the generic lock objective.
+hud_encounter_enemies_left,Enemies left: {0}
+hud_encounter_go,GO
+encounter_lock_objective_clear,Defeat every enemy here to break the Severed barrier.

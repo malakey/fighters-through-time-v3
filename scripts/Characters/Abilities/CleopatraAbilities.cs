@@ -245,11 +245,12 @@ namespace FTT.Characters.Abilities {
                 CharacterBody2D body = FindTargetBody(hurtbox);
                 if (body == null) continue;
                 float dx = _vortexCenter.X - body.GlobalPosition.X;
-                if (Mathf.Abs(dx) <= step) {
-                    body.GlobalPosition = new Vector2(_vortexCenter.X, body.GlobalPosition.Y);
-                } else {
-                    body.GlobalPosition += new Vector2(Mathf.Sign(dx) * step, 0f);
-                }
+                float travel = Mathf.Abs(dx) <= step ? dx : Mathf.Sign(dx) * step;
+                // GU-E (2026-10-12): a positional pull through the body's own
+                // collision (the Tempest pattern), so walls and encounter-lock
+                // barriers stop it — it used to write the position straight
+                // through them.
+                body.MoveAndCollide(new Vector2(travel, 0f));
             }
         }
 

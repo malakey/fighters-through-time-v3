@@ -298,6 +298,144 @@ public class Level02ContentTests {
         }
     }
 
+    // === GU-E (2026-10-12): the three encounter locks ===
+
+    [TestCase]
+    public void TheThreeApproachRoomsAreEncounterLocksOneWavePerManifestRow() {
+        using var fixture = new Level02Fixture(null);
+        Level02Controller level = fixture.Level;
+        try {
+            AssertThat(level.EncounterLocks.Count).IsEqual(3);
+            EncounterLock vanguard = level.VanguardLock;
+            EncounterLock siegeLine = level.SiegeLineLock;
+            EncounterLock battlement = level.BattlementLock;
+            AssertString(vanguard.LockID).IsEqual(Level02Controller.LockVanguard);
+            AssertString(siegeLine.LockID).IsEqual(Level02Controller.LockSiegeLine);
+            AssertString(battlement.LockID).IsEqual(Level02Controller.LockBattlement);
+
+            // The plan's areas: 300-3200, 3220-6290 (to Gate A), 6460-8690 (to Gate B).
+            AssertThat(vanguard.Area.Position.X).IsEqual(300f);
+            AssertThat(vanguard.Area.End.X).IsEqual(3200f);
+            AssertThat(siegeLine.Area.Position.X).IsEqual(3220f);
+            AssertThat(siegeLine.Area.End.X).IsEqual(6290f);
+            AssertThat(battlement.Area.Position.X).IsEqual(6460f);
+            AssertThat(battlement.Area.End.X).IsEqual(8690f);
+
+            // One wave per manifest row, the authored tables, the plan's triggers.
+            AssertString(vanguard.Spec.Waves[0].RowID).IsEqual(Level02Controller.Room1RowID);
+            AssertString(siegeLine.Spec.Waves[0].RowID).IsEqual(Level02Controller.Room2RowID);
+            AssertString(battlement.Spec.Waves[0].RowID).IsEqual(Level02Controller.Room3RowID);
+            AssertThat(vanguard.Spec.Waves[0].Spawns.Length).IsEqual(Level02Controller.Room1Spawns.Length);
+            AssertThat(siegeLine.Spec.Waves[0].Spawns.Length).IsEqual(Level02Controller.Room2Spawns.Length);
+            AssertThat(battlement.Spec.Waves[0].Spawns.Length).IsEqual(Level02Controller.Room3Spawns.Length);
+            AssertThat(vanguard.Spec.Waves[0].Trigger).IsEqual(EncounterWaveTrigger.OnBuild);
+            AssertThat(siegeLine.Spec.Waves[0].Trigger).IsEqual(EncounterWaveTrigger.OnEngage);
+            AssertThat(battlement.Spec.Waves[0].Trigger).IsEqual(EncounterWaveTrigger.OnBuild);
+
+            // Armed at load: the pre-placed rooms stand dormant, the siege line's
+            // soldiers come over the earthworks only once the hero is in.
+            foreach (EncounterLock encounterLock in level.EncounterLocks) {
+                AssertThat(encounterLock.State).IsEqual(EncounterLockState.Armed);
+                AssertThat(encounterLock.ExitBarrier.IsClosed).IsTrue();
+                AssertThat(encounterLock.EntryBarrier.IsClosed).IsFalse();
+            }
+            Difficulty difficulty = StoryDifficultyTuning.CurrentStoryDifficulty;
+            AssertThat(vanguard.PlannedTotal)
+                .IsEqual(StoryDifficultyTuning.ScaleEncounterCount(Level02Controller.Room1Spawns.Length, difficulty));
+            AssertThat(vanguard.LivingMemberCount).IsEqual(vanguard.PlannedTotal);
+            AssertThat(siegeLine.LivingMemberCount).IsEqual(0);
+            AssertThat(battlement.LivingMemberCount).IsEqual(battlement.PlannedTotal);
+            foreach (EnemyController member in vanguard.LivingMembers) AssertThat(member.IsEncounterDormant).IsTrue();
+
+            // The siege line's exit fills Gate A under its column; the battlement's fills Gate B.
+            AssertThat(siegeLine.ExitBarrier.CenterX).IsEqual(Level02Controller.GateAX);
+            AssertThat(siegeLine.ExitBarrier.TopY).IsEqual(600f);
+            AssertThat(battlement.ExitBarrier.CenterX).IsEqual(Level02Controller.GateBX);
+            AssertThat(battlement.ExitBarrier.TopY).IsEqual(240f);
+            AssertThat(siegeLine.Spec.RequiredBreakables.Length).IsEqual(1);
+            AssertThat(siegeLine.Spec.RequiredBreakables[0] == level.ShieldTowerA).IsTrue();
+
+            // Every later anchor lists the locks before it.
+            IReadOnlyDictionary<string, string[]> baselines = level.AuthoredEncounterBaselines;
+            AssertThat(baselines[Level02Controller.Checkpoint0].Length).IsEqual(0);
+            AssertThat(string.Join(",", baselines[Level02Controller.Checkpoint1]))
+                .IsEqual($"{Level02Controller.LockVanguard},{Level02Controller.LockSiegeLine}");
+            AssertThat(string.Join(",", baselines[Level02Controller.Checkpoint2]))
+                .IsEqual($"{Level02Controller.LockVanguard},{Level02Controller.LockSiegeLine},{Level02Controller.LockBattlement}");
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+        }
+    }
+
+    [TestCase]
+    public void TheMiddleAnchorStandsInTheCorridorPastGateAOutsideEveryLock() {
+        using var fixture = new Level02Fixture(null);
+        Level02Controller level = fixture.Level;
+        try {
+            CheckpointTrigger middle = null;
+            foreach (Node child in Children(level)) {
+                if (child is CheckpointTrigger checkpoint && checkpoint.CheckpointID == Level02Controller.Checkpoint1) middle = checkpoint;
+            }
+            AssertObject(middle).IsNotNull();
+            AssertThat(middle.Role).IsEqual(CheckpointRole.Middle);
+            AssertThat(middle.GlobalPosition.X).IsEqual(Level02Controller.MiddleCheckpointX);
+            // Past Gate A's barrier (east face 6324) and short of the battlement's entry (6440).
+            AssertThat(middle.GlobalPosition.X - 30f > Level02Controller.GateAX + 24f).IsTrue();
+            AssertThat(middle.GlobalPosition.X + 30f < level.BattlementLock.EntryBarrier.Footprint.Position.X).IsTrue();
+            foreach (EncounterLock encounterLock in level.EncounterLocks) {
+                bool inside = middle.GlobalPosition.X + 30f > encounterLock.Area.Position.X
+                    && middle.GlobalPosition.X - 30f < encounterLock.Area.End.X;
+                AssertThat(inside).OverrideFailureMessage($"The Middle anchor stands inside '{encounterLock.LockID}'.").IsFalse();
+            }
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+        }
+    }
+
+    /// <summary>
+    /// The siege line clears only when its soldiers are down AND generator A has
+    /// fallen (a required breakable), and then both barriers open — in real
+    /// physics frames on the real scene.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task ClearingTheSiegeLineNeedsItsGeneratorAsWellAsItsSoldiers() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        using var fixture = new Level02Fixture(null);
+        Level02Controller level = fixture.Level;
+        FTT.Characters.PlayerController player = level.Player;
+        try {
+            for (int frame = 0; frame < 2; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            DialogueManager dialogue = DialogueManager.Instance;
+            for (int advance = 0; advance < 200 && dialogue != null && dialogue.IsSequenceActive; advance++) dialogue.AdvanceLine();
+            AssertThat(tree.Paused).IsFalse();
+
+            EncounterLock siegeLine = level.SiegeLineLock;
+            player.GlobalPosition = new Vector2(3600f, 850f);
+            player.Velocity = Vector2.Zero;
+            for (int frame = 0; frame < 4; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(siegeLine.State).IsEqual(EncounterLockState.Engaged);
+            AssertThat(siegeLine.EntryBarrier.IsClosed).IsTrue();
+            AssertThat(siegeLine.LivingMemberCount).IsEqual(siegeLine.PlannedTotal);
+            AssertThat(siegeLine.LivingMemberCount).IsGreater(0);
+
+            foreach (EnemyController member in siegeLine.LivingMembers) member.TakeDamage(99999);
+            for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(siegeLine.State)
+                .OverrideFailureMessage("The siege line must hold while generator A still stands.")
+                .IsEqual(EncounterLockState.Engaged);
+
+            level.ShieldTowerA.TakeEnvironmentDamage(level.ShieldTowerA.MaxHP);
+            for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(siegeLine.State).IsEqual(EncounterLockState.Cleared);
+            AssertThat(siegeLine.EntryBarrier.IsClosed).IsFalse();
+            AssertThat(siegeLine.ExitBarrier.IsClosed).IsFalse();
+            // The vanguard behind the hero is untouched by the teleport past it.
+            AssertThat(level.VanguardLock.State).IsEqual(EncounterLockState.Armed);
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+        }
+    }
+
     // === Helpers ===
 
     private static IEnumerable<(string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)> AllAuthoredSpawns() {

@@ -839,8 +839,10 @@ public class ArenaGeometryContentTests {
     private static void AddReachIssues(LevelSnapshot level, Rect2 column, float reach, List<string> issues) {
         foreach (Rect2 solid in level.Standables) {
             // No column top (y −2400) is ever stood on: it is out of every
-            // reach by this very test, so it is no launch point either.
-            if (level.GateColumns.Contains(solid)) continue;
+            // reach by this very test, so it is no launch point either. GU-E
+            // (2026-10-12): the same holds for any wall rising to the sky
+            // ceiling — an encounter-lock barrier closed from level build.
+            if (level.GateColumns.Contains(solid) || solid.Position.Y <= StoryGateRules.ColumnTopY + 0.5f) continue;
             float gap = Mathf.Max(0f, Mathf.Max(solid.Position.X - column.End.X, column.Position.X - solid.End.X));
             if (gap > MaxApproachPixels) continue;
             float apex = solid.Position.Y - reach;

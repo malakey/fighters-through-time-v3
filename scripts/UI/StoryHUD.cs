@@ -233,6 +233,7 @@ namespace FTT.UI {
                 bus.OnRallyEchoChanged += OnRallyEchoChanged;
                 bus.OnDustAwardCollected += OnDustAwardCollected;
                 bus.OnChronalDustCollected += OnChronalDustCollected;
+                bus.OnEncounterLockChanged += OnEncounterLockChanged; // GU-E
             }
             InitializeCharacterPresentation();
             RefreshCounters(force: true);
@@ -266,6 +267,7 @@ namespace FTT.UI {
             bus.OnRallyEchoChanged -= OnRallyEchoChanged;
             bus.OnDustAwardCollected -= OnDustAwardCollected;
             bus.OnChronalDustCollected -= OnChronalDustCollected;
+            bus.OnEncounterLockChanged -= OnEncounterLockChanged; // GU-E
         }
 
         public override void _Process(double delta) {
@@ -284,6 +286,7 @@ namespace FTT.UI {
             RefreshTimeFreeze((float)delta);
             RefreshIntegrity();
             TickDustFloat((float)delta);
+            TickEncounterGoPrompt((float)delta); // GU-E
             if (_bossIntroCardTimer > 0f) {
                 _bossIntroCardTimer -= (float)delta;
                 if (_bossIntroCardTimer <= 0f && _bossIntroCard != null) _bossIntroCard.Visible = false;
@@ -1026,6 +1029,7 @@ namespace FTT.UI {
             _bossIntroCard = GetNodeOrNull<Label>("SafeArea/BossIntroCard");
             _tremorOverlay = GetNodeOrNull<ColorRect>("SafeArea/TremorOverlay");
             _checkpointToast = GetNodeOrNull<Label>("SafeArea/CheckpointToast");
+            ResolveEncounterLockUI(); // GU-E
         }
     }
 }
