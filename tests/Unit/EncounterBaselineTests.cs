@@ -89,20 +89,23 @@ public class EncounterBaselineTests {
     public void ReloadingBeforeAndAfterACheckpointAppliesTheNamedNonstandardBaseline() {
         // The Globe names its waves by room — exactly the case the derived
         // "{LevelID}_wave_N" IDs could never describe.
+        // GU-L8 (2026-10-12): the Globe's encounters are its three locks (yard,
+        // stage, galleries); the Middle anchor lists the two before it.
         using (var fixture = new GlobeFixture($"{GlobeID}_checkpoint_1", Difficulty.Normal)) {
             AssertThat(fixture.Level.ResumedMidLevel).IsTrue();
             AssertThat(string.Join(",", fixture.Level.AppliedEncounterBaseline))
-                .IsEqual(Level10Controller.Room2WaveEncounter);
-            AssertThat(fixture.Level.Room2WaveLatched).IsTrue();
-            AssertThat(fixture.Level.Room3WaveLatched)
-                .OverrideFailureMessage("A reload BEFORE the room-3 checkpoint must leave that wave live.")
-                .IsFalse();
+                .IsEqual($"{Level10Controller.LockYard},{Level10Controller.LockStage}");
+            AssertThat(fixture.Level.YardLock.RestoredCleared).IsTrue();
+            AssertThat(fixture.Level.StageLock.RestoredCleared).IsTrue();
+            AssertThat(fixture.Level.GalleriesLock.State)
+                .OverrideFailureMessage("A reload BEFORE the galleries' checkpoint must leave that lock armed.")
+                .IsEqual(EncounterLockState.Armed);
         }
         using (var fixture = new GlobeFixture($"{GlobeID}_checkpoint_2", Difficulty.Normal)) {
-            AssertThat(string.Join(",", fixture.Level.AppliedEncounterBaseline))
-                .IsEqual($"{Level10Controller.Room2WaveEncounter},{Level10Controller.Room3WaveEncounter}");
-            AssertThat(fixture.Level.Room2WaveLatched).IsTrue();
-            AssertThat(fixture.Level.Room3WaveLatched).IsTrue();
+            AssertThat(string.Join(",", fixture.Level.AppliedEncounterBaseline)).IsEqual(GlobeLocks());
+            foreach (EncounterLock encounterLock in fixture.Level.EncounterLocks) {
+                AssertThat(encounterLock.RestoredCleared).IsTrue();
+            }
         }
     }
 
@@ -114,8 +117,8 @@ public class EncounterBaselineTests {
         using var fixture = new GlobeFixture($"{GlobeID}_checkpoint_2", Difficulty.Hard);
         AssertThat(StoryManager.Instance.HasCheckpointRole($"{GlobeID}_checkpoint_1")).IsTrue();
         AssertThat(string.Join(",", StoryManager.Instance.GetEncounterBaseline($"{GlobeID}_checkpoint_2")))
-            .IsEqual($"{Level10Controller.Room2WaveEncounter},{Level10Controller.Room3WaveEncounter}");
-        AssertThat(fixture.Level.Room3WaveLatched).IsTrue();
+            .IsEqual(GlobeLocks());
+        AssertThat(fixture.Level.GalleriesLock.RestoredCleared).IsTrue();
     }
 
     [TestCase]
@@ -132,7 +135,7 @@ public class EncounterBaselineTests {
         using (var fixture = new GlobeFixture(save, Difficulty.Normal)) {
             AssertThat(string.Join(",", fixture.Level.AppliedEncounterBaseline))
                 .OverrideFailureMessage("A stale-layout record must not be applied.")
-                .IsEqual(Level10Controller.Room2WaveEncounter);
+                .IsEqual($"{Level10Controller.LockYard},{Level10Controller.LockStage}");
             AssertThat(LevelRewardDirectory.IsClaimed("level_10.claimed_for_test#0"))
                 .OverrideFailureMessage("A reload must retain collected reward claims.")
                 .IsTrue();
@@ -144,11 +147,10 @@ public class EncounterBaselineTests {
         current.AttemptState.CheckpointRecord.AnchorID = $"{GlobeID}_checkpoint_1";
         current.AttemptState.CheckpointRecord.BaselineVersion = StoryLevelControllerBase.ExplicitEncounterBaselineVersion;
         current.AttemptState.CheckpointRecord.BaselineEncounterIDs =
-            new List<string> { Level10Controller.Room2WaveEncounter, Level10Controller.Room3WaveEncounter };
+            new List<string> { Level10Controller.LockYard, Level10Controller.LockStage, Level10Controller.LockGalleries };
         using (var fixture = new GlobeFixture(current, Difficulty.Normal)) {
-            AssertThat(string.Join(",", fixture.Level.AppliedEncounterBaseline))
-                .IsEqual($"{Level10Controller.Room2WaveEncounter},{Level10Controller.Room3WaveEncounter}");
-            AssertThat(fixture.Level.Room3WaveLatched).IsTrue();
+            AssertThat(string.Join(",", fixture.Level.AppliedEncounterBaseline)).IsEqual(GlobeLocks());
+            AssertThat(fixture.Level.GalleriesLock.RestoredCleared).IsTrue();
         }
     }
 
@@ -160,9 +162,12 @@ public class EncounterBaselineTests {
         StoryCheckpointRecord record = story.CurrentAttempt.CheckpointRecord;
         AssertThat(record.AnchorID).IsEqual($"{GlobeID}_checkpoint_2");
         AssertThat(record.BaselineVersion).IsEqual(StoryLevelControllerBase.ExplicitEncounterBaselineVersion);
-        AssertThat(string.Join(",", record.BaselineEncounterIDs))
-            .IsEqual($"{Level10Controller.Room2WaveEncounter},{Level10Controller.Room3WaveEncounter}");
+        AssertThat(string.Join(",", record.BaselineEncounterIDs)).IsEqual(GlobeLocks());
     }
+
+    /// <summary>GU-L8 (2026-10-12): the Globe's three locks in authoring order, as its PreBoss anchor lists them.</summary>
+    private static string GlobeLocks() =>
+        $"{Level10Controller.LockYard},{Level10Controller.LockStage},{Level10Controller.LockGalleries}";
 
     /// <summary>
     /// GU-E (2026-10-12): Orléans' encounter locks are F10 encounter IDs. A

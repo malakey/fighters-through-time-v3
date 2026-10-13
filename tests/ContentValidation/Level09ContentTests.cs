@@ -500,6 +500,200 @@ public class Level09ContentTests {
             .OverrideFailureMessage("The radar gate is still solid after a pre-boss resume.").IsTrue();
     }
 
+    // === GU-L8 (2026-10-12): the three encounter locks ===
+
+    [TestCase]
+    public void TheThreeFightsAreEncounterLocksOneWavePerManifestRow() {
+        using var fixture = new BerlinFixture();
+        Level09Controller level = fixture.Level;
+
+        AssertThat(level.EncounterLocks.Count).IsEqual(3);
+        EncounterLock seawall = level.SeawallLock;
+        EncounterLock lanternWatch = level.LanternWatchLock;
+        EncounterLock stormAnchor = level.StormAnchorLock;
+        AssertString(seawall.LockID).IsEqual(Level09Controller.LockSeawall);
+        AssertString(lanternWatch.LockID).IsEqual(Level09Controller.LockLanternWatch);
+        AssertString(stormAnchor.LockID).IsEqual(Level09Controller.LockStormAnchor);
+
+        // The areas: the seawall 300-2860, the Lantern Watch 3150-6350 (one room wide,
+        // to the boarding gate) and the storm-anchor ship 6620-8560.
+        AssertThat(seawall.Area.Position.X).IsEqual(300f);
+        AssertThat(seawall.Area.End.X).IsEqual(2860f);
+        AssertThat(lanternWatch.Area.Position.X).IsEqual(3150f);
+        AssertThat(lanternWatch.Area.End.X).IsEqual(6350f);
+        AssertThat(stormAnchor.Area.Position.X).IsEqual(6620f);
+        AssertThat(stormAnchor.Area.End.X).IsEqual(8560f);
+        // The first cover pocket (2890-3130) stays a breather outside both.
+        AssertThat(seawall.ExitBarrier.Footprint.End.X).IsLessEqual(2890f);
+        AssertThat(lanternWatch.EntryBarrier.Footprint.Position.X).IsGreaterEqual(3130f);
+
+        // The Lantern Watch clears on every line cut AND its watch down; its exit
+        // fills the boarding gate under the gate column.
+        AssertThat(string.Join(",", lanternWatch.Spec.RequiredPuzzleIDs)).IsEqual(FeedPuzzleID);
+        AssertThat(lanternWatch.ExitBarrier.CenterX).IsEqual(6360f);
+        AssertThat(lanternWatch.ExitBarrier.TopY).IsEqual(300f);
+        // The ship's exit barrier fills the gap under the flagship's partial wall.
+        AssertThat(stormAnchor.ExitBarrier.Footprint.Position.X).IsEqual(Level09Controller.FlagshipWestWallX);
+        AssertThat(stormAnchor.ExitBarrier.TopY).IsEqual(800f);
+        AssertThat(stormAnchor.ExitBarrier.BottomY).IsEqual(Level09Controller.GroundY);
+        Rect2 wall = BodyRect(level, $"Wall_{Mathf.RoundToInt(Level09Controller.FlagshipWestWallX)}_300");
+        AssertThat(wall.Size.X).OverrideFailureMessage("The flagship's partial west wall is missing.").IsGreater(0f);
+        AssertThat(wall.End.Y).IsEqual(stormAnchor.ExitBarrier.TopY);
+
+        // One wave per manifest row: the spawn table's waves, in order.
+        (EncounterLock Lock, int Wave, EncounterWaveTrigger Trigger)[] waves = {
+            (seawall, 1, EncounterWaveTrigger.OnBuild),
+            (lanternWatch, 2, EncounterWaveTrigger.OnBuild),
+            (stormAnchor, 3, EncounterWaveTrigger.OnEngage)
+        };
+        foreach ((EncounterLock encounterLock, int wave, EncounterWaveTrigger trigger) in waves) {
+            var authored = new List<string>();
+            foreach ((string enemyID, int entryWave, Vector2 _) in Level09Controller.SpawnTable) {
+                if (entryWave == wave) authored.Add(enemyID);
+            }
+            AssertThat(encounterLock.Spec.Waves.Length).IsEqual(1);
+            AssertString(encounterLock.Spec.Waves[0].RowID).IsEqual($"level_09.wave{wave}");
+            AssertString(string.Join(",", encounterLock.Spec.Waves[0].EnemyIDs)).IsEqual(string.Join(",", authored));
+            AssertThat(encounterLock.Spec.Waves[0].Trigger).IsEqual(trigger);
+            AssertThat(encounterLock.State).IsEqual(EncounterLockState.Armed);
+            AssertThat(encounterLock.ExitBarrier.IsClosed).IsTrue();
+        }
+        // The Warden is part of the Lantern Watch's row now (it was spawned but unledgered).
+        AssertThat(Array.IndexOf(lanternWatch.Spec.Waves[0].EnemyIDs, Level09Controller.WardenEnemyID) >= 0).IsTrue();
+        AssertThat(stormAnchor.LivingMemberCount).IsEqual(0);
+
+        // Every later anchor lists the locks before it.
+        IReadOnlyDictionary<string, string[]> baselines = level.AuthoredEncounterBaselines;
+        AssertThat(baselines[$"{LevelID}_checkpoint_0"].Length).IsEqual(0);
+        AssertThat(string.Join(",", baselines[$"{LevelID}_checkpoint_1"]))
+            .IsEqual($"{Level09Controller.LockSeawall},{Level09Controller.LockLanternWatch}");
+        AssertThat(string.Join(",", baselines[$"{LevelID}_checkpoint_2"]))
+            .IsEqual($"{Level09Controller.LockSeawall},{Level09Controller.LockLanternWatch},{Level09Controller.LockStormAnchor}");
+    }
+
+    /// <summary>
+    /// GU-L8: every Hakata member stands on the deck a slowest hero fights on. The
+    /// walkway archer (5900, 460) and the gantry archer (7350, 570) used to be posted
+    /// up their climbs, and the Lantern Watch trooper stood inside the west relay's
+    /// cover slab.
+    /// </summary>
+    [TestCase]
+    public void EveryMemberStandsOnTheDeckOrALowRubblePostAndNoneInsideACoverSlab() {
+        foreach ((string enemyID, int wave, Vector2 position) in Level09Controller.SpawnTable) {
+            bool rubble = wave == 1 && enemyID == Level09Controller.SentryEnemyID;
+            AssertThat(rubble || Mathf.IsEqualApprox(position.Y, Level09Controller.GroundY - 50f))
+                .OverrideFailureMessage($"{enemyID} (wave {wave}) is posted at {position}, off the deck.").IsTrue();
+            foreach ((float centerX, float width) in Level09Controller.CoverPockets) {
+                bool inside = position.X + 23f > centerX - width / 2f && position.X - 23f < centerX + width / 2f;
+                AssertThat(inside).OverrideFailureMessage($"{enemyID} at {position} stands inside the cover slab at {centerX}.").IsFalse();
+            }
+        }
+    }
+
+    [TestCase]
+    public void TheMiddleAndPreBossAnchorsAndTheFontStandOutsideEveryLockBeyondSwingReach() {
+        using var fixture = new BerlinFixture();
+        Level09Controller level = fixture.Level;
+        var middle = level.GetNode<CheckpointTrigger>($"Checkpoint_{LevelID}_checkpoint_1");
+        var preBoss = level.GetNode<CheckpointTrigger>($"Checkpoint_{LevelID}_checkpoint_2");
+        AssertThat(middle.GlobalPosition.X).IsEqual(Level09Controller.MiddleCheckpointX);
+        AssertThat(preBoss.GlobalPosition.X).IsEqual(Level09Controller.PreBossCheckpointX);
+        // The Middle is past the boarding gate and the snare's trigger, its respawn
+        // body clear of the snare.
+        var snare = level.GetNode<Area2D>("NearCaptureTrigger");
+        AssertThat(middle.GlobalPosition.X - 20f).IsGreater(snare.Position.X + 30f);
+        AssertThat(middle.GlobalPosition.X - 30f).IsGreater(6384f);
+
+        RestorationFont font = FindFont(level);
+        AssertObject(font).IsNotNull();
+        foreach ((string label, float x) in new[] {
+            ("middle", middle.GlobalPosition.X), ("pre-boss", preBoss.GlobalPosition.X), ("font", font.GlobalPosition.X) }) {
+            foreach (EncounterLock encounterLock in level.EncounterLocks) {
+                bool inside = x + 30f > encounterLock.Area.Position.X && x - 30f < encounterLock.Area.End.X;
+                AssertThat(inside).OverrideFailureMessage($"The {label} anchor at {x} stands inside '{encounterLock.LockID}'.").IsFalse();
+            }
+        }
+        float fromLanterns = LevelLockSwingReach.EastwardReachFrom(level.LanternWatchLock);
+        AssertThat(fromLanterns < LevelLockSwingReach.StrikeSurfaceWestEdge(middle.GlobalPosition.X))
+            .OverrideFailureMessage($"A swing from the Lantern Watch reaches x {fromLanterns:0}.").IsTrue();
+        float fromShip = LevelLockSwingReach.EastwardReachFrom(level.StormAnchorLock);
+        AssertThat(fromShip < LevelLockSwingReach.StrikeSurfaceWestEdge(preBoss.GlobalPosition.X))
+            .OverrideFailureMessage($"A swing from the storm-anchor ship reaches x {fromShip:0}.").IsTrue();
+        AssertThat(middle.IsHeldByEncounterLock).IsTrue();
+        AssertThat(preBoss.IsHeldByEncounterLock).IsTrue();
+    }
+
+    [TestCase]
+    public void ResumingAtTheMiddleOpensTheGateDarkensTheStripAndLeavesTheShipArmed() {
+        // The Middle anchor stands past the boarding gate (GU-L8) and its baseline
+        // lists the Lantern Watch, which needs every line cut.
+        using var fixture = new BerlinFixture($"{LevelID}_checkpoint_1");
+        Level09Controller level = fixture.Level;
+        AssertThat(level.ResumedMidLevel).IsTrue();
+        AssertThat(level.RadarGateOpen).IsTrue();
+        AssertThat(level.FeedsCut).IsEqual(3);
+        foreach (SearchlightZone light in level.Searchlights) AssertThat(light.Enabled).IsFalse();
+        AssertThat(level.SeawallLock.RestoredCleared).IsTrue();
+        AssertThat(level.LanternWatchLock.RestoredCleared).IsTrue();
+        AssertThat(level.LanternWatchLock.ExitBarrier.IsClosed).IsFalse();
+        AssertThat(level.StormAnchorLock.State).IsEqual(EncounterLockState.Armed);
+        AssertThat(level.StormAnchorLock.ExitBarrier.IsClosed).IsTrue();
+        AssertThat(level.Player.GlobalPosition.X).IsGreater(6384f);
+    }
+
+    /// <summary>
+    /// GU-L8, the real scene in real physics frames: the Lantern Watch holds after
+    /// its watch is down until every signal line is cut, with the lanterns live
+    /// through the fight, then opens both barriers and the boarding gate.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task TheLanternWatchClearsOnlyOnceEveryLineIsCutAsWellAsItsWatchDown() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        using var fixture = new BerlinFixture();
+        Level09Controller level = fixture.Level;
+        try {
+            for (int frame = 0; frame < 2; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(tree.Paused).IsFalse();
+            EncounterLock watch = level.LanternWatchLock;
+            // Into the cover pocket between the two ground beams.
+            level.Player.GlobalPosition = new Vector2(4120f, 1110f);
+            level.Player.Velocity = Vector2.Zero;
+            for (int frame = 0; frame < 4; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(watch.State).IsEqual(EncounterLockState.Engaged);
+            AssertThat(watch.LivingMemberCount).IsGreater(0);
+
+            foreach (EnemyController member in watch.LivingMembers) member.TakeDamage(99999);
+            for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(watch.State)
+                .OverrideFailureMessage("The Lantern Watch must hold while a signal line is still live.")
+                .IsEqual(EncounterLockState.Engaged);
+            foreach (SearchlightZone light in level.Searchlights) {
+                AssertThat(light.Enabled).OverrideFailureMessage("The lanterns stay live through the fight.").IsTrue();
+            }
+
+            foreach (DestructibleBlock relay in level.FeedRelays) {
+                relay.TakeEnvironmentDamage(999f);
+                relay.TakeEnvironmentDamage(999f);
+            }
+            for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(watch.State).IsEqual(EncounterLockState.Cleared);
+            AssertThat(watch.EntryBarrier.IsClosed).IsFalse();
+            AssertThat(watch.ExitBarrier.IsClosed).IsFalse();
+            AssertThat(level.RadarGateOpen).IsTrue();
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+        }
+    }
+
+    private static RestorationFont FindFont(Node level) {
+        Godot.Collections.Array<Node> children = level.GetChildren();
+        using var lifetime = children.AsDisposable();
+        foreach (Node child in children) {
+            if (child is RestorationFont font) return font;
+        }
+        return null;
+    }
+
     // === Layout: the east boundary ===
 
     /// <summary>

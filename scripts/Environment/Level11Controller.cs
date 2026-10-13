@@ -37,6 +37,16 @@ namespace FTT.Environment {
     /// Locked encounter economy (docs/DUST_ECONOMY.md, DustEconomyTests row 11):
     /// 12 standards / 1 elite / 1 boss / 3 extractors. The authored tables below are the
     /// single source of those counts.
+    ///
+    /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-L8; the Level 2
+    /// pattern): Seminary Ridge (300-3200); the Wheatfield (3220-6090), which also
+    /// needs array Alpha down; and the Angle (6400-8890), the ridge line, the stone
+    /// wall pair arriving when the line thins and the Cyber-Cavalry Commander last,
+    /// whose exit barrier fills the breastwork under its column and opens on both
+    /// arrays down <i>and</i> the Angle cleared (the breastwork itself still opens on
+    /// the arrays alone). The artillery stays live through every lock. Six spawns
+    /// that stood inside a cover piece moved clear of it, and the Middle anchor moved
+    /// off the sandbags in the Wheatfield fight to the gap before the Angle (6340).</para>
     /// </summary>
     public partial class Level11Controller : StoryLevelControllerBase {
 
@@ -232,24 +242,36 @@ namespace FTT.Environment {
         /// Era roster: `laser_rifle_infantry` (the Gettysburg standard - fast beam-bolts,
         /// which is why this level carries the campaign's highest `enemy_projectile` warm
         /// count) mixed with `chrono_slasher` (Severed shock-trooper standard, melee).
+        /// <para>GU-L8 (2026-10-12): every spawn and patrol point stands clear of every
+        /// cover piece (a body inside a cover's span was pushed up onto it): the first
+        /// rifleman moved 1500 -> 1320, west of the 1520 fence.</para>
         /// </summary>
         public static readonly (string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] Room1Spawns = {
-            ("laser_rifle_infantry", new Vector2(1500, EnemyGroundY), new Vector2(1400, EnemyGroundY), new Vector2(1620, EnemyGroundY)),
+            ("laser_rifle_infantry", new Vector2(1320, EnemyGroundY), new Vector2(1240, EnemyGroundY), new Vector2(1390, EnemyGroundY)),
             ("chrono_slasher", new Vector2(2150, EnemyGroundY), new Vector2(2050, EnemyGroundY), new Vector2(2280, EnemyGroundY)),
             ("laser_rifle_infantry", new Vector2(2900, EnemyGroundY), null, null)
         };
 
-        /// <summary>The Wheatfield firefight: four live standards, three of them ranged.</summary>
+        /// <summary>
+        /// The Wheatfield firefight: four live standards, three of them ranged. GU-L8:
+        /// all four stood inside a cover piece; each now holds the gap just behind
+        /// (east of) the cover it stood in, short of the next blast column — 3900 ->
+        /// 4080, 4500 -> 4620, 5000 -> 5170, 5600 -> 5730.
+        /// </summary>
         public static readonly (string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] Room2Spawns = {
-            ("laser_rifle_infantry", new Vector2(3900, EnemyGroundY), new Vector2(3820, EnemyGroundY), new Vector2(4000, EnemyGroundY)),
-            ("laser_rifle_infantry", new Vector2(4500, EnemyGroundY), null, null),
-            ("chrono_slasher", new Vector2(5000, EnemyGroundY), new Vector2(4900, EnemyGroundY), new Vector2(5120, EnemyGroundY)),
-            ("laser_rifle_infantry", new Vector2(5600, EnemyGroundY), null, null)
+            ("laser_rifle_infantry", new Vector2(4080, EnemyGroundY), new Vector2(4050, EnemyGroundY), new Vector2(4110, EnemyGroundY)),
+            ("laser_rifle_infantry", new Vector2(4620, EnemyGroundY), null, null),
+            ("chrono_slasher", new Vector2(5170, EnemyGroundY), new Vector2(5145, EnemyGroundY), new Vector2(5210, EnemyGroundY)),
+            ("laser_rifle_infantry", new Vector2(5730, EnemyGroundY), null, null)
         };
 
+        /// <summary>
+        /// GU-L8: the first rifleman moved 6900 -> 7040, out of the 6885 sandbags, and
+        /// the slasher's patrol (7150-7370, into the 7425 fence) shrank to 7225-7300.
+        /// </summary>
         public static readonly (string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] Room3Spawns = {
-            ("laser_rifle_infantry", new Vector2(6900, EnemyGroundY), null, null),
-            ("chrono_slasher", new Vector2(7250, EnemyGroundY), new Vector2(7150, EnemyGroundY), new Vector2(7370, EnemyGroundY)),
+            ("laser_rifle_infantry", new Vector2(7040, EnemyGroundY), null, null),
+            ("chrono_slasher", new Vector2(7250, EnemyGroundY), new Vector2(7225, EnemyGroundY), new Vector2(7300, EnemyGroundY)),
             ("laser_rifle_infantry", new Vector2(7700, EnemyGroundY), null, null)
         };
 
@@ -290,6 +312,65 @@ namespace FTT.Environment {
 
         public static int AuthoredExtractorCount => ExtractorPlacements.Length;
 
+        // === GU-L8 (2026-10-12): the three encounter locks ====================
+
+        /// <summary>The F10 encounter IDs of the three locks (they start with the level ID).</summary>
+        public const string LockSeminaryRidge = ID + "_lock_seminary_ridge";
+        public const string LockWheatfield = ID + "_lock_wheatfield";
+        public const string LockAngle = ID + "_lock_angle";
+
+        /// <summary>The manifest rows the lock waves are (level_11_rewards.tres).</summary>
+        public const string Room1RowID = "level_11.room1";
+        public const string Room2RowID = "level_11.room2";
+        public const string Room3RowID = "level_11.room3";
+        public const string AngleRowID = "level_11.angle";
+        public const string EliteRowID = "level_11.elite";
+
+        private const float BarrierWidth = EncounterLockRules.DefaultBarrierWidthPixels;
+
+        /// <summary>Seminary Ridge: the whole first room past the entry anchor (200).</summary>
+        public const float SeminaryRidgeLockMinX = 300f;
+        public const float SeminaryRidgeLockMaxX = Room2StartX;
+
+        /// <summary>
+        /// The Wheatfield, with array Alpha a condition: the Angle needs both arrays
+        /// down and shuts the way back, so Alpha has to fall before the hero leaves
+        /// this lock. Its exit barrier stands west of the 6200 sandbags.
+        /// </summary>
+        public const float WheatfieldLockMinX = Room2StartX + BarrierWidth;
+        public const float WheatfieldLockMaxX = 6090f;
+
+        /// <summary>
+        /// The Middle anchor, in the gap between the 6200 sandbags and the Angle (it
+        /// stood at 6250, on the sandbags in the Wheatfield fight): clear of every
+        /// blast column, its strike surface beyond the longest basic swing from
+        /// inside the Wheatfield.
+        /// </summary>
+        public const float MiddleCheckpointX = 6340f;
+
+        /// <summary>
+        /// The Angle: the ridge line, the stone wall and the commander, room 3 from its
+        /// start to the breastwork. Its exit barrier fills the breastwork gate under
+        /// the column, and it clears only on both arrays down and every member down.
+        /// </summary>
+        public const float AngleLockMinX = Room3StartX;
+        public const float AngleLockMaxX = BreastworkX - BarrierWidth * 0.5f;
+
+        /// <summary>
+        /// The PreBoss anchor, moved 9060 -> 9080 so its strike surface (9050-9110)
+        /// clears the longest basic swing of a hero pressed against the Angle's exit
+        /// barrier (8870) by more than a few pixels.
+        /// </summary>
+        public const float PreBossCheckpointX = 9080f;
+
+        private EncounterLock _seminaryRidgeLock;
+        private EncounterLock _wheatfieldLock;
+        private EncounterLock _angleLock;
+
+        public EncounterLock SeminaryRidgeLock => _seminaryRidgeLock;
+        public EncounterLock WheatfieldLock => _wheatfieldLock;
+        public EncounterLock AngleLock => _angleLock;
+
         // === Runtime state ===
 
         private ShieldGeneratorTower _arrayAlpha;
@@ -297,9 +378,6 @@ namespace FTT.Environment {
         private StaticBody2D _breastwork;
         private int _arraysDown;
         private bool _advanceBegun;
-        private bool _wheatfieldWaveSpawned;
-        private bool _angleWaveSpawned;
-        private bool _ridgeWaveSpawned;
 
         public int ArraysDestroyed => _arraysDown;
         public ShieldGeneratorTower ShieldArrayAlpha => _arrayAlpha;
@@ -334,6 +412,67 @@ namespace FTT.Environment {
             BuildCoverLine();
             BuildExtractors(ExtractorPlacements);
             WireShieldArrays();
+            BuildEncounterLocks();
+        }
+
+        /// <summary>
+        /// GU-L8: the three fights as encounter locks, one wave per manifest row.
+        /// Built after the arrays are wired (two locks need them) and in
+        /// <see cref="BuildLevel"/>, so a resume past a lock builds it Cleared with no
+        /// member ever spawned. The artillery stays live through every one.
+        /// </summary>
+        private void BuildEncounterLocks() {
+            var alpha = _arrayAlpha != null ? new DamageableEnvironmentObject[] { _arrayAlpha }
+                : System.Array.Empty<DamageableEnvironmentObject>();
+            var bothArrays = new List<DamageableEnvironmentObject>();
+            if (_arrayAlpha != null) bothArrays.Add(_arrayAlpha);
+            if (_arrayBravo != null) bothArrays.Add(_arrayBravo);
+
+            _seminaryRidgeLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockSeminaryRidge,
+                Area = EncounterLockSpec.Span(SeminaryRidgeLockMinX, SeminaryRidgeLockMaxX, LevelHeight),
+                EntryBarrierX = SeminaryRidgeLockMinX - BarrierWidth * 0.5f,
+                ExitBarrierX = SeminaryRidgeLockMaxX + BarrierWidth * 0.5f,
+                BarrierFloorY = GroundY,
+                Waves = new[] { EncounterLockWave.FromTable(Room1RowID, Room1Spawns, EncounterWaveTrigger.OnBuild) },
+                ObjectiveKey = "encounter_lock_objective_clear",
+                GoDirection = EncounterGoDirection.Right
+            });
+            // The riflemen hold the Wheatfield's cover from the start. Its objective
+            // is the level's own (the array count); the HUD counts the riflemen.
+            _wheatfieldLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockWheatfield,
+                Area = EncounterLockSpec.Span(WheatfieldLockMinX, WheatfieldLockMaxX, LevelHeight),
+                EntryBarrierX = WheatfieldLockMinX - BarrierWidth * 0.5f,
+                ExitBarrierX = WheatfieldLockMaxX + BarrierWidth * 0.5f,
+                BarrierFloorY = GroundY,
+                Waves = new[] { EncounterLockWave.FromTable(Room2RowID, Room2Spawns, EncounterWaveTrigger.OnBuild) },
+                RequiredBreakables = alpha,
+                GoDirection = EncounterGoDirection.Right
+            });
+            // The Angle: the ridge line holds the field; the stone wall pair comes
+            // over the wall when the line is down to one, and the commander rides in
+            // when the wall is down to one. Both arrays down and every member down
+            // open the breastwork's barrier.
+            var angle = EncounterLockWave.FromTable(AngleRowID, AngleSpawns, EncounterWaveTrigger.WhenAliveAtMost);
+            angle.AliveAtMost = 1;
+            var elite = EncounterLockWave.FromTable(EliteRowID, EliteSpawns, EncounterWaveTrigger.WhenAliveAtMost);
+            elite.AliveAtMost = 1;
+            _angleLock = BuildEncounterLock(new EncounterLockSpec {
+                LockID = LockAngle,
+                Area = EncounterLockSpec.Span(AngleLockMinX, AngleLockMaxX, LevelHeight),
+                EntryBarrierX = AngleLockMinX - BarrierWidth * 0.5f,
+                ExitBarrierX = BreastworkX,
+                ExitBarrierYRange = new Vector2(GroundY - BreastworkHeight, GroundY),
+                BarrierFloorY = GroundY,
+                Waves = new[] {
+                    EncounterLockWave.FromTable(Room3RowID, Room3Spawns, EncounterWaveTrigger.OnBuild),
+                    angle,
+                    elite
+                },
+                RequiredBreakables = bothArrays.ToArray(),
+                GoDirection = EncounterGoDirection.Right
+            });
         }
 
         /// <summary>
@@ -378,14 +517,18 @@ namespace FTT.Environment {
             BuildOneWayPlatform(4790, 740, 180);
             BuildOneWayPlatform(4920, 650, 160);
 
-            BuildCheckpoint(6250, EnemyGroundY, Checkpoint1, CheckpointRole.Middle);
+            // GU-L8: the Middle anchor, past the Wheatfield lock and off the sandbags
+            // (it stood at 6250, on the 6200 sandbags in the Wheatfield fight).
+            BuildCheckpoint(MiddleCheckpointX, EnemyGroundY, Checkpoint1, CheckpointRole.Middle);
             BuildRoomDecoration(Room2StartX, "gettysburg_room_wheatfield", new Color(0.92f, 0.68f, 0.30f));
-            BuildRoomTransition("gettysburg_room_wheatfield", new Vector2(Room2StartX, 600), Room2CameraBounds,
+            // GU-L8: just inside the Wheatfield lock's area (it was centred on the 3200
+            // seam), so a hero pressed against the ridge's exit barrier does not reach
+            // it. The Wheatfield wave is its lock's; the proximity trigger is gone.
+            BuildRoomTransition("gettysburg_room_wheatfield", new Vector2(WheatfieldLockMinX + 40f, 600), Room2CameraBounds,
                 onEntered: _ => {
                     _advanceBegun = true;
                     RefreshObjective();
                 });
-            BuildWaveTrigger("WheatfieldWaveTrigger", new Vector2(3400, 700), TriggerWheatfieldWave);
         }
 
         /// <summary>
@@ -406,9 +549,10 @@ namespace FTT.Environment {
             BuildOneWayPlatform(FlankPlatformX, FlankPlatformY, FlankPlatformWidth);
 
             BuildRoomDecoration(Room3StartX, "gettysburg_room_angle", new Color(0.62f, 0.78f, 0.92f));
-            BuildRoomTransition("gettysburg_room_angle", new Vector2(Room3StartX + 20, 600), Room3CameraBounds);
-            BuildWaveTrigger("AngleWaveTrigger", new Vector2(6600, 700), TriggerRidgeWave);
-            BuildWaveTrigger("StoneWallWaveTrigger", new Vector2(8150, 700), TriggerAngleWave);
+            // GU-L8: just inside the Angle lock's area (it stood at 6420, across the
+            // lock's entry barrier). The ridge line, the stone wall pair and the
+            // commander are the Angle lock's waves; their proximity triggers are gone.
+            BuildRoomTransition("gettysburg_room_angle", new Vector2(AngleLockMinX + 60, 600), Room3CameraBounds);
 
             BuildBreastwork();
         }
@@ -433,7 +577,7 @@ namespace FTT.Environment {
 
             BuildWall(11500, 0, LevelHeight);
 
-            BuildCheckpoint(9060, EnemyGroundY, Checkpoint2, CheckpointRole.PreBoss);
+            BuildCheckpoint(PreBossCheckpointX, EnemyGroundY, Checkpoint2, CheckpointRole.PreBoss);
             BuildRoomDecoration(Room4StartX, "gettysburg_room_railcut", new Color(0.95f, 0.33f, 0.24f));
             BuildRoomTransition("gettysburg_room_railcut", new Vector2(Room4StartX + 30, 540), Room4CameraBounds);
 
@@ -553,73 +697,41 @@ namespace FTT.Environment {
         }
 
         // === Encounters ===
-
-        protected override void SpawnInitialEnemies() => SpawnWave(Room1Spawns);
-
-        private void TriggerWheatfieldWave() {
-            if (_wheatfieldWaveSpawned) return;
-            _wheatfieldWaveSpawned = true;
-            SpawnWave(Room2Spawns);
-        }
-
-        private void TriggerRidgeWave() {
-            if (_ridgeWaveSpawned) return;
-            _ridgeWaveSpawned = true;
-            SpawnWave(Room3Spawns);
-        }
-
-        private void TriggerAngleWave() {
-            if (_angleWaveSpawned) return;
-            _angleWaveSpawned = true;
-            SpawnWave(AngleSpawns);
-            SpawnWave(EliteSpawns);
-        }
-
-        /// <summary>
-        /// Authored counts are the Normal-difficulty truth; ScaleEncounterCount is the
-        /// only thing allowed to move them, and it never exceeds the authored table.
-        /// Peak concurrency is four live standards (the Wheatfield) or two standards plus
-        /// the commander (the Angle), both well inside the level_11 pool config's warm
-        /// counts of 14 standard / 4 elite / 28 enemy_projectile.
-        /// </summary>
-        private void SpawnWave((string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] wave) {
-            if (wave == null) return;
-            int count = StoryDifficultyTuning.ScaleEncounterCount(
-                wave.Length, StoryDifficultyTuning.CurrentStoryDifficulty);
-            for (int index = 0; index < count && index < wave.Length; index++) {
-                (string enemyID, Vector2 position, Vector2? patrolA, Vector2? patrolB) = wave[index];
-                EnemyFactory.Spawn(enemyID, this, position, patrolA, patrolB);
-            }
-        }
+        //
+        // GU-L8 (2026-10-12): every encounter is a lock wave (BuildEncounterLocks).
+        // Authored counts are the Normal-difficulty truth; the lock takes the same
+        // per-row ScaleEncounterCount prefix the reward manifest compiles, never more
+        // than the table. Peak concurrency is four live standards (the Wheatfield) or
+        // the ridge line's last rifleman plus the stone wall pair, then one of those
+        // plus the commander (the Angle), all well inside the level_11 pool config's
+        // warm counts of 14 standard / 4 elite / 28 enemy_projectile.
 
         // === Resume and objectives ===
 
-        // Package 12 W2 (GAP-13): explicit encounter baseline.
-        public const string WheatfieldWaveEncounter = ID + "_wheatfield_wave";
-        public const string RidgeWaveEncounter = ID + "_ridge_wave";
-        public const string AngleWaveEncounter = ID + "_angle_wave";
-
+        // Package 12 W2 (GAP-13): explicit encounter baseline. GU-L8: the encounters
+        // are the three locks; every anchor lists every lock before it, and a resume
+        // builds those Cleared (the ridge wave used to respawn behind the hero on
+        // every resume).
         private static readonly IReadOnlyDictionary<string, string[]> Baselines =
             new Dictionary<string, string[]> {
                 [Checkpoint0] = System.Array.Empty<string>(),
-                [Checkpoint1] = new[] { WheatfieldWaveEncounter },
-                [Checkpoint2] = new[] { WheatfieldWaveEncounter, RidgeWaveEncounter, AngleWaveEncounter }
+                [Checkpoint1] = new[] { LockSeminaryRidge, LockWheatfield },
+                [Checkpoint2] = new[] { LockSeminaryRidge, LockWheatfield, LockAngle }
             };
 
         protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
 
-        protected override void MarkEncounterCleared(string encounterID) {
-            switch (encounterID) {
-                case WheatfieldWaveEncounter: _wheatfieldWaveSpawned = true; break;
-                case RidgeWaveEncounter: _ridgeWaveSpawned = true; break;
-                case AngleWaveEncounter: _angleWaveSpawned = true; break;
-            }
-        }
+        /// <summary>GU-L8: a cleared or reverted lock hands the objective back to the level's own.</summary>
+        protected override void RestoreLevelObjective() => RefreshObjective();
 
-        /// <summary>The anchor's non-encounter world state; the waves come from the baseline.</summary>
+        /// <summary>The anchor's non-encounter world state; the locks come from the baseline.</summary>
         protected override void MarkWavesClearedThrough(string checkpointID) {
             if (checkpointID == Checkpoint1) {
                 _advanceBegun = true;
+                // GU-L8: the Middle anchor stands past the Wheatfield lock, which
+                // needs array Alpha down, so a resume there finds Alpha broken (the
+                // Level 2 generator precedent). Bravo is still the Angle's to break.
+                ForceArrayDestroyed(_arrayAlpha);
             } else if (checkpointID == Checkpoint2) {
                 _advanceBegun = true;
                 // Checkpoint 2 stands east of the breastwork, so a resume that lost the

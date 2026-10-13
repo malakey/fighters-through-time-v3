@@ -275,6 +275,71 @@ public class RewardManifestTests {
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 
+    /// <summary>
+    /// GU-L8 (2026-10-12): Hakata Bay's three encounter locks spawn exactly their
+    /// manifest rows, and the Chrono-Warden the Lantern Watch has spawned since
+    /// Package 11 A7a (it used to stand past the end of the <c>level_09.wave2</c> row,
+    /// spawned on Normal and Hard but unledgered) is now that row's fifth entry. Kill
+    /// and collect every source the locks plan on every difficulty — through the real
+    /// issue/claim path — and the required pool pays exactly its 15, the Warden its
+    /// share wherever it spawns.
+    /// </summary>
+    [TestCase]
+    public void HakataBaysLockWavesAreItsRowsAndPayExactlyFifteenIncludingTheWarden() {
+        StoryManager story = StoryManager.Instance;
+        CampaignLevel originalLevel = story.CurrentLevel;
+        Difficulty originalDifficulty = GameManager.Instance.CurrentSession.Difficulty;
+        string originalCharacter = GameManager.Instance.CurrentSession.SelectedCharacterID;
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        LevelRewardManifest manifest = Load((int)CampaignLevel.Berlin);
+        var issues = new List<string>();
+        var rows = new Dictionary<string, string[]>(System.StringComparer.Ordinal);
+        foreach ((string head, string[] enemyIDs) in manifest.ParseWaves()) rows[head.Split('@')[0]] = enemyIDs;
+        try {
+            foreach (Difficulty difficulty in Difficulties) {
+                var spawned = new List<string>();
+                for (int wave = 1; wave <= 3; wave++) {
+                    EncounterLockWave lockWave = Level09Controller.LockWaveFor(wave, EncounterWaveTrigger.OnBuild);
+                    if (!rows.TryGetValue(lockWave.RowID, out string[] row)) { issues.Add($"no '{lockWave.RowID}' row"); continue; }
+                    if (string.Join(",", row) != string.Join(",", lockWave.EnemyIDs)) {
+                        issues.Add($"{lockWave.RowID} is [{string.Join(",", row)}], the lock spawns [{string.Join(",", lockWave.EnemyIDs)}]");
+                    }
+                    int count = EncounterLockRules.PlannedSpawnCount(lockWave.Spawns.Length, lockWave.AuthoredCount,
+                        lockWave.Scaled, difficulty);
+                    for (int index = 0; index < count; index++) spawned.Add(lockWave.EnemyIDs[index]);
+                }
+
+                story.PrepareDirectLevel(CampaignLevel.Berlin, "einstein", difficulty);
+                LevelRewardDirectory.ResetAttempt();
+                LevelRewardLedger ledger = LevelRewardDirectory.EnsureCompiled();
+                if (ledger == null) { issues.Add($"{difficulty}: no ledger"); continue; }
+
+                int paid = 0;
+                foreach (string enemyID in spawned) {
+                    if (!LevelRewardDirectory.TryIssueEnemyAward(enemyID, out string sourceID, out int amount)) {
+                        issues.Add($"{difficulty}: killing '{enemyID}' issued no source");
+                        continue;
+                    }
+                    LevelRewardDirectory.CommitClaim(sourceID);
+                    paid += amount;
+                    if (enemyID == Level09Controller.WardenEnemyID && amount <= 0) {
+                        issues.Add($"{difficulty}: the Warden paid nothing");
+                    }
+                }
+                if (paid != manifest.RequiredEncounterPool) {
+                    issues.Add($"{difficulty}: collecting every lock member paid {paid}, expected {manifest.RequiredEncounterPool}");
+                }
+            }
+        } finally {
+            story.PrepareDirectLevel(originalLevel, originalCharacter ?? "einstein", originalDifficulty);
+            GameManager.Instance.CurrentSession.SelectedCharacterID = originalCharacter;
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+            story.ClearLevelAttemptState();
+            LevelRewardDirectory.ResetAttempt();
+        }
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
     private static List<string> Level01SpawnIDs(
         (string EnemyID, Godot.Vector2 Position, Godot.Vector2? PatrolA, Godot.Vector2? PatrolB)[] table) {
         var ids = new List<string>();

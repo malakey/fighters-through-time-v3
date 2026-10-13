@@ -208,8 +208,9 @@ public class Level11ContentTests {
             AssertThat(Level11Controller.IsInsideBlastColumn(x + width / 2f)).IsFalse();
         }
 
-        // A resume must never drop the player under a live shell.
-        foreach (float checkpointX in new[] { 200f, 6250f, 9060f }) {
+        // A resume must never drop the player under a live shell. GU-L8 (2026-10-12):
+        // read from the controller (the Middle moved 6250 -> 6340, the PreBoss 9060 -> 9080).
+        foreach (float checkpointX in new[] { 200f, Level11Controller.MiddleCheckpointX, Level11Controller.PreBossCheckpointX }) {
             AssertThat(Level11Controller.IsInsideBlastColumn(checkpointX)).OverrideFailureMessage(
                 $"A checkpoint at x={checkpointX} respawns the player inside a blast column.")
                 .IsFalse();
@@ -336,9 +337,14 @@ public class Level11ContentTests {
         AssertThat(level.BreastworkOpen).OverrideFailureMessage(
             "The breastwork re-sealed behind a checkpoint-2 resume.").IsTrue();
 
-        // Resuming at the midpoint must NOT hand the arrays over for free.
+        // Resuming at the midpoint must NOT hand the Angle's array over for free.
+        // GU-L8 (2026-10-12): the midpoint stands past the Wheatfield lock, which
+        // needs array Alpha down, so Alpha is broken there; Bravo still stands and
+        // the breastwork stays sealed. (It asserted no array broken before the locks.)
         using var midpoint = new GettysburgFixture(Level11Controller.Checkpoint1);
-        AssertThat(midpoint.Level.ArraysDestroyed).IsEqual(0);
+        AssertThat(midpoint.Level.ArraysDestroyed).IsEqual(1);
+        AssertThat(midpoint.Level.ShieldArrayAlpha.IsDestroyed).IsTrue();
+        AssertThat(midpoint.Level.ShieldArrayBravo.IsDestroyed).IsFalse();
         AssertThat(midpoint.Level.BreastworkOpen).IsFalse();
     }
 
@@ -478,6 +484,183 @@ public class Level11ContentTests {
         AssertThat(found).OverrideFailureMessage(
             "The flank platform over the commander's post is missing from the built level.")
             .IsTrue();
+    }
+
+    // === GU-L8 (2026-10-12): the three encounter locks ===
+
+    [TestCase]
+    public void TheThreeFightsAreEncounterLocksOneWavePerManifestRow() {
+        using var fixture = new GettysburgFixture();
+        Level11Controller level = fixture.Level;
+        AssertThat(level.EncounterLocks.Count).IsEqual(3);
+        EncounterLock ridge = level.SeminaryRidgeLock;
+        EncounterLock wheatfield = level.WheatfieldLock;
+        EncounterLock angle = level.AngleLock;
+        AssertString(ridge.LockID).IsEqual(Level11Controller.LockSeminaryRidge);
+        AssertString(wheatfield.LockID).IsEqual(Level11Controller.LockWheatfield);
+        AssertString(angle.LockID).IsEqual(Level11Controller.LockAngle);
+
+        // The areas: the ridge 300-3200, the Wheatfield 3220-6090 (west of the 6200
+        // sandbags) and the Angle 6400-8890 (to the breastwork).
+        AssertThat(ridge.Area.Position.X).IsEqual(300f);
+        AssertThat(ridge.Area.End.X).IsEqual(3200f);
+        AssertThat(wheatfield.Area.Position.X).IsEqual(3220f);
+        AssertThat(wheatfield.Area.End.X).IsEqual(6090f);
+        AssertThat(angle.Area.Position.X).IsEqual(6400f);
+        AssertThat(angle.Area.End.X).IsEqual(8890f);
+
+        // The Wheatfield needs array Alpha (the Angle shuts the way back to it); the
+        // Angle needs both arrays, and its exit fills the breastwork under its column.
+        AssertThat(wheatfield.Spec.RequiredBreakables.Length).IsEqual(1);
+        AssertThat(wheatfield.Spec.RequiredBreakables[0] == level.ShieldArrayAlpha).IsTrue();
+        AssertThat(angle.Spec.RequiredBreakables.Length).IsEqual(2);
+        AssertThat(Array.IndexOf(angle.Spec.RequiredBreakables, level.ShieldArrayAlpha) >= 0).IsTrue();
+        AssertThat(Array.IndexOf(angle.Spec.RequiredBreakables, level.ShieldArrayBravo) >= 0).IsTrue();
+        AssertThat(angle.ExitBarrier.CenterX).IsEqual(Level11Controller.BreastworkX);
+        AssertThat(angle.ExitBarrier.TopY).IsEqual(Level11Controller.GroundY - 460f);
+        AssertThat(angle.ExitBarrier.BottomY).IsEqual(Level11Controller.GroundY);
+
+        // One wave per manifest row. The Angle: the ridge line pre-placed, the stone
+        // wall pair when the line is down to one, the commander when the wall is.
+        AssertThat(ridge.Spec.Waves.Length).IsEqual(1);
+        AssertString(ridge.Spec.Waves[0].RowID).IsEqual(Level11Controller.Room1RowID);
+        AssertThat(ridge.Spec.Waves[0].Trigger).IsEqual(EncounterWaveTrigger.OnBuild);
+        AssertThat(wheatfield.Spec.Waves.Length).IsEqual(1);
+        AssertString(wheatfield.Spec.Waves[0].RowID).IsEqual(Level11Controller.Room2RowID);
+        AssertThat(wheatfield.Spec.Waves[0].Trigger).IsEqual(EncounterWaveTrigger.OnBuild);
+        AssertThat(angle.Spec.Waves.Length).IsEqual(3);
+        AssertString(angle.Spec.Waves[0].RowID).IsEqual(Level11Controller.Room3RowID);
+        AssertThat(angle.Spec.Waves[0].Trigger).IsEqual(EncounterWaveTrigger.OnBuild);
+        AssertString(angle.Spec.Waves[1].RowID).IsEqual(Level11Controller.AngleRowID);
+        AssertThat(angle.Spec.Waves[1].Trigger).IsEqual(EncounterWaveTrigger.WhenAliveAtMost);
+        AssertThat(angle.Spec.Waves[1].AliveAtMost).IsEqual(1);
+        AssertString(angle.Spec.Waves[2].RowID).IsEqual(Level11Controller.EliteRowID);
+        AssertThat(angle.Spec.Waves[2].Trigger).IsEqual(EncounterWaveTrigger.WhenAliveAtMost);
+        AssertThat(angle.Spec.Waves[2].AliveAtMost).IsEqual(1);
+        foreach (EncounterLock encounterLock in level.EncounterLocks) {
+            AssertThat(encounterLock.State).IsEqual(EncounterLockState.Armed);
+            AssertThat(encounterLock.ExitBarrier.IsClosed).IsTrue();
+        }
+
+        IReadOnlyDictionary<string, string[]> baselines = level.AuthoredEncounterBaselines;
+        AssertThat(baselines[Level11Controller.Checkpoint0].Length).IsEqual(0);
+        AssertThat(string.Join(",", baselines[Level11Controller.Checkpoint1]))
+            .IsEqual($"{Level11Controller.LockSeminaryRidge},{Level11Controller.LockWheatfield}");
+        AssertThat(string.Join(",", baselines[Level11Controller.Checkpoint2]))
+            .IsEqual($"{Level11Controller.LockSeminaryRidge},{Level11Controller.LockWheatfield},{Level11Controller.LockAngle}");
+    }
+
+    /// <summary>
+    /// GU-L8 (2026-10-12): cover pieces are Environment walls, and a body spawned
+    /// inside one's span was pushed up onto it (six spawns did). No spawn or patrol
+    /// point of a 46 px body overlaps any cover piece.
+    /// </summary>
+    [TestCase]
+    public void NoSpawnOrPatrolPointStandsInsideACoverPiece() {
+        const float bodyHalfWidth = 23f;
+        var issues = new List<string>();
+        foreach (var spawn in AllSpawnsAndPatrols()) {
+            foreach ((float x, Level11Controller.CoverKind kind) in Level11Controller.CoverPositions) {
+                float half = Level11Controller.CoverProfile(kind).Width / 2f;
+                if (spawn.X + bodyHalfWidth > x - half && spawn.X - bodyHalfWidth < x + half) {
+                    issues.Add($"{spawn.EnemyID} point x {spawn.X} overlaps the {kind} at {x}");
+                }
+            }
+        }
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
+    [TestCase]
+    public void TheMiddleAndPreBossAnchorsStandOutsideEveryLockBeyondSwingReach() {
+        using var fixture = new GettysburgFixture();
+        Level11Controller level = fixture.Level;
+        var middle = level.GetNode<CheckpointTrigger>($"Checkpoint_{Level11Controller.Checkpoint1}");
+        var preBoss = level.GetNode<CheckpointTrigger>($"Checkpoint_{Level11Controller.Checkpoint2}");
+        AssertThat(middle.GlobalPosition.X).IsEqual(Level11Controller.MiddleCheckpointX);
+        AssertThat(preBoss.GlobalPosition.X).IsEqual(Level11Controller.PreBossCheckpointX);
+        foreach (CheckpointTrigger anchor in new[] { middle, preBoss }) {
+            foreach (EncounterLock encounterLock in level.EncounterLocks) {
+                bool inside = anchor.GlobalPosition.X + 30f > encounterLock.Area.Position.X
+                    && anchor.GlobalPosition.X - 30f < encounterLock.Area.End.X;
+                AssertThat(inside).OverrideFailureMessage($"{anchor.CheckpointID} stands inside '{encounterLock.LockID}'.").IsFalse();
+            }
+            // Off every cover piece (the Middle used to stand in the 6200 sandbags).
+            foreach ((float x, Level11Controller.CoverKind kind) in Level11Controller.CoverPositions) {
+                float half = Level11Controller.CoverProfile(kind).Width / 2f;
+                AssertThat(anchor.GlobalPosition.X + 20f > x - half && anchor.GlobalPosition.X - 20f < x + half)
+                    .OverrideFailureMessage($"{anchor.CheckpointID} respawns the hero inside the {kind} at {x}.").IsFalse();
+            }
+        }
+        float fromWheatfield = LevelLockSwingReach.EastwardReachFrom(level.WheatfieldLock);
+        AssertThat(fromWheatfield < LevelLockSwingReach.StrikeSurfaceWestEdge(middle.GlobalPosition.X))
+            .OverrideFailureMessage($"A swing from the Wheatfield reaches x {fromWheatfield:0}.").IsTrue();
+        float fromAngle = LevelLockSwingReach.EastwardReachFrom(level.AngleLock);
+        AssertThat(fromAngle < LevelLockSwingReach.StrikeSurfaceWestEdge(preBoss.GlobalPosition.X))
+            .OverrideFailureMessage($"A swing from the Angle reaches x {fromAngle:0}.").IsTrue();
+        AssertThat(middle.IsHeldByEncounterLock).IsTrue();
+        AssertThat(preBoss.IsHeldByEncounterLock).IsTrue();
+    }
+
+    /// <summary>
+    /// GU-L8, the real scene in real physics frames: the Angle sends its stone wall
+    /// pair when the ridge line is down to one and the commander when the wall is,
+    /// holds after every member is down until Bravo falls too (the breastwork opens
+    /// on the arrays alone), then opens both barriers.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task TheAngleEscalatesAndOpensOnlyOnBothArraysDownAndEveryMemberDown() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        using var fixture = new GettysburgFixture();
+        Level11Controller level = fixture.Level;
+        try {
+            for (int frame = 0; frame < 2; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(tree.Paused).IsFalse();
+            EncounterLock angle = level.AngleLock;
+            // Alpha fell in the Wheatfield, as a run reaching the Angle has it.
+            level.ShieldArrayAlpha.TakeEnvironmentDamage(level.ShieldArrayAlpha.MaxHP);
+            level.Player.GlobalPosition = new Vector2(6500f, Level11Controller.EnemyGroundY);
+            level.Player.Velocity = Vector2.Zero;
+            for (int frame = 0; frame < 4; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(angle.State).IsEqual(EncounterLockState.Engaged);
+            int ridgeLine = angle.LivingMemberCount;
+            AssertThat(ridgeLine).IsGreater(0);
+            AssertThat(angle.AllWavesSpawned).IsFalse();
+
+            // Kill members one by one until every wave has come and gone.
+            for (int round = 0; round < 12 && angle.LivingMemberCount > 0; round++) {
+                IReadOnlyList<EnemyController> living = angle.LivingMembers;
+                living[0].TakeDamage(99999);
+                for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            }
+            AssertThat(angle.AllWavesSpawned).IsTrue();
+            AssertThat(angle.LivingMemberCount).IsEqual(0);
+            AssertThat(angle.RegisteredCount).IsEqual(angle.PlannedTotal);
+            AssertThat(angle.State)
+                .OverrideFailureMessage("The Angle must hold while array Bravo still stands.")
+                .IsEqual(EncounterLockState.Engaged);
+            AssertThat(level.BreastworkOpen).IsFalse();
+
+            level.ShieldArrayBravo.TakeEnvironmentDamage(level.ShieldArrayBravo.MaxHP);
+            for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(level.BreastworkOpen).IsTrue();
+            AssertThat(angle.State).IsEqual(EncounterLockState.Cleared);
+            AssertThat(angle.EntryBarrier.IsClosed).IsFalse();
+            AssertThat(angle.ExitBarrier.IsClosed).IsFalse();
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+        }
+    }
+
+    private static IEnumerable<(string EnemyID, float X)> AllSpawnsAndPatrols() {
+        foreach (var table in new[] {
+            Level11Controller.Room1Spawns, Level11Controller.Room2Spawns, Level11Controller.Room3Spawns,
+            Level11Controller.AngleSpawns, Level11Controller.EliteSpawns }) {
+            foreach ((string enemyID, Vector2 position, Vector2? patrolA, Vector2? patrolB) in table) {
+                yield return (enemyID, position.X);
+                if (patrolA is Vector2 a) yield return (enemyID, a.X);
+                if (patrolB is Vector2 b) yield return (enemyID, b.X);
+            }
+        }
     }
 
     // === Localization ===

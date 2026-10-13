@@ -799,6 +799,162 @@ public class Level10ContentTests {
         AssertThat(level.AudienceThrowsLanded).IsEqual(1);
     }
 
+    /// <summary>
+    /// GU-L8 (2026-10-12): turn-taking makes standing still normal inside an
+    /// encounter lock (a waiter rotating in, a blocked swing), so the audience's
+    /// stillness clock pauses while one is engaged — it neither builds nor resets —
+    /// and resumes once the lock clears.
+    /// </summary>
+    [TestCase]
+    public void TheAudienceStillnessClockPausesWhileALockIsEngaged() {
+        using var fixture = new GlobeFixture();
+        Level10Controller level = fixture.Level;
+        PlayerController player = level.Player;
+        EncounterLock yard = level.YardLock;
+        try {
+            player.RestoreStoryCheckpoint(new Vector2(1400f, Level10Controller.EnemyGroundY), player.MaximumHP, 0f);
+            player.Velocity = Vector2.Zero;
+            level.ResetAudienceWatch();
+
+            // Some stillness builds before the lock engages.
+            int partial = Mathf.FloorToInt(Level10Controller.AudienceIdleArmSeconds / Step / 2f);
+            for (int tick = 0; tick < partial; tick++) level.TickAudience(Step);
+            float before = level.AudienceIdleSeconds;
+            AssertThat(before).IsGreater(0f);
+
+            yard.Tick(Step);
+            AssertThat(yard.State).IsEqual(EncounterLockState.Engaged);
+            AssertThat(level.AudienceHeldByEncounterLock).IsTrue();
+            int wellPastThreshold = Mathf.CeilToInt(Level10Controller.AudienceIdleArmSeconds / Step) * 2;
+            for (int tick = 0; tick < wellPastThreshold; tick++) level.TickAudience(Step);
+            AssertThat(level.AudienceArmed)
+                .OverrideFailureMessage("The galleries armed on a hero standing still inside an engaged lock.").IsFalse();
+            AssertFloat(level.AudienceIdleSeconds).IsEqualApprox(before, 0.0001f);
+
+            // Cleared: the clock picks up where it stood.
+            foreach (EnemyController member in yard.LivingMembers) member.TakeDamage(99999);
+            yard.Tick(Step);
+            AssertThat(yard.State).IsEqual(EncounterLockState.Cleared);
+            AssertThat(level.AudienceHeldByEncounterLock).IsFalse();
+            level.TickAudience(Step);
+            AssertThat(level.AudienceIdleSeconds).IsGreater(before);
+            AssertThat(TickUntilArmed(level)).IsGreater(0);
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+        }
+    }
+
+    // === GU-L8 (2026-10-12): the three encounter locks ===
+
+    [TestCase]
+    public void TheThreeFightsAreEncounterLocksOneWavePerManifestRow() {
+        using var fixture = new GlobeFixture();
+        Level10Controller level = fixture.Level;
+        try {
+            AssertThat(level.EncounterLocks.Count).IsEqual(3);
+            EncounterLock yard = level.YardLock;
+            EncounterLock stage = level.StageLock;
+            EncounterLock galleries = level.GalleriesLock;
+            AssertString(yard.LockID).IsEqual(Level10Controller.LockYard);
+            AssertString(stage.LockID).IsEqual(Level10Controller.LockStage);
+            AssertString(galleries.LockID).IsEqual(Level10Controller.LockGalleries);
+
+            // The areas: the yard 300-2540, the stage with its cellar 2560-5740, the
+            // galleries 6080-8330 (to the bridging span's east end).
+            AssertThat(yard.Area.Position.X).IsEqual(300f);
+            AssertThat(yard.Area.End.X).IsEqual(2540f);
+            AssertThat(stage.Area.Position.X).IsEqual(2560f);
+            AssertThat(stage.Area.End.X).IsEqual(5740f);
+            AssertThat(stage.Area.End.Y).IsEqual(Level10Controller.LevelHeight);
+            AssertThat(galleries.Area.Position.X).IsEqual(6080f);
+            AssertThat(galleries.Area.End.X)
+                .IsEqual(Level10Controller.GalleryBridgeX + Level10Controller.GalleryBridgeWidth / 2f);
+
+            // The stage's exit barrier stands on the east cellar wall and runs down to
+            // its top, so the tiring-house stair out of the cellar is inside the lock.
+            AssertThat(stage.ExitBarrier.Footprint.Position.X).IsEqual(5740f);
+            AssertThat(stage.ExitBarrier.BottomY).IsEqual(1180f);
+            // The galleries' exit is the bridge into the tiring-house: the barrier stands
+            // on the span's east end, down to the boards.
+            AssertThat(galleries.ExitBarrier.Footprint.Position.X).IsEqual(galleries.Area.End.X);
+            AssertThat(galleries.ExitBarrier.BottomY).IsEqual(Level10Controller.GroundY);
+            AssertThat(galleries.ExitBarrier.Footprint.Position.X).IsGreater(Level10Controller.YardWallX);
+            // Lock barriers are not gates: no gate column (ArenaGeometryContentTests).
+            AssertThat(level.GateColumns.Count).IsEqual(0);
+
+            (EncounterLock Lock, string Row, int Length, EncounterWaveTrigger Trigger)[] waves = {
+                (yard, Level10Controller.Room1RowID, Level10Controller.Room1Spawns.Length, EncounterWaveTrigger.OnBuild),
+                (stage, Level10Controller.Room2RowID, Level10Controller.Room2Spawns.Length, EncounterWaveTrigger.OnEngage),
+                (galleries, Level10Controller.Room3RowID, Level10Controller.Room3Spawns.Length, EncounterWaveTrigger.OnBuild)
+            };
+            foreach ((EncounterLock encounterLock, string row, int length, EncounterWaveTrigger trigger) in waves) {
+                AssertThat(encounterLock.Spec.Waves.Length).IsEqual(1);
+                AssertString(encounterLock.Spec.Waves[0].RowID).IsEqual(row);
+                AssertThat(encounterLock.Spec.Waves[0].Spawns.Length).IsEqual(length);
+                AssertThat(encounterLock.Spec.Waves[0].Trigger).IsEqual(trigger);
+                AssertThat(encounterLock.State).IsEqual(EncounterLockState.Armed);
+                AssertThat(encounterLock.ExitBarrier.IsClosed).IsTrue();
+            }
+            AssertThat(stage.LivingMemberCount).IsEqual(0);
+
+            // Every galleries actor stands on the yard floor or the lower tier (the
+            // middle-tier prompt-boy and the upper-tier slasher moved down), inside
+            // the lock's area.
+            foreach ((string enemyID, Vector2 position, Vector2 _, Vector2 _) in Level10Controller.Room3Spawns) {
+                bool floor = Mathf.IsEqualApprox(position.Y, Level10Controller.EnemyGroundY);
+                bool lowerTier = Mathf.IsEqualApprox(position.Y, 830f);
+                AssertThat(floor || lowerTier).OverrideFailureMessage($"{enemyID} at {position} is posted above the lower tier.").IsTrue();
+                AssertThat(position.X > galleries.Area.Position.X && position.X < galleries.Area.End.X).IsTrue();
+            }
+
+            IReadOnlyDictionary<string, string[]> baselines = level.AuthoredEncounterBaselines;
+            AssertThat(baselines[Level10Controller.Checkpoint0].Length).IsEqual(0);
+            AssertThat(string.Join(",", baselines[Level10Controller.Checkpoint1]))
+                .IsEqual($"{Level10Controller.LockYard},{Level10Controller.LockStage}");
+            AssertThat(string.Join(",", baselines[Level10Controller.Checkpoint2]))
+                .IsEqual($"{Level10Controller.LockYard},{Level10Controller.LockStage},{Level10Controller.LockGalleries}");
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+        }
+    }
+
+    [TestCase]
+    public void TheMiddleAndPreBossAnchorsStandOutsideEveryLockBeyondSwingReach() {
+        using var fixture = new GlobeFixture();
+        Level10Controller level = fixture.Level;
+        try {
+            var middle = level.GetNode<CheckpointTrigger>($"Checkpoint_{Level10Controller.Checkpoint1}");
+            var preBoss = level.GetNode<CheckpointTrigger>($"Checkpoint_{Level10Controller.Checkpoint2}");
+            AssertThat(middle.GlobalPosition.X).IsEqual(Level10Controller.MiddleCheckpointX);
+            AssertThat(preBoss.GlobalPosition.X).IsEqual(Level10Controller.PreBossCheckpointX);
+            foreach (CheckpointTrigger anchor in new[] { middle, preBoss }) {
+                foreach (EncounterLock encounterLock in level.EncounterLocks) {
+                    bool inside = anchor.GlobalPosition.X + 30f > encounterLock.Area.Position.X
+                        && anchor.GlobalPosition.X - 30f < encounterLock.Area.End.X;
+                    AssertThat(inside).OverrideFailureMessage($"{anchor.CheckpointID} stands inside '{encounterLock.LockID}'.").IsFalse();
+                }
+            }
+            // The Middle's respawn body clears the ground-level approach step (its
+            // underside 1008, x 5800-6000) and sits under the lower tier.
+            AssertThat(middle.GlobalPosition.X - 20f).IsGreaterEqual(6000f);
+
+            float fromStage = LevelLockSwingReach.EastwardReachFrom(level.StageLock);
+            AssertThat(fromStage < LevelLockSwingReach.StrikeSurfaceWestEdge(middle.GlobalPosition.X))
+                .OverrideFailureMessage($"A swing from the stage reaches x {fromStage:0}.").IsTrue();
+            // Inside the galleries a hero on the yard floor is stopped by the yard wall
+            // (west face 8280) before the lock's exit barrier on the bridge; the swing
+            // from there is the reach the PreBoss anchor clears.
+            float fromYardWall = Level10Controller.YardWallX - LevelLockSwingReach.HeroHalfWidthPixels
+                + LevelLockSwingReach.LongestBasicSwingPixels();
+            AssertThat(fromYardWall < LevelLockSwingReach.StrikeSurfaceWestEdge(preBoss.GlobalPosition.X))
+                .OverrideFailureMessage($"A swing from the galleries' floor reaches x {fromYardWall:0}.").IsTrue();
+            AssertThat(middle.IsHeldByEncounterLock).IsTrue();
+            AssertThat(preBoss.IsHeldByEncounterLock).IsTrue();
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+        }
+    }
+
     // === Resume safety ===
 
     [TestCase]

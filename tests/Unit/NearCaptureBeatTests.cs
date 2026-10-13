@@ -121,17 +121,30 @@ public class NearCaptureBeatTests {
             .OverrideFailureMessage("A level torn down mid-beat must hand the Integrity clock back.").IsFalse();
     }
 
+    /// <summary>
+    /// GU-L8 (2026-10-12): the ship's wave is now the storm-anchor encounter lock's,
+    /// so the beat is pinned against that lock: its trigger runs the level's full
+    /// height (no jump carries the hero over it) and lies wholly west of the lock's
+    /// area, so the snare always fires before the lock can engage. (It was pinned
+    /// west of the retired room-3 wave trigger.)
+    /// </summary>
     [TestCase]
-    public void TheBeatIsArmedInTheStormAnchorShipBeforeItsWaveAndIsNotAnEnemy() {
+    public void TheBeatIsArmedInTheStormAnchorShipBeforeItsLockAndIsNotAnEnemy() {
         using var fixture = new HakataFixture();
         Level09Controller level = fixture.Level;
         var trigger = level.GetNodeOrNull<Area2D>("NearCaptureTrigger");
-        var wave = level.GetNodeOrNull<Area2D>("Room3WaveTrigger");
         AssertObject(trigger).IsNotNull();
-        AssertObject(wave).IsNotNull();
         AssertThat(trigger.Position.X).IsEqual(Level09Controller.NearCaptureTriggerX);
         AssertThat(trigger.Position.X > Level09Controller.Room3StartX).IsTrue();
-        AssertThat(trigger.Position.X < wave.Position.X).IsTrue();
+        var shape = trigger.GetChild(0) as CollisionShape2D;
+        var rect = shape?.Shape as RectangleShape2D;
+        AssertObject(rect).IsNotNull();
+        AssertThat(trigger.Position.Y - rect.Size.Y * 0.5f).IsLessEqual(0f);
+        AssertThat(trigger.Position.Y + rect.Size.Y * 0.5f).IsGreaterEqual(Level09Controller.LevelHeight);
+        EncounterLock ship = level.StormAnchorLock;
+        AssertObject(ship).IsNotNull();
+        AssertThat(trigger.Position.X + rect.Size.X * 0.5f < ship.Area.Position.X).IsTrue();
+        AssertThat(ship.EntryBarrier.Footprint.Position.X > trigger.Position.X + rect.Size.X * 0.5f).IsTrue();
         // A presentation silhouette: the locked 12/1/1/3 economy row has no Eraser.
         foreach ((string enemyID, int _, Vector2 _) in Level09Controller.SpawnTable) {
             AssertThat(enemyID == "unbound_eraser").IsFalse();
