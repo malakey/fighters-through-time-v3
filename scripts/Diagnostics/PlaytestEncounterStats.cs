@@ -207,6 +207,12 @@ namespace FTT.Diagnostics {
     /// <summary>One frame's reading of an encounter lock (the telemetry copies it off the node).</summary>
     public struct LockObservation {
         public string LockID;
+        /// <summary>
+        /// The lock node's instance ID (0 = unknown, read as the same instance). A
+        /// scene reload — an Act III Anchor Snap reloads the level and the run
+        /// goes on — rebuilds every lock as a new node under the same LockID.
+        /// </summary>
+        public ulong InstanceId;
         public EncounterLockState State;
         public int Planned;
         public int Registered;
@@ -224,9 +230,16 @@ namespace FTT.Diagnostics {
         public bool HeroAlive;
     }
 
-    /// <summary>One encounter lock over a run (the <c>locks</c> block).</summary>
+    /// <summary>
+    /// One instance of an encounter lock over a run (the <c>locks</c> block): the
+    /// lock as built, or as a scene reload rebuilt it (FIX-BOT, 2026-10-13).
+    /// </summary>
     public sealed class LockRecord {
         public string LockID = "";
+        /// <summary>1 for the lock as first built, 2 for its first rebuild by a scene reload, and so on.</summary>
+        public int Instance = 1;
+        /// <summary>The lock node this record reads (0 while unknown).</summary>
+        public ulong InstanceId { get; internal set; }
         public int FirstSeenFrame = -1;
         /// <summary>The first frame it was seen Engaged.</summary>
         public int EngageFrame = -1;
@@ -280,17 +293,37 @@ namespace FTT.Diagnostics {
     /// and every time the hero left its area with members still alive — the
     /// 2026-10-12 meaning of "passed" (user request 3: "you no longer have the
     /// option of jumping past them").
+    ///
+    /// <para><b>One record per lock instance</b> (FIX-BOT, 2026-10-13). An Act III
+    /// Anchor Snap reloads the scene and the run goes on: every lock is rebuilt
+    /// as a new node under the same ID — Armed with fresh members on a slotless
+    /// bot run, Cleared (restored) from a save's baseline. Keyed by ID alone, the
+    /// rebuilt node's counters overwrote the first one's, its members' kills
+    /// stacked onto one plan (killed &gt; planned), a restored rebuild relabelled a
+    /// lock cleared live as "restored", and a hero respawning outside booked a
+    /// leave. Each instance now keeps its own record; the totals count distinct
+    /// lock IDs (<see cref="LockCount"/>, <see cref="ClearedLocks"/>) beside the
+    /// rebuilds (<see cref="Reloads"/>).</para>
     /// </summary>
     public sealed class LockTracker {
+        /// <summary>LockID → the record of its current (latest) instance.</summary>
         private readonly Dictionary<string, LockRecord> _byId = new();
+        /// <summary>Every instance record, in the order first seen.</summary>
         public readonly List<LockRecord> Records = new();
 
         public LockRecord Observe(int frame, in LockObservation o) {
             string id = o.LockID ?? "";
-            if (!_byId.TryGetValue(id, out LockRecord record)) {
-                record = new LockRecord { LockID = id, FirstSeenFrame = frame };
+            _byId.TryGetValue(id, out LockRecord record);
+            if (record == null || (o.InstanceId != 0 && record.InstanceId != 0 && o.InstanceId != record.InstanceId)) {
+                // A new lock, or the same lock rebuilt by a scene reload: its own
+                // record, starting with the hero outside (a respawn is no leave).
+                record = new LockRecord {
+                    LockID = id, FirstSeenFrame = frame, InstanceId = o.InstanceId, Instance = (record?.Instance ?? 0) + 1
+                };
                 _byId[id] = record;
                 Records.Add(record);
+            } else if (record.InstanceId == 0) {
+                record.InstanceId = o.InstanceId;
             }
             if (o.State == EncounterLockState.Engaged && record.EngageFrame < 0) record.EngageFrame = frame;
             // A lock restored Cleared from a resume baseline never engaged in this run;
@@ -328,8 +361,12 @@ namespace FTT.Diagnostics {
         /// lifetime) and the high-water marks of its relocation counters, which
         /// restart at every pool spawn.
         /// </summary>
-        public void NoteMember(string lockID, ulong mobId, int generation, EnemyRecord record, int relocations, int fallRecoveries) {
-            if (!_byId.TryGetValue(lockID ?? "", out LockRecord lockRecord)) return;
+        public void NoteMember(string lockID, ulong mobId, int generation, EnemyRecord record, int relocations, int fallRecoveries) =>
+            NoteMember(Current(lockID), mobId, generation, record, relocations, fallRecoveries);
+
+        /// <summary>A member of one lock instance (the record <see cref="Observe"/> returned for it this frame).</summary>
+        public void NoteMember(LockRecord lockRecord, ulong mobId, int generation, EnemyRecord record, int relocations, int fallRecoveries) {
+            if (lockRecord == null) return;
             var key = (mobId, generation);
             if (!lockRecord.Members.TryGetValue(key, out LockRecord.MemberTrack track)) {
                 track = new LockRecord.MemberTrack();
@@ -361,6 +398,27 @@ namespace FTT.Diagnostics {
                 foreach (LockRecord record in Records) total += record.LeftWithMembersAlive;
                 return total;
             }
+        }
+
+        /// <summary>The record of a lock's current instance, or null for a lock never seen.</summary>
+        public LockRecord Current(string lockID) => _byId.TryGetValue(lockID ?? "", out LockRecord record) ? record : null;
+
+        /// <summary>Distinct locks seen (a lock rebuilt by a reload counts once).</summary>
+        public int LockCount => _byId.Count;
+
+        /// <summary>Lock instances a scene reload rebuilt (records beyond each lock's first).</summary>
+        public int Reloads => Records.Count - _byId.Count;
+
+        /// <summary>Distinct locks with an instance seen Engaged.</summary>
+        public int EngagedLocks => DistinctLocks(record => record.EngageFrame >= 0);
+
+        /// <summary>Distinct locks with an instance seen Cleared (live or restored): a lock a reload re-armed after the hero cleared it still counts.</summary>
+        public int ClearedLocks => DistinctLocks(record => record.ClearFrame >= 0);
+
+        private int DistinctLocks(Func<LockRecord, bool> predicate) {
+            var ids = new HashSet<string>();
+            foreach (LockRecord record in Records) if (predicate(record)) ids.Add(record.LockID);
+            return ids.Count;
         }
     }
 }
