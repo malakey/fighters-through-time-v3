@@ -330,7 +330,13 @@ namespace FTT.Environment {
         // PreBoss anchor. GU-L8 (2026-10-12): moved 8150 -> 8610, out of the storm-anchor
         // ship's lock into the flagship's antechamber, between the lock's exit barrier
         // (8560-8580) and the PreBoss anchor (8740), its channel circle short of the arena.
-        protected override Vector2? RestorationFontPosition => new(8610f, GroundY);
+        // FIX-OBJECTIVE (2026-10-13): 8610 -> 8640. At 8610 a hero pressed against the
+        // closed exit barrier from inside the ship (pivot 8540) stood 70 px from the
+        // font, inside its 90 px channel circle, and could heal mid-fight through the
+        // barrier. At 8640 that pivot is 100 px away (the channel circle never straddles
+        // a lock barrier; EncounterLockContentTests), the font is 112 px from the PreBoss
+        // anchor, and its channel circle (to 8730) still stops 70 px short of the arena (8800).
+        protected override Vector2? RestorationFontPosition => new(8640f, GroundY);
 
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
@@ -458,6 +464,14 @@ namespace FTT.Environment {
             // after _Ready (Package 5 Wave A integration), so this handler is
             // deliberately idempotent.
             if (_feedPuzzle != null) _feedPuzzle.PuzzleCompleted += _ => OnAllFeedsCut();
+            // FIX-OBJECTIVE (2026-10-13): a cut line is one-way — its lantern never
+            // relights — so the feed puzzle keeps its conditions through every death
+            // rewind (whose snapshot predates the cuts: every relay is inside the
+            // Lantern Watch, and the Middle anchor is past its gate), and a relay
+            // stays cut once cut (OnFeedRelayCut). Without it a rewind re-built the
+            // relays and reset the puzzle under dark lanterns, and the Lantern
+            // Watch, which needs the puzzle, could never clear.
+            if (_feedPuzzle != null) _feedPuzzle.RewindPolicy = StoryRewindPolicy.PreserveCurrentState;
 
             foreach (FeedLink link in FeedLinks) {
                 if (GetNodeOrNull<SearchlightZone>(link.LightNodeName) is SearchlightZone light) {
@@ -724,11 +738,19 @@ namespace FTT.Environment {
             SetObjective("berlin_objective_exposed");
         }
 
+        /// <summary>
+        /// One signal line cut. FIX-OBJECTIVE (2026-10-13): the relay stays cut
+        /// through every later rewind, and the line's condition is set whether or
+        /// not its lantern is already dark (it used to be skipped for a dark one,
+        /// so a relay a rewind had re-built could never count again). The counter
+        /// counts lines, not cuts.
+        /// </summary>
         private void OnFeedRelayCut(DestructibleBlock relay) {
             if (relay == null || !_feedByRelay.TryGetValue(relay, out FeedLink link)) return;
-            if (!DarkenSearchlight(link.LightNodeName)) return;
-            FeedsCut++;
-            _feedPuzzle?.SetCondition(link.ConditionID, true);
+            relay.RewindPolicy = StoryRewindPolicy.PreserveCurrentState;
+            DarkenSearchlight(link.LightNodeName);
+            bool newlyCut = _feedPuzzle == null || _feedPuzzle.SetCondition(link.ConditionID, true);
+            if (newlyCut) FeedsCut++;
             if (_feedPuzzle is not { IsCompleted: true }) PostFeedObjective();
         }
 

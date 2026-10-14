@@ -587,7 +587,27 @@ namespace FTT.Environment {
             if (!powered) hazard.ForcePhase(HazardPhase.Cooldown, hazard.CooldownDuration);
         }
 
-        private void OnBeamPuzzleCompleted(string puzzleID) => OpenCourtDoor(announce: true);
+        private void OnBeamPuzzleCompleted(string puzzleID) {
+            KeepBeamRoutedThroughRewinds();
+            OpenCourtDoor(announce: true);
+        }
+
+        /// <summary>
+        /// FIX-OBJECTIVE (2026-10-13): the routed beam is one-way, like the door it
+        /// frees. From the solve on, the puzzle and its three coils keep their state
+        /// through every death rewind (whose snapshot predates the hall: the Middle
+        /// anchor stands west of it and the PreBoss one is held until it clears), so
+        /// a rewind never re-aims the coils, re-arms crowd tap A or un-solves what
+        /// the routing lock has latched. Also runs for a completion the save restores.
+        /// </summary>
+        private void KeepBeamRoutedThroughRewinds() {
+            _beamPuzzle.RewindPolicy = StoryRewindPolicy.PreserveCurrentState;
+            Godot.Collections.Array<Node> parts = _beamPuzzle.GetChildren();
+            using var partsLifetime = parts.AsDisposable();
+            foreach (Node part in parts) {
+                if (part is ConductiveCoil coil) coil.RewindPolicy = StoryRewindPolicy.PreserveCurrentState;
+            }
+        }
 
         private void OpenCourtDoor(bool announce) {
             bool opened = OpenDoor(ref _courtDoor);
@@ -613,7 +633,12 @@ namespace FTT.Environment {
             if (IsBossDefeated) return;
             bool routingHolds = _routingLock != null && IsInstanceValid(_routingLock) && _routingLock.IsHolding;
             if (CourtDoorOpen && !routingHolds) SetObjective("chicago_objective_reach_boss");
-            else if (CourtDoorOpen) SetObjective("encounter_lock_objective_clear");
+            // FIX-OBJECTIVE: while the hall holds, the reroute objective reads the
+            // lock (its latch), so it and the barrier always agree.
+            else if (CourtDoorOpen) {
+                SetObjective(_routingLock.IsRequiredPuzzleMet(BeamPuzzleID)
+                    ? "encounter_lock_objective_clear" : "chicago_objective_reroute");
+            }
             else if (_electricityLock != null && IsInstanceValid(_electricityLock) && !_electricityLock.IsHolding) {
                 SetObjective("chicago_objective_reroute");
             } else {

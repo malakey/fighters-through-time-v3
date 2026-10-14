@@ -34,7 +34,9 @@ namespace FTT.Environment {
     /// report their death per instance; a pool-recycled body is counted as
     /// removed. A stall watchdog relocates a member that is stuck where the hero
     /// cannot reach it, and a hard cap force-clears a lock left with nothing to
-    /// fight.</para>
+    /// fight. A required puzzle or breakable latches the first time the lock
+    /// sees it met, so a death rewind never takes it back (FIX-OBJECTIVE; the
+    /// conditions region states the rule).</para>
     ///
     /// <para><b>Usable standalone</b> (<see cref="Create"/>, then add it to the
     /// level and call <see cref="Arm"/>, or let the first tick arm it) — Florence
@@ -65,6 +67,11 @@ namespace FTT.Environment {
         }
 
         private readonly List<Member> _members = new();
+        /// <summary>FIX-OBJECTIVE: the required puzzles this lock has seen solved (the latch, by puzzle ID).</summary>
+        private readonly HashSet<string> _latchedPuzzles = new(StringComparer.Ordinal);
+        /// <summary>FIX-OBJECTIVE: the required breakables this lock has seen destroyed (the latch, by reference).</summary>
+        private readonly HashSet<object> _latchedBreakables = new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<string, PuzzleManager> _puzzles = new(StringComparer.Ordinal);
         private EncounterLockWave[] _waves = Array.Empty<EncounterLockWave>();
         private bool[] _waveSpawned = Array.Empty<bool>();
         private int[] _plannedCounts = Array.Empty<int>();
@@ -320,6 +327,7 @@ namespace FTT.Environment {
             if (!_armed) Arm();
             if (State == EncounterLockState.Cleared) return;
             PollMembers();
+            LatchRequiredObjectives();
 
             PlayerController hero = ResolveHero();
             bool heroAlive = IsAlive(hero);
@@ -575,38 +583,134 @@ namespace FTT.Environment {
         }
 
         // === Conditions ======================================================
+        //
+        // FIX-OBJECTIVE (2026-10-13): **a required objective is one-way.**
+        //
+        // The latch. From its first tick until it clears — Armed or Engaged, held
+        // or not — the lock reads each required puzzle (solved live or persisted)
+        // and each required breakable (destroyed or freed) every tick, and latches
+        // each one met the first time it reads it met. A latched objective is
+        // never read again, so a death rewind that restores a puzzle or a
+        // breakable to the last checkpoint's snapshot (the default
+        // StoryRewindPolicy.RestoreCheckpointState, whose snapshot Phase B's moved
+        // anchors made predate the solve), a revert to Armed or any later reset
+        // can never take back an objective the hero already met: the lock clears
+        // once its members are down. Latching from Armed matters: a breakable met
+        // while the hero is still outside (Level 11's array Alpha, broken in the
+        // Wheatfield before the Angle engages) counts even if a rewind restores it
+        // before the engage.
+        //
+        // The world half. On the latch the lock also switches the objective itself
+        // to StoryRewindPolicy.PreserveCurrentState — the puzzle's PuzzleManager
+        // (so it, and the save's completion, keep the solve) and the breakable (so
+        // a generator's forcefield never comes back) — so the world never shows a
+        // met objective un-met behind an open barrier. A puzzle's props (gears,
+        // coils, relays) are the level's to keep: it switches them when the solve
+        // lands (Levels 1, 3 and 9).
+        //
+        // The latch lives on this instance only and is never saved. Every fresh
+        // entry, Restart, Collapse resume and Anchor Snap reloads the scene and
+        // builds a new lock; a lock rebuilt mid-attempt latches a solve the save
+        // carries, or a breakable a resume broke, on its first tick, and a resume
+        // past it builds it Cleared from the F10 baseline.
 
+        /// <summary>
+        /// FIX-OBJECTIVE: true once every required puzzle and breakable is met —
+        /// now, or at any tick since this lock was built (the latch). A Cleared
+        /// lock needs nothing. Read-only: the tick does the latching.
+        /// </summary>
+        public bool RequiredObjectivesMet {
+            get {
+                if (State == EncounterLockState.Cleared) return true;
+                foreach (string puzzleID in Spec?.RequiredPuzzleIDs ?? Array.Empty<string>()) {
+                    if (!IsRequiredPuzzleMet(puzzleID)) return false;
+                }
+                foreach (DamageableEnvironmentObject breakable in Spec?.RequiredBreakables ?? Array.Empty<DamageableEnvironmentObject>()) {
+                    if (!IsRequiredBreakableMet(breakable)) return false;
+                }
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// FIX-OBJECTIVE: false only while this lock still needs
+        /// <paramref name="puzzleID"/> — required, not latched and not solved now.
+        /// A level derives its "solve the puzzle" objective from this, never from
+        /// the puzzle alone, so the objective and the barrier always agree.
+        /// </summary>
+        public bool IsRequiredPuzzleMet(string puzzleID) {
+            if (string.IsNullOrWhiteSpace(puzzleID) || State == EncounterLockState.Cleared) return true;
+            if (Array.IndexOf(Spec?.RequiredPuzzleIDs ?? Array.Empty<string>(), puzzleID) < 0) return true;
+            return _latchedPuzzles.Contains(puzzleID) || IsPuzzleSolved(puzzleID);
+        }
+
+        /// <summary>FIX-OBJECTIVE: false only while this lock still needs <paramref name="breakable"/> destroyed.</summary>
+        public bool IsRequiredBreakableMet(DamageableEnvironmentObject breakable) {
+            if (breakable == null || State == EncounterLockState.Cleared) return true;
+            if (Array.IndexOf(Spec?.RequiredBreakables ?? Array.Empty<DamageableEnvironmentObject>(), breakable) < 0) return true;
+            return _latchedBreakables.Contains(breakable) || IsBreakableDown(breakable);
+        }
+
+        /// <summary>Reads every required objective and latches each one met now. Every tick, from the first, held or not.</summary>
+        private void LatchRequiredObjectives() {
+            RequiredPuzzlesSolved();
+            RequiredBreakablesDestroyed();
+        }
+
+        /// <summary>True when every required puzzle is latched or solved now; latches the solved ones.</summary>
         private bool RequiredPuzzlesSolved() {
             string[] puzzleIDs = Spec?.RequiredPuzzleIDs;
             if (puzzleIDs == null || puzzleIDs.Length == 0) return true;
+            bool all = true;
             foreach (string puzzleID in puzzleIDs) {
-                if (string.IsNullOrWhiteSpace(puzzleID)) continue;
-                if (!IsPuzzleSolved(puzzleID)) return false;
+                if (string.IsNullOrWhiteSpace(puzzleID) || _latchedPuzzles.Contains(puzzleID)) continue;
+                PuzzleManager manager = FindPuzzle(puzzleID);
+                if (!IsPuzzleSolved(puzzleID, manager)) { all = false; continue; }
+                _latchedPuzzles.Add(puzzleID);
+                // The world half: the puzzle keeps its solve (and the save its
+                // completion) through every later rewind.
+                if (manager != null) manager.RewindPolicy = StoryRewindPolicy.PreserveCurrentState;
             }
-            return true;
+            return all;
         }
 
-        private bool IsPuzzleSolved(string puzzleID) {
-            if (IsInsideTree()) {
-                Godot.Collections.Array<Node> managers = GetTree().GetNodesInGroup("puzzle_manager");
-                using var managersLifetime = managers.AsDisposable();
-                foreach (Node node in managers) {
-                    if (node is PuzzleManager manager && manager.PuzzleID == puzzleID) return manager.IsSolvedOrPersisted;
-                }
+        private bool IsPuzzleSolved(string puzzleID) => IsPuzzleSolved(puzzleID, FindPuzzle(puzzleID));
+
+        /// <summary>Solved live or persisted; with no manager in the tree, persisted in the active save.</summary>
+        private static bool IsPuzzleSolved(string puzzleID, PuzzleManager manager) =>
+            manager != null ? manager.IsSolvedOrPersisted : SaveManager.Instance?.IsPuzzleCompleted(puzzleID) == true;
+
+        /// <summary>The live manager carrying <paramref name="puzzleID"/>, found once and kept (an Armed lock reads it every tick).</summary>
+        private PuzzleManager FindPuzzle(string puzzleID) {
+            if (_puzzles.TryGetValue(puzzleID, out PuzzleManager known) && IsInstanceValid(known) && known.IsInsideTree()) return known;
+            if (!IsInsideTree()) return null;
+            Godot.Collections.Array<Node> managers = GetTree().GetNodesInGroup("puzzle_manager");
+            using var managersLifetime = managers.AsDisposable();
+            foreach (Node node in managers) {
+                if (node is PuzzleManager manager && manager.PuzzleID == puzzleID) return _puzzles[puzzleID] = manager;
             }
-            return SaveManager.Instance?.IsPuzzleCompleted(puzzleID) == true;
+            return null;
         }
 
+        /// <summary>True when every required breakable is latched or down now; latches the ones down.</summary>
         private bool RequiredBreakablesDestroyed() {
             DamageableEnvironmentObject[] breakables = Spec?.RequiredBreakables;
             if (breakables == null) return true;
+            bool all = true;
             foreach (DamageableEnvironmentObject breakable in breakables) {
-                // A breakable already freed (an OpenDoor-style removal) is gone.
-                if (breakable != null && IsInstanceValid(breakable) && !breakable.IsQueuedForDeletion()
-                    && !breakable.IsDestroyed) return false;
+                if (breakable == null || _latchedBreakables.Contains(breakable)) continue;
+                if (!IsBreakableDown(breakable)) { all = false; continue; }
+                _latchedBreakables.Add(breakable);
+                // The world half: a broken objective stays broken through every
+                // later rewind (a generator's forcefield never comes back).
+                if (IsInstanceValid(breakable)) breakable.RewindPolicy = StoryRewindPolicy.PreserveCurrentState;
             }
-            return true;
+            return all;
         }
+
+        /// <summary>Destroyed, or already freed (an OpenDoor-style removal is gone).</summary>
+        private static bool IsBreakableDown(DamageableEnvironmentObject breakable) =>
+            !IsInstanceValid(breakable) || breakable.IsQueuedForDeletion() || breakable.IsDestroyed;
 
         // === Hero, camera, presentation ======================================
 

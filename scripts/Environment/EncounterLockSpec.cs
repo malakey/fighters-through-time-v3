@@ -125,10 +125,21 @@ namespace FTT.Environment {
 
         public EncounterLockWave[] Waves = Array.Empty<EncounterLockWave>();
 
-        /// <summary>Puzzles that must be solved (live or persisted) before the lock clears.</summary>
+        /// <summary>
+        /// Puzzles that must be solved (live or persisted) before the lock clears.
+        /// FIX-OBJECTIVE: one-way. Each latches the first time the lock sees it
+        /// solved, and its manager then keeps the solve through rewinds (the rule is
+        /// in <see cref="EncounterLock"/>'s conditions region). The level keeps the
+        /// puzzle's props (gears, coils, relays) solved through rewinds from the
+        /// solve on, so the world agrees with the lock.
+        /// </summary>
         public string[] RequiredPuzzleIDs = Array.Empty<string>();
 
-        /// <summary>Breakables (a generator, a rockfall) that must be destroyed before the lock clears.</summary>
+        /// <summary>
+        /// Breakables (a generator, a rockfall) that must be destroyed before the
+        /// lock clears. FIX-OBJECTIVE: one-way. Each latches the first time the lock
+        /// sees it destroyed and then stays destroyed through rewinds.
+        /// </summary>
         public DamageableEnvironmentObject[] RequiredBreakables = Array.Empty<DamageableEnvironmentObject>();
 
         /// <summary>Objective posted while the lock is Engaged; empty keeps the level's own.</summary>

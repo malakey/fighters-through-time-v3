@@ -31,6 +31,8 @@ namespace FTT.Environment {
         private StoryCameraConfiner _camera;
 
         private PuzzleManager _gearPuzzle;
+        private RotatingGear _gearA;
+        private RotatingGear _gearB;
         private StaticBody2D _workshopDoor;
 
         private bool _bossIntroShown;
@@ -395,13 +397,13 @@ namespace FTT.Environment {
                 RequiredConditionIDs = new[] { "gear_a_aligned", "gear_b_aligned" }
             };
             AddChild(_gearPuzzle);
-            _gearPuzzle.PuzzleCompleted += _ => OpenWorkshopDoor();
+            _gearPuzzle.PuzzleCompleted += _ => OnGearPuzzleSolved();
 
-            var gearA = BuildGear("GearA", new Vector2(offsetX + 2000, 820), initialQuarterTurns: 1,
+            _gearA = BuildGear("GearA", new Vector2(offsetX + 2000, 820), initialQuarterTurns: 1,
                 conditionID: "gear_a_aligned");
-            var gearB = BuildGear("GearB", new Vector2(offsetX + 2350, 820), initialQuarterTurns: 2,
+            _gearB = BuildGear("GearB", new Vector2(offsetX + 2350, 820), initialQuarterTurns: 2,
                 conditionID: "gear_b_aligned");
-            gearA.LinkedGearPaths.Add(gearA.GetPathTo(gearB));
+            _gearA.LinkedGearPaths.Add(_gearA.GetPathTo(_gearB));
 
             // Deferred: PuzzleManager may already hold saved completion.
             CallDeferred(MethodName.ApplySavedPuzzleState);
@@ -409,6 +411,21 @@ namespace FTT.Environment {
 
         private void ApplySavedPuzzleState() {
             if (_gearPuzzle != null && _gearPuzzle.IsCompleted) OpenWorkshopDoor();
+        }
+
+        /// <summary>
+        /// FIX-OBJECTIVE (2026-10-13): the solve is one-way, like the door it
+        /// frees. From the solve on, the puzzle and both gears keep their state
+        /// through every death rewind (whose snapshot predates the solve: the
+        /// Middle anchor stands past the door), so a rewind never spins the gears
+        /// back or un-solves what the print-shop lock has latched — the burned
+        /// scaffolding's precedent. Also runs for a completion the save restores.
+        /// </summary>
+        private void OnGearPuzzleSolved() {
+            _gearPuzzle.RewindPolicy = StoryRewindPolicy.PreserveCurrentState;
+            if (_gearA != null && IsInstanceValid(_gearA)) _gearA.RewindPolicy = StoryRewindPolicy.PreserveCurrentState;
+            if (_gearB != null && IsInstanceValid(_gearB)) _gearB.RewindPolicy = StoryRewindPolicy.PreserveCurrentState;
+            OpenWorkshopDoor();
         }
 
         private RotatingGear BuildGear(string name, Vector2 position, int initialQuarterTurns, string conditionID) {
@@ -1043,7 +1060,9 @@ namespace FTT.Environment {
                 if (encounterLock != null && IsInstanceValid(encounterLock)
                     && encounterLock.State == EncounterLockState.Engaged) engaged = encounterLock;
             }
-            if (engaged != null && engaged == _printShopLock && _gearPuzzle != null && !_gearPuzzle.IsSolvedOrPersisted) {
+            // FIX-OBJECTIVE: the gears objective reads the lock (its latch), so it
+            // and the barrier always agree.
+            if (engaged != null && engaged == _printShopLock && !_printShopLock.IsRequiredPuzzleMet(GearPuzzleID)) {
                 _services?.HUD?.SetObjective("florence_objective_gears");
             } else if (engaged != null) {
                 _services?.HUD?.SetObjective("encounter_lock_objective_clear");
