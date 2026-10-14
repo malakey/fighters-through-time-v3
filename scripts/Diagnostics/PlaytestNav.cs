@@ -870,6 +870,19 @@ namespace FTT.Diagnostics {
                 });
             }
 
+            // FIX-BOT (2026-10-13): walk onto a lift stop that sits flush in this
+            // floor (a walk-on stop, Level 12's spire lift at the bottom). There
+            // was no edge onto it, so a hero who fell back to that floor could
+            // never plan back up the lift; the boarding wait keeps it clear of the
+            // lift's footprint until the lift is there.
+            if (b.Platform != null && a.Platform == null && !a.IsRope && b.Left >= a.Left - 4f && b.Right <= a.Right + 4f) {
+                float x = (b.Left + b.Right) / 2f;
+                if (Mathf.Abs(b.Top - a.TopAt(x)) <= 12f) {
+                    edges.Add(new NavEdge { From = a, To = b, Kind = NavEdgeKind.Walk, LaunchX = x, LandX = x, BaseCost = 0.1f });
+                    return;
+                }
+            }
+
             // Walk across a seam (adjacent pieces at nearly the same height).
             if (gap <= 26f && Mathf.Abs(b.TopAt(a.Right) - a.TopAt(a.Right)) <= 12f && b.Left >= a.Right - 30f) {
                 if (SeamClear(a.Right, b.Left, a.TopAt(a.Right), b.TopAt(b.Left))) {
@@ -933,8 +946,18 @@ namespace FTT.Diagnostics {
                     if (found) break;
                 }
             }
-            if (best != null) edges.Add(best);
+            if (best == null) return;
+            // FIX-BOT (2026-10-13): a jump from one moving platform's stop to
+            // another's needs both there at once. Level 12's spire lift leaves its
+            // top before the highline ferry reaches its stop, and a hero who planned
+            // the lift-to-ferry jump rode the lift up and down for good; through the
+            // mast head (static ground between them) it waits on solid floor.
+            if (a.Platform != null && b.Platform != null && a.Platform != b.Platform) best.BaseCost += PlatformTransferPenaltySeconds;
+            edges.Add(best);
         }
+
+        /// <summary>Extra cost (seconds) of an edge between two different moving platforms' stops.</summary>
+        private const float PlatformTransferPenaltySeconds = 6f;
 
         private bool SeamClear(float x0, float x1, float y0, float y1) {
             float lo = Mathf.Min(x0, x1) - 2f, hi = Mathf.Max(x0, x1) + 2f;
@@ -1694,7 +1717,7 @@ namespace FTT.Diagnostics {
                     _airborneSeen = true;
                     _airFrames++;
                     Description = $"air {_air}";
-                    intent.MoveX = _airFrames <= _air.SteerDelay ? 0f : SteerInput(player, _air.LandX);
+                    intent.MoveX = _airFrames <= _air.SteerDelay ? 0f : SteerInput(player, AirTargetX(_air));
                     // Jump hold to the apex, then the second jump.
                     if (_air.Kind is NavEdgeKind.Jump or NavEdgeKind.Catch or NavEdgeKind.Release) {
                         if (_jumpHeld && player.Velocity.Y >= 0f) _jumpHeld = false;
@@ -1937,6 +1960,20 @@ namespace FTT.Diagnostics {
                     StartJump(edge, ref intent);
                     return true;
             }
+        }
+
+        /// <summary>
+        /// Where an aerial edge lands now: its planned x, carried along by a moving
+        /// platform that has left the endpoint it was planned at (FIX-BOT,
+        /// 2026-10-13). Level 12's highline ferry waits 1.1 s at its stops while a
+        /// low-gravity jump onto it flies for about 3 s, so the bot landed where
+        /// the ferry had been and fell to the regolith.
+        /// </summary>
+        internal float AirTargetX(NavEdge edge) {
+            PathMovingPlatform platform = edge.To?.Platform;
+            if (platform == null || !GodotObject.IsInstanceValid(platform)
+                || !_nav.PlatformEndpoint(platform, edge.To.PlatformEndpoint, out Vector2 endpoint)) return edge.LandX;
+            return edge.LandX + (platform.GlobalPosition.X - endpoint.X);
         }
 
         private void StartJump(NavEdge edge, ref BotIntent intent, int flightJumps = -1) {

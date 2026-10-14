@@ -163,6 +163,14 @@ namespace FTT.Diagnostics {
     /// for <see cref="LockStallFrames"/> while no member is reachable, or for
     /// twice that otherwise, is reported through <see cref="StuckLockID"/> and a
     /// nav note, and the runner ends the run <c>stuck_lock:&lt;id&gt;</c>.</para>
+    ///
+    /// <para><b>Getting to them</b> (FIX-BOT, 2026-10-13). A lock member is walked
+    /// in on only when nothing solid stands between (a breakable, a prop, cover,
+    /// a step stops the walk-in; the agent's Break, jump and hop edges take over),
+    /// a member on a reachable ledge is fought up there rather than from below,
+    /// and the puzzles an engaged lock needs are worked: its gear trains are
+    /// planned and pressed, and its plates count as reachable through any stand
+    /// point. Outside locks the old approach stands unchanged.</para>
     /// </summary>
     public sealed class StoryBot : PlaytestBot, PlaytestRouteHints.IHintDriver {
         int PlaytestRouteHints.IHintDriver.Frame => Frame;
@@ -375,6 +383,107 @@ namespace FTT.Diagnostics {
             return true;
         }
 
+        // --- Reaching a lock member (FIX-BOT, 2026-10-13) ---------------------
+        // The lock member is never given up on, so the approach has to get there:
+        // a straight walk-in pinned the bot against Level 4's cell lock B, Level 6's
+        // basalt boulder, Level 11's cover and Level 5's stair steps for the rest
+        // of the run, and a member posted on a ledge was jumped at from below.
+
+        /// <summary>A plan to a lock member's surface may end on that surface only (the stand point is on its top).</summary>
+        private const float PerchMaxBelow = 40f;
+        /// <summary>A walk-in that has not moved the hero for this many frames is blocked by something the ray missed (a step, a low prop).</summary>
+        private const int LockWalkInStallFrames = 30;
+        /// <summary>How long a blocked walk-in hands the approach to the agent before walking in is tried again.</summary>
+        private const int LockWalkInDetourFrames = 180;
+
+        private int _walkInStalled;
+        private int _walkInLastFrame = -1000;
+        private float _walkInLastX;
+        private int _walkInBlockedUntil = -1;
+
+        /// <summary>The nav surface a body stands on (its feet within 16 px of the top), or null in the air.</summary>
+        private NavSegment StandingSurface(Node2D body) =>
+            World.Nav.SegmentUnder(body.GlobalPosition, maxBelow: 16f, minAbove: -16f, xMargin: 24f);
+
+        /// <summary>
+        /// Where to stand to fight a lock member that is not on the hero's level:
+        /// on its own surface, on the hero's side of it, when the hero can get
+        /// there; null when it stands on nothing (a flyer, a body in the air), on
+        /// the hero's own surface, or somewhere unreachable (the old jumping
+        /// up-attack from below is then all that is left).
+        /// </summary>
+        private Vector2? LockTargetPerch(PlayerController player, Node2D target) {
+            Vector2 feet = player.GlobalPosition;
+            Vector2 at = target.GlobalPosition;
+            if (Mathf.Abs(at.Y - feet.Y) < 60f) return null;
+            NavSegment surface = StandingSurface(target);
+            if (surface == null) return null;
+            NavSegment here = World.Nav.Locate(player);
+            if (here != null && here == surface) return null;
+            float side = feet.X <= at.X ? -1f : 1f;
+            float x = surface.Clamp(at.X + side * 60f, 14f);
+            var point = new Vector2(x, surface.TopAt(x));
+            return Reachable(player, point, PerchMaxBelow) ? point : null;
+        }
+
+        /// <summary>
+        /// The point on a lock member's own surface under it, a plan to which may
+        /// end on that surface only; for a member on no surface (a flyer, a body
+        /// in the air), its feet, with the old 300 px of floor under them.
+        /// </summary>
+        private Vector2 LockTargetGoal(Node2D target, out float maxBelow) {
+            NavSegment surface = StandingSurface(target);
+            Vector2 at = target.GlobalPosition;
+            if (surface == null) {
+                maxBelow = 300f;
+                return at;
+            }
+            maxBelow = PerchMaxBelow;
+            float x = surface.Clamp(at.X, 14f);
+            return new Vector2(x, surface.TopAt(x));
+        }
+
+        /// <summary>
+        /// A straight walk-in at a lock member is clear: nothing solid on the line
+        /// from the hero's chest to the member's (<see cref="PlaytestWorld.ClearWalk"/>,
+        /// which, unlike <see cref="PlaytestWorld.LineOfSight"/>, stops at breakables
+        /// and props), both stand on the one surface, and the last walk-in did not
+        /// stall against something the ray missed.
+        /// </summary>
+        private bool LockWalkInClear(PlayerController player, Node2D target) {
+            if (Frame < _walkInBlockedUntil) return false;
+            Vector2 chest = player.GlobalPosition + new Vector2(0f, -36f);
+            Vector2 center = target.GlobalPosition + new Vector2(0f, -30f);
+            if (!World.ClearWalk(chest, center)) return false;
+            // Two static surfaces are two because an obstacle or a gap splits them;
+            // a lift or prop under the hero (Level 12's spire lift, flush with the
+            // floor at its stop) says nothing about what lies between.
+            NavSegment here = World.Nav.Locate(player);
+            NavSegment there = StandingSurface(target);
+            return here == null || there == null || here.Temporary || here.Platform != null || here == there;
+        }
+
+        /// <summary>A walk-in that leaves the hero standing still hands the approach to the agent for a while.</summary>
+        private void WatchLockWalkIn(PlayerController player) {
+            float x = player.GlobalPosition.X;
+            bool still = Mathf.Abs(x - _walkInLastX) < 2f && Mathf.Abs(player.Velocity.X) < 20f
+                && player.CurrentState is CharacterState.Idle or CharacterState.Running;
+            if (Frame - _walkInLastFrame > 1 || !still) {
+                _walkInStalled = 0;
+            } else if (++_walkInStalled > LockWalkInStallFrames) {
+                _walkInStalled = 0;
+                _walkInBlockedUntil = Frame + LockWalkInDetourFrames;
+            }
+            _walkInLastFrame = Frame;
+            _walkInLastX = x;
+        }
+
+        /// <summary>True while the lock the hero is engaged in needs <paramref name="puzzleID"/> solved to clear.</summary>
+        private bool EngagedLockRequires(string puzzleID) {
+            string[] required = World.EngagedLock()?.Spec?.RequiredPuzzleIDs;
+            return !string.IsNullOrEmpty(puzzleID) && required != null && Array.IndexOf(required, puzzleID) >= 0;
+        }
+
         /// <summary>
         /// Inside an engaged lock with nothing to fight or work (a wave still to
         /// come, a breakable the tasks cannot reach): hold near the area's middle
@@ -416,9 +525,19 @@ namespace FTT.Diagnostics {
             if (!player.IsOnFloor()) return false;
             ChronalExtractor extractor = World.TelegraphingExtractorNear(feet, DischargeSafeRadius);
             if (extractor != null) {
-                CurrentAction = "evade_discharge";
                 CurrentTarget = extractor;
-                intent.MoveX = feet.X >= extractor.GlobalPosition.X ? 1f : -1f;
+                float away = feet.X >= extractor.GlobalPosition.X ? 1f : -1f;
+                // FIX-BOT (2026-10-13): never run off a ledge to dodge a discharge.
+                // On Level 12's mast head the dodge ran the hero off the highline
+                // launch into the dead end under the curtain, for good; the hit
+                // costs far less. Brace (Block) instead.
+                if (RunsOffLedge(player, away)) {
+                    CurrentAction = "brace_discharge";
+                    intent.Held |= GameplayButtons.Block;
+                    return true;
+                }
+                CurrentAction = "evade_discharge";
+                intent.MoveX = away;
                 return true;
             }
             foreach (PlaytestWorld.HazardZone zone in World.LiveCyclicHazards()) {
@@ -434,6 +553,16 @@ namespace FTT.Diagnostics {
                 float exitRight = (r.End.X + 44f) - feet.X;
                 float dir = exitLeft < exitRight ? -1f : 1f;
                 if (Mathf.Abs(exitLeft - exitRight) < 50f) dir = _travelDir;
+                // FIX-BOT: not off a ledge (Level 12's mast-head vent ran the hero
+                // off the highline launch): the other way, or brace where it stands.
+                if (RunsOffLedge(player, dir)) {
+                    if (RunsOffLedge(player, -dir)) {
+                        CurrentAction = "brace_hazard";
+                        intent.Held |= GameplayButtons.Block;
+                        return true;
+                    }
+                    dir = -dir;
+                }
                 CurrentAction = "evade_hazard";
                 intent.MoveX = dir;
                 return true;
@@ -449,6 +578,25 @@ namespace FTT.Diagnostics {
 
         /// <summary>Extractor discharge circle (190) plus the hero's half-body, measured to the chest.</summary>
         private const float DischargeSafeRadius = 222f;
+
+        /// <summary>A dodge with less than this much surface left before a drop would run off it.</summary>
+        private const float DodgeLedgeRoomPixels = 64f;
+
+        /// <summary>
+        /// True when walking <paramref name="dir"/> would take the hero off its
+        /// surface's end within <see cref="DodgeLedgeRoomPixels"/> onto nothing
+        /// standable at about the same height (a ledge, not a seam).
+        /// </summary>
+        internal bool RunsOffLedge(PlayerController player, float dir) {
+            NavSegment here = World.Nav.Locate(player);
+            if (here == null || here.Temporary || here.Platform != null) return false;
+            float x = player.GlobalPosition.X;
+            float room = dir > 0f ? here.Right - x : x - here.Left;
+            if (room > DodgeLedgeRoomPixels) return false;
+            float endX = dir > 0f ? here.Right : here.Left;
+            var past = new Vector2(endX + dir * (HeroPhysics.BodyHalfWidth + 16f), here.TopAt(endX));
+            return World.Nav.SegmentUnder(past, maxBelow: 40f, minAbove: -24f, xMargin: 4f) == null;
+        }
 
         /// <summary>Never walk into a hazard column that will be hot while crossing it.</summary>
         private void FilterHazards(PlayerController player, ref BotIntent intent) {
@@ -489,6 +637,8 @@ namespace FTT.Diagnostics {
             }
         }
 
+        private ulong _escapePastFinishNoted;
+
         private bool OutrunEscape(PlayerController player, ref BotIntent intent) {
             EscapeSequenceController escape = World.RunningEscape();
             if (escape == null) return false;
@@ -496,6 +646,20 @@ namespace FTT.Diagnostics {
             // fight it first, then run (plan §5: escapes start on a lock's clear;
             // this keeps the bot from pushing at a barrier if one does not).
             if (World.EngagedLock() != null) return false;
+            // FIX-BOT (2026-10-13): past the finish line there is nothing left to
+            // outrun, so go on as a player would. Level 6's run never completes for
+            // a hero who crosses its finish trigger in one go (the trigger refuses
+            // a body that enters short of FinishX and never fires again: the game
+            // bug GU-L12 fixed on Level 15), and the bot used to idle past the line
+            // for the rest of the run. The note keeps that bug visible.
+            if (player.GlobalPosition.X >= escape.FinishX + HeroPhysics.BodyHalfWidth) {
+                if (_escapePastFinishNoted != escape.GetInstanceId()) {
+                    _escapePastFinishNoted = escape.GetInstanceId();
+                    Agent.Notes.Add($"escape {escape.SequenceID}: still running with the hero past its finish "
+                        + $"(x {Mathf.RoundToInt(player.GlobalPosition.X)} >= {Mathf.RoundToInt(escape.FinishX)}); going on");
+                }
+                return false;
+            }
             _travelDir = 1f;
             CurrentAction = "escape";
             Vector2 goal = new(escape.FinishX + 80f, player.GlobalPosition.Y - 10f);
@@ -824,23 +988,47 @@ namespace FTT.Diagnostics {
                 return;
             }
 
+            // A lock member standing on a surface the hero can reach but is not on
+            // (a ledge, a yard, a gallery) is fought up there, never from below
+            // (FIX-BOT, 2026-10-13).
+            bool lockTarget = IsLockTarget(target, World.EngagedLock());
+            Vector2? perch = lockTarget ? LockTargetPerch(player, target) : null;
+
             // Above us: jump and up-attack (drones, platform shooters).
             float above = -delta.Y; // positive: target above the feet
-            if (above > 95f && above < 330f && distance < 150f) {
+            if (perch == null && above > 95f && above < 330f && distance < 150f) {
                 AirStrike(player, target, ref intent);
                 return;
             }
 
             float strikeRange = StrikeRangeFor(player, target);
             if (_phase == Phase.Idle) {
-                bool inRange = distance <= strikeRange && Mathf.Abs(delta.Y) < 80f;
+                // A lock member that stands on a surface is struck from the ground:
+                // a string thrown mid-jump on the way up to its ledge dropped the
+                // hero back under it (FIX-BOT), so the flight finishes first.
+                bool inRange = distance <= strikeRange && Mathf.Abs(delta.Y) < 80f
+                    && (!lockTarget || player.IsOnFloor() || StandingSurface(target) == null);
                 if (!inRange) {
                     CurrentAction = "approach";
                     float side = feet.X <= target.GlobalPosition.X ? -1f : 1f;
                     Vector2 standAt = new(target.GlobalPosition.X + side * 60f, target.GlobalPosition.Y);
-                    if (Mathf.Abs(delta.Y) < 60f && distance < 300f && player.IsOnFloor()) {
+                    bool close = Mathf.Abs(delta.Y) < 60f && distance < 300f;
+                    if (perch.HasValue) {
+                        if (!Go(player, perch.Value, ref intent, 30f, PerchMaxBelow)) FaceTarget(player, target, ref intent);
+                    } else if (close && player.IsOnFloor() && (!lockTarget || LockWalkInClear(player, target))) {
                         // Same level and close: just walk in.
                         intent.MoveX = Mathf.Sign(delta.X);
+                        if (lockTarget) WatchLockWalkIn(player);
+                    } else if (lockTarget) {
+                        // Close but something solid stands between (a breakable cell
+                        // lock, a boulder, a wall of cover, a step), or not close: the
+                        // agent's Break, jump or hop edges to the member's own
+                        // surface. Never to a stand point 60 px off it, which can lie
+                        // over another surface (Level 4's cell A, whose far wall
+                        // stands 60 px from the slashers behind it).
+                        if (close) CurrentAction = "approach_around";
+                        Vector2 goal = LockTargetGoal(target, out float maxBelow);
+                        if (!Go(player, goal, ref intent, 20f, maxBelow)) FaceTarget(player, target, ref intent);
                     } else {
                         Go(player, standAt, ref intent, 30f, 300f);
                     }
@@ -1010,6 +1198,10 @@ namespace FTT.Diagnostics {
                     return GoInteract(player, glyph, ref intent, "glyph", 22f);
                 case ConductiveCoil coil:
                     return GoInteract(player, coil, ref intent, "coil", 26f, 30);
+                case RotatingGear gear:
+                    // FIX-BOT: one press at a time, each re-planned from the
+                    // gears' new turns (a press also turns the gears it drives).
+                    return GoInteract(player, gear, ref intent, "gear", 26f, 30);
                 case RescuableNPC npc:
                     return GoInteract(player, npc, ref intent, "rescue", 26f);
                 case PressurePlate plate: {
@@ -1045,6 +1237,7 @@ namespace FTT.Diagnostics {
             RescuableNPC n => n.IsRescued,
             DamageableEnvironmentObject d => d.IsDestroyed,
             ConductiveCoil coil => _coilPlan == null || !_coilPlan.TryGetValue(coil, out int turns) || coil.QuarterTurns == turns,
+            RotatingGear gear => !World.GearPlan().TryGetValue(gear, out int presses) || presses == 0,
             PressurePlate plate => plate.ResolvePuzzleManager()?.IsCompleted != false
                 || plate.CurrentWeight + plate.PlayerWeight + 0.001f < plate.RequiredWeight,
             _ => false
@@ -1053,6 +1246,7 @@ namespace FTT.Diagnostics {
         private static int TaskProgress(Node2D task) => task switch {
             DamageableEnvironmentObject d => d.CurrentHP * 10 + d.HitCount,
             ConductiveCoil c => c.QuarterTurns,
+            RotatingGear g => g.QuarterTurns,
             SequenceGlyph g => g.Lock?.Progress ?? 0,
             _ => 0
         };
@@ -1066,13 +1260,16 @@ namespace FTT.Diagnostics {
             string bestKind = "";
             float bestScore = float.MaxValue;
 
-            void Consider(Node2D node, string kind, float bias, float maxDistance) {
+            // reachedAt: a stand point was already proved reachable (a plate's PlatePoint).
+            void Consider(Node2D node, string kind, float bias, float maxDistance, bool reachedAt = false) {
                 if (node == null || !GodotObject.IsInstanceValid(node) || !node.IsInsideTree() || TaskBlocked(node)) return;
                 Vector2 delta = node.GlobalPosition - feet;
                 float score = Mathf.Abs(delta.X) + Mathf.Abs(delta.Y) * 1.5f + bias;
                 if (Mathf.Abs(delta.X) > maxDistance || score >= bestScore) return;
                 bool reachable;
-                if (node is DamageableEnvironmentObject && PlaytestWorld.ShapeRect(node) is Rect2 r) {
+                if (reachedAt) {
+                    reachable = true;
+                } else if (node is DamageableEnvironmentObject && PlaytestWorld.ShapeRect(node) is Rect2 r) {
                     // A breakable occupies its own floor: stand beside it, or under it.
                     reachable = Reachable(player, new Vector2(r.Position.X - 20f, r.End.Y - 2f), 46f)
                         || Reachable(player, new Vector2(r.End.X + 20f, r.End.Y - 2f), 46f)
@@ -1120,7 +1317,18 @@ namespace FTT.Diagnostics {
                 if (manager == null || manager.IsCompleted) continue;
                 if (plate.CurrentWeight + plate.PlayerWeight + 0.001f < plate.RequiredWeight) continue;
                 if (PlatePoint(player, plate) == null) continue;
-                Consider(plate, "plate", -100f, 2000f);
+                // FIX-BOT: a plate the engaged lock needs counts as reachable when
+                // any of its stand points is (Level 6's east pan, whose centre the
+                // dropped pumice boulder covers, was never a task).
+                Consider(plate, "plate", -100f, 2000f, reachedAt: EngagedLockRequires(manager.PuzzleID));
+            }
+            // FIX-BOT: a gear train the engaged lock needs solved (Florence's print
+            // shop): the gears the plan still has to press, nearest first.
+            if (World.Gears.Count > 0) {
+                foreach (KeyValuePair<RotatingGear, int> pair in World.GearPlan()) {
+                    if (pair.Value <= 0 || !EngagedLockRequires(PlaytestWorld.PuzzleOf(pair.Key)?.PuzzleID)) continue;
+                    Consider(pair.Key, "gear", 0f, 2400f);
+                }
             }
             foreach (DamageableEnvironmentObject breakable in World.Breakables) {
                 if (!GodotObject.IsInstanceValid(breakable) || breakable.IsDestroyed || breakable is ChronalExtractor) continue;
@@ -1209,8 +1417,9 @@ namespace FTT.Diagnostics {
                     // A full jump, then the down-air at the apex: the spike
                     // dives, and its startup must finish before it lands
                     // (Down only on the press frame: held Down would fast-fall).
-                    if (player.Velocity.Y < -40f || t < 3) intent.Held |= GameplayButtons.Jump;
-                    if (!_airStrikeSwung && t > 2 && player.Velocity.Y > -40f) {
+                    // A short hop swings on the way up instead (FIX-BOT, below).
+                    if (_airStrikeShortHop ? t < 3 : (player.Velocity.Y < -40f || t < 3)) intent.Held |= GameplayButtons.Jump;
+                    if (!_airStrikeSwung && t > 2 && (_airStrikeShortHop || player.Velocity.Y > -40f)) {
                         // The down-air reads the Down *button* on the press frame.
                         intent.MoveY = 1f;
                         intent.Held |= GameplayButtons.Down;
@@ -1261,7 +1470,8 @@ namespace FTT.Diagnostics {
                     return;
                 }
                 if (upX && area.End.Y > feet.Y - JumpStrikeReach && area.End.Y <= feet.Y - 144f
-                    && Mathf.Abs(feet.X - Mathf.Clamp(feet.X, area.Position.X + 8f, area.End.X - 8f)) < 30f) {
+                    && Mathf.Abs(feet.X - Mathf.Clamp(feet.X, area.Position.X + 8f, area.End.X - 8f)) < 30f
+                    && !PrefersBeside(player, area)) {
                     if (Frame - _airStrikeFrame > 70) {
                         _airStrikeFrame = Frame;
                         _airStrikeDown = false;
@@ -1279,6 +1489,14 @@ namespace FTT.Diagnostics {
                         _airStrikeDown = true;
                         _airStrikeSwung = false;
                         _airStrikeArea = area;
+                        // FIX-BOT (inside an engaged lock): from a full jump's apex
+                        // the down-air's box can end short of a target at the hero's
+                        // own floor level — Level 6's wedge, its top 8 px under the
+                        // gallery, which Joan's apex down-air never touched. Hop
+                        // short and swing on the way up when the apex cannot reach.
+                        float apexFeet = feet.Y - World.Nav.Hero.SingleRise(World.Nav.GravityScaleAt(feet.X, feet.Y));
+                        _airStrikeShortHop = World.EngagedLock() != null
+                            && apexFeet + DownAirReachBelowPixels < area.Position.Y + 8f;
                         intent.Held |= GameplayButtons.Jump;
                     }
                     return;
@@ -1290,8 +1508,28 @@ namespace FTT.Diagnostics {
             GoRaw(player, point, ref intent, 8f, maxBelow);
         }
 
+        /// <summary>
+        /// FIX-BOT (2026-10-13), inside an engaged lock: a target the hero can stand
+        /// beside at its base, where the string lands every swing, is struck from
+        /// there rather than by jumping up-attacks from under it — Level 11's
+        /// shield array Alpha, on the gallery deck, took a minute of up-attacks
+        /// through the deck from the ground route below.
+        /// </summary>
+        private bool PrefersBeside(PlayerController player, Rect2 area) =>
+            World.EngagedLock() != null
+            && (Reachable(player, new Vector2(area.Position.X - 20f, area.End.Y - 2f), 46f)
+                || Reachable(player, new Vector2(area.End.X + 20f, area.End.Y - 2f), 46f));
+
         private Rect2 _airStrikeArea;
         private bool _airStrikeDown;
+        /// <summary>The down-air strike in progress is a short hop that swings on the way up.</summary>
+        private bool _airStrikeShortHop;
+        /// <summary>
+        /// How far below the feet the Story down-air box reaches (the bot's reading
+        /// of <c>PlayerController</c>'s 125 px box, centred 62.5 px under the feet;
+        /// the same reading the band checks above make).
+        /// </summary>
+        private const float DownAirReachBelowPixels = 125f;
         private int _airStrikeStage;
         /// <summary>AirStrike's jump stage: 0 first rise, 1 released, 2 second rise, 3 done.</summary>
         private int _airStrikeHopStage;
@@ -1323,7 +1561,13 @@ namespace FTT.Diagnostics {
                 (new Vector2(area.Position.X - 36f, area.Position.Y - 110f), 110f),
                 (new Vector2(area.End.X + 36f, area.Position.Y - 110f), 110f)
             };
+            var beside = candidates.GetRange(0, 2);
             candidates.Sort((a, b) => feet.DistanceTo(a.Point).CompareTo(feet.DistanceTo(b.Point)));
+            if (PrefersBeside(player, area)) {
+                beside.Sort((a, b) => feet.DistanceTo(a.Point).CompareTo(feet.DistanceTo(b.Point)));
+                candidates.RemoveAll(c => beside.Contains(c));
+                candidates.InsertRange(0, beside);
+            }
             (Vector2, float) chosen = candidates[0];
             foreach ((Vector2 point, float maxBelow) in candidates) {
                 if (Reachable(player, point, maxBelow)) {

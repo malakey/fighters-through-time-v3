@@ -150,6 +150,96 @@ public class PlaytestEncounterTelemetryTests {
     }
 
     [TestCase]
+    public void ALockRebuiltByASceneReloadIsItsOwnInstanceRecord() {
+        // FIX-BOT (review items 12 and 17): an Act III Anchor Snap reloads the
+        // scene and the run goes on, so every lock comes back as a new node under
+        // the same ID — Armed with fresh members (a slotless bot run) or Cleared
+        // from a save's baseline. One record per instance keeps them apart.
+        var tracker = new LockTracker();
+        LockObservation Seen(ulong instance, EncounterLockState state, bool inside, int living, int planned,
+            int reverts = 0, bool restored = false, bool alive = true) => new() {
+            LockID = "level_14_neo_earth_lock_test", InstanceId = instance, State = state, Planned = planned,
+            Registered = planned, Living = living, Remaining = living, Reverts = reverts, Engages = state == EncounterLockState.Armed ? 0 : 1,
+            RestoredCleared = restored, HeroInside = inside, HeroAlive = alive
+        };
+        var first = new EnemyRecord { KilledFrame = 30, LastHP = 0 };
+        var second = new EnemyRecord { KilledFrame = 35, LastHP = 0 };
+        var reborn = new EnemyRecord { KilledFrame = 200, LastHP = 0 };
+
+        // Instance 1: fought live, reverted twice, cleared.
+        tracker.Observe(10, Seen(101UL, EncounterLockState.Armed, inside: false, living: 2, planned: 2));
+        LockRecord live = tracker.Observe(20, Seen(101UL, EncounterLockState.Engaged, inside: true, living: 2, planned: 2, reverts: 2));
+        tracker.NoteMember(live, 7UL, 1, first, 0, 0);
+        tracker.NoteMember(live, 8UL, 1, second, 0, 0);
+        tracker.Observe(40, Seen(101UL, EncounterLockState.Cleared, inside: true, living: 0, planned: 2, reverts: 2));
+
+        // A reload rebuilds it restored Cleared (planned 0, counters 0): its own record;
+        // the live one keeps its clear, plan, reverts and kills.
+        LockRecord restored = tracker.Observe(100, Seen(202UL, EncounterLockState.Cleared, inside: false, living: 0, planned: 0, restored: true));
+        AssertThat(restored != live).OverrideFailureMessage("A rebuilt lock must start a new instance record.").IsTrue();
+        AssertThat(restored.Instance).IsEqual(2);
+        AssertThat(live.RestoredCleared)
+            .OverrideFailureMessage("A lock cleared live must not be relabelled 'restored' by a later rebuild.")
+            .IsFalse();
+        AssertThat(live.Planned).IsEqual(2);
+        AssertThat(live.Reverts).IsEqual(2);
+        AssertThat(live.FramesToClear).IsEqual(20);
+        AssertThat(restored.RestoredCleared).IsTrue();
+
+        // Another reload rebuilds it Armed with fresh members while the hero died
+        // inside the first: the respawn outside is no leave, and the new members'
+        // kills stay with the new plan.
+        LockRecord rearmed = tracker.Observe(150, Seen(303UL, EncounterLockState.Armed, inside: false, living: 1, planned: 1));
+        tracker.NoteMember(rearmed, 9UL, 1, reborn, 0, 0);
+        tracker.Observe(160, Seen(303UL, EncounterLockState.Engaged, inside: true, living: 1, planned: 1));
+        AssertThat(rearmed.Instance).IsEqual(3);
+        AssertThat(rearmed.LeftWithMembersAlive).IsEqual(0);
+        tracker.Summarize();
+        AssertThat(live.Killed).IsEqual(2);
+        AssertThat(rearmed.Killed).IsEqual(1);
+        AssertThat(tracker.Records.All(r => r.Killed <= Math.Max(r.Planned, 0)))
+            .OverrideFailureMessage("Kills must never exceed the plan of the instance they were made in.")
+            .IsTrue();
+
+        // Totals: one lock, two rebuilds, cleared (the live clear counts), and the
+        // current instance is the latest.
+        AssertThat(tracker.LockCount).IsEqual(1);
+        AssertThat(tracker.Reloads).IsEqual(2);
+        AssertThat(tracker.ClearedLocks).IsEqual(1);
+        AssertThat(tracker.EngagedLocks).IsEqual(1);
+        AssertThat(tracker.Current("level_14_neo_earth_lock_test") == rearmed).IsTrue();
+
+        // An unknown instance (0) is the same instance, as before the fix.
+        var legacy = new LockTracker();
+        LockRecord one = legacy.Observe(1, Seen(0UL, EncounterLockState.Armed, inside: false, living: 1, planned: 1));
+        LockRecord same = legacy.Observe(2, Seen(0UL, EncounterLockState.Engaged, inside: true, living: 1, planned: 1));
+        AssertThat(one == same).IsTrue();
+        AssertThat(legacy.Reloads).IsEqual(0);
+    }
+
+    [TestCase]
+    public void TheGearPlanIsTheFewestPressesThatAlignTheWholeTrain() {
+        // FIX-BOT: Florence's print shop — gear A (1) drives gear B (2), both aim
+        // at 0. Gear A three times aligns A and leaves B at 1, which B's own three
+        // presses close.
+        int[] florence = PlaytestPuzzleMath.GearPresses(new[] { 1, 2 }, new[] { 0, 0 },
+            new IReadOnlyList<int>[] { new[] { 1 }, Array.Empty<int>() });
+        AssertThat(string.Join(",", florence)).IsEqual("3,3");
+        // A train already aligned needs nothing; a lone gear its own distance.
+        AssertThat(string.Join(",", PlaytestPuzzleMath.GearPresses(new[] { 0, 0 }, new[] { 0, 0 },
+            new IReadOnlyList<int>[] { new[] { 1 }, Array.Empty<int>() }))).IsEqual("0,0");
+        AssertThat(string.Join(",", PlaytestPuzzleMath.GearPresses(new[] { 3 }, new[] { 1 },
+            new IReadOnlyList<int>[] { Array.Empty<int>() }))).IsEqual("2");
+        // Two gears that only ever turn together cannot reach different targets.
+        AssertThat(PlaytestPuzzleMath.GearPresses(new[] { 0, 0 }, new[] { 1, 2 },
+            new IReadOnlyList<int>[] { new[] { 1 }, new[] { 0 } }) == null).IsTrue();
+        // Malformed or oversized trains are not searched.
+        AssertThat(PlaytestPuzzleMath.GearPresses(Array.Empty<int>(), Array.Empty<int>(), Array.Empty<IReadOnlyList<int>>()) == null).IsTrue();
+        int big = PlaytestPuzzleMath.MaxGearTrain + 1;
+        AssertThat(PlaytestPuzzleMath.GearPresses(new int[big], new int[big], new IReadOnlyList<int>[big]) == null).IsTrue();
+    }
+
+    [TestCase]
     public void TheAirStrikeIsItsOwnSwingFamilyAndTheAutoRunLengthCarriesTheParScale() {
         AssertThat(PlaytestCombatMath.HitVariant(BasicComboRules.AirAttackHitboxID)).IsEqual("air_attack");
         AssertThat(PlaytestCombatMath.HitVariant(BasicComboRules.UpAttackHitboxID)).IsEqual("up_attack");
@@ -395,6 +485,246 @@ public class PlaytestEncounterTelemetryTests {
         }
     }
 
+    // === FIX-BOT (2026-10-13): reaching lock members and solving lock puzzles ===
+
+    [TestCase(Timeout = 120000)]
+    public async Task TheBotBreaksABlockBetweenItAndALockMemberInsteadOfPushingAtIt() {
+        // Review item 11 (Level 4's cell B): the member presses against the far
+        // face of a breakable wall the hero cannot jump; the old walk-in pushed at
+        // the near face for the rest of the run.
+        using var scene = new BotLockScene();
+        DestructibleBlock wall = scene.AddBlock(new Vector2(5000f, BotLockScene.FloorY - 240f), new Vector2(1f, 5f), maxHp: 30);
+        EncounterLock encounterLock = scene.BuildLock(new[] { new EncounterLockSpawn("chrono_slasher", new Vector2(5160f, BotLockScene.FeetY)) });
+        EnemyController member = encounterLock.LivingMembers.Single();
+        scene.PlaceHero(4800f);
+        var bot = new StoryBot(scene.World, FightStyle.Play, CampaignLevel.Orleans);
+        InputManager.Instance.SetInputSource(0, bot);
+
+        var actions = new HashSet<string>();
+        for (int frame = 0; frame < 1500 && member.IsAlive; frame++) {
+            await Frames(1);
+            actions.Add(bot.CurrentAction);
+        }
+        AssertThat(wall.IsDestroyed)
+            .OverrideFailureMessage($"The bot never broke the wall between it and the member (actions: {string.Join(",", actions)}; "
+                + $"hero x {scene.Hero.GlobalPosition.X:0}).")
+            .IsTrue();
+        AssertThat(member.IsAlive)
+            .OverrideFailureMessage($"The bot broke the wall but never killed the member behind it (HP {member.CurrentHP}).")
+            .IsFalse();
+        AssertThat(actions.Contains("break_path")).IsTrue();
+    }
+
+    [TestCase(Timeout = 120000)]
+    public async Task TheBotClimbsOntoTheLedgeALockMemberHoldsInsteadOfJumpingAtItFromBelow() {
+        // Gap 3 (Level 9's seawall, Level 7's quay, Level 10's galleries): a member
+        // posted on a ledge the hero can reach is fought up there. The old bot stood
+        // under it and jumped into the ledge's underside.
+        using var scene = new BotLockScene();
+        const float ledgeTop = BotLockScene.FloorY - 200f;
+        scene.AddSolid("PlaytestBotLedge", new Rect2(5300f, ledgeTop, 400f, 16f));
+        EncounterLock encounterLock = scene.BuildLock(new[] { new EncounterLockSpawn("chrono_slasher", new Vector2(5500f, ledgeTop - 40f)) });
+        EnemyController member = encounterLock.LivingMembers.Single();
+        scene.PlaceHero(5480f);
+        for (int frame = 0; frame < 60 && !(member.IsOnFloor() && scene.Hero.IsOnFloor()); frame++) await Frames(1);
+        AssertThat(member.IsOnFloor() && Mathf.Abs(member.GlobalPosition.Y - ledgeTop) < 4f)
+            .OverrideFailureMessage($"Harness fault: the member is not standing on the ledge ({member.GlobalPosition}).")
+            .IsTrue();
+        var bot = new StoryBot(scene.World, FightStyle.Play, CampaignLevel.Orleans);
+        InputManager.Instance.SetInputSource(0, bot);
+
+        bool stoodOnLedge = false;
+        var actions = new HashSet<string>();
+        for (int frame = 0; frame < 900 && !stoodOnLedge; frame++) {
+            await Frames(1);
+            actions.Add(bot.CurrentAction);
+            stoodOnLedge = scene.Hero.IsOnFloor() && Mathf.Abs(scene.Hero.GlobalPosition.Y - ledgeTop) < 4f;
+        }
+        AssertThat(stoodOnLedge)
+            .OverrideFailureMessage($"The bot never got onto the member's ledge (actions: {string.Join(",", actions)}; "
+                + $"hero {scene.Hero.GlobalPosition}, member {member.GlobalPosition}).")
+            .IsTrue();
+        AssertThat(actions.Contains("air_strike"))
+            .OverrideFailureMessage("A member on a reachable ledge must not be jumped at from below.")
+            .IsFalse();
+    }
+
+    [TestCase(Timeout = 120000)]
+    public async Task TheBotStandsOnALockPlateWhoseCentreAPropCovers() {
+        // Level 6's east pan: the dropped boulder covers the plate's centre, so the
+        // plate never counted as reachable, and the vault's puzzle was never a task.
+        using var scene = new BotLockScene();
+        const string puzzleID = "playtest_bot_test.plate_puzzle";
+        var manager = new PuzzleManager {
+            Name = "PlaytestBotPlatePuzzle", PuzzleID = puzzleID,
+            RequiredConditionIDs = new[] { "plate_loaded" }, PersistCompletionToSave = false
+        };
+        scene.Host.AddChild(manager);
+        PressurePlate plate = ResourceLoader.Load<PackedScene>("res://scenes/templates/PressurePlateTemplate.tscn").Instantiate<PressurePlate>();
+        plate.Name = "PlaytestBotPlate";
+        plate.RequiredWeight = 3f;
+        plate.PlayerWeight = 1f;
+        plate.ConditionID = "plate_loaded";
+        plate.Position = new Vector2(5200f, BotLockScene.FloorY - 20f);
+        scene.Host.AddChild(plate);
+        plate.PuzzleManagerPath = plate.GetPathTo(manager);
+        WeightedObject prop = ResourceLoader.Load<PackedScene>("res://scenes/templates/MovableWeightTemplate.tscn").Instantiate<WeightedObject>();
+        prop.Name = "PlaytestBotPlateProp";
+        prop.WeightUnits = 2f;
+        prop.Position = new Vector2(5200f, BotLockScene.FloorY - 28f);
+        scene.Host.AddChild(prop);
+        EncounterLock encounterLock = scene.BuildLock(Array.Empty<EncounterLockSpawn>(), puzzleIDs: new[] { puzzleID });
+        scene.PlaceHero(4700f);
+        // A hero still in the air reads every point as reachable (the bot's
+        // optimistic airborne rule, cached two seconds): start it on the floor,
+        // as Level 6's hero walks in.
+        await Frames(10);
+        for (int frame = 0; frame < 60 && !scene.Hero.IsOnFloor(); frame++) await Frames(1);
+        AssertThat(plate.CurrentWeight).OverrideFailureMessage("Harness fault: the prop is not weighing the plate.").IsEqual(2f);
+
+        var bot = new StoryBot(scene.World, FightStyle.Play, CampaignLevel.Orleans);
+        InputManager.Instance.SetInputSource(0, bot);
+        var actions = new List<string>();
+        string lastAction = null;
+        for (int frame = 0; frame < 900 && encounterLock.State != EncounterLockState.Cleared; frame++) {
+            await Frames(1);
+            if (bot.CurrentAction == lastAction) continue;
+            lastAction = bot.CurrentAction;
+            actions.Add($"{lastAction}@{scene.Hero.GlobalPosition.X:0}");
+        }
+        AssertThat(manager.IsCompleted)
+            .OverrideFailureMessage($"The bot never stood on the plate (actions {string.Join(",", actions)}, hero x {scene.Hero.GlobalPosition.X:0}, "
+                + $"plate weight {plate.CurrentWeight}, prop {prop.GlobalPosition}).")
+            .IsTrue();
+        AssertThat(string.Join(",", actions).Contains("plate@"))
+            .OverrideFailureMessage($"The plate was never the bot's task (actions {string.Join(",", actions)}, prop {prop.GlobalPosition}).")
+            .IsTrue();
+        AssertThat(encounterLock.State).IsEqual(EncounterLockState.Cleared);
+    }
+
+    [TestCase(Timeout = 120000)]
+    public async Task TheBotHopsShortToDownAirABreakableJustBelowItsLedge() {
+        // Level 6's wedge: a lock-required breakable whose top sits 8 px under the
+        // ledge the hero strikes it from. A full jump's apex left the down-air's
+        // box short of it every time (Joan never broke the wedge).
+        using var scene = new BotLockScene();
+        const float ledgeTop = BotLockScene.FloorY - 260f;
+        scene.AddSolid("PlaytestBotGallery", new Rect2(5320f, ledgeTop, 360f, 16f));
+        DestructibleBlock wedge = scene.AddBlock(new Vector2(5260f, ledgeTop + 56f), Vector2.One, maxHp: 30);
+        // The wedge rests on a pillar: nothing to stand on under it.
+        scene.AddSolid("PlaytestBotPillar", new Rect2(5212f, ledgeTop + 104f, 96f, BotLockScene.FloorY - ledgeTop - 104f));
+        EncounterLock encounterLock = scene.BuildLock(Array.Empty<EncounterLockSpawn>(), breakables: new DamageableEnvironmentObject[] { wedge });
+        scene.PlaceHero(5600f);
+        var bot = new StoryBot(scene.World, FightStyle.Play, CampaignLevel.Orleans);
+        InputManager.Instance.SetInputSource(0, bot);
+
+        for (int frame = 0; frame < 1200 && !wedge.IsDestroyed; frame++) await Frames(1);
+        AssertThat(wedge.IsDestroyed)
+            .OverrideFailureMessage($"The bot never broke the wedge (action {bot.CurrentAction}, hero {scene.Hero.GlobalPosition}, wedge HP {wedge.CurrentHP}).")
+            .IsTrue();
+        for (int frame = 0; frame < 10 && encounterLock.State != EncounterLockState.Cleared; frame++) await Frames(1);
+        AssertThat(encounterLock.State).IsEqual(EncounterLockState.Cleared);
+    }
+
+    [TestCase(Timeout = 60000)]
+    public async Task TheBotPlansAGearTrainAndPressesGearsThroughTheirSiblingAreas() {
+        // Gap 1 (Florence's print shop): the gears keep their interaction areas
+        // beside them, and the bot had no gear handling at all.
+        using var scene = new BotLockScene();
+        var manager = new PuzzleManager {
+            Name = "PlaytestBotGearPuzzle", PuzzleID = "playtest_bot_test.gears",
+            RequiredConditionIDs = new[] { "a_aligned", "b_aligned" }, PersistCompletionToSave = false
+        };
+        scene.Host.AddChild(manager);
+        RotatingGear gearA = scene.AddGear("GearA", new Vector2(5200f, 820f), 1, "a_aligned", manager);
+        RotatingGear gearB = scene.AddGear("GearB", new Vector2(5500f, 820f), 2, "b_aligned", manager);
+        gearA.LinkedGearPaths.Add(gearA.GetPathTo(gearB));
+        await Frames(2);
+        scene.World.Tick();
+
+        InteractionArea areaA = PlaytestWorld.InteractionAreaOf(gearA);
+        AssertThat(areaA != null && areaA.Name.ToString() == "GearAInteraction")
+            .OverrideFailureMessage("A gear's sibling interaction area must be found through its TargetPath.")
+            .IsTrue();
+        Dictionary<RotatingGear, int> plan = scene.World.GearPlan();
+        AssertThat(plan.TryGetValue(gearA, out int pressesA) ? pressesA : -1).IsEqual(3);
+        AssertThat(plan.TryGetValue(gearB, out int pressesB) ? pressesB : -1).IsEqual(3);
+
+        // Pressing what the plan says, re-read after every press, solves it.
+        for (int press = 0; press < 12 && !manager.IsCompleted; press++) {
+            RotatingGear next = scene.World.GearPlan().Where(p => p.Value > 0).Select(p => p.Key).FirstOrDefault();
+            AssertThat(next != null).OverrideFailureMessage("The plan ran out before the puzzle completed.").IsTrue();
+            AssertThat(PlaytestWorld.InteractionAreaOf(next).TryInteract(scene.Hero)).IsTrue();
+        }
+        AssertThat(manager.IsCompleted).IsTrue();
+        AssertThat(scene.World.GearPlan().Count).OverrideFailureMessage("A solved train has nothing left to press.").IsEqual(0);
+    }
+
+    [TestCase(Timeout = 60000)]
+    public async Task TheNavBoardsAFlushLiftAndTracksAPlatformThatLeftItsStop() {
+        // Gap 5 (Level 12's spire lift and highline ferry).
+        using var scene = new BotLockScene();
+        PathMovingPlatform lift = scene.AddPlatform("PlaytestBotLift", new Vector2(7500f, BotLockScene.FloorY + 16f),
+            new[] { Vector2.Zero, new Vector2(0f, -400f) });
+        lift.Enabled = false;
+        scene.AddSolid("PlaytestBotPerch", new Rect2(8200f, BotLockScene.FloorY - 300f, 80f, 16f));
+        await Frames(3);
+        scene.World.Tick();
+        PlaytestNav nav = scene.World.Nav;
+        NavSegment floor = nav.StaticSegments.First(s => s.Platform == null && !s.IsRope && s.Spans(7500f) && Mathf.Abs(s.Top - BotLockScene.FloorY) < 2f);
+        NavSegment bottomStop = nav.StaticSegments.First(s => s.Platform == lift && s.PlatformEndpoint == 0);
+
+        // The floor holds a Walk edge onto the stop that sits flush in it, so a
+        // hero who fell back to the floor can plan back up the lift.
+        AssertThat(nav.EdgesFrom(floor).Any(e => e.To == bottomStop && e.Kind == NavEdgeKind.Walk))
+            .OverrideFailureMessage("No edge boards a lift stop flush with the floor.")
+            .IsTrue();
+
+        // An aerial edge onto a platform stop lands where the platform is now.
+        var edge = new NavEdge { From = floor, To = bottomStop, Kind = NavEdgeKind.Jump, LaunchX = 7300f, LandX = 7500f };
+        var agent = new NavAgent(nav);
+        AssertThat(agent.AirTargetX(edge)).IsEqual(7500f);
+        lift.GlobalPosition += new Vector2(120f, 0f);
+        AssertThat(agent.AirTargetX(edge)).IsEqual(7620f);
+
+        // A dodge never runs off a ledge: on the narrow perch both ways drop, on
+        // the open floor neither does.
+        var bot = new StoryBot(scene.World, FightStyle.Play, CampaignLevel.Orleans);
+        scene.Hero.GlobalPosition = new Vector2(8255f, BotLockScene.FloorY - 300f);
+        scene.Hero.Velocity = Vector2.Zero;
+        for (int frame = 0; frame < 30 && !scene.Hero.IsOnFloor(); frame++) await Frames(1);
+        AssertThat(bot.RunsOffLedge(scene.Hero, 1f)).IsTrue();
+        scene.PlaceHero(4600f);
+        for (int frame = 0; frame < 30 && !scene.Hero.IsOnFloor(); frame++) await Frames(1);
+        AssertThat(bot.RunsOffLedge(scene.Hero, 1f) || bot.RunsOffLedge(scene.Hero, -1f)).IsFalse();
+    }
+
+    [TestCase(Timeout = 60000)]
+    public async Task TheBotGoesOnPastAFinishLineWhoseEscapeNeverCompleted() {
+        // Level 6's lava run never completes for a hero who crosses its finish
+        // trigger in one go (a game bug, reported); the bot used to stand past the
+        // line "escaping" for the rest of the run.
+        using var scene = new BotLockScene();
+        var escape = new EscapeSequenceController {
+            Name = "PlaytestBotEscape", SequenceID = "playtest_bot_test.escape", StartX = 2200f, EndX = 3000f, FinishX = 3100f
+        };
+        scene.Host.AddChild(escape);
+        escape.Begin();
+        scene.PlaceHero(3400f);
+        await Frames(3);
+        var bot = new StoryBot(scene.World, FightStyle.Play, CampaignLevel.Orleans);
+        bot.Sample(0, default);
+        AssertThat(scene.World.RunningEscape() == escape).OverrideFailureMessage("Harness fault: the escape is not running.").IsTrue();
+        AssertThat(bot.CurrentAction == "escape")
+            .OverrideFailureMessage("A hero past the finish line has nothing left to outrun.")
+            .IsFalse();
+        AssertThat(bot.NavNotes.Any(note => note.StartsWith("escape playtest_bot_test.escape", StringComparison.Ordinal))).IsTrue();
+        scene.PlaceHero(2600f);
+        await Frames(2);
+        bot.Sample(0, default);
+        AssertThat(bot.CurrentAction).IsEqual("escape");
+    }
+
     private static async Task Frames(int count) {
         for (int frame = 0; frame < count; frame++) await Tree.ToSignal(Tree, SceneTree.SignalName.PhysicsFrame);
     }
@@ -473,6 +803,12 @@ public class PlaytestEncounterTelemetryTests {
         public EncounterLock BuildLock(bool nearOnly = false) {
             var spawns = new List<EncounterLockSpawn> { new("chrono_slasher", new Vector2(NearX, FeetY)) };
             spawns.Add(new EncounterLockSpawn("chrono_slasher", new Vector2(nearOnly ? NearX + 200f : FarX, FeetY)));
+            return BuildLock(spawns.ToArray());
+        }
+
+        /// <summary>The 4000–7000 lock with these pre-placed members (none: a puzzle or breakable lock) and clear conditions.</summary>
+        public EncounterLock BuildLock(EncounterLockSpawn[] spawns, DamageableEnvironmentObject[] breakables = null,
+            string[] puzzleIDs = null) {
             EncounterLock encounterLock = EncounterLock.Create(new EncounterLockSpec {
                 LockID = LockID,
                 Area = EncounterLockSpec.Span(AreaMin, AreaMax, 1080f),
@@ -480,9 +816,11 @@ public class PlaytestEncounterTelemetryTests {
                 EntryBarrierX = AreaMin - 10f,
                 ExitBarrierX = AreaMax + 10f,
                 BarrierFloorY = FloorY,
-                Waves = new[] {
-                    new EncounterLockWave { RowID = "playtest_bot_test.room", Spawns = spawns.ToArray(), Trigger = EncounterWaveTrigger.OnBuild }
+                Waves = spawns.Length == 0 ? Array.Empty<EncounterLockWave>() : new[] {
+                    new EncounterLockWave { RowID = "playtest_bot_test.room", Spawns = spawns, Trigger = EncounterWaveTrigger.OnBuild }
                 },
+                RequiredBreakables = breakables ?? Array.Empty<DamageableEnvironmentObject>(),
+                RequiredPuzzleIDs = puzzleIDs ?? Array.Empty<string>(),
                 GoDirection = EncounterGoDirection.Right
             });
             Host.AddChild(encounterLock);
@@ -490,6 +828,58 @@ public class PlaytestEncounterTelemetryTests {
             encounterLock.Arm();
             foreach (EnemyController member in encounterLock.LivingMembers) member.SetPhysicsProcess(true);
             return encounterLock;
+        }
+
+        /// <summary>A solid (Environment) rectangle, in world coordinates.</summary>
+        public StaticBody2D AddSolid(string name, Rect2 rect) {
+            var body = new StaticBody2D {
+                Name = name,
+                Position = rect.GetCenter(),
+                CollisionLayer = CollisionLayers.Environment,
+                CollisionMask = 0
+            };
+            body.AddChild(new CollisionShape2D { Shape = new RectangleShape2D { Size = rect.Size } });
+            Host.AddChild(body);
+            return body;
+        }
+
+        /// <summary>A 96 x 96 destructible block (scaled), a puzzle_object breakable like Level 4's cell locks and Level 6's wedge.</summary>
+        public DestructibleBlock AddBlock(Vector2 center, Vector2 scale, int maxHp) {
+            DestructibleBlock block = ResourceLoader.Load<PackedScene>("res://scenes/templates/DestructibleBlockTemplate.tscn")
+                .Instantiate<DestructibleBlock>();
+            block.Name = $"PlaytestBotBlock{Host.GetChildCount()}";
+            block.ObjectID = $"playtest_bot_test.block_{Host.GetChildCount()}";
+            block.MaxHP = maxHp;
+            block.HitsToBreak = 3;
+            block.Position = center;
+            block.Scale = scale;
+            Host.AddChild(block);
+            return block;
+        }
+
+        /// <summary>A Florence-style gear with its interaction area beside it (not a child), reporting to <paramref name="manager"/>.</summary>
+        public RotatingGear AddGear(string name, Vector2 position, int quarterTurns, string conditionID, PuzzleManager manager) {
+            var gear = new RotatingGear {
+                Name = name, GearID = $"playtest_bot_test.{name}", Position = position,
+                RotationDegrees = quarterTurns * 90f, ConditionID = conditionID, TargetQuarterTurns = 0,
+                PuzzleManagerPath = manager.GetPath()
+            };
+            Host.AddChild(gear);
+            var area = new InteractionArea { Name = $"{name}Interaction", Position = position, TargetPath = gear.GetPath() };
+            area.AddChild(new CollisionShape2D { Shape = new RectangleShape2D { Size = new Vector2(140f, 160f) } });
+            Host.AddChild(area);
+            return gear;
+        }
+
+        /// <summary>A 200 x 32 moving platform whose body sits at <paramref name="position"/> at its first stop.</summary>
+        public PathMovingPlatform AddPlatform(string name, Vector2 position, Vector2[] waypoints) {
+            var platform = new PathMovingPlatform {
+                Name = name, PlatformID = $"playtest_bot_test.{name}", Position = position, Waypoints = waypoints,
+                Speed = 200f, EndpointWaitSeconds = 1f, CollisionLayer = CollisionLayers.Environment, CollisionMask = 0
+            };
+            platform.AddChild(new CollisionShape2D { Shape = new RectangleShape2D { Size = new Vector2(200f, 32f) } });
+            Host.AddChild(platform);
+            return platform;
         }
 
         /// <summary>A Middle fracture behind the hero whose F10 baseline lists the lock: held until it clears.</summary>

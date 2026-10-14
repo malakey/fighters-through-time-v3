@@ -35,7 +35,10 @@
     atk_max / atk_mean (mobs attacking within 250 px of the hero, over the
     engaged frames), melee_max, melee_over_slots_f (frames with more melee
     attackers near the hero than the difficulty's slot total, slot_total),
-    handoffs (slot hand-offs), waiter_gap_med and ranged_max.
+    handoffs (slot hand-offs), waiter_gap_med and ranged_max. Since FIX-BOT
+    (2026-10-13) locks and locks_cleared count distinct lock IDs, and
+    lock_reloads counts the lock instances a scene reload (an Act III Anchor
+    Snap) rebuilt.
 
     The runner uses the developer direct-launch path and suppresses save
     writes, so no save slot or global save is touched. Build first:
@@ -130,6 +133,7 @@ foreach ($r in $done) {
         # GU-BOT (2026-10-12): encounter locks and the hero's crowd.
         locks = $(if ($n) { $n.locks } else { $null })
         locks_cleared = $(if ($n) { $n.locks_cleared } else { $null })
+        lock_reloads = $(if ($n) { $n.lock_reloads } else { $null })
         lock_reverts = $(if ($n) { $n.lock_reverts } else { $null })
         left_lock_alive = $(if ($n) { $n.left_lock_alive } else { $null })
         lock_relocations = $(if ($n) { $n.lock_relocations } else { $null })

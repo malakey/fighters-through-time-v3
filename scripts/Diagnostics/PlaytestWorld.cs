@@ -83,6 +83,7 @@ namespace FTT.Diagnostics {
         public readonly List<NearCaptureBeat> NearCaptures = new();
         public readonly List<RisingWaterZone> RisingWater = new();
         public readonly List<PendulumAnchor> Pendulums = new();
+        public readonly List<RotatingGear> Gears = new();
         public readonly List<Rect2> Spikes = new();
         public StoryLevelControllerBase Level { get; private set; }
 
@@ -92,7 +93,7 @@ namespace FTT.Diagnostics {
             CyclicHazards.Clear(); Searchlights.Clear(); Extractors.Clear(); Checkpoints.Clear();
             SequenceLocks.Clear(); Coils.Clear(); Emitters.Clear(); Receivers.Clear(); Rescuables.Clear();
             Plates.Clear(); Breakables.Clear(); Escapes.Clear(); BossEncounters.Clear(); NearCaptures.Clear();
-            RisingWater.Clear(); Pendulums.Clear(); Spikes.Clear();
+            RisingWater.Clear(); Pendulums.Clear(); Gears.Clear(); Spikes.Clear();
             Level = scene as StoryLevelControllerBase;
             ScanNode(scene);
         }
@@ -116,6 +117,7 @@ namespace FTT.Diagnostics {
                 case NearCaptureBeat beat: NearCaptures.Add(beat); break;
                 case RisingWaterZone w: RisingWater.Add(w); break;
                 case PendulumAnchor pa: Pendulums.Add(pa); break;
+                case RotatingGear gear: Gears.Add(gear); break;
                 case Area2D area when area.Name.ToString().StartsWith("Spikes_", StringComparison.Ordinal): {
                     Rect2? r = ShapeRect(area);
                     if (r.HasValue) Spikes.Add(r.Value);
@@ -395,6 +397,21 @@ namespace FTT.Diagnostics {
             return true;
         }
 
+        /// <summary>
+        /// Nothing solid at all between two points: unlike <see cref="LineOfSight"/>,
+        /// a breakable (a cell lock, a wedge), a prop (a boulder), a lock barrier
+        /// or a low wall of cover counts. A straight walk-in at a foe stops at any
+        /// of them, so the bot only walks in when this is clear (FIX-BOT, 2026-10-13).
+        /// </summary>
+        public bool ClearWalk(Vector2 from, Vector2 to) {
+            PhysicsDirectSpaceState2D space = Player?.GetWorld2D()?.DirectSpaceState;
+            if (space == null) return true;
+            var query = PhysicsRayQueryParameters2D.Create(from, to, CollisionLayers.Environment);
+            Godot.Collections.Dictionary hit = space.IntersectRay(query);
+            using var lifetime = hit;
+            return hit.Count == 0;
+        }
+
         /// <summary>Seconds of an Extractor's current safe window left (NaN when unknown).</summary>
         public float ExtractorSafeRemaining(ChronalExtractor extractor) {
             if (extractor.IsTelegraphing) return 0f;
@@ -562,7 +579,12 @@ namespace FTT.Diagnostics {
             return false;
         }
 
-        /// <summary>The InteractionArea that would trigger <paramref name="target"/>.</summary>
+        /// <summary>
+        /// The InteractionArea that would trigger <paramref name="target"/>: a child,
+        /// or (FIX-BOT) a sibling aimed at it through its <c>TargetPath</c> —
+        /// Florence's gears keep theirs beside them so the prompt does not turn
+        /// with the gear.
+        /// </summary>
         public static InteractionArea InteractionAreaOf(Node target) {
             if (target == null || !GodotObject.IsInstanceValid(target)) return null;
             Godot.Collections.Array<Node> children = target.GetChildren();
@@ -570,7 +592,111 @@ namespace FTT.Diagnostics {
             foreach (Node child in children) {
                 if (child is InteractionArea area) return area;
             }
+            Node parent = target.GetParent();
+            if (parent == null) return null;
+            Godot.Collections.Array<Node> siblings = parent.GetChildren();
+            using var siblingsLifetime = siblings.AsDisposable();
+            foreach (Node sibling in siblings) {
+                if (sibling is InteractionArea area && area.TargetPath != null && !area.TargetPath.IsEmpty
+                    && area.GetNodeOrNull<Node>(area.TargetPath) == target) return area;
+            }
             return null;
         }
+
+        // =================================================================
+        // Gear trains (FIX-BOT, 2026-10-13)
+        // =================================================================
+
+        /// <summary>The puzzle a gear reports to, or null.</summary>
+        public static PuzzleManager PuzzleOf(RotatingGear gear) =>
+            gear == null || !GodotObject.IsInstanceValid(gear) || gear.PuzzleManagerPath == null || gear.PuzzleManagerPath.IsEmpty
+                ? null
+                : gear.GetNodeOrNull<PuzzleManager>(gear.PuzzleManagerPath);
+
+        /// <summary>
+        /// How many more presses each gear of an unsolved gear train needs, from
+        /// the gears' current turns: one train per <see cref="PuzzleManager"/>,
+        /// solved by <see cref="PlaytestPuzzleMath.GearPresses"/>. A press turns
+        /// the gear and every gear it drives (<c>RotatingGear.Interact</c>), so the
+        /// plan is recomputed from the live turns every time it is read — a death
+        /// rewind that turns the gears back simply re-plans.
+        /// </summary>
+        public Dictionary<RotatingGear, int> GearPlan() {
+            var plan = new Dictionary<RotatingGear, int>();
+            var trains = new Dictionary<PuzzleManager, List<RotatingGear>>();
+            foreach (RotatingGear gear in Gears) {
+                if (!GodotObject.IsInstanceValid(gear) || !gear.IsInsideTree() || string.IsNullOrWhiteSpace(gear.ConditionID)) continue;
+                PuzzleManager manager = PuzzleOf(gear);
+                if (manager == null || manager.IsCompleted) continue;
+                if (!trains.TryGetValue(manager, out List<RotatingGear> train)) trains[manager] = train = new List<RotatingGear>();
+                train.Add(gear);
+            }
+            foreach (List<RotatingGear> train in trains.Values) {
+                int count = train.Count;
+                var turns = new int[count];
+                var targets = new int[count];
+                var links = new List<int>[count];
+                for (int i = 0; i < count; i++) {
+                    turns[i] = train[i].QuarterTurns;
+                    targets[i] = train[i].TargetQuarterTurns;
+                    links[i] = new List<int>();
+                    foreach (NodePath path in train[i].LinkedGearPaths) {
+                        int linked = train.IndexOf(train[i].GetNodeOrNull<RotatingGear>(path));
+                        if (linked >= 0 && linked != i) links[i].Add(linked);
+                    }
+                }
+                int[] presses = PlaytestPuzzleMath.GearPresses(turns, targets, links);
+                if (presses == null) continue;
+                for (int i = 0; i < count; i++) plan[train[i]] = presses[i];
+            }
+            return plan;
+        }
+    }
+
+    /// <summary>Godot-free puzzle arithmetic the bots plan with (FIX-BOT, 2026-10-13).</summary>
+    public static class PlaytestPuzzleMath {
+        /// <summary>Larger trains are not searched (4^n combinations).</summary>
+        public const int MaxGearTrain = 6;
+
+        /// <summary>
+        /// The fewest presses per gear that align a whole gear train: pressing gear
+        /// <c>i</c> turns it and every gear in <paramref name="links"/>[i] one quarter
+        /// turn forward, turns wrap at four, and a gear is aligned when its turns
+        /// equal its target. Null when no combination aligns every gear, or the
+        /// train is longer than <see cref="MaxGearTrain"/>.
+        /// </summary>
+        public static int[] GearPresses(int[] turns, int[] targets, IReadOnlyList<int>[] links) {
+            int count = turns?.Length ?? 0;
+            if (count == 0 || targets == null || targets.Length != count || links == null || links.Length != count
+                || count > MaxGearTrain) return null;
+            int[] best = null;
+            int bestTotal = int.MaxValue;
+            var presses = new int[count];
+            var resulting = new int[count];
+            int combinations = 1 << (2 * count);
+            for (int code = 0; code < combinations; code++) {
+                int total = 0;
+                for (int i = 0; i < count; i++) {
+                    presses[i] = (code >> (2 * i)) & 3;
+                    total += presses[i];
+                }
+                if (total >= bestTotal) continue;
+                for (int i = 0; i < count; i++) resulting[i] = turns[i] + presses[i];
+                for (int i = 0; i < count; i++) {
+                    if (links[i] == null) continue;
+                    foreach (int linked in links[i]) {
+                        if (linked >= 0 && linked < count && linked != i) resulting[linked] += presses[i];
+                    }
+                }
+                bool aligned = true;
+                for (int i = 0; i < count && aligned; i++) aligned = Wrap(resulting[i]) == Wrap(targets[i]);
+                if (!aligned) continue;
+                bestTotal = total;
+                best = (int[])presses.Clone();
+            }
+            return best;
+        }
+
+        private static int Wrap(int turns) => ((turns % 4) + 4) % 4;
     }
 }

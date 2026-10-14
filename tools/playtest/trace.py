@@ -17,7 +17,8 @@ relocations) and the crowd summary (mob_engagement, without its histograms) to
 the header; each trace line shows the engaged lock (enc=<lock tail>:<enemies
 left>), the mobs attacking within 250 px of the hero (atk=) and its melee slot
 holders (slots=). A run that ended stuck_lock:<id> also prints the bot's lock
-nav notes.
+nav notes. FIX-BOT (2026-10-13): a lock a scene reload rebuilt (an Act III
+Anchor Snap) is its own line, its id suffixed #2, #3, ...
 """
 import json
 import os
@@ -80,7 +81,9 @@ def main(argv):
         for entry in locks.get("log") or []:
             def sec(frame):
                 return f"{frame / 60:.1f}s" if frame is not None and frame >= 0 else "-"
-            print(f"  lock {entry.get('id', '')}: {entry.get('state', '')} engage={sec(entry.get('engage_frame'))} "
+            instance = entry.get("instance") or 1
+            label = f"{entry.get('id', '')}#{instance}" if instance > 1 else entry.get("id", "")
+            print(f"  lock {label}: {entry.get('state', '')} engage={sec(entry.get('engage_frame'))} "
                   f"clear={sec(entry.get('clear_frame'))} killed={entry.get('killed', 0)}/{entry.get('planned', 0)} "
                   f"living={entry.get('living', 0)} reverts={entry.get('reverts', 0)} "
                   f"left_alive={entry.get('left_with_members_alive', 0)} reloc={entry.get('member_relocations', 0)}"

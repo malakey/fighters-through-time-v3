@@ -1025,6 +1025,7 @@ namespace FTT.Diagnostics {
             foreach (EncounterLock encounterLock in _world.EncounterLocks()) {
                 var observation = new LockObservation {
                     LockID = encounterLock.LockID,
+                    InstanceId = encounterLock.GetInstanceId(),
                     State = encounterLock.State,
                     Planned = encounterLock.PlannedTotal,
                     Registered = encounterLock.RegisteredCount,
@@ -1040,16 +1041,21 @@ namespace FTT.Diagnostics {
                     HeroInside = heroAlive && encounterLock.HeroStandsInside,
                     HeroAlive = heroAlive
                 };
-                int leftBefore = _locks.Records.Find(r => r.LockID == observation.LockID)?.LeftWithMembersAlive ?? 0;
+                LockRecord before = _locks.Current(observation.LockID);
+                int leftBefore = before?.LeftWithMembersAlive ?? 0;
                 LockRecord record = _locks.Observe(Frame, observation);
+                // A lock a scene reload rebuilt is its own record (FIX-BOT): its
+                // events carry the instance (#2, #3, ...).
+                if (record != before) leftBefore = 0;
+                string label = record.Instance > 1 ? $"{record.LockID}#{record.Instance}" : record.LockID;
                 string stateName = record.State;
-                if (!_lockStates.TryGetValue(record.LockID, out string previous) || previous != stateName) {
-                    _lockStates[record.LockID] = stateName;
-                    AddEvent("lock", $"{record.LockID}:{stateName} living={observation.Living} remaining={observation.Remaining}"
+                if (!_lockStates.TryGetValue(label, out string previous) || previous != stateName) {
+                    _lockStates[label] = stateName;
+                    AddEvent("lock", $"{label}:{stateName} living={observation.Living} remaining={observation.Remaining}"
                         + (encounterLock.RestoredCleared ? " (restored)" : encounterLock.ForceCleared ? " (forced)" : ""));
                 }
                 if (record.LeftWithMembersAlive > leftBefore) {
-                    AddEvent("lock_left_alive", $"{record.LockID} living={observation.Living}");
+                    AddEvent("lock_left_alive", $"{label} living={observation.Living}");
                 }
                 foreach (EnemyController member in encounterLock.LivingMembers) {
                     if (member == null || !GodotObject.IsInstanceValid(member)) continue;
@@ -1057,7 +1063,7 @@ namespace FTT.Diagnostics {
                     EnemyRecord enemy = _live.TryGetValue(id, out EnemyRecord live) && !live.Closed ? live : null;
                     if (enemy != null && enemy.LockID.Length == 0) enemy.LockID = record.LockID;
                     (int relocations, int falls) = PlaytestWorld.MemberRelocations(member);
-                    _locks.NoteMember(record.LockID, id, PlaytestWorld.SpawnGenerationOf(member), enemy, relocations, falls);
+                    _locks.NoteMember(record, id, PlaytestWorld.SpawnGenerationOf(member), enemy, relocations, falls);
                 }
             }
         }
@@ -1120,10 +1126,16 @@ namespace FTT.Diagnostics {
         private Dictionary<string, object> LocksReport() {
             _locks.Summarize();
             List<LockRecord> records = _locks.Records;
+            // FIX-BOT (2026-10-13): one log row per lock instance; count, engaged
+            // and cleared are distinct lock IDs, reloads the instances a scene
+            // reload rebuilt, and planned / killed sum per instance, so a lock
+            // fought twice across an Anchor Snap never reads killed > planned.
             return new Dictionary<string, object> {
-                ["count"] = records.Count,
-                ["engaged"] = records.Count(r => r.EngageFrame >= 0),
-                ["cleared"] = records.Count(r => r.State == "cleared"),
+                ["count"] = _locks.LockCount,
+                ["instances"] = records.Count,
+                ["reloads"] = _locks.Reloads,
+                ["engaged"] = _locks.EngagedLocks,
+                ["cleared"] = _locks.ClearedLocks,
                 ["restored_cleared"] = records.Count(r => r.RestoredCleared),
                 ["force_cleared"] = records.Count(r => r.ForceCleared),
                 ["reverts"] = records.Sum(r => r.Reverts),
@@ -1136,6 +1148,7 @@ namespace FTT.Diagnostics {
                 ["frames_to_clear_median"] = PlaytestCombatMath.Median(records.Where(r => r.FramesToClear >= 0).Select(r => r.FramesToClear).ToList()),
                 ["log"] = records.Select(r => (object)new Dictionary<string, object> {
                     ["id"] = r.LockID,
+                    ["instance"] = r.Instance,
                     ["state"] = r.State,
                     ["engage_frame"] = r.EngageFrame,
                     ["clear_frame"] = r.ClearFrame,
@@ -1166,8 +1179,9 @@ namespace FTT.Diagnostics {
             List<LockRecord> records = _locks.Records;
             MobEngagementTracker e = _engagement;
             return new Dictionary<string, object> {
-                ["locks"] = records.Count,
-                ["locks_cleared"] = records.Count(r => r.State == "cleared"),
+                ["locks"] = _locks.LockCount,
+                ["locks_cleared"] = _locks.ClearedLocks,
+                ["lock_reloads"] = _locks.Reloads,
                 ["lock_reverts"] = records.Sum(r => r.Reverts),
                 ["left_lock_alive"] = _locks.LeftWithMembersAlive,
                 ["lock_relocations"] = records.Sum(r => r.MemberRelocations),

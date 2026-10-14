@@ -35,6 +35,9 @@ GU-BOT (2026-10-12 gameplay update) adds two tables per tag:
     meaning of "passed": the hero left an uncleared lock's area with members
     alive), members planned / killed, relocations (fall net + stall watchdog),
     force-clears, and the median frames from a lock's first engage to its clear;
+    since FIX-BOT (2026-10-13) locks and cleared count distinct lock IDs, and
+    "reloads" is the lock instances a scene reload (an Act III Anchor Snap)
+    rebuilt, each reported as its own instance;
   "crowd" - the engagement director's effect on the hero's crowd: mobs in
     Attacking within 250 px of the hero (max over runs, mean pooled over the
     engaged frames), the melee-class ones and the share of engaged frames with
@@ -365,16 +368,23 @@ def hist_median(histogram):
 
 
 def lock_rows(tag_pattern):
-    """GU-BOT: one row per bot from the locks blocks (and stuck_lock end reasons)."""
+    """GU-BOT: one row per bot from the locks blocks (and stuck_lock end reasons).
+
+    FIX-BOT (2026-10-13): count and cleared are distinct lock IDs, so a lock an
+    Act III Anchor Snap rebuilt (a scene reload) is neither counted twice nor
+    read as uncleared when the hero had cleared it before the Snap; reloads is
+    the rebuilt instances, and planned / killed sum per instance. A report from
+    before the fix has no "reloads" (read as 0)."""
     rows = []
     for bot, runs in by_bot(tag_pattern):
         have = [r for r in runs if isinstance(r.get("locks"), dict)]
         counts, cleared, reverts, left, planned, killed = [], 0, 0, 0, 0, 0
-        relocations, stall, forced, to_clear = 0, 0, 0, []
+        relocations, stall, forced, to_clear, reloads = 0, 0, 0, [], 0
         for r in have:
             locks = r["locks"]
             counts.append(num(locks.get("count"), 0))
             cleared += num(locks.get("cleared"), 0)
+            reloads += num(locks.get("reloads"), 0)
             reverts += num(locks.get("reverts"), 0)
             left += num(locks.get("left_with_members_alive"), 0)
             planned += num(locks.get("members_planned"), 0)
@@ -393,6 +403,7 @@ def lock_rows(tag_pattern):
             "locks/run": mean(counts, 1),
             "cleared%": pct(cleared, total) if ok else "-",
             "stuck_lock": sum(1 for r in runs if str(r.get("end_reason", "")).startswith("stuck_lock:")),
+            "reloads": reloads if ok else "-",
             "reverts": reverts if ok else "-",
             "left_alive": left if ok else "-",
             "planned": planned if ok else "-",
@@ -530,7 +541,7 @@ def main(tags, swings=False):
                     mob_rows(tag))
         # GU-BOT (2026-10-12): encounter locks and the hero's crowd.
         print("\n#### locks\n")
-        print_table(["bot", "runs", "locks/run", "cleared%", "stuck_lock", "reverts", "left_alive", "planned", "killed",
+        print_table(["bot", "runs", "locks/run", "cleared%", "stuck_lock", "reloads", "reverts", "left_alive", "planned", "killed",
                      "relocations", "stall_reloc", "forced", "clear_f_med"],
                     lock_rows(tag))
         print("\n#### crowd\n")
