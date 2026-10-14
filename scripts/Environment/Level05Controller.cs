@@ -124,7 +124,7 @@ namespace FTT.Environment {
         /// FIX-ENEMY (2026-10-13): the five listing ramps, bow to stern, each
         /// authored by its two joints — <c>Low</c>, where its slope leaves the top
         /// of the lower deck, and <c>High</c>, the upper deck's west top corner —
-        /// so <see cref="BuildListingRamp"/> lays both joints flush by
+        /// so <see cref="StoryLevelControllerBase.BuildRampBetweenJoints"/> lays both joints flush by
         /// construction. The ramps used to be authored by centre, width and angle
         /// (12°, 12°, 13°, 13°, 16°): each ended 19–41 px under its upper deck's
         /// west face, a riser that stopped every walker (the hero needed a jump;
@@ -141,13 +141,6 @@ namespace FTT.Environment {
             (new Vector2(7150f, DeckE2), new Vector2(BoatDeckWestX, DeckBoat))
         };
 
-        /// <summary>
-        /// FIX-ENEMY: how far a ramp's slab runs on past its low joint, along
-        /// its slope and so under the lower deck's top, so its end corner is
-        /// buried rather than flush with the deck. The high end stops exactly at
-        /// the upper deck's corner: running on would rise above that deck.
-        /// </summary>
-        private const float RampLowJointOverlapPixels = 16f;
 
         // === Checkpoints ===
 
@@ -425,24 +418,12 @@ namespace FTT.Environment {
         /// Deck slab tilted about its own top-centre so walking sternward is walking
         /// uphill. Stepped decks plus these ramps read as a hull going down by the
         /// bow without the collision seams a fully rotated floor plan would create.
-        /// FIX-ENEMY (2026-10-13): built from its joints (<see cref="ListingRampJoints"/>):
-        /// its top runs from <paramref name="lowJoint"/> on the lower deck to
-        /// <paramref name="highJoint"/>, the upper deck's west top corner, and its
-        /// slab runs on <see cref="RampLowJointOverlapPixels"/> past the low joint,
-        /// buried under the lower deck. Neither joint leaves a riser or a lip.
+        /// FIX-ENEMY (2026-10-13): built from its joints (<see cref="ListingRampJoints"/>)
+        /// through the shared <see cref="StoryLevelControllerBase.BuildRampBetweenJoints"/>,
+        /// so neither joint leaves a riser or a lip.
         /// </summary>
-        private StaticBody2D BuildListingRamp(Vector2 lowJoint, Vector2 highJoint) {
-            Vector2 along = (highJoint - lowJoint).Normalized();
-            Vector2 start = lowJoint - along * RampLowJointOverlapPixels;
-            Vector2 centre = (start + highJoint) / 2f;
-            float width = start.DistanceTo(highJoint);
-            StaticBody2D ramp = BuildFloor(centre.X - width / 2f, centre.Y, width, RampColor);
-            ramp.Rotation = along.Angle();
-            return ramp;
-        }
-
         private void BuildListingRamp(int index) =>
-            BuildListingRamp(ListingRampJoints[index].Low, ListingRampJoints[index].High);
+            BuildRampBetweenJoints(ListingRampJoints[index].Low, ListingRampJoints[index].High, RampColor);
 
         private void BuildRoom1GrandStaircase() {
             BuildRoomBackground("BG_Room1", 0f, Room2StartX, LevelHeight, new Color(0.07f, 0.09f, 0.12f, 0.4f));

@@ -201,7 +201,6 @@ namespace FTT.Environment {
         public const float ListDeckWestY = 880f;
         public const float ListDeckMidY = 920f;
         public const float ListDeckEastY = 960f;
-        private const float ListRampDegrees = 10.5f;
 
         public static float ArenaWidth => LevelWidth - Room4StartX;
 
@@ -237,6 +236,24 @@ namespace FTT.Environment {
 
         /// <summary>East end of the flagship's west deck (the first listing ramp starts beyond it).</summary>
         public const float FlagshipWestDeckEndX = Room4StartX + 720f;
+        /// <summary>The flagship's mid deck, between the two listing ramps.</summary>
+        private const float FlagshipMidDeckWestX = 9380f;
+        private const float FlagshipMidDeckEndX = FlagshipMidDeckWestX + 640f;
+        private const float FlagshipEastDeckWestX = 10180f;
+
+        /// <summary>
+        /// The flagship's two listing ramps, west to east, each authored by its
+        /// joints (2026-10-13, the Level 5 fix applied here): <c>Low</c>, where its
+        /// slope meets the lower deck east of it, and <c>High</c>, the upper deck's
+        /// east top corner. Authored by centre, width and a 10.5° tilt, each ended
+        /// 5.2 px under its upper deck's east end, a riser that stopped a hero
+        /// walking west uphill. The low joints are the old slopes' east ends, so the
+        /// ramps keep their footprints and steepen to about 12°.
+        /// </summary>
+        public static readonly (Vector2 Low, Vector2 High)[] ListingRampJoints = {
+            (new Vector2(9408f, ListDeckMidY), new Vector2(FlagshipWestDeckEndX, ListDeckWestY)),
+            (new Vector2(10208f, ListDeckEastY), new Vector2(FlagshipMidDeckEndX, ListDeckMidY))
+        };
 
         /// <summary>Continuous solid deck runs: (start X, end X, top Y).</summary>
         public static readonly (float StartX, float EndX, float TopY)[] SolidDeckSpans = {
@@ -603,11 +620,11 @@ namespace FTT.Environment {
         private void BuildRoom4BurningFlagship() {
             BuildRoomBackground("BG_Room4", Room4StartX, ArenaWidth, LevelHeight, new Color(0.16f, 0.07f, 0.05f, 0.5f));
 
-            BuildFloor(Room4StartX, ListDeckWestY, 720f);
-            BuildListingRamp(9300f, (ListDeckWestY + ListDeckMidY) / 2f, 220f);
-            BuildFloor(9380f, ListDeckMidY, 640f);
-            BuildListingRamp(10100f, (ListDeckMidY + ListDeckEastY) / 2f, 220f);
-            BuildFloor(10180f, ListDeckEastY, LevelWidth - 10180f);
+            BuildFloor(Room4StartX, ListDeckWestY, FlagshipWestDeckEndX - Room4StartX);
+            BuildRampBetweenJoints(ListingRampJoints[0].Low, ListingRampJoints[0].High, ListRampColor);
+            BuildFloor(FlagshipMidDeckWestX, ListDeckMidY, FlagshipMidDeckEndX - FlagshipMidDeckWestX);
+            BuildRampBetweenJoints(ListingRampJoints[1].Low, ListingRampJoints[1].High, ListRampColor);
+            BuildFloor(FlagshipEastDeckWestX, ListDeckEastY, LevelWidth - FlagshipEastDeckWestX);
 
             // Horizontal wooden yards, per the plan's arena note.
             BuildPlatform(9300f, 700f, 300f, YardColor);
@@ -624,13 +641,6 @@ namespace FTT.Environment {
             // actually use its range instead of being pinned in melee.
             BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, ListDeckEastY - 40f),
                 "DreadAdmiralEncounter", BossArenaBounds);
-        }
-
-        /// <summary>Deck slab tilted about its own top centre; positive degrees list to starboard (east).</summary>
-        private StaticBody2D BuildListingRamp(float centerX, float centerY, float width) {
-            StaticBody2D ramp = BuildFloor(centerX - width / 2f, centerY, width, ListRampColor);
-            ramp.RotationDegrees = ListRampDegrees;
-            return ramp;
         }
 
         /// <summary>

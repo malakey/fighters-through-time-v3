@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using FTT.Characters;
 using FTT.Core;
 using FTT.Enemies;
@@ -484,6 +485,45 @@ public class Level07ContentTests {
             var yard = level.GetNodeOrNull<StaticBody2D>(name);
             AssertObject(yard).OverrideFailureMessage($"Wooden yard '{name}' is missing.").IsNotNull();
             AssertFloat(yard.RotationDegrees).IsEqualApprox(0f, 0.001f);
+        }
+    }
+
+    [TestCase(Timeout = 60000)]
+    public async Task TheFlagshipDecksTopIsContinuousAcrossBothListingRamps() {
+        // 2026-10-13: authored by centre, width and a 10.5° tilt, each ramp ended
+        // 5.2 px under its upper deck's east end, a riser that stopped a hero walking
+        // west uphill (the Level 5 staircase stall, found again here by FIX-ENEMY).
+        // Walking east from each upper deck, the floor's top may only drop, and by
+        // no more than the ramp's slope per pixel.
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        using var fixture = new NassauFixture(null);
+        await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        PhysicsDirectSpaceState2D space = fixture.Level.GetWorld2D().DirectSpaceState;
+        var query = new PhysicsRayQueryParameters2D {
+            CollisionMask = CollisionLayers.Environment,
+            CollideWithAreas = false,
+            CollideWithBodies = true
+        };
+        foreach ((Vector2 low, Vector2 high) in Level07Controller.ListingRampJoints) {
+            AssertFloat(high.X).IsLess(low.X);
+            float slope = (low.Y - high.Y) / (low.X - high.X);
+            float? previous = null;
+            for (float x = high.X - 60f; x <= low.X + 60f; x += 1f) {
+                query.From = new Vector2(x, high.Y - 20f);
+                query.To = new Vector2(x, low.Y + 200f);
+                using Godot.Collections.Dictionary hit = space.IntersectRay(query);
+                AssertThat(hit.Count > 0).OverrideFailureMessage($"No floor under x {x} at the ramp {high}..{low}.").IsTrue();
+                float top = ((Vector2)hit["position"]).Y;
+                if (previous is float before) {
+                    float drop = top - before;
+                    AssertThat(drop >= -0.25f && drop <= slope + 0.25f)
+                        .OverrideFailureMessage($"The floor's top steps by {drop:0.00} px at x {x} on the ramp {high}..{low} "
+                            + $"(its slope drops {slope:0.00} px per px).")
+                        .IsTrue();
+                }
+                previous = top;
+            }
+            AssertFloat(previous.Value).IsEqualApprox(low.Y, 0.5f);
         }
     }
 

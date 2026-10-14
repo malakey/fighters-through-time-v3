@@ -941,6 +941,35 @@ namespace FTT.Environment {
             return floor;
         }
 
+        /// <summary>
+        /// How far a listing ramp's slab runs on past its low joint, along its slope
+        /// and so under the lower deck's top, so its end corner is buried rather than
+        /// flush with the deck (<see cref="BuildRampBetweenJoints"/>).
+        /// </summary>
+        protected const float ListingRampLowJointOverlapPixels = 16f;
+
+        /// <summary>
+        /// A sloped deck slab authored by its two joints (FIX-ENEMY's Level 5 builder,
+        /// shared 2026-10-13): its top runs from <paramref name="lowJoint"/>, where the
+        /// slope leaves the lower deck's top, to <paramref name="highJoint"/>, the
+        /// upper deck's top corner, so neither joint leaves a riser or a proud lip
+        /// (a CharacterBody2D has no step-up: a 5 px riser stops every walker). The
+        /// slab runs on <see cref="ListingRampLowJointOverlapPixels"/> past the low
+        /// joint, buried under the lower deck; the high end stops exactly at the upper
+        /// deck's corner. Either joint may be the western one, and the slab is always
+        /// laid west to east, so its thickness hangs below its top.
+        /// </summary>
+        protected StaticBody2D BuildRampBetweenJoints(Vector2 lowJoint, Vector2 highJoint, Color? fill = null) {
+            Vector2 buriedEnd = lowJoint + (lowJoint - highJoint).Normalized() * ListingRampLowJointOverlapPixels;
+            Vector2 west = buriedEnd.X < highJoint.X ? buriedEnd : highJoint;
+            Vector2 east = buriedEnd.X < highJoint.X ? highJoint : buriedEnd;
+            Vector2 centre = (west + east) / 2f;
+            float width = west.DistanceTo(east);
+            StaticBody2D ramp = BuildFloor(centre.X - width / 2f, centre.Y, width, fill);
+            ramp.Rotation = (east - west).Angle();
+            return ramp;
+        }
+
         protected StaticBody2D BuildPlatform(float x, float y, float width, Color? fill = null, float thickness = DefaultPlatformThickness) {
             var platform = new StaticBody2D {
                 Name = $"Platform_{Mathf.RoundToInt(x)}_{Mathf.RoundToInt(y)}",
