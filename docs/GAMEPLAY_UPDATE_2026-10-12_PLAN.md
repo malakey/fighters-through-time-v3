@@ -1,6 +1,6 @@
 # Gameplay update: single aerial strike, closer camera, area locks, −20% movement, static Story knockback, enemy turn-taking (2026-10-12)
 
-**Status:** planned 2026-10-12, Phase A not started. Base commit: `2e9ca79` (the combat-flow pass, committed for this package) plus this plan's commit. Baseline **3021** passing tests.
+**Status:** complete 2026-10-13 — Phases A, B and C merged on `main`, closeout report in §10. *(Planned 2026-10-12.)* Base commit: `2e9ca79` (the combat-flow pass, committed for this package) plus this plan's commit. Baseline **3021** passing tests.
 
 **Source.** The user's six requests of 2026-10-12, verbatim:
 
@@ -434,6 +434,47 @@ Actual merge order: FIX-OBJECTIVE (`f161f1a`), FIX-LEVEL (`0711759`), FIX-ENEMY 
 
 Two `PlaytestEncounterTelemetryTests` cases had been written against behaviour the parallel fixes changed, and were rewritten in place with no count change: `TheBotClimbsOntoTheLedgeALockMemberHoldsInsteadOfJumpingAtItFromBelow` now posts a ranged `laser_pistol_deckhand` (an engaged melee member steps down since FIX-ENEMY, and shooters keep their posts), and `TheBotGoesOnPastAFinishLineWhoseEscapeNeverCompleted` freezes its escape to hold it running (an escape completes past `FinishX` since FIX-LEVEL). **Full suite: 3227 = 3180 + 47** (FIX-ENEMY 17, FIX-OBJECTIVE 10, FIX-LEVEL 11, FIX-BOT 9).
 
+### The closeout's Level 7 ramp fix (`4ca4280`)
+
+FIX-ENEMY found Level 7's two boss-arena listing ramps built the way Level 5's had been (centre, width and a 10.5° tilt), each leaving a 5.2 px riser under its upper deck's east end, and recorded it outside its ownership (`VERIFY-L07-ARENA-RAMP-RISERS`). The orchestrator moved Level 5's joint builder into `StoryLevelControllerBase.BuildRampBetweenJoints` (either joint may be the western one; `ListingRampLowJointOverlapPixels` 16), kept Level 5 on it unchanged and authored `Level07Controller.ListingRampJoints`. Test delta: **+1** (`Level07ContentTests.TheFlagshipDecksTopIsContinuousAcrossBothListingRamps`), 3227 → 3228. The row is closed. The build landed while the `gud*` batch was running, so the runs launched after about 19:04 carry it (only the Level 7 boss arena's two ramps differ).
+
 ## 10. Closeout report
 
-*(pending)*
+**Delivered.** All six requests, with the four scope rulings, on `main` (the plan `b8f5343`, Phase A merged at `199e260`, its review fixes at `7aaae7d`, Phase B at `c4885a9`, the Phase C fix round at `681a525`, the closeout's ramp fix `4ca4280`, the closeout docs merged at `de0e26c`, then the closeout commit). In one line each (the ledger section "Confirmed open deviations — gameplay update, 2026-10-12" has the rows, its index the design-master lines owed):
+
+1. **One air strike** (`USER-AERIAL-SINGLE-STRIKE`, both modes): an airborne neutral press is `BasicComboRules.VariantAirAttack`, never chaining; the sim's `FlagAirAttack`.
+2. **A closer Story camera** (`USER-STORY-CAMERA-ZOOM`): `StoryCameraRules.ViewZoom` 1.5, boss and Mirror framing eased out to `BossFramingMinZoom`; Fighter untouched.
+3. **Areas to clear** (`USER-ENCOUNTER-LOCKS`, Story): 48 encounter locks across Levels 0–15, every area with enemies and every progress-blocking puzzle room, with barriers, warded dormant members, waves and spawn tears, a stall watchdog, a checkpoint hold, the one-way objective latch, a HUD counter and GO prompt, and F10 baselines (v3).
+4. **Movement −20 %** (`USER-MOVEMENT-SPEED-CUT`, both modes): the nine `MaxMoveSpeed` × 0.8, jump height unchanged, jump distance × 0.8, the roll's distance kept (`RollSpeedMultiplier` 1.875).
+5. **Static Story knockback** (`USER-STORY-STATIC-KNOCKBACK`): no victim-HP term in Story; the Fighter keeps its HP ramp.
+6. **Enemies take turns** (`USER-ENEMY-TURN-TAKING`, Story): the engagement director's melee slots Easy 1 / Normal 2 / Hard 3, ranged permits, a wait ring and rest; a struck waiter may still answer (the retaliation exception).
+
+**Tests.** 3021 → **3228** (+207): Phase A 88, its review fixes 16, Phase B 55, the Phase C fix round 47, the closeout's ramp fix 1; the arithmetic per suite is in `AGENTS.md`'s validation section. Every merge point's full run reconciled exactly (3109, 3125, 3180, 3227, 3228). The closeout's three consecutive full runs on 2026-10-13 (orphans drained, lock held): `Failed: 0, Passed: 3228, Total: 3228`, 84–87 s each.
+
+**Reviews.** Two adversarial reviews with two refuting verifiers per finding: Phase A's confirmed 13 findings (FIX-E, FIX-F), Phase B's 19 (15 distinct; the Phase C fix round). The largest was systemic: a death rewind restored a lock's required puzzle or breakable to a snapshot taken before the solve, which could hold a lock forever on Hakata Bay and Gettysburg; it is now a one-way latch in the lock (`PROVISIONAL-LOCK-OBJECTIVE-LATCH`).
+
+**Bots** (`D:/Projects/absolum_research/update_2026-10-12/phaseC_batch2.md`; Levels 1–15, Joan and Lincoln, `play`, Easy / Normal / Hard, seeds 0–1, 180 runs a batch):
+
+| | `guc*` (before the fix round) | `gud*` (after) |
+|---|---|---|
+| Easy completions | 36 / 60 | **57 / 60** |
+| Normal completions | 11 / 60 | **31 / 60** |
+| Hard completions | 0 / 60 | 0 / 60 |
+| `stuck_lock` endings (E / N / H) | 20 / 33 / 30 | **1 / 1 / 0** |
+| Locks cleared (E / N / H, of 188) | 144 / 125 / 81 | **186 / 185 / 141** |
+| Deaths per run (E / N / H) | 0.52 / 2.75 / 1.43 | 0.88 / 4.35 / 2.40 |
+| Gated melee attackers over the slots | — | **0 frames** on every difficulty |
+
+Deaths rose because runs now reach the fights they used to stall before. The two remaining stalls and the one Timer collapse are bot gaps (CLAUDE.md, the bots section): Level 7's skiff channel, and Level 10's trapdoor recess after the boss falls. **Hard is the bot's ceiling, not a regression**: the pre-update build `2e9ca79` completed 0 of 16 Hard runs on Levels 2, 5, 8 and 11 and downed no boss; after the update the same runs get further on median (8472 px against 7601), Level 8 excepted (its locks force every fight). Normal's Act III is the steepest part of the campaign for the bot: no Normal completions on Levels 12, 14 and 15, at 12–13 deaths a run on 14 and 15.
+
+**`VERIFY-PAR-SECONDS`.** Every completed run reached its PreBoss lock with at least 66 % Integrity on Easy and 72 % on Normal; without the × 1.5 scale the worst would end near 49 % and 61 %, so no completion depends on it. The bots are faster than a person exploring, so `ProvisionalParScale` stays 1.5, provisional, until a human pass.
+
+**Smoke runs** (`--headless --quit` and `--quit-after 300`): the project load, the hub, Level 0, Florence, Level 5 and Level 7 all exit 0 with no script error; Level 0 prints its known 6 ObjectDB / 3 resources at exit and Level 7 the control levels' 2 / 1 (CLAUDE.md, the smoke-run noise note).
+
+**Not delivered, and the honest list.**
+
+- **Nobody has played or looked at any of it**: not the air strike, the zoom and its boss framing, a single lock fight, a barrier, a spawn tear, the GO prompt, the slower movement, the static launches, a waiter's ring, or a member put down beside the hero by the watchdog. Every acceptance claim above is a headless suite, a smoke run or a bot run.
+- Every number the agents chose is provisional (the `PROVISIONAL-*` rows of the section), and the open `VERIFY-*` / `DEFER-*` rows stand: `VERIFY-PAR-SECONDS`, `VERIFY-L07-ROPE-OVERSHOOT-BOARDING-ENGAGE`, `VERIFY-LOCK-PUZZLE-PROPS-REWIND`, `VERIFY-SCRATCH-SAVE-ENTRY-REPARK`, `VERIFY-ENGAGEMENT-CROSSING-PRESENTATION`, `DEFER-MOB-PUSHBOX-JOSTLE`.
+- The design-master edits are owed, not made (the 2026-10-11 convention: the mirror `design-godot.md` is not edited); the index lists them, and `HUD_CONTRACT.md` owes the lock panel.
+- §8 stands: no boss-arena hero seals, no mob-to-mob jostling, placeholder barriers, tears and GO prompt, no per-level par re-measurement, enemy speeds not re-tuned against the slower hero (17 mob types now outrun Lincoln), no Fighter-side kit-motion speed change.
+- Scope choices left to the user: flyers outside locks keep their altitude, ranged members keep their posts, and a member stalled for 10 s is moved visibly.
