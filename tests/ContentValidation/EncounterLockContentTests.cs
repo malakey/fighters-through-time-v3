@@ -36,6 +36,9 @@ namespace FTT.Tests.ContentValidation;
 ///       while that lock holds, and no checkpoint respawns the hero inside a room
 ///       trigger whose camera leaves the hero off screen (a placement rule for
 ///       every campaign scene, locks or not).</item>
+/// <item>FIX-OBJECTIVE (2026-10-13): no Restoration Font's channel circle
+///       straddles a lock barrier (<c>FontHazardClearance.CheckLockBarriers</c>),
+///       Level 0's trial lock and font included.</item>
 /// </list>
 /// </summary>
 [TestSuite]
@@ -340,6 +343,73 @@ public class EncounterLockContentTests {
         AssertThat(checkedPoints).IsGreater(0);
     }
 
+    /// <summary>
+    /// FIX-OBJECTIVE (2026-10-13): a font's 90 px channel circle never reaches a
+    /// hero pressed against the far side of any lock barrier, so no font can be
+    /// channelled from inside an engaged lock through its closed barrier (Level
+    /// 9's font at 8610 could, 70 px from the storm-anchor ship's exit). Every
+    /// campaign scene as built, plus Level 0 with its Combat Trial begun, because
+    /// the Tutorial's font and trial lock are built only then.
+    /// </summary>
+    [TestCase]
+    public void NoRestorationFontsChannelCircleStraddlesALockBarrier() {
+        var issues = new List<string>();
+        int pairs = 0;
+        foreach (LevelSnapshot level in Snapshots()) {
+            if (level.LoadError != null) { issues.Add($"{level.Label}: {level.LoadError}"); continue; }
+            var barriers = new List<(string, Rect2)>();
+            foreach (LockSnapshot encounterLock in level.Locks) {
+                foreach (BarrierSnapshot barrier in encounterLock.Barriers) {
+                    barriers.Add(($"'{encounterLock.ID}''s {(barrier.IsEntry ? "entry" : "exit")} barrier", barrier.Rect));
+                }
+            }
+            foreach ((string id, Vector2 position, float channelRange) in level.Fonts) {
+                pairs += barriers.Count;
+                FontHazardClearance.CheckLockBarriers($"{level.Label}: font {id}", position, channelRange, barriers, issues);
+            }
+        }
+        pairs += CheckTutorialTrialFont(issues);
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+        AssertThat(pairs).OverrideFailureMessage("No font stands in a level with a lock: the sweep is vacuous.").IsGreater(0);
+    }
+
+    /// <summary>Level 0's font and trial lock, which exist only once the Combat Trial begins.</summary>
+    private static int CheckTutorialTrialFont(List<string> issues) {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        bool originalPaused = tree.Paused;
+        SessionData originalSession = GameManager.Instance.CurrentSession;
+        Level00Controller level = null;
+        try {
+            SessionData session = originalSession;
+            session.ActiveSaveSlot = -1;
+            session.SelectedCharacterID = "einstein";
+            session.Difficulty = Difficulty.Normal;
+            GameManager.Instance.CurrentSession = session;
+            level = ResourceLoader.Load<PackedScene>(StoryManager.GetLevelScenePath(CampaignLevel.Tutorial))
+                .Instantiate<Level00Controller>();
+            tree.Root.AddChild(level);
+            level.BeginCombatTrialForTesting();
+            RestorationFont font = level.PlacedRestorationFont;
+            EncounterLock trial = level.TrialLock;
+            if (font == null || trial == null) { issues.Add("Level00: the Combat Trial built no font or no lock"); return 0; }
+            var barriers = new List<(string, Rect2)>();
+            foreach (EncounterLockBarrier barrier in new[] { trial.EntryBarrier, trial.ExitBarrier }) {
+                if (barrier != null) barriers.Add(($"the trial's {(barrier.IsEntry ? "entry" : "exit")} barrier", barrier.Footprint));
+            }
+            FontHazardClearance.CheckLockBarriers($"Level00: font {font.FontID}", font.GlobalPosition,
+                font.ChannelRangePixels, barriers, issues);
+            return barriers.Count;
+        } finally {
+            PoolManager.Instance?.ReleaseActiveInGroup("Enemies");
+            if (level != null && GodotObject.IsInstanceValid(level)) {
+                level.GetParent()?.RemoveChild(level);
+                level.Free();
+            }
+            GameManager.Instance.CurrentSession = originalSession;
+            tree.Paused = originalPaused;
+        }
+    }
+
     // === Snapshots ===========================================================
 
     private sealed class SpawnSnapshot {
@@ -384,6 +454,8 @@ public class EncounterLockContentTests {
         public readonly List<FractureSnapshot> Fractures = new();
         /// <summary>FIX-E: every room trigger's enabled shape and the camera rect it applies.</summary>
         public readonly List<(string RoomID, Rect2 Shape, Rect2 CameraBounds)> RoomTriggers = new();
+        /// <summary>FIX-OBJECTIVE: every Restoration Font built with the level, with its channel range.</summary>
+        public readonly List<(string ID, Vector2 Position, float ChannelRange)> Fonts = new();
     }
 
     private sealed class FractureSnapshot {
@@ -482,6 +554,7 @@ public class EncounterLockContentTests {
             }
             case RestorationFont font:
                 snapshot.Anchors.Add(($"font {font.FontID}", font.GlobalPosition));
+                snapshot.Fonts.Add((font.FontID, font.GlobalPosition, font.ChannelRangePixels));
                 break;
             case TemporalCoreAnchor anchor:
                 snapshot.Anchors.Add(($"sealing anchor {anchor.Name}", anchor.GlobalPosition));
