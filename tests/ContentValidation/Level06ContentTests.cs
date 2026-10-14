@@ -654,7 +654,6 @@ public class Level06ContentTests {
         AssertThat(level.Escape.IsRunning).IsTrue();
         float expectedStart = Level06Controller.EscapeStartFor(hero.GlobalPosition.X);
         AssertFloat(level.Escape.StartX).IsEqualApprox(expectedStart, 60f);
-        AssertThat(level.Escape.StartX >= Level06Controller.EscapeStartX).IsTrue();
         AssertThat(level.Escape.FrontX < hero.GlobalPosition.X)
             .OverrideFailureMessage($"The front starts at {level.Escape.FrontX}, ahead of the hero at {hero.GlobalPosition.X}.")
             .IsTrue();
@@ -662,11 +661,156 @@ public class Level06ContentTests {
         AssertThat(level.Civilians[1].GlobalPosition.X > Level06Controller.AshRoadLockMaxX
             && level.Civilians[1].GlobalPosition.X < Level06Controller.EscapeFinishX).IsTrue();
 
-        // The head-start rule itself: never west of the authored start, never past the front's end.
-        AssertFloat(Level06Controller.EscapeStartFor(5600f)).IsEqualApprox(Level06Controller.EscapeStartX, 0.01f);
+        // The head-start rule itself: the head start behind the hero wherever it
+        // stands (FIX-LEVEL: no floor at the authored start, which lies inside the
+        // road lock), never past the front's end.
+        AssertFloat(Level06Controller.EscapeStartFor(5600f))
+            .IsEqualApprox(5600f - Level06Controller.EscapeHeadStartPixels, 0.01f);
         AssertFloat(Level06Controller.EscapeStartFor(8000f))
             .IsEqualApprox(8000f - Level06Controller.EscapeHeadStartPixels, 0.01f);
         AssertFloat(Level06Controller.EscapeStartFor(9500f)).IsEqualApprox(Level06Controller.EscapeEndX, 0.01f);
+    }
+
+    /// <summary>
+    /// FIX-LEVEL (2026-10-13, review items 9 and 16): a hero who lands the road's
+    /// last kill pressed against its entry barrier still gets the head start. The
+    /// front used to be floored at <see cref="Level06Controller.EscapeStartX"/>
+    /// (5700), inside the road lock (5660): its zone, the 320 px west of the front,
+    /// covered such a hero, and the first tick caught it and knocked it west,
+    /// behind the front. In real frames on the real scene.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task ClearingTheRoadAgainstItsEntryBarrierStillStartsTheFrontBehindTheHero() {
+        using var fixture = new PompeiiFixture($"{LevelID}_checkpoint_1");
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
+        Level06Controller level = fixture.Level;
+        EncounterLock road = level.AshRoadLock;
+        PlayerController hero = level.Player;
+        try {
+            LevelLockTestKit.PlaceHero(hero, Level06Controller.AshRoadLockMinX + 100f, 899f);
+            await LevelLockTestKit.Frames(4);
+            AssertThat(road.State).IsEqual(EncounterLockState.Engaged);
+            // The fight ends with the hero against the closed entry barrier.
+            float heroX = road.EntryBarrier.Footprint.End.X + EncounterLockReach.HeroHalfWidthPixels + 4f;
+            LevelLockTestKit.PlaceHero(hero, heroX, 899f);
+            await LevelLockTestKit.Frames(1);
+            AssertThat(await LevelLockTestKit.ClearByForce(road)).IsTrue();
+            heroX = hero.GlobalPosition.X;
+            AssertThat(heroX < Level06Controller.EscapeStartX + EncounterLockReach.HeroHalfWidthPixels)
+                .OverrideFailureMessage($"The hero stands at {heroX}, not inside the old floor's reach.").IsTrue();
+            EscapeSequenceController escape = level.Escape;
+            AssertThat(escape.IsRunning).IsTrue();
+            AssertFloat(escape.StartX)
+                .IsEqualApprox(heroX - Level06Controller.EscapeHeadStartPixels, 20f);
+            AssertThat(escape.FrontX < heroX - EncounterLockReach.HeroHalfWidthPixels)
+                .OverrideFailureMessage($"The front starts at {escape.FrontX}, over the hero's body at {heroX}.").IsTrue();
+            await LevelLockTestKit.Frames(30);
+            AssertThat(escape.CatchCount)
+                .OverrideFailureMessage("The front caught the hero the moment the road cleared.").IsEqual(0);
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+        }
+    }
+
+    /// <summary>
+    /// FIX-LEVEL (2026-10-13, review items 3 and 14): a hero <b>walking</b> east
+    /// past the finish line completes the lava run. The finish trigger is centred
+    /// on the line, so it meets a walking hero short of
+    /// <see cref="Level06Controller.EscapeFinishX"/> (refused) and never fires
+    /// again on the way through, and the front parks short of the line, so it
+    /// only ever overlapped bodies behind it: the run stayed live for the rest of
+    /// the level (the objective stuck on "outrun", the parked front burning the
+    /// road's second civilian, the play bot held past the line for good). The
+    /// escape now completes on the first running tick its runner stands past the
+    /// line — one rule, shared with Level 15. Real frames, real input.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task AHeroWalkingPastTheFinishLineCompletesTheLavaRun() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        using var fixture = new PompeiiFixture($"{LevelID}_checkpoint_1");
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
+        Level06Controller level = fixture.Level;
+        EscapeSequenceController escape = level.Escape;
+        PlayerController hero = level.Player;
+        // The road behind the hero is won; this case is the run, not the fight.
+        level.AshRoadLock.RestoreCleared();
+        LevelLockTestKit.PlaceHero(hero, 8600f, 899f);
+        AssertThat(level.BeginEscape()).IsTrue();
+
+        Area2D finish = escape.GetNode<Area2D>("FinishTrigger");
+        float metTheTriggerAt = float.NaN;
+        void OnFinishEntered(Node2D body) {
+            if (body == hero && float.IsNaN(metTheTriggerAt)) metTheTriggerAt = hero.GlobalPosition.X;
+        }
+        finish.BodyEntered += OnFinishEntered;
+        var input = new BufferedInputSource();
+        InputManager.Instance.SetInputSource(hero.PlayerIndex, input);
+        try {
+            uint tick = 0;
+            float target = Level06Controller.EscapeFinishX + 80f;
+            for (int frame = 0; frame < 240 && hero.GlobalPosition.X < target; frame++) {
+                input.SetNextFrame(PlayerInputFrame.Create(tick++, 1f, 0f, GameplayButtons.None));
+                await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            }
+            input.SetNextFrame(PlayerInputFrame.Create(tick, 0f, 0f, GameplayButtons.None));
+            AssertThat(hero.GlobalPosition.X >= target)
+                .OverrideFailureMessage($"The hero only walked to x {hero.GlobalPosition.X:0}.").IsTrue();
+            // The trigger met the hero short of the line, which is why it alone never completed the run.
+            AssertThat(!float.IsNaN(metTheTriggerAt) && metTheTriggerAt < Level06Controller.EscapeFinishX)
+                .OverrideFailureMessage($"The finish trigger first met the hero at x {metTheTriggerAt}.").IsTrue();
+            AssertThat(escape.IsCompleted)
+                .OverrideFailureMessage("A hero who walked past the finish line left the lava run live.").IsTrue();
+            AssertThat(escape.IsRunning).IsFalse();
+            AssertThat(level.EscapeSurvived).IsTrue();
+            Label objective = level.HUD.GetNode<Label>("SafeArea/TopLeft/Objective");
+            AssertThat(objective.Text).IsEqual(TranslationServer.Translate("pompeii_objective_anchor").ToString());
+        } finally {
+            finish.BodyEntered -= OnFinishEntered;
+            InputManager.Instance.ClearInputSource(hero.PlayerIndex);
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+        }
+    }
+
+    /// <summary>
+    /// FIX-LEVEL (2026-10-13): a death rewind during the run restarts the front
+    /// behind the landing (the level's signature mechanic must not switch off),
+    /// but once the run is won a death never restarts it. The escape's own reset
+    /// (<c>ResetToInitialState</c>) clears <c>IsCompleted</c> before the level's
+    /// handler runs, so the old <c>IsCompleted</c> guard never held and a death
+    /// in the caldera started the lava again behind the hero.
+    /// </summary>
+    [TestCase]
+    public void ADeathRewindRestartsTheLavaBehindTheLandingButNeverOnceTheRunIsWon() {
+        using var fixture = new PompeiiFixture($"{LevelID}_checkpoint_1");
+        Level06Controller level = fixture.Level;
+        EscapeSequenceController escape = level.Escape;
+        PlayerController hero = level.Player;
+        level.AshRoadLock.RestoreCleared();
+        LevelLockTestKit.PlaceHero(hero, 8000f, 899f);
+        AssertThat(level.BeginEscape()).IsTrue();
+        escape.AdvanceFront(1f);
+
+        // Mid-run: the rewind lands the hero behind the front's start, which moves back behind it.
+        LevelLockTestKit.PlaceHero(hero, 7200f, 899f);
+        EventBus.Instance.RaiseRewindTriggered(new Vector2(7200f, 899f));
+        AssertThat(escape.IsRunning).OverrideFailureMessage("A death mid-run switched the lava off.").IsTrue();
+        AssertThat(escape.FrontX < 7200f - EncounterLockReach.HeroHalfWidthPixels).IsTrue();
+        AssertThat(level.EscapeSurvived).IsFalse();
+
+        // Won: past the line the run completes on the next running tick.
+        LevelLockTestKit.PlaceHero(hero, Level06Controller.EscapeFinishX + 120f, 899f);
+        escape.AdvanceFront(1f / 60f);
+        AssertThat(escape.IsCompleted).IsTrue();
+        AssertThat(level.EscapeSurvived).IsTrue();
+
+        // A later death, even one that lands short of the line, never restarts it.
+        LevelLockTestKit.PlaceHero(hero, 8700f, 899f);
+        EventBus.Instance.RaiseRewindTriggered(new Vector2(8700f, 899f));
+        AssertThat(escape.IsRunning)
+            .OverrideFailureMessage("A death after the run was won restarted the lava front.").IsFalse();
+        AssertThat(escape.IsCompleted).IsTrue();
+        escape.AdvanceFront(1f);
+        AssertThat(escape.CatchCount).IsEqual(0);
     }
 
     // === Helpers ===

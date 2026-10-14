@@ -195,21 +195,35 @@ namespace FTT.Environment {
 
         /// <summary>
         /// GU-L12 (<i>Provisional</i>): when the hall lock clears, the front starts
-        /// this far behind the hero (2.0 s of its 216 px/s), never west of
-        /// <see cref="EscapeStartX"/>. Starting it at <see cref="EscapeStartX"/>
-        /// regardless would hand a hero who finished the fight at the hall lock's
-        /// east end a 1,300 px lead and no escape at all; every hero still outruns
-        /// it, so only a detour (the third pylon) costs a catch.
+        /// this far behind the hero (2.0 s of its 216 px/s), wherever the hero
+        /// stands. Starting it at <see cref="EscapeStartX"/> regardless would hand
+        /// a hero who finished the fight at the hall lock's east end a 1,300 px
+        /// lead and no escape at all; every hero still outruns it, so only a
+        /// detour (the third pylon) costs a catch. FIX-LEVEL (2026-10-13): no
+        /// longer floored at <see cref="EscapeStartX"/>, which lies inside the
+        /// hall lock (6420): a hero who took the last kill against the entry
+        /// barrier got the front on top of them (its zone is the 320 px west of
+        /// the front) and the catch knocked them behind it.
         /// </summary>
         public const float FirestormHeadStartPixels = 432f;
 
-        /// <summary>Where the front starts when the hall lock clears with the hero at <paramref name="heroX"/>.</summary>
+        /// <summary>Where the front starts when the hall lock clears with the hero at <paramref name="heroX"/>: the head start behind them, never past the front's end.</summary>
         public static float FirestormStartBehind(float heroX) =>
-            Mathf.Clamp(heroX - FirestormHeadStartPixels, EscapeStartX, EscapeEndX);
+            Mathf.Min(heroX - FirestormHeadStartPixels, EscapeEndX);
 
         private EscapeSequenceController _escape;
         public EscapeSequenceController Firestorm => _escape;
         public bool FirestormTriggered { get; private set; }
+
+        /// <summary>
+        /// FIX-LEVEL (2026-10-13): latched once the run is won (the firestorm
+        /// completed, or a resume past it). The firestorm's own rewind reset
+        /// clears <c>IsCompleted</c> before <see cref="OnStoryRewind"/> runs, so
+        /// this, not the escape, is what a death rewind reads.
+        /// </summary>
+        public bool FirestormSurvived { get; private set; }
+
+        private bool _rewindBound;
 
         // === The Prime Anchor ===
 
@@ -644,6 +658,7 @@ namespace FTT.Environment {
             _escape = GetNodeOrNull<EscapeSequenceController>("Firestorm");
             WireFirestormFinishLine();
             SettleFirestormForResume();
+            BindFirestormRewind();
             ResolvePrimeAnchor();
             BindPhaseEvents();
         }
@@ -651,21 +666,19 @@ namespace FTT.Environment {
         /// <summary>
         /// The template's finish trigger sits at its own authored X; retarget it at
         /// this level's finish line and route it into the sequence (the Level 6
-        /// pattern - <see cref="EscapeSequenceController"/> only self-detects the
-        /// finish while the player is inside the damage front).
+        /// pattern).
         /// </summary>
         private void WireFirestormFinishLine() {
             if (_escape == null) return;
-            // GU-L12: the trigger below is centred on the finish line, so a hero
-            // walking in meets it 20–70 px short of FinishX, NotifyPlayerReachedFinish
-            // refuses, and BodyEntered never fires again while the hero walks
-            // through — the run was only ever halted at the rotunda, never
-            // completed (the bot idled past the line waiting for it). The front
-            // reports every advance, so the run now completes on the first tick the
-            // hero stands past the finish line.
-            _escape.FrontAdvanced += _ => {
-                if (Player != null && IsInstanceValid(Player)) _escape.NotifyPlayerReachedFinish(Player);
-            };
+            // GU-L12 found that the trigger below, centred on the finish line,
+            // meets a walking hero 20–70 px short of FinishX, so
+            // NotifyPlayerReachedFinish refuses and BodyEntered never fires again
+            // on the way through (the bot idled past the line waiting for it), and
+            // fixed it here with a FrontAdvanced hook. FIX-LEVEL (2026-10-13): the
+            // escape itself now completes on the first running tick its runner
+            // stands past FinishX, the one rule Level 6 shares; the trigger stays
+            // as the visible line.
+            _escape.Runner = Player;
             if (_escape.GetNodeOrNull<Area2D>("FinishTrigger") is not Area2D finish) return;
             finish.Position = new Vector2(EscapeFinishX, -360f);
             finish.BodyEntered += body => {
@@ -719,10 +732,48 @@ namespace FTT.Environment {
         public bool BeginFirestorm(float frontStartX) {
             if (_escape == null || FirestormTriggered || _escape.IsCompleted) return false;
             FirestormTriggered = true;
-            _escape.StartX = Mathf.Clamp(frontStartX, EscapeStartX, EscapeEndX);
+            // FIX-LEVEL: only the end clamps; a start west of EscapeStartX is the
+            // head start behind a hero who cleared the hall near its entry.
+            _escape.StartX = Mathf.Min(frontStartX, EscapeEndX);
             _escape.ResetSequence();
             _escape.Begin();
             return true;
+        }
+
+        /// <summary>
+        /// FIX-LEVEL (2026-10-13): a death rewind restarts a firestorm the hero
+        /// has not yet outrun, the Level 6 pattern. The Firestorm node's rewind
+        /// policy is <c>ResetToInitialState</c> (the scene), so its own handler,
+        /// subscribed in its <c>_Ready</c> before this one, has already put the
+        /// front back at its start and stopped it; this moves that start behind
+        /// the landing if the landing is west of it, and runs it again. Before,
+        /// the default <c>RestoreCheckpointState</c> parked the front at the
+        /// Middle anchor's capture (6500, stopped: no checkpoint can be struck
+        /// while it runs) and nothing restarted it, so one death switched the
+        /// level's escape off for the rest of the attempt
+        /// (VERIFY-L15-ESCAPE-REWIND-HALT). A won run is completed again instead.
+        /// </summary>
+        private void OnStoryRewind(Vector2 landing) {
+            if (_escape == null || !FirestormTriggered) return;
+            if (FirestormSurvived) {
+                _escape.CompleteEscape();
+                return;
+            }
+            float start = Mathf.Min(_escape.StartX, FirestormStartBehind(landing.X));
+            if (!Mathf.IsEqualApprox(start, _escape.StartX)) {
+                _escape.StartX = start;
+                _escape.ResetSequence();
+            }
+            _escape.Begin();
+        }
+
+        private void OnFirestormCompleted() => FirestormSurvived = true;
+
+        private void BindFirestormRewind() {
+            if (_escape != null) _escape.EscapeCompleted += OnFirestormCompleted;
+            if (_rewindBound || EventBus.Instance == null) return;
+            EventBus.Instance.OnRewindTriggered += OnStoryRewind;
+            _rewindBound = true;
         }
 
         // === Checkpoint resume ===
@@ -756,6 +807,7 @@ namespace FTT.Environment {
         /// </summary>
         private void SettleFirestormForResume() {
             if (_escape == null || !FirestormTriggered) return;
+            FirestormSurvived = true;
             _escape.ResetSequence();
             _escape.CompleteEscape();
         }
@@ -842,6 +894,10 @@ namespace FTT.Environment {
                 EventBus.Instance.OnBossPhaseChanged -= OnBossPhaseChanged;
             }
             _phaseEventsBound = false;
+            if (_rewindBound && EventBus.Instance != null) {
+                EventBus.Instance.OnRewindTriggered -= OnStoryRewind; // FIX-LEVEL
+            }
+            _rewindBound = false;
             base._ExitTree();
         }
 

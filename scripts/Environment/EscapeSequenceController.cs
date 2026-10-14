@@ -43,6 +43,12 @@ namespace FTT.Environment {
         public bool IsCompleted { get; private set; }
         public float FrontX { get; private set; }
         public int CatchCount { get; private set; }
+
+        /// <summary>
+        /// FIX-LEVEL (2026-10-13): the hero the finish line is judged against.
+        /// A level hands it its hero; unset, the scene's <c>StoryPlayer</c> runs.
+        /// </summary>
+        public PlayerController Runner { get; set; }
         /// <summary>Seconds until the front reaches <see cref="EndX"/> at the authored speed.</summary>
         public float RemainingSeconds => Mathf.Max(0f, (EndX - FrontX) / Mathf.Max(0.01f, AdvanceSpeed));
         public Area2D DamageFront => GetNodeOrNull<Area2D>(DamageFrontPath);
@@ -84,6 +90,17 @@ namespace FTT.Environment {
             FrontX = Mathf.Min(EndX, FrontX + AdvanceSpeed * dt);
             ApplyFrontPosition();
             EmitSignal(SignalName.FrontAdvanced, FrontX);
+
+            // FIX-LEVEL (2026-10-13): the finish is a line, judged every running
+            // tick (the front parked at EndX included). The level's finish
+            // trigger is centred on FinishX, so a walking hero meets it short of
+            // the line, NotifyPlayerReachedFinish refuses, and BodyEntered never
+            // fires again on the way through; the front only overlaps bodies
+            // behind EndX. Level 6's run never completed for a walking hero.
+            if (ResolveRunner() is PlayerController runner && runner.GlobalPosition.X >= FinishX) {
+                CompleteEscape();
+                return;
+            }
 
             Area2D front = DamageFront;
             if (front == null) return;
@@ -166,6 +183,12 @@ namespace FTT.Environment {
             IsCompleted = false;
             _catchCooldowns.Clear();
             ApplyFrontPosition();
+        }
+
+        private PlayerController ResolveRunner() {
+            if (Runner != null && GodotObject.IsInstanceValid(Runner)) return Runner;
+            if (!IsInsideTree()) return null;
+            return GetTree().GetFirstNodeInGroup("StoryPlayer") as PlayerController;
         }
 
         private void ApplyFrontPosition() {

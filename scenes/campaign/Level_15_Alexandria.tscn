@@ -80,6 +80,7 @@ AdvanceSpeed = 216.0
 CatchDamage = 22
 CatchKnockback = Vector2(560, -280)
 AutoBegin = false
+RewindPolicy = 1
 
 [node name="PrimeAnchor" type="Node2D" parent="." groups=["puzzle_object"]]
 position = Vector2(11150, 1400)

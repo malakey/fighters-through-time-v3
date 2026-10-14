@@ -69,6 +69,14 @@ namespace FTT.UI {
         }
 
         private void ShowEncounterGoPrompt(EncounterGoDirection direction) {
+            // FIX-LEVEL (2026-10-13): a lock with nowhere to go (Level 0's Combat
+            // Trial ends the tutorial on its clear) shows no prompt at all, rather
+            // than a bare "GO" with no arrow; a prompt still up from an earlier
+            // lock goes too.
+            if (direction == EncounterGoDirection.None) {
+                HideEncounterGoPrompt();
+                return;
+            }
             if (_encounterGoPrompt == null) return;
             if (_encounterGoArrow != null) _encounterGoArrow.Text = FTT.Environment.EncounterLockRules.GoGlyph(direction);
             _encounterGoPrompt.Visible = true;

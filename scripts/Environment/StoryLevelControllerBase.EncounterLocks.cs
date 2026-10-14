@@ -115,5 +115,41 @@ namespace FTT.Environment {
             _levelObjectiveKey = translationKey ?? "";
             _levelObjectiveArguments = arguments ?? Array.Empty<object>();
         }
+
+        // === FIX-LEVEL (2026-10-13): room seams never post over a lock ========
+
+        private int _roomEntryDepth;
+
+        /// <summary>
+        /// Runs a room trigger's <c>onEntered</c> (<see cref="BuildRoomTransition"/>).
+        /// While it runs, an objective it posts through <see cref="SetObjective"/>
+        /// is held back if an engaged lock posts its own
+        /// (<see cref="RoomEntryObjectiveDeferredToLock"/>).
+        /// </summary>
+        private void RunRoomEntry(Action<string> onEntered, string roomID) {
+            _roomEntryDepth++;
+            try {
+                onEntered(roomID);
+            } finally {
+                _roomEntryDepth--;
+            }
+        }
+
+        /// <summary>
+        /// True while a room trigger's <c>onEntered</c> runs and an Engaged lock
+        /// with an <see cref="EncounterLock.ObjectiveKey"/> holds the objective
+        /// line. The room's objective is only remembered then, and the lock's
+        /// release hands it back (<see cref="RestoreLevelObjective"/>). Room seams
+        /// sit on or inside lock areas (Level 7's boarding channel trigger stands
+        /// 200 px into the boarding fight; the repeatable forward triggers of
+        /// Levels 12–15 sit just inside an area's entry and fire again whenever
+        /// the hero steps back over them), and each crossing used to replace
+        /// "Defeat every enemy here" for the rest of the fight. Only room entries
+        /// are held: a level's own mid-fight warnings (a searchlight alarm, an
+        /// exposure) still post, as their levels intend.
+        /// </summary>
+        private bool RoomEntryObjectiveDeferredToLock =>
+            _roomEntryDepth > 0 && ActiveEncounterLock is EncounterLock held
+            && !string.IsNullOrWhiteSpace(held.ObjectiveKey);
     }
 }

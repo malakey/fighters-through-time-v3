@@ -786,6 +786,7 @@ namespace FTT.Environment {
         protected void SetObjective(string translationKey, params object[] arguments) {
             if (string.IsNullOrWhiteSpace(translationKey)) return;
             RememberLevelObjective(translationKey, arguments); // GU-E: what a lock's release restores
+            if (RoomEntryObjectiveDeferredToLock) return;      // FIX-LEVEL: the engaged lock keeps its line
             HUD?.SetObjective(translationKey, arguments);
         }
 
@@ -1346,7 +1347,7 @@ namespace FTT.Environment {
             });
             AddChild(trigger);
             if (encounterRoot != null) trigger.EncounterRootPath = trigger.GetPathTo(encounterRoot);
-            if (onEntered != null) trigger.RoomEntered += id => onEntered(id);
+            if (onEntered != null) trigger.RoomEntered += id => RunRoomEntry(onEntered, id); // FIX-LEVEL: see RunRoomEntry
             _roomTriggers.Add(trigger);
             LinkRoomCameras();
             return trigger;

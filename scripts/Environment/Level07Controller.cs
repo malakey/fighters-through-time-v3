@@ -133,6 +133,8 @@ namespace FTT.Environment {
         public const float ReceivingYardY = 692f;
         /// <summary>West lip of the receiving yard - the first solid thing east of the water.</summary>
         public const float ReceivingYardWestX = 5550f;
+        /// <summary>East end of the receiving yard, over the Bonnet's waist (the yard is solid, 400 px).</summary>
+        public const float ReceivingYardEastX = 5950f;
 
         /// <summary>
         /// Anchor pivot line. The template hangs its grab area 320 px below the pivot
@@ -217,10 +219,17 @@ namespace FTT.Environment {
         /// boarding lock, which starts at 5780) and the PreBoss anchor 8420 -> 8680,
         /// off the boarding ramp (inside the boarding fight, beside both elites) onto
         /// the flagship's west deck, past the lock's exit and its swing reach.
+        /// FIX-LEVEL (2026-10-13): the Middle anchor moved again, from the Bonnet's
+        /// deck at 5700 up onto the receiving yard at 5650, where rope C lands the
+        /// hero. At 5700 it stood under the solid yard, reachable only from the
+        /// yard's east end (5950), past the boarding lock's engage line (5824): the
+        /// lock engaged and shut its entry barrier between the hero and the anchor,
+        /// so the boarding fight had no checkpoint. On the yard it is struck before
+        /// the hero walks on (its surface ends at 5680; the engage line is 5824).
         /// </summary>
         public static readonly (string ID, Vector2 Position)[] CheckpointPlacements = {
             (Checkpoint0, new Vector2(240f, DeckY - 20f)),
-            (Checkpoint1, new Vector2(5700f, DeckY - 20f)),
+            (Checkpoint1, new Vector2(5650f, ReceivingYardY - 20f)),
             (Checkpoint2, new Vector2(8680f, ListDeckWestY - 20f))
         };
 
@@ -237,7 +246,11 @@ namespace FTT.Environment {
             (Room3StartX, ChannelStartX, DeckY),        // the gun pier
             (ChannelEndX, Room4StartX, DeckY),          // the flagship boarding ramp
             // GU-L4: the flagship's west deck, where the PreBoss anchor now stands.
-            (Room4StartX, FlagshipWestDeckEndX, ListDeckWestY)
+            (Room4StartX, FlagshipWestDeckEndX, ListDeckWestY),
+            // FIX-LEVEL: the receiving yard's run over the Bonnet's hull (its
+            // 50 px west lip overhangs the water and is left out), where the
+            // Middle anchor now stands.
+            (SwingGapEndX, ReceivingYardEastX, ReceivingYardY)
         };
 
         /// <summary>Open water the player cannot walk on: (start X, end X, rescue anchor).</summary>
@@ -522,7 +535,8 @@ namespace FTT.Environment {
 
             // The Bonnet, taken as a prize and drifting alongside.
             BuildFloor(SwingGapEndX, DeckY, Room3StartX - SwingGapEndX);
-            BuildPlatform(5750f, ReceivingYardY + DefaultPlatformThickness / 2f, 400f, YardColor);
+            BuildPlatform((ReceivingYardWestX + ReceivingYardEastX) / 2f, ReceivingYardY + DefaultPlatformThickness / 2f,
+                ReceivingYardEastX - ReceivingYardWestX, YardColor);
 
             Vector2 middle = CheckpointPlacements[1].Position;
             BuildCheckpoint(middle.X, middle.Y, Checkpoint1, CheckpointRole.Middle);
