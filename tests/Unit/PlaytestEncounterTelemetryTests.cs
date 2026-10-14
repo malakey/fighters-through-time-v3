@@ -517,13 +517,14 @@ public class PlaytestEncounterTelemetryTests {
 
     [TestCase(Timeout = 120000)]
     public async Task TheBotClimbsOntoTheLedgeALockMemberHoldsInsteadOfJumpingAtItFromBelow() {
-        // Gap 3 (Level 9's seawall, Level 7's quay, Level 10's galleries): a member
-        // posted on a ledge the hero can reach is fought up there. The old bot stood
-        // under it and jumped into the ledge's underside.
+        // Gap 3 (Level 9's seawall, Level 7's quay): a member posted on a ledge the
+        // hero can reach is fought up there. The old bot stood under it and jumped
+        // into the ledge's underside. A ranged member: since FIX-ENEMY an engaged
+        // melee member steps down to a hero below, while a shooter keeps its post.
         using var scene = new BotLockScene();
         const float ledgeTop = BotLockScene.FloorY - 200f;
         scene.AddSolid("PlaytestBotLedge", new Rect2(5300f, ledgeTop, 400f, 16f));
-        EncounterLock encounterLock = scene.BuildLock(new[] { new EncounterLockSpawn("chrono_slasher", new Vector2(5500f, ledgeTop - 40f)) });
+        EncounterLock encounterLock = scene.BuildLock(new[] { new EncounterLockSpawn("laser_pistol_deckhand", new Vector2(5500f, ledgeTop - 40f)) });
         EnemyController member = encounterLock.LivingMembers.Single();
         scene.PlaceHero(5480f);
         for (int frame = 0; frame < 60 && !(member.IsOnFloor() && scene.Hero.IsOnFloor()); frame++) await Frames(1);
@@ -701,15 +702,18 @@ public class PlaytestEncounterTelemetryTests {
 
     [TestCase(Timeout = 60000)]
     public async Task TheBotGoesOnPastAFinishLineWhoseEscapeNeverCompleted() {
-        // Level 6's lava run never completes for a hero who crosses its finish
-        // trigger in one go (a game bug, reported); the bot used to stand past the
-        // line "escaping" for the rest of the run.
+        // Level 6's lava run once never completed for a hero who crossed its finish
+        // trigger in one go (fixed by FIX-LEVEL: the escape now completes for any
+        // hero past FinishX); the bot used to stand past the line "escaping" for
+        // the rest of the run. It keeps going on past an escape that has not
+        // completed, so the case freezes the escape to hold it running.
         using var scene = new BotLockScene();
         var escape = new EscapeSequenceController {
             Name = "PlaytestBotEscape", SequenceID = "playtest_bot_test.escape", StartX = 2200f, EndX = 3000f, FinishX = 3100f
         };
         scene.Host.AddChild(escape);
         escape.Begin();
+        escape.ProcessMode = Node.ProcessModeEnum.Disabled;
         scene.PlaceHero(3400f);
         await Frames(3);
         var bot = new StoryBot(scene.World, FightStyle.Play, CampaignLevel.Orleans);
