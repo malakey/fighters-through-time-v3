@@ -114,6 +114,41 @@ namespace FTT.Environment {
         private const float DeckE2 = 940f;
         private const float DeckBoat = 800f;
 
+        // The west ends of the raised decks: each listing ramp's high joint.
+        private const float DeckD1WestX = 1100f;
+        private const float DeckD2WestX = 2300f;
+        private const float DeckE1WestX = 4600f;
+        private const float DeckE2WestX = 5500f;
+
+        /// <summary>
+        /// FIX-ENEMY (2026-10-13): the five listing ramps, bow to stern, each
+        /// authored by its two joints — <c>Low</c>, where its slope leaves the top
+        /// of the lower deck, and <c>High</c>, the upper deck's west top corner —
+        /// so <see cref="BuildListingRamp"/> lays both joints flush by
+        /// construction. The ramps used to be authored by centre, width and angle
+        /// (12°, 12°, 13°, 13°, 16°): each ended 19–41 px under its upper deck's
+        /// west face, a riser that stopped every walker (the hero needed a jump;
+        /// a mob never got up), and its rotated corners stood 0.5–1.6 px proud of
+        /// the decks, a lip that stopped a mob walking down onto the slope. The
+        /// low joints are where the old slopes left their decks, so the ramps
+        /// keep their footprints and steepen to 15–22°.
+        /// </summary>
+        public static readonly (Vector2 Low, Vector2 High)[] ListingRampJoints = {
+            (new Vector2(800f, DeckD0), new Vector2(DeckD1WestX, DeckD1)),
+            (new Vector2(2000f, DeckD1), new Vector2(DeckD2WestX, DeckD2)),
+            (new Vector2(4280f, DeckD2), new Vector2(DeckE1WestX, DeckE1)),
+            (new Vector2(5230f, DeckE1), new Vector2(DeckE2WestX, DeckE2)),
+            (new Vector2(7150f, DeckE2), new Vector2(BoatDeckWestX, DeckBoat))
+        };
+
+        /// <summary>
+        /// FIX-ENEMY: how far a ramp's slab runs on past its low joint, along
+        /// its slope and so under the lower deck's top, so its end corner is
+        /// buried rather than flush with the deck. The high end stops exactly at
+        /// the upper deck's corner: running on would rise above that deck.
+        /// </summary>
+        private const float RampLowJointOverlapPixels = 16f;
+
         // === Checkpoints ===
 
         public const string Checkpoint0 = TitanicLevelID + "_checkpoint_0";
@@ -390,21 +425,33 @@ namespace FTT.Environment {
         /// Deck slab tilted about its own top-centre so walking sternward is walking
         /// uphill. Stepped decks plus these ramps read as a hull going down by the
         /// bow without the collision seams a fully rotated floor plan would create.
+        /// FIX-ENEMY (2026-10-13): built from its joints (<see cref="ListingRampJoints"/>):
+        /// its top runs from <paramref name="lowJoint"/> on the lower deck to
+        /// <paramref name="highJoint"/>, the upper deck's west top corner, and its
+        /// slab runs on <see cref="RampLowJointOverlapPixels"/> past the low joint,
+        /// buried under the lower deck. Neither joint leaves a riser or a lip.
         /// </summary>
-        private StaticBody2D BuildListingRamp(float centerX, float centerY, float width, float degrees) {
-            StaticBody2D ramp = BuildFloor(centerX - width / 2f, centerY, width, RampColor);
-            ramp.RotationDegrees = degrees;
+        private StaticBody2D BuildListingRamp(Vector2 lowJoint, Vector2 highJoint) {
+            Vector2 along = (highJoint - lowJoint).Normalized();
+            Vector2 start = lowJoint - along * RampLowJointOverlapPixels;
+            Vector2 centre = (start + highJoint) / 2f;
+            float width = start.DistanceTo(highJoint);
+            StaticBody2D ramp = BuildFloor(centre.X - width / 2f, centre.Y, width, RampColor);
+            ramp.Rotation = along.Angle();
             return ramp;
         }
+
+        private void BuildListingRamp(int index) =>
+            BuildListingRamp(ListingRampJoints[index].Low, ListingRampJoints[index].High);
 
         private void BuildRoom1GrandStaircase() {
             BuildRoomBackground("BG_Room1", 0f, Room2StartX, LevelHeight, new Color(0.07f, 0.09f, 0.12f, 0.4f));
 
             BuildFloor(0f, DeckD0, 900f);
-            BuildListingRamp(1000f, 1260f, 400f, -12f);
-            BuildFloor(1100f, DeckD1, 1000f);
-            BuildListingRamp(2200f, 1180f, 400f, -12f);
-            BuildFloor(2300f, DeckD2, 1200f);
+            BuildListingRamp(0);
+            BuildFloor(DeckD1WestX, DeckD1, 1000f);
+            BuildListingRamp(1);
+            BuildFloor(DeckD2WestX, DeckD2, 1200f);
 
             BuildOneWayPlatform(600f, 1140f, 240f);
             BuildOneWayPlatform(1500f, 1060f, 260f);
@@ -429,10 +476,10 @@ namespace FTT.Environment {
                 new Color(0.06f, 0.08f, 0.1f, 0.45f));
 
             BuildFloor(3500f, DeckD2, 900f);
-            BuildListingRamp(4500f, 1090f, 440f, -13f);
-            BuildFloor(4600f, DeckE1, 800f);
-            BuildListingRamp(5450f, 990f, 440f, -13f);
-            BuildFloor(5500f, DeckE2, 800f);
+            BuildListingRamp(2);
+            BuildFloor(DeckE1WestX, DeckE1, 800f);
+            BuildListingRamp(3);
+            BuildFloor(DeckE2WestX, DeckE2, 800f);
 
             BuildOneWayPlatform(3900f, 980f, 220f);
             BuildOneWayPlatform(4400f, 860f, 200f);
@@ -458,7 +505,7 @@ namespace FTT.Environment {
                 new Color(0.08f, 0.1f, 0.14f, 0.4f));
 
             BuildFloor(6300f, DeckE2, 1000f);
-            BuildListingRamp(7400f, 870f, 500f, -16f);
+            BuildListingRamp(4);
             BuildFloor(BoatDeckWestX, DeckBoat, ArenaStartX - BoatDeckWestX);
 
             // Davit climb: the only dry ground once the boat deck itself goes under.
@@ -610,7 +657,7 @@ namespace FTT.Environment {
         /// water would have caught a hero who finished the casing on D2, or the
         /// E-deck run on E2, with a long wade at ×0.55 to the next dry deck).
         /// </summary>
-        public static readonly float[] HullStepDryFromX = { 0f, 2300f, 5500f, BoatDeckWestX, ArenaStartX };
+        public static readonly float[] HullStepDryFromX = { 0f, DeckD2WestX, DeckE2WestX, BoatDeckWestX, ArenaStartX };
 
         /// <summary>The boat deck's west end.</summary>
         public const float BoatDeckWestX = 7500f;

@@ -216,9 +216,21 @@ namespace FTT.Enemies {
         /// nearby enemies — standards and elites alike — for the crowd-bowling
         /// hit. Ends as a knockdown when the mob returns to the floor. D9: a
         /// fast flight into an Environment wall bounces back once.
+        /// FIX-ENEMY (2026-10-13): a flyer has no gravity to bring it back to a
+        /// floor, so its flight used to keep the throw's velocity for good — a
+        /// thrown Rift Phantom rose at the forward throw's 79 px/s until it was
+        /// 5000 px over its lock, which could then never clear. A thrown flyer
+        /// loses its speed to the stunned air drag instead
+        /// (<see cref="FTT.Combat.StoryEnemyCombatRules.StunnedAirDragPixelsPerSecondSquared"/>)
+        /// and its flight ends where it stops, its throw stun then running out
+        /// in the hover as any stunned flyer's does.
         /// </summary>
         private void ProcessThrownFlight(float dt) {
             ApplyGravity(dt);
+            if (IsFlying) {
+                Velocity = Velocity.MoveToward(Vector2.Zero,
+                    FTT.Combat.StoryEnemyCombatRules.StunnedAirDragPixelsPerSecondSquared * dt);
+            }
             float preMoveVx = Velocity.X;
             MoveAndSlide();
             if (TryWallBounce(preMoveVx) && CurrentState == EnemyState.Dead) return;
@@ -247,7 +259,7 @@ namespace FTT.Enemies {
                     chargesStandardPoise: false,
                     carriesKnockback: bowledKnockback);
             }
-            if (IsOnFloor()) {
+            if (IsOnFloor() || (IsFlying && Velocity == Vector2.Zero)) {
                 _thrownFlight = false;
                 Velocity = new Vector2(0f, Velocity.Y);
                 // D9: the throw's bounce ends with its flight.
@@ -709,6 +721,7 @@ namespace FTT.Enemies {
                     case EnemyState.Returning: ProcessReturning(dt); break;
                     default: break;
                 }
+                SettleEncounterFlyer(dt); // FIX-ENEMY: an engaged flyer never holds out of the hero's reach
             }
 
             ApplyPhasingMask();
@@ -1045,7 +1058,8 @@ namespace FTT.Enemies {
             }
 
             Vector2 toTarget = aim - GlobalPosition;
-            float sign = Mathf.Sign(toTarget.X);
+            // FIX-ENEMY: a lock member above its target keeps to the way down it chose.
+            float sign = ResolveEncounterWayDownSign(Mathf.Sign(toTarget.X), toTarget);
 
             // P4: a ground mob whose target sits (nearly) straight above holds
             // its post and its facing rather than flipping under the player.
@@ -1083,6 +1097,8 @@ namespace FTT.Enemies {
                 if (dist <= engage) _standOffEngaged = true;
                 else if (dist > resume) _standOffEngaged = false;
             }
+            // FIX-ENEMY: a lock member that cannot reach a target below it never holds over it.
+            if (EncounterSeeksWayDown(toTarget)) _standOffEngaged = false;
 
             if (_standOffEngaged) {
                 float decel = StandOffDecelerationPerSecond * dt;
@@ -1096,12 +1112,15 @@ namespace FTT.Enemies {
             // P4: ground mobs do not jump (design-godot.md:2984), so they stop at
             // a drop-off or a wall instead of walking into the void or pushing
             // forever. Phasers pursue through walls by design and skip the wall
-            // half; flying mobs skip both.
-            if (!IsFlying && IsChaseStepBlocked(sign)) {
+            // half; flying mobs skip both. FIX-ENEMY (2026-10-13): an engaged
+            // lock member whose target stands below it steps off a ledge with a
+            // floor under the step inside its area.
+            if (!IsFlying && IsChaseStepBlocked(sign) && !MayStepOffLedgeInEncounter(sign, toTarget)) {
                 // An edge or a wall stops the walk on the spot: decelerating
                 // past the probe would carry the body over the drop.
                 Velocity = new Vector2(0f, Velocity.Y);
                 PlayAnimation("idle");
+                TurnAtEncounterDeadEnd(toTarget); // FIX-ENEMY: try the ledge's other end next tick
                 return;
             }
 

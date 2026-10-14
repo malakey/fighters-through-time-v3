@@ -382,7 +382,9 @@ namespace FTT.Enemies {
 
             float direction = Mathf.Sign(dx);
             bool towardTarget = direction == Mathf.Sign(aim.X - GlobalPosition.X);
-            if (IsWaitStepBlocked(direction)) {
+            // FIX-ENEMY (2026-10-13): a lock member waiting above the hero steps
+            // off a ledge toward the hero's floor instead of waiting on a post.
+            if (IsWaitStepBlocked(direction) && !MayStepOffLedgeInEncounter(direction, aim - GlobalPosition)) {
                 // A ledge or a wall stops the step on the spot, either way.
                 _engagementBlockedAway = !towardTarget;
                 if (_engagementCrossing) EndEngagementCrossing(armCooldown: true);
