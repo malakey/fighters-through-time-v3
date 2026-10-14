@@ -36,6 +36,12 @@ recorded in §2.13. Do not re-litigate; do record any *further* deviation in §9
   `RunDecelerationFrames` **4**, in both modes, counted from the stick (Story's push and
   release ticks take the first ramp step; the sim rounds its fixed-point step up so every
   move speed lands on the frame). The −15 % run speeds above and the air ramps are unchanged.
+- **Superseded again 2026-10-12 (user request 4, ledger `USER-MOVEMENT-SPEED-CUT`; record retained,
+  do not rewrite):** the run speeds above are × 0.8 again, exactly, in both modes: cleopatra 5.8,
+  einstein 5.4, joan 6.2, leonardo 5.2, lincoln 3.8, mozart 5.4, shakespeare 5.2, tesla 4.8 and
+  tubman 5.4 (Pocahontas left the roster in Package 13). `FighterLoadout.Default.MoveSpeed` stays 7.
+  The roll keeps its distance through `UniversalMovementRules.RollSpeedMultiplier` 1.5 → 1.875. The
+  6 / 4-frame ramps are unchanged.
 
 ### 2.2 Jump height −20%
 
@@ -60,6 +66,10 @@ recorded in §2.13. Do not re-litigate; do record any *further* deviation in §9
   `scenes/fighter/FighterStage_Globe*.tscn` markers/colliders (conformance validator,
   62.5 px/unit, 1 px tolerance), and the stage's orb anchor (0.5 above supporting surface).
 - Story gravity model is untouched (H-7 stays open; only the shared force numbers move).
+- **2026-10-12 (user request 4, ledger `USER-MOVEMENT-SPEED-CUT`; record retained):** the heights
+  above are unchanged, but the × 0.8 run-speed cut shortens every jump's distance by exactly a fifth
+  in both modes, because the air speed cap is the run speed: Lincoln's Story single jump
+  251.8 → 201.4 px and his double 441.8 → 353.4 px; the sim's 3.80 → 3.04 u and 6.81 → 5.45 u.
 
 ### 2.3 Double jump for everyone
 
@@ -93,6 +103,12 @@ recorded in §2.13. Do not re-litigate; do record any *further* deviation in §9
   victim-HP overload; `EnemyController.OnHurtboxHit` and `PlayerController.OnHurtboxHit`
   pass post-damage HP. Environmental/hazard hits included (they route through the same
   chokepoints).
+- **Superseded for Story 2026-10-12 (user request 5, ledger `USER-STORY-STATIC-KNOCKBACK`; record
+  retained, do not rewrite):** the HP scaling above is **Fighter Mode only** now. `DamageCalculator`'s
+  victim-HP overload is deleted, and every Story victim (the hero, the Mirror clone, a thrown body,
+  mobs and elites) takes `baseKnockback / (1 + weight)` at any HP. The sim's
+  `FighterDamageRules.ApplyFighterHit` keeps the ramp, and `BasicComboRules.LowHealthKnockbackScale`
+  stays as its float statement. The finisher-separation half below is unchanged.
 - **Finisher must create separation:** raise `BasicComboRules.KnockbackMultipliers[2]` from
   3 to a value (start at 4.5; tune) such that a mirror-match finisher at full victim HP
   produces **≥ 2.5 units horizontal separation** (attack range 2 + margin) measured when the
@@ -154,6 +170,13 @@ recorded in §2.13. Do not re-litigate; do record any *further* deviation in §9
   recorded as an accepted gap, revisit with a CPU pass.
 - Control-legend strings (`test_arena_controls`, `tutorial_controls`) updated; run
   `--import` and commit `en.en.translation` (integrator only).
+- **Amended 2026-10-12 (user request 1, ledger `USER-AERIAL-SINGLE-STRIKE`; record retained):** the
+  "aerial-string rule" above is retired with the aerial string. An airborne neutral press is now a
+  single air strike that never chains (`BasicComboRules.VariantAirAttack`; the sim's `FlagAirAttack`
+  = 128, the next `AttackFlags` bit after these two), a third single strike beside the up-attack and
+  the down-air, and landing still cancels all three with no lag. The selection gains a row: Up →
+  up-attack; airborne + Down → down-air; airborne → the air strike; else the string. "Distance
+  depends on damage taken" is Fighter-only since the same day (§2.5's note).
 
 ### 2.9 Fast-fall
 
@@ -460,6 +483,8 @@ minimal geometry change.
    `IsKnockbackImmune`). Scaling it would also have moved the `BossControllerTests` velocity pins,
    which are outside this workstream's file list. Recorded as an open inconsistency rather than
    silently normalized.
+   **Amended 2026-10-12 (record retained; ledger `USER-STORY-STATIC-KNOCKBACK`):** Story knockback
+   is static now, so the HP half of this inconsistency is moot; the additive, weight-2 half remains.
 
 4. **`RollbackHarnessKits` damage fields left at their synthetic values.** The A2 dossier listed
    them, but `RollbackReadinessKitShapeTests` pins only the *shape* fields (execution types,
@@ -560,6 +585,9 @@ jump distance 965.1 (was 1285.8), slowest ground speed (Lincoln) **285 px/s** (w
      the one doc comment that said "one reference-walk second" were corrected to say what the code
      does. Solvability re-checked by hand as well as by the suite: contact time rises 0.485 → 0.561 s
      against dark windows of 2.1–4.7 s.
+     **Amended 2026-10-12 (record retained; ledger `USER-MOVEMENT-SPEED-CUT`):** with the × 0.8 cut
+     `ReferenceWalkSpeed` is 228 (Lincoln's 3.8 × 60) and the derived stride 1.447 s; the beam
+     positions still did not move, and contact time is 0.70 s against the same dark windows.
 
 6. **L15 Alexandria — gallery tier step 100 → 80 px** (`Tier1..5Y` 1320/1240/1160/1080/1000). No
    gravity mechanic in this level at all, by design, so the tiers themselves came down: 85.3% of the

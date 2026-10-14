@@ -269,7 +269,170 @@ Boss-arena hero seals; mob↔mob pushbox jostling; production art for barriers, 
 
 ## 9. Deviations log (append-only, filled from the handoffs)
 
-*(empty)*
+Each workstream's handoff (`docs/handoffs/GU_<id>.md`) is the full record. The entries below list only what departed from §1–§5 and why, each workstream's test delta, and its commits. Phase A's subsections follow §3's merge order (D → C → A → B → F → E); for the later phases the actual merge order is stated at each phase's head. Every agent choice has a ledger row in `docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md`, section "Confirmed open deviations — gameplay update, 2026-10-12", indexed in "The 2026-10-12 gameplay update — index and design-master lines owed".
+
+### Phase A
+
+#### GU-D — static Story knockback (`75843b7`, merged `6737ea4`)
+
+- §2.5 applied as written. The carry deceleration also replaces S1's ground friction, as the plan's line reads, so a finisher flight that touches down still stunned keeps braking at the carry rate.
+- One pin beyond the plan's list, `StoryFinisherCarryTests.AFinisherFlightBrakesAtItsCarryDecelerationAloneEvenWhereS1IsStronger`, which fails under the old `max`. `StoryFinisherCarryTests`' ±6 px landing gate was re-premised on `CarryStoppedInAir`, because the old gate encoded the retired `max(S1, carry)`.
+- Test delta: **+3** (3021 → 3024); `StoryCombatRulesTests.StoryKnockbackScalesWithTheVictimsMissingHPAfterTheHit` rewritten in place as `StoryKnockbackOnTheHeroIsStaticAtEveryHP`. Handoff: [GU_D.md](handoffs/GU_D.md).
+
+#### GU-C — movement −20 % (`2302376`, merged `79a5a23`)
+
+- Two new suites (+5) pin the cut, beyond the plan's "tests whose pinned speeds move".
+- The roll compensation's stated reason does not hold: with the multiplier left at 1.5, Lincoln still rolls through a slasher (Story) and crosses up (sim) from pushbox contact. `RollSpeedMultiplier` 1.875 keeps the roll's distance and every margin, not the pass-through itself. The decision stands; the ledger row states the corrected reason.
+- One geometry fix the plan did not anticipate: Level 11's railcut perch 220 → 340 px, the only jump edge lost without an alternative route in the bots' nav-graph closure for Lincoln over all sixteen levels. GU-L8 owns Level 11 in Phase B and kept it.
+- A comment-only edit outside its region: `FighterLoadout.Default`'s comment in `FighterSimulationComponents.cs`.
+- Test delta: **+5** (3021 → 3026); `TubmanContentTests` pins 5.4 (was 6.75). Handoff: [GU_C.md](handoffs/GU_C.md).
+
+#### GU-A — the single aerial strike (`edc03dd`, merged `1740519`)
+
+- In the sim a walk-off cannot reach the "no chain hit starts in the air" rule: every authored edge is a grabbable ledge whose grab cancels the string, and every platform is too low for a drop-through to outlast hit 1. The sim rule is pinned on `ProcessBasicAttackPhase` with a hand-built airborne fighter, so that method became `internal`.
+- The aerial frame and box data were retired outright (§2.1 allowed either), and `AerialComboCounter` deleted; the profile constructor lost an argument.
+- A leak the plan did not name was fixed: `StartDirectionalAttack` never cleared Tesla's Conductive combo mark.
+- Outside its ownership: three additive `air_attack` rows in `StoryEnemyCombatRulesTests`, and one comment in `FighterEntitySystems.cs`.
+- The worktree was created at `d2e52e0` and fast-forwarded to the plan commit before any edit (as were GU-B's and GU-F's).
+- Test delta: **+7** (3021 → 3028); the in-place rewrites are listed in the handoff. Handoff: [GU_A.md](handoffs/GU_A.md).
+
+#### GU-B — the closer camera (`57573e4`, merged `b504c49`)
+
+- The framing adds a **horizontal pull** onto the arena; the plan gave only the zoom formula. Without it, Level 2's Duke stayed off-screen for a hero who had just stepped in. Reverting it is one statement in `StepFollow`.
+- A **room floor** on the framing zoom: a framing never widens past the confinement rect. It binds only on Level 4, at 1.2.
+- The plan's either/or on two framing owners was decided as "the widest view wins".
+- Test delta: **+10** (3021 → 3031), all in `StoryCameraRigTests`. Handoff: [GU_B.md](handoffs/GU_B.md).
+
+#### GU-F — the engagement director (`c5cb7b7`, merged `bbcba61`)
+
+- Side rebalancing reads "crowded" as "out of room", not as a head-count imbalance. On open floor nobody crosses; a head-count rule would have had a waiter walk through the hero every time.
+- Added: a ranged-fairness rule (the shooter refused longest fires next) and `CrossingCooldownFrames` 60.
+- Hooks outside §3.1's list that §2.6's own text needs: `ProcessMobTick` (the counter tick), `ResolveFinisherTouchdown` (the touchdown hand-off) and `StandOffBandFor` (the ranged hold cap).
+- The boss half of "no mob targets the Mirror clone" is a one-line change with no test.
+- Test delta: **+24** (3021 → 3045). Handoff: [GU_F.md](handoffs/GU_F.md).
+
+#### GU-E — the encounter-lock framework and Level 2 (`072a26a`, merged `fbb1097`)
+
+- `MaxAreaWidthPixels` is 3200, not "about 2600": the plan's own Level 2 areas are 2900 and 3070 px.
+- Level 2's areas shifted to 300–3200 · 3220–6290 · 6460–8690 so that every barrier stands outside its own area, with a corridor for the Middle anchor, which moved 5300 → 6370 (and to 6500 in FIX-E).
+- The hard cap never opens a lock whose required puzzle or breakable is still pending; the plan's literal rule would have opened a puzzle lock after five minutes.
+- "Never members: ArenaGuardians, BossDecoys, bosses, the Mirror clone" holds by type; summons and `DrillInvulnerable` bodies are refused by `JoinEncounter`. The non-preserve `ApplyStoryRewind` branch keeps membership.
+- Outside its ownership: one condition in `ArenaGeometryContentTests.AddReachIssues` (an exit barrier closed from level build read as a perch at `ColumnTopY`), and `TimelineIntegrityTests` / `StoryLevelControllerBaseTests` rewritten in place for the par scale.
+- The merge resolved an `en.csv` / `en.en.translation` conflict; the orchestrator then regenerated the translation and pointed `EncounterLockRules.ViewWorldWidth` / `ViewWorldHeight` at `StoryCameraRules` (the handoff's TODO; `199e260`).
+- Test delta: **+39** (3021 → 3060). Handoff: [GU_E.md](handoffs/GU_E.md), which also holds the Phase B authoring guide.
+
+**Phase A merged: 3109 = 3021 + 88** (`199e260`).
+
+### Phase A review fixes
+
+Not in the plan. The adversarial review of the Phase A diff confirmed 13 findings and refuted one. FIX-E took the seven on the lock framework, Level 2, zones, pulls and the lock / director seams; FIX-F took the three on the director and the two test defects in GU-A's and GU-D's work. Both ran from `199e260`; FIX-F merged first.
+
+#### FIX-E (`675fdde`, merged `7aaae7d`)
+
+- Level 2's Middle checkpoint could be struck from inside the engaged siege line (high; reported twice). It was fixed in the framework rather than by geometry alone, so no Phase B level could repeat it: `CheckpointTrigger.IsHeldByEncounterLock` and a new key, `checkpoint_held_by_encounter_lock`. Level 2's anchor moved 6370 → 6500 and the battlement's west edge 6460 → 6580, which also took the anchor off the room 2/3 camera seam.
+- Relativity Rift zone ticks and crowd bowling skip a dormant member; the three pulls go through `BaseSpecial.PullThroughCollision` (horizontal, then vertical); a lock's wake joins the director and dormancy leaves it.
+- Four authoring rules added to `GU_E.md`'s guide (marked FIX-E). Outside GU-E's file list: `LevelManager.cs`, `BaseSpecial.cs`, `PlaceholderZone.cs`.
+- Not done: the commit-time baseline filter, redundant because every activation goes through `Activate()`.
+- Test delta: **+11** (`EncounterLockTests` +5, the new `StoryKitPullWallTests` 3, `EncounterLockContentTests` +2, `Level02ContentTests` +1). Handoff: [GU_E.md, "Review fixes"](handoffs/GU_E.md).
+
+#### FIX-F (`c80f316`, merged `6e1a25b`)
+
+- **A plan deviation:** the director's priority is now rest elapsed → elite → …. §2.6's literal "elite before standard → rest elapsed" let an elite that handed off its slot take it straight back, which cancelled the plan's own hand-off and stale rules for an elite holder.
+- The engage blink is judged on the side it lands on (`EnemyAbilityExecutor.TeleportLandingSide`); a capped ranged band's release line is capped at 600 px; both hold lines now derive from `StoryCameraRules`.
+- GU-A's lost `NextChainStepForPress` coverage was restored (`MirrorParadoxTests` +1), and GU-D's hero pin now reaches its "fifth of max HP" case.
+- Test delta: **+5** (`StoryEngagementDirectorTests` +4, `MirrorParadoxTests` +1). Handoffs: [GU_F.md, "Review fixes"](handoffs/GU_F.md), [GU_A.md, "Review fixes"](handoffs/GU_A.md), [GU_D.md, "Review fixes"](handoffs/GU_D.md).
+
+**After the review fixes: 3125 = 3109 + 16** (`7aaae7d`).
+
+### Phase B
+
+All five ran from `7aaae7d`. Actual merge order: GU-BOT (`70f4554`), GU-L0 (`037e452`), GU-L4 (`54480ab`), GU-L8 (`2abd6a8`, resolving an additive `RewardManifestTests` conflict), GU-L12 (`c4885a9`).
+
+#### GU-L0 — Levels 0, 1 and 3 (`f005196`)
+
+- Level 0's lock is built when the Combat Trial begins, not at level build, because the bay is shared with the hold, the calibration and the mobility gates. So `EncounterLockContentTests` never sees it, and `Level00FlowSceneTests` pins its layout. Its waves name no manifest row (Level 0 pays no persistent dust), and its area starts at 2580, not ~2400.
+- Florence's room 3 is one lock, not two (1920 px cannot hold two 1280 px areas and an anchor corridor). Its room-1 manifest row was split in two, the only manifest change.
+- Framework issues reported, not edited (the framework was read-only in Phase B): the GO prompt showed for `GoDirection.None` (fixed by FIX-LEVEL); the content sweep sees only locks that exist at load; the test seam completes Level 0 the moment the trial begins.
+- Test delta: **+10** (3125 → 3135). Handoff: [GU_L0.md](handoffs/GU_L0.md).
+
+#### GU-L4 — Levels 4–7 (`d6740d6`)
+
+- "The debut Eraser … never paying dust" was read as "never difficulty-scaled": `RewardManifestTests` requires the `@0` row to pay its share.
+- Level 5's flood steps rise after a lock's clear once the hero is clear of them, not at the clear's instant, which would have flooded the deck the hero still stood on.
+- Level 7's movers are not held, because none crosses a barrier (pinned).
+- Edited outside its ownership: two additive members in `EraserDebutTrigger.cs` (`RouteTriggerSpawns`, `AdoptEraserDebut`), because the read-only framework cannot adopt a body it did not spawn.
+- Level 6's Chrono-Warden and Level 7's Eraser now pay dust (a lock wave must be a manifest row), and Level 7's Easy count fell 8 → 7.
+- Test delta: **+13** (3125 → 3138). Handoff: [GU_L4.md](handoffs/GU_L4.md).
+
+#### GU-L8 — Levels 8–11 (`48d3996`)
+
+- `EncounterLockContentTests` was edited beyond a row: a one-entry per-lock table (`EntryFloorByLock`) for the Globe's stage-with-cellar, which the post-height rule cannot express.
+- Level 9's Middle moved past the Lantern Watch rather than into a split of it, and Level 8's Middle up to the shaft lip.
+- Two pre-existing geometry bugs fixed in passing: Level 8's open tomb-corridor end and its room 3 camera.
+- Level 9's Chrono-Warden is now ledgered.
+- Test delta: **+17** (3125 → 3142). Handoff: [GU_L8.md](handoffs/GU_L8.md).
+
+#### GU-L12 — Levels 12–15 (`4b9e386`, `da54178`)
+
+- The pre-boss garrisons fold into the last approach lock (the aprons are narrower than a lock), so Level 12's wave 4 is not fought east of the curtain, and Level 14's drone left the arena with the rest of its wave.
+- The salted hunters pay dust (a lock member needs a manifest row), against the plan's Level 5 wording.
+- Outside its ownership: a held-mover exemption in `ArenaGeometryContentTests.NoMovingPlatformEndpointOverlapsStaticGeometry`.
+- Found and fixed a pre-existing content bug: Level 15's escape never completed for a walking hero (a level-side hook, later generalised by FIX-LEVEL). It recorded the firestorm halting after a death mid-escape as `VERIFY-L15-ESCAPE-REWIND-HALT`, which never reached the ledger before FIX-LEVEL fixed it.
+- Test delta: **+9** (3125 → 3134). Handoff: [GU_L12.md](handoffs/GU_L12.md).
+
+#### GU-BOT — lock-aware bots and telemetry (`9735c21`)
+
+- `passed_while_alive` is reported both ways (its old meaning kept, a new `left_lock_with_members_alive`) instead of redefined.
+- The stuck-lock watchdog adds a 120 s bound to the plan's 60 s rule.
+- `AutoMaxSeconds` lives on `PlaytestOptions`. Added beyond the brief: the far-waiter log, `swings.by_variant`, `nav_barrier_rebuilds`, raw sums and 8 px histograms, and the escape-front guard.
+- Only Level 2 had locks on its base, so `stuck_lock`, `lock_hunt`, `lock_wait` and the 120 s bound ran only in the unit case.
+- Test delta: **+6** (3125 → 3131). Handoff: [GU_BOT.md](handoffs/GU_BOT.md).
+
+**Phase B merged: 3180 = 3125 + 55** (`c4885a9`).
+
+### Phase B review and the first Phase C bot batch
+
+Not in the plan as a fix source. The adversarial review of Phase B confirmed 19 findings (none refuted; several duplicates): lock-required objectives that a death rewind un-met (Florence, Chicago, Hakata Bay, Gettysburg twice); Level 7's unreachable Middle anchor and its channel-seam objective; the Level 6 and Level 15 escapes (never completed, the head start floored inside the lock, the firestorm halted by a death, an assertion that could not fail); Level 9's font; Level 10's Middle-resume objective; the GO prompt; the bot pinned against a breakable on Level 4; and the lock telemetry merging instances across an Anchor Snap. The first Phase C bot batch (`guce*` / `gucn*` / `guch*`, 180 runs: Levels 1–15, Joan and Lincoln, `play`, Easy / Normal / Hard, seeds 0–1) ended `stuck_lock` on Levels 1, 4, 5, 6, 7, 9 (Hard), 10 and 11, and Level 12 Easy collapsed on the Timer. Together they became the Phase C fix round, four parallel workstreams from `c4885a9`.
+
+### Phase C fix round
+
+Actual merge order: FIX-OBJECTIVE (`f161f1a`), FIX-LEVEL (`0711759`), FIX-ENEMY (`9ed0070`), FIX-BOT (`147ac11`).
+
+#### FIX-ENEMY — enemy behaviour inside engaged locks (`d2beec5`)
+
+- Six items from the batch: flyers held out of reach (the 160 px hover cap, the flyer stall); a thrown flyer that rose forever (the drag, for every flyer); ground members posted on ledges (the step-off, and the watchdog's beside-the-hero destination); Level 5's "staircase" stall (the listing ramps never met their decks; re-authored by their joints); Level 6's untouchable legionnaire (a bot gap: the basalt boulder blocks M1's line of sight); Level 13's melee over the slot count (the deliberate V7.4 retaliation, which the telemetry now separates).
+- It edited framework files that were read-only in Phase B (`EncounterLockRules.cs`, `EncounterLock`'s watchdog, `EnemyController*.cs`) and made additive edits to GU-BOT's telemetry files.
+- Scope choices left open: flyers outside locks are unchanged, and ranged ground members keep their posts.
+- Test delta: **+17** (3180 → 3197). Handoff: [GU_FIX_ENEMY.md](handoffs/GU_FIX_ENEMY.md).
+
+#### FIX-OBJECTIVE — lock-required objectives under the death rewind (`f7db68f`)
+
+- Review items #0, #1, #5 / #13, #6 and #7.
+- The framework does more than the brief's latch: it also switches the objective itself to `PreserveCurrentState`, which fixes Level 2's tower and Level 11's arrays with no level edit. Level 11 needed no level change.
+- No objective re-post on `PuzzleReset`: no reset can happen after a required solve.
+- Item #5's case (a), a Middle resume, did not reproduce in a scratch-save harness (a scratch save re-parks at the Entry; `VERIFY-SCRATCH-SAVE-ENTRY-REPARK`); the Hard, Middle-not-struck path does and is pinned.
+- Test delta: **+10** (3180 → 3190). Handoff: [GU_FIX_OBJECTIVE.md](handoffs/GU_FIX_OBJECTIVE.md).
+
+#### FIX-LEVEL — per-level and HUD fixes (`80e1d11`, `cb96fa7`)
+
+- Review items #2, #3 / #14, #4, #8, #9 / #16, #10, #15 and #18.
+- Item #2: Level 7's anchor moved onto the receiving yard (the verifiers' preferred option), not the lock; a new all-level rule, `AnchorApproachContentTests`.
+- Item #4: one small shared guard in `StoryLevelControllerBase` (a room entry's objective defers to an engaged lock's), outside its ownership as its brief allowed, scoped to room triggers so the levels' own mid-fight warnings still post.
+- Items #9 / #16 and #15 were fixed on Level 6 as well as Level 15 (the same dead `IsCompleted` read); the escape finish rule moved into `EscapeSequenceController`, and Level 15's GU-L12 hook was removed.
+- Item #18's case lives in a new suite rather than `EncounterLockTests`, clear of the framework workstreams' edits.
+- It closes `VERIFY-L15-ESCAPE-REWIND-HALT`.
+- Test delta: **+11** (3180 → 3191). Handoff: [GU_FIX_LEVEL.md](handoffs/GU_FIX_LEVEL.md).
+
+#### FIX-BOT — the bots and the lock telemetry (`c8682d8`)
+
+- Review items #11, #12 and #17, and every bot gap of the batch: the walk-in pin against breakables and props, gear trains, the Level 6 winch (three bot problems, not the "missing counterweight" CLAUDE.md recorded), members posted above the hero, Level 11's Alpha struck from the floor, and Level 12's dodges, lift and ferry.
+- Five changes apply outside locks too (the escape finish, ledge-safe dodges, the flush-stop boarding edge, moving-platform landing tracking, the platform-transfer penalty), because the stalls they fix are not lock stalls.
+- Its final Level 11 run still ended `stuck_lock` on the Angle: the rewind-restores-Alpha game bug that FIX-OBJECTIVE fixed in parallel.
+- Test delta: **+9** (3180 → 3189). Handoff: [GU_FIX_BOT.md](handoffs/GU_FIX_BOT.md).
+
+### The merge fix-up (`681a525`)
+
+Two `PlaytestEncounterTelemetryTests` cases had been written against behaviour the parallel fixes changed, and were rewritten in place with no count change: `TheBotClimbsOntoTheLedgeALockMemberHoldsInsteadOfJumpingAtItFromBelow` now posts a ranged `laser_pistol_deckhand` (an engaged melee member steps down since FIX-ENEMY, and shooters keep their posts), and `TheBotGoesOnPastAFinishLineWhoseEscapeNeverCompleted` freezes its escape to hold it running (an escape completes past `FinishX` since FIX-LEVEL). **Full suite: 3227 = 3180 + 47** (FIX-ENEMY 17, FIX-OBJECTIVE 10, FIX-LEVEL 11, FIX-BOT 9).
 
 ## 10. Closeout report
 
