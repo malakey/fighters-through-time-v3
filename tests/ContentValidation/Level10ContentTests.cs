@@ -957,6 +957,42 @@ public class Level10ContentTests {
 
     // === Resume safety ===
 
+    /// <summary>
+    /// FIX-LEVEL (2026-10-13, Phase B review item 8): GU-L8 moved the Middle
+    /// anchor into the galleries (6040), east of their room trigger (5750–5830),
+    /// which a resume there never crosses, so the objective read "cross the stage"
+    /// in the galleries — and again when the galleries lock cleared, because the
+    /// lock's release recomputes the level's own objective. A Middle resume now
+    /// counts the galleries as reached. In real frames on the real scene.
+    /// </summary>
+    [TestCase]
+    public async Task AMiddleResumeReadsTheClimbObjectiveInTheGalleriesAndAfterTheirClear() {
+        using var fixture = new GlobeFixture($"{LevelID}_checkpoint_1");
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
+        Level10Controller level = fixture.Level;
+        level.AudienceWatchEnabled = false;
+        Label objective = level.HUD.GetNode<Label>("SafeArea/TopLeft/Objective");
+        string climb = TranslationServer.Translate("globe_objective_climb").ToString();
+        try {
+            AssertThat(level.ResumedMidLevel).IsTrue();
+            AssertThat(objective.Text)
+                .OverrideFailureMessage($"A Middle resume in the galleries reads '{objective.Text}'.").IsEqual(climb);
+
+            EncounterLock galleries = level.GalleriesLock;
+            AssertThat(galleries.State).IsEqual(EncounterLockState.Armed);
+            LevelLockTestKit.PlaceHero(level.Player, Level10Controller.GalleriesLockMinX + 120f, Level10Controller.GroundY - 1f);
+            await LevelLockTestKit.Frames(4);
+            AssertThat(galleries.State).IsEqual(EncounterLockState.Engaged);
+            AssertThat(objective.Text).IsEqual(TranslationServer.Translate("encounter_lock_objective_clear").ToString());
+
+            AssertThat(await LevelLockTestKit.ClearByForce(galleries)).IsTrue();
+            AssertThat(objective.Text)
+                .OverrideFailureMessage($"The galleries' clear handed back '{objective.Text}'.").IsEqual(climb);
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+        }
+    }
+
     [TestCase]
     public void NoCheckpointResumesOverAnOpenTrapdoorOrIntoAnArmedAudience() {
         // Every registered respawn stands on boards that are not a trapdoor.

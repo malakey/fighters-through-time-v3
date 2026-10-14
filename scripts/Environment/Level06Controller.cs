@@ -187,10 +187,13 @@ namespace FTT.Environment {
 
         /// <summary>
         /// GU-L4 (2026-10-13, Provisional): the lava front starts when the Ash Road
-        /// lock clears, this far behind the hero (and never west of
-        /// <see cref="EscapeStartX"/>). The front runs 224 px/s against Lincoln's
-        /// 228, so a running hero keeps about this lead and a stop costs it
-        /// (about one second at the front's speed).
+        /// lock clears, this far behind the hero, wherever the hero stands. The
+        /// front runs 224 px/s against Lincoln's 228, so a running hero keeps
+        /// about this lead and a stop costs it (about one second at the front's
+        /// speed). FIX-LEVEL: the start is no longer floored at
+        /// <see cref="EscapeStartX"/>, which sits inside the road lock (5660): a
+        /// hero who landed the last kill against the entry barrier got the front
+        /// on top of them and was knocked behind it.
         /// </summary>
         public const float EscapeHeadStartPixels = 240f;
 
@@ -325,6 +328,15 @@ namespace FTT.Environment {
 
         /// <summary>False until the winch balances and the rockfall is hauled clear.</summary>
         public bool RockfallCleared { get; private set; }
+
+        /// <summary>
+        /// FIX-LEVEL (2026-10-13): latched once the run is won (the escape
+        /// completed, or a resume past it). The escape's own rewind reset
+        /// (ResetToInitialState) clears <c>IsCompleted</c> before
+        /// <see cref="OnStoryRewind"/> runs, so this, not the escape, is what a
+        /// death rewind reads.
+        /// </summary>
+        public bool EscapeSurvived { get; private set; }
 
         /// <summary>How many civilians have been evacuated (0-2). Drives the HUD counter.</summary>
         public int CiviliansRescued { get; private set; }
@@ -482,6 +494,10 @@ namespace FTT.Environment {
         /// wires it to nothing. Repositioning it from code rather than overriding an
         /// instanced scene's child in the .tscn avoids the fragile `index=` override
         /// block (L02 precedent) and keeps the finish line at one authored constant.
+        /// FIX-LEVEL: the trigger alone never completed the run for a walking hero
+        /// (it meets the hero short of the line); the escape itself now completes
+        /// on the first running tick its runner stands past
+        /// <see cref="EscapeFinishX"/>, and the trigger stays as the visible line.
         /// </summary>
         private void WireEscapeFinishLine() {
             if (_escape == null) return;
@@ -689,10 +705,9 @@ namespace FTT.Environment {
         /// <summary>
         /// Starts the front. Since GU-L4 that happens when the Ash Road lock clears
         /// (no longer on entering the road), so the front starts
-        /// <see cref="EscapeHeadStartPixels"/> behind wherever the hero stands —
-        /// never west of the authored <see cref="EscapeStartX"/> — instead of at
-        /// the road's west end, which would trail a hero who finished the fight
-        /// far down the road by thousands of pixels.
+        /// <see cref="EscapeHeadStartPixels"/> behind wherever the hero stands
+        /// instead of at the road's west end, which would trail a hero who
+        /// finished the fight far down the road by thousands of pixels.
         /// </summary>
         public bool BeginEscape() {
             if (_escape == null || EscapeTriggered || _escape.IsCompleted) return false;
@@ -705,11 +720,19 @@ namespace FTT.Environment {
             return true;
         }
 
-        /// <summary>The front's start for a hero at <paramref name="heroX"/>: the head start behind it, never west of the authored start nor past the front's end.</summary>
+        /// <summary>
+        /// The front's start for a hero at <paramref name="heroX"/>: the head start
+        /// behind it, never past the front's end. FIX-LEVEL: no floor at the
+        /// authored start — a front west of it runs east like any other, and only
+        /// the hero is east of it.
+        /// </summary>
         public static float EscapeStartFor(float heroX) =>
-            Mathf.Clamp(heroX - EscapeHeadStartPixels, EscapeStartX, EscapeEndX);
+            Mathf.Min(heroX - EscapeHeadStartPixels, EscapeEndX);
 
-        private void OnEscapeCompleted() => RefreshObjective();
+        private void OnEscapeCompleted() {
+            EscapeSurvived = true;
+            RefreshObjective();
+        }
 
         /// <summary>
         /// A caught player is knocked forward and hurt, never killed, so the objective
@@ -724,9 +747,18 @@ namespace FTT.Environment {
         /// the player died in the corridor and the rest of the run would be a walk.
         /// The escape subscribes in its own <c>_Ready</c>, i.e. before this handler,
         /// so the reset has already landed by the time we restart it.
+        /// <para>FIX-LEVEL: that reset also clears <c>IsCompleted</c>, so the old
+        /// <c>_escape.IsCompleted</c> guard read false after every rewind and a
+        /// death after the run was won (in the arena, say) restarted the front.
+        /// The level's own <see cref="EscapeSurvived"/> latch decides, and a won
+        /// run is completed again.</para>
         /// </summary>
         private void OnStoryRewind(Vector2 targetPosition) {
-            if (_escape == null || !EscapeTriggered || _escape.IsCompleted) return;
+            if (_escape == null || !EscapeTriggered) return;
+            if (EscapeSurvived) {
+                _escape.CompleteEscape();
+                return;
+            }
             // GU-L4: the front's start follows the hero since it starts at the road
             // lock's clear. A rewind that lands the hero behind it moves it back, so
             // the reset front never begins over (or ahead of) the hero.
@@ -795,6 +827,7 @@ namespace FTT.Environment {
                 _vaultReached = true;
                 ForceRockfallClear();
                 EscapeTriggered = true;
+                EscapeSurvived = true;
                 if (_escape != null) {
                     _escape.ResetSequence();
                     _escape.CompleteEscape();
@@ -804,6 +837,7 @@ namespace FTT.Environment {
 
         protected override void OnLevelReady() {
             if (_escape != null) {
+                _escape.Runner = Player; // FIX-LEVEL: the hero the finish line is judged against
                 _escape.EscapeCompleted += OnEscapeCompleted;
                 _escape.PlayerCaught += OnPlayerCaught;
             }

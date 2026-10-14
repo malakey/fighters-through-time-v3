@@ -810,6 +810,114 @@ public class Level07ContentTests {
         AssertThat(boarding.ExitBarrier.IsClosed).IsFalse();
     }
 
+    /// <summary>
+    /// FIX-LEVEL (2026-10-13, Phase B review item 2): the Middle anchor is struck
+    /// where rope C lands the hero, before the boarding lock engages. GU-L4 put it
+    /// on the Bonnet's deck under the solid receiving yard, reachable only from
+    /// the yard's east end (5950), past the lock's engage line (5824): walking off
+    /// the yard engaged the lock, its entry barrier shut between the hero and the
+    /// anchor, and the boarding fight had no checkpoint. Real frames, real input,
+    /// a real swing: the hero lands on the yard's west lip, walks to the anchor and
+    /// strikes it, and the boarding lock is still Armed.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task TheMiddleAnchorIsStruckFromTheRopeLandingBeforeTheBoardingLockEngages() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        StoryManager story = StoryManager.Instance;
+        using var fixture = new NassauFixture(null);
+        Level07Controller level = fixture.Level;
+        PlayerController hero = level.Player;
+        var input = new BufferedInputSource();
+        try {
+            await LevelLockTestKit.Frames(2);
+            LevelLockTestKit.SkipDialogue();
+            // The quay fight and the ropes are behind the hero.
+            level.QuayLock.RestoreCleared();
+            CheckpointTrigger middle = level.GetNode<CheckpointTrigger>($"Checkpoint_{Level07Controller.Checkpoint1}");
+            EncounterLock boarding = level.BoardingLock;
+            float engageX = boarding.Area.Position.X + LevelLockTestKit.HeroHalfWidthPixels + EncounterLockRules.EngageInsetPixels;
+            AssertThat(middle.GlobalPosition.X + 30f < engageX).IsTrue();
+
+            // Rope C's release lands the hero on the yard's west lip.
+            LevelLockTestKit.PlaceHero(hero, Level07Controller.ReceivingYardWestX + 30f, Level07Controller.ReceivingYardY - 1f);
+            await LevelLockTestKit.Frames(8);
+            AssertThat(hero.IsOnFloor() && Mathf.Abs(hero.GlobalPosition.Y - Level07Controller.ReceivingYardY) < 2f)
+                .OverrideFailureMessage($"The hero did not land on the receiving yard: {hero.GlobalPosition}.").IsTrue();
+
+            InputManager.Instance.SetInputSource(hero.PlayerIndex, input);
+            uint tick = 0;
+            float strikeFromX = middle.GlobalPosition.X - 45f;
+            for (int frame = 0; frame < 60 && hero.GlobalPosition.X < strikeFromX; frame++) {
+                input.SetNextFrame(PlayerInputFrame.Create(tick++, 1f, 0f, GameplayButtons.None));
+                await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            }
+            input.SetNextFrame(PlayerInputFrame.Create(tick++, 0f, 0f, GameplayButtons.None));
+            await LevelLockTestKit.Frames(6);
+            AssertThat(boarding.State).IsEqual(EncounterLockState.Armed);
+            AssertThat(middle.IsHeldByEncounterLock).IsFalse();
+            for (int frame = 0; frame < 30 && !middle.IsActivated; frame++) {
+                GameplayButtons press = frame < 2 ? GameplayButtons.BasicAttack : GameplayButtons.None;
+                input.SetNextFrame(PlayerInputFrame.Create(tick++, 0f, 0f, press));
+                await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            }
+            AssertThat(middle.IsActivated)
+                .OverrideFailureMessage($"A swing from x {hero.GlobalPosition.X:0} on the yard did not stabilize the Middle anchor.")
+                .IsTrue();
+            AssertThat(boarding.State)
+                .OverrideFailureMessage("The boarding lock engaged before the Middle anchor was struck.")
+                .IsEqual(EncounterLockState.Armed);
+            AssertThat(hero.GlobalPosition.X < engageX).IsTrue();
+        } finally {
+            InputManager.Instance.ClearInputSource(hero.PlayerIndex);
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+            SessionExitGuard.ClearMarker();
+            story.ClearLevelAttemptState();
+        }
+    }
+
+    /// <summary>
+    /// FIX-LEVEL (2026-10-13, Phase B review item 4): the boarding channel's room
+    /// trigger (6040–6120) stands 200 px inside the boarding lock, and crossing it
+    /// posted "board the flagship" over the engaged lock's own objective for the
+    /// rest of the fight. A room trigger now never posts over an engaged lock
+    /// that posts its own (StoryLevelControllerBase, every level); its objective
+    /// waits for the lock's clear.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task TheBoardingChannelSeamNeverPostsOverTheEngagedLocksObjective() {
+        using var fixture = new NassauFixture(new StorySaveData {
+            SelectedCharacterID = "einstein",
+            CurrentLevelID = StoryManager.GetLevelScenePath(CampaignLevel.Nassau),
+            LastCheckpointID = Level07Controller.Checkpoint1,
+            CurrentHP = 100
+        });
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
+        Level07Controller level = fixture.Level;
+        EncounterLock boarding = level.BoardingLock;
+        Label objective = level.HUD.GetNode<Label>("SafeArea/TopLeft/Objective");
+        string lockLine = TranslationServer.Translate("encounter_lock_objective_clear").ToString();
+        try {
+            LevelLockTestKit.PlaceHero(level.Player, Level07Controller.BoardingLockMinX + 100f, Level07Controller.DeckY - 1f);
+            await LevelLockTestKit.Frames(4);
+            AssertThat(boarding.State).IsEqual(EncounterLockState.Engaged);
+            AssertThat(objective.Text).IsEqual(lockLine);
+
+            // Into the channel seam's east trigger, mid-fight.
+            LevelLockTestKit.PlaceHero(level.Player, Level07Controller.Room3StartX + 80f, Level07Controller.DeckY - 1f);
+            await LevelLockTestKit.Frames(4);
+            AssertThat(boarding.State).IsEqual(EncounterLockState.Engaged);
+            AssertThat(objective.Text)
+                .OverrideFailureMessage("The channel seam replaced the engaged boarding lock's objective.")
+                .IsEqual(lockLine);
+
+            AssertThat(await LevelLockTestKit.ClearByForce(boarding)).IsTrue();
+            AssertThat(objective.Text)
+                .IsEqual(TranslationServer.Translate("nassau_objective_board_flagship").ToString());
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+        }
+    }
+
     // === Helpers ===
 
     private static bool IsOnSolidDeck(float x) {

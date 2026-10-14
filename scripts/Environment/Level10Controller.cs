@@ -1005,9 +1005,12 @@ namespace FTT.Environment {
 
         /// <summary>The anchor's non-encounter world state; the locks come from the baseline.</summary>
         protected override void MarkWavesClearedThrough(string checkpointID) {
-            if (checkpointID == Checkpoint1) {
-                _stageReached = true;
-            } else if (checkpointID == Checkpoint2) {
+            // FIX-LEVEL (2026-10-13): since GU-L8 moved it to 6040 the Middle
+            // anchor stands in the galleries, east of their room trigger
+            // (5750-5830), which a resume there never crosses — so Checkpoint1
+            // also means the galleries were reached, or the objective read "cross
+            // the stage" in the galleries and again after their lock's clear.
+            if (checkpointID == Checkpoint1 || checkpointID == Checkpoint2) {
                 _stageReached = true;
                 _galleriesReached = true;
             } else {

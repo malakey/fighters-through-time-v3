@@ -863,15 +863,112 @@ public class Level15ContentTests {
 
             // Past the finish line the run completes (it used to be only halted at
             // the rotunda: the finish trigger refused a hero entering it short of
-            // the line, and the bot waited past the line forever).
-            LevelLockTestKit.PlaceHero(level.Player, Level15Controller.EscapeFinishX + 60f, Level15Controller.FloorY - 1f);
+            // the line, and the bot waited past the line forever). FIX-LEVEL
+            // (review item 10): this used to teleport the hero INTO the trigger
+            // past the line, where the trigger's own BodyEntered completed the run
+            // and the fix it claimed to pin could be deleted unnoticed. Now the
+            // hero meets the trigger short of the line (refused), then stands
+            // clear of its east edge (9148), where no BodyEntered can fire: only
+            // the escape's own finish rule can complete the run there.
+            LevelLockTestKit.PlaceHero(level.Player, Level15Controller.EscapeFinishX - 30f, Level15Controller.FloorY - 1f);
+            await LevelLockTestKit.Frames(2);
+            AssertThat(firestorm.IsCompleted)
+                .OverrideFailureMessage("The finish trigger completed the run for a hero short of the line.").IsFalse();
+            AssertThat(firestorm.IsRunning).IsTrue();
+            LevelLockTestKit.PlaceHero(level.Player, Level15Controller.EscapeFinishX + 100f, Level15Controller.FloorY - 1f);
             await LevelLockTestKit.Frames(3);
             AssertThat(firestorm.IsCompleted)
                 .OverrideFailureMessage("A hero past the finish line must complete the escape.").IsTrue();
             AssertThat(firestorm.IsRunning).IsFalse();
+            AssertThat(level.FirestormSurvived).IsTrue();
         } finally {
             PoolManager.Instance?.ReleaseActiveUnder(level);
         }
+    }
+
+    /// <summary>
+    /// FIX-LEVEL (2026-10-13, review items 9 and 16): a hero who takes the hall's
+    /// last kill pressed against its entry barrier still gets the head start. The
+    /// front used to be floored at <see cref="Level15Controller.EscapeStartX"/>
+    /// (6500), inside the hall lock (6420): its zone, the 320 px west of the front,
+    /// covered such a hero, and the first tick caught it and knocked it west,
+    /// behind a front that the slowest hero barely outruns. In real frames.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task ClearingTheHallAgainstItsEntryBarrierStillStartsTheFirestormBehindTheHero() {
+        using var fixture = new AlexandriaFixture(null);
+        Level15Controller level = fixture.Level;
+        try {
+            await LevelLockTestKit.Frames(2);
+            LevelLockTestKit.SkipDialogue();
+            EncounterLock hall = level.CollapsingHallLock;
+            LevelLockTestKit.PlaceHero(level.Player, Level15Controller.CollapsingHallLockMinX + 100f, Level15Controller.FloorY - 1f);
+            await LevelLockTestKit.Frames(4);
+            LevelLockTestKit.SkipDialogue();
+            AssertThat(hall.State).IsEqual(EncounterLockState.Engaged);
+            // The fight ends with the hero against the closed entry barrier.
+            float heroX = hall.EntryBarrier.Footprint.End.X + LevelLockTestKit.HeroHalfWidthPixels + 4f;
+            LevelLockTestKit.PlaceHero(level.Player, heroX, Level15Controller.FloorY - 1f);
+            await LevelLockTestKit.Frames(1);
+            AssertThat(await LevelLockTestKit.ClearByForce(hall)).IsTrue();
+            heroX = level.Player.GlobalPosition.X;
+            AssertThat(heroX < Level15Controller.EscapeStartX + LevelLockTestKit.HeroHalfWidthPixels)
+                .OverrideFailureMessage($"The hero stands at {heroX}, not inside the old floor's reach.").IsTrue();
+            EscapeSequenceController firestorm = level.Firestorm;
+            AssertThat(firestorm.IsRunning).IsTrue();
+            AssertFloat(firestorm.StartX).IsEqualApprox(heroX - Level15Controller.FirestormHeadStartPixels, 20f);
+            AssertThat(firestorm.FrontX < heroX - LevelLockTestKit.HeroHalfWidthPixels)
+                .OverrideFailureMessage($"The front starts at {firestorm.FrontX}, over the hero's body at {heroX}.").IsTrue();
+            await LevelLockTestKit.Frames(60);
+            AssertThat(firestorm.CatchCount)
+                .OverrideFailureMessage("The firestorm caught the hero the moment the hall cleared.").IsEqual(0);
+        } finally {
+            PoolManager.Instance?.ReleaseActiveUnder(level);
+        }
+    }
+
+    /// <summary>
+    /// FIX-LEVEL (2026-10-13, review item 15; VERIFY-L15-ESCAPE-REWIND-HALT): a
+    /// death rewind during the run restarts the firestorm behind the landing, and
+    /// once the run is won a death never restarts it. The Firestorm used the
+    /// default <c>RestoreCheckpointState</c> policy, and no checkpoint can be
+    /// struck while it runs, so every rewind parked it at the Middle anchor's
+    /// capture (6500, stopped) and nothing started it again: one death switched
+    /// the level's escape off for the rest of the attempt.
+    /// </summary>
+    [TestCase]
+    public void ADeathRewindMidRunRestartsTheFirestormBehindTheLandingButNeverOnceItIsSurvived() {
+        using var fixture = new AlexandriaFixture(null);
+        Level15Controller level = fixture.Level;
+        EscapeSequenceController firestorm = level.Firestorm;
+        AssertThat(firestorm.RewindPolicy).IsEqual(StoryRewindPolicy.ResetToInitialState);
+
+        LevelLockTestKit.PlaceHero(level.Player, 8000f, Level15Controller.FloorY - 1f);
+        AssertThat(level.BeginFirestorm(Level15Controller.FirestormStartBehind(8000f))).IsTrue();
+        firestorm.AdvanceFront(1f);
+
+        // Mid-run: the rewind lands the hero behind the front's start, which moves back behind it.
+        LevelLockTestKit.PlaceHero(level.Player, 7700f, Level15Controller.FloorY - 1f);
+        EventBus.Instance.RaiseRewindTriggered(new Vector2(7700f, Level15Controller.FloorY - 1f));
+        AssertThat(firestorm.IsRunning).OverrideFailureMessage("A death mid-run switched the firestorm off.").IsTrue();
+        AssertThat(firestorm.FrontX < 7700f - LevelLockTestKit.HeroHalfWidthPixels).IsTrue();
+        float front = firestorm.FrontX;
+        firestorm.AdvanceFront(1f);
+        AssertThat(firestorm.FrontX > front).OverrideFailureMessage("The restarted front never advanced.").IsTrue();
+        AssertThat(level.FirestormSurvived).IsFalse();
+
+        // Won: past the line the run completes on the next running tick.
+        LevelLockTestKit.PlaceHero(level.Player, Level15Controller.EscapeFinishX + 100f, Level15Controller.FloorY - 1f);
+        firestorm.AdvanceFront(1f / 60f);
+        AssertThat(firestorm.IsCompleted).IsTrue();
+        AssertThat(level.FirestormSurvived).IsTrue();
+
+        // A later death, even one that lands short of the line, never restarts it.
+        LevelLockTestKit.PlaceHero(level.Player, 8800f, Level15Controller.FloorY - 1f);
+        EventBus.Instance.RaiseRewindTriggered(new Vector2(8800f, Level15Controller.FloorY - 1f));
+        AssertThat(firestorm.IsRunning)
+            .OverrideFailureMessage("A death after the run was won restarted the firestorm.").IsFalse();
+        AssertThat(firestorm.IsCompleted).IsTrue();
     }
 
     // === Helpers ===
