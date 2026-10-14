@@ -325,13 +325,13 @@ Each workstream's handoff (`docs/handoffs/GU_<id>.md`) is the full record. The e
 
 ### Phase A review fixes
 
-Not in the plan. The adversarial review of the Phase A diff confirmed 13 findings and refuted one. FIX-E took the seven on the lock framework, Level 2, zones, pulls and the lock / director seams; FIX-F took the three on the director and the two test defects in GU-A's and GU-D's work. Both ran from `199e260`; FIX-F merged first.
+Not in the plan. The adversarial review of the Phase A diff confirmed 13 findings and refuted one. FIX-E took the eight (six distinct findings; two were reported twice) on the lock framework, Level 2, zones, pulls and the lock / director seams; FIX-F took the three on the director and the two test defects in GU-A's and GU-D's work. Both ran from `199e260`; FIX-F merged first.
 
 #### FIX-E (`675fdde`, merged `7aaae7d`)
 
 - Level 2's Middle checkpoint could be struck from inside the engaged siege line (high; reported twice). It was fixed in the framework rather than by geometry alone, so no Phase B level could repeat it: `CheckpointTrigger.IsHeldByEncounterLock` and a new key, `checkpoint_held_by_encounter_lock`. Level 2's anchor moved 6370 → 6500 and the battlement's west edge 6460 → 6580, which also took the anchor off the room 2/3 camera seam.
 - Relativity Rift zone ticks and crowd bowling skip a dormant member; the three pulls go through `BaseSpecial.PullThroughCollision` (horizontal, then vertical); a lock's wake joins the director and dormancy leaves it.
-- Four authoring rules added to `GU_E.md`'s guide (marked FIX-E). Outside GU-E's file list: `LevelManager.cs`, `BaseSpecial.cs`, `PlaceholderZone.cs`.
+- Six authoring rules added to `GU_E.md`'s guide (marked FIX-E). Outside GU-E's file list: `LevelManager.cs`, `BaseSpecial.cs`, `PlaceholderZone.cs`.
 - Not done: the commit-time baseline filter, redundant because every activation goes through `Activate()`.
 - Test delta: **+11** (`EncounterLockTests` +5, the new `StoryKitPullWallTests` 3, `EncounterLockContentTests` +2, `Level02ContentTests` +1). Handoff: [GU_E.md, "Review fixes"](handoffs/GU_E.md).
 

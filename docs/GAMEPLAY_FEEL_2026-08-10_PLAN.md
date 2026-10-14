@@ -173,7 +173,8 @@ recorded in §2.13. Do not re-litigate; do record any *further* deviation in §9
 - **Amended 2026-10-12 (user request 1, ledger `USER-AERIAL-SINGLE-STRIKE`; record retained):** the
   "aerial-string rule" above is retired with the aerial string. An airborne neutral press is now a
   single air strike that never chains (`BasicComboRules.VariantAirAttack`; the sim's `FlagAirAttack`
-  = 128, the next `AttackFlags` bit after these two), a third single strike beside the up-attack and
+  = 128, the next spare `AttackFlags` bit: 32 and 64 went to the construct-hit and queued-press
+  flags after these two), a third single strike beside the up-attack and
   the down-air, and landing still cancels all three with no lag. The selection gains a row: Up →
   up-attack; airborne + Down → down-air; airborne → the air strike; else the string. "Distance
   depends on damage taken" is Fighter-only since the same day (§2.5's note).
