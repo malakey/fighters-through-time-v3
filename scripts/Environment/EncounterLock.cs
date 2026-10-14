@@ -543,12 +543,28 @@ namespace FTT.Environment {
             }
         }
 
+        // FIX-ENEMY: the hero's feet the last time the watchdog saw it on a floor,
+        // so a hero's jump never lifts the flyer's hover line under a stalled
+        // flyer and resets its count (NaN until the first sample).
+        private float _watchdogHeroFloorFeetY = float.NaN;
+
         /// <summary>
         /// The stall watchdog: a member stuck off any floor, or standing still on
         /// a post the hero cannot reach, for <see cref="EncounterLockRules.StallFrames"/>
-        /// ticks is put back on its anchor. Never killed.
+        /// ticks is put back on its anchor. Never killed. FIX-ENEMY (2026-10-13):
+        /// never back onto the post it is stalled on — a member already on its
+        /// anchor, or whose anchor is itself a post above the hero
+        /// (<see cref="EncounterLockRules.RelocatesBesideHero"/>), is put down
+        /// beside the hero instead (<c>EnemyController.RelocateBesideEncounterHero</c>,
+        /// validated by the relocation rule). The anchor stays the fallback when
+        /// no point beside the hero takes it. A flyer held above its hover line
+        /// that cannot move (<see cref="EncounterLockRules.IsFlyerStalledOutOfReach"/>)
+        /// is stalled too, ranged or not.
         /// </summary>
         private void TickWatchdog(PlayerController hero) {
+            if (IsAlive(hero) && (hero.IsOnFloor() || float.IsNaN(_watchdogHeroFloorFeetY))) {
+                _watchdogHeroFloorFeetY = hero.GlobalPosition.Y;
+            }
             foreach (Member member in _members) {
                 if (member.Resolved || !IsLiving(member)) continue;
                 EnemyController body = member.Body;
@@ -562,14 +578,36 @@ namespace FTT.Environment {
                 float gap = IsAlive(hero) ? position.Y - hero.GlobalPosition.Y : 0f;
                 bool ranged = body.Data?.PrimaryAttack?.SpawnsProjectiles == true;
                 bool stalled = EncounterLockRules.IsStalledSample(
-                    flying, body.IsOnFloor(), inFlight, body.CurrentState == EnemyState.Chase, ranged, moved, gap);
+                    flying, body.IsOnFloor(), inFlight, body.CurrentState == EnemyState.Chase, ranged, moved, gap)
+                    // FIX-ENEMY: a flyer the settle cannot bring within the hero's reach.
+                    || (IsAlive(hero) && EncounterLockRules.IsFlyerStalledOutOfReach(
+                        flying, inFlight, moved, position.Y, _watchdogHeroFloorFeetY));
                 member.StallFrames = EncounterLockRules.NextStallFrames(member.StallFrames, stalled);
                 if (!EncounterLockRules.ShouldRelocate(member.StallFrames)) continue;
-                body.RelocateToEncounterAnchor("stall");
+                RelocateStalled(body, hero);
                 member.StallFrames = 0;
                 member.HasLastPosition = false;
                 StallRelocations++;
             }
+        }
+
+        /// <summary>
+        /// FIX-ENEMY: the watchdog's destination for a stalled member — its anchor
+        /// when that moves it to where the hero can fight it, else beside the hero
+        /// (the anchor again only if no point beside the hero takes it, and never
+        /// when it already stands on the anchor).
+        /// </summary>
+        private static void RelocateStalled(EnemyController body, PlayerController hero) {
+            Vector2 position = body.GlobalPosition;
+            Vector2 anchor = body.EncounterAnchor;
+            float anchorGap = IsAlive(hero) ? anchor.Y - hero.GlobalPosition.Y : 0f;
+            float fromAnchor = position.DistanceTo(anchor);
+            if (!EncounterLockRules.RelocatesBesideHero(fromAnchor, anchorGap)) {
+                body.RelocateToEncounterAnchor("stall");
+                return;
+            }
+            if (IsAlive(hero) && body.RelocateBesideEncounterHero(hero, "stall")) return;
+            if (fromAnchor > EncounterLockRules.StallAnchorTolerancePixels) body.RelocateToEncounterAnchor("stall");
         }
 
         private int UnspawnedPlanned() {

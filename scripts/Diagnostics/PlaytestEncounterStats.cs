@@ -26,6 +26,13 @@ namespace FTT.Diagnostics {
         public int AttackingNear;
         /// <summary>Of those, the ones whose attack in flight is melee-slot class (MeleeStrike, ChargeDash, AreaPulse, the engage blink).</summary>
         public int MeleeAttackingNear;
+        /// <summary>
+        /// FIX-ENEMY (2026-10-13): of the melee attackers near the hero, the ones
+        /// holding no melee slot — retaliation, which the director never gates
+        /// (the V7.4 pressure exit of a struck mob whose stun ends in reach, and
+        /// the Armored Recovery answer). Every gated melee commit holds a slot.
+        /// </summary>
+        public int MeleeRetaliatingNear;
         /// <summary>Mobs holding one of the hero's melee slots.</summary>
         public int Holders;
         /// <summary>Mobs attacking the hero with a ranged-permit attack in flight (any distance).</summary>
@@ -52,6 +59,8 @@ namespace FTT.Diagnostics {
         public int EngagedFrames { get; private set; }
         public int MaxAttackingNear { get; private set; }
         public int MaxMeleeAttackingNear { get; private set; }
+        /// <summary>FIX-ENEMY: the most retaliating melee attackers near the hero in one frame.</summary>
+        public int MaxMeleeRetaliatingNear { get; private set; }
         public int MaxHolders { get; private set; }
         public int MaxRangedInFlight { get; private set; }
         public long SumAttackingNear { get; private set; }
@@ -60,6 +69,13 @@ namespace FTT.Diagnostics {
         public long SumRangedInFlight { get; private set; }
         /// <summary>Engaged frames with more melee attackers near the hero than the slot total (retaliation is never gated, so not always a fault).</summary>
         public int FramesMeleeOverSlots { get; private set; }
+        /// <summary>
+        /// FIX-ENEMY: engaged frames with more <i>gated</i> melee attackers near the
+        /// hero (melee attackers less the retaliating ones) than the slot total —
+        /// the turn-taking invariant itself; should stay 0. The difference from
+        /// <see cref="FramesMeleeOverSlots"/> is retaliation.
+        /// </summary>
+        public int FramesGatedMeleeOverSlots { get; private set; }
         /// <summary>Engaged frames with more slot holders than the slot total (the director's own invariant; should stay 0).</summary>
         public int FramesHoldersOverSlots { get; private set; }
         /// <summary>Engaged frames with more ranged attacks in flight than the permit total.</summary>
@@ -85,9 +101,11 @@ namespace FTT.Diagnostics {
             SumRangedInFlight += sample.RangedInFlight;
             MaxAttackingNear = Math.Max(MaxAttackingNear, sample.AttackingNear);
             MaxMeleeAttackingNear = Math.Max(MaxMeleeAttackingNear, sample.MeleeAttackingNear);
+            MaxMeleeRetaliatingNear = Math.Max(MaxMeleeRetaliatingNear, sample.MeleeRetaliatingNear);
             MaxHolders = Math.Max(MaxHolders, sample.Holders);
             MaxRangedInFlight = Math.Max(MaxRangedInFlight, sample.RangedInFlight);
             if (SlotTotal > 0 && sample.MeleeAttackingNear > SlotTotal) FramesMeleeOverSlots++;
+            if (SlotTotal > 0 && sample.MeleeAttackingNear - sample.MeleeRetaliatingNear > SlotTotal) FramesGatedMeleeOverSlots++;
             if (SlotTotal > 0 && sample.Holders > SlotTotal) FramesHoldersOverSlots++;
             if (PermitTotal > 0 && sample.RangedInFlight > PermitTotal) FramesRangedOverPermits++;
             AttackingNearHistogram[sample.AttackingNear] = AttackingNearHistogram.GetValueOrDefault(sample.AttackingNear) + 1;

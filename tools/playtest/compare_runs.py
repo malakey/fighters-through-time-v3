@@ -412,7 +412,7 @@ def crowd_rows(tag_pattern):
         have = [r for r in runs if isinstance(r.get("mob_engagement"), dict)]
         engaged = atk_sum = melee_sum = ranged_sum = 0
         atk_max = melee_max = holders_max = ranged_max = 0
-        over_slots = holders_over = ranged_over = 0
+        over_slots = gated_over = holders_over = ranged_over = 0
         handoffs, grants, slots, waiters, front = [], [], set(), {}, {}
         far_samples, waiter_samples = 0, 0
         for r in have:
@@ -429,6 +429,8 @@ def crowd_rows(tag_pattern):
             holders_max = max(holders_max, num(e.get("slot_holders_max"), 0))
             ranged_max = max(ranged_max, num(e.get("ranged_in_flight_max"), 0))
             over_slots += num(e.get("frames_melee_over_slots"), 0)
+            # FIX-ENEMY: the over-slot frames that are not retaliation (should be 0).
+            gated_over += num(e.get("frames_gated_melee_over_slots"), 0)
             holders_over += num(e.get("frames_holders_over_slots"), 0)
             ranged_over += num(e.get("frames_ranged_over_permits"), 0)
             handoffs.append(num(e.get("slot_handoffs"), 0))
@@ -453,6 +455,7 @@ def crowd_rows(tag_pattern):
             "melee_max": melee_max if ok else "-",
             "melee_mean": round(melee_sum / engaged, 2) if engaged else "-",
             "over_slots%": pct(over_slots, engaged) if engaged else "-",
+            "gated_over_f": gated_over if ok else "-",
             "holders_max": holders_max if ok else "-",
             "holders_over_f": holders_over if ok else "-",
             "handoffs/run": mean(handoffs, 1),

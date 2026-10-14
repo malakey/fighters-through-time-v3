@@ -983,7 +983,11 @@ namespace FTT.Diagnostics {
             if (onHero) _engagementFrame.Engaged++;
             if (attacking && mob.GlobalPosition.DistanceTo(heroPosition) <= MobEngagementTracker.NearPixels) {
                 _engagementFrame.AttackingNear++;
-                if (inFlight == StoryEngagementRules.EngagementClass.MeleeSlot) _engagementFrame.MeleeAttackingNear++;
+                if (inFlight == StoryEngagementRules.EngagementClass.MeleeSlot) {
+                    _engagementFrame.MeleeAttackingNear++;
+                    // FIX-ENEMY: a melee attacker with no slot is retaliating (never gated).
+                    if (role != StoryEngagementRules.EngagementRole.Slot) _engagementFrame.MeleeRetaliatingNear++;
+                }
             }
             if (role == StoryEngagementRules.EngagementRole.Slot) _engagementFrame.Holders++;
             if (inFlight == StoryEngagementRules.EngagementClass.RangedPermit) _engagementFrame.RangedInFlight++;
@@ -1084,6 +1088,8 @@ namespace FTT.Diagnostics {
                 ["melee_attacking_near_max"] = e.MaxMeleeAttackingNear,
                 ["melee_attacking_near_mean"] = e.MeanOverEngaged(e.SumMeleeAttackingNear),
                 ["frames_melee_over_slots"] = e.FramesMeleeOverSlots,
+                ["melee_retaliating_near_max"] = e.MaxMeleeRetaliatingNear,
+                ["frames_gated_melee_over_slots"] = e.FramesGatedMeleeOverSlots,
                 ["slot_holders_max"] = e.MaxHolders,
                 ["slot_holders_mean"] = e.MeanOverEngaged(e.SumHolders),
                 ["frames_holders_over_slots"] = e.FramesHoldersOverSlots,
@@ -1176,6 +1182,7 @@ namespace FTT.Diagnostics {
                 ["atk_mean"] = e.MeanOverEngaged(e.SumAttackingNear),
                 ["melee_max"] = e.MaxMeleeAttackingNear,
                 ["melee_over_slots_f"] = e.FramesMeleeOverSlots,
+                ["gated_over_slots_f"] = e.FramesGatedMeleeOverSlots,
                 ["handoffs"] = e.SlotHandoffs,
                 ["waiter_gap_med"] = e.WaiterGapMedian,
                 ["ranged_max"] = e.MaxRangedInFlight,

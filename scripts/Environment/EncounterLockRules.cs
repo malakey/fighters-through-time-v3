@@ -74,6 +74,25 @@ namespace FTT.Environment {
         public const float StallVerticalGapPixels = 200f;
 
         /// <summary>
+        /// <i>Provisional</i> (FIX-ENEMY, 2026-10-13). The stall watchdog sends a
+        /// stalled member back to its anchor only when it stands farther than this
+        /// from it: a member already on its anchor (or within float noise and a
+        /// step of it) is stalled on that spot, and returning it there loops.
+        /// </summary>
+        public const float StallAnchorTolerancePixels = 16f;
+
+        /// <summary>
+        /// <i>Provisional</i> (FIX-ENEMY, 2026-10-13). How far above the hero's
+        /// feet an engaged flying member's feet — the bottom of its hurtbox on
+        /// every roster body — may be held in any state but an attack or a stun.
+        /// Every hero's single jump with its air strike reaches past this line (a
+        /// double jump far past it), so a flyer can never hover out of reach and
+        /// hold its lock shut. Pinned against the nine heroes' integrated arcs and
+        /// air-strike boxes by <c>EncounterMemberReachTests</c>. Story only.
+        /// </summary>
+        public const float FlyerHoverCapPixels = 160f;
+
+        /// <summary>
         /// <i>Provisional.</i> A lock engaged for longer than this with no living
         /// registered member left, and every required puzzle and breakable done,
         /// force-clears and logs: the backstop for a wave that can never spawn.
@@ -281,11 +300,93 @@ namespace FTT.Environment {
                 && Math.Abs(verticalGapToHero) > StallVerticalGapPixels;
         }
 
+        /// <summary>
+        /// FIX-ENEMY (2026-10-13): the flyer's stall sample, beside
+        /// <see cref="IsStalledSample"/>. An engaged flyer whose feet stay above
+        /// <see cref="FlyerHoverLineY"/> while it moves under
+        /// <see cref="StallMovePixels"/>, out of any knockback flight, is stalled
+        /// whatever its attack: the settle cannot bring it down (it rests on a
+        /// solid platform over the hero — Level 3's drone on the midway's lamp
+        /// gantry), so shooting from there is not its job. An attack only pauses
+        /// the settle; its frames count, and the settle's own descent resets the
+        /// count.
+        /// </summary>
+        public static bool IsFlyerStalledOutOfReach(bool flying, bool inFlight, float movedPixels, float feetY, float heroFeetY) =>
+            flying && !inFlight && movedPixels < StallMovePixels && feetY < FlyerHoverLineY(heroFeetY) - StallMovePixels;
+
         /// <summary>The stall counter after one sample: it grows while stalled and resets otherwise.</summary>
         public static int NextStallFrames(int current, bool stalled) => stalled ? Math.Max(0, current) + 1 : 0;
 
-        /// <summary>True once the stall counter reaches <see cref="StallFrames"/>: relocate to the anchor.</summary>
+        /// <summary>True once the stall counter reaches <see cref="StallFrames"/>: relocate the member.</summary>
         public static bool ShouldRelocate(int stallFrames) => stallFrames >= StallFrames;
+
+        /// <summary>
+        /// FIX-ENEMY (2026-10-13): where a stalled member goes. Back to its
+        /// anchor, as before, when that is a move — the member stands more than
+        /// <see cref="StallAnchorTolerancePixels"/> from it — and the anchor is
+        /// not itself a post over the hero (its feet no more than
+        /// <see cref="StallVerticalGapPixels"/> above the hero's;
+        /// <paramref name="anchorFeetGapToHero"/> is anchor minus hero, negative
+        /// up). Otherwise — it is stalled on its own anchor, or the anchor is a
+        /// post above the hero (Level 10's gallery tier) — it is put down beside
+        /// the hero instead: a watchdog that returns a member to the post it is
+        /// stalled on loops forever. An anchor below a hero standing on a ledge
+        /// keeps the old return (the hero can come down to it).
+        /// </summary>
+        public static bool RelocatesBesideHero(float distanceToAnchor, float anchorFeetGapToHero) =>
+            distanceToAnchor <= StallAnchorTolerancePixels
+            || anchorFeetGapToHero < -StallVerticalGapPixels;
+
+        // === Members' reach (FIX-ENEMY, 2026-10-13) ===========================
+
+        /// <summary>The highest feet line an engaged flyer is held at: <see cref="FlyerHoverCapPixels"/> above the hero's feet.</summary>
+        public static float FlyerHoverLineY(float heroFeetY) => heroFeetY - FlyerHoverCapPixels;
+
+        /// <summary>
+        /// The flyer settle: the vertical velocity (px/s, positive down) an
+        /// engaged flyer whose feet are at <paramref name="feetY"/> takes this
+        /// tick. Above <see cref="FlyerHoverLineY"/> it descends toward the line
+        /// at up to <paramref name="maxSpeedPixels"/> (its own chase speed) and
+        /// lands on it exactly; at or below the line its own
+        /// <paramref name="velocityY"/> stands. The cap never lifts a flyer and
+        /// never slows a faster descent of its own.
+        /// </summary>
+        public static float FlyerSettleVelocityY(float feetY, float heroFeetY, float velocityY, float maxSpeedPixels, float dt) {
+            float line = FlyerHoverLineY(heroFeetY);
+            if (feetY >= line || dt <= 0f) return velocityY;
+            float descent = Math.Min(Math.Max(0f, maxSpeedPixels), (line - feetY) / dt);
+            return Math.Max(velocityY, descent);
+        }
+
+        /// <summary>
+        /// The top of a flying member's band (the x-clamp and the fall net bound
+        /// the rest): its whole body stays below the top of its lock's camera
+        /// rect <paramref name="viewTopY"/>, so its feet never sit higher than
+        /// that line plus the body's <paramref name="headHeight"/> (feet to the
+        /// top of its body). Whatever carries a flyer up — a throw, a write —
+        /// stops at the edge of the frame the lock holds the camera to.
+        /// </summary>
+        public static float ClampFlyerFeetY(float feetY, float viewTopY, float headHeight) =>
+            Math.Max(feetY, viewTopY + Math.Max(0f, headHeight));
+
+        /// <summary>
+        /// A melee ground member looks for a way down to a target whose feet are
+        /// more than the chase's ledge probe depth
+        /// (<see cref="FTT.Combat.StoryEnemyCombatRules.LedgeProbeDepthPixels"/>)
+        /// below its own (<paramref name="targetDropPixels"/>, positive down):
+        /// a drop it would otherwise never walk off, so it would never come to
+        /// the hero.
+        /// </summary>
+        public static bool SeeksWayDown(float targetDropPixels) =>
+            targetDropPixels > FTT.Combat.StoryEnemyCombatRules.LedgeProbeDepthPixels;
+
+        /// <summary>
+        /// A step off a ledge whose probe point is <paramref name="stepX"/> lands
+        /// inside the area: the body's half-width either side of it stays inside
+        /// [<paramref name="minX"/>, <paramref name="maxX"/>].
+        /// </summary>
+        public static bool StepOffLandsInArea(float stepX, float minX, float maxX, float halfWidth) =>
+            stepX - Math.Max(0f, halfWidth) >= minX && stepX + Math.Max(0f, halfWidth) <= maxX;
 
         /// <summary>
         /// The hard cap: an Engaged lock past <see cref="HardCapSeconds"/> with no
