@@ -62,7 +62,8 @@ namespace FTT.Combat {
         // FlashHit on the armoured caster rides on top of it and, when the flash
         // times out, the sprite returns to the red rather than to the base tint;
         // and ending the telegraph never cuts a running flash short. Below the
-        // override, above the base tint. Steady (no pulse), so C01a-safe.
+        // override, above the base tint, and never warmed by the hero aura
+        // (CM-FIXA-PRES; see EffectiveTint). Steady (no pulse), so C01a-safe.
         private bool _ultimateTelegraph;
         private float _venomPhase;
         private bool _eventsBound;
@@ -118,9 +119,19 @@ namespace FTT.Combat {
 
         public Color EffectiveTint {
             get {
-                Color tint = _tintOverrideActive ? _tintOverride
-                    : _ultimateTelegraph ? TelegraphGlyph.UnblockableColor
-                    : _baseTint;
+                // CM-FIXA-PRES (2026-10-16): the A02 wind-up telegraph renders the
+                // canonical Unblockable red, never the aura-warmed one. A Hard
+                // Level 13 Mirror clone is built on the Story progression path and
+                // so carries the gold hero aura; warming the red toward it read
+                // about (1, 0.38, 0.25), toward the Guard-Crush orange, and
+                // disagreed with the glyph's pure red. While the telegraph shows
+                // (and no hit flash is running) it wins over the aura warm; the
+                // Suppression smother still applies, as on every other tint.
+                if (_ultimateTelegraph && !_tintOverrideActive) {
+                    Color telegraph = TelegraphGlyph.UnblockableColor;
+                    return _auraSmothered ? Desaturate(telegraph) : telegraph;
+                }
+                Color tint = _tintOverrideActive ? _tintOverride : _baseTint;
                 // A6b: the hero aura warms the tint under whatever the transient
                 // channels are doing, so a status tint or a hit flash rides on
                 // top of the gold instead of erasing it.

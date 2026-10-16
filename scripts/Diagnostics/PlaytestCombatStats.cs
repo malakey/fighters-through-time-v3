@@ -555,13 +555,13 @@ namespace FTT.Diagnostics {
     /// decides whether Story needs post-hit mercy invulnerability. Every
     /// positive HP loss the hero takes is one entry: its telemetry frame, a
     /// source key (one key per mob, boss, shooter, Mirror clone or hazard), a
-    /// kind and its damage. For each non-status entry H at frame F:
+    /// kind and its damage. For each hit H (an entry that is not a periodic tick) at frame F:
     /// <list type="bullet">
     /// <item><b>cross-source re-hit</b> (<see cref="CrossSource30"/>): some
-    /// earlier non-status entry from a <i>different</i> source lies in
+    /// earlier hit from a <i>different</i> source lies in
     /// [F − 30, F);</item>
     /// <item><b>same-source re-hit</b> (<see cref="SameSource30"/>, the
-    /// contrast): some earlier non-status entry from the <i>same</i> source lies
+    /// contrast): some earlier hit from the <i>same</i> source lies
     /// in [F − 30, F). A hit can be both;</item>
     /// <item>the 20-frame figures (<see cref="CrossSource20"/>,
     /// <see cref="SameSource20"/>) apply the same tests with a 20-frame window;</item>
@@ -570,10 +570,26 @@ namespace FTT.Diagnostics {
     /// leaves out (two mobs connecting together; a mercy window opened by the
     /// first would refuse the second).</item>
     /// </list>
-    /// Status ticks (<see cref="KindStatus"/>) are counted under their own kind
-    /// and kept out of every re-hit figure, as re-hit and as predecessor. The
-    /// log keeps the first <see cref="LogCap"/> non-status entries. Pure: it
-    /// reads nothing but its arguments.
+    /// <b>Periodic ticks are not hits</b> (CM-FIXA-PRES, 2026-10-16). A
+    /// damaging status tick (<see cref="KindStatus"/>, Venom), a zone pulse
+    /// (<c>HitDelivery.Tick</c>, the Mirror clone's Rift or Vortex) and a
+    /// periodic environmental tick (a drown tick, a stage-hazard DPS payout)
+    /// are booked with <c>tick: true</c>. They are kept out of every re-hit
+    /// figure, as re-hit and as predecessor, and out of <see cref="Hits"/> and
+    /// <see cref="ByKind"/>; they are counted apart in <see cref="Ticks"/>,
+    /// <see cref="TickDamage"/> and <see cref="TicksByKind"/> (status ticks
+    /// also in <see cref="StatusTicks"/>). A discrete hazard contact (a
+    /// discharge, a searchlight strike, an escape catch, debris, a rift snap,
+    /// a cyclic-hazard hit) stays a hit and a predecessor.
+    /// <para>The <b>combat-only figures</b> (<see cref="CrossSource30Combat"/>,
+    /// <see cref="CrossSource20Combat"/>, <see cref="CrossSourceDamage30Combat"/>)
+    /// apply the cross-source test with <see cref="KindHazard"/> entries left
+    /// out on both sides, so a hazard contact is neither the re-hit nor its
+    /// predecessor there: the mob, boss and Mirror re-hits alone.
+    /// <see cref="ByKind"/> books by the <i>second</i> hit's kind, so it cannot
+    /// remove a hazard predecessor; these figures do.</para>
+    /// The log keeps the first <see cref="LogCap"/> hits (ticks are not
+    /// logged). Pure: it reads nothing but its arguments.
     /// </summary>
     public sealed class RehitTracker {
         /// <summary>The headline window: a hit within this many frames after another source's hit is a cross-source re-hit.</summary>
@@ -595,7 +611,7 @@ namespace FTT.Diagnostics {
         public const string KindProjectile = "projectile";
         /// <summary>The environmental chokepoint: hazards, discharges, escape catches, debris.</summary>
         public const string KindHazard = "hazard";
-        /// <summary>A damaging status tick (Venom). Never part of a re-hit figure.</summary>
+        /// <summary>A damaging status tick (Venom). Always a periodic tick: never part of a re-hit figure.</summary>
         public const string KindStatus = "status";
         /// <summary>A hit whose payload names no owner the telemetry can classify.</summary>
         public const string KindOther = "other";
@@ -608,8 +624,14 @@ namespace FTT.Diagnostics {
             public string Label = "";
             public string Kind = "";
             public int Damage;
+            /// <summary>A periodic tick (status, zone or environmental): no re-hit verdict is ever set on it.</summary>
+            public bool Tick;
             public bool Cross30;
             public bool Cross20;
+            /// <summary><see cref="Cross30"/> with hazard entries left out on both sides (the combat-only figure).</summary>
+            public bool Cross30Combat;
+            /// <summary><see cref="Cross20"/> with hazard entries left out on both sides.</summary>
+            public bool Cross20Combat;
             public bool Same30;
             public bool Same20;
             public bool CrossSameFrame;
@@ -628,13 +650,34 @@ namespace FTT.Diagnostics {
             public int Same30;
             public int Same20;
             public int CrossDamage30;
+            /// <summary>This kind's combat-only cross-source re-hits (30 frames); always 0 for <see cref="KindHazard"/>.</summary>
+            public int Cross30Combat;
         }
 
+        /// <summary>Per-kind periodic ticks (CM-FIXA-PRES): counted apart from the hits.</summary>
+        public sealed class TickCounts {
+            public int Ticks;
+            public int Damage;
+        }
+
+        /// <summary>Hits: every entry that is not a periodic tick.</summary>
         public int Hits { get; private set; }
         public int HitDamage { get; private set; }
+        /// <summary>Hits whose kind is not <see cref="KindHazard"/>: the combat figures' denominator.</summary>
+        public int CombatHits { get; private set; }
+        /// <summary>Every periodic tick (status, zone and environmental), never a hit.</summary>
+        public int Ticks { get; private set; }
+        public int TickDamage { get; private set; }
+        /// <summary>The status (Venom) subset of <see cref="Ticks"/>.</summary>
         public int StatusTicks { get; private set; }
         public int CrossSource30 { get; private set; }
         public int CrossSource20 { get; private set; }
+        /// <summary>Cross-source re-hits (30 frames) with hazard entries left out on both sides.</summary>
+        public int CrossSource30Combat { get; private set; }
+        /// <summary>Cross-source re-hits (20 frames) with hazard entries left out on both sides.</summary>
+        public int CrossSource20Combat { get; private set; }
+        /// <summary>Damage dealt by the combat-only cross-source re-hits (30 frames).</summary>
+        public int CrossSourceDamage30Combat { get; private set; }
         public int SameSource30 { get; private set; }
         public int SameSource20 { get; private set; }
         public int CrossSourceSameFrame { get; private set; }
@@ -642,18 +685,24 @@ namespace FTT.Diagnostics {
         public int CrossSourceDamage30 { get; private set; }
         /// <summary>Per gap (1..30 frames) to the latest different-source entry, the cross-source re-hits.</summary>
         public readonly SortedDictionary<int, int> CrossGapHistogram = new();
+        /// <summary>Hits only (the headline partition); periodic ticks are in <see cref="TicksByKind"/>.</summary>
         public readonly SortedDictionary<string, KindCounts> ByKind = new(StringComparer.Ordinal);
+        /// <summary>Periodic ticks per kind (CM-FIXA-PRES): <c>status</c>, a zone tick's owner kind, <c>hazard</c>.</summary>
+        public readonly SortedDictionary<string, TickCounts> TicksByKind = new(StringComparer.Ordinal);
         public readonly List<Entry> Log = new();
 
-        /// <summary>Non-status entries inside the window, oldest first.</summary>
+        /// <summary>Hits (never ticks) inside the window, oldest first.</summary>
         private readonly List<Entry> _recent = new();
 
         /// <summary>
         /// Books one damaging entry. Frames must not decrease between calls;
         /// entries on the same frame are taken in call order. Zero or negative
-        /// damage books nothing.
+        /// damage books nothing. <paramref name="tick"/> marks a periodic tick
+        /// (a <c>HitDelivery.Tick</c> observation); a <see cref="KindStatus"/>
+        /// entry is always one. A tick is counted apart and is never a re-hit or
+        /// a predecessor.
         /// </summary>
-        public Entry Record(int frame, string source, string kind, int damage, string label = "") {
+        public Entry Record(int frame, string source, string kind, int damage, string label = "", bool tick = false) {
             if (damage <= 0) return null;
             var entry = new Entry {
                 Frame = frame,
@@ -662,14 +711,21 @@ namespace FTT.Diagnostics {
                 Kind = string.IsNullOrEmpty(kind) ? KindOther : kind,
                 Damage = damage
             };
+            entry.Tick = tick || entry.Kind == KindStatus;
+            if (entry.Tick) {
+                Ticks++;
+                TickDamage += damage;
+                if (entry.Kind == KindStatus) StatusTicks++;
+                TickCounts ticks = TickCountsFor(entry.Kind);
+                ticks.Ticks++;
+                ticks.Damage += damage;
+                return entry;
+            }
             KindCounts counts = CountsFor(entry.Kind);
             counts.Hits++;
             counts.Damage += damage;
-            if (entry.Kind == KindStatus) {
-                StatusTicks++;
-                return entry;
-            }
 
+            bool combatEntry = entry.Kind != KindHazard;
             _recent.RemoveAll(e => e.Frame < frame - WindowFrames);
             foreach (Entry earlier in _recent) {
                 bool sameSource = earlier.Source == entry.Source;
@@ -687,11 +743,24 @@ namespace FTT.Diagnostics {
                     // _recent is oldest first, so the last match is the latest.
                     entry.CrossGap = gap;
                     entry.CrossKind = earlier.Kind;
+                    // The combat-only figure: a hazard contact is neither the
+                    // re-hit nor its predecessor.
+                    if (combatEntry && earlier.Kind != KindHazard) {
+                        entry.Cross30Combat = true;
+                        if (gap <= ShortWindowFrames) entry.Cross20Combat = true;
+                    }
                 }
             }
 
             Hits++;
             HitDamage += damage;
+            if (combatEntry) CombatHits++;
+            if (entry.Cross30Combat) {
+                CrossSource30Combat++;
+                CrossSourceDamage30Combat += damage;
+                counts.Cross30Combat++;
+            }
+            if (entry.Cross20Combat) CrossSource20Combat++;
             if (entry.Cross30) {
                 CrossSource30++;
                 CrossSourceDamage30 += damage;
@@ -721,6 +790,14 @@ namespace FTT.Diagnostics {
             if (!ByKind.TryGetValue(kind, out KindCounts counts)) {
                 counts = new KindCounts();
                 ByKind[kind] = counts;
+            }
+            return counts;
+        }
+
+        private TickCounts TickCountsFor(string kind) {
+            if (!TicksByKind.TryGetValue(kind, out TickCounts counts)) {
+                counts = new TickCounts();
+                TicksByKind[kind] = counts;
             }
             return counts;
         }

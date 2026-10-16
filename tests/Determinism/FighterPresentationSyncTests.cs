@@ -466,6 +466,113 @@ public class FighterPresentationSyncTests {
     }
 
     /// <summary>
+    /// CM-FIXA-PRES (2026-10-16): a caster knocked out mid-wind-up drops the
+    /// telegraph on the KO tick itself. The sim clears component 321 one tick
+    /// late (<c>AdvanceUltimate</c> runs before the swing that KOs, and
+    /// <c>ApplyStockLoss</c> leaves 321 alone), and the KO tick is the frame the
+    /// 12-frame stock-loss freeze then holds with the fighter on the respawn
+    /// platform. P2 (Joan) walks in, P1 (Einstein, a 1-HP pool) accepts the
+    /// Ultimate, and P2's real string hit 1 lands inside the wind-up. A driver
+    /// with the glow arbiter and one without it run the same inputs, so the hash
+    /// shows the presentation change touches no simulation state. P2 is a local
+    /// human for this case (the boot session's opponent is the CPU, which would
+    /// roll away from the wind-up); the session is restored in <c>finally</c>.
+    /// </summary>
+    [TestCase]
+    public void ACasterKnockedOutMidWindupDropsTheTelegraphOnTheKnockoutTickAndThroughTheFreeze() {
+        if (InputManager.Instance == null || GameManager.Instance == null) return;
+        GameManager manager = GameManager.Instance;
+        SessionData savedSession = manager.CurrentSession;
+        Node hostA = null;
+        Node hostB = null;
+        var playerOneInput = new BufferedInputSource();
+        var playerTwoInput = new BufferedInputSource();
+        try {
+            SessionData localVersus = savedSession;
+            localVersus.FighterOpponentType = FighterOpponentType.LocalHuman;
+            manager.CurrentSession = localVersus;
+            (FighterSimulationDriver withGlow, hostA, PlayerController oneA, PlayerController _) =
+                CreateFragileCasterDriver("TelegraphKoHostWithGlow", attachGlow: true);
+            (FighterSimulationDriver withoutGlow, hostB, PlayerController oneB, PlayerController _) =
+                CreateFragileCasterDriver("TelegraphKoHostWithoutGlow", attachGlow: false);
+            InputManager.Instance.SetInputSource(0, playerOneInput);
+            InputManager.Instance.SetInputSource(1, playerTwoInput);
+            var drivers = new[] { withGlow, withoutGlow };
+            StepTelegraphDrivers(drivers, playerOneInput, playerTwoInput,
+                FighterMatchFlowRules.CountdownFrames + 2, GameplayButtons.None);
+            AssertThat(withGlow.Simulation.TryGetFighter(0, out FighterStateComponent fragile)).IsTrue();
+            AssertThat(fragile.CurrentHP)
+                .OverrideFailureMessage("Harness fault: the caster must start on a 1-HP pool.")
+                .IsEqual(1);
+
+            // P2 walks into reach of P1.
+            for (int guard = 0; guard < 240 && PlayerGap(withGlow) > 0.9f; guard++) {
+                StepFragileDrivers(drivers, playerOneInput, playerTwoInput, GameplayButtons.None, GameplayButtons.None,
+                    TowardPlayerOne(withGlow), GameplayButtons.None, GameplayButtons.None);
+            }
+            AssertThat(PlayerGap(withGlow) <= 0.9f)
+                .OverrideFailureMessage($"Harness fault: P2 never closed to P1 (gap {PlayerGap(withGlow)}).")
+                .IsTrue();
+            StepTelegraphDrivers(drivers, playerOneInput, playerTwoInput, 4, GameplayButtons.None);
+            foreach (FighterSimulationDriver driver in drivers) {
+                AssertThat(driver.Simulation.SeedFighterInfluenceForTest(0, FighterMeterRules.CapPoints)).IsTrue();
+            }
+            StepTelegraphDrivers(drivers, playerOneInput, playerTwoInput, 1, GameplayButtons.None);
+            PressUltimateUntilWindup(drivers, playerOneInput, playerTwoInput);
+            AssertThat(TelegraphShown(oneA)).IsTrue();
+            AssertThat(oneA.Glow.HasUltimateTelegraph).IsTrue();
+            AssertThat(withGlow.Simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent before)).IsTrue();
+            int knockoutsBefore = before.KnockoutsSuffered;
+
+            // P2 presses and holds BasicAttack until the knockout lands.
+            GameplayButtons previousTwo = GameplayButtons.None;
+            bool knockedOut = false;
+            for (int guard = 0; guard < 30 && !knockedOut; guard++) {
+                AssertThat(ActivationPhase(withGlow, 0))
+                    .OverrideFailureMessage("Harness fault: the wind-up ended before P2's hit landed.")
+                    .IsEqual(FighterUltimateActivationRules.PhaseWindup);
+                StepFragileDrivers(drivers, playerOneInput, playerTwoInput, GameplayButtons.None, GameplayButtons.None,
+                    0f, GameplayButtons.BasicAttack, previousTwo);
+                previousTwo = GameplayButtons.BasicAttack;
+                AssertThat(withGlow.CurrentHash).IsEqual(withoutGlow.CurrentHash);
+                withGlow.Simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime);
+                knockedOut = runtime.KnockoutsSuffered > knockoutsBefore;
+            }
+            AssertThat(knockedOut)
+                .OverrideFailureMessage("Harness fault: P2's hit never knocked the 1-HP caster out.")
+                .IsTrue();
+
+            // The KO tick: the sim still reads the wind-up (the one-tick lag this
+            // pins), the caster is on the respawn platform, and nothing shows.
+            AssertThat(ActivationPhase(withGlow, 0)).IsEqual(FighterUltimateActivationRules.PhaseWindup);
+            AssertThat(withGlow.Simulation.TryGetFighter(0, out FighterStateComponent fallen)).IsTrue();
+            AssertThat(fallen.RespawnFramesRemaining > 0).IsTrue();
+            AssertTelegraphHidden(oneA, oneB, "on the knockout tick");
+
+            // The 12-frame stock-loss freeze holds the KO tick's picture; then the
+            // next real tick's AdvanceUltimate clears 321.
+            for (int frame = 0; frame < 20; frame++) {
+                StepTelegraphDrivers(drivers, playerOneInput, playerTwoInput, 1, GameplayButtons.None);
+                AssertThat(withGlow.CurrentHash).IsEqual(withoutGlow.CurrentHash);
+                AssertTelegraphHidden(oneA, oneB, $"{frame + 1} frames after the knockout");
+            }
+            AssertThat(ActivationPhase(withGlow, 0))
+                .OverrideFailureMessage("The sim clears the activation once the freeze ends.")
+                .IsEqual(FighterUltimateActivationRules.PhaseNone);
+            AssertThat(withGlow.Simulation.TryGetFighter(0, out FighterStateComponent respawning)).IsTrue();
+            AssertThat(respawning.RespawnFramesRemaining > 0)
+                .OverrideFailureMessage("Still on the respawn platform.")
+                .IsTrue();
+        } finally {
+            InputManager.Instance.ClearInputSource(0);
+            InputManager.Instance.ClearInputSource(1);
+            hostA?.Free();
+            hostB?.Free();
+            manager.CurrentSession = savedSession;
+        }
+    }
+
+    /// <summary>
     /// The A02 telegraph harness: the suite's driver with stage hazards off, so
     /// no hazard cue or hazard hit lands inside the measured wind-up.
     /// </summary>
@@ -534,4 +641,78 @@ public class FighterPresentationSyncTests {
             : -1;
 
     private static bool TelegraphShown(PlayerController player) => UltimateActivationTelegraph.IsGlyphShown(player);
+
+    // === CM-FIXA-PRES (2026-10-16): the knockout-mid-wind-up harness ===
+
+    /// <summary>
+    /// The telegraph harness with P1 on a 1-HP pool: a duplicate of Einstein's
+    /// CharacterData (the cached authored resource is never touched), so any
+    /// landed hit is lethal. Stage hazards off, three stocks.
+    /// </summary>
+    private static (FighterSimulationDriver driver, Node host, PlayerController one, PlayerController two)
+        CreateFragileCasterDriver(string name, bool attachGlow) {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        var host = new Node2D { Name = name };
+        tree.Root.AddChild(host);
+        PlayerController one = CharacterFactory.CreateCharacter("einstein", 0, applyStoryProgression: false);
+        PlayerController two = CharacterFactory.CreateCharacter("joan", 1, applyStoryProgression: false);
+        var fragile = (CharacterData)one.Data.Duplicate();
+        fragile.MaxHP = 1;
+        one.Data = fragile;
+        if (!attachGlow) {
+            RemoveGlow(one);
+            RemoveGlow(two);
+        }
+        host.AddChild(one);
+        host.AddChild(two);
+        var driver = new FighterSimulationDriver { Name = "Driver" };
+        host.AddChild(driver);
+        MatchSettings settings = MatchSettings.GetDefault();
+        settings.StageHazardsEnabled = false;
+        settings.StockCount = 3;
+        driver.Initialize(one, two, settings, stageHazardTypeID: 1, stageID: "florence_workshop", matchSeed: 2026);
+        return (driver, host, one, two);
+    }
+
+    /// <summary>One tick on every driver with both players' inputs given.</summary>
+    private static void StepFragileDrivers(FighterSimulationDriver[] drivers,
+        BufferedInputSource playerOne, BufferedInputSource playerTwo,
+        GameplayButtons oneHeld, GameplayButtons onePrevious,
+        float twoHorizontal, GameplayButtons twoHeld, GameplayButtons twoPrevious) {
+        uint tick = (uint)drivers[0].CurrentTick;
+        playerOne.SetNextFrame(PlayerInputFrame.Create(tick, 0f, 0f, oneHeld, onePrevious));
+        playerTwo.SetNextFrame(PlayerInputFrame.Create(tick, twoHorizontal, 0f, twoHeld, twoPrevious));
+        InputManager.Instance.SetInputSource(0, playerOne);
+        InputManager.Instance.SetInputSource(1, playerTwo);
+        foreach (FighterSimulationDriver driver in drivers) driver._PhysicsProcess(Step);
+    }
+
+    /// <summary>The horizontal distance between the two fighters' pivots, in world units.</summary>
+    private static float PlayerGap(FighterSimulationDriver driver) {
+        driver.Simulation.TryGetFighter(0, out FighterStateComponent one);
+        driver.Simulation.TryGetFighter(1, out FighterStateComponent two);
+        return Mathf.Abs(one.Position.x.ToFloat() - two.Position.x.ToFloat());
+    }
+
+    /// <summary>P2's stick toward P1.</summary>
+    private static float TowardPlayerOne(FighterSimulationDriver driver) {
+        driver.Simulation.TryGetFighter(0, out FighterStateComponent one);
+        driver.Simulation.TryGetFighter(1, out FighterStateComponent two);
+        return one.Position.x.ToFloat() < two.Position.x.ToFloat() ? -1f : 1f;
+    }
+
+    private static void AssertTelegraphHidden(PlayerController withGlow, PlayerController withoutGlow, string when) {
+        AssertThat(TelegraphShown(withGlow))
+            .OverrideFailureMessage($"The Unblockable X must be hidden {when}.")
+            .IsFalse();
+        AssertThat(TelegraphShown(withoutGlow))
+            .OverrideFailureMessage($"The Unblockable X must be hidden {when} (no arbiter).")
+            .IsFalse();
+        AssertThat(withGlow.Glow.HasUltimateTelegraph)
+            .OverrideFailureMessage($"The telegraph tint must be off {when}.")
+            .IsFalse();
+        AssertThat(withGlow.Glow.EffectiveTint)
+            .OverrideFailureMessage($"The sprite must not read the Unblockable red {when}.")
+            .IsNotEqual(TelegraphGlyph.UnblockableColor);
+    }
 }

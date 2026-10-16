@@ -4279,8 +4279,12 @@ namespace FTT.Characters {
 		/// must never suppress the NEXT hurtbox hit's accounting), Rally echo
 		/// accrues, and the victim meter earns the permanent portion. No
 		/// attacker credit, and no hitstop unless the source opts in.
+		/// <para><paramref name="periodicTick"/> (CM-FIXA-PRES) is observation
+		/// only: it books the loss as a periodic tick in the
+		/// <see cref="DamageTaken"/> observation (a drown tick, a stage-hazard
+		/// DPS payout) and changes no value here.</para>
 		/// </summary>
-		public int ApplyEnvironmentalDamage(int damage, bool appliesHitstop = false) {
+		public int ApplyEnvironmentalDamage(int damage, bool appliesHitstop = false, bool periodicTick = false) {
 			// D04: the protected window covers damaging stage hazards too.
 			if (IsDefyProtected) return 0;
 			// V7.6 D03c: an ordinary external damaging hazard (spikes, lava,
@@ -4294,7 +4298,7 @@ namespace FTT.Characters {
 			bool defied = _defyFiredThisHit;
 			_defyFiredThisHit = false;
 			if (damageApplied <= 0) return damageApplied;
-			ObserveDamageTaken(DamageObservationKind.Hazard, damageApplied); // CM-BOT (7.2): observation only
+			ObserveDamageTaken(DamageObservationKind.Hazard, damageApplied, periodicTick); // CM-BOT (7.2): observation only
 
 			float echoAmount = 0f;
 			if (!defied && CurrentState != CharacterState.Dead && CurrentHP > 0 && MaximumHP > 0) {

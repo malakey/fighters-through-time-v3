@@ -228,6 +228,65 @@ public class StoryUltimateActivationTests {
         }, playerIndex: 0, fighterVersion: false);
     }
 
+    /// <summary>
+    /// CM-FIXA-PRES (2026-10-16): a Hard Level 13 Mirror clone is built on the
+    /// Story progression path (<c>MirrorParadoxController</c>: applyStoryProgression
+    /// = MirrorsPurchasedPerks, true on Hard; applyLegacyUnlockLocks: false), so it
+    /// carries the gold hero aura. The wind-up tint is still exactly the canonical
+    /// Unblockable red, the glyph's own colour, not the aura-warmed orange-red;
+    /// the aura warm returns when the wind-up ends.
+    /// </summary>
+    [TestCase]
+    public void AHardMirrorClonesWindupTintIsTheCanonicalUnblockableRedDespiteItsHeroAura() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        StaticBody2D floor = BuildFloor(tree);
+        PlayerController caster = CharacterFactory.CreateCharacter(
+            "einstein", 1, applyStoryProgression: true, applyLegacyUnlockLocks: false);
+        caster.UsesFighterUltimateActivation = true;
+        tree.Root.AddChild(caster);
+        try {
+            caster.GlobalPosition = new Vector2(0f, -8f);
+            Settle(caster);
+            GlowPresentationController glow = caster.Glow;
+            AssertThat(glow.HasHeroAura)
+                .OverrideFailureMessage("Harness fault: the Hard clone build must carry the hero aura.")
+                .IsTrue();
+            Color resting = glow.EffectiveTint;
+            AssertThat(resting)
+                .OverrideFailureMessage("Harness fault: the aura must warm the resting tint.")
+                .IsNotEqual(glow.BaseTint);
+            var sprite = caster.GetNode<AnimatedSprite2D>("AnimatedSprite2D");
+
+            caster.SetUltimateMeter(InfluenceMeterRules.MaxValue);
+            Step(caster, GameplayButtons.Ultimate);
+            AssertThat(caster.UltimateActivationPhase).IsEqual(1);
+            int shown = 0;
+            for (int guard = 0; guard < 60 && caster.UltimateActivationPhase == 1; guard++) {
+                shown++;
+                AssertThat(glow.HasUltimateTelegraph).IsTrue();
+                AssertThat(glow.EffectiveTint)
+                    .OverrideFailureMessage("The wind-up tint is the canonical Unblockable red, not aura-warmed.")
+                    .IsEqual(TelegraphGlyph.UnblockableColor);
+                AssertThat(sprite.Modulate).IsEqual(TelegraphGlyph.UnblockableColor);
+                TelegraphGlyph glyph = UltimateActivationTelegraph.FindGlyph(caster);
+                AssertObject(glyph).IsNotNull();
+                AssertThat(glyph.GlyphColor)
+                    .OverrideFailureMessage("The tint and the X agree: one colour, two channels.")
+                    .IsEqual(glow.EffectiveTint);
+                Step(caster, GameplayButtons.None);
+            }
+            AssertThat(shown > 0).IsTrue();
+            AssertThat(glow.HasUltimateTelegraph).IsFalse();
+            AssertThat(glow.EffectiveTint)
+                .OverrideFailureMessage("The aura warm returns once the wind-up ends.")
+                .IsEqual(resting);
+        } finally {
+            InputManager.Instance?.ClearInputSource(caster.PlayerIndex);
+            caster.Free();
+            floor.Free();
+        }
+    }
+
     private static void Run(Action<PlayerController> body, int playerIndex, bool fighterVersion) {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
         StaticBody2D floor = BuildFloor(tree);

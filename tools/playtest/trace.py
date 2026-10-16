@@ -23,7 +23,9 @@ Anchor Snap) is its own line, its id suffixed #2, #3, ...
 CM-BOT (2026-10-16) adds one "rehits" header line: the hero's damaging hits,
 cross-source re-hits within 30 / 20 frames, the same-source contrast,
 same-frame doubles, status ticks and unobserved hits, then per kind
-"kind=hits/xsrc30".
+"kind=hits/xsrc30". CM-FIXA-PRES (2026-10-16): the summary also carries the
+periodic ticks (ticks, tick_damage) and the combat-only figures
+(xsrc_30_combat, ...), and the line ends with "ticks: kind=n" per kind.
 """
 import json
 import os
@@ -97,9 +99,14 @@ def main(argv):
     # with by_kind folded to "kind=hits/xsrc30" (no gap histogram, no log).
     rehits = report.get("rehits")
     if isinstance(rehits, dict):
-        summary = {k: v for k, v in rehits.items() if k not in ("log", "xsrc_gap_histogram", "by_kind")}
+        summary = {k: v for k, v in rehits.items()
+                   if k not in ("log", "xsrc_gap_histogram", "by_kind", "ticks_by_kind")}
         kinds = " ".join(f"{kind}={row.get('hits', 0)}/{row.get('xsrc_30', 0)}"
                          for kind, row in sorted((rehits.get("by_kind") or {}).items()))
+        # CM-FIXA-PRES: the periodic ticks, counted apart from the hits.
+        ticks = rehits.get("ticks_by_kind") or {}
+        if ticks:
+            kinds += " ticks: " + " ".join(f"{kind}={row.get('ticks', 0)}" for kind, row in sorted(ticks.items()))
         print("rehits", json.dumps(summary), kinds)
     if str(report.get("end_reason", "")).startswith("stuck_lock:"):
         for event in report.get("events") or []:

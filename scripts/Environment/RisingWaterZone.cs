@@ -122,7 +122,8 @@ namespace FTT.Environment {
                 if (_tickTimer[player] > 0f) continue;
                 _tickTimer[player] = Mathf.Max(0.05f, DrownTickSeconds);
                 // V7.3: environmental chokepoint — Defy/echo/meter accounting.
-                int applied = player.ApplyEnvironmentalDamage(DrownDamage);
+                // CM-FIXA-PRES: a drown tick is periodic (observation only).
+                int applied = player.ApplyEnvironmentalDamage(DrownDamage, periodicTick: true);
                 EmitSignal(SignalName.DrownTick, player.PlayerIndex, applied);
             }
         }

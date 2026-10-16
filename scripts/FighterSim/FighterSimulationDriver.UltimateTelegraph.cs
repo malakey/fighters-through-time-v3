@@ -14,11 +14,27 @@ namespace FTT.FighterSim {
         private readonly bool[] _presentedUltimateTelegraph = { false, false };
         private readonly bool[] _cueUltimateWindup = { false, false };
 
-        /// <summary>True while <paramref name="playerID"/>'s activation strike is in its wind-up.</summary>
+        /// <summary>
+        /// True while <paramref name="playerID"/>'s activation strike is in its
+        /// wind-up and the caster is live and free.
+        /// <para>CM-FIXA-PRES (2026-10-16): component 321 alone is one tick late
+        /// on a knockout. <c>AdvanceUltimate</c> clears a fallen or held caster
+        /// at the top of the combat system, but a KO landed later in the same
+        /// tick (a basic swing, a projectile, a zone, a hazard) goes through
+        /// <c>ApplyStockLoss</c>, which leaves 321 in its wind-up until the next
+        /// tick's <c>AdvanceUltimate</c>. The KO tick is the frame the stock-loss
+        /// freeze and the decisive-KO hit-freeze then hold, so the telegraph
+        /// (and the cue) are derived with <c>AdvanceUltimate</c>'s own clear
+        /// conditions: no stocks left, on the respawn platform, or held by a
+        /// grab. Presentation only; no sim state is read differently.</para>
+        /// </summary>
         private bool IsUltimateActivationWindup(int playerID) =>
             Simulation != null
             && Simulation.TryGetFighterUltimateActivation(playerID, out FighterUltimateActivationComponent activation)
-            && activation.Phase == FighterUltimateActivationRules.PhaseWindup;
+            && activation.Phase == FighterUltimateActivationRules.PhaseWindup
+            && Simulation.TryGetFighter(playerID, out FighterStateComponent caster)
+            && !FighterStockLossRules.IsFallen(in caster)
+            && !(Simulation.TryGetFighterVerb(playerID, out FighterVerbComponent verb) && verb.BeingHeld != 0);
 
         /// <summary>
         /// The red tint plus the Unblockable X for exactly the wind-up: shown on

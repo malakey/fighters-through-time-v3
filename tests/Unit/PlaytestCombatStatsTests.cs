@@ -520,6 +520,114 @@ public class PlaytestCombatStatsTests {
         }
     }
 
+    /// <summary>
+    /// CM-FIXA-PRES (2026-10-16): a real <see cref="FTT.Environment.RisingWaterZone"/> drown tick
+    /// reaches the telemetry as a periodic tick (<c>HitDelivery.Tick</c> through
+    /// the environmental chokepoint), so a mob's hit 10 frames later is no
+    /// cross-source re-hit; a discrete hazard contact through the same
+    /// chokepoint is still a hit and a headline predecessor, but not a
+    /// combat-only one. Every HP loss is still observed.
+    /// </summary>
+    [TestCase]
+    public async Task ADrownTickIsAPeriodicTickAndAHazardContactIsNoCombatPredecessor() {
+        var tree = (SceneTree)Engine.GetMainLoop();
+        var probe = new TelemetryTickProbe { Name = "TelemetryTickProbe" };
+        tree.Root.AddChild(probe);
+        StaticBody2D floor = CreateFloor();
+        EnemyController mob = null;
+        PlayerController hero = null;
+        FTT.Environment.RisingWaterZone water = null;
+        PlaytestWorld world = null;
+        PlaytestTelemetry telemetry = null;
+        try {
+            mob = CreatePassiveMob("chrono_slasher", new Vector2(OriginX + 400f, 0f));
+            var source = new BufferedInputSource();
+            InputManager.Instance.SetInputSource(0, source);
+            source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, GameplayButtons.None));
+
+            hero = await SpawnHeroAsync(tree);
+            // The water line 200 px above the hero's feet, no grace, a tick due on
+            // the first submersion step; disabled so only the explicit step ticks.
+            water = new FTT.Environment.RisingWaterZone {
+                Name = "CmFixaPresWater",
+                Enabled = false,
+                DrownGraceSeconds = 0f,
+                DrownTickSeconds = 0.05f,
+                DrownDamage = 4,
+                LabelKey = ""
+            };
+            tree.Root.AddChild(water);
+            water.GlobalPosition = new Vector2(OriginX, hero.GlobalPosition.Y - 200f);
+            world = new PlaytestWorld(tree);
+            telemetry = new PlaytestTelemetry();
+            telemetry.Attach(world, bot: null);
+            probe.Telemetry = telemetry;
+            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+
+            int hpBefore = hero.CurrentHP;
+            AssertThat(water.AddPlayer(hero)).IsTrue();
+            AssertThat(water.IsPlayerSubmerged(hero)).IsTrue();
+            water.TickSubmersion(0.1f);
+            AssertThat(hero.CurrentHP)
+                .OverrideFailureMessage("Harness fault: the drown tick dealt no damage.")
+                .IsEqual(hpBefore - 4);
+            for (int frame = 0; frame < 10; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            HitPayload afterDrown = AttackHitboxOf(mob).CreatePayload(0);
+            AssertThat(hero.TakeDamage(in afterDrown) > 0f)
+                .OverrideFailureMessage("Harness fault: the mob hit dealt no damage.")
+                .IsTrue();
+
+            RehitTracker rehits = telemetry.Rehits;
+            AssertThat(rehits.Ticks)
+                .OverrideFailureMessage("The drown tick is booked as a periodic tick.")
+                .IsEqual(1);
+            AssertThat(rehits.TicksByKind[RehitTracker.KindHazard].Ticks).IsEqual(1);
+            AssertThat(rehits.Hits).IsEqual(1);
+            AssertThat(rehits.CrossSource30)
+                .OverrideFailureMessage("A drown tick is never the predecessor of a mob re-hit.")
+                .IsEqual(0);
+
+            // Out of the water; then a discrete hazard contact (a discharge-style
+            // hit through the same chokepoint) and the mob again 10 frames later.
+            water.RemovePlayer(hero);
+            for (int frame = 0; frame < 40; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(hero.ApplyEnvironmentalDamage(5) > 0)
+                .OverrideFailureMessage("Harness fault: the hazard contact dealt no damage.")
+                .IsTrue();
+            for (int frame = 0; frame < 10; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            HitPayload afterContact = AttackHitboxOf(mob).CreatePayload(0);
+            hero.TakeDamage(in afterContact);
+            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+
+            AssertThat(rehits.Hits).IsEqual(3);
+            AssertThat(rehits.Ticks).IsEqual(1);
+            AssertThat(rehits.CrossSource30)
+                .OverrideFailureMessage("A discrete hazard contact stays a headline predecessor.")
+                .IsEqual(1);
+            AssertThat(rehits.CrossSource30Combat)
+                .OverrideFailureMessage("A hazard contact is never a combat-only predecessor.")
+                .IsEqual(0);
+            AssertThat(rehits.Log.Count).IsEqual(3);
+            AssertThat(rehits.Log[2].CrossKind).IsEqual(RehitTracker.KindHazard);
+            AssertThat(telemetry.UnobservedHeroHits)
+                .OverrideFailureMessage("Every HP loss the bus carried was observed, the tick included.")
+                .IsEqual(0);
+            AssertThat((int)telemetry.CombatSummary()["xsrc_rehits"]).IsEqual(1);
+            AssertThat((int)telemetry.CombatSummary()["xsrc_rehits_combat"]).IsEqual(0);
+        } finally {
+            probe.Telemetry = null;
+            telemetry?.FinishPending();
+            telemetry?.Detach();
+            world?.Detach();
+            InputManager.Instance?.ClearInputSource(0);
+            if (water != null && GodotObject.IsInstanceValid(water)) water.Free();
+            if (hero != null && GodotObject.IsInstanceValid(hero)) hero.Free();
+            if (mob != null && GodotObject.IsInstanceValid(mob)) mob.Free();
+            floor.Free();
+            probe.Free();
+        }
+    }
+
     /// <summary>Joan on the floor at the origin, settled for 10 physics frames.</summary>
     private static async Task<PlayerController> SpawnHeroAsync(SceneTree tree) {
         PlayerController hero = CharacterFactory.CreateCharacter("joan", 0);

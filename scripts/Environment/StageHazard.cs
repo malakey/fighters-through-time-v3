@@ -82,7 +82,8 @@ namespace FTT.Environment {
                         ulong id = pc.GetInstanceId();
                         float owed = _damageOwed.GetValueOrDefault(id);
                         int due = AccumulateDamage(ref owed, Damage, dt);
-                        if (due > 0) pc.ApplyEnvironmentalDamage(due);
+                        // CM-FIXA-PRES: a DPS payout is periodic (observation only).
+                        if (due > 0) pc.ApplyEnvironmentalDamage(due, periodicTick: true);
                         _damageOwed[id] = owed;
                     }
                 }

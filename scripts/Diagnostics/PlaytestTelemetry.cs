@@ -977,7 +977,7 @@ namespace FTT.Diagnostics {
         /// non-hit death (<c>KillPlayerNonHit</c>, a lethal pit) is the one
         /// expected cause; no campaign level authors one today.
         /// </summary>
-        public int UnobservedHeroHits => PlayerHitsTaken - (_rehits.Hits + _rehits.StatusTicks);
+        public int UnobservedHeroHits => PlayerHitsTaken - (_rehits.Hits + _rehits.Ticks);
 
         private void EnsureDamageSubscription(PlayerController player) {
             ulong id = player?.GetInstanceId() ?? 0UL;
@@ -1005,10 +1005,16 @@ namespace FTT.Diagnostics {
         /// </summary>
         private int ObservationFrame() => Engine.GetPhysicsFrames() == _tickedPhysicsFrame ? Frame : Frame + 1;
 
-        /// <summary>Records one hero HP loss (may run inside the physics flush: read-only).</summary>
+        /// <summary>
+        /// Records one hero HP loss (may run inside the physics flush: read-only).
+        /// A <see cref="HitDelivery.Tick"/> observation — a status tick, a zone
+        /// pulse, a periodic environmental tick (CM-FIXA-PRES) — is booked as a
+        /// periodic tick, apart from the hits and out of every re-hit figure.
+        /// </summary>
         private void OnHeroDamageTaken(PlayerDamageObservation observation) {
             (string source, string label, string kind) = RehitSourceOf(in observation);
-            _rehits.Record(ObservationFrame(), source, kind, observation.Damage, label);
+            _rehits.Record(ObservationFrame(), source, kind, observation.Damage, label,
+                tick: observation.Delivery == HitDelivery.Tick);
         }
 
         /// <summary>
@@ -1064,10 +1070,26 @@ namespace FTT.Diagnostics {
             ["xsrc_20"] = c.Cross20,
             ["same_30"] = c.Same30,
             ["same_20"] = c.Same20,
-            ["xsrc_damage_30"] = c.CrossDamage30
+            ["xsrc_damage_30"] = c.CrossDamage30,
+            ["xsrc_30_combat"] = c.Cross30Combat
         };
 
-        /// <summary>The <c>rehits</c> report block (CM-BOT, decision 7.2).</summary>
+        /// <summary>
+        /// The <c>rehits</c> report block (CM-BOT, decision 7.2; amended by
+        /// CM-FIXA-PRES). <c>hits</c> and every <c>xsrc_*</c> / <c>same_*</c>
+        /// figure count hits only: a periodic tick (a status tick, a zone pulse,
+        /// a drown tick, a stage-hazard DPS payout — any
+        /// <see cref="HitDelivery.Tick"/> observation) is neither a re-hit nor a
+        /// predecessor, and is counted apart in <c>ticks</c>, <c>tick_damage</c>
+        /// and <c>ticks_by_kind</c> (<c>status_ticks</c> is its Venom subset).
+        /// <c>by_kind</c> holds hits only and books a re-hit under the kind of
+        /// the <i>second</i> hit, so it cannot remove a hazard predecessor; the
+        /// <c>*_combat</c> figures leave hazard contacts out on both sides (the
+        /// mob, boss and Mirror re-hits alone, over <c>combat_hits</c>). The log
+        /// lists hits only, each with its unique source <c>key</c> (<c>src</c> is
+        /// the readable label, shared by two mobs of one type) and its combat
+        /// verdict <c>xc</c>.
+        /// </summary>
         private Dictionary<string, object> RehitsReport() {
             RehitTracker r = _rehits;
             return new Dictionary<string, object> {
@@ -1076,6 +1098,8 @@ namespace FTT.Diagnostics {
                 ["hits"] = r.Hits,
                 ["hit_damage"] = r.HitDamage,
                 ["status_ticks"] = r.StatusTicks,
+                ["ticks"] = r.Ticks,
+                ["tick_damage"] = r.TickDamage,
                 ["xsrc_30"] = r.CrossSource30,
                 ["xsrc_20"] = r.CrossSource20,
                 ["same_30"] = r.SameSource30,
@@ -1083,16 +1107,27 @@ namespace FTT.Diagnostics {
                 ["xsrc_same_frame"] = r.CrossSourceSameFrame,
                 ["xsrc_damage_30"] = r.CrossSourceDamage30,
                 ["xsrc_pct"] = r.Hits > 0 ? Math.Round(100.0 * r.CrossSource30 / r.Hits, 1) : -1.0,
+                ["combat_hits"] = r.CombatHits,
+                ["xsrc_30_combat"] = r.CrossSource30Combat,
+                ["xsrc_20_combat"] = r.CrossSource20Combat,
+                ["xsrc_damage_30_combat"] = r.CrossSourceDamage30Combat,
+                ["xsrc_combat_pct"] = r.CombatHits > 0 ? Math.Round(100.0 * r.CrossSource30Combat / r.CombatHits, 1) : -1.0,
                 ["unobserved_hits"] = UnobservedHeroHits,
                 ["xsrc_gap_histogram"] = r.CrossGapHistogram.ToDictionary(kv => kv.Key.ToString(), kv => (object)kv.Value),
                 ["by_kind"] = r.ByKind.ToDictionary(kv => kv.Key, kv => (object)RehitKindRow(kv.Value)),
+                ["ticks_by_kind"] = r.TicksByKind.ToDictionary(kv => kv.Key, kv => (object)new Dictionary<string, object> {
+                    ["ticks"] = kv.Value.Ticks,
+                    ["damage"] = kv.Value.Damage
+                }),
                 ["log"] = r.Log.Select(e => (object)new Dictionary<string, object> {
                     ["f"] = e.Frame,
                     ["kind"] = e.Kind,
                     ["src"] = e.Label,
+                    ["key"] = e.Source,
                     ["dmg"] = e.Damage,
                     ["x"] = e.Cross30,
                     ["x20"] = e.Cross20,
+                    ["xc"] = e.Cross30Combat,
                     ["s"] = e.Same30,
                     ["sf"] = e.CrossSameFrame,
                     ["xgap"] = e.CrossGap,
@@ -1619,7 +1654,9 @@ namespace FTT.Diagnostics {
                 ["mob_whiff_pct"] = MobWhiffPercent(),
                 ["policy"] = PressPolicy,
                 // CM-BOT (7.2): hero hits taken within 30 frames of another source's hit.
-                ["xsrc_rehits"] = _rehits.CrossSource30
+                ["xsrc_rehits"] = _rehits.CrossSource30,
+                // CM-FIXA-PRES: the same with hazard contacts out on both sides.
+                ["xsrc_rehits_combat"] = _rehits.CrossSource30Combat
             };
         }
 
