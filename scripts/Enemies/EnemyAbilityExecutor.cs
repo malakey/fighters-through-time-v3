@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using FTT.Combat;
 using FTT.Core;
 
 namespace FTT.Enemies {
@@ -836,13 +837,12 @@ namespace FTT.Enemies {
         // promise holds roster-wide. V7.3 (ruling #11) makes the telegraph
         // dual-channel: the same class flags also pick a drawn glyph shape
         // (circle / diamond / X), so the promise reads without colour vision.
-        private static readonly Color GuardCrushTelegraph = new(1f, 0.6f, 0.15f);
-        private static readonly Color UnblockableTelegraph = new(1f, 0.25f, 0.2f);
+        // CM-ULT (2026-10-16): the three colours live once, on TelegraphGlyph.
 
         /// <summary>The Basic-class white/yellow family default, shared with the
         /// legacy scalar-melee fallback so no mob telegraph sits outside the
-        /// three-colour language.</summary>
-        public static readonly Color BasicTelegraph = new(1f, 0.95f, 0.6f);
+        /// three-colour language. Forwards to <see cref="TelegraphGlyph.BasicColor"/>.</summary>
+        public static readonly Color BasicTelegraph = TelegraphGlyph.BasicColor;
 
         private TelegraphGlyph _glyph;
 
@@ -857,8 +857,8 @@ namespace FTT.Enemies {
             : TelegraphGlyphShape.Basic;
 
         private Color TelegraphColor() {
-            if (ActiveUnblockable) return UnblockableTelegraph;
-            if (ActiveGuardCrush) return GuardCrushTelegraph;
+            if (ActiveUnblockable) return TelegraphGlyph.UnblockableColor;
+            if (ActiveGuardCrush) return TelegraphGlyph.GuardCrushColor;
             return ActiveAbility?.TelegraphTint ?? BasicTelegraph;
         }
 
