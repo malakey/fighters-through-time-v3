@@ -32,10 +32,26 @@ namespace FTT.FighterSim {
         private const int DecisionIntervalTicks = 3;
         private const int ScheduleCapacity = 128;
 
-        /// <summary>Frames an edge button stays held before the forced release.</summary>
+        /// <summary>
+        /// Frames an edge button stays held before the forced release. Jump is
+        /// the one exception since 2026-10-16 (ledger <c>FIX-CPU-JUMP-HOLD</c>):
+        /// once its pulse finishes, <see cref="_jumpSustained"/> keeps it held
+        /// for a full hop, so neither the Story short-hop band nor (from 5.1) the
+        /// sim's cuts a CPU jump.
+        /// </summary>
         private const int EdgeHoldFrames = 2;
         /// <summary>Frames the edge bits stay clear so the next press is a real edge.</summary>
         private const int EdgeReleaseGapFrames = 1;
+
+        /// <summary>
+        /// The sustained Jump hold ends once the fighter falls faster than this
+        /// (2 u/s): just past the apex-hang band (|vy| &lt; 2 u/s), so a held
+        /// hop keeps its hang. Raw FP64, +Y up.
+        /// </summary>
+        private static readonly long JumpSustainReleaseVelocityRaw = FP64.FromInt(-2).RawValue;
+
+        /// <summary>The longest the CPU holds Jump after its pulse (a safety cap, *provisional*).</summary>
+        public const int JumpSustainMaxFrames = 45;
 
         /// <summary>
         /// Buttons the simulation reads from the <i>pressed edge</i>. They are pulsed
@@ -116,6 +132,16 @@ namespace FTT.FighterSim {
         private GameplayButtons _pendingEdges;
         private int _edgeFramesRemaining;
         private int _edgeGapFramesRemaining;
+
+        // === 1.1(5) the held hop (2026-10-16; input-side, outside the snapshot
+        // like _pendingEdges) ===
+        /// <summary>
+        /// True while Jump stays held after its edge pulse finished, so a CPU jump
+        /// is a full hop. Set when a Jump-carrying pulse ends its hold; cleared
+        /// by <see cref="UpdateJumpSustain"/> and before the next Jump press.
+        /// </summary>
+        private bool _jumpSustained;
+        private int _jumpSustainFrames;
 
         // === V7.4 hitstun defense (input-side only; no combat-rules change) ===
         /// <summary>
@@ -371,8 +397,11 @@ namespace FTT.FighterSim {
             }
 
             AdvanceEdgePulse();
+            UpdateJumpSustain(in observation);
             GameplayButtons held = ApplyHitstunDefense(
-                in observation, _sustainedHeld | _activeEdges, ref outputMoveX);
+                in observation,
+                _sustainedHeld | _activeEdges | (_jumpSustained ? GameplayButtons.Jump : GameplayButtons.None),
+                ref outputMoveX);
             return PlayerInputFrame.Create(
                 tick, outputMoveX / 127f, outputMoveY / 127f,
                 held, previousFrame.Held);
@@ -444,6 +473,9 @@ namespace FTT.FighterSim {
             // landing while Block is held would read as the grab chord, and a
             // grabbing fighter has no functioning shield (V7.3) — the committed
             // escape stance must never convert itself into a grab attempt.
+            // It also ends a sustained Jump hold (1.1(5)), so the hop never
+            // resumes underneath the stance once the hold releases.
+            EndJumpSustain();
             held = GameplayButtons.Block;
             // M05 (Package 12 W3b): DI only matters on a LAUNCH. A non-launching
             // hit leaves a grounded victim on the floor (grounded knockback), so
@@ -490,11 +522,20 @@ namespace FTT.FighterSim {
         /// Runs the press → hold → release → gap cycle for edge buttons. A pending
         /// decision waits for the gap to clear, so every scheduled action reaches the
         /// simulation as its own <c>Pressed</c> edge.
+        ///
+        /// <para>1.1(5) (2026-10-16): a pulse carrying Jump hands its hold to the
+        /// sustained Jump instead of releasing it, so the hop is held. A pending
+        /// press carrying Jump while that hold runs first releases Jump for
+        /// <see cref="EdgeReleaseGapFrames"/> tick(s), so a double jump is still
+        /// its own edge; that queued jump therefore arrives one tick later than
+        /// before (it amends <c>PROVISIONAL-MOVEMENT-FEEL-RULES</c> (9), whose
+        /// delivery revalidation reads the same self-state).</para>
         /// </summary>
         private void AdvanceEdgePulse() {
             if (_edgeFramesRemaining > 0) {
                 _edgeFramesRemaining--;
                 if (_edgeFramesRemaining <= 0) {
+                    if ((_activeEdges & GameplayButtons.Jump) != 0) BeginJumpSustain();
                     _activeEdges = GameplayButtons.None;
                     _edgeGapFramesRemaining = EdgeReleaseGapFrames;
                 }
@@ -505,9 +546,46 @@ namespace FTT.FighterSim {
                 return;
             }
             if (_pendingEdges == GameplayButtons.None) return;
+            if (_jumpSustained && (_pendingEdges & GameplayButtons.Jump) != 0) {
+                // This tick is the release; the press follows after the rest of
+                // the gap (none at EdgeReleaseGapFrames = 1).
+                EndJumpSustain();
+                _edgeGapFramesRemaining = EdgeReleaseGapFrames - 1;
+                return;
+            }
             _activeEdges = _pendingEdges;
             _pendingEdges = GameplayButtons.None;
             _edgeFramesRemaining = EdgeHoldFrames;
+        }
+
+        private void BeginJumpSustain() {
+            _jumpSustained = true;
+            _jumpSustainFrames = 0;
+        }
+
+        private void EndJumpSustain() {
+            _jumpSustained = false;
+            _jumpSustainFrames = 0;
+        }
+
+        /// <summary>
+        /// 1.1(5): ends the sustained Jump hold on self-state — once the fighter
+        /// falls at <see cref="JumpSustainReleaseVelocityRaw"/> or faster (just
+        /// past the apex hang), on the ground, in hitstun or daze, out of stocks,
+        /// or after <see cref="JumpSustainMaxFrames"/> ticks. Self-state only, no
+        /// RNG draw and no schedule entry, like the other reflexes here.
+        /// </summary>
+        private void UpdateJumpSustain(in CpuDecisionObservation observation) {
+            if (!_jumpSustained) return;
+            _jumpSustainFrames++;
+            if (_jumpSustainFrames > JumpSustainMaxFrames
+                || observation.SelfVelocityYRaw <= JumpSustainReleaseVelocityRaw
+                || observation.IsGrounded != 0
+                || observation.HitstunFrames > 0
+                || observation.DazeFrames > 0
+                || observation.Stocks <= 0) {
+                EndJumpSustain();
+            }
         }
 
         /// <summary>
