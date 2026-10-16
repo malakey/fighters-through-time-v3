@@ -55,6 +55,16 @@ internal sealed class FakeInputDeviceProbe : IInputDeviceProbe {
         return JoyButton.Invalid;
     }
 
+    /// <summary>The first mouse button an action is bound to in the live InputMap.</summary>
+    public static MouseButton MouseButtonFor(string action) {
+        Godot.Collections.Array<InputEvent> events = InputMap.ActionGetEvents(action);
+        using var lifetime = events.AsDisposable();
+        foreach (InputEvent inputEvent in events) {
+            if (inputEvent is InputEventMouseButton mouse) return mouse.ButtonIndex;
+        }
+        return MouseButton.None;
+    }
+
     /// <summary>The first physical key an action is bound to in the live InputMap.</summary>
     public static Key KeyFor(string action) {
         Godot.Collections.Array<InputEvent> events = InputMap.ActionGetEvents(action);

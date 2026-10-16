@@ -230,6 +230,132 @@ public class InputDeviceFollowTests {
         }
     }
 
+    /// <summary>
+    /// CM-FIXA-INPUT (2026-10-16): the triggers are axes, not buttons, and the
+    /// poll used to read only buttons and the left stick — so the default pad
+    /// Block (LT) and Roll (RT) never took player 1 off the keyboard, and the
+    /// hero read no Block. A bound axis crossing out of its action's deadzone is
+    /// now activity, and the pull that moves the slot reaches the game as a
+    /// fresh edge; a trigger resting inside the deadzone is not.
+    /// </summary>
+    [TestCase]
+    public void ATriggerPullMovesPlayerOneAndItsFirstFrameCarriesTheVerb() {
+        InputManager input = InputManager.Instance;
+        AssertObject(input).IsNotNull();
+        FakeInputDeviceProbe probe = FakeInputDeviceProbe.Install(input, PadA);
+        try {
+            input.AutoAssignDevices();
+            input.BlockModeOverrideForTesting = BlockMode.Hold;
+            Tick(input);
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(InputManager.KeyboardDevice);
+
+            // A trigger resting a little in, inside Block's 0.5 deadzone.
+            probe.SetAxis(PadA, JoyAxis.TriggerLeft, 0.3f);
+            Tick(input);
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(InputManager.KeyboardDevice);
+
+            probe.SetAxis(PadA, JoyAxis.TriggerLeft, 1.0f);
+            PlayerInputFrame block = Tick(input);
+            AssertThat(input.GetDeviceForPlayer(0))
+                .OverrideFailureMessage("Pulling LT did not move player 1 onto the pad.")
+                .IsEqual(PadA);
+            AssertThat(block.IsPressed(GameplayButtons.Block))
+                .OverrideFailureMessage("The LT pull that moved player 1 did not reach the game as a Block press.")
+                .IsTrue();
+
+            // Back to the keyboard, then RT: the same for Roll.
+            probe.SetAxis(PadA, JoyAxis.TriggerLeft, 0f);
+            Tick(input);
+            Key space = FakeInputDeviceProbe.KeyFor(InputManager.Actions.Jump);
+            probe.SetKey(space, true);
+            Tick(input);
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(InputManager.KeyboardDevice);
+            probe.SetKey(space, false);
+            Tick(input);
+            probe.SetAxis(PadA, JoyAxis.TriggerRight, 1.0f);
+            PlayerInputFrame roll = Tick(input);
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(PadA);
+            AssertThat(roll.IsPressed(GameplayButtons.Roll)).IsTrue();
+        } finally {
+            probe.ReleaseAll();
+            FakeInputDeviceProbe.Restore(input);
+        }
+    }
+
+    /// <summary>
+    /// CM-FIXA-INPUT (2026-10-16; decision 9.1 read literally): beginning a local
+    /// join pre-claims no slot — not even the device that drove the menus. The
+    /// first device to make a join press is player 1 and the next different one
+    /// player 2, a left click (Basic Attack) joining the keyboard-and-mouse
+    /// device. A slot 0 nobody claimed falls back to the keyboard when the join ends.
+    /// </summary>
+    [TestCase]
+    public void ALocalJoinPreClaimsNoSlotAndTheFirstTwoDevicesToPressAreTheTwoPlayers() {
+        InputManager input = InputManager.Instance;
+        AssertObject(input).IsNotNull();
+        FakeInputDeviceProbe probe = FakeInputDeviceProbe.Install(input, PadA, PadB);
+        try {
+            input.AutoAssignDevices();
+            Tick(input);
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(InputManager.KeyboardDevice);
+            input.BeginLocalJoin();
+            AssertThat(input.GetDeviceForPlayer(0))
+                .OverrideFailureMessage("The keyboard that drove the menus was pre-claimed as player 1.")
+                .IsEqual(InputManager.UnassignedDevice);
+            AssertThat(input.HasFreeSlot()).IsTrue();
+            AssertThat(input.AnySlotJoined()).IsFalse();
+
+            // The join press an unclaimed pad makes is a GUI event the select consumes.
+            var padBPress = new InputEventJoypadButton { Device = PadB, ButtonIndex = JoyButton.B, Pressed = true };
+            AssertThat(input.IsJoinPressFromUnclaimedDevice(padBPress)).IsTrue();
+            AssertThat(input.IsJoinPressFromUnclaimedDevice(new InputEventKey { PhysicalKeycode = Key.Escape, Pressed = true }))
+                .OverrideFailureMessage("Escape is not a join press.")
+                .IsFalse();
+
+            probe.SetButton(PadB, JoyButton.B, true);
+            PlayerInputFrame first = Tick(input);
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(PadB);
+            AssertThat(first.Pressed)
+                .OverrideFailureMessage("The press that joined player 1 also reached the game.")
+                .IsEqual(GameplayButtons.None);
+            AssertThat(input.IsJoinPressFromUnclaimedDevice(padBPress))
+                .OverrideFailureMessage("A claimed pad's press is still read as a join.")
+                .IsFalse();
+
+            MouseButton click = FakeInputDeviceProbe.MouseButtonFor(InputManager.Actions.BasicAttack);
+            AssertThat(click).IsNotEqual(MouseButton.None);
+            probe.SetMouse(click, true);
+            Tick(input);
+            AssertThat(input.GetDeviceForPlayer(1))
+                .OverrideFailureMessage("A left click did not join the keyboard and mouse as player 2.")
+                .IsEqual(InputManager.KeyboardDevice);
+            AssertThat(input.HasFreeSlot()).IsFalse();
+
+            // No free slot: a third device's press joins nothing and is not consumed.
+            var padAPress = new InputEventJoypadButton { Device = PadA, ButtonIndex = JoyButton.A, Pressed = true };
+            AssertThat(input.IsJoinPressFromUnclaimedDevice(padAPress)).IsFalse();
+            probe.SetButton(PadA, JoyButton.A, true);
+            Tick(input);
+            AssertThat(input.GetPlayerForDevice(PadA)).IsEqual(-1);
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(PadB);
+
+            // Ending the join keeps player 1's device.
+            input.EndLocalJoin();
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(PadB);
+            AssertThat(input.GetDeviceForPlayer(1)).IsEqual(InputManager.UnassignedDevice);
+
+            // A join nobody pressed into hands slot 0 back to the keyboard.
+            input.BeginLocalJoin();
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(InputManager.UnassignedDevice);
+            input.EndLocalJoin();
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(InputManager.KeyboardDevice);
+            AssertThat(input.JoinMode).IsEqual(LocalJoinMode.FollowLastUsed);
+        } finally {
+            probe.ReleaseAll();
+            FakeInputDeviceProbe.Restore(input);
+        }
+    }
+
     [TestCase]
     public void ALoadToAStageKeepsTheJoinAndALoadToTheMenuOrHubEndsIt() {
         InputManager input = InputManager.Instance;

@@ -45,6 +45,76 @@ public class UltimateChordWindowTests {
         public bool Waiting => _window.IsWaiting;
 
         public void Reset() => _window.Reset();
+
+        public void ForgetWaits() => _window.ForgetWaits();
+    }
+
+    /// <summary>
+    /// CM-FIXA-INPUT (2026-10-16): a pause or a focus loss forgets waits only.
+    /// LB + RB that cast the Ultimate and are still held when the pause opens stay
+    /// masked across it, so once the meter is spent (no longer lenient) the
+    /// resume tick carries no Movement Ability or Special 2 press, and letting go
+    /// fires nothing. Until the fix the pause dropped the masks with the waits.
+    /// </summary>
+    [TestCase]
+    public void APauseKeepsAHeldChordsMasksSoItsComponentsNeverFireOnTheWayBack() {
+        var pad = new Pad();
+        AssertThat(pad.Step(lb: true, rb: true).IsPressed(GameplayButtons.Ultimate)).IsTrue();
+        // The Ultimate is cast and the meter spent: no longer affordable, still held.
+        pad.Affordable = false;
+        AssertThat(pad.Step(lb: true, rb: true).Held).IsEqual(GameplayButtons.Ultimate);
+
+        pad.ForgetWaits();
+        for (int frame = 0; frame < 2 * Window; frame++) {
+            PlayerInputFrame resumed = pad.Step(lb: true, rb: true);
+            AssertThat(resumed.Held)
+                .OverrideFailureMessage($"Frame {frame} after the pause: the held chord leaked {resumed.Held}.")
+                .IsEqual(GameplayButtons.Ultimate);
+            AssertThat(resumed.Pressed).IsEqual(GameplayButtons.None);
+        }
+        // Letting go of either shoulder, then the other, fires nothing.
+        AssertThat(pad.Step(lb: false, rb: true).Held).IsEqual(GameplayButtons.None);
+        AssertThat(pad.Step(lb: false, rb: false).Held).IsEqual(GameplayButtons.None);
+        // The released shoulders are ordinary buttons again.
+        AssertThat(pad.Step(lb: true, rb: false).IsPressed(GameplayButtons.MovementAbility)).IsTrue();
+
+        // A lone shoulder held through the pause after its window ran out is still
+        // the same press, held: no release and no second edge.
+        var lone = new Pad();
+        for (int frame = 0; frame <= Window; frame++) lone.Step(lb: true, rb: false);
+        AssertThat(lone.Step(lb: true, rb: false).IsHeld(GameplayButtons.MovementAbility)).IsTrue();
+        lone.ForgetWaits();
+        PlayerInputFrame heldOn = lone.Step(lb: true, rb: false);
+        AssertThat(heldOn.IsHeld(GameplayButtons.MovementAbility)).IsTrue();
+        AssertThat(heldOn.IsPressed(GameplayButtons.MovementAbility)).IsFalse();
+        AssertThat(heldOn.IsReleased(GameplayButtons.MovementAbility)).IsFalse();
+    }
+
+    /// <summary>
+    /// CM-FIXA-INPUT (2026-10-16): what a pause does forget is a wait. A lone
+    /// shoulder still waiting for its partner when the pause opens and let go
+    /// while away never comes back as a one-frame tap; held on, it starts a fresh
+    /// wait and then presses once.
+    /// </summary>
+    [TestCase]
+    public void APauseForgetsAWaitingShoulderSoALetGoNeverComesBackAsATap() {
+        var released = new Pad();
+        AssertThat(released.Step(lb: true, rb: false).Held).IsEqual(GameplayButtons.None);
+        AssertThat(released.Waiting).IsTrue();
+        released.ForgetWaits();
+        AssertThat(released.Waiting).IsFalse();
+        for (int frame = 0; frame < Window + 2; frame++) {
+            AssertThat(released.Step(lb: false, rb: false).Held).IsEqual(GameplayButtons.None);
+        }
+
+        var heldOn = new Pad();
+        heldOn.Step(lb: true, rb: false);
+        heldOn.ForgetWaits();
+        int presses = 0;
+        for (int frame = 0; frame < Window + 3; frame++) {
+            if (heldOn.Step(lb: true, rb: false).IsPressed(GameplayButtons.MovementAbility)) presses++;
+        }
+        AssertThat(presses).IsEqual(1);
     }
 
     [TestCase]

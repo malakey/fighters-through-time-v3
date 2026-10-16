@@ -426,7 +426,9 @@ public class CharacterSelectSceneTests {
     // ---- 9.1 press-to-join (2026-10-16, CM-INPUT) ---------------------------
     // Real physics frames: the screen polls InputManager once per engine tick,
     // and the manager polls the (fake) devices before sampling, so the join and
-    // the seeded first frame are exercised end to end.
+    // the seeded first frame are exercised end to end. Since CM-FIXA-INPUT
+    // (2026-10-16) the join pre-claims no slot: the first device to press is
+    // Player 1, the next different one Player 2.
 
     [TestCase]
     public async Task NoPlayerTwoTokenAppearsUntilPadBPressesAndThatPressConfirmsNothing() {
@@ -437,10 +439,16 @@ public class CharacterSelectSceneTests {
         CharacterSelectScreen screen = Open(out Node host);
         SceneTree tree = screen.GetTree();
         JoyButton confirm = FakeInputDeviceProbe.PadButtonFor(InputManager.Actions.BasicAttack);
+        Key interact = FakeInputDeviceProbe.KeyFor(InputManager.Actions.Interact);
         var prompt = screen.GetNode<Label>(SelectRoot + "PlayersRow/P2Panel/P2JoinPrompt");
         try {
             AssertThat(input.JoinMode).IsEqual(LocalJoinMode.Joined);
             await Frames(tree, 2);
+            // Player 1 joins first, on the keyboard.
+            probe.SetKey(interact, true);
+            await Frames(tree, 3);
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(InputManager.KeyboardDevice);
+            AssertThat(screen.IsSlotReady(0)).IsFalse();
             AssertThat(screen.IsPlayerTwoJoined).IsFalse();
             AssertThat(prompt.Visible).IsTrue();
             AssertThat(prompt.Text).IsEqual("select_press_to_join");
@@ -481,11 +489,21 @@ public class CharacterSelectSceneTests {
         input.AssignJoypadToPlayer(0, 0);
         CharacterSelectScreen screen = Open(out Node host);
         SceneTree tree = screen.GetTree();
+        JoyButton confirm = FakeInputDeviceProbe.PadButtonFor(InputManager.Actions.BasicAttack);
         try {
-            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(0);
+            // The pad that drove the menus is not pre-claimed: its own press joins it.
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(InputManager.UnassignedDevice);
             await Frames(tree, 2);
             probe.SetButton(0, JoyButton.A, true);
-            probe.SetButton(0, FakeInputDeviceProbe.PadButtonFor(InputManager.Actions.BasicAttack), true);
+            await Frames(tree, 3);
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(0);
+            // Further presses on it are Player 1's own, never a second join.
+            probe.SetButton(0, confirm, true);
+            await Frames(tree, 3);
+            probe.SetButton(0, JoyButton.A, false);
+            probe.SetButton(0, confirm, false);
+            await Frames(tree, 2);
+            probe.SetButton(0, JoyButton.A, true);
             await Frames(tree, 3);
             AssertThat(input.GetDeviceForPlayer(1))
                 .OverrideFailureMessage("Player 1's pad also claimed Player 2's slot.")
@@ -512,6 +530,9 @@ public class CharacterSelectSceneTests {
         try {
             AssertThat(interact).IsNotEqual(Key.None);
             await Frames(tree, 2);
+            probe.SetButton(0, JoyButton.A, true);
+            await Frames(tree, 3);
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(0);
             AssertThat(screen.IsPlayerTwoJoined).IsFalse();
             probe.SetKey(interact, true);
             await Frames(tree, 3);
@@ -525,6 +546,290 @@ public class CharacterSelectSceneTests {
             FakeInputDeviceProbe.Restore(input);
         }
     }
+
+    /// <summary>
+    /// CM-FIXA-INPUT (2026-10-16; decision 9.1 read literally): with the menus
+    /// driven by the keyboard or mouse, the keyboard used to stay pre-claimed as
+    /// Player 1, so pad A joined as Player 2 and pad B could not join at all. Now
+    /// no slot is pre-claimed, so two pads always both join; neither joining press
+    /// confirms a tile, and the keyboard, now a spare device, can neither join nor
+    /// back the players out. Before anyone has joined, any device's cancel still
+    /// leaves the screen.
+    /// </summary>
+    [TestCase]
+    public async Task TwoPadsBothJoinAfterKeyboardDrivenMenus() {
+        InputManager input = InputManager.Instance;
+        if (input == null) return;
+        FakeInputDeviceProbe probe = FakeInputDeviceProbe.Install(input, 0, 1);
+        input.AutoAssignDevices();
+        AssertThat(input.GetDeviceForPlayer(0)).IsEqual(InputManager.KeyboardDevice);
+        CharacterSelectScreen screen = Open(out Node host);
+        SceneTree tree = screen.GetTree();
+        int backs = 0;
+        screen.BackOverrideForTesting = () => backs++;
+        try {
+            await Frames(tree, 2);
+            AssertThat(input.AnySlotJoined())
+                .OverrideFailureMessage("The device that drove the menus was pre-claimed as Player 1.")
+                .IsFalse();
+            // Nobody has joined yet: any device's Escape leaves the select, as Back does.
+            screen.GetViewport().PushInput(KeyPress(Key.Escape));
+            AssertThat(backs).IsEqual(1);
+            backs = 0;
+
+            probe.SetButton(0, JoyButton.A, true);
+            await Frames(tree, 3);
+            probe.SetButton(1, JoyButton.A, true);
+            await Frames(tree, 3);
+            AssertThat(input.GetDeviceForPlayer(0))
+                .OverrideFailureMessage("Pad A did not join as Player 1 after keyboard-driven menus.")
+                .IsEqual(0);
+            AssertThat(input.GetDeviceForPlayer(1))
+                .OverrideFailureMessage("Pad B could not join as Player 2 after keyboard-driven menus.")
+                .IsEqual(1);
+            AssertThat(screen.IsPlayerTwoJoined).IsTrue();
+            AssertThat(screen.IsSlotReady(0) || screen.IsSlotReady(1))
+                .OverrideFailureMessage("A joining press also confirmed a tile.")
+                .IsFalse();
+
+            // The keyboard is now no player: its join press claims nothing, and its
+            // Escape backs no one out.
+            probe.SetKey(FakeInputDeviceProbe.KeyFor(InputManager.Actions.Interact), true);
+            screen.GetViewport().PushInput(KeyPress(Key.Escape));
+            await Frames(tree, 3);
+            AssertThat(input.GetPlayerForDevice(InputManager.KeyboardDevice)).IsEqual(-1);
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(0);
+            AssertThat(backs)
+                .OverrideFailureMessage("A device no player holds backed both players out of the select.")
+                .IsEqual(0);
+        } finally {
+            probe.ReleaseAll();
+            Teardown(host);
+            FakeInputDeviceProbe.Restore(input);
+        }
+    }
+
+    /// <summary>
+    /// CM-FIXA-INPUT (2026-10-16): a join press does nothing but join. On this
+    /// engine build <c>ui_accept</c> is Enter, Keypad Enter and Space, so a
+    /// keyboard player who joins with Enter while a footer button has focus used
+    /// to press that button as well — here Back, which threw both players out.
+    /// The select now consumes a join press from an unclaimed device in
+    /// <c>_Input</c>, before the GUI sees it.
+    /// </summary>
+    [TestCase]
+    public async Task AKeyboardJoinPressOnAFocusedButtonOnlyJoins() {
+        InputManager input = InputManager.Instance;
+        if (input == null) return;
+        FakeInputDeviceProbe probe = FakeInputDeviceProbe.Install(input, 0);
+        input.AutoAssignDevices();
+        input.AssignJoypadToPlayer(0, 0);
+        CharacterSelectScreen screen = Open(out Node host);
+        SceneTree tree = screen.GetTree();
+        int backs = 0;
+        screen.BackOverrideForTesting = () => backs++;
+        try {
+            await Frames(tree, 2);
+            probe.SetButton(0, JoyButton.A, true);
+            await Frames(tree, 3);
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(0);
+
+            // Focus sits on Back; the keyboard joins with Enter.
+            screen.GetNode<Button>(SelectRoot + "ButtonRow/BackButton").GrabFocus();
+            probe.SetKey(Key.Enter, true);
+            screen.GetViewport().PushInput(KeyPress(Key.Enter));
+            screen.GetViewport().PushInput(KeyRelease(Key.Enter));
+            await Frames(tree, 3);
+            AssertThat(backs)
+                .OverrideFailureMessage("The keyboard's joining Enter also pressed the focused Back button.")
+                .IsEqual(0);
+            AssertThat(input.GetDeviceForPlayer(1)).IsEqual(InputManager.KeyboardDevice);
+            AssertThat(screen.IsSlotReady(1)).IsFalse();
+
+            // Once joined, Enter is an ordinary key again: it presses the button.
+            probe.SetKey(Key.Enter, false);
+            await Frames(tree, 1);
+            screen.GetViewport().PushInput(KeyPress(Key.Enter));
+            screen.GetViewport().PushInput(KeyRelease(Key.Enter));
+            AssertThat(backs)
+                .OverrideFailureMessage("Control: a claimed keyboard's Enter no longer pressed the focused button.")
+                .IsEqual(1);
+        } finally {
+            probe.ReleaseAll();
+            Teardown(host);
+            FakeInputDeviceProbe.Restore(input);
+        }
+    }
+
+    /// <summary>
+    /// CM-FIXA-INPUT (2026-10-16): the select read every <c>ui_cancel</c> as Player
+    /// 1's, so a keyboard Player 2's Escape unlocked Player 1's pick (or backed
+    /// both players out). A cancel now belongs to the player whose device pressed
+    /// it, and only Player 1's leaves the screen.
+    /// </summary>
+    [TestCase]
+    public async Task EscapeCancelsOnlyThePickOfThePlayerWhoPressedIt() {
+        InputManager input = InputManager.Instance;
+        if (input == null) return;
+        FakeInputDeviceProbe probe = FakeInputDeviceProbe.Install(input, 0);
+        input.AutoAssignDevices();
+        input.AssignJoypadToPlayer(0, 0);
+        CharacterSelectScreen screen = Open(out Node host);
+        SceneTree tree = screen.GetTree();
+        int backs = 0;
+        screen.BackOverrideForTesting = () => backs++;
+        Key interact = FakeInputDeviceProbe.KeyFor(InputManager.Actions.Interact);
+        try {
+            await Frames(tree, 2);
+            probe.SetButton(0, JoyButton.A, true);
+            await Frames(tree, 3);
+            probe.SetKey(interact, true);
+            await Frames(tree, 3);
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(0);
+            AssertThat(input.GetDeviceForPlayer(1)).IsEqual(InputManager.KeyboardDevice);
+            AssertThat(screen.TryConfirm(0)).IsTrue();
+
+            // Player 2 (the keyboard) has nothing to unwind: nothing happens.
+            screen.GetViewport().PushInput(KeyPress(Key.Escape));
+            AssertThat(screen.IsSlotReady(0))
+                .OverrideFailureMessage("Player 2's Escape unlocked Player 1's pick.")
+                .IsTrue();
+            AssertThat(backs)
+                .OverrideFailureMessage("Player 2's Escape backed both players out of the select.")
+                .IsEqual(0);
+
+            // Player 2 locks; the countdown runs; Player 2's Escape aborts it and
+            // unlocks Player 2 alone.
+            probe.SetKey(interact, false);
+            await Frames(tree, 2);
+            probe.SetKey(interact, true);
+            await Frames(tree, 2);
+            AssertThat(screen.IsSlotReady(1)).IsTrue();
+            AssertThat(screen.Phase).IsEqual(SelectScreenPhase.Countdown);
+            screen.GetViewport().PushInput(KeyPress(Key.Escape));
+            AssertThat(screen.Phase).IsEqual(SelectScreenPhase.Selection);
+            AssertThat(screen.IsSlotReady(1)).IsFalse();
+            AssertThat(screen.IsSlotReady(0))
+                .OverrideFailureMessage("Player 2's Escape during the countdown unlocked Player 1's pick.")
+                .IsTrue();
+            AssertThat(backs).IsEqual(0);
+        } finally {
+            probe.ReleaseAll();
+            Teardown(host);
+            FakeInputDeviceProbe.Restore(input);
+        }
+    }
+
+    /// <summary>
+    /// CM-FIXA-INPUT (2026-10-16): Godot's documented default <c>ui_cancel</c>
+    /// carries the pad's B, which is also a face (join) button and the token
+    /// flow's Interact confirm. This engine build's <c>ui_cancel</c> is Escape
+    /// only, so the case adds B for its duration — the configuration the review
+    /// found the defect in. A friend's B join press must not back out of the
+    /// select, and Player 2's B confirm must not unlock Player 1's pick.
+    /// </summary>
+    [TestCase]
+    public async Task WithBInUiCancelAPadsBJoinOrConfirmNeverCancelsOrLeaves() {
+        InputManager input = InputManager.Instance;
+        if (input == null) return;
+        FakeInputDeviceProbe probe = FakeInputDeviceProbe.Install(input, 0, 1);
+        input.AutoAssignDevices();
+        var padB = new InputEventJoypadButton { Device = -1, ButtonIndex = JoyButton.B };
+        bool added = !InputMap.ActionHasEvent("ui_cancel", padB);
+        if (added) InputMap.ActionAddEvent("ui_cancel", padB);
+        CharacterSelectScreen screen = Open(out Node host);
+        SceneTree tree = screen.GetTree();
+        int backs = 0;
+        screen.BackOverrideForTesting = () => backs++;
+        Key interact = FakeInputDeviceProbe.KeyFor(InputManager.Actions.Interact);
+        try {
+            AssertThat(PadPress(1, JoyButton.B).IsActionPressed("ui_cancel"))
+                .OverrideFailureMessage("Harness: pad B is not ui_cancel.")
+                .IsTrue();
+            await Frames(tree, 2);
+            probe.SetKey(interact, true);
+            await Frames(tree, 3);
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(InputManager.KeyboardDevice);
+
+            // A friend presses B on pad 1 to join, with Player 1 unlocked.
+            probe.SetButton(1, JoyButton.B, true);
+            screen.GetViewport().PushInput(PadPress(1, JoyButton.B));
+            await Frames(tree, 3);
+            AssertThat(backs)
+                .OverrideFailureMessage("Pad B's join press also backed out of the select.")
+                .IsEqual(0);
+            AssertThat(input.GetDeviceForPlayer(1)).IsEqual(1);
+            AssertThat(screen.IsSlotReady(1)).IsFalse();
+
+            // Player 1 locks; Player 2's next B is its confirm, never Player 1's cancel.
+            AssertThat(screen.TryConfirm(0)).IsTrue();
+            probe.SetButton(1, JoyButton.B, false);
+            await Frames(tree, 2);
+            probe.SetButton(1, JoyButton.B, true);
+            screen.GetViewport().PushInput(PadPress(1, JoyButton.B));
+            await Frames(tree, 2);
+            AssertThat(screen.IsSlotReady(0))
+                .OverrideFailureMessage("Player 2's B confirm unlocked Player 1's pick.")
+                .IsTrue();
+            AssertThat(screen.IsSlotReady(1)).IsTrue();
+            AssertThat(screen.Phase).IsEqual(SelectScreenPhase.Countdown);
+            AssertThat(backs).IsEqual(0);
+        } finally {
+            probe.ReleaseAll();
+            Teardown(host);
+            if (added) InputMap.ActionEraseEvent("ui_cancel", padB);
+            FakeInputDeviceProbe.Restore(input);
+        }
+    }
+
+    /// <summary>
+    /// CM-FIXA-INPUT (2026-10-16): since 9.1 a pad can be Player 1 in Versus CPU,
+    /// and the token flow confirms with Interact (B). With B in <c>ui_cancel</c>
+    /// (Godot's documented default; see the case above) that confirm also left
+    /// the select in the same frame. The pad's B now confirms only.
+    /// </summary>
+    [TestCase]
+    public async Task APadOnlyPlayerOneConfirmsWithBInVersusCpuWithoutLeaving() {
+        InputManager input = InputManager.Instance;
+        if (input == null) return;
+        FakeInputDeviceProbe probe = FakeInputDeviceProbe.Install(input, 0);
+        input.AutoAssignDevices();
+        input.AssignJoypadToPlayer(0, 0);
+        var padB = new InputEventJoypadButton { Device = -1, ButtonIndex = JoyButton.B };
+        bool added = !InputMap.ActionHasEvent("ui_cancel", padB);
+        if (added) InputMap.ActionAddEvent("ui_cancel", padB);
+        CharacterSelectScreen screen = Open(out Node host, FighterMatchOrigin.VersusCpu);
+        SceneTree tree = screen.GetTree();
+        int backs = 0;
+        screen.BackOverrideForTesting = () => backs++;
+        try {
+            AssertThat(input.JoinMode).IsEqual(LocalJoinMode.FollowLastUsed);
+            await Frames(tree, 2);
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(0);
+            probe.SetButton(0, JoyButton.B, true);
+            screen.GetViewport().PushInput(PadPress(0, JoyButton.B));
+            await Frames(tree, 3);
+            AssertThat(backs)
+                .OverrideFailureMessage("Player 1's B confirm also backed out of the select.")
+                .IsEqual(0);
+            AssertThat(screen.IsSlotReady(0)).IsTrue();
+            AssertThat(screen.CpuConfigPanel != null).IsTrue();
+        } finally {
+            probe.ReleaseAll();
+            Teardown(host);
+            if (added) InputMap.ActionEraseEvent("ui_cancel", padB);
+            FakeInputDeviceProbe.Restore(input);
+        }
+    }
+
+    private static InputEventKey KeyPress(Key key) =>
+        new() { Keycode = key, PhysicalKeycode = key, Pressed = true };
+
+    private static InputEventKey KeyRelease(Key key) =>
+        new() { Keycode = key, PhysicalKeycode = key, Pressed = false };
+
+    private static InputEventJoypadButton PadPress(int device, JoyButton button) =>
+        new() { Device = device, ButtonIndex = button, Pressed = true };
 
     private static async Task Frames(SceneTree tree, int count) {
         for (int frame = 0; frame < count; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);

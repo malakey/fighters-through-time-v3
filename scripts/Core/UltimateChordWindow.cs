@@ -69,10 +69,26 @@ namespace FTT.Core {
             return new Output(movement, special2, chord);
         }
 
-        /// <summary>Forgets every wait and mask (pause, focus loss, a device hand-over).</summary>
+        /// <summary>Forgets every wait and mask (a device hand-over drops the whole window instead).</summary>
         public void Reset() {
             _movement = ComponentState.Up;
             _special2 = ComponentState.Up;
+            _movementWaited = 0;
+            _special2Waited = 0;
+        }
+
+        /// <summary>
+        /// Forgets every wait and keeps every mask and emission (a pause or a
+        /// window focus loss; CM-FIXA-INPUT, 2026-10-16). A component still held
+        /// back is dropped, so a lone shoulder let go of while away never comes
+        /// back as a one-frame tap. A component a chord masked stays masked until
+        /// it is released — clearing it would turn LB + RB held across the pause
+        /// into two fresh component presses once the Ultimate is no longer
+        /// affordable — and an emitting one stays held, so it makes no new edge.
+        /// </summary>
+        public void ForgetWaits() {
+            if (_movement == ComponentState.Waiting) _movement = ComponentState.Up;
+            if (_special2 == ComponentState.Waiting) _special2 = ComponentState.Up;
             _movementWaited = 0;
             _special2Waited = 0;
         }
