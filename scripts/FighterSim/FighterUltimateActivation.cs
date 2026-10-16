@@ -208,6 +208,20 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
+        /// The action lock that keeps the stick (fix round A, CM-FIXA-SIM): this
+        /// tick's buttons are discarded before any verb or the block stance reads
+        /// them, and the stick survives — it is still read by the M05 get-up
+        /// choice and by the DI of a hit that landed on a locked fighter, which
+        /// <c>FighterVerbRules.ResolvePendingLaunch</c> reads from
+        /// <c>MoveX</c>/<c>MoveY</c> on its freeze's thaw tick.
+        /// </summary>
+        internal static void DiscardButtons(ref FighterRuntimeComponent runtime) {
+            runtime.PressedButtons = 0;
+            runtime.HeldButtons = 0;
+            runtime.ReleasedButtons = 0;
+        }
+
+        /// <summary>
         /// Overrides the caster's velocity just before integration. Wind-up and
         /// active frames plant the caster (an airborne start freezes in the air,
         /// gravity 0); a melee activation lunges its full range over the active

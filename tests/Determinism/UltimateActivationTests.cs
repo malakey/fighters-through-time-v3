@@ -429,6 +429,219 @@ public class UltimateActivationTests {
         BottomBlastZoneRaw = FP64.FromInt(-5).RawValue
     };
 
+    // === Fix round A (CM-FIXA-SIM, ruling (c)): the A02 thaw tick =============
+
+    /// <summary>The verbs pressed on the caster's thaw tick: the name, the press, what is held, and how a start shows.</summary>
+    private static readonly (string Name, GameplayButtons Pressed, GameplayButtons Held)[] ThawVerbs = {
+        ("Special 2", GameplayButtons.Special2, GameplayButtons.Special2),
+        ("the movement ability", GameplayButtons.MovementAbility, GameplayButtons.MovementAbility),
+        ("the direct grab", GameplayButtons.Grab, GameplayButtons.Grab),
+        ("the grab chord", GameplayButtons.BasicAttack, GameplayButtons.Block | GameplayButtons.BasicAttack),
+        ("held Block", GameplayButtons.None, GameplayButtons.Block)
+    };
+
+    /// <summary>
+    /// Fix round A (ruling (c)): the caster's own slow shot, fired before the
+    /// Ultimate, lands on the far opponent while the caster is in its wind-up
+    /// or its whiff recovery and freezes it (the owner of a landed projectile
+    /// takes the hitstop). The hitstop branch runs before A02's discard, so the
+    /// thaw tick — whose presses the ability and combat systems read — must
+    /// hold the lock itself: no Special, movement ability, grab or block stance
+    /// starts there, and the Ultimate runs on. In the whiff recovery the
+    /// lockout the acceptance armed has expired, so without the lock a Special
+    /// would undo the punish window too.
+    /// </summary>
+    [TestCase]
+    public void NoVerbStartsOnAnOwnShotsThawTickInTheWindupOrTheWhiffRecovery() {
+        foreach (int phase in new[] { FighterUltimateActivationRules.PhaseWindup, FighterUltimateActivationRules.PhaseWhiffRecovery }) {
+            int ultimateOffset = -1;
+            int thawTick = -1;
+            for (int candidate = 30; candidate <= 130 && thawTick < 0; candidate++) {
+                thawTick = FindCasterThawTick(candidate, phase);
+                if (thawTick >= 0) ultimateOffset = candidate;
+            }
+            AssertThat(thawTick >= 0)
+                .OverrideFailureMessage($"Harness: no run froze the caster with its own shot in phase {phase}.")
+                .IsTrue();
+            foreach ((string name, GameplayButtons pressed, GameplayButtons held) in ThawVerbs) {
+                FighterSimulation simulation = NewShooterSimulation(out int start);
+                int tick = start;
+                for (; tick < thawTick; tick++) {
+                    simulation.Advance(ShooterFrame(tick, start, ultimateOffset), UltimateActivationTestKit.Input(tick, 0, GameplayButtons.None));
+                }
+                AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent frozen)).IsTrue();
+                AssertThat(frozen.HitstopFrames)
+                    .OverrideFailureMessage($"Harness: the {name} run did not reach the thaw tick frozen.")
+                    .IsEqual(1);
+                simulation.Advance(new PlayerInputFrame { Tick = (uint)tick, Pressed = pressed, Held = held },
+                    UltimateActivationTestKit.Input(tick, 0, GameplayButtons.None));
+                // The thaw tick's own clock step may move the wind-up into its
+                // active frames; the Ultimate is still running either way.
+                AssertThat(UltimateActivationTestKit.Phase(simulation, 0))
+                    .OverrideFailureMessage($"{name}: the Ultimate must run on through its thaw tick (phase {phase}).")
+                    .IsNotEqual(FighterUltimateActivationRules.PhaseNone);
+                AssertThat(CasterVerbStarted(simulation, pressed, held))
+                    .OverrideFailureMessage($"{name} started on the caster's thaw tick in phase {phase}.")
+                    .IsFalse();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Fix round A (ruling (c)): the A02 thaw-tick lock discards buttons, never
+    /// the stick. A caster punished out of its whiff recovery is still the
+    /// Ultimate's owner through the punish's freeze (the activation clock waits
+    /// out the hitstop), and its DI is read from the stick on that freeze's
+    /// thaw tick: holding Up must still bend the launch, by angle only.
+    /// </summary>
+    [TestCase]
+    public void ACasterLaunchedOutOfItsWhiffRecoveryKeepsItsDiRead() {
+        FighterSimulation neutral = NewPunishSimulation(out int tick);
+        FighterSimulation influenced = NewPunishSimulation(out _);
+        // The opponent jumps the straight shot and lands beside the caster.
+        Press(neutral, tick);
+        Press(influenced, tick);
+        tick++;
+        for (int step = 0; step < 8; step++, tick++) {
+            neutral.Advance(UltimateActivationTestKit.Input(tick, 0, GameplayButtons.None), UltimateActivationTestKit.Input(tick, 0, GameplayButtons.None));
+            influenced.Advance(UltimateActivationTestKit.Input(tick, 0, GameplayButtons.None), UltimateActivationTestKit.Input(tick, 0, GameplayButtons.None));
+        }
+        neutral.Advance(UltimateActivationTestKit.Input(tick, 0, GameplayButtons.None), UltimateActivationTestKit.Input(tick, 0, GameplayButtons.Jump));
+        influenced.Advance(UltimateActivationTestKit.Input(tick, 0, GameplayButtons.None), UltimateActivationTestKit.Input(tick, 0, GameplayButtons.Jump));
+        tick++;
+        // The opponent presses its launcher once it has landed beside the
+        // whiffing caster; the (clocked) Special lands on its active entry. The
+        // influenced caster holds Up from the press on — the Ultimate's own
+        // discard eats the stick until the punish freezes it.
+        AssertThat(neutral.TryGetFighter(0, out FighterStateComponent unhurt)).IsTrue();
+        bool pressed = false;
+        bool landed = false;
+        for (int step = 0; step < 120 && !landed; step++, tick++) {
+            AssertThat(neutral.TryGetFighter(1, out FighterStateComponent opponent)).IsTrue();
+            bool press = !pressed && opponent.IsGrounded != 0
+                && UltimateActivationTestKit.Phase(neutral, 0) == FighterUltimateActivationRules.PhaseWhiffRecovery;
+            pressed |= press;
+            GameplayButtons punish = press ? GameplayButtons.Special1 : GameplayButtons.None;
+            neutral.Advance(UltimateActivationTestKit.Input(tick, 0, GameplayButtons.None), UltimateActivationTestKit.Input(tick, 0, punish));
+            influenced.Advance(UltimateActivationTestKit.Input(tick, 0, GameplayButtons.None, moveY: pressed ? (sbyte)-127 : (sbyte)0),
+                UltimateActivationTestKit.Input(tick, 0, punish));
+            AssertThat(neutral.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
+            landed = caster.CurrentHP < unhurt.CurrentHP;
+        }
+        AssertThat(pressed && landed).OverrideFailureMessage("Harness: the opponent never punished the whiff recovery.").IsTrue();
+        AssertThat(neutral.TryGetFighterVerb(0, out FighterVerbComponent struckVerb)).IsTrue();
+        AssertThat(neutral.TryGetFighter(0, out FighterStateComponent struck)).IsTrue();
+        AssertThat(struckVerb.HitstopFrames > 0 && struck.HitstunFrames > 0 && struckVerb.Tumble == 1)
+            .OverrideFailureMessage(
+                $"Harness: the punish must launch the caster (hitstop {struckVerb.HitstopFrames}, hitstun {struck.HitstunFrames}, tumble {struckVerb.Tumble}).")
+            .IsTrue();
+        AssertThat(UltimateActivationTestKit.Phase(neutral, 0))
+            .OverrideFailureMessage("Harness: the caster still owns the Ultimate through the punish's freeze.")
+            .IsEqual(FighterUltimateActivationRules.PhaseWhiffRecovery);
+
+        bool compared = false;
+        for (int step = 0; step < 30 && !compared; step++, tick++) {
+            neutral.Advance(UltimateActivationTestKit.Input(tick, 0, GameplayButtons.None), UltimateActivationTestKit.Input(tick, 0, GameplayButtons.None));
+            influenced.Advance(UltimateActivationTestKit.Input(tick, 0, GameplayButtons.None, moveY: -127),
+                UltimateActivationTestKit.Input(tick, 0, GameplayButtons.None));
+            AssertThat(neutral.TryGetFighterVerb(0, out FighterVerbComponent verb)).IsTrue();
+            if (verb.HitstopFrames != 0) continue;
+            compared = true;
+            AssertThat(neutral.TryGetFighter(0, out FighterStateComponent plain)).IsTrue();
+            AssertThat(influenced.TryGetFighter(0, out FighterStateComponent bent)).IsTrue();
+            AssertThat(bent.Velocity.y > plain.Velocity.y)
+                .OverrideFailureMessage("Holding Up through the punish's freeze must bend the caster's launch upward.")
+                .IsTrue();
+            float plainSquared = plain.Velocity.x.ToFloat() * plain.Velocity.x.ToFloat() + plain.Velocity.y.ToFloat() * plain.Velocity.y.ToFloat();
+            float bentSquared = bent.Velocity.x.ToFloat() * bent.Velocity.x.ToFloat() + bent.Velocity.y.ToFloat() * bent.Velocity.y.ToFloat();
+            AssertThat(System.MathF.Abs(plainSquared - bentSquared) < plainSquared * 0.01f)
+                .OverrideFailureMessage("DI never changes the launch magnitude.")
+                .IsTrue();
+        }
+        AssertThat(compared).OverrideFailureMessage("Harness: the punish's freeze never ended.").IsTrue();
+    }
+
+    /// <summary>
+    /// One dry run with the Ultimate pressed <paramref name="ultimateOffset"/>
+    /// ticks after the caster's slow shot: the first tick on which the caster
+    /// starts on its freeze's last tick (HitstopFrames 1) in
+    /// <paramref name="phase"/>, or -1.
+    /// </summary>
+    private static int FindCasterThawTick(int ultimateOffset, int phase) {
+        FighterSimulation simulation = NewShooterSimulation(out int start);
+        for (int tick = start; tick < start + 260; tick++) {
+            simulation.TryGetFighterVerb(0, out FighterVerbComponent verb);
+            if (verb.HitstopFrames == 1 && UltimateActivationTestKit.Phase(simulation, 0) == phase) return tick;
+            simulation.Advance(ShooterFrame(tick, start, ultimateOffset), UltimateActivationTestKit.Input(tick, 0, GameplayButtons.None));
+        }
+        return -1;
+    }
+
+    /// <summary>The caster fires its slow shot on <paramref name="start"/> and presses the Ultimate <paramref name="ultimateOffset"/> ticks later.</summary>
+    private static PlayerInputFrame ShooterFrame(int tick, int start, int ultimateOffset) =>
+        UltimateActivationTestKit.Input(tick, 0,
+            tick == start ? GameplayButtons.Special1
+            : tick == start + ultimateOffset ? GameplayButtons.Ultimate
+            : GameplayButtons.None);
+
+    /// <summary>
+    /// Ten units apart (beyond the six-unit shot), the generic caster also owns
+    /// a slow 5 u/s shot (Special 1, about 100 ticks to the target) and an area
+    /// Special 2 whose acceptance shows as an armed cooldown.
+    /// </summary>
+    private static FighterSimulation NewShooterSimulation(out int nextTick) {
+        CharacterData caster = BuildCaster();
+        caster.SpecialAttackOne = new AbilityData {
+            ExecutionType = AbilityExecutionType.Projectile,
+            BaseDamage = 10f,
+            ProjectileSpeed = 300f,
+            ProjectileLifetime = 3f,
+            StartupFrames = 0
+        };
+        caster.SpecialAttackTwo = new AbilityData { ExecutionType = AbilityExecutionType.Area, BaseDamage = 2f };
+        var simulation = new FighterSimulation(
+            FighterLoadoutFactory.FromCharacterData(caster),
+            FighterLoadoutFactory.FromCharacterData(BuildTarget()),
+            seed: 13007,
+            spawnDistance: 5,
+            rules: FighterMatchRules.Disabled);
+        nextTick = UltimateActivationTestKit.Idle(simulation, 0, 40);
+        AssertThat(simulation.SeedFighterInfluenceForTest(0, 100)).IsTrue();
+        return simulation;
+    }
+
+    /// <summary>Two units apart; the opponent owns a launching melee Special 1 with no startup (it lands on its press tick).</summary>
+    private static FighterSimulation NewPunishSimulation(out int nextTick) {
+        CharacterData target = BuildTarget();
+        target.SpecialAttackOne = new AbilityData {
+            BaseDamage = 10f,
+            KnockbackForce = new Vector2(4f, -4f),
+            HitstunFrames = 30,
+            Launches = true,
+            StartupFrames = 0
+        };
+        var simulation = new FighterSimulation(
+            FighterLoadoutFactory.FromCharacterData(BuildCaster()),
+            FighterLoadoutFactory.FromCharacterData(target),
+            seed: 13008,
+            spawnDistance: 1,
+            rules: FighterMatchRules.Disabled);
+        nextTick = UltimateActivationTestKit.Idle(simulation, 0, 40);
+        AssertThat(simulation.SeedFighterInfluenceForTest(0, 100)).IsTrue();
+        return simulation;
+    }
+
+    /// <summary>Whether the caster's thaw-tick press started: its cost is spent, its grab began, or the stance rose.</summary>
+    private static bool CasterVerbStarted(FighterSimulation simulation, GameplayButtons pressed, GameplayButtons held) {
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent fighter)).IsTrue();
+        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
+        AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent verb)).IsTrue();
+        if ((pressed & GameplayButtons.Special2) != 0) return runtime.SpecialTwoCooldownFrames > 0;
+        if ((pressed & GameplayButtons.MovementAbility) != 0) return runtime.MovementCooldownFrames > 0;
+        if ((pressed & (GameplayButtons.Grab | GameplayButtons.BasicAttack)) != 0) return verb.GrabPhase != 0;
+        return (held & GameplayButtons.Block) != 0 && FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb);
+    }
+
     private static void Press(FighterSimulation simulation, int tick) =>
         simulation.Advance(UltimateActivationTestKit.Input(tick, 0, GameplayButtons.Ultimate),
             UltimateActivationTestKit.Input(tick, 0, GameplayButtons.None));

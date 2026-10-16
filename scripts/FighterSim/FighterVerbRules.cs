@@ -107,9 +107,14 @@ namespace FTT.FighterSim {
             verb.Tumble = 0;
             verb.PendingLaunchActive = 0;
             verb.TechLockoutFrames = FTT.Combat.BasicComboRules.LandingTechRecoveryFrames;
-            if (fighter.InvulnerabilityFrames < FTT.Combat.BasicComboRules.LandingTechRecoveryFrames) {
-                fighter.InvulnerabilityFrames = FTT.Combat.BasicComboRules.LandingTechRecoveryFrames;
-            }
+            // +1 (fix round A, CM-FIXA-SIM; the knockdown's pattern): the landing
+            // tick's own combat resolution is covered too, and the tech branch
+            // counts the grant down with the lock, so the invulnerability ends
+            // exactly when the 12-tick action lock does (design :1286; Story's
+            // one 12-frame window) — invulnerable on L..L+12, free and hittable
+            // on L+13.
+            int invulnerable = FTT.Combat.BasicComboRules.LandingTechRecoveryFrames + 1;
+            if (fighter.InvulnerabilityFrames < invulnerable) fighter.InvulnerabilityFrames = invulnerable;
             fighter.Velocity = FPVector2.Zero;
             return true;
         }

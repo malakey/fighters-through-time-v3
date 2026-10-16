@@ -1085,7 +1085,13 @@ namespace FTT.FighterSim {
                 // with the D10 "not yet" classifier (2026-10-11), so a press this
                 // system never reads never flashes.
                 ref FighterActionStateComponent actionState = ref frame.Get<FighterActionStateComponent>(entity);
-                if (!FighterAbilityLockoutRules.CanReadAbilityPress(in fighter, in runtime, in verbState, in actionState)) continue;
+                // Fix round A (CM-FIXA-SIM): the knockdown (320) and the
+                // fighter's own Ultimate (321) are action locks the gate reads.
+                ref readonly FighterKnockdownComponent knockdown = ref frame.GetReadOnly<FighterKnockdownComponent>(entity);
+                ref readonly FighterUltimateActivationComponent ultimateActivation =
+                    ref frame.GetReadOnly<FighterUltimateActivationComponent>(entity);
+                if (!FighterAbilityLockoutRules.CanReadAbilityPress(
+                        in fighter, in runtime, in verbState, in actionState, in knockdown, in ultimateActivation)) continue;
 
                 // Same-tick priority (2026-10-08): an Ultimate press that
                 // FighterCombatSystem will accept later this tick claims the
@@ -1093,17 +1099,15 @@ namespace FTT.FighterSim {
                 // Story polls CheckUltimateInput before both. It is also what
                 // lets the default gamepad Ultimate, the Movement + Special 2
                 // chord, fire instead of its component verbs.
-                ref readonly FighterUltimateActivationComponent ultimateActivation =
-                    ref frame.GetReadOnly<FighterUltimateActivationComponent>(entity);
                 bool ultimateClaimsTick = FighterCombatSystem.UltimatePressAccepted(
-                    in fighter, in runtime, in verbState, in actionState, in ultimateActivation);
+                    in fighter, in runtime, in verbState, in actionState, in ultimateActivation, in knockdown);
                 // §1.7 (2026-10-11, PROVISIONAL-HIT-CONFIRM-RULES (4)): a
                 // meter-paid Ultimate the lockout alone refuses still claims the
                 // tick from the Specials (not from the movement ability), so the
                 // Movement + Special 2 chord cannot cast Special 2 inside a
                 // hit-confirm.
                 bool ultimateHeldBack = FighterCombatSystem.UltimatePressHeldBackByLockout(
-                    in fighter, in runtime, in verbState, in actionState, in ultimateActivation);
+                    in fighter, in runtime, in verbState, in actionState, in ultimateActivation, in knockdown);
 
                 // Decision 1.2 (combat and movement update 2026-10-16, plan
                 // §2.1.6): every accepted Special press SPENDS here — the slot's
@@ -1147,7 +1151,8 @@ namespace FTT.FighterSim {
                     if (FighterSpecialCastRules.IsForesight(in fighter, acceptedSlot)) {
                         // Package 13 W5: the 4 / 20 / 24 stance on component 322.
                         FighterForesightRules.Begin(ref frame.Get<FighterCounterComponent>(entity));
-                        FighterSpecialCastRules.BeginDelegated(ref actionState, acceptedSlot);
+                        FighterSpecialCastRules.BeginDelegated(
+                            ref actionState, acceptedSlot, startedAerial: fighter.IsGrounded == 0);
                     } else {
                         FighterSpecialCastRules.Begin(
                             ref actionState, acceptedSlot, _contracts.For(fighter.PlayerID, acceptedSlot),
@@ -1218,8 +1223,10 @@ namespace FTT.FighterSim {
                 ref FighterStateComponent fighter = ref frame.Get<FighterStateComponent>(entity);
                 bool captured = FighterUltimateActivationRules.IsCaptured(
                     in frame.GetReadOnly<FighterUltimateActivationComponent>(entity));
+                bool knockedDown = FighterKnockdownRules.IsActive(
+                    in frame.GetReadOnly<FighterKnockdownComponent>(entity));
                 if (FighterSpecialCastRules.ClearIfInterrupted(
-                        ref cast, in fighter, in frame.GetReadOnly<FighterVerbComponent>(entity), captured)) continue;
+                        ref cast, in fighter, in frame.GetReadOnly<FighterVerbComponent>(entity), captured, knockedDown)) continue;
                 cast.SpecialFlags |= FighterSpecialCastRules.FlagEffectFired;
                 ref FighterRuntimeComponent runtime = ref frame.Get<FighterRuntimeComponent>(entity);
                 ref readonly FighterTuningComponent tuning = ref frame.GetReadOnly<FighterTuningComponent>(entity);

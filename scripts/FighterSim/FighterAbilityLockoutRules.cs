@@ -51,7 +51,9 @@ namespace FTT.FighterSim {
             in FighterStateComponent fighter,
             in FighterRuntimeComponent runtime,
             in FighterVerbComponent verb,
-            in FighterActionStateComponent action) =>
+            in FighterActionStateComponent action,
+            in FighterKnockdownComponent knockdown,
+            in FighterUltimateActivationComponent activation) =>
             fighter.Stocks > 0
             && fighter.HitstunFrames <= 0
             && fighter.DazeFrames <= 0
@@ -60,6 +62,16 @@ namespace FTT.FighterSim {
             // the second gates behind those input discards.
             && verb.TechLockoutFrames <= 0
             && !FighterSpecialCastRules.IsBusy(in action)
+            // Fix round A (CM-FIXA-SIM): three more action locks whose input
+            // discard a hitstop thaw tick (or the tick that starts them) does not
+            // reach — the M05 knockdown and its get-up, from its landing tick on
+            // (component 320); the fighter's own Ultimate, wind-up through whiff
+            // recovery and cinematic (A02, component 321); and the respawn
+            // platform, whose stock-loss tick reads presses after the KO (as
+            // UltimatePressPayable and CanStartGrab already refuse it).
+            && !FighterKnockdownRules.IsActive(in knockdown)
+            && !FighterUltimateActivationRules.IsCasterBusy(in activation)
+            && fighter.RespawnFramesRemaining <= 0
             // V7.1 hitstop / V7.2 grabs: a frozen, grabbing, or held fighter
             // takes no ability action (their button presses are simply not
             // consumed).

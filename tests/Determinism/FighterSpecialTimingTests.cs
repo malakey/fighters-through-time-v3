@@ -813,6 +813,284 @@ public class FighterSpecialTimingTests {
         if (FighterSpecialCastRules.IsFallback(in contract)) failures.Add($"{name}: projected as the 0 / 1 / 0 fallback.");
     }
 
+    // === 15. the Block-cancel tick keeps only the stance (fix round A) =========
+
+    /// <summary>
+    /// Fix round A (CM-FIXA-SIM, ruling (d)): the recovery Block-cancel tick
+    /// raises the stance and does nothing else — Story's Block cancel enters
+    /// Blocking and returns, so a roll, a jump, a drop-through or a grab pressed
+    /// on recovery frame 0 is lost, and only a fresh press on the next tick acts
+    /// (from the stance). Before the fix the cancel tick kept every press live,
+    /// so a whiffed Special rolled or jumped out on frame 0, the window D3
+    /// reserves for a Special that landed.
+    /// </summary>
+    [TestCase]
+    public void TheRecoveryBlockCancelTickRaisesOnlyTheStanceAndEachVerbNeedsAFreshPress() {
+        CharacterData joan = Data("joan");
+        int s = joan.SpecialAttackOne.StartupFrames;
+        int a = joan.SpecialAttackOne.ActiveFrames;
+        var rows = new (string Name, GameplayButtons Pressed, GameplayButtons Held, Func<FighterSimulation, bool> Started)[] {
+            ("a roll", GameplayButtons.Roll, GameplayButtons.None, sim => Runtime(sim).UniversalMovementState != 0),
+            ("a jump", GameplayButtons.Jump, GameplayButtons.None, sim => Fighter(sim).IsGrounded == 0),
+            ("a drop-through", GameplayButtons.Jump, GameplayButtons.Down, sim => Fighter(sim).DropThroughFrames > 0),
+            ("the grab chord", GameplayButtons.BasicAttack, GameplayButtons.None, sim => Verb(sim).GrabPhase != 0),
+            ("the direct grab", GameplayButtons.Grab, GameplayButtons.None, sim => Verb(sim).GrabPhase != 0)
+        };
+        foreach ((string name, GameplayButtons pressed, GameplayButtons held, Func<FighterSimulation, bool> started) in rows) {
+            FighterSimulation simulation = NewJoanSmite(9611);
+            for (int offset = 1; offset < s + a; offset++) simulation.Advance(Neutral(), Neutral());
+            // T+S+A, recovery frame 0: Block held and the verb pressed together.
+            simulation.Advance(In(pressed, held: GameplayButtons.Block | held), Neutral());
+            AssertThat(IsBlockStance(simulation, 0))
+                .OverrideFailureMessage($"{name}: the Block cancel must raise the stance on recovery frame 0.")
+                .IsTrue();
+            AssertThat(FighterSpecialCastRules.IsBusy(Cast(simulation, 0))).IsFalse();
+            AssertThat(started(simulation))
+                .OverrideFailureMessage($"{name} started on the Block-cancel tick.")
+                .IsFalse();
+            // The next tick: a fresh press acts from the stance, as in Story.
+            simulation.Advance(In(pressed, held: GameplayButtons.Block | held), Neutral());
+            AssertThat(started(simulation))
+                .OverrideFailureMessage($"{name} must act on the tick after the cancel from a fresh press.")
+                .IsTrue();
+        }
+    }
+
+    // === 16. Divine Piercing's Block cancel on recovery frame 0 (fix round A) ==
+
+    /// <summary>
+    /// Fix round A (CM-FIXA-SIM): Divine Piercing's lunge ends with its active
+    /// window, so its recovery Block cancel opens on recovery frame 0 like every
+    /// other Special's. The lunge's 305 state used to linger one tick (its kit
+    /// step cancels it on the tick after its last move, after the cast region
+    /// has already refused the stance), so the stance rose on recovery frame 1.
+    /// Whiffed and connecting (the three thrusts' hitstops pause both clocks).
+    /// </summary>
+    [TestCase]
+    public void DivinePiercingsRecoveryBlockCancelOpensOnItsRecoveryFrameZero() {
+        AbilityData piercing = Data("joan").SpecialAttackTwo;
+        foreach ((string name, int spawnDistance) in new[] { ("whiffed", 6), ("connecting", 1) }) {
+            // The reference run (no Block) finds the tick the cast enters its recovery.
+            FighterSimulation reference = NewJoanPiercing(spawnDistance);
+            int recoveryOn = -1;
+            for (int offset = 1; offset <= 120 && recoveryOn < 0; offset++) {
+                reference.Advance(Neutral(), Neutral());
+                FighterActionStateComponent cast = Cast(reference, 0);
+                if (FighterSpecialCastRules.RecoveryFrame(in cast) == 0) recoveryOn = offset;
+            }
+            AssertThat(recoveryOn > 0).OverrideFailureMessage($"Harness ({name}): the cast never reached its recovery.").IsTrue();
+            if (spawnDistance == 6) {
+                AssertThat(recoveryOn)
+                    .OverrideFailureMessage("Harness: the whiff's recovery begins on T+S+A.")
+                    .IsEqual(piercing.StartupFrames + piercing.ActiveFrames);
+            } else {
+                AssertThat(recoveryOn > piercing.StartupFrames + piercing.ActiveFrames)
+                    .OverrideFailureMessage("Harness: the connecting lunge's hitstops push the recovery back.")
+                    .IsTrue();
+            }
+
+            // Block held from T+1: the cast lock discards it until recovery frame 0.
+            FighterSimulation blocked = NewJoanPiercing(spawnDistance);
+            int raisedOn = -1;
+            for (int offset = 1; offset <= 120 && raisedOn < 0; offset++) {
+                blocked.Advance(Held(GameplayButtons.Block), Neutral());
+                if (IsBlockStance(blocked, 0)) raisedOn = offset;
+            }
+            AssertThat(raisedOn)
+                .OverrideFailureMessage($"{name}: the stance must rise on recovery frame 0 (T+{recoveryOn}).")
+                .IsEqual(recoveryOn);
+            AssertThat(FighterSpecialCastRules.IsBusy(Cast(blocked, 0))).IsFalse();
+            AssertThat(Runtime(blocked).UniversalMovementState).IsEqual(0);
+        }
+    }
+
+    private static FighterSimulation NewJoanPiercing(int spawnDistance) {
+        var simulation = new FighterSimulation(
+            Authored("joan"), FighterLoadout.Default(FighterCharacterID.Joan),
+            seed: 9621, spawnDistance: spawnDistance, rules: FighterMatchRules.Disabled);
+        Idle(simulation, 2);
+        simulation.Advance(In(GameplayButtons.Special2), Neutral());
+        AssertThat(FighterSpecialCastRules.IsStartup(Cast(simulation, 0))).IsTrue();
+        return simulation;
+    }
+
+    // === 17. Foresight in the air and on the ground (fix round A) ==============
+
+    /// <summary>
+    /// Fix round A (CM-FIXA-SIM): Tubman's Foresight (the Delegated cast on
+    /// component 322) follows the aerial-Special rule — cast airborne, it falls
+    /// at the shared half gravity through its startup and window (design :1097,
+    /// Story's Startup and Active) and on the normal step after — and, as
+    /// Story's <c>TubmanForesight</c> writes X = 0 on every executing tick (a
+    /// kit writing its own velocity, which Q1 lets override the brake), the
+    /// stance is planted, airborne and grounded alike.
+    /// </summary>
+    [TestCase]
+    public void ForesightFallsAtHalfGravityThroughItsStartupAndWindowAndItsStanceIsPlanted() {
+        // Airborne: a forward jump, Foresight four ticks in, the stick held on.
+        var aerial = new FighterSimulation(
+            Authored("tubman"), FighterLoadout.Default(FighterCharacterID.Joan),
+            seed: 9451, spawnDistance: 6, rules: FighterMatchRules.Disabled);
+        for (int tick = 0; tick < 12; tick++) aerial.Advance(In(GameplayButtons.None, moveX: 127), Neutral());
+        aerial.Advance(In(GameplayButtons.Jump, moveX: 127), Neutral());
+        for (int tick = 0; tick < 3; tick++) aerial.Advance(In(GameplayButtons.None, moveX: 127), Neutral());
+        aerial.Advance(In(GameplayButtons.Special2, moveX: 127), Neutral());
+        FighterActionStateComponent delegated = Cast(aerial, 0);
+        AssertThat(FighterSpecialCastRules.IsDelegated(in delegated)).IsTrue();
+        AssertThat(FighterSpecialCastRules.HasFlag(in delegated, FighterSpecialCastRules.FlagStartedAerial))
+            .OverrideFailureMessage("An airborne Foresight records its aerial start.")
+            .IsTrue();
+        int maxJumps = Data("tubman").MaxJumpCount;
+        int scaledTicks = 0, normalTicks = 0;
+        for (int step = 0; step < 60; step++) {
+            FighterStateComponent prior = Fighter(aerial);
+            if (prior.IsGrounded != 0) break;
+            aerial.Advance(In(GameplayButtons.None, moveX: 127), Neutral());
+            FighterStateComponent now = Fighter(aerial);
+            AssertThat(aerial.TryGetFighterCounter(0, out FighterCounterComponent counter)).IsTrue();
+            if (now.IsGrounded != 0 || !FighterForesightRules.IsBusy(in counter)) break;
+            bool scaled = counter.Phase is FighterForesightRules.PhaseStartup or FighterForesightRules.PhaseWindow;
+            bool jumped = FighterAirPhysics.HasJumpedThisAirtime(prior.RemainingJumps, maxJumps);
+            FP64 expected = scaled
+                ? FighterAirPhysics.StepMovement(prior.Velocity.y, false, false, jumped, FighterAirPhysics.AerialSpecialGravityScale)
+                : FighterAirPhysics.StepMovement(prior.Velocity.y, false, false, jumped);
+            AssertThat(now.Velocity.y.RawValue)
+                .OverrideFailureMessage($"Step {step} (322 phase {counter.Phase}): vertical velocity.")
+                .IsEqual(expected.RawValue);
+            AssertThat(now.Velocity.x.RawValue)
+                .OverrideFailureMessage($"Step {step}: the airborne stance must be planted.")
+                .IsEqual(FP64.Zero.RawValue);
+            if (scaled) scaledTicks++; else normalTicks++;
+        }
+        AssertThat(scaledTicks)
+            .OverrideFailureMessage("The startup's remaining ticks and the whole window halve gravity.")
+            .IsEqual(TubmanKitRules.ForesightStartupFrames - 1 + TubmanKitRules.ForesightWindowFrames);
+        AssertThat(normalTicks > 0)
+            .OverrideFailureMessage("Harness: the whiff recovery must run airborne on the normal step.")
+            .IsTrue();
+
+        // Grounded: a running Tubman stops at once, not over the 4-frame brake.
+        var grounded = new FighterSimulation(
+            Authored("tubman"), FighterLoadout.Default(FighterCharacterID.Joan),
+            seed: 9452, spawnDistance: 6, rules: FighterMatchRules.Disabled);
+        for (int tick = 0; tick < 20; tick++) grounded.Advance(In(GameplayButtons.None, moveX: 127), Neutral());
+        AssertThat(Fighter(grounded).Velocity.x > FP64.Zero).IsTrue();
+        grounded.Advance(In(GameplayButtons.Special2, moveX: 127), Neutral());
+        FP64 plantedAt = FP64.Zero;
+        for (int offset = 1; offset <= 30; offset++) {
+            grounded.Advance(In(GameplayButtons.None, moveX: 127), Neutral());
+            AssertThat(grounded.TryGetFighterCounter(0, out FighterCounterComponent stance)).IsTrue();
+            if (!FighterForesightRules.IsBusy(in stance)) break;
+            FighterStateComponent tubman = Fighter(grounded);
+            AssertThat(tubman.Velocity.x.RawValue)
+                .OverrideFailureMessage($"T+{offset}: the grounded stance must be planted.")
+                .IsEqual(FP64.Zero.RawValue);
+            if (offset == 1) plantedAt = tubman.Position.x;
+            AssertThat(tubman.Position.x.RawValue).IsEqual(plantedAt.RawValue);
+        }
+    }
+
+    // === 18. the stock-loss tick (fix round A) =================================
+
+    /// <summary>
+    /// Fix round A (CM-FIXA-SIM): component 323 is reset on the tick after a
+    /// stock loss, so the stock-loss tick itself must not act from the respawn
+    /// platform. A melee Special whose active window is running when its caster
+    /// falls through the bottom blast zone resolves no contact from the
+    /// platform's anchor that tick; and a Special or movement-ability press on
+    /// the KO tick is refused, spending nothing.
+    /// </summary>
+    [TestCase]
+    public void AStockLossTickResolvesNoMeleeContactAndTakesNoPressFromTheRespawnPlatform() {
+        // (1) A generic melee Special (2 / 60 / 0) cast on the way down.
+        FPVector2 anchor = FighterStageGeometry.Default.RespawnPlatformPosition;
+        var falling = new FighterSimulation(
+            MeleeCaster(), FighterLoadout.Default(FighterCharacterID.Joan),
+            seed: 9803, spawnDistance: 4, rules: FighterMatchRules.Disabled);
+        Idle(falling, 2);
+        int stocks = Fighter(falling).Stocks;
+        falling.Advance(In(GameplayButtons.Jump | GameplayButtons.Down), Neutral());
+        falling.Advance(In(GameplayButtons.Special1), Neutral());
+        AssertThat(falling.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
+        int targetHP = target.CurrentHP;
+        bool knockedOut = false;
+        for (int step = 0; step < 150 && !knockedOut; step++) {
+            AssertThat(falling.TryGetFighter(1, out FighterStateComponent walker)).IsTrue();
+            // The opponent walks in to stand within the generic reach of the anchor.
+            sbyte walk = walker.Position.x > anchor.x + FP64.FromDouble(1.5) ? (sbyte)-127 : (sbyte)0;
+            FighterActionStateComponent before = Cast(falling, 0);
+            falling.Advance(Neutral(), In(GameplayButtons.None, moveX: walk));
+            knockedOut = Fighter(falling).Stocks < stocks;
+            AssertThat(falling.TryGetFighter(1, out FighterStateComponent struck)).IsTrue();
+            if (knockedOut) {
+                AssertThat(FighterSpecialCastRules.IsActive(in before)
+                        && !FighterSpecialCastRules.HasFlag(in before, FighterSpecialCastRules.FlagMeleeResolved))
+                    .OverrideFailureMessage("Harness: the KO must come inside the unresolved active window.")
+                    .IsTrue();
+                FP64 dx = struck.Position.x - anchor.x;
+                AssertThat(dx >= FP64.Zero && dx <= FP64.FromInt(2))
+                    .OverrideFailureMessage("Harness: the opponent must stand within the generic reach in front of the anchor.")
+                    .IsTrue();
+            }
+            AssertThat(struck.CurrentHP)
+                .OverrideFailureMessage($"Step {step}: the falling caster's melee Special struck (KO tick: {knockedOut}).")
+                .IsEqual(targetHP);
+        }
+        AssertThat(knockedOut).OverrideFailureMessage("Harness: the caster never fell out.").IsTrue();
+
+        // (2) A Special 2 or movement-ability press on the KO tick itself.
+        int koTick = -1;
+        FighterSimulation dry = NewFallingDefault();
+        for (int step = 0; step < 150 && koTick < 0; step++) {
+            dry.Advance(Neutral(), Neutral());
+            if (Fighter(dry).Stocks < stocks) koTick = step;
+        }
+        AssertThat(koTick >= 0).OverrideFailureMessage("Harness: the default fighter never fell out.").IsTrue();
+        foreach ((string name, GameplayButtons pressed) in new[] {
+                     ("Special 2", GameplayButtons.Special2), ("the movement ability", GameplayButtons.MovementAbility) }) {
+            FighterSimulation pressing = NewFallingDefault();
+            for (int step = 0; step < koTick; step++) pressing.Advance(Neutral(), Neutral());
+            pressing.Advance(In(pressed), Neutral());
+            AssertThat(Fighter(pressing).Stocks).OverrideFailureMessage("Harness: the press tick is the KO tick.").IsEqual(stocks - 1);
+            FighterRuntimeComponent runtime = Runtime(pressing);
+            AssertThat(runtime.SpecialTwoCooldownFrames + runtime.MovementCooldownFrames + runtime.AbilityLockoutFrames)
+                .OverrideFailureMessage($"{name} pressed on the KO tick spent a cooldown or armed the lockout on the platform.")
+                .IsEqual(0);
+            AssertThat(FighterSpecialCastRules.IsBusy(Cast(pressing, 0))).IsFalse();
+        }
+    }
+
+    /// <summary>The default kit, dropped through the legacy arena's floor and falling (no cast).</summary>
+    private static FighterSimulation NewFallingDefault() {
+        var simulation = new FighterSimulation(
+            FighterCharacterID.Einstein, FighterCharacterID.Joan,
+            seed: 9804, spawnDistance: 4, rules: FighterMatchRules.Disabled);
+        Idle(simulation, 2);
+        simulation.Advance(In(GameplayButtons.Jump | GameplayButtons.Down), Neutral());
+        return simulation;
+    }
+
+    /// <summary>The default kit with Special 1 a generic Melee-execution Special of 2 / 60 / 0.</summary>
+    private static FighterLoadout MeleeCaster() {
+        FighterLoadout baseline = FighterLoadout.Default(FighterCharacterID.Einstein);
+        return new FighterLoadout(
+            baseline.CharacterID, baseline.MaxHP, baseline.MaxBlockCharges, baseline.MaxJumpCount,
+            baseline.BasicDamage, baseline.SpecialOneDamage, baseline.SpecialTwoDamage, baseline.UltimateDamage,
+            baseline.SpecialOneCooldownFrames, baseline.SpecialTwoCooldownFrames,
+            baseline.SpecialOneStatusType, baseline.SpecialOneStatusFrames,
+            baseline.SpecialTwoStatusType, baseline.SpecialTwoStatusFrames,
+            baseline.UltimateStatusType, baseline.UltimateStatusFrames,
+            baseline.Weight, baseline.MoveSpeed, baseline.JumpSpeed,
+            baseline.BasicKnockback, baseline.SpecialOneKnockback, baseline.SpecialTwoKnockback, baseline.UltimateKnockback,
+            baseline.SpecialOneStatusIntensity, baseline.SpecialTwoStatusIntensity, baseline.UltimateStatusIntensity,
+            FighterAbilityLoadout.Default with {
+                SpecialOneExecutionType = FighterSpecialCastRules.MeleeExecutionType,
+                SpecialOneHit = FighterAbilityHitData.DefaultSpecial with {
+                    Launches = false, StartupFrames = 2, ActiveFrames = 60, RecoveryFrames = 0, TotalFrames = 62
+                }
+            });
+    }
+
     // === helpers ==============================================================
 
     private static CharacterData Data(string hero) =>

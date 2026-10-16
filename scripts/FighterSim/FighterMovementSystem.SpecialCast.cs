@@ -30,15 +30,32 @@ namespace FTT.FighterSim {
             in FighterVerbComponent verb,
             ref FighterActionStateComponent action,
             in FighterCounterComponent counter,
-            bool captured) {
+            bool captured,
+            bool knockedDown) {
             if (!FighterSpecialCastRules.IsBusy(in action)) return;
-            if (FighterSpecialCastRules.ClearIfInterrupted(ref action, in fighter, in verb, captured)) return;
+            if (FighterSpecialCastRules.ClearIfInterrupted(ref action, in fighter, in verb, captured, knockedDown)) return;
             if (FighterSpecialCastRules.IsDelegated(in action)) {
                 if (!FighterForesightRules.IsBusy(in counter)) FighterSpecialCastRules.Clear(ref action);
                 return;
             }
             FighterAbilityHitData contract = _contracts.For(fighter.PlayerID, action.SpecialSlot);
-            if (!FighterSpecialCastRules.Advance(ref action, in contract)) return;
+            bool wasActive = FighterSpecialCastRules.IsActive(in action);
+            bool enteredActive = FighterSpecialCastRules.Advance(ref action, in contract);
+            // Fix round A (CM-FIXA-SIM): the Piercing lunge ends with the active
+            // window. Its 12th move (the last active tick) spends its last frame,
+            // but its kit step cancels the 305 slot only on its next call — after
+            // this tick's cast region has already read the stance — so the stale
+            // lunge state refused the recovery Block cancel on recovery frame 0.
+            // Ending it here, on the Active → Recovery tick, is exactly what that
+            // kit step does later in the same tick (cancel, X 0), so motion is
+            // unchanged; the final thrust already resolved on the last active tick.
+            if (wasActive && !FighterSpecialCastRules.IsActive(in action)
+                && runtime.UniversalMovementState == FighterKitMotion.PiercingLunge
+                && runtime.UniversalMovementFramesRemaining <= 0) {
+                FighterUniversalMovementRules.Cancel(ref runtime);
+                fighter.Velocity.x = FP64.Zero;
+            }
+            if (!enteredActive) return;
             ref readonly FighterAbilityModeComponent modes = ref frame.GetReadOnly<FighterAbilityModeComponent>(entity);
             if (FighterSpecialCastRules.IsPiercingLunge(in fighter, in modes, action.SpecialSlot)
                 && !FighterSpecialCastRules.HasFlag(in action, FighterSpecialCastRules.FlagEffectFired)) {
@@ -65,10 +82,17 @@ namespace FTT.FighterSim {
         /// and active frames (design :1097), through the one shared constant
         /// <c>UniversalMovementRules.AerialSpecialGravityMultiplier</c>; in
         /// recovery, and for a grounded cast that left the floor, the step is the
-        /// normal one.
+        /// normal one. Fix round A (CM-FIXA-SIM): a Delegated cast (Foresight)
+        /// does the same through its component-322 startup and window — Story's
+        /// Startup and Active — and its sidestep and whiff recovery fall on the
+        /// normal step.
         /// </summary>
-        private static bool CastHalvesGravity(in FighterActionStateComponent action) =>
-            (FighterSpecialCastRules.IsStartup(in action) || FighterSpecialCastRules.IsActive(in action))
-            && FighterSpecialCastRules.HasFlag(in action, FighterSpecialCastRules.FlagStartedAerial);
+        private static bool CastHalvesGravity(in FighterActionStateComponent action, in FighterCounterComponent counter) =>
+            FighterSpecialCastRules.HasFlag(in action, FighterSpecialCastRules.FlagStartedAerial)
+            && (FighterSpecialCastRules.IsStartup(in action)
+                || FighterSpecialCastRules.IsActive(in action)
+                || (FighterSpecialCastRules.IsDelegated(in action)
+                    && (counter.Phase == FighterForesightRules.PhaseStartup
+                        || counter.Phase == FighterForesightRules.PhaseWindow)));
     }
 }

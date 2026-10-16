@@ -102,21 +102,23 @@ public class FighterSpecialCastRulesTests {
     [TestCase]
     public void EveryInterruptClearsTheCastAndLeavesTheOtherFieldsAlone() {
         FighterAbilityHitData contract = Contract(startup: 12, active: 6, recovery: 20);
-        var interrupts = new (string Name, FighterStateComponent Fighter, FighterVerbComponent Verb, bool Captured)[] {
-            ("hitstun", Fighter(f => f.HitstunFrames = 1), default, false),
-            ("daze", Fighter(f => f.DazeFrames = 1), default, false),
-            ("grabbing", Fighter(null), new FighterVerbComponent { GrabPhase = 1 }, false),
-            ("held", Fighter(null), new FighterVerbComponent { BeingHeld = 1 }, false),
-            ("captured", Fighter(null), default, true),
-            ("out of stocks", Fighter(f => f.Stocks = 0), default, false),
-            ("the respawn platform", Fighter(f => f.RespawnFramesRemaining = 1), default, false)
+        var interrupts = new (string Name, FighterStateComponent Fighter, FighterVerbComponent Verb, bool Captured, bool KnockedDown)[] {
+            ("hitstun", Fighter(f => f.HitstunFrames = 1), default, false, false),
+            ("daze", Fighter(f => f.DazeFrames = 1), default, false, false),
+            ("grabbing", Fighter(null), new FighterVerbComponent { GrabPhase = 1 }, false, false),
+            ("held", Fighter(null), new FighterVerbComponent { BeingHeld = 1 }, false, false),
+            ("captured", Fighter(null), default, true, false),
+            // Fix round A (CM-FIXA-SIM): the M05 knockdown and its get-up.
+            ("knocked down", Fighter(null), default, false, true),
+            ("out of stocks", Fighter(f => f.Stocks = 0), default, false, false),
+            ("the respawn platform", Fighter(f => f.RespawnFramesRemaining = 1), default, false, false)
         };
-        foreach ((string name, FighterStateComponent fighter, FighterVerbComponent verb, bool captured) in interrupts) {
+        foreach ((string name, FighterStateComponent fighter, FighterVerbComponent verb, bool captured, bool knockedDown) in interrupts) {
             var cast = new FighterActionStateComponent {
                 SpecialCancelBuffer = 5, BlockTiming = 7, DownTapFrames = 3, ActionFlags = 2
             };
             FighterSpecialCastRules.Begin(ref cast, 1, in contract, startedAerial: false);
-            AssertThat(FighterSpecialCastRules.ClearIfInterrupted(ref cast, in fighter, in verb, captured))
+            AssertThat(FighterSpecialCastRules.ClearIfInterrupted(ref cast, in fighter, in verb, captured, knockedDown))
                 .OverrideFailureMessage($"{name} must end the cast.")
                 .IsTrue();
             AssertThat(FighterSpecialCastRules.IsBusy(in cast)).IsFalse();
@@ -132,10 +134,10 @@ public class FighterSpecialCastRulesTests {
         FighterStateComponent standing = Fighter(null);
         var running = new FighterActionStateComponent();
         FighterSpecialCastRules.Begin(ref running, 2, in contract, startedAerial: false);
-        AssertThat(FighterSpecialCastRules.ClearIfInterrupted(ref running, in standing, default, false)).IsFalse();
+        AssertThat(FighterSpecialCastRules.ClearIfInterrupted(ref running, in standing, default, false, false)).IsFalse();
         AssertThat(FighterSpecialCastRules.IsStartup(in running)).IsTrue();
         var idle = new FighterActionStateComponent();
-        AssertThat(FighterSpecialCastRules.ClearIfInterrupted(ref idle, Fighter(f => f.HitstunFrames = 5), default, false)).IsFalse();
+        AssertThat(FighterSpecialCastRules.ClearIfInterrupted(ref idle, Fighter(f => f.HitstunFrames = 5), default, false, false)).IsFalse();
     }
 
     [TestCase]
@@ -170,7 +172,7 @@ public class FighterSpecialCastRulesTests {
     public void ADelegatedCastIsBusyButNotClocked() {
         FighterAbilityHitData contract = Contract(startup: 4, active: 20, recovery: 24);
         var cast = new FighterActionStateComponent();
-        FighterSpecialCastRules.BeginDelegated(ref cast, 2);
+        FighterSpecialCastRules.BeginDelegated(ref cast, 2, startedAerial: false);
         AssertThat(FighterSpecialCastRules.IsDelegated(in cast)).IsTrue();
         AssertThat(FighterSpecialCastRules.IsBusy(in cast))
             .OverrideFailureMessage("Foresight's Delegated marker holds the cast lock.")
@@ -184,7 +186,7 @@ public class FighterSpecialCastRulesTests {
         AssertThat(FighterSpecialCastRules.IsDelegated(in cast)).IsTrue();
         AssertThat(cast.SpecialPhaseElapsed).IsEqual(0);
         AssertThat(FighterSpecialCastRules.RecoveryFrame(in cast)).IsEqual(-1);
-        AssertThat(FighterSpecialCastRules.ClearIfInterrupted(ref cast, Fighter(f => f.HitstunFrames = 1), default, false)).IsTrue();
+        AssertThat(FighterSpecialCastRules.ClearIfInterrupted(ref cast, Fighter(f => f.HitstunFrames = 1), default, false, false)).IsTrue();
         AssertThat(FighterSpecialCastRules.IsBusy(in cast)).IsFalse();
     }
 

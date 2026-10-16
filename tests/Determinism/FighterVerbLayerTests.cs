@@ -117,7 +117,8 @@ public class FighterVerbLayerTests {
         LandLauncher(control);
 
         bool techFired = false;
-        for (int tick = connectTick + 1; tick <= connectTick + 90; tick++) {
+        int tick = connectTick + 1;
+        for (; tick <= connectTick + 90; tick++) {
             teched.Advance(Frame(tick, 0, GameplayButtons.None), FrameHeld(tick, GameplayButtons.Block));
             control.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             AssertThat(teched.TryGetFighter(1, out FighterStateComponent victim)).IsTrue();
@@ -127,15 +128,91 @@ public class FighterVerbLayerTests {
             if (victim.IsGrounded != 0 && victim.HitstunFrames == 0
                 && techVerb.TechLockoutFrames > 0) {
                 techFired = true;
-                AssertThat(victim.InvulnerabilityFrames <= BasicComboRules.LandingTechRecoveryFrames)
-                    .OverrideFailureMessage("The tech grants exactly the authored recovery window.")
-                    .IsTrue();
+                // Fix round A (CM-FIXA-SIM): the grant covers the landing tick's
+                // own combat pass plus the 12 locked ticks after it, the
+                // knockdown's +1 pattern — it read 12 and then sat frozen
+                // through the lock, so it outlived it by 11 ticks.
+                AssertThat(victim.InvulnerabilityFrames)
+                    .OverrideFailureMessage("The tech grants its landing tick plus the authored recovery window.")
+                    .IsEqual(BasicComboRules.LandingTechRecoveryFrames + 1);
                 break;
             }
         }
         AssertThat(techFired)
             .OverrideFailureMessage("Holding Block on ground contact must tech the landing.")
             .IsTrue();
+        // The invulnerability counts down WITH the lock and ends with it: every
+        // locked tick is invulnerable, and the first free tick is not.
+        for (int frame = 1; frame <= BasicComboRules.LandingTechRecoveryFrames; frame++) {
+            tick++;
+            teched.Advance(Frame(tick, 0, GameplayButtons.None), FrameHeld(tick, GameplayButtons.Block));
+            AssertThat(teched.TryGetFighter(1, out FighterStateComponent locked)).IsTrue();
+            AssertThat(teched.TryGetFighterVerb(1, out FighterVerbComponent lockedVerb)).IsTrue();
+            AssertThat(lockedVerb.TechLockoutFrames).IsEqual(BasicComboRules.LandingTechRecoveryFrames - frame);
+            AssertThat(locked.InvulnerabilityFrames)
+                .OverrideFailureMessage($"Tech tick L+{frame}: the invulnerability must count down with the lock.")
+                .IsEqual(BasicComboRules.LandingTechRecoveryFrames + 1 - frame);
+        }
+        tick++;
+        teched.Advance(Frame(tick, 0, GameplayButtons.None), FrameHeld(tick, GameplayButtons.Block));
+        AssertThat(teched.TryGetFighter(1, out FighterStateComponent free)).IsTrue();
+        AssertThat(free.InvulnerabilityFrames)
+            .OverrideFailureMessage("The first free tick after the tech is not invulnerable.")
+            .IsEqual(0);
+    }
+
+    /// <summary>
+    /// Fix round A (CM-FIXA-SIM, ruling (b)): the tech's invulnerability lasts
+    /// exactly as long as its action lock — design :1286, "locked in place, no
+    /// actions", and Story's one 12-frame window. A hit probed on the last
+    /// locked tick is refused; the same hit on the first free tick, the one
+    /// whose presses are live again, lands. Before the fix the grant sat frozen
+    /// through the lock and refused every hit for 11 more ticks, a free
+    /// invulnerable reversal.
+    /// </summary>
+    [TestCase]
+    public void AHitOnTheFirstTickAfterTheTechLockLandsAndOneInsideItIsRefused() {
+        FighterSimulation simulation = NewTechSimulation(emptyShield: false);
+        int tick = LaunchAndTech(simulation, 0, out _);
+        AssertThat(ProbeHitLands(simulation))
+            .OverrideFailureMessage("A hit on the tech's own landing tick must be refused.")
+            .IsFalse();
+        for (int frame = 1; frame <= BasicComboRules.LandingTechRecoveryFrames; frame++, tick++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+            AssertThat(ProbeHitLands(simulation))
+                .OverrideFailureMessage($"A hit on locked tech tick L+{frame} must be refused.")
+                .IsFalse();
+        }
+        AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent done)).IsTrue();
+        AssertThat(done.TechLockoutFrames).IsEqual(0);
+        simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        AssertThat(ProbeHitLands(simulation))
+            .OverrideFailureMessage("A hit on the first tick after the tech lock must land.")
+            .IsTrue();
+    }
+
+    /// <summary>
+    /// Probes the hit pipeline against COPIES of the live components after the
+    /// tick (the simulation is untouched): true when a plain basic from player
+    /// one would land on player two — exactly what that tick's combat pass saw,
+    /// since nothing after it changes the invulnerability.
+    /// </summary>
+    private static bool ProbeHitLands(FighterSimulation simulation) {
+        simulation.TryGetFighter(0, out FighterStateComponent attacker);
+        simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent attackerRuntime);
+        simulation.TryGetFighterVerb(0, out FighterVerbComponent attackerVerb);
+        simulation.TryGetFighter(1, out FighterStateComponent target);
+        simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent targetRuntime);
+        simulation.TryGetFighterVerb(1, out FighterVerbComponent targetVerb);
+        simulation.TryGetFighterDefense(1, out FighterDefenseComponent targetDefense);
+        // The probe hit is never blocked: the question is the invulnerability.
+        targetRuntime.HeldButtons = 0;
+        FighterTuningComponent targetTuning = default;
+        return FighterDamageRules.ApplyFighterHit(
+            ref attacker, ref attackerRuntime, ref attackerVerb,
+            ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
+            FighterDamageRules.BasicAttackClass, 5, FP64.One, 12,
+            (int)StatusType.None, 0, FP64.One, attacker.Position.x);
     }
 
     [TestCase]
@@ -392,11 +469,18 @@ public class FighterVerbLayerTests {
     /// and grab systems read the tick's presses after the landing resolves, so
     /// they are discarded there. The victim holds Block for the tech with an
     /// empty shield, so the stance never rises to refuse them instead.
+    /// The BasicAttack row is skipped here (fix round A, CM-FIXA-SIM): the
+    /// tech needs Block held, so BasicAttack on L is the grab chord — its own
+    /// row — and a swing can never start on L anyway, because the movement
+    /// system resolves the string while the victim is still in hitstun, before
+    /// the landing. The row stays in the L+1..L+12 case, where it means
+    /// something.
     /// </summary>
     [TestCase]
     public void NoVerbStartsOnTheTechsOwnLandingTick() {
         int landing = LaunchAndTech(NewTechSimulation(emptyShield: true), 0, out int connect) - 1;
         foreach ((string name, GameplayButtons pressed, GameplayButtons held) in TechLockVerbs) {
+            if (pressed == GameplayButtons.BasicAttack && held == GameplayButtons.BasicAttack) continue;
             FighterSimulation simulation = NewTechSimulation(emptyShield: true);
             AssertThat(simulation.SeedFighterInfluenceForTest(1, 100)).IsTrue();
             int tick = 0;
