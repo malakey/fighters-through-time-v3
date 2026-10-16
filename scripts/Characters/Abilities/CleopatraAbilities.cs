@@ -451,6 +451,17 @@ namespace FTT.Characters.Abilities {
             PhaseTimer = _mirageDuration;
             // C03: the rush passes through opponents.
             SetPushbox(false);
+            // CM-FIXA-STORY: the controller moves before this node processes, so
+            // the rush is driven here, on entry to Active, and every one of its 15
+            // ticks moves at the rush speed (240 px, the sim's SandRush). It used
+            // to spend its first tick on the startup's carried velocity (224 px).
+            DriveRush();
+        }
+
+        /// <summary>Writes the rush velocity: the authored distance over the authored duration.</summary>
+        private void DriveRush() {
+            if (Owner == null || _mirageDuration <= 0f) return;
+            Owner.Velocity = _mirageDirection * (_mirageDistance / _mirageDuration);
         }
 
         protected override void OnInterrupted() {
@@ -478,8 +489,7 @@ namespace FTT.Characters.Abilities {
             // F5: the rush is caster-bound — it holds with its frozen caster.
             if (CastClockSuspended) return;
             if (CurrentPhase == AbilityPhase.Active) {
-                float speed = _mirageDistance / _mirageDuration;
-                Owner.Velocity = _mirageDirection * speed;
+                DriveRush();
             }
             base._PhysicsProcess(delta);
         }

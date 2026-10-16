@@ -139,6 +139,11 @@ namespace FTT.Characters.Abilities {
         protected override void OnActive() {
             UseAuthoredPhaseFrames();
             _lungeRight = Owner.IsFacingRight;
+            // CM-FIXA-STORY: the controller moves before this node processes, so
+            // the lunge is driven here, on entry to Active, and the first active
+            // tick moves too: all 12 active ticks lunge (180 px), as the sim's
+            // AdvanceSpecialCast does. It used to start one tick late (165 px).
+            DriveLunge();
         }
 
         protected override void OnRecovery() {
@@ -150,13 +155,19 @@ namespace FTT.Characters.Abilities {
             if (Owner != null && IsInstanceValid(Owner)) Owner.Velocity = new Vector2(0f, Owner.Velocity.Y);
         }
 
+        /// <summary>Writes the lunge's horizontal speed along the latched facing.</summary>
+        private void DriveLunge() {
+            if (Owner == null) return;
+            Owner.Velocity = new Vector2(
+                _lungeRight ? LungeSpeedPixelsPerSecond : -LungeSpeedPixelsPerSecond,
+                Owner.Velocity.Y);
+        }
+
         public override void _PhysicsProcess(double delta) {
             // F5: the lunge and its thrust cadence hold with the frozen caster.
             if (CastClockSuspended) return;
             if (CurrentPhase == AbilityPhase.Active) {
-                Owner.Velocity = new Vector2(
-                    _lungeRight ? LungeSpeedPixelsPerSecond : -LungeSpeedPixelsPerSecond,
-                    Owner.Velocity.Y);
+                DriveLunge();
                 _activeFramesElapsed++;
                 int hitCount = Mathf.Max(1, Data?.HitCount ?? 1);
                 int interval = Mathf.Max(1, (Data?.ActiveFrames ?? hitCount) / hitCount);
@@ -398,6 +409,10 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnActive() {
             UseAuthoredPhaseFrames();
+            // CM-FIXA-STORY: driven on entry to Active (the controller moves
+            // before this node), so the charge moves on every active tick, the
+            // first one included — the same tick rule as Divine Piercing's lunge.
+            DriveCharge();
         }
 
         protected override void OnRecovery() {
@@ -405,14 +420,20 @@ namespace FTT.Characters.Abilities {
             Owner.Velocity = new Vector2(0f, Owner.Velocity.Y);
         }
 
+        /// <summary>Writes the charge's horizontal speed along facing.</summary>
+        private void DriveCharge() {
+            if (Owner == null) return;
+            float chargeSpeed = Data?.ProjectileSpeed > 0f ? Data.ProjectileSpeed : DefaultChargeSpeed;
+            Owner.Velocity = new Vector2(
+                Owner.IsFacingRight ? chargeSpeed : -chargeSpeed,
+                Owner.Velocity.Y);
+        }
+
         public override void _PhysicsProcess(double delta) {
             // F5: the charge and its trample cadence hold with the frozen caster.
             if (CastClockSuspended) return;
             if (CurrentPhase == AbilityPhase.Active) {
-                float chargeSpeed = Data?.ProjectileSpeed > 0f ? Data.ProjectileSpeed : DefaultChargeSpeed;
-                Owner.Velocity = new Vector2(
-                    Owner.IsFacingRight ? chargeSpeed : -chargeSpeed,
-                    Owner.Velocity.Y);
+                DriveCharge();
 
                 _activeFramesElapsed++;
                 // D15 (Package 13 W6): the HitCount tramples, then the finale charge.
