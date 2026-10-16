@@ -191,6 +191,11 @@ namespace FTT.FighterSim {
             // Package 13 W5: Tubman's Foresight counter stance, component 322.
             // All zero is inactive; every fighter carries it.
             frame.Add(entity, new FighterCounterComponent());
+            // Combat and movement update 2026-10-16 (plan §1.5): the action
+            // state, component 323 — the Fighter Special cast, the D3 buffer, the
+            // perfect-block clock, the Down tap and the action flags. All zero is
+            // idle; every fighter carries it.
+            frame.Add(entity, new FighterActionStateComponent());
             // V7.6 D01-D04 (Package 11 A1b): the defensive layer - Defy
             // protected recovery, the Temporal Aegis flag and the D02b HP
             // barrier. Snapshot and hash state like every other component.
@@ -264,7 +269,7 @@ namespace FTT.FighterSim {
         }
     }
 
-    public sealed class FighterMovementSystem : ISystem {
+    public sealed partial class FighterMovementSystem : ISystem {
         private const int JumpButton = 1 << 0;
         private const int DownButton = 1 << 1;
         private const int BasicButton = 1 << 2;
@@ -295,6 +300,8 @@ namespace FTT.FighterSim {
                 ref FighterRuntimeComponent runtime = ref frame.Get<FighterRuntimeComponent>(entity);
                 ref readonly FighterTuningComponent tuning = ref frame.GetReadOnly<FighterTuningComponent>(entity);
                 ref FighterVerbComponent verb = ref frame.Get<FighterVerbComponent>(entity);
+                // Combat and movement update (plan §1.5): component 323.
+                ref FighterActionStateComponent action = ref frame.Get<FighterActionStateComponent>(entity);
 
                 // V7.6 Echo Step history (Package 11 A1c): exactly one sample per
                 // authoritative tick, recorded HERE — above the hitstop
@@ -317,6 +324,21 @@ namespace FTT.FighterSim {
                     // 2026-10-11 (addendum): a Special press inside the freeze of
                     // this fighter's own landed swing is held for its thaw tick.
                     FighterAbilityLockoutRules.BufferFreezePress(ref runtime);
+                    // Plan §2.1.6, the cast lock in the hitstop branch: a landed
+                    // Special freezes its caster, and this branch continues before
+                    // the cast region below, so on every frozen tick — the thaw
+                    // tick included, whose presses the ability and combat systems
+                    // read — a busy caster's input is discarded here. An
+                    // interrupted cast (a hit put the caster in hitstun) is
+                    // cleared first, so the victim keeps its DI read. Phase B's D3
+                    // feed call goes before this line, after the two buffers.
+                    FighterSpecialCastRules.ClearIfInterrupted(
+                        ref action, in fighter, in verb,
+                        FighterUltimateActivationRules.IsCaptured(
+                            in frame.GetReadOnly<FighterUltimateActivationComponent>(entity)));
+                    if (FighterSpecialCastRules.IsBusy(in action)) {
+                        FighterUltimateActivationRules.DiscardInput(ref runtime);
+                    }
                     verb.HitstopFrames--;
                     if (verb.HitstopFrames == 0) {
                         FighterVerbRules.ResolvePendingLaunch(ref fighter, in runtime, ref verb);
@@ -335,6 +357,11 @@ namespace FTT.FighterSim {
                     verb.HitstunBlockCancelBlocked = 0;
                     verb.PendingLaunchActive = 0;
                 }
+                // Plan §1.5: the stock-loss reset of component 323. The stock-loss
+                // chokepoint has no Frame, so the platform is the tell: every field
+                // is held at zero while the respawn platform holds the fighter
+                // (respawn protection is set at the drop, after this hold).
+                if (FighterMatchFlowRules.IsOnRespawnPlatform(in fighter)) action = default;
 
                 // A02 (Package 13 W6, component 321): a fighter held by an
                 // opponent's Ultimate cinematic takes no input and does not move
@@ -410,9 +437,15 @@ namespace FTT.FighterSim {
                 }
 
                 // Landing-tech recovery: invulnerable, in place, no actions.
+                // 1.1(3) (plan §2.1.3): "no actions" now holds for every verb —
+                // this tick's input is discarded before the ability, combat and
+                // grab systems read it (the knockdown branch's rule), so no
+                // Special, movement ability, paid Ultimate or grab starts during
+                // the tech, and the D10 classifier sees no press.
                 if (verb.TechLockoutFrames > 0) {
                     verb.TechLockoutFrames--;
                     fighter.Velocity = FPVector2.Zero;
+                    FighterUltimateActivationRules.DiscardInput(ref runtime);
                     TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning);
                     continue;
                 }
@@ -425,6 +458,22 @@ namespace FTT.FighterSim {
                     fighter.Velocity = FPVector2.Zero;
                     TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning);
                     continue;
+                }
+
+                // Plan §2.1.6, the cast region: a busy caster's input is
+                // discarded on every tick before any verb (or the block-regen
+                // stance read in TickCounters) sees it. The one exit is the
+                // grounded recovery Block cancel (Story's Package 12 W3 rule),
+                // which clears the cast and keeps this tick's input so the stance
+                // rises now. Phase B: CM-CANCEL's D3 fires here, after the Block
+                // cancel.
+                if (FighterSpecialCastRules.IsBusy(in action)) {
+                    if (FighterSpecialCastRules.IsRecovery(in action)
+                        && FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb)) {
+                        FighterSpecialCastRules.Clear(ref action);
+                    } else {
+                        FighterUltimateActivationRules.DiscardInput(ref runtime);
+                    }
                 }
 
                 TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning);
@@ -540,7 +589,10 @@ namespace FTT.FighterSim {
                     // strike (GU-A; it was the aerial string) — the dive is an
                     // approach, not a hover.
                     FighterKitMotion.TryWingDiveAttackCancel(ref runtime);
-                    ProcessBasicAttackPhase(ref fighter, ref runtime, in verb);
+                    if (ProcessBasicAttackPhase(ref fighter, ref runtime, in verb)) {
+                        FighterActionRules.OnActionAccepted(
+                            ref fighter, ref verb, ref defense, ref action, FighterActionKind.Swing);
+                    }
                     bool attacking = runtime.AttackPhase != FighterBasicAttackRules.PhaseNone;
                     bool blockStance = FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb);
                     // V7.3 shieldstun: the stunned blocker is locked into the
@@ -550,6 +602,9 @@ namespace FTT.FighterSim {
                         ref fighter,
                         ref runtime,
                         ref knockdown,
+                        ref verb,
+                        ref defense,
+                        ref action,
                         rooted,
                         // An Echo Step wind-up owns the Roll press that armed it.
                         allowRoll: !attacking && verb.EchoStepWindupFrames == 0 && !shieldStunned);
@@ -584,6 +639,9 @@ namespace FTT.FighterSim {
                         ApplyNormalMovement(
                             ref fighter,
                             ref runtime,
+                            ref verb,
+                            ref defense,
+                            ref action,
                             in tuning,
                             rooted,
                             statusMoveMultiplier,
@@ -713,10 +771,16 @@ namespace FTT.FighterSim {
                 // missed tech — the knockdown begins on the landing tick.
                 // A12 (Package 13 W1): a slammed victim's first ground contact
                 // is the forced, untechable bounce — neither tech nor knockdown.
+                // 1.1(3) (plan §2.1.3): the tech's own landing tick L takes no
+                // action either — its presses are discarded here, before the
+                // ability, combat and grab systems read them.
                 if (wasAirborne && fighter.IsGrounded != 0
-                    && !FighterSlamRules.TryBounce(ref fighter, in runtime, ref verb, ref knockdown)
-                    && !FighterVerbRules.TryLandingTech(ref fighter, in runtime, ref verb)) {
-                    FighterKnockdownRules.TryBeginKnockdown(ref fighter, ref verb, ref knockdown);
+                    && !FighterSlamRules.TryBounce(ref fighter, in runtime, ref verb, ref knockdown)) {
+                    if (FighterVerbRules.TryLandingTech(ref fighter, in runtime, ref verb)) {
+                        FighterUltimateActivationRules.DiscardInput(ref runtime);
+                    } else {
+                        FighterKnockdownRules.TryBeginKnockdown(ref fighter, ref verb, ref knockdown);
+                    }
                 }
 
                 // V7.3 regrab cap: grounding resets the per-airtime ledge budget.
@@ -741,6 +805,8 @@ namespace FTT.FighterSim {
                 if (TryGrabLedge(ref fighter, ref runtime, ref verb, in tuning)) {
                     FighterAirDodgeRules.Refresh(ref knockdown);
                     knockdown.StaffRefundUsed = 0;
+                    FighterActionRules.OnActionAccepted(
+                        ref fighter, ref verb, ref defense, ref action, FighterActionKind.LedgeGrab);
                 }
             }
 
@@ -915,13 +981,18 @@ namespace FTT.FighterSim {
             ref FighterStateComponent fighter,
             ref FighterRuntimeComponent runtime,
             ref FighterKnockdownComponent knockdown,
+            ref FighterVerbComponent verb,
+            ref FighterDefenseComponent defense,
+            ref FighterActionStateComponent action,
             bool rooted,
             bool allowRoll = true) {
             // A03 (Package 13 W1): Roll pressed while airborne is the air dodge.
             // A05: Root refuses it exactly as it refuses the grounded roll.
             if (fighter.IsGrounded == 0) {
-                if (allowRoll && (runtime.PressedButtons & RollButton) != 0) {
-                    FighterAirDodgeRules.TryStart(ref fighter, ref runtime, ref knockdown, rooted);
+                if (allowRoll && (runtime.PressedButtons & RollButton) != 0
+                    && FighterAirDodgeRules.TryStart(ref fighter, ref runtime, ref knockdown, rooted)) {
+                    FighterActionRules.OnActionAccepted(
+                        ref fighter, ref verb, ref defense, ref action, FighterActionKind.AirDodge);
                 }
                 return;
             }
@@ -932,6 +1003,8 @@ namespace FTT.FighterSim {
                 runtime.UniversalMovementState = (int)UniversalMovementPhase.RollStartup;
                 runtime.UniversalMovementFramesRemaining = UniversalMovementRules.RollStartupFrames;
                 runtime.UniversalMovementDirection = direction;
+                FighterActionRules.OnActionAccepted(
+                    ref fighter, ref verb, ref defense, ref action, FighterActionKind.Roll);
             }
         }
 
@@ -988,6 +1061,9 @@ namespace FTT.FighterSim {
         private static void ApplyNormalMovement(
             ref FighterStateComponent fighter,
             ref FighterRuntimeComponent runtime,
+            ref FighterVerbComponent verb,
+            ref FighterDefenseComponent defense,
+            ref FighterActionStateComponent action,
             in FighterTuningComponent tuning,
             bool rooted,
             FP64 statusMoveMultiplier,
@@ -1054,9 +1130,11 @@ namespace FTT.FighterSim {
                 fighter.Velocity.y = tuning.JumpSpeed * statusMoveMultiplier * jumpBuffMultiplier;
                 fighter.IsGrounded = 0;
                 fighter.RemainingJumps = tuning.MaxJumpCount - 1;
+                FighterActionRules.OnActionAccepted(ref fighter, ref verb, ref defense, ref action, FighterActionKind.Jump);
             } else if (allowJump && jumpPressed && fighter.IsGrounded == 0 && fighter.RemainingJumps > 0 && !rooted) {
                 fighter.Velocity.y = tuning.JumpSpeed * statusMoveMultiplier * jumpBuffMultiplier;
                 fighter.RemainingJumps--;
+                FighterActionRules.OnActionAccepted(ref fighter, ref verb, ref defense, ref action, FighterActionKind.AirJump);
             }
         }
 
@@ -1071,8 +1149,11 @@ namespace FTT.FighterSim {
         /// press is the single air strike, and no chain hit ever starts in the
         /// air — a continuation that would begin airborne ends the string.
         /// Internal so the GU-A suites can drive it on a hand-built fighter.
+        /// Returns true when a swing started this tick (a fresh swing or a chain
+        /// continuation), the caller's cue for the action chokepoint
+        /// (<see cref="FighterActionRules.OnActionAccepted"/>, plan §1.5).
         /// </summary>
-        internal static void ProcessBasicAttackPhase(
+        internal static bool ProcessBasicAttackPhase(
             ref FighterStateComponent fighter,
             ref FighterRuntimeComponent runtime,
             in FighterVerbComponent verb) {
@@ -1087,8 +1168,9 @@ namespace FTT.FighterSim {
                         ref runtime,
                         0,
                         FighterBasicAttackRules.SelectVariant(in fighter, in runtime));
+                    return true;
                 }
-                return;
+                return false;
             }
 
             bool aerial = (runtime.AttackFlags & FighterBasicAttackRules.FlagAerial) != 0;
@@ -1098,7 +1180,7 @@ namespace FTT.FighterSim {
                 // Landing cancels a swing started in the air (the air strike, an
                 // airborne up-attack, the down-air) with no landing lag.
                 FighterBasicAttackRules.CancelString(ref runtime);
-                return;
+                return false;
             }
 
             // The air strike and the directional attacks stand outside the
@@ -1113,10 +1195,13 @@ namespace FTT.FighterSim {
                     int variant = FighterBasicAttackRules.SelectVariant(in fighter, in runtime);
                     if (variant != FTT.Combat.BasicComboRules.VariantChain) {
                         FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, 0, variant);
-                    } else if (runtime.ComboIndex < FTT.Combat.BasicComboRules.ComboHits - 1) {
-                        FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, runtime.ComboIndex + 1);
+                        return true;
                     }
-                    return;
+                    if (runtime.ComboIndex < FTT.Combat.BasicComboRules.ComboHits - 1) {
+                        FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, runtime.ComboIndex + 1);
+                        return true;
+                    }
+                    return false;
                 }
                 // F3 (2026-10-04 feel pass): startup, ACTIVE or recovery — the
                 // old active-frame exclusion is gone (it is not in the design);
@@ -1132,7 +1217,7 @@ namespace FTT.FighterSim {
                     || (runtime.HeldButtons & BlockButton) != 0;
                 if (cancels) {
                     FighterBasicAttackRules.CancelString(ref runtime);
-                    return;
+                    return false;
                 }
             }
 
@@ -1148,20 +1233,28 @@ namespace FTT.FighterSim {
                 // held continuation ends the string instead.
                 if (airborne) {
                     FighterBasicAttackRules.CancelString(ref runtime);
-                } else {
-                    FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, runtime.ComboIndex + 1);
+                    return false;
                 }
-                return;
+                FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, runtime.ComboIndex + 1);
+                return true;
             }
 
             runtime.AttackPhaseFrames--;
-            if (runtime.AttackPhaseFrames > 0) return;
+            if (runtime.AttackPhaseFrames > 0) return false;
             int step = runtime.ComboIndex < 0 ? 0 : runtime.ComboIndex > 2 ? 2 : runtime.ComboIndex;
+            bool started = false;
             switch (phase) {
                 case FighterBasicAttackRules.PhaseStartup:
                     runtime.AttackPhase = FighterBasicAttackRules.PhaseActive;
                     runtime.AttackPhaseFrames =
                         FighterBasicAttackRules.ActiveFramesFor(runtime.AttackFlags, step);
+                    // 10.1 (plan §2.10.1): the box facing is latched here, at
+                    // active start, before this tick's steering can turn it.
+                    if (fighter.FacingRight != 0) {
+                        runtime.AttackFlags |= FighterBasicAttackRules.FlagActiveFacingRight;
+                    } else {
+                        runtime.AttackFlags &= ~FighterBasicAttackRules.FlagActiveFacingRight;
+                    }
                     break;
                 case FighterBasicAttackRules.PhaseActive:
                     runtime.AttackPhase = FighterBasicAttackRules.PhaseRecovery;
@@ -1192,6 +1285,7 @@ namespace FTT.FighterSim {
                         bool queued = (runtime.AttackFlags & FighterBasicAttackRules.FlagQueuedBuffered) != 0;
                         FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, step + 1);
                         if (queued) runtime.AttackFlags |= FighterBasicAttackRules.FlagBuffered;
+                        started = true;
                     } else if (step >= FTT.Combat.BasicComboRules.ComboHits - 1) {
                         // The finisher exits straight out; the chain resets.
                         FighterBasicAttackRules.CancelString(ref runtime);
@@ -1206,6 +1300,7 @@ namespace FTT.FighterSim {
                     FighterBasicAttackRules.CancelString(ref runtime);
                     break;
             }
+            return started;
         }
 
         private static FP64 MoveToward(FP64 current, FP64 target, FP64 maximumDelta) {
@@ -1308,7 +1403,8 @@ namespace FTT.FighterSim {
                     rollHeld: (runtime.HeldButtons & RollButton) != 0,
                     rollPressed: (runtime.PressedButtons & RollButton) != 0,
                     basicPressed: (runtime.PressedButtons & BasicButton) != 0,
-                    grabLegal: FighterGrabRules.CanStartGrab(in fighter, in runtime, in verb),
+                    grabLegal: FighterGrabRules.CanStartGrab(
+                        in fighter, in runtime, in verb, in frame.GetReadOnly<FighterActionStateComponent>(entity)),
                     echoLegal: echoLegal);
             bool requested =
                 directRequest || chosen == FTT.Combat.BasicComboRules.RecoveryVerb.EchoStep;
@@ -1324,6 +1420,9 @@ namespace FTT.FighterSim {
             ref FighterEchoStepRing0Component ring = ref frame.Get<FighterEchoStepRing0Component>(entity);
             ring.Armed = 1;
             ring.ActivationTick = ring.LatestTick;
+            FighterActionRules.OnActionAccepted(
+                ref fighter, ref verb, ref frame.Get<FighterDefenseComponent>(entity),
+                ref frame.Get<FighterActionStateComponent>(entity), FighterActionKind.EchoStep);
         }
 
         /// <summary>The state gates an Echo Step shares with every other verb.</summary>
@@ -1437,656 +1536,6 @@ namespace FTT.FighterSim {
         }
     }
 
-    internal static class FighterUniversalMovementRules {
-        public static bool IsCombatLocked(in FighterRuntimeComponent runtime) {
-            UniversalMovementPhase phase = (UniversalMovementPhase)runtime.UniversalMovementState;
-            return phase is UniversalMovementPhase.RollStartup
-                or UniversalMovementPhase.RollTravel
-                or UniversalMovementPhase.RollRecovery
-                // A03 (Package 13 W1): the air dodge is a Rolling sub-phase.
-                or UniversalMovementPhase.AirDodgeStartup
-                or UniversalMovementPhase.AirDodgeInvulnerable
-                or UniversalMovementPhase.AirDodgeRecovery
-                // Package 12 W4 / 13 W5: a blink or a North Star Leap in flight is an action.
-                || FighterKitMotion.IsKitPhase(runtime.UniversalMovementState);
-        }
-
-        public static void Cancel(ref FighterRuntimeComponent runtime) {
-            runtime.UniversalMovementState = (int)UniversalMovementPhase.None;
-            runtime.UniversalMovementFramesRemaining = 0;
-            runtime.UniversalMovementDirection = 0;
-        }
-    }
-
-    /// <summary>
-    /// A03 (Package 13 W1): the deterministic air dodge — Roll pressed while
-    /// airborne. It runs in the existing universal-movement slot of component
-    /// 305 as phases 5–7 (<see cref="UniversalMovementPhase.AirDodgeStartup"/> …
-    /// <see cref="UniversalMovementPhase.AirDodgeRecovery"/>), so hits cancel it
-    /// and it snapshots for free; the only new state is the once-per-airtime
-    /// latch <c>AirDodgeUsed</c> on component 320 (plan D7).
-    ///
-    /// <para>No speed is added: gravity, momentum and normal air control keep
-    /// running (the movement system still integrates them), and a held
-    /// direction contributes only a positional shift of
-    /// <see cref="UniversalMovementRules.AirDodgeShiftUnits"/> spread evenly over
-    /// the eight invulnerable frames. The invulnerable frames also switch the
-    /// pushbox off. Landing does not cancel the dodge — the remaining recovery
-    /// plays out grounded, decelerating like a roll recovery.</para>
-    ///
-    /// <para><see cref="FighterRuntimeComponent.UniversalMovementDirection"/>
-    /// carries the held direction as <c>(dx + 1) * 3 + (dy + 1)</c>, dx and dy in
-    /// {-1, 0, 1} (4 = neutral).</para>
-    /// </summary>
-    internal static class FighterAirDodgeRules {
-        private const int NeutralDirectionCode = 4;
-        private static readonly FP64 AxisShiftPerFrame = FP64.FromDouble(
-            UniversalMovementRules.AirDodgeShiftUnits / UniversalMovementRules.AirDodgeInvulnerableFrames);
-        private static readonly FP64 DiagonalShiftPerFrame = FP64.FromDouble(
-            UniversalMovementRules.AirDodgeShiftUnits / UniversalMovementRules.AirDodgeInvulnerableFrames
-                * 0.70710678118654752);
-
-        public static bool IsAirDodge(int universalMovementState) =>
-            universalMovementState is (int)UniversalMovementPhase.AirDodgeStartup
-                or (int)UniversalMovementPhase.AirDodgeInvulnerable
-                or (int)UniversalMovementPhase.AirDodgeRecovery;
-
-        /// <summary>The invulnerable, pushbox-free window.</summary>
-        public static bool IsInvulnerablePhase(in FighterRuntimeComponent runtime) =>
-            runtime.UniversalMovementState == (int)UniversalMovementPhase.AirDodgeInvulnerable;
-
-        /// <summary>
-        /// Starts an air dodge if one is legal: airborne, not already dodged
-        /// this airtime, not rooted (A05), no other universal movement running.
-        /// The caller has already excluded hitstun, daze, hitstop, grab states,
-        /// the ledge hang and any live swing (an air strike's recovery, or a
-        /// dropped-through string's chain window, is cancelled by the same Roll
-        /// press just before this).
-        /// </summary>
-        public static bool TryStart(
-            ref FighterStateComponent fighter,
-            ref FighterRuntimeComponent runtime,
-            ref FighterKnockdownComponent knockdown,
-            bool rooted) {
-            if (rooted
-                || fighter.IsGrounded != 0
-                || knockdown.AirDodgeUsed != 0
-                || runtime.UniversalMovementState != (int)UniversalMovementPhase.None) return false;
-            int dx = runtime.MoveX > 30 ? 1 : runtime.MoveX < -30 ? -1 : 0;
-            // World Y is up; a negative MoveY stick value is "up held".
-            int dy = runtime.MoveY < -30 ? 1 : runtime.MoveY > 30 ? -1 : 0;
-            knockdown.AirDodgeUsed = 1;
-            runtime.UniversalMovementState = (int)UniversalMovementPhase.AirDodgeStartup;
-            runtime.UniversalMovementFramesRemaining = UniversalMovementRules.AirDodgeStartupFrames;
-            runtime.UniversalMovementDirection = (dx + 1) * 3 + (dy + 1);
-            return true;
-        }
-
-        /// <summary>
-        /// Advances one dodge tick. Returns true when the dodge owns this tick's
-        /// horizontal motion (a grounded recovery, decelerating); false while
-        /// airborne, so normal air control still runs — with jumps withheld.
-        /// </summary>
-        public static bool Advance(
-            ref FighterStateComponent fighter,
-            ref FighterRuntimeComponent runtime,
-            FP64 groundDecelStep) {
-            UniversalMovementPhase phase = (UniversalMovementPhase)runtime.UniversalMovementState;
-            if (phase == UniversalMovementPhase.AirDodgeInvulnerable) {
-                if (runtime.UniversalMovementFramesRemaining == UniversalMovementRules.AirDodgeInvulnerableFrames
-                    && fighter.InvulnerabilityFrames < UniversalMovementRules.AirDodgeInvulnerableFrames) {
-                    fighter.InvulnerabilityFrames = UniversalMovementRules.AirDodgeInvulnerableFrames;
-                }
-                ApplyShift(ref fighter, runtime.UniversalMovementDirection);
-            }
-
-            runtime.UniversalMovementFramesRemaining--;
-            if (runtime.UniversalMovementFramesRemaining <= 0) {
-                switch (phase) {
-                    case UniversalMovementPhase.AirDodgeStartup:
-                        runtime.UniversalMovementState = (int)UniversalMovementPhase.AirDodgeInvulnerable;
-                        runtime.UniversalMovementFramesRemaining = UniversalMovementRules.AirDodgeInvulnerableFrames;
-                        break;
-                    case UniversalMovementPhase.AirDodgeInvulnerable:
-                        runtime.UniversalMovementState = (int)UniversalMovementPhase.AirDodgeRecovery;
-                        runtime.UniversalMovementFramesRemaining = UniversalMovementRules.AirDodgeRecoveryFrames;
-                        break;
-                    default:
-                        FighterUniversalMovementRules.Cancel(ref runtime);
-                        break;
-                }
-            }
-
-            if (fighter.IsGrounded == 0) return false;
-            // Landed mid-dodge: the rest plays out grounded, bleeding speed off.
-            if (fighter.Velocity.x > FP64.Zero) {
-                fighter.Velocity.x = FP64.Max(fighter.Velocity.x - groundDecelStep, FP64.Zero);
-            } else if (fighter.Velocity.x < FP64.Zero) {
-                fighter.Velocity.x = FP64.Min(fighter.Velocity.x + groundDecelStep, FP64.Zero);
-            }
-            return true;
-        }
-
-        private static void ApplyShift(ref FighterStateComponent fighter, int directionCode) {
-            if (directionCode == NeutralDirectionCode) return;
-            int dx = directionCode / 3 - 1;
-            int dy = directionCode % 3 - 1;
-            FP64 step = dx != 0 && dy != 0 ? DiagonalShiftPerFrame : AxisShiftPerFrame;
-            fighter.Position.x += step * FP64.FromInt(dx);
-            fighter.Position.y += step * FP64.FromInt(dy);
-        }
-
-        /// <summary>Landing, a ledge grab or a stock loss refreshes the once-per-airtime dodge.</summary>
-        public static void Refresh(ref FighterKnockdownComponent knockdown) => knockdown.AirDodgeUsed = 0;
-    }
-
-    /// <summary>
-    /// Deterministic ledge grab (gameplay-feel plan §2.11), the sim's first slice
-    /// of audit M-16. Only one-way platform ends are grabbable: a stage's base
-    /// floor spans wall to wall and its side walls are solid, so there is no other
-    /// edge to catch. The whole feature is three snapshotted ints in
-    /// <see cref="FighterRuntimeComponent"/> — the hang position is re-derived from
-    /// the stage geometry every tick, since geometry is constant for the match and
-    /// never enters a snapshot.
-    /// </summary>
-    internal static class FighterLedgeRules {
-        /// <summary><see cref="FighterRuntimeComponent.LedgeAnchor"/> for "not hanging".</summary>
-        public const int NoAnchor = -1;
-        /// <summary>Hang ends on its own after five seconds, with the regrab lockout.</summary>
-        public const int AutoReleaseFrames = 300;
-        /// <summary>Half a second of no regrab after a Down release or an auto-release.</summary>
-        public const int RegrabLockoutFrames = 30;
-
-        /// <summary>Capture box half-width around the platform end.</summary>
-        public static readonly FP64 CaptureHalfWidth = FP64.FromDouble(0.5);
-        /// <summary>Capture box depth below the platform surface.</summary>
-        public static readonly FP64 CaptureDepth = FP64.FromDouble(1.2);
-        /// <summary>How far outside the platform the hang position sits.</summary>
-        public static readonly FP64 HangOutwardOffset = FP64.FromDouble(0.25);
-        /// <summary>How far below the surface the hang position sits.</summary>
-        public static readonly FP64 HangDepth = FP64.One;
-        /// <summary>
-        /// Vertical-speed ceiling for a grab. Positive so a fighter still rising
-        /// slowly near the apex catches the ledge they jumped up to; anything
-        /// faster than this is a jump that clears the edge, not a grab.
-        /// </summary>
-        public static readonly FP64 MaxGrabVerticalSpeed = FP64.FromInt(2);
-        /// <summary>The climb jump is nine-tenths of a ground jump.</summary>
-        public static readonly FP64 ClimbJumpMultiplier = FP64.FromDouble(0.9);
-
-        private const int JumpButton = 1 << 0;
-        private const int DownButton = 1 << 1;
-
-        public static bool IsHanging(in FighterRuntimeComponent runtime) => runtime.LedgeAnchor >= 0;
-
-        public static void ClearHang(ref FighterRuntimeComponent runtime) {
-            runtime.LedgeAnchor = NoAnchor;
-            runtime.LedgeStateFrames = 0;
-        }
-
-        /// <summary>
-        /// The fighter-state half of the grab test. Geometry is the caller's job
-        /// (<see cref="FighterStageGeometry.TryFindLedge"/>) so the two halves stay
-        /// independently testable. V7.3 regrab cap: only
-        /// <see cref="FTT.Combat.BasicComboRules.LedgeRegrabsPerAirtime"/> grabs
-        /// per airtime — the next is refused until grounding (or a stock loss)
-        /// resets the budget.
-        /// </summary>
-        public static bool CanGrab(
-            in FighterStateComponent fighter,
-            in FighterRuntimeComponent runtime,
-            in FighterVerbComponent verb) =>
-            fighter.Stocks > 0
-            && fighter.IsGrounded == 0
-            && fighter.RespawnFramesRemaining <= 0
-            && fighter.DropThroughFrames == 0
-            && fighter.HitstunFrames <= 0
-            && fighter.DazeFrames <= 0
-            && runtime.LedgeRegrabLockoutFrames <= 0
-            && verb.LedgeGrabsThisAirtime < FTT.Combat.BasicComboRules.LedgeRegrabsPerAirtime
-            && !IsHanging(in runtime)
-            && fighter.Velocity.y <= MaxGrabVerticalSpeed;
-
-        /// <summary>
-        /// Latches the hang: pinned position, zeroed velocity, refilled jumps, and
-        /// a cancelled swing/roll. Gravity is skipped for as long as the anchor is
-        /// set, so nothing else has to know about the state.
-        /// </summary>
-        public static void Grab(
-            ref FighterStateComponent fighter,
-            ref FighterRuntimeComponent runtime,
-            ref FighterVerbComponent verb,
-            in FighterTuningComponent tuning,
-            int anchor,
-            in FPVector2 hangPosition) {
-            // V7.3 regrab budget: every latched grab spends one of the
-            // per-airtime allowance CanGrab enforces.
-            verb.LedgeGrabsThisAirtime++;
-            runtime.LedgeAnchor = anchor;
-            runtime.LedgeStateFrames = 0;
-            fighter.Position = hangPosition;
-            fighter.Velocity = FPVector2.Zero;
-            // Jumps refill on the grab, which is what makes the climb jump the
-            // ground-jump equivalent rather than an air jump.
-            fighter.RemainingJumps = tuning.MaxJumpCount;
-            // The fighter faces the stage they are about to climb onto: side 0 is
-            // the platform's left edge, so the platform is to their right.
-            fighter.FacingRight = anchor % 2 == 0 ? 1 : 0;
-            FighterUniversalMovementRules.Cancel(ref runtime);
-            FighterBasicAttackRules.CancelString(ref runtime);
-            runtime.FloatFrames = 0;
-        }
-
-        /// <summary>
-        /// Advances one hang tick. Returns true while the fighter is still hanging,
-        /// which is the movement system's signal to skip gravity, movement, and the
-        /// attack phase machine entirely — the same short-circuit hitstun gets.
-        /// </summary>
-        public static bool Process(
-            ref FighterStateComponent fighter,
-            ref FighterRuntimeComponent runtime,
-            in FighterTuningComponent tuning,
-            in FPVector2 hangPosition) {
-            fighter.Position = hangPosition;
-            fighter.Velocity = FPVector2.Zero;
-            fighter.IsGrounded = 0;
-
-            // Jump climbs. It does not spend a jump: the grab refilled them and the
-            // climb is the ground-jump equivalent, so the fighter leaves with the
-            // same budget a jump off the floor would have left.
-            if ((runtime.PressedButtons & JumpButton) != 0) {
-                ClearHang(ref runtime);
-                fighter.Velocity.y = tuning.JumpSpeed * ClimbJumpMultiplier;
-                fighter.RemainingJumps = tuning.MaxJumpCount - 1;
-                return false;
-            }
-
-            // Down drops off. Fast-fall (§2.9) never fights this: release wins, and
-            // because Down is still held the fighter fast-falls immediately after,
-            // which is the intended "drop fast off the ledge" input.
-            if ((runtime.HeldButtons & DownButton) != 0) {
-                Release(ref fighter, ref runtime);
-                return false;
-            }
-
-            runtime.LedgeStateFrames++;
-            if (runtime.LedgeStateFrames >= AutoReleaseFrames) {
-                Release(ref fighter, ref runtime);
-                return false;
-            }
-            return true;
-        }
-
-        /// <summary>Drops off into a fall and arms the regrab lockout.</summary>
-        public static void Release(
-            ref FighterStateComponent fighter,
-            ref FighterRuntimeComponent runtime) {
-            ClearHang(ref runtime);
-            runtime.LedgeRegrabLockoutFrames = RegrabLockoutFrames;
-            fighter.Velocity = FPVector2.Zero;
-            fighter.IsGrounded = 0;
-        }
-    }
-
-    /// <summary>
-    /// The deterministic half of the universal three-hit basic combo. All
-    /// timings come from <see cref="FTT.Combat.BasicComboRules"/> — one shared
-    /// rulebook with Story. The phase machine advances in
-    /// <see cref="FighterMovementSystem"/> so movement locks and cancels resolve
-    /// in the same tick they gate; <see cref="FighterCombatSystem"/> applies the
-    /// hit during active frames.
-    /// </summary>
-    internal static class FighterBasicAttackRules {
-        public const int PhaseNone = 0;
-        public const int PhaseStartup = 1;
-        public const int PhaseActive = 2;
-        public const int PhaseRecovery = 3;
-        public const int PhaseChainHold = 4;
-
-        /// <summary>
-        /// The swing started airborne, so landing cancels it with no lag. Since
-        /// GU-A only a single strike (the air strike, an airborne up-attack, the
-        /// down-air) carries it: the chain never starts in the air.
-        /// </summary>
-        public const int FlagAerial = 1;
-        public const int FlagHitResolved = 2;
-        public const int FlagBuffered = 4;
-        /// <summary>Directional-attack variant latch (§2.8): up-attack.</summary>
-        public const int FlagUpAttack = 8;
-        /// <summary>Directional-attack variant latch (§2.8): down-air.</summary>
-        public const int FlagDownAir = 16;
-        /// <summary>
-        /// GU-A (2026-10-12): the single air strike's variant latch, the next
-        /// spare bit of the existing <c>AttackFlags</c> word (no new component
-        /// state, no protocol change).
-        /// </summary>
-        public const int FlagAirAttack = 128;
-        /// <summary>Any variant bit — a single strike outside the three-hit chain.</summary>
-        public const int VariantMask = FlagUpAttack | FlagDownAir | FlagAirAttack;
-        /// <summary>One construct sweep per swing (2026-08-11: basics damage enemy constructs).</summary>
-        public const int FlagConstructHitResolved = 32;
-        /// <summary>
-        /// F3 (2026-10-04 feel pass): a second BasicAttack press made while the
-        /// next hit was already buffered — it buffers the hit after that one, so a
-        /// quick double tap during one swing is not eaten. One deep, a spare bit
-        /// of the existing <c>AttackFlags</c> word: no new component state.
-        /// </summary>
-        public const int FlagQueuedBuffered = 64;
-
-        private const int BasicButton = 1 << 2;
-        private const int BlockButton = 1 << 6;
-
-        /// <summary>
-        /// F3: buffers this tick's BasicAttack press for the next chain hit — in
-        /// startup, ACTIVE frames, recovery, or the hitstop freeze — or queues it
-        /// for the hit after when one is already buffered. The air strike, the
-        /// directional strikes and the chain-hold window (where a press starts
-        /// the next swing outright) never buffer. Story's
-        /// <c>PlayerController.BufferChainPress</c> is the same rule.
-        /// </summary>
-        public static void BufferChainPress(ref FighterRuntimeComponent runtime) {
-            if ((runtime.PressedButtons & BasicButton) == 0) return;
-            if (!IsSwinging(in runtime) || IsVariantSwing(in runtime)) return;
-            if ((runtime.AttackFlags & FlagBuffered) != 0) runtime.AttackFlags |= FlagQueuedBuffered;
-            else runtime.AttackFlags |= FlagBuffered;
-        }
-
-        public static bool IsSwinging(in FighterRuntimeComponent runtime) =>
-            runtime.AttackPhase is PhaseStartup or PhaseActive or PhaseRecovery;
-
-        /// <summary>True while the running swing is the air strike, an up-attack or a down-air.</summary>
-        public static bool IsVariantSwing(in FighterRuntimeComponent runtime) =>
-            (runtime.AttackFlags & VariantMask) != 0;
-
-        /// <summary>
-        /// The string step a BasicAttack press would continue into right now
-        /// (the CPU's melee band, 2026-10-11): the next hit's index while a
-        /// chain swing of hit 1 or hit 2 runs, any phase, the chain hold
-        /// included; otherwise 0. The finisher cannot continue, and the air
-        /// strike and the directional swings stand outside the chain (GU-A), so
-        /// a press during any of them can at most open a fresh string or air
-        /// strike, both at hit 1's reach. It reads no ground state: a grounded
-        /// string airborne mid-swing (a one-way drop-through) still reports its
-        /// next hit, though that continuation now ends the string. Read-only.
-        /// </summary>
-        public static int NextChainStep(in FighterRuntimeComponent runtime) {
-            if (runtime.AttackPhase == PhaseNone || IsVariantSwing(in runtime)) return 0;
-            int index = runtime.ComboIndex < 0 ? 0 : runtime.ComboIndex;
-            return index < FTT.Combat.BasicComboRules.ComboHits - 1 ? index + 1 : 0;
-        }
-
-        /// <summary>
-        /// Reads the swing variant out of the held input, through the shared
-        /// selection rule. Quantized MoveY &lt; -30 is the sim's "Up held"
-        /// (Story uses the float equivalent, -0.25); Down is the button bit,
-        /// as everywhere else in the simulation.
-        /// </summary>
-        public static int SelectVariant(
-            in FighterStateComponent fighter,
-            in FighterRuntimeComponent runtime) =>
-            FTT.Combat.BasicComboRules.SelectAttackVariant(
-                upHeld: runtime.MoveY < -30,
-                downHeld: (runtime.HeldButtons & (1 << 1)) != 0,
-                airborne: fighter.IsGrounded == 0);
-
-        // V7.1 per-character string profiles, indexed by FighterCharacterID
-        // (Einstein 0 .. Tubman 9). Resolved once from the shared rulebook —
-        // the same profiles Story consumes — so the modes cannot drift; unknown
-        // IDs fall back to the template. Package 13 W5: ordinal 8 is the
-        // reserved Pocahontas slot (no row left, so it resolves the template);
-        // Tubman plays the template profile.
-        private static readonly FTT.Combat.BasicStringProfile[] StringProfiles = {
-            FTT.Combat.BasicComboRules.StringProfileFor("einstein"),
-            FTT.Combat.BasicComboRules.StringProfileFor("joan"),
-            FTT.Combat.BasicComboRules.StringProfileFor("leonardo"),
-            FTT.Combat.BasicComboRules.StringProfileFor("lincoln"),
-            FTT.Combat.BasicComboRules.StringProfileFor("cleopatra"),
-            FTT.Combat.BasicComboRules.StringProfileFor("tesla"),
-            FTT.Combat.BasicComboRules.StringProfileFor("shakespeare"),
-            FTT.Combat.BasicComboRules.StringProfileFor("mozart"),
-            FTT.Combat.BasicComboRules.TemplateStringProfile,
-            FTT.Combat.BasicComboRules.StringProfileFor("tubman")
-        };
-
-        public static FTT.Combat.BasicStringProfile StringProfileFor(int characterID) =>
-            characterID >= 0 && characterID < StringProfiles.Length
-                ? StringProfiles[characterID]
-                : FTT.Combat.BasicComboRules.TemplateStringProfile;
-
-        public static int StartupFramesFor(int characterID, int attackFlags, int comboStep) {
-            if ((attackFlags & FlagUpAttack) != 0) return FTT.Combat.BasicComboRules.UpAttackStartupFrames;
-            if ((attackFlags & FlagDownAir) != 0) return FTT.Combat.BasicComboRules.DownAirStartupFrames;
-            // GU-A: the air strike's startup is the profile's air axis.
-            if ((attackFlags & FlagAirAttack) != 0) return StringProfileFor(characterID).AirAttackStartupFrames;
-            // Chain opener/finisher startups are the authored per-character axis
-            // (V7.1); active and recovery frames below stay universal. The
-            // string is grounded only (GU-A), so it has one frame table.
-            return StringProfileFor(characterID).GroundStartupFrames[comboStep];
-        }
-
-        public static int ActiveFramesFor(int attackFlags, int comboStep) {
-            if ((attackFlags & FlagUpAttack) != 0) return FTT.Combat.BasicComboRules.UpAttackActiveFrames;
-            if ((attackFlags & FlagDownAir) != 0) return FTT.Combat.BasicComboRules.DownAirActiveFrames;
-            if ((attackFlags & FlagAirAttack) != 0) return FTT.Combat.BasicComboRules.AirAttackActiveFrames;
-            return FTT.Combat.BasicComboRules.GroundActiveFrames[comboStep];
-        }
-
-        public static int RecoveryFramesFor(int attackFlags, int comboStep) {
-            if ((attackFlags & FlagUpAttack) != 0) return FTT.Combat.BasicComboRules.UpAttackRecoveryFrames;
-            if ((attackFlags & FlagDownAir) != 0) return FTT.Combat.BasicComboRules.DownAirRecoveryFrames;
-            if ((attackFlags & FlagAirAttack) != 0) return FTT.Combat.BasicComboRules.AirAttackRecoveryFrames;
-            return FTT.Combat.BasicComboRules.GroundRecoveryFrames[comboStep];
-        }
-
-        /// <summary>
-        /// The grounded block stance, mirroring Story's Blocking state: grounded,
-        /// free of hitstun/daze, not mid roll, not mid swing, holding Block with
-        /// at least one charge and no shatter lockout (V7.3). Shieldstun locks
-        /// the blocker INTO the stance regardless of held buttons. The movement
-        /// lock, the attack/ability gates, and the shield-absorb rule in
-        /// FighterDamageRules all key off this one predicate.
-        /// </summary>
-        public static bool IsBlockStance(
-            in FighterStateComponent fighter,
-            in FighterRuntimeComponent runtime,
-            in FighterVerbComponent verb) {
-            if (fighter.Stocks <= 0) return false;
-            // V7.3 shieldstun: a blocked hit locks the stance up — the blocker
-            // cannot drop block, attack, grab, roll, or jump until it expires.
-            if (verb.ShieldStunFrames > 0) return true;
-            return fighter.IsGrounded != 0
-                && fighter.HitstunFrames <= 0
-                && fighter.DazeFrames <= 0
-                && fighter.RespawnFramesRemaining <= 0
-                // V7.3: an empty shield never raises the stance, and neither
-                // does the five-second shatter lockout.
-                && fighter.BlockCharges > 0
-                && verb.BlockLockoutFrames <= 0
-                // V7.3 grab triangle: a grabbing fighter (startup, active, the
-                // 24f whiff recovery) or a held victim has NO functioning
-                // shield — attack beats grab.
-                && verb.GrabPhase == FighterGrabRules.PhaseNone
-                && verb.BeingHeld == 0
-                && runtime.UniversalMovementState == (int)UniversalMovementPhase.None
-                && runtime.AttackPhase == PhaseNone
-                && (runtime.HeldButtons & BlockButton) != 0;
-        }
-
-        public static void CancelString(ref FighterRuntimeComponent runtime) {
-            runtime.AttackPhase = PhaseNone;
-            runtime.AttackPhaseFrames = 0;
-            runtime.AttackFlags = 0;
-            runtime.ComboIndex = 0;
-        }
-
-        public static void StartSwing(
-            ref FighterStateComponent fighter,
-            ref FighterRuntimeComponent runtime,
-            int comboStep,
-            int variant = FTT.Combat.BasicComboRules.VariantChain) {
-            bool aerial = fighter.IsGrounded == 0;
-            // A single strike (the air strike or a directional attack) stands
-            // outside the chain: the combo index resets to zero and never
-            // advances from here. Every caller keeps the chain on the ground
-            // (GU-A), so a chain swing never carries FlagAerial.
-            runtime.ComboIndex = variant == FTT.Combat.BasicComboRules.VariantChain ? comboStep : 0;
-            runtime.AttackPhase = PhaseStartup;
-            int flags = aerial ? FlagAerial : 0;
-            if (variant == FTT.Combat.BasicComboRules.VariantUpAttack) flags |= FlagUpAttack;
-            else if (variant == FTT.Combat.BasicComboRules.VariantDownAir) flags |= FlagDownAir;
-            else if (variant == FTT.Combat.BasicComboRules.VariantAirAttack) flags |= FlagAirAttack;
-            runtime.AttackFlags = flags;
-            runtime.AttackPhaseFrames = StartupFramesFor(fighter.CharacterID, flags, runtime.ComboIndex);
-            // Defensive: universal movement is provably None at every current call
-            // site (IsCombatLocked gates fresh swings, and no roll can start while
-            // a string is active), so this cancel is a no-op today. It stays so a
-            // future cancel window cannot leave a phase running under a swing.
-            FighterUniversalMovementRules.Cancel(ref runtime);
-            // Every swing start (each chain hit, the air strike, the up-attack,
-            // the down-air) locks specials and the Ultimate; the swing itself is
-            // never refused.
-            // StartSwing runs in FighterMovementSystem, before the ability and
-            // combat systems, so a same-tick special or Ultimate press loses to
-            // the swing, as it does in Story (CheckAttackInput from neutral,
-            // ChainSwingStartsThisTick inside a string). D1 (2026-10-11): it also
-            // clears the landed latch, so Specials wait for THIS swing to land.
-            FighterAbilityLockoutRules.ArmSwing(ref runtime);
-        }
-    }
-
-    /// <summary>
-    /// The sim half of the ability lockout (special global cooldown, user
-    /// direction 2026-10-08). The rule and its 30 frames live in
-    /// <see cref="FTT.Combat.BasicComboRules"/>; the counter is
-    /// <see cref="FighterRuntimeComponent.AbilityLockoutFrames"/>. Every site
-    /// that accepts Special 1 or Special 2 checks <see cref="AllowsSpecial"/>
-    /// (the D1 hit-confirm gate, 2026-10-11: the Special-sourced lockout once the
-    /// current swing has landed, the whole lockout otherwise), the Ultimate
-    /// checks <see cref="AllowsUltimate"/>, and each calls
-    /// <see cref="ArmAbility"/> the moment it accepts, so a later consumer on the
-    /// same tick (S2 after S1, a melee intent after an entity special or an
-    /// accepted Ultimate) sees the lock. A swing start calls
-    /// <see cref="ArmSwing"/>. A refused press arms nothing. Which action wins a
-    /// tick is settled before that: FighterCombatSystem.UltimatePressAccepted
-    /// (and UltimatePressHeldBackByLockout, which claims the tick from the
-    /// Specials for a meter-paid Ultimate the lockout alone refuses).
-    /// </summary>
-    internal static class FighterAbilityLockoutRules {
-        private const int SpecialOneButton = 1 << 3;
-        private const int SpecialTwoButton = 1 << 4;
-        private const int UltimateButton = 1 << 7;
-
-        /// <summary>The Ultimate's gate: the whole lockout A (D1 never opens it).</summary>
-        public static bool AllowsUltimate(in FighterRuntimeComponent runtime) =>
-            !FTT.Combat.BasicComboRules.IsAbilityLocked(runtime.AbilityLockoutFrames);
-
-        /// <summary>
-        /// The Specials' gate (D1, 2026-10-11): the Special-sourced lockout S
-        /// once the current swing has landed, the whole lockout A otherwise.
-        /// </summary>
-        public static bool AllowsSpecial(in FighterRuntimeComponent runtime) =>
-            !FTT.Combat.BasicComboRules.IsSpecialLocked(
-                runtime.AbilityLockoutFrames, runtime.SpecialLockoutFrames, runtime.SwingLanded != 0);
-
-        /// <summary>
-        /// Whether <see cref="FighterAbilityEntitySystem"/> reads this fighter's
-        /// Special presses at all this tick: its exact early-continue set — out of
-        /// stocks, hitstun, daze, hitstop, a grab, a ledge hang, a combat-locked
-        /// roll or air dodge, or the block stance. The D10 "not yet" classifier
-        /// (<see cref="FighterLockoutRefusalRules"/>) reads the same predicate, so
-        /// a press the system never looked at never flashes (2026-10-11).
-        /// </summary>
-        public static bool CanReadAbilityPress(
-            in FighterStateComponent fighter,
-            in FighterRuntimeComponent runtime,
-            in FighterVerbComponent verb) =>
-            fighter.Stocks > 0
-            && fighter.HitstunFrames <= 0
-            && fighter.DazeFrames <= 0
-            // V7.1 hitstop / V7.2 grabs: a frozen, grabbing, or held fighter
-            // takes no ability action (their button presses are simply not
-            // consumed).
-            && verb.HitstopFrames <= 0
-            && !FighterGrabRules.IsBusy(in verb)
-            // A hanging fighter has no specials and no movement ability (§2.11)
-            // — the hang suppresses ability intent the way hitstun does.
-            && !FighterLedgeRules.IsHanging(in runtime)
-            && !FighterUniversalMovementRules.IsCombatLocked(in runtime)
-            // Story's Blocking state ignores ability inputs entirely; specials
-            // remain usable mid-swing because they cancel the basic string
-            // (design 1051), once the swing's own ability lockout allows them.
-            && !FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb);
-
-        /// <summary>A swing start: arms A and clears the landed latch C (and any freeze buffer).</summary>
-        public static void ArmSwing(ref FighterRuntimeComponent runtime) {
-            runtime.AbilityLockoutFrames = FTT.Combat.BasicComboRules.AbilityLockoutFrames;
-            runtime.SwingLanded = 0;
-            runtime.FreezeBufferArmed = 0;
-            runtime.FreezeBufferedSpecials = 0;
-        }
-
-        /// <summary>A Special 1 / 2 or Ultimate acceptance: arms A and S.</summary>
-        public static void ArmAbility(ref FighterRuntimeComponent runtime) {
-            runtime.AbilityLockoutFrames = FTT.Combat.BasicComboRules.AbilityLockoutFrames;
-            runtime.SpecialLockoutFrames = FTT.Combat.BasicComboRules.AbilityLockoutFrames;
-        }
-
-        /// <summary>The current swing landed (D1a): true on the 0 → 1 edge only (once per swing).</summary>
-        public static bool NoteSwingLanded(ref FighterRuntimeComponent runtime) {
-            if (runtime.SwingLanded != 0) return false;
-            runtime.SwingLanded = 1;
-            return true;
-        }
-
-        /// <summary>One unfrozen tick of A and S (TickCounters).</summary>
-        public static void Tick(ref FighterRuntimeComponent runtime) {
-            runtime.AbilityLockoutFrames = FTT.Combat.BasicComboRules.TickAbilityLockout(runtime.AbilityLockoutFrames);
-            runtime.SpecialLockoutFrames = FTT.Combat.BasicComboRules.TickAbilityLockout(runtime.SpecialLockoutFrames);
-        }
-
-        /// <summary>The F22 Sudden Death reset: A, S, C and the freeze buffer to zero.</summary>
-        public static void Clear(ref FighterRuntimeComponent runtime) {
-            runtime.AbilityLockoutFrames = 0;
-            runtime.SpecialLockoutFrames = 0;
-            runtime.SwingLanded = 0;
-            runtime.FreezeBufferArmed = 0;
-            runtime.FreezeBufferedSpecials = 0;
-        }
-
-        // === The freeze-only Special buffer (user ruling 2026-10-11, addendum) ===
-        // A Special 1/2 press read on a frozen tick of the attacker freeze of the
-        // fighter's own LANDED basic swing is held (one deep, the latest press)
-        // and joins the presses of the fighter's thaw tick — the tick the
-        // movement system takes HitstopFrames 1 → 0, whose presses the ability
-        // and combat systems read — where the ordinary gates decide it. A tick
-        // that also presses the Ultimate buffers nothing. Ledger
-        // PROVISIONAL-FREEZE-SPECIAL-BUFFER.
-
-        /// <summary>Called by ApplyBasicSwing when its landed hit froze the attacker.</summary>
-        public static void ArmFreezeBuffer(ref FighterRuntimeComponent runtime) {
-            runtime.FreezeBufferArmed = 1;
-            runtime.FreezeBufferedSpecials = 0;
-        }
-
-        /// <summary>A frozen tick (before the decrement): hold this tick's Special press, if any.</summary>
-        public static void BufferFreezePress(ref FighterRuntimeComponent runtime) {
-            if (runtime.FreezeBufferArmed == 0) return;
-            if ((runtime.PressedButtons & UltimateButton) != 0) return;
-            int specials = ((runtime.PressedButtons & SpecialOneButton) != 0 ? 1 : 0)
-                | ((runtime.PressedButtons & SpecialTwoButton) != 0 ? 2 : 0);
-            if (specials != 0) runtime.FreezeBufferedSpecials = specials;
-        }
-
-        /// <summary>The thaw tick (HitstopFrames reached 0): re-present the held press, then empty the buffer.</summary>
-        public static void ReleaseFreezeBuffer(ref FighterRuntimeComponent runtime) {
-            int specials = runtime.FreezeBufferedSpecials;
-            if ((specials & 1) != 0) runtime.PressedButtons |= SpecialOneButton;
-            if ((specials & 2) != 0) runtime.PressedButtons |= SpecialTwoButton;
-            runtime.FreezeBufferArmed = 0;
-            runtime.FreezeBufferedSpecials = 0;
-        }
-    }
-
     /// <summary>
     /// Deterministic horizontal jostling. Roll travel explicitly bypasses the
     /// fighter pushbox.
@@ -2183,7 +1632,7 @@ namespace FTT.FighterSim {
             runtime.UniversalMovementState == (int)UniversalMovementPhase.RollTravel;
     }
 
-    public sealed class FighterCombatSystem : ISystem {
+    public sealed partial class FighterCombatSystem : ISystem {
         /// <summary>
         /// M08/M05 (Package 12 W3b): the two fighters' authored hit contracts —
         /// static match configuration, like a system's stage geometry, never
@@ -2264,16 +1713,14 @@ namespace FTT.FighterSim {
             FP64.FromDouble(FTT.Combat.BasicComboRules.StringBoxOffsetYUnits[1]),
             FP64.FromDouble(FTT.Combat.BasicComboRules.StringBoxOffsetYUnits[2])
         };
-        /// <summary>The universal fighter hurtbox half-extents the sim uses.</summary>
-        private static readonly FPVector2 VictimHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
 
         /// <summary>
         /// The horizontal half-width of the hurtbox every basic swing is tested
-        /// against (<see cref="VictimHalfExtents"/>). Exposed so the CPU's
+        /// against (<see cref="FighterHurtbox.HalfExtents"/>, plan §2.8.3). Exposed so the CPU's
         /// neutral melee band reads the live value rather than a copy
         /// (2026-10-11; ledger <c>VERIFY-SIM-HURTBOX-WIDTH</c> may change it).
         /// </summary>
-        internal static FP64 VictimHurtboxHalfWidth => VictimHalfExtents.x;
+        internal static FP64 VictimHurtboxHalfWidth => FighterHurtbox.HalfExtents.x;
 
         /// <summary>
         /// How far in front of the attacker's pivot a profile's grounded string
@@ -2300,10 +1747,25 @@ namespace FTT.FighterSim {
             in FTT.Combat.BasicStringProfile profile,
             int step,
             out FPVector2 center,
+            out FPVector2 halfExtents) =>
+            ResolveStringBox(in attacker, in profile, step, attacker.FacingRight != 0, out center, out halfExtents);
+
+        /// <summary>
+        /// The active string box for an explicit facing — the swing's facing
+        /// latched at active start (<see cref="FighterBasicAttackRules.FlagActiveFacingRight"/>,
+        /// decision 10.1). The three sim callers read the latch; the overload
+        /// above (the attacker's current facing) stays for the geometry suites.
+        /// </summary>
+        internal static void ResolveStringBox(
+            in FighterStateComponent attacker,
+            in FTT.Combat.BasicStringProfile profile,
+            int step,
+            bool facingRight,
+            out FPVector2 center,
             out FPVector2 halfExtents) {
             FP64 widthScale = FP64.FromInt(profile.ReachWidthPercent) / FP64.FromInt(100);
             FP64 heightScale = FP64.FromInt(profile.ReachHeightPercent) / FP64.FromInt(100);
-            FP64 facing = attacker.FacingRight != 0 ? FP64.One : -FP64.One;
+            FP64 facing = facingRight ? FP64.One : -FP64.One;
             center = new FPVector2(
                 attacker.Position.x + facing * StringBoxOffsetsX[step] * widthScale,
                 attacker.Position.y + StringBoxOffsetsY[step]);
@@ -2311,6 +1773,10 @@ namespace FTT.FighterSim {
                 StringBoxHalfWidths[step] * widthScale,
                 StringBoxHalfHeights[step] * heightScale);
         }
+        /// <summary>The swing's box facing, latched at active start (decision 10.1).</summary>
+        private static bool LatchedFacingRight(in FighterRuntimeComponent runtime) =>
+            (runtime.AttackFlags & FighterBasicAttackRules.FlagActiveFacingRight) != 0;
+
         private static readonly FP64 MaxInfluence = FighterMeterRules.Cap;
         // The shared per-hit knockback table (BasicComboRules.KnockbackMultipliers),
         // pre-converted once to fixed point. FromDouble of a process-constant is
@@ -2369,12 +1835,15 @@ namespace FTT.FighterSim {
             // Aegis/barrier order live at the top of ApplyFighterHit.
             ref FighterDefenseComponent defenseOne = ref frame.Get<FighterDefenseComponent>(first);
             ref FighterDefenseComponent defenseTwo = ref frame.Get<FighterDefenseComponent>(second);
+            // Plan §1.5: component 323, the action state (the Special cast).
+            ref FighterActionStateComponent actionOne = ref frame.Get<FighterActionStateComponent>(first);
+            ref FighterActionStateComponent actionTwo = ref frame.Get<FighterActionStateComponent>(second);
 
             // V7.2 grabs & throws advance before every other action: a fighter
             // mid-grab or held takes no other offensive action this tick.
             AdvanceGrabs(
-                ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne,
-                ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo,
+                ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, ref actionOne, in tuningOne,
+                ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, ref actionTwo, in tuningTwo,
                 oneFrozen, twoFrozen);
             bool oneActing = !oneFrozen && !FighterGrabRules.IsBusy(in verbOne);
             bool twoActing = !twoFrozen && !FighterGrabRules.IsBusy(in verbTwo);
@@ -2400,9 +1869,11 @@ namespace FTT.FighterSim {
             // §1.7 (2026-10-11): a meter-paid Ultimate the lockout alone refused
             // still claims the tick from the melee Special intents.
             bool oneHeldBack = UltimatePressHeldBackByLockout(
-                in fighterOne, in runtimeOne, in frame.GetReadOnly<FighterUltimateActivationComponent>(first));
+                in fighterOne, in runtimeOne, in verbOne, in actionOne,
+                in frame.GetReadOnly<FighterUltimateActivationComponent>(first));
             bool twoHeldBack = UltimatePressHeldBackByLockout(
-                in fighterTwo, in runtimeTwo, in frame.GetReadOnly<FighterUltimateActivationComponent>(second));
+                in fighterTwo, in runtimeTwo, in verbTwo, in actionTwo,
+                in frame.GetReadOnly<FighterUltimateActivationComponent>(second));
 
             AttackIntent firstIntent = !oneActing ? default : BuildIntent(in fighterOne, in runtimeOne, in verbOne, in tuningOne, in fighterTwo, _contracts, oneHeldBack);
             AttackIntent secondIntent = !twoActing ? default : BuildIntent(in fighterTwo, in runtimeTwo, in verbTwo, in tuningTwo, in fighterOne, _contracts, twoHeldBack);
@@ -2410,8 +1881,8 @@ namespace FTT.FighterSim {
             // Special intent or a basic swing on the victim's side.
             ref FighterCounterComponent counterOne = ref frame.Get<FighterCounterComponent>(first);
             ref FighterCounterComponent counterTwo = ref frame.Get<FighterCounterComponent>(second);
-            ApplyIntent(ref fighterOne, ref runtimeOne, ref verbOne, ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo, in firstIntent, ref counterTwo);
-            ApplyIntent(ref fighterTwo, ref runtimeTwo, ref verbTwo, ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne, in secondIntent, ref counterOne);
+            ApplyIntent(ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, ref actionOne, ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo, in firstIntent, ref counterTwo);
+            ApplyIntent(ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, ref actionTwo, ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne, in secondIntent, ref counterOne);
             // F07 marks are written onto the VICTIM's component 318.
             ref FighterConductiveComponent conductiveOne = ref frame.Get<FighterConductiveComponent>(first);
             ref FighterConductiveComponent conductiveTwo = ref frame.Get<FighterConductiveComponent>(second);
@@ -2492,25 +1963,29 @@ namespace FTT.FighterSim {
         private static void AdvanceGrabs(
             ref FighterStateComponent one, ref FighterRuntimeComponent runtimeOne,
             ref FighterVerbComponent verbOne, ref FighterDefenseComponent defenseOne,
+            ref FighterActionStateComponent actionOne,
             in FighterTuningComponent tuningOne,
             ref FighterStateComponent two, ref FighterRuntimeComponent runtimeTwo,
             ref FighterVerbComponent verbTwo, ref FighterDefenseComponent defenseTwo,
+            ref FighterActionStateComponent actionTwo,
             in FighterTuningComponent tuningTwo,
             bool oneFrozen, bool twoFrozen) {
             // Initiation. Both may start the same frame; the clash resolves it.
             // C01c: the direct bind and the preset chord request the same verb,
             // once (FighterGrabRules.Requested deduplicates them).
             if (!oneFrozen && FighterGrabRules.Requested(in runtimeOne)
-                && FighterGrabRules.CanStartGrab(in one, in runtimeOne, in verbOne)) {
+                && FighterGrabRules.CanStartGrab(in one, in runtimeOne, in verbOne, in actionOne)) {
                 verbOne.GrabPhase = FighterGrabRules.PhaseStartup;
                 verbOne.GrabPhaseFrames = FTT.Combat.BasicComboRules.GrabStartupFrames;
                 verbOne.ClearGrabPartner();
+                FighterActionRules.OnActionAccepted(ref one, ref verbOne, ref defenseOne, ref actionOne, FighterActionKind.Grab);
             }
             if (!twoFrozen && FighterGrabRules.Requested(in runtimeTwo)
-                && FighterGrabRules.CanStartGrab(in two, in runtimeTwo, in verbTwo)) {
+                && FighterGrabRules.CanStartGrab(in two, in runtimeTwo, in verbTwo, in actionTwo)) {
                 verbTwo.GrabPhase = FighterGrabRules.PhaseStartup;
                 verbTwo.GrabPhaseFrames = FTT.Combat.BasicComboRules.GrabStartupFrames;
                 verbTwo.ClearGrabPartner();
+                FighterActionRules.OnActionAccepted(ref two, ref verbTwo, ref defenseTwo, ref actionTwo, FighterActionKind.Grab);
             }
 
             // A hit breaks a grab in every pre-throw phase (attack beats grab);
@@ -2789,7 +2264,9 @@ namespace FTT.FighterSim {
 
             // V7 normative boxes: the construct sweep uses the same escalating
             // front-only box as the fighter-target swing.
-            ResolveStringBox(in attacker, in profile, step, out FPVector2 boxCenter, out FPVector2 boxHalf);
+            ResolveStringBox(
+                in attacker, in profile, step, LatchedFacingRight(in attackerRuntime),
+                out FPVector2 boxCenter, out FPVector2 boxHalf);
             bool hitAny = false;
             var constructs = frame.Filter<FighterPersistentObjectComponent>();
             while (constructs.Next(out EntityRef entity)) {
@@ -2867,10 +2344,13 @@ namespace FTT.FighterSim {
                 FighterBasicAttackRules.StringProfileFor(attacker.CharacterID);
             int step = attackerRuntime.ComboIndex < 0 ? 0 : attackerRuntime.ComboIndex > 2 ? 2 : attackerRuntime.ComboIndex;
             // V7 normative boxes: the step's escalating box, in front of the
-            // attacker's current facing only — a swing never hits behind.
-            ResolveStringBox(in attacker, in profile, step, out FPVector2 boxCenter, out FPVector2 boxHalf);
+            // facing latched at active start only — a swing never hits behind,
+            // and steering mid-active never flips the box (decision 10.1).
+            ResolveStringBox(
+                in attacker, in profile, step, LatchedFacingRight(in attackerRuntime),
+                out FPVector2 boxCenter, out FPVector2 boxHalf);
             if (!FighterEntityQueries.Overlaps(
-                    in boxCenter, in boxHalf, in target.Position, in VictimHalfExtents)) return;
+                    in boxCenter, in boxHalf, in target.Position, in FighterHurtbox.HalfExtents)) return;
 
             int damage = attackerTuning.BasicDamage * profile.DamageTenths[step] / 10;
             bool finisher = step == 2;
@@ -3008,9 +2488,11 @@ namespace FTT.FighterSim {
             const int step = FTT.Combat.BasicComboRules.AirAttackStringStep;
             FTT.Combat.BasicStringProfile profile =
                 FighterBasicAttackRules.StringProfileFor(attacker.CharacterID);
-            ResolveStringBox(in attacker, in profile, step, out FPVector2 boxCenter, out FPVector2 boxHalf);
+            ResolveStringBox(
+                in attacker, in profile, step, LatchedFacingRight(in attackerRuntime),
+                out FPVector2 boxCenter, out FPVector2 boxHalf);
             if (!FighterEntityQueries.Overlaps(
-                    in boxCenter, in boxHalf, in target.Position, in VictimHalfExtents)) {
+                    in boxCenter, in boxHalf, in target.Position, in FighterHurtbox.HalfExtents)) {
                 return FighterHitOutcome.Refused;
             }
 
@@ -3182,10 +2664,20 @@ namespace FTT.FighterSim {
             ref FighterRuntimeComponent attackerRuntime) {
             ref FighterUltimateActivationComponent activation =
                 ref frame.Get<FighterUltimateActivationComponent>(attackerEntity);
-            if (!UltimatePressAccepted(in attacker, in attackerRuntime, in activation)) return;
+            if (!UltimatePressAccepted(
+                    in attacker, in attackerRuntime,
+                    in frame.GetReadOnly<FighterVerbComponent>(attackerEntity),
+                    in frame.GetReadOnly<FighterActionStateComponent>(attackerEntity),
+                    in activation)) return;
             FighterUltimateActivationRules.Accept(
                 ref attacker, ref attackerRuntime, ref activation, _contracts.UltimateFor(attacker.PlayerID));
             FighterAbilityLockoutRules.ArmAbility(ref attackerRuntime);
+            FighterActionRules.OnActionAccepted(
+                ref attacker,
+                ref frame.Get<FighterVerbComponent>(attackerEntity),
+                ref frame.Get<FighterDefenseComponent>(attackerEntity),
+                ref frame.Get<FighterActionStateComponent>(attackerEntity),
+                FighterActionKind.Ultimate);
         }
 
         /// <summary>
@@ -3200,8 +2692,10 @@ namespace FTT.FighterSim {
         internal static bool UltimatePressAccepted(
             in FighterStateComponent attacker,
             in FighterRuntimeComponent attackerRuntime,
+            in FighterVerbComponent attackerVerb,
+            in FighterActionStateComponent attackerAction,
             in FighterUltimateActivationComponent activation) =>
-            UltimatePressPayable(in attacker, in attackerRuntime, in activation)
+            UltimatePressPayable(in attacker, in attackerRuntime, in attackerVerb, in attackerAction, in activation)
             && FighterAbilityLockoutRules.AllowsUltimate(in attackerRuntime);
 
         /// <summary>
@@ -3216,18 +2710,30 @@ namespace FTT.FighterSim {
         internal static bool UltimatePressHeldBackByLockout(
             in FighterStateComponent attacker,
             in FighterRuntimeComponent attackerRuntime,
+            in FighterVerbComponent attackerVerb,
+            in FighterActionStateComponent attackerAction,
             in FighterUltimateActivationComponent activation) =>
-            UltimatePressPayable(in attacker, in attackerRuntime, in activation)
+            UltimatePressPayable(in attacker, in attackerRuntime, in attackerVerb, in attackerAction, in activation)
             && !FighterAbilityLockoutRules.AllowsUltimate(in attackerRuntime);
 
         /// <summary>
         /// Every term of <see cref="UltimatePressAccepted"/> except the ability
         /// lockout: pressed, a full meter, a state that could act, and not
-        /// already casting or captured.
+        /// already casting or captured. Combat and movement update 2026-10-16:
+        /// never from the block stance or shieldstun (decision 2.3,
+        /// <c>FighterBasicAttackRules.IsBlockStance</c> covers both — Story's
+        /// Blocking state never polls the Ultimate either), never during the
+        /// landing tech's lock (1.1(3)), and never during the fighter's own
+        /// Special cast (1.2). Every caller reads this one predicate — the
+        /// combat Update, <see cref="FighterAbilityEntitySystem"/>'s tick claim
+        /// and, through it, the refusal classifier — so a refused stance
+        /// Ultimate claims nothing either.
         /// </summary>
         internal static bool UltimatePressPayable(
             in FighterStateComponent attacker,
             in FighterRuntimeComponent attackerRuntime,
+            in FighterVerbComponent attackerVerb,
+            in FighterActionStateComponent attackerAction,
             in FighterUltimateActivationComponent activation) =>
             (attackerRuntime.PressedButtons & UltimateButton) != 0
             && attacker.Influence >= MaxInfluence
@@ -3235,6 +2741,9 @@ namespace FTT.FighterSim {
             && attacker.DazeFrames <= 0
             && attacker.Stocks > 0
             && attacker.RespawnFramesRemaining <= 0
+            && attackerVerb.TechLockoutFrames <= 0
+            && !FighterSpecialCastRules.IsBusy(in attackerAction)
+            && !FighterBasicAttackRules.IsBlockStance(in attacker, in attackerRuntime, in attackerVerb)
             && !FighterLedgeRules.IsHanging(in attackerRuntime)
             && !FighterUniversalMovementRules.IsCombatLocked(in attackerRuntime)
             && !FighterUltimateActivationRules.IsCasterBusy(in activation)
@@ -3603,6 +3112,8 @@ namespace FTT.FighterSim {
             ref FighterStateComponent attacker,
             ref FighterRuntimeComponent attackerRuntime,
             ref FighterVerbComponent attackerVerb,
+            ref FighterDefenseComponent attackerDefense,
+            ref FighterActionStateComponent attackerAction,
             ref FighterStateComponent target,
             ref FighterRuntimeComponent targetRuntime,
             ref FighterVerbComponent targetVerb,
@@ -3622,10 +3133,14 @@ namespace FTT.FighterSim {
                 // A fresh cooldown cycle re-arms its Resonance Momentum refunds.
                 attackerVerb.MomentumRefundedFramesSlotOne = 0;
                 FighterAbilityLockoutRules.ArmAbility(ref attackerRuntime);
+                FighterActionRules.OnActionAccepted(
+                    ref attacker, ref attackerVerb, ref attackerDefense, ref attackerAction, FighterActionKind.Special);
             } else if (intent.Kind == 4) {
                 attackerRuntime.SpecialTwoCooldownFrames = intent.CooldownFrames > 1 ? intent.CooldownFrames : 1;
                 attackerVerb.MomentumRefundedFramesSlotTwo = 0;
                 FighterAbilityLockoutRules.ArmAbility(ref attackerRuntime);
+                FighterActionRules.OnActionAccepted(
+                    ref attacker, ref attackerVerb, ref attackerDefense, ref attackerAction, FighterActionKind.Special);
             } else {
                 attacker.Influence = FP64.Zero;
             }
@@ -4010,6 +3525,12 @@ namespace FTT.FighterSim {
                         ref frame.Get<FighterUltimateActivationComponent>(entity);
                     FighterUltimateActivationRules.ClearCaster(ref fighter, ref ultimateActivation);
                     FighterUltimateActivationRules.ReleaseCapture(ref ultimateActivation);
+                }
+                // Combat and movement update (plan §1.5): no Special cast, D3
+                // buffer, block clock, Down tap or action flag survives into
+                // Sudden Death — component 323 returns to all zero.
+                if (frame.Has<FighterActionStateComponent>(entity)) {
+                    frame.Get<FighterActionStateComponent>(entity) = default;
                 }
                 // "Initialize a new Echo Step history generation at the spawn...
                 // Require 30 subsequent simulation ticks before use; never teleport

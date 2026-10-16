@@ -1084,7 +1084,8 @@ namespace FTT.FighterSim {
                 // action, the presses simply not consumed. One predicate, shared
                 // with the D10 "not yet" classifier (2026-10-11), so a press this
                 // system never reads never flashes.
-                if (!FighterAbilityLockoutRules.CanReadAbilityPress(in fighter, in runtime, in verbState)) continue;
+                ref FighterActionStateComponent actionState = ref frame.Get<FighterActionStateComponent>(entity);
+                if (!FighterAbilityLockoutRules.CanReadAbilityPress(in fighter, in runtime, in verbState, in actionState)) continue;
                 int specialOneCooldownBefore = runtime.SpecialOneCooldownFrames;
                 int specialTwoCooldownBefore = runtime.SpecialTwoCooldownFrames;
 
@@ -1097,14 +1098,14 @@ namespace FTT.FighterSim {
                 ref readonly FighterUltimateActivationComponent ultimateActivation =
                     ref frame.GetReadOnly<FighterUltimateActivationComponent>(entity);
                 bool ultimateClaimsTick = FighterCombatSystem.UltimatePressAccepted(
-                    in fighter, in runtime, in ultimateActivation);
+                    in fighter, in runtime, in verbState, in actionState, in ultimateActivation);
                 // §1.7 (2026-10-11, PROVISIONAL-HIT-CONFIRM-RULES (4)): a
                 // meter-paid Ultimate the lockout alone refuses still claims the
                 // tick from the Specials (not from the movement ability), so the
                 // Movement + Special 2 chord cannot cast Special 2 inside a
                 // hit-confirm.
                 bool ultimateHeldBack = FighterCombatSystem.UltimatePressHeldBackByLockout(
-                    in fighter, in runtime, in ultimateActivation);
+                    in fighter, in runtime, in verbState, in actionState, in ultimateActivation);
 
                 // Ability lockout (user direction 2026-10-08): every acceptance
                 // below checks it and arms it at once, so the first special
@@ -1230,6 +1231,10 @@ namespace FTT.FighterSim {
                     ref FighterVerbComponent verb = ref frame.Get<FighterVerbComponent>(entity);
                     if (armedSlotOne) verb.MomentumRefundedFramesSlotOne = 0;
                     if (armedSlotTwo) verb.MomentumRefundedFramesSlotTwo = 0;
+                    // Plan §1.5: the action chokepoint, once per accepted Special.
+                    FighterActionRules.OnActionAccepted(
+                        ref fighter, ref verb, ref frame.Get<FighterDefenseComponent>(entity),
+                        ref frame.Get<FighterActionStateComponent>(entity), FighterActionKind.Special);
                 }
 
                 // Story never polls the movement ability during a swing.
@@ -1251,6 +1256,12 @@ namespace FTT.FighterSim {
                     && runtime.MovementCooldownFrames <= 0
                     && runtime.StatusType != (int)StatusType.Root) {
                     ApplyMovement(ref frame, ref fighter, ref runtime, in tuning, in modes);
+                    FighterActionRules.OnActionAccepted(
+                        ref fighter,
+                        ref frame.Get<FighterVerbComponent>(entity),
+                        ref frame.Get<FighterDefenseComponent>(entity),
+                        ref frame.Get<FighterActionStateComponent>(entity),
+                        FighterActionKind.MovementAbility);
                 }
             }
         }
@@ -1340,7 +1351,7 @@ namespace FTT.FighterSim {
                         in attacker, FighterKitMotion.ChargeFacing(runtime.UniversalMovementDirection), out center);
                     halfExtents = FighterReachKitRules.RailContactExtents;
                 }
-                if (!FighterEntityQueries.Overlaps(in center, in halfExtents, in target.Position, in FighterHalfExtents)) continue;
+                if (!FighterEntityQueries.Overlaps(in center, in halfExtents, in target.Position, in FighterHurtbox.HalfExtents)) continue;
 
                 ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
                 ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
@@ -1383,8 +1394,6 @@ namespace FTT.FighterSim {
                 }
             }
         }
-
-        private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
 
         internal static void SpawnProjectile(
             ref Frame frame,
@@ -1924,7 +1933,6 @@ namespace FTT.FighterSim {
             hitstunFrames = authored.HitstunFrames;
             launches = authored.Launches;
         }
-        private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
 
         public void Update(ref Frame frame) {
             var filter = frame.Filter<FighterProjectileComponent>();
@@ -1990,7 +1998,7 @@ namespace FTT.FighterSim {
                 ref FighterStateComponent target = ref frame.Get<FighterStateComponent>(targetEntity);
                 if (!FighterEntityQueries.Overlaps(
                         in projectile.Position, in projectile.HalfExtents,
-                        in target.Position, in FighterHalfExtents)) continue;
+                        in target.Position, in FighterHurtbox.HalfExtents)) continue;
                 // Package 13 W7b: a grounded-only ground wave passes under a
                 // jumper (and anyone on another surface) without being consumed.
                 if (groundWave && !FighterGroundWave.CanStrike(in projectile, in target)) continue;
@@ -2093,7 +2101,6 @@ namespace FTT.FighterSim {
         private const int NestObjectTypeID = 3;
         private const int NestBiteHitstunFrames = 60;
         private static readonly FP64 CoilLinkRangeSquared = FP64.FromInt(64);
-        private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
 
         public void Update(ref Frame frame) {
             // A04 (Package 13 W1): a fallen owner's objects are gone before
@@ -2205,7 +2212,7 @@ namespace FTT.FighterSim {
                 ref FighterStateComponent target = ref frame.Get<FighterStateComponent>(targetEntity);
                 if (!FighterEntityQueries.Overlaps(
                         in fenceCenter, in fenceHalfExtents,
-                        in target.Position, in FighterHalfExtents)) continue;
+                        in target.Position, in FighterHurtbox.HalfExtents)) continue;
 
                 ref FighterStateComponent owner = ref frame.Get<FighterStateComponent>(ownerEntity);
                 ref FighterRuntimeComponent ownerRuntime = ref frame.Get<FighterRuntimeComponent>(ownerEntity);
@@ -2284,7 +2291,6 @@ namespace FTT.FighterSim {
         /// <summary>The Globe crowd pelts a fighter that has stood still this long.</summary>
         internal const int HeckleIdleFrames = 120;
         private const int HitstunFrames = 10;
-        private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
         private static readonly FP64 DebrisSpeed = FP64.FromDouble(0.09);
         private static readonly FP64 BeamSweepSpeed = FP64.FromDouble(0.05);
         private static readonly FP64 RockFallSpeed = FP64.FromDouble(0.15);
@@ -2503,7 +2509,7 @@ namespace FTT.FighterSim {
                 ref FighterStateComponent fighter = ref frame.Get<FighterStateComponent>(fighterEntity);
                 if (!FighterEntityQueries.Overlaps(
                         in hazard.Position, in hazard.HalfExtents,
-                        in fighter.Position, in FighterHalfExtents)) continue;
+                        in fighter.Position, in FighterBodyOverlap.HalfExtents)) continue;
 
                 // The dampening beam is pure meter denial: no damage, no impulse.
                 // The drain honours the same pre-effect gates ApplyFighterHit
@@ -2587,7 +2593,7 @@ namespace FTT.FighterSim {
                 if ((hazard.HitMask & bit) != 0) continue;
                 if (!FighterEntityQueries.Overlaps(
                         in hazard.Position, in hazard.HalfExtents,
-                        in fighter.Position, in FighterHalfExtents)) continue;
+                        in fighter.Position, in FighterBodyOverlap.HalfExtents)) continue;
 
                 hazard.HitMask |= bit;
                 ref FighterRuntimeComponent runtime = ref frame.Get<FighterRuntimeComponent>(fighterEntity);
@@ -2612,7 +2618,7 @@ namespace FTT.FighterSim {
                 ref FighterStateComponent fighter = ref frame.Get<FighterStateComponent>(fighterEntity);
                 bool inside = FighterEntityQueries.Overlaps(
                     in hazard.Position, in hazard.HalfExtents,
-                    in fighter.Position, in FighterHalfExtents);
+                    in fighter.Position, in FighterBodyOverlap.HalfExtents);
                 int dwell = ReadDwell(in hazard, fighter.PlayerID);
                 if (!inside) {
                     WriteDwell(ref hazard, fighter.PlayerID, 0);
@@ -2781,7 +2787,6 @@ namespace FTT.FighterSim {
         /// <summary>M24 effect type 4.</summary>
         public const int ResonanceSurgeEffectType = 4;
         private static readonly FP64 MaxInfluence = FighterMeterRules.Cap;
-        private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
 
         private readonly FighterStageGeometry _geometry;
 
@@ -2905,7 +2910,7 @@ namespace FTT.FighterSim {
                 ref readonly FighterStateComponent fighter = ref frame.GetReadOnly<FighterStateComponent>(entity);
                 if (!FighterEntityQueries.Overlaps(
                         in orb.Position, in orb.HalfExtents,
-                        in fighter.Position, in FighterHalfExtents)) continue;
+                        in fighter.Position, in FighterBodyOverlap.HalfExtents)) continue;
                 if (fighter.PlayerID == 0) playerOne = true;
                 else if (fighter.PlayerID == 1) playerTwo = true;
             }
@@ -2974,7 +2979,6 @@ namespace FTT.FighterSim {
         // Refreshed every frame the owner overlaps; decays one frame at a time in
         // TickCounters, so the bonus expires immediately after leaving the zone.
         private const int OwnerBonusRefreshFrames = 2;
-        private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
 
         /// <summary>
         /// A01/D10 (Package 13 W1): the two fighters' authored hit contracts,
@@ -3031,7 +3035,7 @@ namespace FTT.FighterSim {
                     ref readonly FighterStateComponent owner = ref frame.GetReadOnly<FighterStateComponent>(ownerEntity);
                     if (FighterEntityQueries.Overlaps(
                             in zone.Position, in zone.HalfExtents,
-                            in owner.Position, in FighterHalfExtents)) {
+                            in owner.Position, in FighterHurtbox.HalfExtents)) {
                         ref FighterRuntimeComponent ownerRuntime = ref frame.Get<FighterRuntimeComponent>(ownerEntity);
                         ownerRuntime.ZoneSpeedBonusFrames = OwnerBonusRefreshFrames;
                     }
@@ -3085,7 +3089,7 @@ namespace FTT.FighterSim {
                 ref FighterStateComponent target = ref frame.Get<FighterStateComponent>(targetEntity);
                 if (!FighterEntityQueries.Overlaps(
                         in zone.Position, in zone.HalfExtents,
-                        in target.Position, in FighterHalfExtents)) continue;
+                        in target.Position, in FighterHurtbox.HalfExtents)) continue;
 
                 ref FighterStateComponent attacker = ref frame.Get<FighterStateComponent>(attackerEntity);
                 ref FighterRuntimeComponent attackerRuntime = ref frame.Get<FighterRuntimeComponent>(attackerEntity);
@@ -3259,7 +3263,7 @@ namespace FTT.FighterSim {
             if (target.Stocks <= 0 || target.InvulnerabilityFrames > 0) return;
             if (!FighterEntityQueries.Overlaps(
                     in zone.Position, in zone.HalfExtents,
-                    in target.Position, in FighterHalfExtents)) return;
+                    in target.Position, in FighterHurtbox.HalfExtents)) return;
             FP64 dx = zone.Position.x - target.Position.x;
             if (dx > VortexPullPerFrame) target.Position.x += VortexPullPerFrame;
             else if (dx < -VortexPullPerFrame) target.Position.x -= VortexPullPerFrame;
@@ -3281,7 +3285,7 @@ namespace FTT.FighterSim {
             ref FighterStateComponent target = ref frame.Get<FighterStateComponent>(targetEntity);
             if (!FighterEntityQueries.Overlaps(
                     in zone.Position, in zone.HalfExtents,
-                    in target.Position, in FighterHalfExtents)) return;
+                    in target.Position, in FighterHurtbox.HalfExtents)) return;
 
             ref FighterStateComponent attacker = ref frame.Get<FighterStateComponent>(attackerEntity);
             ref FighterRuntimeComponent attackerRuntime = ref frame.Get<FighterRuntimeComponent>(attackerEntity);
@@ -3316,7 +3320,7 @@ namespace FTT.FighterSim {
             if (target.Stocks <= 0 || target.InvulnerabilityFrames > 0) return;
             if (!FighterEntityQueries.Overlaps(
                     in zone.Position, in zone.HalfExtents,
-                    in target.Position, in FighterHalfExtents)) return;
+                    in target.Position, in FighterHurtbox.HalfExtents)) return;
             FP64 dx = zone.Position.x - target.Position.x;
             if (dx > SingularityPullPerFrame) target.Position.x += SingularityPullPerFrame;
             else if (dx < -SingularityPullPerFrame) target.Position.x -= SingularityPullPerFrame;

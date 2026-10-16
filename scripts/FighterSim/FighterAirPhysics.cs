@@ -105,6 +105,47 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
+        /// <see cref="UniversalMovementRules.AerialSpecialGravityMultiplier"/>
+        /// in fixed point, converted once: the gravity scale through the startup
+        /// and active frames of a Special cast that started airborne (combat and
+        /// movement update 2026-10-16, plan §2.1.6).
+        /// </summary>
+        public static readonly FP64 AerialSpecialGravityScale =
+            FP64.FromDouble(UniversalMovementRules.AerialSpecialGravityMultiplier);
+
+        /// <summary>
+        /// The cast step (plan §2.1.6): one airborne tick under normal control
+        /// with the tick's gravity step — the one <see cref="StepMovement(FP64, bool, bool, bool)"/>
+        /// picks — scaled by <paramref name="gravityScale"/>, and the ease past
+        /// the fall cap scaled with it, so a scale of one is that method exactly.
+        /// A Special cast that started airborne passes
+        /// <see cref="AerialSpecialGravityScale"/> through its startup and active
+        /// frames; Story's cast scales its whole gravity tick the same way.
+        /// </summary>
+        public static FP64 StepMovement(
+            FP64 velocityY, bool fastFalling, bool floating, bool jumpedThisAirtime, FP64 gravityScale) {
+            FP64 step;
+            if (fastFalling) {
+                step = FastFallGravityStep;
+            } else if (floating) {
+                step = FloatGravityStep;
+            } else if (jumpedThisAirtime && FP64.Abs(velocityY) < ApexHangBand) {
+                step = ApexHangGravityStep;
+            } else if (velocityY < FP64.Zero) {
+                step = FallGravityStep;
+            } else {
+                step = GravityStep;
+            }
+            step *= gravityScale;
+            FP64 next = velocityY + step;
+            FP64 limit = fastFalling ? FastFallVelocity : TerminalFallVelocity;
+            if (next >= limit) return next;
+            if (velocityY >= limit) return limit;
+            FP64 eased = velocityY - GravityStep * gravityScale;
+            return eased < limit ? eased : limit;
+        }
+
+        /// <summary>
         /// One airborne tick in hitstun or daze: flat base gravity, clamped at
         /// the launch terminal. Unchanged by the 2026-10-08 feel pass.
         /// </summary>

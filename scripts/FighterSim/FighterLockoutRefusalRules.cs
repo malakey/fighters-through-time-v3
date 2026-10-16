@@ -80,10 +80,13 @@ namespace FTT.FighterSim {
     /// <para>Accepted misses, never false flashes: a press on the tick the
     /// fighter is hit or its own swing lands with damage (post-tick hitstop or
     /// hitstun), on the tick an absorbed landing sets the swing-landed latch, on
-    /// the tick the meter fills inside <c>TickCounters</c>, an Ultimate pressed
-    /// from the block stance (which the sim's Ultimate gate allows, ledger
-    /// <c>VERIFY-SAME-TICK-VERB-PARITY</c> (1)), and a fighter captured or
-    /// knocked out later in the tick.</para>
+    /// the tick the meter fills inside <c>TickCounters</c>, and a fighter
+    /// captured or knocked out later in the tick. An Ultimate pressed from the
+    /// block stance or in shieldstun is refused by the Ultimate gate itself
+    /// (combat and movement update 2026-10-16, decision 2.3) and, like every
+    /// press in the stance, never flashes. A press during the landing tech's
+    /// lock or the fighter's own Special cast is discarded before any system
+    /// reads it (1.1(3), 1.2), so it never flashes either.</para>
     /// </summary>
     public static class FighterLockoutRefusalRules {
         private const int SpecialOneButton = (int)GameplayButtons.Special1;
@@ -93,13 +96,17 @@ namespace FTT.FighterSim {
         /// <summary>
         /// Classifies one fighter's tick from its pre-tick
         /// <paramref name="before"/> and its post-tick components.
+        /// <paramref name="actionState"/> is the post-tick component 323; a
+        /// caller without it passes nothing (all zero, no cast), which is safe
+        /// because a busy caster's presses are discarded before the read.
         /// </summary>
         public static FighterLockoutRefusal Evaluate(
             in LockoutRefusalBaseline before,
             in FighterStateComponent fighter,
             in FighterRuntimeComponent runtime,
             in FighterVerbComponent verb,
-            in FighterUltimateActivationComponent activation) {
+            in FighterUltimateActivationComponent activation,
+            in FighterActionStateComponent actionState = default) {
 
             // 1. Frozen at tick start and not on the freeze's last tick: no
             // system read a press (the last tick, 1 → 0, is read).
@@ -122,7 +129,7 @@ namespace FTT.FighterSim {
             if ((pressed & (SpecialOneButton | SpecialTwoButton | UltimateButton)) == 0) {
                 return FighterLockoutRefusal.None;
             }
-            if (!FighterAbilityLockoutRules.CanReadAbilityPress(in fighter, in runtime, in verb)
+            if (!FighterAbilityLockoutRules.CanReadAbilityPress(in fighter, in runtime, in verb, in actionState)
                 || FighterMatchFlowRules.IsOnRespawnPlatform(in fighter)
                 || FighterUltimateActivationRules.IsCaptured(in activation)
                 || FighterUltimateActivationRules.IsCasterBusy(in activation)) {

@@ -416,7 +416,6 @@ namespace FTT.FighterSim {
     /// staff platforms (M04). All of it reads the projected loadout contract.
     /// </summary>
     public static class FighterReachKitRules {
-        private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
         private static readonly FPVector2 FallbackThrustHalfExtents = new(FP64.FromDouble(0.5), FP64.FromDouble(0.42));
         private static readonly FP64 FallbackThrustOffset = FP64.FromDouble(0.5);
         private static readonly FP64 RailContactReach = FP64.FromDouble(KitReachRules.RailChargeContactReachUnits);
@@ -494,7 +493,7 @@ namespace FTT.FighterSim {
             FP64 half = SplittingReach / FP64.FromInt(2);
             var center = new FPVector2(attacker.Position.x + half * FP64.FromInt(facing), attacker.Position.y + FP64.One);
             var halfExtents = new FPVector2(half, FP64.FromDouble(1.6));
-            return FighterEntityQueries.Overlaps(in center, in halfExtents, in target.Position, in FighterHalfExtents);
+            return FighterEntityQueries.Overlaps(in center, in halfExtents, in target.Position, in FighterHurtbox.HalfExtents);
         }
 
         /// <summary>

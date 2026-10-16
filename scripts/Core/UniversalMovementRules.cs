@@ -54,6 +54,17 @@ namespace FTT.Core {
         public const float ApexHangGravityMultiplier = 0.5f;
 
         /// <summary>
+        /// Gravity scale through a Special cast that started airborne, during its
+        /// startup and active frames (design :1097): the normal step at half
+        /// strength, then the normal step in recovery. The single canonical
+        /// value for both modes (combat and movement update 2026-10-16, plan
+        /// §2.1.6): Story's <c>PlayerController.ProcessUsingSpecial</c> forwards
+        /// to it (it was a literal 0.5 there), and the Fighter sim's cast step
+        /// reads it through <c>FighterAirPhysics</c>.
+        /// </summary>
+        public const float AerialSpecialGravityMultiplier = 0.5f;
+
+        /// <summary>
         /// Gravity scale while falling (moving down, outside the apex band) under
         /// normal control, so a descent gathers speed quickly. Story's was 1.8; the
         /// Fighter sim had none (1.0).

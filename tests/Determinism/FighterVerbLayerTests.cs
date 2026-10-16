@@ -348,6 +348,199 @@ public class FighterVerbLayerTests {
             .IsEqual(2);
     }
 
+    // ---- 1.1(3): the landing tech locks every action (combat and movement update 2026-10-16) ----
+
+    /// <summary>The verbs the tech lock refuses: the name, the press, and what is held with it.</summary>
+    private static readonly (string Name, GameplayButtons Pressed, GameplayButtons Held)[] TechLockVerbs = {
+        ("Special 1", GameplayButtons.Special1, GameplayButtons.Special1),
+        ("Special 2", GameplayButtons.Special2, GameplayButtons.Special2),
+        ("the movement ability", GameplayButtons.MovementAbility, GameplayButtons.MovementAbility),
+        ("the grab chord", GameplayButtons.BasicAttack, GameplayButtons.Block | GameplayButtons.BasicAttack),
+        ("the direct grab", GameplayButtons.Grab, GameplayButtons.Grab),
+        ("BasicAttack", GameplayButtons.BasicAttack, GameplayButtons.BasicAttack),
+        ("a paid Ultimate", GameplayButtons.Ultimate, GameplayButtons.Ultimate)
+    };
+
+    /// <summary>
+    /// 1.1(3) (plan §2.1.3): the 12 invulnerable tech frames allow no action.
+    /// Each verb pressed on every one of L+1..L+12 starts nothing, and the
+    /// first press after the lock is accepted.
+    /// </summary>
+    [TestCase]
+    public void TheLandingTechLocksEveryVerbForItsTwelveFramesAndThePressAfterIsAccepted() {
+        foreach ((string name, GameplayButtons pressed, GameplayButtons held) in TechLockVerbs) {
+            FighterSimulation simulation = NewTechSimulation(emptyShield: false);
+            int tick = LaunchAndTech(simulation, 0, out _);
+            AssertThat(simulation.SeedFighterInfluenceForTest(1, 100)).IsTrue();
+            for (int frame = 1; frame <= BasicComboRules.LandingTechRecoveryFrames; frame++, tick++) {
+                simulation.Advance(Frame(tick, 0, GameplayButtons.None), Pressing(tick, pressed, held));
+                AssertThat(VerbStarted(simulation, 1, pressed, held))
+                    .OverrideFailureMessage($"{name} started on tech frame {frame}.")
+                    .IsFalse();
+            }
+            AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent done)).IsTrue();
+            AssertThat(done.TechLockoutFrames).IsEqual(0);
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Pressing(tick, pressed, held));
+            AssertThat(VerbStarted(simulation, 1, pressed, held))
+                .OverrideFailureMessage($"{name} must be accepted on the first tick after the tech.")
+                .IsTrue();
+        }
+    }
+
+    /// <summary>
+    /// 1.1(3): the landing tick L itself is locked too — the ability, combat
+    /// and grab systems read the tick's presses after the landing resolves, so
+    /// they are discarded there. The victim holds Block for the tech with an
+    /// empty shield, so the stance never rises to refuse them instead.
+    /// </summary>
+    [TestCase]
+    public void NoVerbStartsOnTheTechsOwnLandingTick() {
+        int landing = LaunchAndTech(NewTechSimulation(emptyShield: true), 0, out int connect) - 1;
+        foreach ((string name, GameplayButtons pressed, GameplayButtons held) in TechLockVerbs) {
+            FighterSimulation simulation = NewTechSimulation(emptyShield: true);
+            AssertThat(simulation.SeedFighterInfluenceForTest(1, 100)).IsTrue();
+            int tick = 0;
+            for (; tick < landing; tick++) {
+                simulation.Advance(LauncherFrame(tick, 0),
+                    tick <= connect ? Frame(tick, 0, GameplayButtons.None) : FrameHeld(tick, GameplayButtons.Block));
+            }
+            simulation.Advance(LauncherFrame(tick, 0), Pressing(tick, pressed, held | GameplayButtons.Block));
+            AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent verb)).IsTrue();
+            AssertThat(verb.TechLockoutFrames)
+                .OverrideFailureMessage($"Harness: the {name} run did not tech on the probe's landing tick.")
+                .IsEqual(BasicComboRules.LandingTechRecoveryFrames);
+            AssertThat(VerbStarted(simulation, 1, pressed, held))
+                .OverrideFailureMessage($"{name} started on the tech's own landing tick.")
+                .IsFalse();
+        }
+    }
+
+    /// <summary>
+    /// 1.1(3): no D10 "not yet" refusal is classified inside the lock. The
+    /// victim's own swing arms the ability lockout on the launch tick, so a
+    /// Special or Ultimate press read during the tech would be a lockout-alone
+    /// refusal and flash; discarded, it never reaches the classifier.
+    /// </summary>
+    [TestCase]
+    public void NoNotYetRefusalIsClassifiedInsideTheTechLock() {
+        LaunchAndTech(NewTechSimulation(emptyShield: true), 0, out int connect);
+        FighterSimulation simulation = NewTechSimulation(emptyShield: true);
+        AssertThat(simulation.SeedFighterInfluenceForTest(1, 100)).IsTrue();
+        int tick = 0;
+        for (; tick < connect; tick++) {
+            simulation.Advance(LauncherFrame(tick, 0), Frame(tick, 0, GameplayButtons.None));
+        }
+        // The victim's swing arms A on the launch tick; the launch's hitstun
+        // cancels it before its startup ends, so it never reaches the attacker.
+        simulation.Advance(LauncherFrame(tick, 0), Frame(tick, 0, GameplayButtons.BasicAttack));
+        tick++;
+        const GameplayButtons presses = GameplayButtons.Special1 | GameplayButtons.Special2 | GameplayButtons.Ultimate;
+        bool teched = false;
+        int lockedTicks = 0;
+        for (int step = 0; step < 120 && lockedTicks < BasicComboRules.LandingTechRecoveryFrames; step++, tick++) {
+            LockoutRefusalBaseline baseline = Baseline(simulation, 1);
+            bool inLock = teched;
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None),
+                inLock ? Pressing(tick, presses, presses) : FrameHeld(tick, GameplayButtons.Block));
+            AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent verb)).IsTrue();
+            AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)).IsTrue();
+            if (!teched && verb.TechLockoutFrames == BasicComboRules.LandingTechRecoveryFrames) {
+                teched = true;
+                AssertThat(runtime.AbilityLockoutFrames > BasicComboRules.LandingTechRecoveryFrames)
+                    .OverrideFailureMessage($"Harness: the lockout ({runtime.AbilityLockoutFrames}) must outlast the tech.")
+                    .IsTrue();
+            }
+            if (inLock) {
+                lockedTicks++;
+                AssertThat(Classify(simulation, 1, in baseline))
+                    .OverrideFailureMessage($"A press on tech frame {lockedTicks} was classified as a refusal.")
+                    .IsEqual(FighterLockoutRefusal.None);
+            }
+        }
+        AssertThat(lockedTicks)
+            .OverrideFailureMessage("Harness: the victim never teched.")
+            .IsEqual(BasicComboRules.LandingTechRecoveryFrames);
+    }
+
+    /// <summary>
+    /// A tech victim with Area-execution Specials (accepted on press, so
+    /// acceptance is visible as an armed cooldown). With
+    /// <paramref name="emptyShield"/> its stance never rises, so a held Block
+    /// only techs and only the tech lock can refuse a verb.
+    /// </summary>
+    private static FighterSimulation NewTechSimulation(bool emptyShield) {
+        CharacterData victim = BuildVictim(maxHP: 400);
+        if (emptyShield) victim.MaxBlockCharges = 0;
+        victim.SpecialAttackOne = new AbilityData { ExecutionType = AbilityExecutionType.Area, BaseDamage = 2f };
+        victim.SpecialAttackTwo = new AbilityData { ExecutionType = AbilityExecutionType.Area, BaseDamage = 2f };
+        return NewSimulation(BuildAttacker(damage: 10f, knockback: 4f, launcherSpecial: true), victim, seed: 907);
+    }
+
+    /// <summary>The attacker's launcher press on <paramref name="start"/>, neutral otherwise.</summary>
+    private static PlayerInputFrame LauncherFrame(int tick, int start) =>
+        Frame(tick, 0, tick == start ? GameplayButtons.Special1 : GameplayButtons.None);
+
+    /// <summary>
+    /// Presses the attacker's launcher on <paramref name="start"/>, steps the
+    /// idle victim until it connects (whatever the Special's startup), then
+    /// has the victim hold Block until its landing tech. Returns the tick
+    /// after the landing tick L; <paramref name="connect"/> is the launch tick.
+    /// </summary>
+    private static int LaunchAndTech(FighterSimulation simulation, int start, out int connect) {
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
+        connect = -1;
+        int tick = start;
+        for (int limit = start + 60; tick < limit && connect < 0; tick++) {
+            simulation.Advance(LauncherFrame(tick, start), Frame(tick, 0, GameplayButtons.None));
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent victim)).IsTrue();
+            if (victim.CurrentHP < before.CurrentHP) connect = tick;
+        }
+        AssertThat(connect >= 0).OverrideFailureMessage("Harness: the launcher never connected.").IsTrue();
+        for (int limit = tick + 120; tick < limit; tick++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), FrameHeld(tick, GameplayButtons.Block));
+            AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent verb)).IsTrue();
+            if (verb.TechLockoutFrames == BasicComboRules.LandingTechRecoveryFrames) return tick + 1;
+        }
+        AssertThat(false).OverrideFailureMessage("Harness: the launched victim never teched.").IsTrue();
+        return tick;
+    }
+
+    private static PlayerInputFrame Pressing(int tick, GameplayButtons pressed, GameplayButtons held) => new() {
+        Tick = (uint)tick,
+        Held = held,
+        Pressed = pressed
+    };
+
+    /// <summary>Whether the verb a test pressed started (its cost is spent, or its phase began).</summary>
+    private static bool VerbStarted(FighterSimulation simulation, int playerID, GameplayButtons pressed, GameplayButtons held) {
+        AssertThat(simulation.TryGetFighterRuntime(playerID, out FighterRuntimeComponent runtime)).IsTrue();
+        AssertThat(simulation.TryGetFighterVerb(playerID, out FighterVerbComponent verb)).IsTrue();
+        AssertThat(simulation.TryGetFighterUltimateActivation(playerID, out FighterUltimateActivationComponent activation)).IsTrue();
+        if ((pressed & GameplayButtons.Special1) != 0) return runtime.SpecialOneCooldownFrames > 0;
+        if ((pressed & GameplayButtons.Special2) != 0) return runtime.SpecialTwoCooldownFrames > 0;
+        if ((pressed & GameplayButtons.MovementAbility) != 0) return runtime.MovementCooldownFrames > 0;
+        if ((pressed & GameplayButtons.Ultimate) != 0) return activation.Phase != FighterUltimateActivationRules.PhaseNone;
+        if ((pressed & GameplayButtons.Grab) != 0 || (held & GameplayButtons.Block) != 0) return verb.GrabPhase != 0;
+        return runtime.AttackPhase != FighterBasicAttackRules.PhaseNone;
+    }
+
+    private static LockoutRefusalBaseline Baseline(FighterSimulation simulation, int playerID) {
+        AssertThat(simulation.TryGetFighter(playerID, out FighterStateComponent fighter)).IsTrue();
+        AssertThat(simulation.TryGetFighterRuntime(playerID, out FighterRuntimeComponent runtime)).IsTrue();
+        AssertThat(simulation.TryGetFighterVerb(playerID, out FighterVerbComponent verb)).IsTrue();
+        AssertThat(simulation.TryGetFighterUltimateActivation(playerID, out FighterUltimateActivationComponent activation)).IsTrue();
+        return LockoutRefusalBaseline.Capture(in runtime, in verb, in fighter, in activation);
+    }
+
+    private static FighterLockoutRefusal Classify(FighterSimulation simulation, int playerID, in LockoutRefusalBaseline baseline) {
+        AssertThat(simulation.TryGetFighter(playerID, out FighterStateComponent fighter)).IsTrue();
+        AssertThat(simulation.TryGetFighterRuntime(playerID, out FighterRuntimeComponent runtime)).IsTrue();
+        AssertThat(simulation.TryGetFighterVerb(playerID, out FighterVerbComponent verb)).IsTrue();
+        AssertThat(simulation.TryGetFighterUltimateActivation(playerID, out FighterUltimateActivationComponent activation)).IsTrue();
+        AssertThat(simulation.TryGetFighterActionState(playerID, out FighterActionStateComponent action)).IsTrue();
+        return FighterLockoutRefusalRules.Evaluate(in baseline, in fighter, in runtime, in verb, in activation, in action);
+    }
+
     // ---- Harness -------------------------------------------------------------
 
     /// <summary>
