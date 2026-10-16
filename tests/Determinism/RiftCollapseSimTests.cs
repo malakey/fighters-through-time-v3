@@ -26,18 +26,21 @@ public class RiftCollapseSimTests {
             ProjectileBurstSimTests.Authored("einstein"), FighterLoadout.Default(FighterCharacterID.Joan),
             seed: 7201, spawnDistance: 3, rules: FighterMatchRules.Disabled);
         simulation.Advance(Frame(0, GameplayButtons.Special2), Frame(0, GameplayButtons.None));
+        // Decision 1.2 (2026-10-16): the rift opens on the cast's active entry.
+        int riftOpen = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent rift)).IsTrue();
         AssertThat(rift.Position.x).IsEqual(FP64.FromInt(2));
         AssertThat(rift.HalfExtents.x).IsEqual(FP64.FromDouble(KitMotionRules.RelativityRiftRadiusUnits));
 
-        // E=mc² once the rift's ability lockout has run out (the rift lives 180
-        // ticks, so it is still up and still over the opponent).
-        int castTick = IdleUntilAbilityReady(simulation, 1);
+        // E=mc² once the rift's ability lockout and cast have run out (the rift
+        // lives 180 ticks, so it is still up and still over the opponent).
+        int castTick = IdleUntilAbilityReady(simulation, riftOpen);
         simulation.Advance(Frame(castTick, GameplayButtons.Special1), Frame(castTick, GameplayButtons.None));
+        int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, castTick + 1);
         AssertThat(simulation.ZoneCount).IsEqual(1);
         int burstTick = -1;
         FP64 meterAtBurst = FP64.Zero;
-        for (int tick = castTick + 1; tick < castTick + 39 && burstTick < 0; tick++) {
+        for (int tick = fired; tick < fired + 38 && burstTick < 0; tick++) {
             simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
             simulation.TryGetFirstZone(out FighterZoneComponent live);
             if (live.CollapseFramesRemaining > 0) {
@@ -73,14 +76,17 @@ public class RiftCollapseSimTests {
             seed: 7202, spawnDistance: 3, rules: FighterMatchRules.Disabled);
         // The opponent faces Einstein and holds the stance throughout.
         simulation.Advance(Frame(0, GameplayButtons.Special2), Frame(0, GameplayButtons.None, -127));
-        // E=mc² once the rift's ability lockout has run out (tick 30).
+        // E=mc² once the rift's ability lockout and (decision 1.2, 2026-10-16)
+        // its cast have run out.
         int castTick = IdleUntilAbilityReady(simulation, 1, victimHeld: GameplayButtons.Block);
         simulation.Advance(Frame(castTick, GameplayButtons.Special1), Frame(castTick, GameplayButtons.Block));
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent cast)).IsTrue();
         AssertThat(cast.SpecialOneCooldownFrames > 0).OverrideFailureMessage("E=mc² was not cast.").IsTrue();
+        int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, castTick + 1, t => (
+            SpecialCastTestKit.Neutral(t), Frame(t, GameplayButtons.Block)));
         AssertThat(simulation.ZoneCount).IsEqual(1);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
-        for (int tick = castTick + 1; tick < castTick + 38; tick++) {
+        for (int tick = fired; tick < fired + 37; tick++) {
             simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.Block));
         }
         AssertThat(simulation.ZoneCount).IsEqual(0);
@@ -96,14 +102,15 @@ public class RiftCollapseSimTests {
             ProjectileBurstSimTests.Authored("einstein"), FighterLoadout.Default(FighterCharacterID.Joan),
             seed: 7203, spawnDistance: 3, rules: FighterMatchRules.Disabled);
         simulation.Advance(Frame(0, GameplayButtons.Special2), Frame(0, GameplayButtons.None));
+        int riftOpen = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent inside)).IsTrue();
         AssertThat(inside.StatusType).IsEqual((int)StatusType.TimeDilation);
 
         // Walk out to the right; find the first tick fully outside the rift box.
         int exitTick = -1;
         FP64 edge = FP64.FromInt(2) + FP64.FromDouble(KitMotionRules.RelativityRiftRadiusUnits) + FP64.FromDouble(0.5);
-        int tick = 1;
-        for (; tick < 200 && exitTick < 0; tick++) {
+        int tick = riftOpen;
+        for (int end = riftOpen + 199; tick < end && exitTick < 0; tick++) {
             simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None, 127));
             simulation.TryGetFighter(1, out FighterStateComponent walker);
             if (walker.Position.x > edge) exitTick = tick;
@@ -123,14 +130,15 @@ public class RiftCollapseSimTests {
 
     /// <summary>
     /// Idles Einstein (the opponent sends <paramref name="victimHeld"/>) until
-    /// his ability lockout has run out; returns the next free input tick.
+    /// his ability lockout has run out and (decision 1.2, 2026-10-16) his cast
+    /// has ended; returns the next free input tick.
     /// </summary>
     private static int IdleUntilAbilityReady(
         FighterSimulation simulation, int startTick, GameplayButtons victimHeld = GameplayButtons.None) {
         int tick = startTick;
-        for (int limit = startTick + 60; tick < limit; tick++) {
+        for (int limit = startTick + 90; tick < limit; tick++) {
             AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
-            if (runtime.AbilityLockoutFrames == 0) break;
+            if (runtime.AbilityLockoutFrames == 0 && !SpecialCastTestKit.IsCasting(simulation, 0)) break;
             simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, victimHeld));
         }
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent ready)).IsTrue();

@@ -76,11 +76,14 @@ public class RelativityWarpFoldSimTests {
             ProjectileBurstSimTests.Authored("einstein"), ProjectileBurstSimTests.Authored("einstein"),
             seed: 7303, spawnDistance: 2, rules: FighterMatchRules.Disabled);
         simulation.Advance(Frame(0, GameplayButtons.None), Frame(0, GameplayButtons.Special1));
-        simulation.Advance(Frame(1, GameplayButtons.None), Frame(1, GameplayButtons.None));
-        simulation.Advance(Frame(2, GameplayButtons.MovementAbility, 127), Frame(2, GameplayButtons.None));
+        // Decision 1.2 (2026-10-16): the shot leaves on the cast's active entry
+        // (the Advance before `fired`); the fold keeps its old two-tick lag.
+        int fired = SpecialCastTestKit.StepUntilFired(simulation, 1, 1);
+        simulation.Advance(Frame(fired, GameplayButtons.None), Frame(fired, GameplayButtons.None));
+        simulation.Advance(Frame(fired + 1, GameplayButtons.MovementAbility, 127), Frame(fired + 1, GameplayButtons.None));
         FP64 furthestRight = FP64.FromInt(-100);
         bool everHit = false;
-        for (int tick = 3; tick < 40; tick++) {
+        for (int tick = fired + 2; tick < fired + 39; tick++) {
             simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
             simulation.TryGetFighter(0, out FighterStateComponent einstein);
             if (einstein.Position.x > furthestRight) furthestRight = einstein.Position.x;

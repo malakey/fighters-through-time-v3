@@ -31,6 +31,8 @@ public class CleopatraKitTests {
             rules: FighterMatchRules.Disabled);
 
         simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
+        // Decision 1.2 (2026-10-16): the nest deploys on the cast's active entry, T+S.
+        int tick = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
         AssertThat(simulation.PersistentObjectCount).IsEqual(1);
         AssertThat(simulation.TryGetFirstPersistentObject(out FighterPersistentObjectComponent nest)).IsTrue();
         AssertThat(nest.ObjectTypeID).IsEqual(3);
@@ -42,12 +44,15 @@ public class CleopatraKitTests {
         AssertThat(nest.StatusFrames).IsEqual(240);
 
         // Max 1 active: a second deploy replaces the first instead of stacking.
-        // It goes out the tick the first deploy's ability lockout ends.
-        int secondDeploy = BasicComboRules.AbilityLockoutFrames;
-        for (int tick = 1; tick < secondDeploy; tick++) {
+        // It goes out the tick the first cast and its ability lockout have ended.
+        tick = SpecialCastTestKit.StepUntilCastEnds(simulation, 0, tick);
+        for (int limit = tick + 60; tick < limit; tick++) {
+            AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent waiting)).IsTrue();
+            if (waiting.AbilityLockoutFrames == 0) break;
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
-        simulation.Advance(Frame(secondDeploy, 0, GameplayButtons.Special1), Frame(secondDeploy, 0, GameplayButtons.None));
+        simulation.Advance(Frame(tick, 0, GameplayButtons.Special1), Frame(tick, 0, GameplayButtons.None));
+        SpecialCastTestKit.StepUntilFired(simulation, 0, tick + 1);
         AssertThat(simulation.PersistentObjectCount).IsEqual(1);
         AssertThat(simulation.TryGetFirstPersistentObject(out FighterPersistentObjectComponent replacement)).IsTrue();
         AssertThat(replacement.EntityID > nest.EntityID)
@@ -70,8 +75,12 @@ public class CleopatraKitTests {
         // W7b): the nest is 2.0 units wide, so the opponent walks into it (the
         // 0.6-unit pushbox leaves them well inside its 1.0-unit reach).
         simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
+        // Decision 1.2: the nest deploys on the cast's active entry; the window
+        // runs from the deploy, as before.
+        int deployed = SpecialCastTestKit.StepUntilFired(simulation, 0, 1,
+            t => (Frame(t, 0, GameplayButtons.None), Frame(t, -127, GameplayButtons.None)));
         int maxHitstunObserved = 0;
-        for (int tick = 1; tick <= 70; tick++) {
+        for (int tick = deployed; tick < deployed + 70; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, -127, GameplayButtons.None));
             if (simulation.TryGetFighter(1, out FighterStateComponent observed)
                 && observed.HitstunFrames > maxHitstunObserved) {
@@ -102,6 +111,8 @@ public class CleopatraKitTests {
         // Cleopatra (x = -2 → 3) and snapped to the floor, with the 1.8-unit
         // radius; the opponent at x = 2 is inside it.
         simulation.Advance(Frame(0, 0, GameplayButtons.Special2), Frame(0, 0, GameplayButtons.None));
+        // Decision 1.2: the vortex is thrown on the cast's active entry, T+S.
+        int thrown = SpecialCastTestKit.StepUntilFired(simulation, 0, 1) - 1;
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
         AssertThat(zone.ZoneTypeID).IsEqual((int)FighterCharacterID.Cleopatra * 10 + 2);
         AssertThat(zone.Position.x).IsEqual(xpTURN.Klotho.Deterministic.Math.FP64.FromInt(3));
@@ -110,13 +121,13 @@ public class CleopatraKitTests {
 
         // The pull is a steady per-frame positional drag toward the zone center
         // at 3 units/s: 20 frames move the opponent the full unit to x = 3.
-        for (int tick = 1; tick <= 10; tick++) {
+        for (int tick = thrown + 1; tick <= thrown + 10; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent pulling)).IsTrue();
         AssertThat(pulling.Position.x > xpTURN.Klotho.Deterministic.Math.FP64.FromInt(2)).IsTrue();
         AssertThat(pulling.Position.x < xpTURN.Klotho.Deterministic.Math.FP64.FromInt(3)).IsTrue();
-        for (int tick = 11; tick <= 30; tick++) {
+        for (int tick = thrown + 11; tick <= thrown + 30; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent pulled)).IsTrue();
@@ -125,7 +136,7 @@ public class CleopatraKitTests {
 
         // Five impulse-free ticks of 2 over the 2 s lifetime, TimeDilation held,
         // and no block-charge or hitstun interaction.
-        for (int tick = 31; tick <= 130; tick++) {
+        for (int tick = thrown + 31; tick <= thrown + 130; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();

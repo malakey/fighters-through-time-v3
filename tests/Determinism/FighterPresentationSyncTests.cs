@@ -111,30 +111,43 @@ public class FighterPresentationSyncTests {
 
             var sprite = one.GetNode<AnimatedSprite2D>("AnimatedSprite2D");
             AssertThat(sprite.Animation).IsEqual(new StringName("special_1"));
-            // 2026-10-04 feel pass (F1): the sheet is POSED across the cosmetic
-            // hold (the sim's Specials resolve on press), wind-up first — held
-            // on the chosen frame rather than played at the sheet's fps.
+            // 2026-10-04 feel pass (F1): the sheet is POSED, wind-up first —
+            // held on the chosen frame rather than played at the sheet's fps.
+            // Decision 1.2 (2026-10-16): the pose now follows the cast's own
+            // phases on component 323 — the wind-up through the authored
+            // startup, the strike through the active frames, the follow-through
+            // through the recovery — instead of thirds of a cosmetic hold.
             AssertThat(sprite.Frame).IsEqual(FTT.Combat.AttackPoseRules.WindUpPose);
             AssertThat(sprite.IsPlaying()).IsFalse();
             AssertThat(one.IsShowingAttackPose).IsTrue();
 
-            // The deterministic ability resolves immediately, but presentation
-            // keeps the three-frame pose long enough to be seen.
-            playerOneInput.SetNextFrame(PlayerInputFrame.Create(
-                attackFrame + 1, 0f, 0f, GameplayButtons.None,
-                GameplayButtons.Special1));
-            InputManager.Instance.SetInputSource(0, playerOneInput);
-            driver._PhysicsProcess(Step);
-            AssertThat(sprite.Animation).IsEqual(new StringName("special_1"));
-            // A third of the way through the hold the strike pose shows.
-            for (int frame = 0; frame < 5; frame++) {
-                playerOneInput.SetNextFrame(PlayerInputFrame.Create(
-                    attackFrame + 2 + (uint)frame, 0f, 0f, GameplayButtons.None));
-                InputManager.Instance.SetInputSource(0, playerOneInput);
-                driver._PhysicsProcess(Step);
+            uint nextFrame = attackFrame + 1;
+            int PhaseOf() {
+                AssertThat(driver.Simulation.TryGetFighterActionState(0, out FighterActionStateComponent cast)).IsTrue();
+                return cast.SpecialPhase;
             }
+            AssertThat(PhaseOf()).IsEqual(FighterSpecialCastRules.PhaseStartup);
+            void StepUntilPhase(int phase) {
+                for (int guard = 0; guard < 60 && PhaseOf() != phase; guard++) {
+                    AssertThat(sprite.Animation).IsEqual(new StringName("special_1"));
+                    playerOneInput.SetNextFrame(PlayerInputFrame.Create(
+                        nextFrame, 0f, 0f, GameplayButtons.None,
+                        nextFrame == attackFrame + 1 ? GameplayButtons.Special1 : GameplayButtons.None));
+                    playerTwoInput.SetNextFrame(PlayerInputFrame.Create(nextFrame, 0f, 0f, GameplayButtons.None));
+                    InputManager.Instance.SetInputSource(0, playerOneInput);
+                    InputManager.Instance.SetInputSource(1, playerTwoInput);
+                    driver._PhysicsProcess(Step);
+                    nextFrame++;
+                }
+                AssertThat(PhaseOf()).IsEqual(phase);
+            }
+
+            StepUntilPhase(FighterSpecialCastRules.PhaseActive);
             AssertThat(sprite.Animation).IsEqual(new StringName("special_1"));
             AssertThat(sprite.Frame).IsEqual(FTT.Combat.AttackPoseRules.StrikePose);
+            StepUntilPhase(FighterSpecialCastRules.PhaseRecovery);
+            AssertThat(sprite.Animation).IsEqual(new StringName("special_1"));
+            AssertThat(sprite.Frame).IsEqual(FTT.Combat.AttackPoseRules.FollowThroughPose);
         } finally {
             InputManager.Instance.ClearInputSource(0);
             InputManager.Instance.ClearInputSource(1);

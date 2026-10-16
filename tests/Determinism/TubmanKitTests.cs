@@ -40,9 +40,11 @@ public class TubmanKitTests {
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
 
         simulation.Advance(Frame(0, GameplayButtons.Special1), Frame(0, GameplayButtons.None));
+        // Decision 1.2 (2026-10-16): the scouts leave on the cast's active entry.
+        int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
         AssertThat(simulation.TryGetFirstProjectile(out FighterProjectileComponent call)).IsTrue();
         AssertThat(call.ProjectileTypeID).IsEqual(FighterConductorsCallRules.ProjectileTypeID);
-        for (int tick = 1; tick < 40; tick++) {
+        for (int tick = fired; tick < fired + 39; tick++) {
             simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
@@ -131,10 +133,11 @@ public class TubmanKitTests {
         // press distance leaves room for Foresight's startup against the 12 u/s
         // E=mc² (Package 13 W7a).
         simulation.Advance(Frame(0, GameplayButtons.None), Frame(0, GameplayButtons.Special1));
+        // Decision 1.2 (2026-10-16): the shot leaves on the cast's active entry.
+        int tick = SpecialCastTestKit.StepUntilFired(simulation, 1, 1);
         AssertThat(simulation.TryGetFirstProjectile(out FighterProjectileComponent _)).IsTrue();
-        int tick = 1;
         bool pressed = false;
-        for (; tick < 200 && !pressed; tick++) {
+        for (int end = tick + 199; tick < end && !pressed; tick++) {
             simulation.TryGetFighter(0, out FighterStateComponent tubman);
             bool close = simulation.TryGetFirstProjectile(out FighterProjectileComponent shot)
                 && FP64.Abs(shot.Position.x - tubman.Position.x) < FP64.FromDouble(2.6);

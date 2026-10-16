@@ -30,6 +30,8 @@ public class ShakespeareKitTests {
             rules: FighterMatchRules.Disabled);
 
         simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
+        // Decision 1.2 (2026-10-16): the skull leaves on the cast's active entry.
+        int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
         AssertThat(simulation.ProjectileCount).IsEqual(1);
         AssertThat(simulation.TryGetFirstProjectile(out FighterProjectileComponent skull)).IsTrue();
         AssertThat(skull.ProjectileTypeID).IsEqual((int)FighterCharacterID.Shakespeare * 10 + 1);
@@ -39,7 +41,7 @@ public class ShakespeareKitTests {
         // one deterministic hit.
         bool everSlowed = false;
         xpTURN.Klotho.Deterministic.Math.FP64 observedIntensity = default;
-        for (int tick = 1; tick <= 180 && !everSlowed; tick++) {
+        for (int tick = fired; tick < fired + 180 && !everSlowed; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             if (simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)
                 && runtime.StatusType == (int)StatusType.TimeDilation) {
@@ -76,6 +78,8 @@ public class ShakespeareKitTests {
 
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
         simulation.Advance(Frame(0, 0, GameplayButtons.Special2), Frame(0, 0, GameplayButtons.None));
+        // Decision 1.2 (2026-10-16): the storm rises on the cast's active entry.
+        int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
 
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
         AssertThat(zone.ZoneTypeID).IsEqual((int)FighterCharacterID.Shakespeare * 10 + 2);
@@ -93,7 +97,7 @@ public class ShakespeareKitTests {
         AssertThat(owner.IsGrounded).IsEqual(0);
         AssertThat(owner.Velocity.y > xpTURN.Klotho.Deterministic.Math.FP64.Zero).IsTrue();
 
-        for (int tick = 1; tick <= 20; tick++) {
+        for (int tick = fired; tick < fired + 20; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.ZoneCount).IsEqual(0);
@@ -125,7 +129,10 @@ public class ShakespeareKitTests {
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
         simulation.Advance(Frame(4, 0, GameplayButtons.Special2), Frame(4, 0, GameplayButtons.Block));
-        for (int tick = 5; tick <= 20; tick++) {
+        // Decision 1.2 (2026-10-16): the storm rises on the cast's active entry.
+        int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, 5, t => (
+            SpecialCastTestKit.Neutral(t), Frame(t, 0, GameplayButtons.Block)));
+        for (int tick = fired; tick < fired + 16; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.Block));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();

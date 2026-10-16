@@ -31,11 +31,15 @@ public class TeslaKitTests {
         // Deploy the first coil, walk left to open space, then deploy the second:
         // the pair sits a few units apart (within the 8-unit link range) and the
         // fence spans the gap between them.
+        // Decision 1.2 (2026-10-16): each coil deploys on its cast's active
+        // entry, and the cast lock holds the walk until the recovery ends.
         simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
-        for (int tick = 1; tick <= 40; tick++) {
+        int walk = SpecialCastTestKit.StepUntilCastEnds(simulation, 0, 1);
+        for (int tick = walk; tick < walk + 40; tick++) {
             simulation.Advance(Frame(tick, -127, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
-        simulation.Advance(Frame(41, 0, GameplayButtons.Special1), Frame(41, 0, GameplayButtons.None));
+        simulation.Advance(Frame(walk + 40, 0, GameplayButtons.Special1), Frame(walk + 40, 0, GameplayButtons.None));
+        int fenced = SpecialCastTestKit.StepUntilFired(simulation, 0, walk + 41);
         AssertThat(simulation.PersistentObjectCount).IsEqual(2);
 
         // The opponent walks into the fence span; over the window the fence must
@@ -44,7 +48,7 @@ public class TeslaKitTests {
         // respawn would restore full HP and mask the assertion.
         bool everStaticCharged = false;
         bool everMarked = false;
-        for (int tick = 42; tick < 200; tick++) {
+        for (int tick = fenced; tick < fenced + 158; tick++) {
             simulation.Advance(Frame(tick, -127, GameplayButtons.None), Frame(tick, -127, GameplayButtons.None));
             if (simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)
                 && runtime.StatusType == (int)StatusType.StaticCharge) {
@@ -74,6 +78,8 @@ public class TeslaKitTests {
             rules: FighterMatchRules.Disabled);
 
         simulation.Advance(Frame(0, 0, GameplayButtons.Special2), Frame(0, 0, GameplayButtons.None));
+        // Decision 1.2 (2026-10-16): the pulse bursts on the cast's active entry.
+        int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
 
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
         AssertThat(zone.ZoneTypeID).IsEqual((int)FighterCharacterID.Tesla * 10 + 2);
@@ -87,15 +93,15 @@ public class TeslaKitTests {
         AssertThat(runtime.StatusType).IsEqual((int)StatusType.Root);
 
         // Root immobilizes: the target holds toward Tesla but cannot move.
-        FP64ApproxUnchangedX(simulation);
+        FP64ApproxUnchangedX(simulation, fired);
 
         // The 0.25 s zone expires after its single pulse.
         AssertThat(simulation.ZoneCount).IsEqual(0);
     }
 
-    private static void FP64ApproxUnchangedX(FighterSimulation simulation) {
+    private static void FP64ApproxUnchangedX(FighterSimulation simulation, int fromTick) {
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
-        for (int tick = 1; tick <= 30; tick++) {
+        for (int tick = fromTick; tick < fromTick + 30; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, -127, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
@@ -113,8 +119,10 @@ public class TeslaKitTests {
 
         // Deploy one coil; its first arc fires after its 2 s action cooldown
         // (V7 tuning batch) and primes the target with StaticCharge.
+        // Decision 1.2 (2026-10-16): the coil deploys on the cast's active entry.
         simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
-        for (int tick = 1; tick <= 125; tick++) {
+        int deployed = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
+        for (int tick = deployed; tick < deployed + 125; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent primed)).IsTrue();
@@ -125,7 +133,9 @@ public class TeslaKitTests {
         // V7.6 F07 (Package 12 W4, GAP-10a): Static Charge is a pure interrupt
         // and is NOT the chain condition any more — only this Tesla's
         // Conductive mark is (TeslaLorentzChainTests). The pulse alone: 12.
-        simulation.Advance(Frame(126, 0, GameplayButtons.Special2), Frame(126, 0, GameplayButtons.None));
+        int pulse = deployed + 125;
+        simulation.Advance(Frame(pulse, 0, GameplayButtons.Special2), Frame(pulse, 0, GameplayButtons.None));
+        SpecialCastTestKit.StepUntilFired(simulation, 0, pulse + 1);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent chained)).IsTrue();
         AssertThat(chained.CurrentHP).IsEqual(83);
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent chainedRuntime)).IsTrue();

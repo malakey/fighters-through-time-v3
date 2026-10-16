@@ -63,17 +63,21 @@ public class FighterTimeSystemsTests {
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent armed)).IsTrue();
         AssertThat(armed.SpecialOneCooldownFrames > BasicComboRules.MomentumRefundCapFramesPerCycle).IsTrue();
 
-        // Run off the special's hitstop first (a frozen fighter consumes no
-        // presses), then mash the string until three hits have landed — every
-        // landed hit refunds (D2): 20 + 20 + the finisher's 60. Alternating
-        // press/release keeps a fresh press edge every other tick.
-        for (int tick = 1; tick <= 10; tick++) {
+        // Decision 1.2 (2026-10-16): the melee Special lands on its active
+        // entry and its cast holds every input until its recovery ends, so run
+        // the cast and the special's hitstop off first (a frozen fighter
+        // consumes no presses), then mash the string until three hits have
+        // landed — every landed hit refunds (D2): 20 + 20 + the finisher's 60.
+        // Alternating press/release keeps a fresh press edge every other tick.
+        int castEnd = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
+        castEnd = SpecialCastTestKit.StepUntilCastEnds(simulation, 0, castEnd);
+        for (int tick = castEnd; tick < castEnd + 10; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
         int hits = 0;
         int previousHP = before.CurrentHP;
-        for (int tick = 11; tick <= 400 && hits < 3; tick++) {
+        for (int tick = castEnd + 10; tick <= castEnd + 400 && hits < 3; tick++) {
             // The special's knockback pushed the victim away — chase while
             // mashing (held movement steers a swing without cancelling it).
             AssertThat(simulation.TryGetFighter(0, out FighterStateComponent chaser)).IsTrue();

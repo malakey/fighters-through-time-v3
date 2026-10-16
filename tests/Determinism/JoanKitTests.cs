@@ -30,8 +30,10 @@ public class JoanKitTests {
 
         // The smite shockwave travels along the ground and lands within a few
         // ticks: 14 damage plus RadiantBurn for the authored 3 s.
+        // Decision 1.2 (2026-10-16): the shockwave leaves on the cast's active entry.
         simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
-        for (int tick = 1; tick <= 5; tick++) {
+        int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
+        for (int tick = fired; tick < fired + 5; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent burned)).IsTrue();
@@ -44,14 +46,16 @@ public class JoanKitTests {
         // RadiantBurn amplifies damage taken by 25%: Joan's V7.1 opener
         // (10 x 1.0 = 10) resolves as 13 while the burn is active. The smite's
         // shove plus Joan's shorter authored reach (1.8 units) mean she walks
-        // back into range first.
-        for (int tick = 6; tick <= 25; tick++) {
+        // back into range first, once her cast has released its lock.
+        int walk = SpecialCastTestKit.StepUntilCastEnds(simulation, 0, fired + 5);
+        for (int tick = walk; tick < walk + 20; tick++) {
             simulation.Advance(Frame(tick, 127, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
-        simulation.Advance(Frame(26, 0, GameplayButtons.BasicAttack), Frame(26, 0, GameplayButtons.None));
+        int swing = walk + 20;
+        simulation.Advance(Frame(swing, 0, GameplayButtons.BasicAttack), Frame(swing, 0, GameplayButtons.None));
         // Basics are phased swings: the opener's hit lands during its active
         // window (Joan's 5 startup frames), still well inside the 3 s burn.
-        for (int tick = 27; tick <= 40; tick++) {
+        for (int tick = swing + 1; tick <= swing + 14; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent amplified)).IsTrue();

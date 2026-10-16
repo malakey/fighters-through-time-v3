@@ -21,6 +21,8 @@ public class FortissimoWallTests {
     public void TheWallIsOneAndAHalfUnitsTallAndTravelsFourUnitsPerSecondForSixUnits() {
         var simulation = NewMatch(spawnDistance: 8);
         simulation.Advance(Frame(0, 0, GameplayButtons.Special2), Frame(0, 0, GameplayButtons.None));
+        // Decision 1.2 (2026-10-16): the wall is raised on the cast's active entry.
+        int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
         AssertThat(simulation.TryGetFirstProjectile(out FighterProjectileComponent wall)).IsTrue();
         AssertThat(FighterGroundWave.IsGroundWave(wall.ProjectileTypeID)).IsTrue();
         AssertThat(FighterGroundWave.HitsGroundedOnly(wall.ProjectileTypeID)).IsFalse();
@@ -29,23 +31,26 @@ public class FortissimoWallTests {
         AssertThat(wall.Velocity.y).IsEqual(FP64.Zero);
         AssertThat(wall.GravityPerSecond).IsEqual(FP64.Zero);
         // 6 units at 4 units/s is 1.5 s = 90 frames of travel; the projectile
-        // system has already advanced it one frame on the cast tick.
+        // system has already advanced it one frame on the firing tick.
         AssertThat(wall.LifetimeFrames + 1).IsEqual(90);
         AssertThat(FighterGroundWave.SurfaceY(in wall)).IsEqual(FP64.Zero);
-        Run(simulation, 1, 91);
+        Run(simulation, fired, fired + 90);
         AssertThat(simulation.ProjectileCount).IsEqual(0);
     }
 
     [TestCase]
     public void TheWallStrikesAnAirborneFighterBelowItsHeight() {
         // Mozart at -3, the opponent at +3: the wall arrives about 70 frames
-        // after the cast. The opponent hops just before it — still low enough
+        // after it is raised. The opponent hops just before it — still low enough
         // for the 1.5-unit wall to catch, which a grounded-only wave never would.
         var simulation = NewMatch(spawnDistance: 3);
         simulation.Advance(Frame(0, 0, GameplayButtons.Special2), Frame(0, 0, GameplayButtons.None));
+        // Decision 1.2 (2026-10-16): the wall is raised on the cast's active
+        // entry (the Advance before `fired`), so the hop keeps its old offset.
+        int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
         bool struckAirborne = false;
-        for (int tick = 1; tick <= 100; tick++) {
-            GameplayButtons opponent = tick == 64 ? GameplayButtons.Jump : GameplayButtons.None;
+        for (int tick = fired; tick <= fired + 100; tick++) {
+            GameplayButtons opponent = tick == fired - 1 + 64 ? GameplayButtons.Jump : GameplayButtons.None;
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, opponent));
             AssertThat(simulation.TryGetFighter(1, out FighterStateComponent probe)).IsTrue();
             if (probe.CurrentHP < 100) {

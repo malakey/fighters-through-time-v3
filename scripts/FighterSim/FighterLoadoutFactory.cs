@@ -149,6 +149,10 @@ namespace FTT.FighterSim {
                 Damage = RoundDamage(ability.BaseDamage),
                 HitCount = Math.Max(1, ability.HitCount),
                 ActiveFrames = Math.Max(1, ability.ActiveFrames),
+                // Decision 1.2 (combat and movement update 2026-10-16): the
+                // Fighter Special cast honours the authored startup and recovery.
+                StartupFrames = Math.Max(0, ability.StartupFrames),
+                RecoveryFrames = Math.Max(0, ability.RecoveryFrames),
                 TotalFrames = Math.Max(0, ability.StartupFrames) + Math.Max(1, ability.ActiveFrames)
                     + Math.Max(0, ability.RecoveryFrames),
                 HitboxHalfX = FP64.FromFloat(Math.Max(0f, ability.HitboxSize.X) / 120f),

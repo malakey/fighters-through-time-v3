@@ -1,3 +1,4 @@
+using FTT.Characters;
 using FTT.Combat;
 using FTT.Core;
 using FTT.FighterSim;
@@ -10,8 +11,8 @@ namespace FTT.Tests.Determinism;
 /// <summary>
 /// Package 12 W3, the Fighter-side pins: M06 (the Block escape never fires out
 /// of tumble), the guard-break push (away from the attacker, unscaled,
-/// assigned), block-cancel eligibility after a Special (the sim has no special
-/// recovery lock), M01 as amended by the 2026-10-08 air model (fast-fall ramps
+/// assigned), block-cancel eligibility after a Special (since decision 1.2,
+/// 2026-10-16, only from the cast's recovery frame 0), M01 as amended by the 2026-10-08 air model (fast-fall ramps
 /// to a 15 u/s cap, normal falls cap at 12, launches keep the 20 u/s clamp),
 /// and the M09 respawn state.
 /// </summary>
@@ -108,28 +109,53 @@ public class FighterCombatContractW3Tests {
     }
 
     [TestCase]
-    public void ASpecialLeavesNoRecoveryLockSoTheStanceRisesOnTheNextTick() {
-        // Block-cancel on Specials, sim half: specials resolve instantly with
-        // no recovery phase, so the stance is available the very next tick —
-        // parity with Story, where Block cancels a Special's recovery frames.
+    public void BlockCancelsASpecialOnlyFromItsRecoveryFrameZero() {
+        // Rewritten in place for decision 1.2 (2026-10-16): a Fighter Special
+        // now has its authored startup, active and recovery, so Block cancels
+        // it only from recovery frame 0 — parity with Story, where Block
+        // cancels a Special's recovery frames. Production Joan, Righteous Smite
+        // (12 / 6 / 20); the opponent stands out of the wave's 2.5 units, so no
+        // hitstop moves the clock. Block is held from the tick after the press.
+        CharacterData joan = AuthoredResources.Load<CharacterData>("res://resources/Characters/joan_data.tres");
         var simulation = new FighterSimulation(
-            FighterCharacterID.Joan, FighterCharacterID.Joan,
-            spawnDistance: 1, rules: FighterMatchRules.Disabled);
+            FighterLoadoutFactory.FromCharacterData(joan), FighterLoadout.Default(FighterCharacterID.Joan),
+            spawnDistance: 8, rules: FighterMatchRules.Disabled);
+        int startup = joan.SpecialAttackOne.StartupFrames;
+        int active = joan.SpecialAttackOne.ActiveFrames;
+        AssertThat(startup).IsEqual(12);
+        AssertThat(active).IsEqual(6);
         int tick = 0;
         for (; tick < 5; tick++) simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
+        int press = tick;
         simulation.Advance(Frame(tick, GameplayButtons.Special1), Frame(tick, GameplayButtons.None));
         tick++;
         simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent cast);
         AssertThat(cast.SpecialOneCooldownFrames > 0)
             .OverrideFailureMessage("The special must have been accepted (cooldown armed).")
             .IsTrue();
-        simulation.Advance(Frame(tick, GameplayButtons.Block), Frame(tick, GameplayButtons.None));
-        simulation.TryGetFighter(0, out FighterStateComponent fighter);
-        simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime);
-        simulation.TryGetFighterVerb(0, out FighterVerbComponent verb);
-        AssertThat(FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb))
-            .OverrideFailureMessage("Holding Block right after a Special must raise the stance.")
-            .IsTrue();
+
+        int raisedOn = -1;
+        for (; tick < press + 60 && raisedOn < 0; tick++) {
+            simulation.Advance(Frame(tick, GameplayButtons.Block), Frame(tick, GameplayButtons.None));
+            simulation.TryGetFighter(0, out FighterStateComponent fighter);
+            simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime);
+            simulation.TryGetFighterVerb(0, out FighterVerbComponent verb);
+            simulation.TryGetFighterActionState(0, out FighterActionStateComponent action);
+            if (FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb)) {
+                raisedOn = tick;
+                AssertThat(FighterSpecialCastRules.IsBusy(in action))
+                    .OverrideFailureMessage("The Block cancel ends the cast.")
+                    .IsFalse();
+            } else {
+                AssertThat(FighterSpecialCastRules.IsStartup(in action) || FighterSpecialCastRules.IsActive(in action))
+                    .OverrideFailureMessage($"Tick {tick}: the stance must rise on the first recovery tick.")
+                    .IsTrue();
+            }
+        }
+        // Startup T..T+11, active T+12..T+17, recovery frame 0 on T+18.
+        AssertThat(raisedOn)
+            .OverrideFailureMessage("Holding Block through a Special raises the stance on recovery frame 0.")
+            .IsEqual(press + startup + active);
     }
 
     /// <summary>

@@ -555,11 +555,14 @@ public class FighterVerbLayerTests {
     private static int LandLauncher(FighterSimulation simulation) {
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
         simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
+        // Decision 1.2 (2026-10-16): the melee Special connects on its active
+        // entry, T+S, so the connect tick is the last one stepped.
+        int connectTick = SpecialCastTestKit.StepUntilFired(simulation, 0, 1) - 1;
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
         AssertThat(after.CurrentHP < before.CurrentHP && after.IsGrounded == 0)
             .OverrideFailureMessage("The launching Special never connected and launched.")
             .IsTrue();
-        return 0;
+        return connectTick;
     }
 
     private static int LandOpener(FighterSimulation simulation, out int damageDealt) {

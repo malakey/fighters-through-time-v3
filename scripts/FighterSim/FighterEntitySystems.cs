@@ -1086,8 +1086,6 @@ namespace FTT.FighterSim {
                 // system never reads never flashes.
                 ref FighterActionStateComponent actionState = ref frame.Get<FighterActionStateComponent>(entity);
                 if (!FighterAbilityLockoutRules.CanReadAbilityPress(in fighter, in runtime, in verbState, in actionState)) continue;
-                int specialOneCooldownBefore = runtime.SpecialOneCooldownFrames;
-                int specialTwoCooldownBefore = runtime.SpecialTwoCooldownFrames;
 
                 // Same-tick priority (2026-10-08): an Ultimate press that
                 // FighterCombatSystem will accept later this tick claims the
@@ -1107,135 +1105,61 @@ namespace FTT.FighterSim {
                 bool ultimateHeldBack = FighterCombatSystem.UltimatePressHeldBackByLockout(
                     in fighter, in runtime, in verbState, in actionState, in ultimateActivation);
 
-                // Ability lockout (user direction 2026-10-08): every acceptance
-                // below checks it and arms it at once, so the first special
-                // accepted this tick refuses the rest. Special 1 is resolved
-                // before every Special 2 path (Foresight, Divine Piercing, the
-                // generic slot) so a same-tick S1+S2 casts Special 1 alone, as
-                // Story's CheckSpecialInput does.
+                // Decision 1.2 (combat and movement update 2026-10-16, plan
+                // §2.1.6): every accepted Special press SPENDS here — the slot's
+                // cooldown, the ability lockout A and S, the Momentum counter
+                // reset, the string cancel and the action chokepoint — and begins
+                // its cast on component 323 with the authored startup, active and
+                // recovery frames. The effect fires on the cast's active entry
+                // (the fire pass below; Divine Piercing's lunge in the movement
+                // system), and a Melee slot is tested for contact on its active
+                // ticks in FighterCombatSystem, so an out-of-range press plays and
+                // whiffs instead of being free (1.1(2)). Tubman's Foresight runs
+                // its own stance on component 322; 323 records it as Delegated.
+                // Ability lockout (user direction 2026-10-08): the acceptance arms
+                // it, so the first special accepted this tick refuses the rest.
+                // Special 1 is resolved before Special 2, so a same-tick S1+S2
+                // casts Special 1 alone, as Story's CheckSpecialInput does.
+                int acceptedSlot = 0;
                 if (!ultimateClaimsTick
                     && !ultimateHeldBack
-                    && (runtime.PressedButtons & SpecialOneButton) != 0
-                    && runtime.SpecialOneCooldownFrames <= 0
                     && FighterAbilityLockoutRules.AllowsSpecial(in runtime)) {
-                    if (modes.SpecialOneExecutionType == ProjectileExecutionType) {
-                        SpawnSpecialProjectile(
-                            ref frame, in fighter, 1, tuning.SpecialOneDamage, tuning.SpecialOneKnockback,
-                            tuning.SpecialOneStatusType, tuning.SpecialOneStatusFrames,
-                            tuning.SpecialOneStatusIntensity, modes.SpecialOneProjectileLifetimeFrames,
-                            modes.SpecialOneProjectileSpeed);
-                        runtime.SpecialOneCooldownFrames = PositiveCooldown(tuning.SpecialOneCooldownFrames);
-                        FighterAbilityLockoutRules.ArmAbility(ref runtime);
-                    } else if (modes.SpecialOneExecutionType == PersistentExecutionType) {
-                        SpawnPersistent(
-                            ref frame, in fighter, modes.SpecialOnePersistentTypeID,
-                            modes.SpecialOneMaxActiveObjects, modes.SpecialOnePersistentLifetimeFrames,
-                            tuning.SpecialOneDamage, tuning.SpecialOneKnockback,
-                            tuning.SpecialOneStatusType, tuning.SpecialOneStatusFrames);
-                        runtime.SpecialOneCooldownFrames = PositiveCooldown(tuning.SpecialOneCooldownFrames);
-                        FighterAbilityLockoutRules.ArmAbility(ref runtime);
-                    } else if (modes.SpecialOneExecutionType == AreaExecutionType) {
-                        SpawnZone(
-                            ref frame, ref fighter, 1,
-                            modes.SpecialOneMaxActiveObjects, modes.SpecialOnePersistentLifetimeFrames,
-                            modes.SpecialOneTickIntervalFrames, tuning.SpecialOneDamage,
-                            tuning.SpecialOneStatusType, tuning.SpecialOneStatusFrames,
-                            tuning.SpecialOneStatusIntensity, _geometry);
-                        runtime.SpecialOneCooldownFrames = PositiveCooldown(tuning.SpecialOneCooldownFrames);
-                        FighterAbilityLockoutRules.ArmAbility(ref runtime);
+                    if ((runtime.PressedButtons & SpecialOneButton) != 0 && runtime.SpecialOneCooldownFrames <= 0) {
+                        acceptedSlot = FighterHitContractTable.SlotSpecialOne;
+                    } else if ((runtime.PressedButtons & SpecialTwoButton) != 0 && runtime.SpecialTwoCooldownFrames <= 0) {
+                        acceptedSlot = FighterHitContractTable.SlotSpecialTwo;
                     }
                 }
-
-                // Package 13 W5: Tubman's Foresight is a counter stance, not a
-                // range-gated melee intent. It is accepted whether or not the
-                // opponent is near (arming the cooldown here keeps the combat
-                // system's melee intent from also firing), and component 322
-                // runs the 4 / 20 / 24 stance (FighterForesightRules).
-                if (fighter.CharacterID == (int)FighterCharacterID.Tubman
-                    && !ultimateClaimsTick
-                    && !ultimateHeldBack
-                    && (runtime.PressedButtons & SpecialTwoButton) != 0
-                    && runtime.SpecialTwoCooldownFrames <= 0
-                    && FighterAbilityLockoutRules.AllowsSpecial(in runtime)) {
-                    runtime.SpecialTwoCooldownFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
-                    FighterAbilityLockoutRules.ArmAbility(ref runtime);
-                    FighterForesightRules.Begin(ref frame.Get<FighterCounterComponent>(entity));
-                }
-
-                // Package 13 W7b (J01): Divine Piercing is no longer a
-                // range-gated melee intent that thrusts in place. On press it
-                // lunges ~3 units forward across its active frames, and its
-                // thrusts land along the way (ResolveReachKitHits). It fires
-                // whether or not the opponent is near — it is her gap-closer.
-                // Keyed on the authored Melee execution (her Divine Piercing), so a
-                // synthetic loadout that gives the slot another shape keeps it.
-                if (fighter.CharacterID == (int)FighterCharacterID.Joan
-                    && !ultimateClaimsTick
-                    && !ultimateHeldBack
-                    && modes.SpecialTwoExecutionType == MeleeExecutionType
-                    && (runtime.PressedButtons & SpecialTwoButton) != 0
-                    && runtime.SpecialTwoCooldownFrames <= 0
-                    && FighterAbilityLockoutRules.AllowsSpecial(in runtime)) {
-                    runtime.SpecialTwoCooldownFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
-                    FighterAbilityLockoutRules.ArmAbility(ref runtime);
-                    FighterAbilityHitData piercing = _contracts.For(fighter.PlayerID, FighterHitContractTable.SlotSpecialTwo);
-                    FighterKitMotion.StartPiercingLunge(
-                        ref runtime, fighter.FacingRight != 0 ? 1 : -1, piercing.ActiveFrames);
-                }
-
-                if (!ultimateClaimsTick
-                    && !ultimateHeldBack
-                    && (runtime.PressedButtons & SpecialTwoButton) != 0
-                    && runtime.SpecialTwoCooldownFrames <= 0
-                    && FighterAbilityLockoutRules.AllowsSpecial(in runtime)) {
-                    if (modes.SpecialTwoExecutionType == ProjectileExecutionType) {
-                        SpawnSpecialProjectile(
-                            ref frame, in fighter, 2, tuning.SpecialTwoDamage, tuning.SpecialTwoKnockback,
-                            tuning.SpecialTwoStatusType, tuning.SpecialTwoStatusFrames,
-                            tuning.SpecialTwoStatusIntensity, modes.SpecialTwoProjectileLifetimeFrames,
-                            modes.SpecialTwoProjectileSpeed);
-                        runtime.SpecialTwoCooldownFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
-                        FighterAbilityLockoutRules.ArmAbility(ref runtime);
-                    } else if (modes.SpecialTwoExecutionType == PersistentExecutionType) {
-                        SpawnPersistent(
-                            ref frame, in fighter, modes.SpecialTwoPersistentTypeID,
-                            modes.SpecialTwoMaxActiveObjects, modes.SpecialTwoPersistentLifetimeFrames,
-                            tuning.SpecialTwoDamage, tuning.SpecialTwoKnockback,
-                            tuning.SpecialTwoStatusType, tuning.SpecialTwoStatusFrames);
-                        runtime.SpecialTwoCooldownFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
-                        FighterAbilityLockoutRules.ArmAbility(ref runtime);
-                    } else if (modes.SpecialTwoExecutionType == AreaExecutionType) {
-                        // Package 13 W7b (C01): the Sandstorm Vortex is thrown up
-                        // to five units ahead and ground-snapped.
-                        bool vortex = fighter.CharacterID * 10 + 2 == FighterReachKitRules.SandstormVortexZone;
-                        SpawnZone(
-                            ref frame, ref fighter, 2,
-                            modes.SpecialTwoMaxActiveObjects, modes.SpecialTwoPersistentLifetimeFrames,
-                            modes.SpecialTwoTickIntervalFrames, tuning.SpecialTwoDamage,
-                            tuning.SpecialTwoStatusType, tuning.SpecialTwoStatusFrames,
-                            tuning.SpecialTwoStatusIntensity, _geometry,
-                            hasAnchor: vortex,
-                            anchor: vortex ? FighterReachKitRules.VortexAnchor(_geometry, in fighter) : default);
-                        runtime.SpecialTwoCooldownFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
-                        FighterAbilityLockoutRules.ArmAbility(ref runtime);
-                    }
-                }
-
-                bool armedSlotOne = runtime.SpecialOneCooldownFrames != specialOneCooldownBefore;
-                bool armedSlotTwo = runtime.SpecialTwoCooldownFrames != specialTwoCooldownBefore;
-                if (armedSlotOne || armedSlotTwo) {
-                    // An executed special cancels an in-progress basic and resets
-                    // the chain, matching Story and the melee-intent path.
-                    FighterBasicAttackRules.CancelString(ref runtime);
-                    // A fresh cooldown cycle re-arms its Resonance Momentum refunds.
+                if (acceptedSlot != 0) {
                     ref FighterVerbComponent verb = ref frame.Get<FighterVerbComponent>(entity);
-                    if (armedSlotOne) verb.MomentumRefundedFramesSlotOne = 0;
-                    if (armedSlotTwo) verb.MomentumRefundedFramesSlotTwo = 0;
+                    if (acceptedSlot == FighterHitContractTable.SlotSpecialOne) {
+                        runtime.SpecialOneCooldownFrames = PositiveCooldown(tuning.SpecialOneCooldownFrames);
+                        // A fresh cooldown cycle re-arms its Momentum refunds.
+                        verb.MomentumRefundedFramesSlotOne = 0;
+                    } else {
+                        runtime.SpecialTwoCooldownFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
+                        verb.MomentumRefundedFramesSlotTwo = 0;
+                    }
+                    FighterAbilityLockoutRules.ArmAbility(ref runtime);
+                    // An executed special cancels an in-progress basic and resets
+                    // the chain, matching Story.
+                    FighterBasicAttackRules.CancelString(ref runtime);
+                    if (FighterSpecialCastRules.IsForesight(in fighter, acceptedSlot)) {
+                        // Package 13 W5: the 4 / 20 / 24 stance on component 322.
+                        FighterForesightRules.Begin(ref frame.Get<FighterCounterComponent>(entity));
+                        FighterSpecialCastRules.BeginDelegated(ref actionState, acceptedSlot);
+                    } else {
+                        FighterSpecialCastRules.Begin(
+                            ref actionState, acceptedSlot, _contracts.For(fighter.PlayerID, acceptedSlot),
+                            startedAerial: fighter.IsGrounded == 0);
+                    }
                     // Plan §1.5: the action chokepoint, once per accepted Special.
                     FighterActionRules.OnActionAccepted(
                         ref fighter, ref verb, ref frame.Get<FighterDefenseComponent>(entity),
-                        ref frame.Get<FighterActionStateComponent>(entity), FighterActionKind.Special);
+                        ref actionState, FighterActionKind.Special);
                 }
+                bool armedSlotOne = acceptedSlot == FighterHitContractTable.SlotSpecialOne;
+                bool armedSlotTwo = acceptedSlot == FighterHitContractTable.SlotSpecialTwo;
 
                 // Story never polls the movement ability during a swing.
                 // A05/D11 (Package 13 W1): Root is a true immobilize — it refuses
@@ -1263,6 +1187,110 @@ namespace FTT.FighterSim {
                         ref frame.Get<FighterActionStateComponent>(entity),
                         FighterActionKind.MovementAbility);
                 }
+            }
+
+            FireActiveSpecials(ref frame);
+        }
+
+        /// <summary>
+        /// Decision 1.2 (plan §2.1.6), the fire pass: a cast that entered its
+        /// active frames this tick (T+S; T itself when S is 0) fires its slot's
+        /// effect ONCE, reading position and facing now — the projectile, the
+        /// ground wave and the Requiem contact, the construct, the zone (the
+        /// Rift placement, the Vortex anchor and the Tempest lift are read here).
+        /// A cast the interrupt set ended never fires (a thrust or a ram this
+        /// tick can stun a caster, ResolveReachKitHits above). Melee slots fire
+        /// nothing here: their contact is tested on every active tick by
+        /// <c>FighterCombatSystem.BuildIntent</c>, and Divine Piercing's lunge
+        /// starts in the movement system on the active-entry tick (a 0-startup
+        /// fallback lunge starts here).
+        /// </summary>
+        private void FireActiveSpecials(ref Frame frame) {
+            var casters = frame.Filter<
+                FighterStateComponent,
+                FighterRuntimeComponent,
+                FighterTuningComponent,
+                FighterAbilityModeComponent>();
+            while (casters.Next(out EntityRef entity)) {
+                ref FighterActionStateComponent cast = ref frame.Get<FighterActionStateComponent>(entity);
+                if (!FighterSpecialCastRules.IsActive(in cast)
+                    || FighterSpecialCastRules.HasFlag(in cast, FighterSpecialCastRules.FlagEffectFired)) continue;
+                ref FighterStateComponent fighter = ref frame.Get<FighterStateComponent>(entity);
+                bool captured = FighterUltimateActivationRules.IsCaptured(
+                    in frame.GetReadOnly<FighterUltimateActivationComponent>(entity));
+                if (FighterSpecialCastRules.ClearIfInterrupted(
+                        ref cast, in fighter, in frame.GetReadOnly<FighterVerbComponent>(entity), captured)) continue;
+                cast.SpecialFlags |= FighterSpecialCastRules.FlagEffectFired;
+                ref FighterRuntimeComponent runtime = ref frame.Get<FighterRuntimeComponent>(entity);
+                ref readonly FighterTuningComponent tuning = ref frame.GetReadOnly<FighterTuningComponent>(entity);
+                ref readonly FighterAbilityModeComponent modes = ref frame.GetReadOnly<FighterAbilityModeComponent>(entity);
+                FireSpecialEffect(ref frame, ref fighter, ref runtime, in tuning, in modes, cast.SpecialSlot);
+            }
+        }
+
+        /// <summary>The slot's existing effect call, unchanged from the press-tick era.</summary>
+        private void FireSpecialEffect(
+            ref Frame frame,
+            ref FighterStateComponent fighter,
+            ref FighterRuntimeComponent runtime,
+            in FighterTuningComponent tuning,
+            in FighterAbilityModeComponent modes,
+            int slot) {
+            if (slot == FighterHitContractTable.SlotSpecialOne) {
+                if (modes.SpecialOneExecutionType == ProjectileExecutionType) {
+                    SpawnSpecialProjectile(
+                        ref frame, in fighter, 1, tuning.SpecialOneDamage, tuning.SpecialOneKnockback,
+                        tuning.SpecialOneStatusType, tuning.SpecialOneStatusFrames,
+                        tuning.SpecialOneStatusIntensity, modes.SpecialOneProjectileLifetimeFrames,
+                        modes.SpecialOneProjectileSpeed);
+                } else if (modes.SpecialOneExecutionType == PersistentExecutionType) {
+                    SpawnPersistent(
+                        ref frame, in fighter, modes.SpecialOnePersistentTypeID,
+                        modes.SpecialOneMaxActiveObjects, modes.SpecialOnePersistentLifetimeFrames,
+                        tuning.SpecialOneDamage, tuning.SpecialOneKnockback,
+                        tuning.SpecialOneStatusType, tuning.SpecialOneStatusFrames);
+                } else if (modes.SpecialOneExecutionType == AreaExecutionType) {
+                    SpawnZone(
+                        ref frame, ref fighter, 1,
+                        modes.SpecialOneMaxActiveObjects, modes.SpecialOnePersistentLifetimeFrames,
+                        modes.SpecialOneTickIntervalFrames, tuning.SpecialOneDamage,
+                        tuning.SpecialOneStatusType, tuning.SpecialOneStatusFrames,
+                        tuning.SpecialOneStatusIntensity, _geometry);
+                }
+                return;
+            }
+            if (modes.SpecialTwoExecutionType == ProjectileExecutionType) {
+                SpawnSpecialProjectile(
+                    ref frame, in fighter, 2, tuning.SpecialTwoDamage, tuning.SpecialTwoKnockback,
+                    tuning.SpecialTwoStatusType, tuning.SpecialTwoStatusFrames,
+                    tuning.SpecialTwoStatusIntensity, modes.SpecialTwoProjectileLifetimeFrames,
+                    modes.SpecialTwoProjectileSpeed);
+            } else if (modes.SpecialTwoExecutionType == PersistentExecutionType) {
+                SpawnPersistent(
+                    ref frame, in fighter, modes.SpecialTwoPersistentTypeID,
+                    modes.SpecialTwoMaxActiveObjects, modes.SpecialTwoPersistentLifetimeFrames,
+                    tuning.SpecialTwoDamage, tuning.SpecialTwoKnockback,
+                    tuning.SpecialTwoStatusType, tuning.SpecialTwoStatusFrames);
+            } else if (modes.SpecialTwoExecutionType == AreaExecutionType) {
+                // Package 13 W7b (C01): the Sandstorm Vortex is thrown up to
+                // five units ahead and ground-snapped.
+                bool vortex = fighter.CharacterID * 10 + 2 == FighterReachKitRules.SandstormVortexZone;
+                SpawnZone(
+                    ref frame, ref fighter, 2,
+                    modes.SpecialTwoMaxActiveObjects, modes.SpecialTwoPersistentLifetimeFrames,
+                    modes.SpecialTwoTickIntervalFrames, tuning.SpecialTwoDamage,
+                    tuning.SpecialTwoStatusType, tuning.SpecialTwoStatusFrames,
+                    tuning.SpecialTwoStatusIntensity, _geometry,
+                    hasAnchor: vortex,
+                    anchor: vortex ? FighterReachKitRules.VortexAnchor(_geometry, in fighter) : default);
+            } else if (FighterSpecialCastRules.IsPiercingLunge(in fighter, in modes, slot)) {
+                // Package 13 W7b (J01): Divine Piercing lunges ~3 units forward
+                // across its active frames; its thrusts land along the way
+                // (ResolveReachKitHits). Only a 0-startup (fallback) cast reaches
+                // here; an authored one starts in the movement system.
+                FighterAbilityHitData piercing = _contracts.For(fighter.PlayerID, FighterHitContractTable.SlotSpecialTwo);
+                FighterKitMotion.StartPiercingLunge(
+                    ref runtime, fighter.FacingRight != 0 ? 1 : -1, piercing.ActiveFrames);
             }
         }
 

@@ -25,10 +25,12 @@ public class LeonardoTurretSimTests {
             ProjectileBurstSimTests.Authored("leonardo"), FighterLoadout.Default(FighterCharacterID.Joan),
             seed: 7401, spawnDistance: 2, rules: FighterMatchRules.Disabled);
         near.Advance(Frame(0, GameplayButtons.Special2), Frame(0, GameplayButtons.None));
+        // Decision 1.2 (2026-10-16): the turret deploys on the cast's active entry.
+        int nearDeployed = SpecialCastTestKit.StepUntilFired(near, 0, 1);
         AssertThat(near.TryGetFirstPersistentObject(out FighterPersistentObjectComponent turret)).IsTrue();
         AssertThat(turret.RemainingAttacks).IsEqual(4);
         bool sawBolt = false;
-        for (int tick = 1; tick < 200 && !sawBolt; tick++) {
+        for (int tick = nearDeployed; tick < nearDeployed + 199 && !sawBolt; tick++) {
             near.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
             if (near.TryGetFirstProjectile(out FighterProjectileComponent bolt) && bolt.ProjectileTypeID == BoltType) {
                 sawBolt = true;
@@ -48,7 +50,8 @@ public class LeonardoTurretSimTests {
             ProjectileBurstSimTests.Authored("leonardo"), FighterLoadout.Default(FighterCharacterID.Joan),
             seed: 7402, spawnDistance: 6, rules: FighterMatchRules.Disabled);
         far.Advance(Frame(0, GameplayButtons.Special2), Frame(0, GameplayButtons.None));
-        for (int tick = 1; tick < 400; tick++) {
+        int farDeployed = SpecialCastTestKit.StepUntilFired(far, 0, 1);
+        for (int tick = farDeployed; tick < farDeployed + 399; tick++) {
             far.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
             AssertThat(far.ProjectileCount).IsEqual(0);
         }
@@ -62,9 +65,12 @@ public class LeonardoTurretSimTests {
             ProjectileBurstSimTests.Authored("leonardo"), FighterLoadout.Default(FighterCharacterID.Joan),
             seed: 7403, spawnDistance: 2, rules: FighterMatchRules.Disabled);
         simulation.Advance(Frame(0, GameplayButtons.Special2), Frame(0, GameplayButtons.None));
-        simulation.Advance(Frame(1, GameplayButtons.None), Frame(1, GameplayButtons.None));
-        simulation.Advance(Frame(2, GameplayButtons.MovementAbility), Frame(2, GameplayButtons.None));
-        for (int tick = 3; tick < 6; tick++) {
+        // Decision 1.2 (2026-10-16): the cast lock holds the glide press until
+        // the turret cast's recovery ends.
+        int free = SpecialCastTestKit.StepUntilCastEnds(simulation, 0, 1);
+        simulation.Advance(Frame(free, GameplayButtons.None), Frame(free, GameplayButtons.None));
+        simulation.Advance(Frame(free + 1, GameplayButtons.MovementAbility), Frame(free + 1, GameplayButtons.None));
+        for (int tick = free + 2; tick < free + 5; tick++) {
             simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent gliding)).IsTrue();
@@ -73,7 +79,7 @@ public class LeonardoTurretSimTests {
 
         // Attack mid-glide: the turret fires one bolt right now, well before its
         // 2 s cadence would have.
-        simulation.Advance(Frame(6, GameplayButtons.BasicAttack), Frame(6, GameplayButtons.None));
+        simulation.Advance(Frame(free + 5, GameplayButtons.BasicAttack), Frame(free + 5, GameplayButtons.None));
         AssertThat(simulation.TryGetFirstProjectile(out FighterProjectileComponent bolt)).IsTrue();
         AssertThat(bolt.ProjectileTypeID).IsEqual(BoltType);
         AssertThat(simulation.TryGetFirstPersistentObject(out FighterPersistentObjectComponent turret)).IsTrue();
@@ -81,8 +87,8 @@ public class LeonardoTurretSimTests {
         AssertThat(turret.GlideBoltSpent).IsEqual(1);
 
         // A second command in the same flight is refused and spends nothing.
-        for (int tick = 7; tick < 20; tick++) {
-            GameplayButtons press = tick == 12 ? GameplayButtons.BasicAttack : GameplayButtons.None;
+        for (int tick = free + 6; tick < free + 19; tick++) {
+            GameplayButtons press = tick == free + 11 ? GameplayButtons.BasicAttack : GameplayButtons.None;
             simulation.Advance(Frame(tick, press), Frame(tick, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFirstPersistentObject(out FighterPersistentObjectComponent after)).IsTrue();

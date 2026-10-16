@@ -1274,6 +1274,9 @@ public class FighterMatchFlowTests {
             Frame(tick, 0, GameplayButtons.Special1),
             Frame(tick, 0, GameplayButtons.Special2));
         tick++;
+        // Decision 1.2 (2026-10-16): both effects fire on their casts' active entry.
+        tick = SpecialCastTestKit.StepUntilFired(simulation, 0, tick);
+        tick = SpecialCastTestKit.StepUntilFired(simulation, 1, tick);
         AssertThat(simulation.ProjectileCount)
             .OverrideFailureMessage("Harness: the projectile Special must have fired.")
             .IsGreater(0);

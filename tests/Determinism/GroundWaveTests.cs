@@ -24,18 +24,25 @@ public class GroundWaveTests {
         // Standing: Righteous Smite reaches the opponent two units away.
         var standing = NewMatch("joan", spawnDistance: 1);
         standing.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
+        // Decision 1.2 (2026-10-16): the wave leaves on the cast's active entry.
+        int fired = SpecialCastTestKit.StepUntilFired(standing, 0, 1);
         AssertThat(standing.TryGetFirstProjectile(out FighterProjectileComponent wave)).IsTrue();
         AssertThat(FighterGroundWave.IsGroundWave(wave.ProjectileTypeID)).IsTrue();
         AssertThat(FighterGroundWave.HitsGroundedOnly(wave.ProjectileTypeID)).IsTrue();
-        Run(standing, 1, 20);
+        Run(standing, fired, fired + 19);
         AssertThat(standing.TryGetFighter(1, out FighterStateComponent struck)).IsTrue();
         AssertThat(struck.CurrentHP).IsEqual(72);
 
         // Jumping: the same wave rolls underneath and is not consumed by the
         // pass — it simply runs out its 2.5 units.
+        // The opponent hops on the tick the wave leaves, as it once hopped on
+        // the press tick.
         var jumping = NewMatch("joan", spawnDistance: 1);
-        jumping.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.Jump));
-        Run(jumping, 1, 20);
+        jumping.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
+        int jumpFired = SpecialCastTestKit.StepUntilFired(jumping, 0, 1, t => (
+            Frame(t, 0, GameplayButtons.None),
+            Frame(t, 0, SpecialCastTestKit.FiresOnNextAdvance(jumping, 0) ? GameplayButtons.Jump : GameplayButtons.None)));
+        Run(jumping, jumpFired, jumpFired + 19);
         AssertThat(jumping.TryGetFighter(1, out FighterStateComponent cleared)).IsTrue();
         AssertThat(cleared.CurrentHP).IsEqual(100);
         AssertThat(jumping.ProjectileCount).IsEqual(0);
@@ -49,8 +56,9 @@ public class GroundWaveTests {
         // 5-unit, 30-frame travel.
         simulation.Advance(Frame(0, -127, GameplayButtons.None), Frame(0, 0, GameplayButtons.None));
         simulation.Advance(Frame(1, 0, GameplayButtons.Special1), Frame(1, 0, GameplayButtons.None));
+        int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, 2);
         AssertThat(simulation.ProjectileCount).IsEqual(1);
-        Run(simulation, 2, 14);
+        Run(simulation, fired, fired + 12);
         AssertThat(simulation.ProjectileCount).IsEqual(0);
     }
 
@@ -65,10 +73,11 @@ public class GroundWaveTests {
         // Paris: Lincoln spawns at x = -4 facing the 5.0-wide centre pit, whose
         // edge is at x = -2.5. The wave leaves at -3.5 and ends at the edge.
         simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
+        int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
         AssertThat(simulation.ProjectileCount).IsEqual(1);
-        Run(simulation, 1, 3);
+        Run(simulation, fired, fired + 2);
         AssertThat(simulation.ProjectileCount).IsEqual(1);
-        Run(simulation, 4, 10);
+        Run(simulation, fired + 3, fired + 9);
         AssertThat(simulation.ProjectileCount).IsEqual(0);
     }
 
@@ -81,6 +90,11 @@ public class GroundWaveTests {
         AssertThat(joan.IsGrounded).IsEqual(0);
         AssertThat(joan.Position.y > FP64.One).IsTrue();
         simulation.Advance(Frame(9, 0, GameplayButtons.Special1), Frame(9, 0, GameplayButtons.None));
+        SpecialCastTestKit.StepUntilFired(simulation, 0, 10);
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent firing)).IsTrue();
+        AssertThat(firing.IsGrounded)
+            .OverrideFailureMessage("Harness: Joan must still be airborne when the wave leaves.")
+            .IsEqual(0);
         AssertThat(simulation.TryGetFirstProjectile(out FighterProjectileComponent wave)).IsTrue();
         AssertThat(FighterGroundWave.SurfaceY(in wave)).IsEqual(FP64.Zero);
         AssertThat(wave.Velocity.y).IsEqual(FP64.Zero);

@@ -25,6 +25,8 @@ public class FighterConstructAttackTests {
         var simulation = NewSimulation(seed: 71, spawnDistance: 1);
 
         simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
+        // Decision 1.2 (2026-10-16): the coil deploys on the cast's active entry.
+        SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
         AssertThat(simulation.TryGetFirstPersistentObject(out FighterPersistentObjectComponent coil)).IsTrue();
         // Grounded owner feet at y = 0; a 0.6 half-extent box bottom-anchored on
         // the floor centers at y = 0.6.
@@ -38,6 +40,8 @@ public class FighterConstructAttackTests {
         var simulation = NewSimulation(seed: 72, spawnDistance: 1);
 
         simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
+        // Decision 1.2 (2026-10-16): the coil deploys on the cast's active entry.
+        int deployed = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
         AssertThat(simulation.TryGetFirstPersistentObject(out FighterPersistentObjectComponent coil)).IsTrue();
         int hpBefore = coil.CurrentHP;
         AssertThat(hpBefore).IsEqual(25);
@@ -45,7 +49,7 @@ public class FighterConstructAttackTests {
         // The opponent mashes basics until the coil dies; each swing may land
         // exactly one construct sweep. 25 HP against Joan's default basics
         // falls well inside the window.
-        for (int tick = 1; tick <= 600 && simulation.PersistentObjectCount > 0; tick++) {
+        for (int tick = deployed; tick <= deployed + 600 && simulation.PersistentObjectCount > 0; tick++) {
             simulation.Advance(
                 Frame(tick, 0, GameplayButtons.None),
                 Frame(tick, 0, GameplayButtons.BasicAttack));

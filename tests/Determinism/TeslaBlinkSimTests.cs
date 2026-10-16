@@ -147,7 +147,10 @@ public class TeslaBlinkSimTests {
             BaseDamage = 10f,
             ProjectileSpeed = 1800f,
             ProjectileLifetime = 1f,
-            CooldownDuration = 5f
+            CooldownDuration = 5f,
+            // Decision 1.2 (2026-10-16): a Fighter Special honours its authored
+            // startup; this fixture shot keeps its press-tick timing (tick 5).
+            StartupFrames = 0
         },
         SpecialAttackTwo = new AbilityData(),
         MovementAbility = new MovementAbilityData(),

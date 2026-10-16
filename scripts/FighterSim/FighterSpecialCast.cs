@@ -133,6 +133,24 @@ namespace FTT.FighterSim {
         /// <summary>Any cast phase, Delegated included: the caster is action-locked.</summary>
         public static bool IsBusy(in FighterActionStateComponent cast) => cast.SpecialPhase != PhaseNone;
 
+        /// <summary>A clocked cast (Startup, Active or Recovery) — not Delegated.</summary>
+        public static bool IsCasting(in FighterActionStateComponent cast) =>
+            cast.SpecialPhase is PhaseStartup or PhaseActive or PhaseRecovery;
+
+        /// <summary>Joan's Divine Piercing: Special 2 authored with the Melee execution (the lunge).</summary>
+        public static bool IsPiercingLunge(
+            in FighterStateComponent fighter, in FighterAbilityModeComponent modes, int slot) =>
+            fighter.CharacterID == (int)FighterCharacterID.Joan
+            && slot == 2
+            && modes.SpecialTwoExecutionType == MeleeExecutionType;
+
+        /// <summary>Tubman's Foresight: Special 2 runs as the component-322 stance (Delegated).</summary>
+        public static bool IsForesight(in FighterStateComponent fighter, int slot) =>
+            fighter.CharacterID == (int)FighterCharacterID.Tubman && slot == 2;
+
+        /// <summary><c>AbilityExecutionType.Melee</c> as the loadout's int.</summary>
+        public const int MeleeExecutionType = 0;
+
         public static bool IsStartup(in FighterActionStateComponent cast) => cast.SpecialPhase == PhaseStartup;
         public static bool IsActive(in FighterActionStateComponent cast) => cast.SpecialPhase == PhaseActive;
         public static bool IsRecovery(in FighterActionStateComponent cast) => cast.SpecialPhase == PhaseRecovery;
@@ -143,6 +161,94 @@ namespace FTT.FighterSim {
             cast.SpecialPhase == PhaseRecovery ? cast.SpecialPhaseElapsed : -1;
 
         public static bool HasFlag(in FighterActionStateComponent cast, int flag) => (cast.SpecialFlags & flag) != 0;
+
+        /// <summary>
+        /// The cast's startup / active / recovery frames from the slot's
+        /// projected contract. A contract with no authored frames
+        /// (<c>ActiveFrames == 0</c>: a hand-built <c>FighterAbilityLoadout.Default</c>)
+        /// runs as 0 / 1 / 0, which reproduces the press-tick timing the hand-built
+        /// harnesses were written against (ledger <c>PROVISIONAL-SIM-SPECIAL-PHASE-RULES</c>).
+        /// </summary>
+        public static void Frames(
+            in FighterAbilityHitData contract, out int startup, out int active, out int recovery) {
+            if (IsFallback(in contract)) {
+                startup = 0;
+                active = 1;
+                recovery = 0;
+                return;
+            }
+            startup = contract.StartupFrames > 0 ? contract.StartupFrames : 0;
+            active = contract.ActiveFrames > 0 ? contract.ActiveFrames : 1;
+            recovery = contract.RecoveryFrames > 0 ? contract.RecoveryFrames : 0;
+        }
+
+        /// <summary>True for a contract with no authored frames (the 0 / 1 / 0 fallback).</summary>
+        public static bool IsFallback(in FighterAbilityHitData contract) => contract.ActiveFrames <= 0;
+
+        /// <summary>
+        /// The accepted press (tick T): Startup with S frames, or Active on T
+        /// itself when S is 0 (the fire pass then fires on T). The cost — the
+        /// cooldown, the ability lockout, the Momentum reset — is spent by the
+        /// caller at acceptance, never here.
+        /// </summary>
+        public static void Begin(
+            ref FighterActionStateComponent cast, int slot, in FighterAbilityHitData contract, bool startedAerial) {
+            Frames(in contract, out int startup, out int active, out _);
+            cast.SpecialSlot = slot;
+            cast.SpecialPhaseElapsed = 0;
+            cast.SpecialFlags = (startedAerial ? FlagStartedAerial : 0)
+                | (IsFallback(in contract) ? FlagFallbackTiming : 0);
+            if (startup > 0) {
+                cast.SpecialPhase = PhaseStartup;
+                cast.SpecialPhaseFrames = startup;
+            } else {
+                cast.SpecialPhase = PhaseActive;
+                cast.SpecialPhaseFrames = active;
+            }
+        }
+
+        /// <summary>Tubman's Foresight: the stance runs on component 322; this records the cast.</summary>
+        public static void BeginDelegated(ref FighterActionStateComponent cast, int slot) {
+            cast.SpecialSlot = slot;
+            cast.SpecialPhase = PhaseDelegated;
+            cast.SpecialPhaseFrames = 0;
+            cast.SpecialPhaseElapsed = 0;
+            cast.SpecialFlags = 0;
+        }
+
+        /// <summary>
+        /// One unfrozen tick of the cast clock (<c>FighterMovementSystem</c>,
+        /// after the hitstop gate, so a cast pauses in its own hitstop exactly as
+        /// Story's does). Startup → Active → Recovery → none; a zero-frame
+        /// recovery ends the cast as the active window ends. Returns true on the
+        /// tick the cast enters Active (T+S). A Delegated cast is not clocked here.
+        /// </summary>
+        public static bool Advance(ref FighterActionStateComponent cast, in FighterAbilityHitData contract) {
+            if (cast.SpecialPhase is PhaseNone or PhaseDelegated) return false;
+            cast.SpecialPhaseElapsed++;
+            cast.SpecialPhaseFrames--;
+            if (cast.SpecialPhaseFrames > 0) return false;
+            Frames(in contract, out _, out int active, out int recovery);
+            switch (cast.SpecialPhase) {
+                case PhaseStartup:
+                    cast.SpecialPhase = PhaseActive;
+                    cast.SpecialPhaseFrames = active;
+                    cast.SpecialPhaseElapsed = 0;
+                    return true;
+                case PhaseActive:
+                    if (recovery > 0) {
+                        cast.SpecialPhase = PhaseRecovery;
+                        cast.SpecialPhaseFrames = recovery;
+                        cast.SpecialPhaseElapsed = 0;
+                    } else {
+                        Clear(ref cast);
+                    }
+                    return false;
+                default:
+                    Clear(ref cast);
+                    return false;
+            }
+        }
 
         /// <summary>Ends the cast: the slot, the phase, its clock and the cast flags. The other 323 fields are left alone.</summary>
         public static void Clear(ref FighterActionStateComponent cast) {
