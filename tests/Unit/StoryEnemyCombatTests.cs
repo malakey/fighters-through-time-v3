@@ -61,11 +61,14 @@ public class StoryEnemyCombatTests {
     }
 
     [TestCase]
-    public async Task AnIdenticalFinisherWritesTheSameVelocityOnAMobAtFullHPAndAtThreeHP() {
+    public async Task AnIdenticalFinisherWritesTheSameVelocityOnAMobAtFullHPAndAtSevenHP() {
         // User direction 2026-10-12 (request 5): Story knockback is static —
-        // "the same no matter what their health is". Before, the 3 HP mob flew
+        // "the same no matter what their health is". Before, the wounded mob flew
         // about 1.9x as fast (the post-damage missing-HP ramp), and with it the
         // D6a carry and the D9 bounce moved with the mob's health.
+        // CM-STORY (8.1, 2026-10-16): renamed in place from ...AtThreeHP — the
+        // 1-damage finisher now lands for the standard basic floor of 6, so the
+        // wounded mob starts at 7 HP and is left on 1.
         await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => {
             StaticBody2D floor = CreateFloor(centerX: 0f, width: 4000f);
             EnemyController healthy = CreateEnemy("chrono_slasher");
@@ -76,7 +79,7 @@ public class StoryEnemyCombatTests {
                 SettleOnFloor(healthy);
                 SettleOnFloor(wounded);
                 AssertThat(healthy.CurrentHP).IsEqual(healthy.ScaledMaxHP);
-                wounded.CurrentHP = 3;
+                wounded.CurrentHP = 7;
 
                 HitPayload finisher = Finisher(damage: 1f);
                 healthy.GetNode<Hurtbox>("Hurtbox").TakeHit(finisher);
@@ -86,7 +89,7 @@ public class StoryEnemyCombatTests {
                     .OverrideFailureMessage("The wounded mob must survive the finisher, stunned.")
                     .IsEqual(EnemyState.Stunned);
                 AssertThat(healthy.CurrentState).IsEqual(EnemyState.Stunned);
-                AssertThat(wounded.CurrentHP < 3 && healthy.CurrentHP < healthy.ScaledMaxHP)
+                AssertThat(wounded.CurrentHP == 1 && healthy.CurrentHP < healthy.ScaledMaxHP)
                     .OverrideFailureMessage("The finisher must land on both mobs.")
                     .IsTrue();
                 Vector2 expected = DamageCalculator.CalculateKnockback(
@@ -241,10 +244,13 @@ public class StoryEnemyCombatTests {
 
     [TestCase]
     public void AStringPlusAMultiHitSpecialStaysProratedThroughThePoiseTripAndItsArmoredWindow() {
-        // Small enough that the whole case stays under an Easy-scaled 28 HP.
+        // CM-STORY (8.1, 2026-10-16): the standard basic floor lifts the three
+        // 1-damage string hits to 6 each, so the case now deals about 39; the
+        // mob gets headroom instead of resting on the Easy-scaled 28 HP.
         const int specialDamage = 6;
         EnemyController enemy = CreateEnemy("chrono_slasher");
         try {
+            enemy.CurrentHP = 999;
             var hurtbox = enemy.GetNode<Hurtbox>("Hurtbox");
             int hp = enemy.CurrentHP;
             int Dealt(HitPayload hit) {
@@ -314,6 +320,10 @@ public class StoryEnemyCombatTests {
         try {
             // The Level 0 guard-lesson local: frozen (and drill-invulnerable)
             // while the player is free to swing at it.
+            // CM-STORY (8.1): the standard basic floor makes each 1-damage string
+            // hit a 6; headroom keeps the frozen mob alive for the release check.
+            frozen.CurrentHP = 999;
+            drill.CurrentHP = 999;
             frozen.SetStoryRewindFrozen(true);
             frozenElite.SetStoryRewindFrozen(true);
             drill.DrillInvulnerable = true;
@@ -349,6 +359,8 @@ public class StoryEnemyCombatTests {
     public void BackToBackStringsEachCompleteOnAStandardOnceItsGetupHasPassed() {
         EnemyController enemy = CreateEnemy("chrono_slasher");
         try {
+            // CM-STORY (8.1): two floored strings deal 36, past an Easy 28 HP.
+            enemy.CurrentHP = 999;
             var hurtbox = enemy.GetNode<Hurtbox>("Hurtbox");
             for (int round = 0; round < 2; round++) {
                 for (int step = 0; step < BasicComboRules.ComboHits; step++) {
@@ -415,6 +427,232 @@ public class StoryEnemyCombatTests {
             standard.Free();
             elite.Free();
         }
+    }
+
+    // === CM-STORY 8.1: the standard basic floor ===
+
+    /// <summary>
+    /// CM-STORY (decision 8.1, 2026-10-16): a 3-damage string hit lands for the
+    /// floor of 6 on a Standard-tier mob, but for its own 3 on an elite, and a
+    /// 3-damage Basic-class hit outside the universal basic set (a turret shot)
+    /// is not lifted.
+    /// </summary>
+    [TestCase]
+    public void AThreeDamageStringHitDealsSixToAStandardButThreeToAnEliteOrATurretShot() {
+        EnemyController standard = CreateEnemy("chrono_slasher");
+        EnemyController elite = CreateEnemy("steam_automaton");
+        try {
+            standard.CurrentHP = 999;
+            elite.CurrentHP = 999;
+            int before = standard.CurrentHP;
+            standard.GetNode<Hurtbox>("Hurtbox").TakeHit(StringHit(0, damage: 3f));
+            AssertThat(before - standard.CurrentHP)
+                .OverrideFailureMessage("A small basic on a standard lands for the floor.")
+                .IsEqual(StoryEnemyCombatRules.StandardBasicDamageFloor);
+
+            before = standard.CurrentHP;
+            standard.GetNode<Hurtbox>("Hurtbox").TakeHit(Hit(AttackClass.Basic, "turret_shot", 3f, hitstun: 0f));
+            AssertThat(before - standard.CurrentHP)
+                .OverrideFailureMessage("A turret shot is not a basic: no floor.")
+                .IsEqual(3);
+
+            before = elite.CurrentHP;
+            elite.GetNode<Hurtbox>("Hurtbox").TakeHit(StringHit(0, damage: 3f));
+            AssertThat(before - elite.CurrentHP)
+                .OverrideFailureMessage("The floor is a Standard-tier rule.")
+                .IsEqual(3);
+        } finally {
+            standard.Free();
+            elite.Free();
+        }
+    }
+
+    /// <summary>
+    /// CM-STORY (8.1): every roster hero's own basic string, from its
+    /// <c>CharacterData.BasicAttackDamage</c> and <see cref="BasicComboRules.StringProfileFor"/>,
+    /// kills a Normal Chrono-Slasher in six hits or fewer. Each string is one stun
+    /// chain (the finisher's launch ends the exchange), so the next string starts
+    /// a fresh chain once the stun has run out. The decision's motivating case
+    /// was a zoner taking about eight.
+    /// </summary>
+    [TestCase]
+    public void EveryHeroKillsANormalStandardInSixBasicHitsOrFewer() {
+        SessionData savedSession = GameManager.Instance.CurrentSession;
+        var table = new List<string>();
+        var issues = new List<string>();
+        try {
+            GameManager.Instance.CurrentSession.Difficulty = Difficulty.Normal;
+            foreach (string heroID in CharacterRoster.IDs) {
+                CharacterData data = AuthoredResources.Load<CharacterData>($"res://resources/Characters/{heroID}_data.tres");
+                BasicStringProfile profile = BasicComboRules.StringProfileFor(heroID);
+                EnemyController mob = CreateEnemy("chrono_slasher");
+                try {
+                    AssertThat(mob.ScaledMaxHP).IsEqual(40);
+                    var hurtbox = mob.GetNode<Hurtbox>("Hurtbox");
+                    int hits = 0;
+                    var dealtLog = new List<int>();
+                    while (mob.CurrentState != EnemyState.Dead && hits < 20) {
+                        for (int step = 0; step < BasicComboRules.ComboHits && mob.CurrentState != EnemyState.Dead; step++) {
+                            int hp = mob.CurrentHP;
+                            hurtbox.TakeHit(StringHit(step, data.BasicAttackDamage * profile.DamageTenths[step] / 10f));
+                            dealtLog.Add(hp - mob.CurrentHP);
+                            hits++;
+                            for (int frame = 0; frame < 6; frame++) mob._PhysicsProcess(Step);
+                        }
+                        int guard = 0;
+                        while (mob.CurrentState == EnemyState.Stunned && guard++ < 240) mob._PhysicsProcess(Step);
+                    }
+                    table.Add($"{heroID} {hits} ({string.Join("/", dealtLog)})");
+                    if (hits > 6) issues.Add($"{heroID} needs {hits} hits ({string.Join("/", dealtLog)})");
+                } finally {
+                    if (GodotObject.IsInstanceValid(mob)) mob.Free();
+                }
+            }
+        } finally {
+            GameManager.Instance.CurrentSession = savedSession;
+        }
+        GD.Print("[CM-STORY] hits to kill a Normal chrono_slasher: " + string.Join(", ", table));
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
+    // === CM-STORY 8.2: dimmed reduced numbers ===
+
+    /// <summary>
+    /// CM-STORY (decision 8.2, 2026-10-16): a hit the chain proration cut floats a
+    /// dimmed (<c>UIPalette.DamageNumberReduced</c>), smaller (×0.8) number. The
+    /// chain's first Special is white, a second Special confirmed in hitstun is
+    /// dim, a first Special landing at chain hit 4 is still white (untaxed), and
+    /// a decayed basic after it is dim.
+    /// </summary>
+    [TestCase]
+    public void AProratedHitFloatsADimSmallerNumberWhileUntaxedHitsStayWhite() {
+        var parent = new Node2D { Name = "ProratedNumberParent" };
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(parent);
+        GlobalSaveData global = SaveManager.Instance?.GlobalData;
+        bool numbersBefore = global?.DamageNumbersVisible ?? true;
+        EnemyController enemy = CreateEnemy("chrono_slasher", parent);
+        EnemyController second = CreateEnemy("chrono_slasher", parent);
+        try {
+            if (global != null) global.DamageNumbersVisible = true;
+            enemy.CurrentHP = 999;
+            second.CurrentHP = 999;
+            var hurtbox = enemy.GetNode<Hurtbox>("Hurtbox");
+
+            FTT.UI.FloatingDamageNumber specialA = NewNumber(parent, () =>
+                hurtbox.TakeHit(Hit(AttackClass.Special, "special_test", 10f, hitstun: 0.5f, attackID: "test.special_a")));
+            AssertPlain(specialA, "the chain's first Special");
+
+            FTT.UI.FloatingDamageNumber specialB = NewNumber(parent, () =>
+                hurtbox.TakeHit(Hit(AttackClass.Special, "special_test", 10f, hitstun: 0.2f, attackID: "test.special_b")));
+            AssertDimmed(specialB, "a second Special confirmed in hitstun");
+
+            // A fresh chain on the second mob: three string hits, then the chain's
+            // first Special at chain hit 4, then a decayed basic.
+            var secondHurtbox = second.GetNode<Hurtbox>("Hurtbox");
+            for (int step = 0; step < BasicComboRules.ComboHits; step++) {
+                FTT.UI.FloatingDamageNumber basic = NewNumber(parent, () => secondHurtbox.TakeHit(StringHit(step, 8f)));
+                AssertPlain(basic, $"string hit {step + 1}");
+            }
+            AssertThat(second.ConfirmChainHits).IsEqual(BasicComboRules.ComboHits);
+            FTT.UI.FloatingDamageNumber lateFirst = NewNumber(parent, () =>
+                secondHurtbox.TakeHit(Hit(AttackClass.Special, "special_test", 10f, hitstun: 0.3f, attackID: "test.special_late")));
+            AssertPlain(lateFirst, "a first Special at chain hit 4 (untaxed)");
+            FTT.UI.FloatingDamageNumber decayed = NewNumber(parent, () => secondHurtbox.TakeHit(StringHit(0, 8f)));
+            AssertDimmed(decayed, "a basic at chain hit 5 (decayed)");
+        } finally {
+            if (global != null) global.DamageNumbersVisible = numbersBefore;
+            ReturnDamageNumbers(parent);
+            enemy.Free();
+            second.Free();
+            parent.Free();
+        }
+    }
+
+    /// <summary>
+    /// CM-STORY (8.2): a hit that is both punished (D8) and prorated shows the
+    /// Punish treatment — gold at ×1.25 — never the dim one; a punished, untaxed
+    /// hit is gold too.
+    /// </summary>
+    [TestCase]
+    public void APunishedHitShowsThePunishTreatmentEvenWhenItIsProrated() {
+        var parent = new Node2D { Name = "PunishedProratedNumberParent" };
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(parent);
+        GlobalSaveData global = SaveManager.Instance?.GlobalData;
+        bool numbersBefore = global?.DamageNumbersVisible ?? true;
+        EnemyController enemy = CreateEnemy("chrono_slasher", parent);
+        try {
+            if (global != null) global.DamageNumbersVisible = true;
+            enemy.CurrentHP = 999;
+            var hurtbox = enemy.GetNode<Hurtbox>("Hurtbox");
+            enemy.OpenPunishWindow();
+
+            FTT.UI.FloatingDamageNumber first = NewNumber(parent, () =>
+                hurtbox.TakeHit(Hit(AttackClass.Special, "special_test", 10f, hitstun: 0.5f, attackID: "test.special_a")));
+            AssertPunished(first, "a punished first Special");
+            AssertThat(enemy.IsPunishWindowOpen).IsTrue();
+            FTT.UI.FloatingDamageNumber both = NewNumber(parent, () =>
+                hurtbox.TakeHit(Hit(AttackClass.Special, "special_test", 10f, hitstun: 0.2f, attackID: "test.special_b")));
+            AssertPunished(both, "a punished, prorated second Special");
+        } finally {
+            if (global != null) global.DamageNumbersVisible = numbersBefore;
+            ReturnDamageNumbers(parent);
+            enemy.Free();
+            parent.Free();
+        }
+    }
+
+    private static FTT.UI.FloatingDamageNumber NewNumber(Node parent, Action hit) {
+        var before = new HashSet<ulong>();
+        Godot.Collections.Array<Node> existing = parent.GetChildren();
+        using (existing.AsDisposable()) {
+            foreach (Node child in existing) {
+                if (child is FTT.UI.FloatingDamageNumber && child.IsInsideTree()) before.Add(child.GetInstanceId());
+            }
+        }
+        hit();
+        FTT.UI.FloatingDamageNumber found = null;
+        Godot.Collections.Array<Node> after = parent.GetChildren();
+        using (after.AsDisposable()) {
+            foreach (Node child in after) {
+                if (child is FTT.UI.FloatingDamageNumber number && number.IsInsideTree()
+                    && !before.Contains(number.GetInstanceId())) {
+                    found = number;
+                }
+            }
+        }
+        AssertThat(found).OverrideFailureMessage("The hit floated no new damage number.").IsNotNull();
+        return found;
+    }
+
+    private static Color NumberColor(FTT.UI.FloatingDamageNumber number) {
+        Godot.Collections.Array<Node> children = number.GetChildren();
+        using (children.AsDisposable()) {
+            foreach (Node child in children) {
+                if (child is Label label) return label.GetThemeColor("font_color");
+            }
+        }
+        AssertThat(false).OverrideFailureMessage("The damage number has no label.").IsTrue();
+        return default;
+    }
+
+    private static void AssertPlain(FTT.UI.FloatingDamageNumber number, string what) {
+        AssertThat(NumberColor(number).IsEqualApprox(Colors.White) && number.Scale.IsEqualApprox(Vector2.One))
+            .OverrideFailureMessage($"{what}: expected a plain white number, got {NumberColor(number)} at {number.Scale}.")
+            .IsTrue();
+    }
+
+    private static void AssertDimmed(FTT.UI.FloatingDamageNumber number, string what) {
+        AssertThat(NumberColor(number).IsEqualApprox(FTT.UI.UIPalette.DamageNumberReduced)
+                && number.Scale.IsEqualApprox(Vector2.One * StoryEnemyCombatRules.ProratedDamageNumberScale))
+            .OverrideFailureMessage($"{what}: expected a dimmed number, got {NumberColor(number)} at {number.Scale}.")
+            .IsTrue();
+    }
+
+    private static void AssertPunished(FTT.UI.FloatingDamageNumber number, string what) {
+        AssertThat(NumberColor(number).IsEqualApprox(FTT.UI.UIPalette.GoldBright)
+                && number.Scale.IsEqualApprox(Vector2.One * StoryEnemyCombatRules.PunishDamageNumberScale))
+            .OverrideFailureMessage($"{what}: expected the Punish number, got {NumberColor(number)} at {number.Scale}.")
+            .IsTrue();
     }
 
     // === S5: hit-indexed stun floor ===

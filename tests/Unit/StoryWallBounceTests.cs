@@ -98,23 +98,26 @@ public class StoryWallBounceTests {
     [TestCase]
     public async Task ASlowLaunchAPlainShoveAFloorSeamAndAPhaserNeverWallBounce() {
         await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => {
+            // A 4-damage string hit on a Standard: x1.25 was 5; CM-STORY 8.1
+            // (2026-10-16) lifts it to the standard basic floor of 6.
+            int intake = StoryEnemyCombatRules.ScaleIntakeDamage(4, StoryEnemyCombatRules.StandardBasicPacingScale(4));
             // (a) A non-launching hit, however fast.
             AssertNoBounce("shove", "chrono_slasher", wallGap: 30f, seam: false, overlapWall: false,
                 hit: StringHit("combo_1", damage: 4f, knockback: new Vector2(20f, -1f), launches: false),
-                expectedIntake: 5, expectArmed: false);
+                expectedIntake: intake, expectArmed: false);
             // (b) A launch that reaches the wall below 300 px/s.
             AssertNoBounce("slow launch", "chrono_slasher", wallGap: 30f, seam: false, overlapWall: false,
                 hit: StringHit("combo_3", damage: 4f, knockback: new Vector2(4f, -2f), launches: true),
-                expectedIntake: 5, expectArmed: true);
+                expectedIntake: intake, expectArmed: true);
             // (c) A fast, low launch across a seam between two floor pieces, no wall.
             AssertNoBounce("floor seam", "chrono_slasher", wallGap: -1f, seam: true, overlapWall: false,
                 hit: StringHit("combo_3", damage: 4f, knockback: new Vector2(20f, -0.5f), launches: true),
-                expectedIntake: 5, expectArmed: true);
+                expectedIntake: intake, expectArmed: true);
             // (d) A Rift Phantom launched while its body overlaps a wall's edge:
             // its depenetration must not read as an impact, and it never arms.
             AssertNoBounce("phaser", "rift_phantom", wallGap: 0f, seam: false, overlapWall: true,
                 hit: StringHit("combo_3", damage: 4f, knockback: new Vector2(15f, -2f), launches: true),
-                expectedIntake: 5, expectArmed: false);
+                expectedIntake: intake, expectArmed: false);
         });
     }
 

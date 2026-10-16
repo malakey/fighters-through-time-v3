@@ -71,6 +71,42 @@ public class StoryEnemyCombatRulesTests {
         AssertThat(StoryEnemyCombatRules.IsBasicsPacingHit(AttackClass.Basic, null)).IsFalse();
     }
 
+    /// <summary>
+    /// CM-STORY (decision 8.1, 2026-10-16, finding CMB-03): the S4 factor gains a
+    /// floor of 6 for small basics against standards — max(1.25, 6 / base) — and
+    /// it folds in before the chain proration and the Punish window, with one
+    /// rounding: a 3-damage basic doubles to 6, an 8 keeps ×1.25, a 0 stays 0,
+    /// hit 4 of a chain decays a floored 6 to 5, and a punished floored 6 is 7.
+    /// </summary>
+    [TestCase]
+    public void TheStandardBasicFloorLiftsSmallHitsToSixBeforeProrationAndPunish() {
+        AssertThat(StoryEnemyCombatRules.StandardBasicDamageFloor).IsEqual(6);
+        AssertThat(StoryEnemyCombatRules.StandardBasicPacingScale(3)).IsEqualApprox(2f, 0.0001f);
+        AssertThat(StoryEnemyCombatRules.StandardBasicPacingScale(8))
+            .IsEqualApprox(StoryEnemyCombatRules.StandardBasicDamageScale, 0.0001f);
+        AssertThat(StoryEnemyCombatRules.StandardBasicPacingScale(0)).IsEqualApprox(1f, 0.0001f);
+        AssertThat(StoryEnemyCombatRules.StandardBasicPacingScale(-2)).IsEqualApprox(1f, 0.0001f);
+        // Every damaging basic lands for at least the floor on its own.
+        for (int damage = 1; damage <= 20; damage++) {
+            int dealt = StoryEnemyCombatRules.ScaleIntakeDamage(damage, StoryEnemyCombatRules.StandardBasicPacingScale(damage));
+            AssertThat(dealt >= StoryEnemyCombatRules.StandardBasicDamageFloor)
+                .OverrideFailureMessage($"A {damage}-damage basic landed for {dealt}.")
+                .IsTrue();
+        }
+        AssertThat(StoryEnemyCombatRules.ScaleIntakeDamage(0, StoryEnemyCombatRules.StandardBasicPacingScale(0))).IsEqual(0);
+        // Before the chain decay and the Punish window, one rounding.
+        float floored = StoryEnemyCombatRules.StandardBasicPacingScale(3);
+        AssertThat(StoryEnemyCombatRules.ScaleIntakeDamage(3,
+            floored * StoryEnemyCombatRules.ConfirmProrationScale(4, specialOnHitstun: false))).IsEqual(5);
+        AssertThat(StoryEnemyCombatRules.ScaleIntakeDamage(3, floored * StoryEnemyCombatRules.PunishDamageScale))
+            .IsEqual(7);
+        // 8.2's dim test reads the same chain factor.
+        AssertThat(StoryEnemyCombatRules.IsProrated(StoryEnemyCombatRules.ConfirmProrationScale(4, false))).IsTrue();
+        AssertThat(StoryEnemyCombatRules.IsProrated(StoryEnemyCombatRules.ConfirmProrationScale(3, true))).IsTrue();
+        AssertThat(StoryEnemyCombatRules.IsProrated(StoryEnemyCombatRules.ConfirmProrationScale(3, false))).IsFalse();
+        AssertThat(StoryEnemyCombatRules.ProratedDamageNumberScale).IsEqualApprox(0.8f, 0.0001f);
+    }
+
     [TestCase]
     public void TheHitIndexedStunFloorSpansEveryBufferedStringGap() {
         // Template connect-to-connect gaps (hitstop freezes both parties, so it

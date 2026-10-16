@@ -50,6 +50,16 @@ namespace FTT.UI {
         /// <summary>Secondary/subdued body copy.</summary>
         public static readonly Color SlateDim = new(0.45f, 0.5f, 0.6f);
 
+        /// <summary>
+        /// CM-STORY (decision 8.2, 2026-10-16): a Story damage number whose hit the
+        /// chain proration reduced (a taxed second Special, a decayed chain hit). A
+        /// dimmed near-white kept distinct from <see cref="Slate"/>, the warded
+        /// boss's refused grey "0"; always paired with the smaller
+        /// <c>StoryEnemyCombatRules.ProratedDamageNumberScale</c>, so colour is never
+        /// the only channel.
+        /// </summary>
+        public static readonly Color DamageNumberReduced = new(0.66f, 0.68f, 0.74f);
+
         /// <summary>Panel and menu background.</summary>
         public static readonly Color Navy = new(0.06f, 0.06f, 0.12f);
 

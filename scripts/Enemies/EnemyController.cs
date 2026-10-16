@@ -2690,8 +2690,11 @@ namespace FTT.Enemies {
             // charges standard poise x1.0 in ApplyStun below.
             // D8 (2026-10-11): an eligible hit on an open Punish window takes
             // x1.2 inside the same intake scale, and floats a tinted number.
-            float intakeScale = ResolveIntakeScale(in hit,
-                out FTT.Combat.StoryEnemyCombatRules.ChainSpecialRole chainRole, out bool punished);
+            // CM-STORY (8.1 / 8.2, 2026-10-16): the S4 site reads the hit's base
+            // damage for the standard basic floor, and the scale reports whether
+            // the chain proration cut it (the number is then dimmed).
+            float intakeScale = ResolveIntakeScale(in hit, baseDamage,
+                out FTT.Combat.StoryEnemyCombatRules.ChainSpecialRole chainRole, out bool punished, out bool prorated);
             // The pre-defense Story intake: the D9 wall impact is a tenth of it.
             int intake = FTT.Combat.StoryEnemyCombatRules.ScaleIntakeDamage(baseDamage, intakeScale);
             int damageApplied = TakeDamage(
@@ -2789,7 +2792,7 @@ namespace FTT.Enemies {
             // D6a / D9 (user direction 2026-10-11): a hit that wrote knockback
             // and left the mob stunned arms its finisher flight and wall bounce.
             if (knockbackWritten) ArmLaunch(in hit, intake, launchVx);
-            PresentDealtHit(in hit, damageApplied, punished);
+            PresentDealtHit(in hit, damageApplied, punished, prorated);
             return damageApplied;
         }
 
@@ -2910,11 +2913,18 @@ namespace FTT.Enemies {
         /// <paramref name="role"/> feeds the S3 poise cost in ApplyStun.
         /// <paramref name="punished"/> reports D8: the hit was eligible and this
         /// mob's Punish window was open, so x1.2 multiplied in after S4.</para>
+        ///
+        /// <para>CM-STORY (2026-10-16): 8.1 folds the standard basic floor into S4
+        /// (<see cref="FTT.Combat.StoryEnemyCombatRules.StandardBasicPacingScale"/>,
+        /// read off <paramref name="baseDamage"/>, the hit's rounded pre-intake
+        /// damage), and 8.2's <paramref name="prorated"/> reports that the S2/D4
+        /// chain factor cut the hit below full value, so its number is dimmed.</para>
         /// </summary>
-        private float ResolveIntakeScale(in FTT.Combat.HitPayload hit,
-            out FTT.Combat.StoryEnemyCombatRules.ChainSpecialRole role, out bool punished) {
+        private float ResolveIntakeScale(in FTT.Combat.HitPayload hit, int baseDamage,
+            out FTT.Combat.StoryEnemyCombatRules.ChainSpecialRole role, out bool punished, out bool prorated) {
             role = FTT.Combat.StoryEnemyCombatRules.ChainSpecialRole.NotSpecial;
             punished = false;
+            prorated = false;
             if (CurrentState == EnemyState.Dead) return 1f;
             float scale = 1f;
             bool exempt = FTT.Combat.StoryEnemyCombatRules.IsProrationExempt(hit.AttackClass, hit.Origin, hit.Delivery);
@@ -2941,12 +2951,15 @@ namespace FTT.Enemies {
                     // Ultimate-origin, which are exempt anyway).
                     bool specialConfirm = role == FTT.Combat.StoryEnemyCombatRules.ChainSpecialRole.OtherSpecial
                         && IsSpecialConfirm(hit.AttackID, inChain);
-                    scale *= FTT.Combat.StoryEnemyCombatRules.ChainHitScale(role, _confirmChainHits, specialConfirm);
+                    float chainScale = FTT.Combat.StoryEnemyCombatRules.ChainHitScale(role, _confirmChainHits, specialConfirm);
+                    prorated = FTT.Combat.StoryEnemyCombatRules.IsProrated(chainScale);
+                    scale *= chainScale;
                 }
             }
             if (Data?.Tier == EnemyTier.Standard
                 && FTT.Combat.StoryEnemyCombatRules.IsBasicsPacingHit(hit.AttackClass, hit.HitboxID)) {
-                scale *= FTT.Combat.StoryEnemyCombatRules.StandardBasicDamageScale;
+                // S4 with the 8.1 floor: x1.25, or enough to reach 6 for a small hit.
+                scale *= FTT.Combat.StoryEnemyCombatRules.StandardBasicPacingScale(baseDamage);
             }
             // D8 (user direction 2026-10-11): an eligible hit on an open Punish
             // window multiplies in last, so the one ScaleIntakeDamage rounding
@@ -3009,13 +3022,18 @@ namespace FTT.Enemies {
         /// camera through the CameraShake autoload (which applies the
         /// accessibility screen-shake scale): an ability's authored
         /// <c>ScreenShakeIntensity</c>/<c>Duration</c> when the payload carries
-        /// one, else the basics' damage-and-launch curve. Presentation only.
+        /// one (since CM-STORY 7.1 raised to the damage curve for a non-Ultimate
+        /// Special), else the basics' damage-and-launch curve. Presentation only.
         /// D8 (2026-10-11): a punished hit's number is drawn in
         /// <c>UIPalette.GoldBright</c> and at
         /// <see cref="FTT.Combat.StoryEnemyCombatRules.PunishDamageNumberScale"/>,
-        /// so the payoff is not carried by colour alone.
+        /// so the payoff is not carried by colour alone. CM-STORY 8.2
+        /// (2026-10-16): a <paramref name="prorated"/> hit's number is dimmed —
+        /// <c>UIPalette.DamageNumberReduced</c> at
+        /// <see cref="FTT.Combat.StoryEnemyCombatRules.ProratedDamageNumberScale"/>
+        /// — unless it was also punished, when the Punish treatment wins.
         /// </summary>
-        private void PresentDealtHit(in FTT.Combat.HitPayload hit, int damageApplied, bool punished) {
+        private void PresentDealtHit(in FTT.Combat.HitPayload hit, int damageApplied, bool punished, bool prorated) {
             if (damageApplied <= 0) return;
             if (!FTT.Combat.StoryEnemyCombatRules.IsPlayerDealt(hit.AttackerIndex, hit.AttackClass, hit.Delivery)) return;
             if (FTT.Combat.StoryEnemyCombatRules.DealtHitShakes(hit.Delivery, hit.ExemptFromHitstop)) {
@@ -3027,8 +3045,9 @@ namespace FTT.Enemies {
             }
             if (!IsInsideTree()) return;
             FTT.UI.FloatingDamageNumber.Show(damageApplied, DamageNumberPosition, GetParent(),
-                punished ? FTT.UI.UIPalette.GoldBright : null,
-                punished ? FTT.Combat.StoryEnemyCombatRules.PunishDamageNumberScale : 1f);
+                punished ? FTT.UI.UIPalette.GoldBright : prorated ? FTT.UI.UIPalette.DamageNumberReduced : null,
+                punished ? FTT.Combat.StoryEnemyCombatRules.PunishDamageNumberScale
+                    : prorated ? FTT.Combat.StoryEnemyCombatRules.ProratedDamageNumberScale : 1f);
         }
 
         /// <summary>
