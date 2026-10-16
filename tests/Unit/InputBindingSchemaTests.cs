@@ -197,6 +197,37 @@ public class InputBindingSchemaTests {
     }
 
     [TestCase]
+    public void SaveManagerReEnablesAPadUltimateChordThatLeavesNoRoute() {
+        // CM-FIXA-INPUT (2026-10-16): a global payload saved before 9.2 with the
+        // gamepad Ultimate chord switched off — and nothing else — would lose the
+        // pad Ultimate now that the chord is its only pad route. The load path must
+        // turn it back on. GamepadOverrideRepairTests pins the rule.
+        SaveManager manager = SaveManager.Instance;
+        AssertObject(manager).IsNotNull();
+        InputBindingSet original = manager.GlobalData.InputBindings;
+        try {
+            var overrides = new InputBindingSet();
+            overrides.SetShortcutEnabled(InputManager.Actions.Ultimate, InputDeviceKind.Joypad, false);
+            manager.GlobalData.InputBindings = overrides;
+
+            manager.ApplySavedInputBindings();
+
+            AssertThat(manager.GlobalData.InputBindings.IsShortcutEnabled(
+                    InputManager.Actions.Ultimate, InputDeviceKind.Joypad))
+                .OverrideFailureMessage("The loaded profile kept the pad Ultimate chord off with no pad route.")
+                .IsTrue();
+            // The applied profile, as the Controls tab sees it, reaches the pad Ultimate again.
+            InputBindingSet effective = InputBindingService.CaptureEffective(manager.GlobalData.InputBindings);
+            AssertThat(InputShortcuts.UnreachableActions(effective, InputDeviceKind.Joypad)
+                    .Contains(InputManager.Actions.Ultimate))
+                .IsFalse();
+        } finally {
+            manager.GlobalData.InputBindings = original;
+            InputMap.LoadFromProjectSettings();
+        }
+    }
+
+    [TestCase]
     public void ResettingRestoresProjectDefaultsPerActionAndGlobally() {
         List<InputBindingEvent> blockDefault = InputBindingService.CaptureAction(InputManager.Actions.Block);
         try {

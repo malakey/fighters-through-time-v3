@@ -512,11 +512,17 @@ public class MirrorParadoxTests {
     /// used to pulse Jump for two ticks like every edge button, so the clone's
     /// held-Jump latch dropped on its third airborne tick and Story's short-hop
     /// band (×2.5 while rising with Jump released) cut every jump. Driven
-    /// through the shared engine with an approach jump on every decision, the
-    /// clone's jump must now reach at least 95 % of a held single jump's rise.
-    /// The approach decisions queued before the first press is observed also
-    /// deliver an air jump a few ticks into the arc, so the measured apex can
-    /// exceed one single jump; the floor is what the fix guarantees.
+    /// through the shared engine, the clone's ground jump must now reach at
+    /// least 95 % of a held single jump's rise.
+    ///
+    /// <para>CM-FIXA-INPUT (2026-10-16): exactly one jump is measured. The hero
+    /// stands ten units away for the first decision only (an approach jump) and
+    /// 4.5 units away from then on, inside the 5-unit far range, so no later
+    /// decision queues an approach jump. Before, every decision jumped, the
+    /// decisions queued before the first press was observed delivered an air
+    /// jump a few ticks into the arc, and the held air jump alone cleared the
+    /// 95 % floor whatever the ground jump did — so a regression that ended only
+    /// the ground jump's hold passed.</para>
     /// </summary>
     [TestCase]
     public void TheCloneHoldsJumpForAFullHopInsteadOfShortHoppingEveryJump() {
@@ -550,9 +556,9 @@ public class MirrorParadoxTests {
             AssertThat(clone.IsOnFloor() && clone.CurrentState == CharacterState.Idle)
                 .OverrideFailureMessage($"Harness: the clone is {clone.CurrentState}, on floor {clone.IsOnFloor()}.")
                 .IsTrue();
-            // Ten units away, far past the 5-unit far range, so every grounded
-            // decision is an approach and every approach jumps; no ranged
-            // Special or movement ability competes with it.
+            // Ten units away, far past the 5-unit far range, so the first
+            // decision is an approach and the approach jumps; no ranged Special
+            // or movement ability competes with it.
             hero.GlobalPosition = clone.GlobalPosition + new Vector2(600f, 0f);
             CpuBandTuning tuning = CpuBandTuning.BossOverride(CpuDifficulty.Hard) with {
                 ApproachJumpPercent = 100,
@@ -566,15 +572,22 @@ public class MirrorParadoxTests {
             float highestRise = 0f;
             bool jumped = false;
             int firstJumpTick = -1;
+            int jumpPresses = 0;
             PlayerInputFrame previous = default;
             var source = new BufferedInputSource();
             for (uint tick = 0; tick < 240; tick++) {
                 PlayerInputFrame frame = adapter.Sample(tick, in previous);
                 previous = frame;
-                if (frame.IsPressed(GameplayButtons.Jump) && firstJumpTick < 0) firstJumpTick = (int)tick;
+                if (frame.IsPressed(GameplayButtons.Jump)) {
+                    jumpPresses++;
+                    if (firstJumpTick < 0) firstJumpTick = (int)tick;
+                }
                 source.SetNextFrame(frame);
                 InputManager.Instance.SetInputSource(cloneIndex, source);
                 clone._PhysicsProcess(1.0 / 60.0);
+                // After the first decision the hero stands 4.5 units ahead,
+                // inside the far range, so only that decision queues a jump.
+                hero.GlobalPosition = clone.GlobalPosition + new Vector2(270f, 0f);
                 if (!clone.IsOnFloor()) jumped = true;
                 highestRise = Mathf.Max(highestRise, startY - clone.GlobalPosition.Y);
                 // One arc: stop at the first landing after leaving the floor.
@@ -583,12 +596,15 @@ public class MirrorParadoxTests {
 
             float fullRise = StoryAirPhysics.SingleJumpRise(
                 StoryAirPhysics.JumpLaunchSpeed(clone.Data.MaxJumpForce), clone.Data.Weight);
-            GD.Print($"[CM-INPUT] Mirror {MirroredCharacter} approach-jump apex {highestRise:F1} px "
-                + $"(first Jump press tick {firstJumpTick}); a held single jump rises {fullRise:F1} px.");
+            GD.Print($"[CM-INPUT] Mirror {MirroredCharacter} single approach-jump apex {highestRise:F1} px "
+                + $"(Jump press tick {firstJumpTick}, {jumpPresses} press(es)); a held single jump rises {fullRise:F1} px.");
             AssertThat(jumped).OverrideFailureMessage("Harness: the clone never left the floor.").IsTrue();
+            AssertThat(jumpPresses)
+                .OverrideFailureMessage($"Harness: the arc carried {jumpPresses} Jump presses, not one ground jump.")
+                .IsEqual(1);
             AssertThat(highestRise >= 0.95f * fullRise)
                 .OverrideFailureMessage(
-                    $"The clone's jump peaked at {highestRise:F1} px, below 95 % of a held single jump ({fullRise:F1} px).")
+                    $"The clone's ground jump peaked at {highestRise:F1} px, below 95 % of a held single jump ({fullRise:F1} px).")
                 .IsTrue();
         } finally {
             InputManager.Instance?.ClearInputSource(cloneIndex);

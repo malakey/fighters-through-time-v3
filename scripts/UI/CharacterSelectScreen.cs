@@ -167,9 +167,10 @@ namespace FTT.UI {
             _countdownLabel = GetNode<Label>(SelectRoot + "CountdownLabel");
 
             // 9.1 (2026-10-16, CM-INPUT): Local Versus is a press-to-join select.
-            // Player 1 keeps the device it was following; Player 2 drives no token
-            // until a face, confirm or Interact press on an unclaimed device claims
-            // the slot. Versus CPU (and every other origin) never joins.
+            // No slot is pre-claimed (CM-FIXA-INPUT): the first face, confirm or
+            // Interact press on any device claims Player 1, the next different
+            // device Player 2, and Player 2 drives no token until then. Versus CPU
+            // (and every other origin) never joins.
             if (_origin == FighterMatchOrigin.LocalVersus) InputManager.Instance?.BeginLocalJoin();
             if (InputManager.Instance != null) InputManager.Instance.DeviceAssigned += OnDeviceAssigned;
             _stageSelect = GetNode<OptionButton>(StageRoot + "StageRow/StageSelect");
@@ -946,20 +947,75 @@ namespace FTT.UI {
             token.LockedIndex >= 0 ? token.LockedIndex : token.Cursor;
 
         /// <summary>
+        /// 9.1 (CM-FIXA-INPUT, 2026-10-16): a join press — the press that claims a
+        /// free slot on an unclaimed device in Local Versus — does nothing else.
+        /// The device poll seeds the claimed slot's gameplay frame; this marks the
+        /// GUI event handled before a focused control or this screen's own
+        /// <c>ui_cancel</c> can act on it — a keyboard joining with Enter or Space
+        /// (<c>ui_accept</c>) would otherwise press the focused button, and a left
+        /// click the button under it. <c>_Input</c> runs before GUI and unhandled
+        /// input, and the poll reads device state, not events, so the claim itself
+        /// is unaffected.
+        /// </summary>
+        public override void _Input(InputEvent @event) {
+            if (InputManager.Instance?.IsJoinPressFromUnclaimedDevice(@event) == true) {
+                GetViewport()?.SetInputAsHandled();
+            }
+        }
+
+        /// <summary>
         /// Uniform cancel, one step at a time: stage select backs to selection, a
         /// running countdown aborts, a lock unwinds; only with nothing left to
-        /// unwind does cancel leave the screen (exactly as the Back button does).
+        /// unwind does player 1's cancel leave the screen (exactly as the Back
+        /// button does). Since CM-FIXA-INPUT (2026-10-16) the cancel belongs to
+        /// the player whose device pressed it (<see cref="CancellingPlayer"/>).
         /// </summary>
         public override void _UnhandledInput(InputEvent @event) {
             if (@event == null || !@event.IsActionPressed("ui_cancel")) return;
             GetViewport()?.SetInputAsHandled();
+            int player = CancellingPlayer(@event);
+            if (player < 0) return;
             if (_phase == SelectScreenPhase.StageSelect) {
                 ReturnToSelection();
                 return;
             }
-            if (TryCancel(0)) return;
-            OnBack();
+            if (TryCancel(player)) return;
+            if (player == 0) OnBack();
         }
+
+        /// <summary>
+        /// 9.1 (CM-FIXA-INPUT, 2026-10-16): the player a <c>ui_cancel</c> press
+        /// belongs to, or -1 when it must not act.
+        /// <list type="bullet">
+        /// <item>A pad button that is also a token confirm belongs to the polled
+        /// token flow while it runs, so the same press never both confirms and
+        /// cancels; pads cancel a pick with Block or Roll. (Interact is B, which
+        /// Godot documents as a default <c>ui_cancel</c> event. The Godot 4.7.1
+        /// build's <c>ui_cancel</c> is Escape only, so today this guards a
+        /// binding, not a live path.)</item>
+        /// <item>Outside a local join (Versus CPU, the Holodeck) player 1 follows
+        /// the device that pressed, so the press is player 1's.</item>
+        /// <item>In a local join the device's own slot decides, classified by
+        /// event type (a key is the keyboard, a pad event its own device). A
+        /// device no slot holds is not a player and is ignored, except that
+        /// before anyone has joined any device may back out of the screen.</item>
+        /// </list>
+        /// </summary>
+        private int CancellingPlayer(InputEvent @event) {
+            bool joypad = @event is InputEventJoypadButton || @event is InputEventJoypadMotion;
+            if (joypad && _phase != SelectScreenPhase.StageSelect && IsTokenConfirm(@event)) return -1;
+            InputManager input = InputManager.Instance;
+            if (input == null || input.JoinMode != LocalJoinMode.Joined) return 0;
+            int player = input.GetPlayerForDevice(joypad ? @event.Device : InputManager.KeyboardDevice);
+            if (player >= 0) return player;
+            return input.AnySlotJoined() ? -1 : 0;
+        }
+
+        /// <summary>Whether a GUI event is one of the polled token flow's confirms (Basic Attack, Interact) or <c>ui_accept</c>.</summary>
+        private static bool IsTokenConfirm(InputEvent @event) =>
+            @event.IsAction(InputManager.Actions.Interact)
+            || @event.IsAction(InputManager.Actions.BasicAttack)
+            || @event.IsAction("ui_accept");
 
         private void OnFight() {
             FighterStageData stage = ApplySelectionToSession();
@@ -1057,7 +1113,19 @@ namespace FTT.UI {
             FighterFlowRoutes.SelectBack(GameManager.Instance?.CurrentSession.FighterMatchOrigin
                 ?? FighterMatchOrigin.LocalVersus);
 
+        /// <summary>
+        /// Test seam (CM-FIXA-INPUT): when set, leaving the screen calls this
+        /// instead of loading <see cref="ResolveBackScenePath"/>, so a case can
+        /// prove a press did (or did not) back out without a real scene change
+        /// tearing down the runner.
+        /// </summary>
+        internal Action BackOverrideForTesting { get; set; }
+
         private void OnBack() {
+            if (BackOverrideForTesting != null) {
+                BackOverrideForTesting();
+                return;
+            }
             GameManager.Instance?.LoadScene(ResolveBackScenePath());
         }
 

@@ -129,6 +129,81 @@ public class UltimateChordStoryTests {
         }
     }
 
+    /// <summary>
+    /// CM-FIXA-INPUT (2026-10-16): the live <see cref="InputManager"/>'s pause /
+    /// focus-loss notification forgets chord waits but keeps the masks. LB + RB
+    /// that cast the Ultimate and are still held through a pause must not reach
+    /// the resume tick as fresh Movement Ability and Special 2 presses once the
+    /// meter is spent. Until the fix the notification dropped the whole window.
+    /// No hero: the test reports the slot's readiness itself, once per tick.
+    /// </summary>
+    [TestCase]
+    public async Task AChordHeldAcrossAPauseFiresNoComponentOnTheWayBack() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        InputManager input = InputManager.Instance;
+        AssertObject(input).IsNotNull();
+        JoyButton lb = FakeInputDeviceProbe.PadButtonFor(InputManager.Actions.MovementAbility);
+        JoyButton rb = FakeInputDeviceProbe.PadButtonFor(InputManager.Actions.Special2);
+        FakeInputDeviceProbe probe = FakeInputDeviceProbe.Install(input, Pad);
+        try {
+            input.AssignJoypadToPlayer(Pad, 0);
+            await ReportedFrames(tree, input, affordable: true, 2);
+
+            probe.SetButton(Pad, lb, true);
+            probe.SetButton(Pad, rb, true);
+            await ReportedFrames(tree, input, affordable: true, 1);
+            PlayerInputFrame chord = input.GetFrame(0);
+            AssertThat(chord.IsHeld(GameplayButtons.Ultimate) && !Leaks(chord))
+                .OverrideFailureMessage($"Harness: the affordable chord carried {chord.Held}.")
+                .IsTrue();
+
+            // The Ultimate is cast: the meter is spent, the shoulders stay down.
+            await ReportedFrames(tree, input, affordable: false, 2);
+            PlayerInputFrame spent = input.GetFrame(0);
+            AssertThat(spent.IsHeld(GameplayButtons.Ultimate) && !Leaks(spent)).IsTrue();
+
+            input.Notification((int)Node.NotificationPaused);
+            for (int frame = 0; frame < 2 * UltimateChordWindow.LeniencyFrames; frame++) {
+                await ReportedFrames(tree, input, affordable: false, 1);
+                PlayerInputFrame resumed = input.GetFrame(0);
+                AssertThat(Leaks(resumed))
+                    .OverrideFailureMessage($"Frame {frame} after the pause: the held chord leaked {resumed.Held}.")
+                    .IsFalse();
+                AssertThat(resumed.IsHeld(GameplayButtons.Ultimate)).IsTrue();
+            }
+
+            // Letting go fires nothing either.
+            probe.SetButton(Pad, lb, false);
+            await ReportedFrames(tree, input, affordable: false, 1);
+            AssertThat(Leaks(input.GetFrame(0)) || input.GetFrame(0).IsHeld(GameplayButtons.Ultimate)).IsFalse();
+            probe.SetButton(Pad, rb, false);
+            await ReportedFrames(tree, input, affordable: false, 1);
+            AssertThat(Leaks(input.GetFrame(0)) || input.GetFrame(0).IsHeld(GameplayButtons.Ultimate)).IsFalse();
+
+            // Control: the slot is live — a fresh LB is an ordinary press now.
+            probe.SetButton(Pad, lb, true);
+            await ReportedFrames(tree, input, affordable: false, 1);
+            AssertThat(input.GetFrame(0).IsPressed(GameplayButtons.MovementAbility))
+                .OverrideFailureMessage("Control: a fresh LB after the chord was not a press.")
+                .IsTrue();
+        } finally {
+            probe.ReleaseAll();
+            FakeInputDeviceProbe.Restore(input);
+        }
+    }
+
+    /// <summary>Whether a frame carries either chord component.</summary>
+    private static bool Leaks(in PlayerInputFrame frame) =>
+        frame.IsHeld(GameplayButtons.MovementAbility) || frame.IsHeld(GameplayButtons.Special2);
+
+    /// <summary>Waits <paramref name="count"/> physics frames, reporting player 1's Ultimate readiness before each.</summary>
+    private static async Task ReportedFrames(SceneTree tree, InputManager input, bool affordable, int count) {
+        for (int frame = 0; frame < count; frame++) {
+            input.ReportUltimateAffordable(0, affordable);
+            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        }
+    }
+
     private static async Task Frames(SceneTree tree, int count) {
         for (int frame = 0; frame < count; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
     }

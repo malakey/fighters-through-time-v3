@@ -446,6 +446,41 @@ namespace FTT.Core {
             return true;
         }
 
+        /// <summary>
+        /// 9.2 load-time repair (CM-FIXA-INPUT, 2026-10-16; amends
+        /// <c>PROVISIONAL-GAMEPAD-OVERRIDE-NO-MIGRATION</c>): a payload whose gamepad
+        /// Ultimate shortcut flag is <b>off</b> while the Ultimate has <b>no direct
+        /// pad route</b> gets its flag back (the entry is removed, and a missing
+        /// flag reads On). Until 9.2 the flag was never read at runtime and the
+        /// Ultimate's own pad events (LB + RB) were a direct route, so the Controls
+        /// tab let a player switch it off with nothing lost; since 9.2 the pad
+        /// default is empty and the flag is the pad Ultimate's only route, so such a
+        /// payload would silently lose the pad Ultimate — what C01c forbids. After
+        /// 9.2 the Controls tab refuses to commit that state, so it can only predate
+        /// the update and no post-update choice is overridden.
+        ///
+        /// <para>Separate from <see cref="RepairGodot3ShoulderRows"/>, which returns
+        /// early for a payload with no action rows — exactly the payload of a player
+        /// who only flipped the toggle. The direct route is resolved as
+        /// <c>AnotherActionHoldsJoyButton</c> resolves a row: nothing when the pad
+        /// slot is explicitly Unbound, the saved row's pad half when there is one,
+        /// else the project default. Run it after the shoulder repair, which may
+        /// drop a stale LB + RB half. Idempotent and pure data; returns true when
+        /// the set changed.</para>
+        /// </summary>
+        public bool RestoreUnreachableUltimateChord(InputBindingSet projectDefaults) {
+            string action = InputShortcuts.UltimateAction;
+            if (IsShortcutEnabled(action, InputDeviceKind.Joypad)) return false;
+            if (!IsUnbound(action, InputDeviceKind.Joypad)) {
+                List<InputBindingEvent> pad = HasOverride(action)
+                    ? EventsFor(action, InputDeviceKind.Joypad)
+                    : projectDefaults?.EventsFor(action, InputDeviceKind.Joypad) ?? new List<InputBindingEvent>();
+                if (pad.Count > 0) return false;
+            }
+            ShortcutEnabled.Remove(SlotKey(action, InputDeviceKind.Joypad));
+            return true;
+        }
+
         /// <summary>True when <paramref name="events"/> is exactly these joypad buttons, in any order.</summary>
         private static bool IsExactlyJoyButtons(List<InputBindingEvent> events, int[] buttons) {
             if (events == null || events.Count != buttons.Length) return false;

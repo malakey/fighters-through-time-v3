@@ -18,9 +18,11 @@ namespace FTT.Core {
 
         /// <summary>
         /// Local Versus, from the Fighter select until the flow leaves the
-        /// select and the match: every slot keeps its device, and a face,
-        /// confirm or Interact press on an unclaimed device claims the lowest
-        /// free slot.
+        /// select and the match: no slot is pre-claimed when the join begins
+        /// (CM-FIXA-INPUT, 2026-10-16), every claimed slot keeps its device, and
+        /// a face, confirm or Interact press on an unclaimed device claims the
+        /// lowest free slot — the first device to press is player 1, the next
+        /// different one player 2.
         /// </summary>
         Joined = 1
     }
@@ -186,11 +188,14 @@ namespace FTT.Core {
         private readonly HashSet<int> _slotsAwaitingReconnect = new();
         private readonly Dictionary<int, uint> _padButtonSnapshots = new();
         private readonly Dictionary<int, bool> _padStickOutSnapshots = new();
+        private readonly Dictionary<int, uint> _padAxisOutSnapshots = new();
         private readonly List<Key> _pollKeys = new();
         private readonly List<bool> _pollKeyIsJoin = new();
         private readonly List<bool> _pollKeyPrevious = new();
         private readonly List<MouseButton> _pollMouseButtons = new();
+        private readonly List<bool> _pollMouseIsJoin = new();
         private readonly List<bool> _pollMousePrevious = new();
+        private readonly List<PolledPadAxis> _pollPadAxes = new();
         private uint _padJoinButtonMask = FaceButtonMask;
         private int _pollInputsGeneration = -1;
         private bool _activityPolled;
@@ -215,6 +220,7 @@ namespace FTT.Core {
                 // first poll records the state and reports nothing.
                 _padButtonSnapshots.Clear();
                 _padStickOutSnapshots.Clear();
+                _padAxisOutSnapshots.Clear();
                 _pollInputsGeneration = -1;
                 _activityPolled = false;
             }
@@ -245,11 +251,13 @@ namespace FTT.Core {
         }
 
         /// <summary>
-        /// 9.2: a pause or a window focus loss forgets every chord wait and mask,
-        /// so nothing the player let go of while away fires on the way back.
+        /// 9.2: a pause or a window focus loss forgets every chord <b>wait</b>, so
+        /// a lone shoulder let go of while away fires nothing on the way back. A
+        /// chord's <b>masks</b> survive (CM-FIXA-INPUT, 2026-10-16): LB + RB still
+        /// held across a pause must not come back as two fresh component presses.
         /// </summary>
         public override void _Notification(int what) {
-            if (what == NotificationPaused || what == NotificationApplicationFocusOut) ResetChordWindows();
+            if (what == NotificationPaused || what == NotificationApplicationFocusOut) ForgetChordWaits();
         }
 
         public override void _PhysicsProcess(double delta) {
@@ -341,28 +349,92 @@ namespace FTT.Core {
         }
 
         /// <summary>
-        /// 9.1: enters <see cref="LocalJoinMode.Joined"/> for Local Versus. Slot 0
-        /// keeps the device it was following; every other slot is emptied and is
-        /// claimed by the first face, confirm or Interact press on an unclaimed
-        /// device (keyboard included). A no-op while already joined, so Rematch and
-        /// Back-to-select keep the players' devices.
+        /// 9.1: enters <see cref="LocalJoinMode.Joined"/> for Local Versus. Every
+        /// slot is emptied — slot 0 included (CM-FIXA-INPUT, 2026-10-16: keeping
+        /// the device that last drove the menus left two pads unable to both join
+        /// after keyboard- or mouse-driven menus) — and the first face, confirm or
+        /// Interact press on an unclaimed device (keyboard and mouse included)
+        /// claims the lowest free slot: the first device to press is player 1, the
+        /// next different one player 2. An input source keeps its slot. A no-op
+        /// while already joined, so Rematch and Back-to-select keep the players'
+        /// devices.
         /// </summary>
         public void BeginLocalJoin() {
             if (_joinMode == LocalJoinMode.Joined) return;
             _joinMode = LocalJoinMode.Joined;
             _slotsAwaitingReconnect.Clear();
-            for (int playerIndex = 1; playerIndex < MaxPlayers; playerIndex++) UnassignSlot(playerIndex);
+            for (int playerIndex = 0; playerIndex < MaxPlayers; playerIndex++) UnassignSlot(playerIndex);
         }
 
         /// <summary>
         /// 9.1: back to <see cref="LocalJoinMode.FollowLastUsed"/>. Slot 0 keeps its
-        /// device and follows from here on; every other slot is emptied.
+        /// device and follows from here on; every other slot is emptied. A slot 0
+        /// nobody claimed during the join falls back to the keyboard, as an
+        /// emptied slot 0 does in <see cref="LocalJoinMode.FollowLastUsed"/>.
         /// </summary>
         public void EndLocalJoin() {
             if (_joinMode == LocalJoinMode.FollowLastUsed) return;
             _joinMode = LocalJoinMode.FollowLastUsed;
             _slotsAwaitingReconnect.Clear();
             for (int playerIndex = 1; playerIndex < MaxPlayers; playerIndex++) UnassignSlot(playerIndex);
+            if (!_playerToDevice.ContainsKey(0)) AssignDevice(KeyboardDevice, 0);
+        }
+
+        /// <summary>
+        /// 9.1 (CM-FIXA-INPUT, 2026-10-16): whether a GUI input event is a join
+        /// press — the same set the device poll claims a slot with — from a device
+        /// no slot holds, while a local join is open and a slot is free. The press
+        /// then claims that slot on the next poll and must do nothing else, so the
+        /// Fighter select marks such an event handled in <c>_Input</c>, before the
+        /// GUI (a focused button's <c>ui_accept</c>) or its own <c>ui_cancel</c>
+        /// can act on it. Classification is by event type (keys and mouse buttons
+        /// are the keyboard device, a joypad event its own device), never by
+        /// <c>InputEvent.Device</c> alone.
+        /// </summary>
+        public bool IsJoinPressFromUnclaimedDevice(InputEvent inputEvent) {
+            if (_joinMode != LocalJoinMode.Joined || inputEvent == null) return false;
+            if (!inputEvent.IsPressed() || inputEvent.IsEcho()) return false;
+            int deviceId;
+            bool faceButton = false;
+            switch (inputEvent) {
+                case InputEventKey:
+                case InputEventMouseButton:
+                    deviceId = KeyboardDevice;
+                    break;
+                case InputEventJoypadButton button:
+                    deviceId = button.Device;
+                    int index = (int)button.ButtonIndex;
+                    faceButton = index >= 0 && index < PolledPadButtons && (FaceButtonMask & (1u << index)) != 0u;
+                    break;
+                case InputEventJoypadMotion motion:
+                    deviceId = motion.Device;
+                    break;
+                default:
+                    return false;
+            }
+            if (deviceId != KeyboardDevice && !_connectedJoypads.Contains(deviceId)) return false;
+            if (GetPlayerForDevice(deviceId) >= 0 || !HasFreeSlot()) return false;
+            if (faceButton) return true;
+            foreach (string action in JoinActions) {
+                if (InputMap.HasAction(action) && inputEvent.IsActionPressed(action)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>True when some slot has neither an input source nor a device (a join press would claim it).</summary>
+        public bool HasFreeSlot() {
+            for (int playerIndex = 0; playerIndex < MaxPlayers; playerIndex++) {
+                if (!IsSlotJoined(playerIndex)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>True when any slot has someone behind it (an input source or an assigned device).</summary>
+        public bool AnySlotJoined() {
+            for (int playerIndex = 0; playerIndex < MaxPlayers; playerIndex++) {
+                if (IsSlotJoined(playerIndex)) return true;
+            }
+            return false;
         }
 
         /// <summary>
@@ -536,10 +608,37 @@ namespace FTT.Core {
 
         /// <summary>
         /// Pad buttons the activity poll reads: Godot's SDL set, 0 to
-        /// <c>JoyButton.SdlMax</c> − 1 (21 buttons). Triggers are axes and do not
-        /// count, nor does any stick but the left one.
+        /// <c>JoyButton.SdlMax</c> − 1 (21 buttons). The left stick is read
+        /// through its <see cref="StickProfile"/> deadzone, and every other axis an
+        /// action is bound to — the triggers, LT Block and RT Roll at defaults —
+        /// through <see cref="PolledPadAxis"/> (CM-FIXA-INPUT, 2026-10-16).
         /// </summary>
         private const int PolledPadButtons = 21;
+
+        /// <summary>At most this many distinct bound axis directions are polled per pad (one bit each).</summary>
+        private const int MaxPolledPadAxes = 32;
+
+        /// <summary>
+        /// One bound pad axis direction the activity poll reads (CM-FIXA-INPUT,
+        /// 2026-10-16): an <see cref="InputEventJoypadMotion"/> of a gameplay,
+        /// direct or menu action on any axis but the left stick. It is "out" while
+        /// the raw axis read in the bound direction reaches the action's own
+        /// deadzone — exactly when <see cref="ReadActionPressed"/> would read the
+        /// action held — and crossing out is activity, like a new button press.
+        /// </summary>
+        private readonly struct PolledPadAxis {
+            public PolledPadAxis(JoyAxis axis, float sign, float deadzone, bool join) {
+                Axis = axis;
+                Sign = sign;
+                Deadzone = deadzone;
+                Join = join;
+            }
+
+            public JoyAxis Axis { get; }
+            public float Sign { get; }
+            public float Deadzone { get; }
+            public bool Join { get; }
+        }
 
         /// <summary>
         /// Actions whose keys and buttons count as a <b>join</b> press: confirm,
@@ -564,8 +663,10 @@ namespace FTT.Core {
         /// compares every device's state with its last poll — no input events are
         /// read, so a press a scene already marked handled still counts, and so
         /// does one made while the tree is paused (then the poll runs only when a
-        /// paused UI captures a frame). A pad counts on a new button press or its
-        /// left stick crossing out of its <see cref="StickProfile"/> deadzone; the
+        /// paused UI captures a frame). A pad counts on a new button press, its
+        /// left stick crossing out of its <see cref="StickProfile"/> deadzone, or
+        /// (CM-FIXA-INPUT, 2026-10-16) any other bound axis — the LT Block and RT
+        /// Roll triggers at defaults — crossing out of its action's deadzone; the
         /// keyboard on a new press of a key bound to a gameplay or menu action, or
         /// of a mouse button. Classification is by device kind, never by
         /// <c>InputEvent.Device</c> (Godot gives keys and pad 0 the same index).
@@ -573,8 +674,9 @@ namespace FTT.Core {
         /// <para><see cref="LocalJoinMode.FollowLastUsed"/>: slot 0 moves to the
         /// active device (a slot with an input source is left alone).
         /// <see cref="LocalJoinMode.Joined"/>: each unclaimed device that made a
-        /// join press claims the lowest free slot, and that slot's next sample is
-        /// seeded so the joining press does nothing else.</para>
+        /// join press (a mouse button bound to a join action included) claims the
+        /// lowest free slot, and that slot's next sample is seeded so the joining
+        /// press does nothing else.</para>
         /// </summary>
         private void PollDeviceActivity(uint tick) {
             if (_activityPolled && tick == _lastActivityPollTick) return;
@@ -596,7 +698,12 @@ namespace FTT.Core {
             }
             for (int index = 0; index < _pollMouseButtons.Count; index++) {
                 bool pressed = probe.IsMouseButtonPressed(_pollMouseButtons[index]);
-                if (pressed && !_pollMousePrevious[index]) keyboardActive = true;
+                if (pressed && !_pollMousePrevious[index]) {
+                    keyboardActive = true;
+                    // A mouse button bound to a join action (the left click is
+                    // Basic Attack) joins the keyboard-and-mouse device.
+                    if (_pollMouseIsJoin[index]) keyboardJoin = true;
+                }
                 _pollMousePrevious[index] = pressed;
             }
             if (firstPoll) {
@@ -615,19 +722,27 @@ namespace FTT.Core {
                 }
                 (float stickX, float stickY) = ReadProcessedLeftStick(deviceId, StickProfileFor(deviceId));
                 bool stickOut = stickX != 0f || stickY != 0f;
+                uint axisMask = 0u;
+                for (int axis = 0; axis < _pollPadAxes.Count; axis++) {
+                    PolledPadAxis polled = _pollPadAxes[axis];
+                    if (probe.GetJoyAxis(deviceId, polled.Axis) * polled.Sign >= polled.Deadzone) axisMask |= 1u << axis;
+                }
                 bool known = _padButtonSnapshots.TryGetValue(deviceId, out uint previousMask);
                 bool previousStickOut = _padStickOutSnapshots.GetValueOrDefault(deviceId);
+                uint previousAxisMask = _padAxisOutSnapshots.GetValueOrDefault(deviceId);
                 _padButtonSnapshots[deviceId] = mask;
                 _padStickOutSnapshots[deviceId] = stickOut;
+                _padAxisOutSnapshots[deviceId] = axisMask;
                 // A pad's first poll only records it: something already held when
                 // it appeared is not a new press.
                 if (!known) continue;
                 uint newPresses = mask & ~previousMask;
-                bool active = newPresses != 0u || (stickOut && !previousStickOut);
+                uint newAxes = axisMask & ~previousAxisMask;
+                bool active = newPresses != 0u || newAxes != 0u || (stickOut && !previousStickOut);
                 if (!active) continue;
                 if (deviceId == current) currentPadActive = true;
                 if (activePad == UnassignedDevice) activePad = deviceId;
-                if ((newPresses & _padJoinButtonMask) != 0u) _joinCandidates.Add(deviceId);
+                if ((newPresses & _padJoinButtonMask) != 0u || AnyJoinAxis(newAxes)) _joinCandidates.Add(deviceId);
             }
 
             if (_joinMode == LocalJoinMode.FollowLastUsed) {
@@ -646,6 +761,15 @@ namespace FTT.Core {
         }
 
         private readonly List<int> _joinCandidates = new();
+
+        /// <summary>Whether any newly crossed axis in <paramref name="newAxes"/> is bound to a join action.</summary>
+        private bool AnyJoinAxis(uint newAxes) {
+            if (newAxes == 0u) return false;
+            for (int axis = 0; axis < _pollPadAxes.Count; axis++) {
+                if ((newAxes & (1u << axis)) != 0u && _pollPadAxes[axis].Join) return true;
+            }
+            return false;
+        }
 
         private void ClaimLowestFreeSlot(int deviceId) {
             for (int playerIndex = 0; playerIndex < MaxPlayers; playerIndex++) {
@@ -668,9 +792,11 @@ namespace FTT.Core {
             _pollKeyIsJoin.Clear();
             _pollKeyPrevious.Clear();
             _pollMouseButtons.Clear();
+            _pollMouseIsJoin.Clear();
             _pollMousePrevious.Clear();
+            _pollPadAxes.Clear();
             _padJoinButtonMask = FaceButtonMask;
-            foreach (MouseButton button in PolledMouseButtons) AddPolledMouseButton(button);
+            foreach (MouseButton button in PolledMouseButtons) AddPolledMouseButton(button, join: false);
             foreach (string action in RemappableActions) AddPolledAction(action);
             foreach (string action in InputShortcuts.DirectActions) AddPolledAction(action);
             foreach (string action in PolledMenuActions) AddPolledAction(action);
@@ -679,6 +805,18 @@ namespace FTT.Core {
             }
             for (int index = 0; index < _pollMouseButtons.Count; index++) {
                 _pollMousePrevious.Add(probe.IsMouseButtonPressed(_pollMouseButtons[index]));
+            }
+            // The axis bits index the rebuilt list, so every known pad's axis
+            // snapshot is re-read from its current state: a trigger already held
+            // when a binding changed is not a new press.
+            foreach (int deviceId in _connectedJoypads) {
+                if (!_padButtonSnapshots.ContainsKey(deviceId)) continue;
+                uint axisMask = 0u;
+                for (int axis = 0; axis < _pollPadAxes.Count; axis++) {
+                    PolledPadAxis polled = _pollPadAxes[axis];
+                    if (probe.GetJoyAxis(deviceId, polled.Axis) * polled.Sign >= polled.Deadzone) axisMask |= 1u << axis;
+                }
+                _padAxisOutSnapshots[deviceId] = axisMask;
             }
         }
 
@@ -702,18 +840,47 @@ namespace FTT.Core {
                         break;
                     }
                     case InputEventMouseButton mouseEvent:
-                        AddPolledMouseButton(mouseEvent.ButtonIndex);
+                        AddPolledMouseButton(mouseEvent.ButtonIndex, join);
                         break;
                     case InputEventJoypadButton buttonEvent:
                         int index = (int)buttonEvent.ButtonIndex;
                         if (join && index >= 0 && index < PolledPadButtons) _padJoinButtonMask |= 1u << index;
                         break;
+                    case InputEventJoypadMotion motionEvent:
+                        AddPolledPadAxis(motionEvent, InputMap.ActionGetDeadzone(action), join);
+                        break;
                 }
             }
         }
 
-        private void AddPolledMouseButton(MouseButton button) {
-            if (!_pollMouseButtons.Contains(button)) _pollMouseButtons.Add(button);
+        private void AddPolledMouseButton(MouseButton button, bool join) {
+            int existing = _pollMouseButtons.IndexOf(button);
+            if (existing < 0) {
+                _pollMouseButtons.Add(button);
+                _pollMouseIsJoin.Add(join);
+            } else if (join) {
+                _pollMouseIsJoin[existing] = true;
+            }
+        }
+
+        /// <summary>
+        /// Adds one bound axis direction to the poll (the left stick excepted: it
+        /// is read through the device's stick profile). The same direction bound
+        /// twice is polled once, at the smaller deadzone, joining if either action does.
+        /// </summary>
+        private void AddPolledPadAxis(InputEventJoypadMotion motionEvent, float deadzone, bool join) {
+            if (motionEvent.Axis == JoyAxis.LeftX || motionEvent.Axis == JoyAxis.LeftY) return;
+            float sign = MathF.Sign(motionEvent.AxisValue);
+            if (sign == 0f) return;
+            for (int index = 0; index < _pollPadAxes.Count; index++) {
+                PolledPadAxis existing = _pollPadAxes[index];
+                if (existing.Axis != motionEvent.Axis || existing.Sign != sign) continue;
+                _pollPadAxes[index] = new PolledPadAxis(
+                    existing.Axis, sign, MathF.Min(existing.Deadzone, deadzone), existing.Join || join);
+                return;
+            }
+            if (_pollPadAxes.Count >= MaxPolledPadAxes) return;
+            _pollPadAxes.Add(new PolledPadAxis(motionEvent.Axis, sign, deadzone, join));
         }
 
         // === 9.2 (2026-10-16) — Ultimate readiness for the chord window ======
@@ -759,8 +926,24 @@ namespace FTT.Core {
         public bool IsChordWaiting(int playerIndex) =>
             _chordWindows.TryGetValue(playerIndex, out UltimateChordWindow window) && window.IsWaiting;
 
-        /// <summary>Forgets every chord wait and mask (pause, focus loss).</summary>
-        public void ResetChordWindows() => _chordWindows.Clear();
+        /// <summary>
+        /// Forgets every chord <b>wait</b> and keeps every chord <b>mask</b> (pause,
+        /// focus loss; CM-FIXA-INPUT, 2026-10-16). A masked component stays masked
+        /// until it is released, so LB + RB held across a pause fire no component
+        /// on the way back; a device hand-over still drops the whole window.
+        /// </summary>
+        public void ForgetChordWaits() {
+            if (_chordWindows.Count == 0) return;
+            _chordWindowSlotScratch.Clear();
+            _chordWindowSlotScratch.AddRange(_chordWindows.Keys);
+            foreach (int slot in _chordWindowSlotScratch) {
+                UltimateChordWindow window = _chordWindows[slot];
+                window.ForgetWaits();
+                _chordWindows[slot] = window;
+            }
+        }
+
+        private readonly List<int> _chordWindowSlotScratch = new();
 
         /// <summary>The production probe: Godot's <see cref="Input"/> singleton.</summary>
         private sealed class GodotInputDeviceProbe : IInputDeviceProbe {
