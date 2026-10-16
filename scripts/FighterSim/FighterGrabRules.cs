@@ -73,17 +73,23 @@ namespace FTT.FighterSim {
         /// grabbing or held. Combat and movement update 2026-10-16: never during
         /// the landing tech's lock (1.1(3), plan §2.1.3) or the fighter's own
         /// Special cast (1.2, plan §2.1.6) — the second gates behind the input
-        /// discards.
+        /// discards. Fix round A (CM-FIXA-SIM): nor during the M05 knockdown and
+        /// its get-up (component 320) or the fighter's own Ultimate (A02,
+        /// component 321), whose discards a hitstop thaw tick does not reach.
         /// </summary>
         public static bool CanStartGrab(
             in FighterStateComponent fighter,
             in FighterRuntimeComponent runtime,
             in FighterVerbComponent verb,
-            in FighterActionStateComponent action) =>
+            in FighterActionStateComponent action,
+            in FighterKnockdownComponent knockdown,
+            in FighterUltimateActivationComponent activation) =>
             verb.GrabPhase == PhaseNone
             && verb.BeingHeld == 0
             && verb.TechLockoutFrames <= 0
             && !FighterSpecialCastRules.IsBusy(in action)
+            && !FighterKnockdownRules.IsActive(in knockdown)
+            && !FighterUltimateActivationRules.IsCasterBusy(in activation)
             // V7.3 shieldstun locks the stance up completely — including the
             // grab chord out of it.
             && verb.ShieldStunFrames <= 0

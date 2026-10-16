@@ -112,6 +112,45 @@ public class ShieldBreakerTimingTests {
             AssertThat(ultimateOn >= free)
                 .OverrideFailureMessage($"{name}: the attacker was free on T+{ultimateOn}, before T+S+A+R = T+{free}.")
                 .IsTrue();
+
+            // Fix round A (CM-FIXA-SIM, ruling (d)): the recovery Block cancel
+            // is the attacker's one exit, and its tick raises the stance and
+            // nothing else — Block+Roll or Block+Jump on recovery frame 0
+            // neither rolls nor jumps (Story's Block cancel drops both). Divine
+            // Piercing and Splitting Strike shatter the held stance inside their
+            // active window, so their frame 0 comes after the shatter freeze;
+            // The Emancipator's wave reaches the stance after its caster is
+            // already in recovery, so its frame 0 comes before the shatter.
+            var exits = new (string Verb, GameplayButtons Press, System.Func<FighterSimulation, bool> Started)[] {
+                ("a roll", GameplayButtons.Roll, sim => sim.TryGetFighterRuntime(0, out FighterRuntimeComponent r) && r.UniversalMovementState != 0),
+                ("a jump", GameplayButtons.Jump, sim => sim.TryGetFighter(0, out FighterStateComponent f) && f.IsGrounded == 0)
+            };
+            foreach ((string verbName, GameplayButtons press, System.Func<FighterSimulation, bool> started) in exits) {
+                FighterSimulation cancel = NewMatch(hero, spawnDistance, seed: 11003);
+                // The blocker raises the stance before the press and holds it.
+                cancel.Advance(Neutral(), Held(GameplayButtons.Block));
+                cancel.Advance(In(SlotButton(slot)), Held(GameplayButtons.Block));
+                bool pressed = false;
+                for (int step = 0; step < 200 && !pressed; step++) {
+                    FighterActionStateComponent cast = Cast(cancel);
+                    AssertThat(cancel.TryGetFighterVerb(0, out FighterVerbComponent verb)).IsTrue();
+                    // The next unfrozen tick moves the cast from Active to recovery frame 0.
+                    pressed = FighterSpecialCastRules.IsActive(in cast) && cast.SpecialPhaseFrames == 1 && verb.HitstopFrames == 0;
+                    cancel.Advance(
+                        pressed ? new PlayerInputFrame { Pressed = press, Held = press | GameplayButtons.Block } : Neutral(),
+                        Held(GameplayButtons.Block));
+                }
+                AssertThat(pressed).OverrideFailureMessage($"Harness ({name}): the cast never reached its recovery.").IsTrue();
+                AssertThat(cancel.TryGetFighter(0, out FighterStateComponent attacker)).IsTrue();
+                AssertThat(cancel.TryGetFighterRuntime(0, out FighterRuntimeComponent attackerRuntime)).IsTrue();
+                AssertThat(cancel.TryGetFighterVerb(0, out FighterVerbComponent attackerVerb)).IsTrue();
+                AssertThat(FighterBasicAttackRules.IsBlockStance(in attacker, in attackerRuntime, in attackerVerb))
+                    .OverrideFailureMessage($"{name}: the Block cancel must raise the stance on recovery frame 0.")
+                    .IsTrue();
+                AssertThat(started(cancel))
+                    .OverrideFailureMessage($"{name}: {verbName} started on the Block-cancel tick after a blocked shatter.")
+                    .IsFalse();
+            }
         }
     }
 

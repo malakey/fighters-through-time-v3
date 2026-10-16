@@ -318,11 +318,270 @@ public class FighterKnockdownTests {
         }
     }
 
+    // === Fix round A (CM-FIXA-SIM): the knockdown locks every action ===
+
+    /// <summary>The verbs a downed fighter presses: the name, the press, and what is held with it.</summary>
+    private static readonly (string Name, GameplayButtons Pressed, GameplayButtons Held)[] DownedVerbs = {
+        ("Special 1", GameplayButtons.Special1, GameplayButtons.Special1),
+        ("Special 2", GameplayButtons.Special2, GameplayButtons.Special2),
+        ("the movement ability", GameplayButtons.MovementAbility, GameplayButtons.MovementAbility),
+        ("the direct grab", GameplayButtons.Grab, GameplayButtons.Grab),
+        ("a paid Ultimate", GameplayButtons.Ultimate, GameplayButtons.Ultimate)
+    };
+
+    /// <summary>
+    /// Fix round A (the knockdown landing tick L): a missed tech locks every
+    /// action from L itself — the ability, combat and grab systems read L's
+    /// presses after the landing resolves. Each verb pressed on L starts
+    /// nothing, and Special 1 (a clocked 8 / 2 / 6 area cast here) never begins,
+    /// so no effect fires from the downed fighter through the whole knockdown
+    /// and get-up. Holding Block on L would tech instead, so the grab chord has
+    /// no knockdown landing tick.
+    /// </summary>
+    [TestCase]
+    public void NoVerbStartsOnAMissedTechsLandingTickAndNoCastRunsThroughTheKnockdown() {
+        FighterSimulation dry = ClockedVictimSimulation(seed: 54);
+        AssertThat(dry.SeedFighterInfluenceForTest(1, 100)).IsTrue();
+        int landing = LandWithoutTech(dry);
+        foreach ((string name, GameplayButtons pressed, GameplayButtons held) in DownedVerbs) {
+            FighterSimulation simulation = ClockedVictimSimulation(seed: 54);
+            AssertThat(simulation.SeedFighterInfluenceForTest(1, 100)).IsTrue();
+            simulation.Advance(Frame(0, GameplayButtons.Special1), Frame(0, GameplayButtons.None));
+            int tick = 1;
+            for (; tick < landing; tick++) {
+                simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
+            }
+            simulation.Advance(Frame(tick, GameplayButtons.None), Pressing(tick, pressed, held));
+            AssertThat(simulation.TryGetFighterKnockdown(1, out FighterKnockdownComponent landed)).IsTrue();
+            AssertThat(FighterKnockdownRules.IsDown(in landed))
+                .OverrideFailureMessage($"Harness: the {name} run did not miss the tech on the probe's landing tick.")
+                .IsTrue();
+            AssertThat(VictimVerbStarted(simulation, pressed, held))
+                .OverrideFailureMessage($"{name} started on the knockdown's own landing tick.")
+                .IsFalse();
+            for (int frame = 1; frame <= BasicComboRules.KnockdownFrames + BasicComboRules.NeutralGetUpFrames; frame++) {
+                tick++;
+                simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
+                AssertThat(simulation.ZoneCount + simulation.ProjectileCount)
+                    .OverrideFailureMessage($"{name}: an effect fired from the downed fighter on knockdown tick L+{frame}.")
+                    .IsEqual(0);
+                AssertThat(simulation.TryGetFighterActionState(1, out FighterActionStateComponent cast)).IsTrue();
+                AssertThat(FighterSpecialCastRules.IsBusy(in cast))
+                    .OverrideFailureMessage($"{name}: a cast ran on knockdown tick L+{frame}.")
+                    .IsFalse();
+            }
+        }
+    }
+
+    /// <summary>The verbs pressed on a downed fighter's hitstop thaw tick: the name, the press, and what is held.</summary>
+    private static readonly (string Name, GameplayButtons Pressed, GameplayButtons Held)[] ThawVerbs = {
+        ("Special 2", GameplayButtons.Special2, GameplayButtons.Special2),
+        ("the movement ability", GameplayButtons.MovementAbility, GameplayButtons.MovementAbility),
+        ("the direct grab", GameplayButtons.Grab, GameplayButtons.Grab),
+        ("the grab chord", GameplayButtons.BasicAttack, GameplayButtons.Block | GameplayButtons.BasicAttack),
+        ("a paid Ultimate", GameplayButtons.Ultimate, GameplayButtons.Ultimate),
+        ("held Block", GameplayButtons.None, GameplayButtons.Block)
+    };
+
+    /// <summary>
+    /// Fix round A (the knockdown's second entry path): the downed fighter's
+    /// own slow shot, fired before the launch, reaches the opponent while it is
+    /// down or getting up and freezes it (the owner of a landed projectile takes
+    /// the hitstop). The hitstop branch runs before the knockdown branch, so the
+    /// thaw tick — whose presses the ability and combat systems read — has to
+    /// hold the lock itself: no Special, movement ability, grab, Ultimate or
+    /// block stance starts there.
+    /// </summary>
+    [TestCase]
+    public void NoVerbStartsOnAHitstopThawTickInsideTheKnockdownOrItsGetUp() {
+        int fireTick = -1;
+        int thawTick = -1;
+        for (int candidate = 0; candidate <= 140 && thawTick < 0; candidate++) {
+            thawTick = FindKnockdownThawTick(candidate);
+            if (thawTick >= 0) fireTick = candidate;
+        }
+        AssertThat(thawTick >= 0)
+            .OverrideFailureMessage("Harness: no run froze the downed fighter with its own shot.")
+            .IsTrue();
+
+        foreach ((string name, GameplayButtons pressed, GameplayButtons held) in ThawVerbs) {
+            FighterSimulation simulation = ShotSimulation();
+            AssertThat(simulation.SeedFighterInfluenceForTest(1, 100)).IsTrue();
+            for (int tick = 0; tick < thawTick; tick++) {
+                simulation.Advance(LaunchShotFrame(tick, fireTick), SlowShotFrame(tick));
+            }
+            AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent frozen)).IsTrue();
+            AssertThat(frozen.HitstopFrames)
+                .OverrideFailureMessage($"Harness: the {name} run did not reach the thaw tick frozen.")
+                .IsEqual(1);
+            simulation.Advance(LaunchShotFrame(thawTick, fireTick), Pressing(thawTick, pressed, held));
+            AssertThat(simulation.TryGetFighterKnockdown(1, out FighterKnockdownComponent knockdown)).IsTrue();
+            AssertThat(FighterKnockdownRules.IsActive(in knockdown))
+                .OverrideFailureMessage($"Harness: the {name} thaw tick fell outside the knockdown.")
+                .IsTrue();
+            AssertThat(VictimVerbStarted(simulation, pressed, held))
+                .OverrideFailureMessage($"{name} started on a hitstop thaw tick inside the knockdown.")
+                .IsFalse();
+        }
+    }
+
+    /// <summary>
+    /// Fix round A: the knockdown's thaw-tick lock discards buttons, never the
+    /// stick. A launching hit during the (vulnerable) get-up freezes the victim
+    /// while the knockdown is still marked active, and its DI is read from the
+    /// stick on that freeze's thaw tick: holding Up there must still bend the
+    /// launch, by angle only.
+    /// </summary>
+    [TestCase]
+    public void AHitDuringTheGetUpKeepsTheVictimsDiRead() {
+        FighterSimulation neutral = LaunchedSimulation(seed: 55, specialOneCooldownFrames: 1);
+        FighterSimulation influenced = LaunchedSimulation(seed: 55, specialOneCooldownFrames: 1);
+        int landing = LandWithoutTech(neutral);
+        AssertThat(LandWithoutTech(influenced)).IsEqual(landing);
+
+        // The attacker walks up during the knockdown and stops in reach.
+        int tick = landing;
+        for (int frame = 1; frame <= BasicComboRules.KnockdownFrames; frame++) {
+            tick++;
+            AssertThat(neutral.TryGetFighter(0, out FighterStateComponent attacker)).IsTrue();
+            AssertThat(neutral.TryGetFighter(1, out FighterStateComponent victim)).IsTrue();
+            sbyte walk = victim.Position.x - attacker.Position.x > FP64.FromDouble(1.2) ? (sbyte)127 : (sbyte)0;
+            neutral.Advance(Frame(tick, GameplayButtons.None, walk), Frame(tick, GameplayButtons.None));
+            influenced.Advance(Frame(tick, GameplayButtons.None, walk), Frame(tick, GameplayButtons.None));
+        }
+        AssertThat(neutral.TryGetFighterKnockdown(1, out FighterKnockdownComponent gettingUp)).IsTrue();
+        AssertThat(gettingUp.GetUpKind)
+            .OverrideFailureMessage("Harness: the neutral get-up must follow.")
+            .IsEqual(BasicComboRules.GetUpNeutral);
+
+        // Get-up frame 1: the launcher lands; the influenced victim holds Up
+        // from here through the freeze.
+        bool compared = false;
+        for (int frame = 1; frame <= 30 && !compared; frame++) {
+            tick++;
+            GameplayButtons press = frame == 1 ? GameplayButtons.Special1 : GameplayButtons.None;
+            neutral.Advance(Frame(tick, press), Frame(tick, GameplayButtons.None));
+            influenced.Advance(Frame(tick, press), FrameStick(tick, moveY: -127));
+            AssertThat(neutral.TryGetFighterVerb(1, out FighterVerbComponent verb)).IsTrue();
+            AssertThat(neutral.TryGetFighter(1, out FighterStateComponent struck)).IsTrue();
+            if (frame == 1) {
+                AssertThat(verb.HitstopFrames > 0 && struck.HitstunFrames > 0)
+                    .OverrideFailureMessage("Harness: the launcher must land on get-up frame 1.")
+                    .IsTrue();
+                AssertThat(influenced.TryGetFighterKnockdown(1, out FighterKnockdownComponent marked)).IsTrue();
+                AssertThat(FighterKnockdownRules.IsActive(in marked))
+                    .OverrideFailureMessage("Harness: the knockdown stays marked through the freeze.")
+                    .IsTrue();
+                continue;
+            }
+            if (verb.HitstopFrames != 0) continue;
+            compared = true;
+            AssertThat(influenced.TryGetFighter(1, out FighterStateComponent bent)).IsTrue();
+            AssertThat(bent.Velocity.y > struck.Velocity.y)
+                .OverrideFailureMessage("Holding Up through a get-up hit's freeze must bend its launch upward.")
+                .IsTrue();
+            float plainSquared = Square(struck.Velocity.x) + Square(struck.Velocity.y);
+            float bentSquared = Square(bent.Velocity.x) + Square(bent.Velocity.y);
+            AssertThat(System.MathF.Abs(plainSquared - bentSquared) < plainSquared * 0.01f)
+                .OverrideFailureMessage("DI never changes the launch magnitude.")
+                .IsTrue();
+        }
+        AssertThat(compared).OverrideFailureMessage("Harness: the get-up hit's freeze never ended.").IsTrue();
+    }
+
+    /// <summary>
+    /// One dry run of the own-shot scenario with the attacker's launcher fired
+    /// on <paramref name="fireTick"/>: returns the first tick on which the
+    /// victim starts frozen on the freeze's last tick (HitstopFrames 1) while
+    /// down or getting up, or -1.
+    /// </summary>
+    private static int FindKnockdownThawTick(int fireTick) {
+        FighterSimulation simulation = ShotSimulation();
+        AssertThat(simulation.SeedFighterInfluenceForTest(1, 100)).IsTrue();
+        for (int tick = 0; tick < 320; tick++) {
+            simulation.TryGetFighterVerb(1, out FighterVerbComponent verb);
+            simulation.TryGetFighterKnockdown(1, out FighterKnockdownComponent knockdown);
+            if (verb.HitstopFrames == 1 && FighterKnockdownRules.IsActive(in knockdown)) return tick;
+            simulation.Advance(LaunchShotFrame(tick, fireTick), SlowShotFrame(tick));
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// Eight units apart: player one owns a fast launching shot (30 u/s, the
+    /// 40-frame tumble), player two a slow non-launching one (3 u/s) it fires
+    /// on tick 0, which reaches player one about 130 ticks later.
+    /// </summary>
+    private static FighterSimulation ShotSimulation() => new(
+        Loadout(FighterAbilityLoadout.Default with {
+            SpecialOneExecutionType = 1,
+            SpecialOneProjectileSpeed = FP64.FromInt(30),
+            SpecialOneProjectileLifetimeFrames = 120,
+            SpecialOneHit = FighterAbilityHitData.DefaultSpecial with { HitstunFrames = 40, Launches = true }
+        }),
+        Loadout(FighterAbilityLoadout.Default with {
+            SpecialOneExecutionType = 1,
+            SpecialOneProjectileSpeed = FP64.FromInt(3),
+            SpecialOneProjectileLifetimeFrames = 300,
+            SpecialOneHit = FighterAbilityHitData.DefaultSpecial with { Launches = false }
+        }, FighterCharacterID.Joan),
+        seed: 56, spawnDistance: 4, rules: FighterMatchRules.Disabled);
+
+    private static PlayerInputFrame LaunchShotFrame(int tick, int fireTick) =>
+        Frame(tick, tick == fireTick ? GameplayButtons.Special1 : GameplayButtons.None);
+
+    private static PlayerInputFrame SlowShotFrame(int tick) =>
+        Frame(tick, tick == 0 ? GameplayButtons.Special1 : GameplayButtons.None);
+
+    /// <summary>
+    /// <see cref="LaunchedSimulation(int, int)"/> with player two's Special 1
+    /// a clocked 8 / 2 / 6 area cast, so a cast begun on the landing tick would
+    /// run on through the knockdown.
+    /// </summary>
+    private static FighterSimulation ClockedVictimSimulation(int seed) => new(
+        Loadout(LauncherModes(launches: true, hitstunFrames: 40)),
+        Loadout(FighterAbilityLoadout.Default with {
+            SpecialOneHit = FighterAbilityHitData.DefaultSpecial with {
+                StartupFrames = 8, ActiveFrames = 2, RecoveryFrames = 6, TotalFrames = 16
+            }
+        }, FighterCharacterID.Joan),
+        seed: seed, spawnDistance: 1, rules: FighterMatchRules.Disabled);
+
+    /// <summary>Whether the verb player two pressed started: its cost is spent, its phase began, or the stance rose.</summary>
+    private static bool VictimVerbStarted(FighterSimulation simulation, GameplayButtons pressed, GameplayButtons held) {
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent fighter)).IsTrue();
+        AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)).IsTrue();
+        AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent verb)).IsTrue();
+        AssertThat(simulation.TryGetFighterUltimateActivation(1, out FighterUltimateActivationComponent activation)).IsTrue();
+        AssertThat(simulation.TryGetFighterActionState(1, out FighterActionStateComponent cast)).IsTrue();
+        if ((pressed & GameplayButtons.Special1) != 0) {
+            return runtime.SpecialOneCooldownFrames > 0 || FighterSpecialCastRules.IsBusy(in cast);
+        }
+        if ((pressed & GameplayButtons.Special2) != 0) {
+            return runtime.SpecialTwoCooldownFrames > 0 || FighterSpecialCastRules.IsBusy(in cast);
+        }
+        if ((pressed & GameplayButtons.MovementAbility) != 0) return runtime.MovementCooldownFrames > 0;
+        if ((pressed & GameplayButtons.Ultimate) != 0) return activation.Phase != FighterUltimateActivationRules.PhaseNone;
+        if ((pressed & GameplayButtons.Grab) != 0 || (pressed & GameplayButtons.BasicAttack) != 0) return verb.GrabPhase != 0;
+        return (held & GameplayButtons.Block) != 0 && FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb);
+    }
+
+    private static PlayerInputFrame Pressing(int tick, GameplayButtons pressed, GameplayButtons held) => new() {
+        Tick = (uint)tick,
+        Held = held,
+        Pressed = pressed
+    };
+
+    private static PlayerInputFrame FrameStick(int tick, sbyte moveY) => new() {
+        Tick = (uint)tick,
+        MoveY = moveY
+    };
+
     // === Harness ===
 
     /// <summary>A simulation whose player one owns a launching melee Special 1.</summary>
-    private static FighterSimulation LaunchedSimulation(int seed) => new(
-        Loadout(LauncherModes(launches: true, hitstunFrames: 40)),
+    private static FighterSimulation LaunchedSimulation(int seed, int specialOneCooldownFrames = 600) => new(
+        Loadout(LauncherModes(launches: true, hitstunFrames: 40), specialOneCooldownFrames: specialOneCooldownFrames),
         FighterLoadout.Default(FighterCharacterID.Joan),
         seed: seed, spawnDistance: 1, rules: FighterMatchRules.Disabled);
 
@@ -429,12 +688,15 @@ public class FighterKnockdownTests {
             }
         };
 
-    /// <summary>The Default kit's numbers with the given ability modes.</summary>
-    private static FighterLoadout Loadout(FighterAbilityLoadout modes) => new(
-        (int)FighterCharacterID.Einstein,
+    /// <summary>The Default kit's numbers with the given ability modes (and, optionally, character and Special 1 cooldown).</summary>
+    private static FighterLoadout Loadout(
+        FighterAbilityLoadout modes,
+        FighterCharacterID characterID = FighterCharacterID.Einstein,
+        int specialOneCooldownFrames = 600) => new(
+        (int)characterID,
         100, 3, 2,
         10, 14, 12, 20,
-        600, 600,
+        specialOneCooldownFrames, 600,
         (int)StatusType.None, 0,
         (int)StatusType.None, 0,
         (int)StatusType.None, 0,

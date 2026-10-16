@@ -96,9 +96,11 @@ namespace FTT.FighterSim {
         /// <summary>
         /// Classifies one fighter's tick from its pre-tick
         /// <paramref name="before"/> and its post-tick components.
-        /// <paramref name="actionState"/> is the post-tick component 323; a
-        /// caller without it passes nothing (all zero, no cast), which is safe
-        /// because a busy caster's presses are discarded before the read.
+        /// <paramref name="actionState"/> is the post-tick component 323 and
+        /// <paramref name="knockdown"/> the post-tick component 320; a caller
+        /// without them passes nothing (all zero: no cast, not down), which is
+        /// safe because a busy caster's and a downed fighter's buttons are
+        /// discarded before the read (fix round A: on their hitstop ticks too).
         /// </summary>
         public static FighterLockoutRefusal Evaluate(
             in LockoutRefusalBaseline before,
@@ -106,7 +108,8 @@ namespace FTT.FighterSim {
             in FighterRuntimeComponent runtime,
             in FighterVerbComponent verb,
             in FighterUltimateActivationComponent activation,
-            in FighterActionStateComponent actionState = default) {
+            in FighterActionStateComponent actionState = default,
+            in FighterKnockdownComponent knockdown = default) {
 
             // 1. Frozen at tick start and not on the freeze's last tick: no
             // system read a press (the last tick, 1 → 0, is read).
@@ -129,7 +132,8 @@ namespace FTT.FighterSim {
             if ((pressed & (SpecialOneButton | SpecialTwoButton | UltimateButton)) == 0) {
                 return FighterLockoutRefusal.None;
             }
-            if (!FighterAbilityLockoutRules.CanReadAbilityPress(in fighter, in runtime, in verb, in actionState)
+            if (!FighterAbilityLockoutRules.CanReadAbilityPress(
+                    in fighter, in runtime, in verb, in actionState, in knockdown, in activation)
                 || FighterMatchFlowRules.IsOnRespawnPlatform(in fighter)
                 || FighterUltimateActivationRules.IsCaptured(in activation)
                 || FighterUltimateActivationRules.IsCasterBusy(in activation)) {

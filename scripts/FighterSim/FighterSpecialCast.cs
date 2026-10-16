@@ -107,9 +107,10 @@ namespace FTT.FighterSim {
     /// predicate (<c>FighterCombatSystem.UltimatePressPayable</c>).</para>
     ///
     /// <para><b>Interrupts.</b> Hitstun, daze, a grab on either side, an
-    /// activation-strike capture, a stock loss or the respawn platform end the
-    /// cast (<see cref="ClearIfInterrupted"/>): the cooldown and lockout stay
-    /// spent, what already spawned survives, an unfired effect never fires.</para>
+    /// activation-strike capture, a knockdown or its get-up (fix round A), a
+    /// stock loss or the respawn platform end the cast
+    /// (<see cref="ClearIfInterrupted"/>): the cooldown and lockout stay spent,
+    /// what already spawned survives, an unfired effect never fires.</para>
     /// </summary>
     public static class FighterSpecialCastRules {
         public const int PhaseNone = 0;
@@ -207,13 +208,18 @@ namespace FTT.FighterSim {
             }
         }
 
-        /// <summary>Tubman's Foresight: the stance runs on component 322; this records the cast.</summary>
-        public static void BeginDelegated(ref FighterActionStateComponent cast, int slot) {
+        /// <summary>
+        /// Tubman's Foresight: the stance runs on component 322; this records the
+        /// cast. Fix round A (CM-FIXA-SIM): an airborne Foresight records
+        /// <see cref="FlagStartedAerial"/> like any other Special, so it falls at
+        /// the aerial-Special half gravity through its startup and window.
+        /// </summary>
+        public static void BeginDelegated(ref FighterActionStateComponent cast, int slot, bool startedAerial) {
             cast.SpecialSlot = slot;
             cast.SpecialPhase = PhaseDelegated;
             cast.SpecialPhaseFrames = 0;
             cast.SpecialPhaseElapsed = 0;
-            cast.SpecialFlags = 0;
+            cast.SpecialFlags = startedAerial ? FlagStartedAerial : 0;
         }
 
         /// <summary>
@@ -259,13 +265,21 @@ namespace FTT.FighterSim {
             cast.SpecialFlags = 0;
         }
 
-        /// <summary>The interrupt set: hitstun, daze, a grab on either side, a capture, out of stocks, the respawn platform.</summary>
+        /// <summary>
+        /// The interrupt set: hitstun, daze, a grab on either side, a capture,
+        /// out of stocks, the respawn platform — and (fix round A, CM-FIXA-SIM)
+        /// the M05 knockdown or its get-up (<paramref name="knockedDown"/>,
+        /// <c>FighterKnockdownRules.IsActive</c> on component 320): a downed
+        /// fighter takes no action, so a cast never runs through a knockdown and
+        /// its effect never fires from the floor.
+        /// </summary>
         public static bool IsInterrupted(
-            in FighterStateComponent fighter, in FighterVerbComponent verb, bool captured) =>
+            in FighterStateComponent fighter, in FighterVerbComponent verb, bool captured, bool knockedDown) =>
             fighter.HitstunFrames > 0
             || fighter.DazeFrames > 0
             || FighterGrabRules.IsBusy(in verb)
             || captured
+            || knockedDown
             || fighter.Stocks <= 0
             || FighterMatchFlowRules.IsOnRespawnPlatform(in fighter);
 
@@ -274,8 +288,9 @@ namespace FTT.FighterSim {
             ref FighterActionStateComponent cast,
             in FighterStateComponent fighter,
             in FighterVerbComponent verb,
-            bool captured) {
-            if (!IsBusy(in cast) || !IsInterrupted(in fighter, in verb, captured)) return false;
+            bool captured,
+            bool knockedDown) {
+            if (!IsBusy(in cast) || !IsInterrupted(in fighter, in verb, captured, knockedDown)) return false;
             Clear(ref cast);
             return true;
         }

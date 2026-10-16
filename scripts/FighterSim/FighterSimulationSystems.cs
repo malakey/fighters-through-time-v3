@@ -310,6 +310,12 @@ namespace FTT.FighterSim {
                 ref FighterVerbComponent verb = ref frame.Get<FighterVerbComponent>(entity);
                 // Combat and movement update (plan §1.5): component 323.
                 ref FighterActionStateComponent action = ref frame.Get<FighterActionStateComponent>(entity);
+                // A02 (Package 13 W6, component 321) and the M05 knockdown
+                // (Package 12 W3b, component 320), read above the hitstop gate:
+                // its frozen ticks hold both action locks too (fix round A).
+                ref FighterUltimateActivationComponent ultimateActivation =
+                    ref frame.Get<FighterUltimateActivationComponent>(entity);
+                ref FighterKnockdownComponent knockdown = ref frame.Get<FighterKnockdownComponent>(entity);
 
                 // V7.6 Echo Step history (Package 11 A1c): exactly one sample per
                 // authoritative tick, recorded HERE — above the hitstop
@@ -342,8 +348,8 @@ namespace FTT.FighterSim {
                     // feed call goes before this line, after the two buffers.
                     FighterSpecialCastRules.ClearIfInterrupted(
                         ref action, in fighter, in verb,
-                        FighterUltimateActivationRules.IsCaptured(
-                            in frame.GetReadOnly<FighterUltimateActivationComponent>(entity)));
+                        FighterUltimateActivationRules.IsCaptured(in ultimateActivation),
+                        FighterKnockdownRules.IsActive(in knockdown));
                     if (FighterSpecialCastRules.IsBusy(in action)) {
                         FighterUltimateActivationRules.DiscardInput(ref runtime);
                     }
@@ -354,6 +360,25 @@ namespace FTT.FighterSim {
                         // tick's presses (HitstopFrames is 0 for them), so the held
                         // press joins them here and the ordinary gates decide it.
                         FighterAbilityLockoutRules.ReleaseFreezeBuffer(ref runtime);
+                    }
+                    // Fix round A (CM-FIXA-SIM, rulings (a) and (c)): the M05
+                    // knockdown and its get-up, and the fighter's own Ultimate
+                    // (A02: wind-up, active, whiff recovery, cinematic), are
+                    // action-locked on every frozen tick too — the thaw tick
+                    // included, whose presses the ability and combat systems read
+                    // and whose held Block would raise the stance there. A downed
+                    // fighter's own landed shot, or an Ultimate caster's, freezes
+                    // it with no hit on it at all. Their branches below never run
+                    // on a frozen tick, so the lock is held here: buttons only,
+                    // after the DI read and the freeze-buffer release. The stick
+                    // survives — a hit during the get-up or the whiff recovery
+                    // freezes its victim with the knockdown or the activation
+                    // still marked, and that freeze's DI is read from the stick.
+                    // CanReadAbilityPress, CanStartGrab and UltimatePressPayable
+                    // are the second gates.
+                    if (FighterKnockdownRules.IsActive(in knockdown)
+                        || FighterUltimateActivationRules.IsCasterBusy(in ultimateActivation)) {
+                        FighterUltimateActivationRules.DiscardButtons(ref runtime);
                     }
                     continue;
                 }
@@ -375,8 +400,6 @@ namespace FTT.FighterSim {
                 // opponent's Ultimate cinematic takes no input and does not move
                 // until the combat system releases the hold. Their statuses and
                 // cooldowns keep ticking; a lethal tick hands them to the respawn.
-                ref FighterUltimateActivationComponent ultimateActivation =
-                    ref frame.Get<FighterUltimateActivationComponent>(entity);
                 // Package 13 W5 (component 322): Tubman's Foresight stance clock,
                 // after the hitstop gate. A hit, grab, capture or stock loss ends it.
                 ref FighterCounterComponent counter = ref frame.Get<FighterCounterComponent>(entity);
@@ -388,7 +411,8 @@ namespace FTT.FighterSim {
                 // set ends it first (the cost stays spent; an unfired effect never
                 // fires). A Delegated cast (Foresight) ends with its 322 stance.
                 AdvanceSpecialCast(ref frame, entity, ref fighter, ref runtime, in verb, ref action,
-                    in counter, FighterUltimateActivationRules.IsCaptured(in ultimateActivation));
+                    in counter, FighterUltimateActivationRules.IsCaptured(in ultimateActivation),
+                    FighterKnockdownRules.IsActive(in knockdown));
                 if (FighterUltimateActivationRules.IsCaptured(in ultimateActivation)) {
                     ref FighterDefenseComponent capturedDefense = ref frame.Get<FighterDefenseComponent>(entity);
                     TickCounters(ref fighter, ref runtime, ref verb, ref capturedDefense, in tuning);
@@ -413,7 +437,6 @@ namespace FTT.FighterSim {
                 // shared InvulnerabilityFrames grant) and takes no action; the
                 // get-up that follows is vulnerable and just as locked. A hit
                 // during the get-up (or a stock loss) ends the sub-phase.
-                ref FighterKnockdownComponent knockdown = ref frame.Get<FighterKnockdownComponent>(entity);
                 FighterKnockdownRules.ClearIfInterrupted(in fighter, ref knockdown);
                 // A12 (Package 13 W1): a bounce whose tumble ended another way is
                 // dropped. A03: a stock loss refreshes the air dodge (the
@@ -456,8 +479,16 @@ namespace FTT.FighterSim {
                 // grab systems read it (the knockdown branch's rule), so no
                 // Special, movement ability, paid Ultimate or grab starts during
                 // the tech, and the D10 classifier sees no press.
+                // Fix round A (CM-FIXA-SIM, ruling (b)): the invulnerability
+                // counts down WITH the lock (the knockdown branch's pattern) — the
+                // normal path's decrement below never runs during the tech, so the
+                // grant used to sit frozen through the lock and then outlive it by
+                // 11 actionable ticks. TryLandingTech grants the lock + 1 (the
+                // landing tick's own combat pass), so the two end together:
+                // invulnerable on L..L+12, hittable and free on L+13.
                 if (verb.TechLockoutFrames > 0) {
                     verb.TechLockoutFrames--;
+                    if (fighter.InvulnerabilityFrames > 0) fighter.InvulnerabilityFrames--;
                     fighter.Velocity = FPVector2.Zero;
                     FighterUltimateActivationRules.DiscardInput(ref runtime);
                     TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning);
@@ -478,13 +509,21 @@ namespace FTT.FighterSim {
                 // discarded on every tick before any verb (or the block-regen
                 // stance read in TickCounters) sees it. The one exit is the
                 // grounded recovery Block cancel (Story's Package 12 W3 rule),
-                // which clears the cast and keeps this tick's input so the stance
-                // rises now. Phase B: CM-CANCEL's D3 fires here, after the Block
-                // cancel.
+                // which clears the cast and keeps this tick's held input so the
+                // stance rises now. Fix round A (CM-FIXA-SIM, ruling (d)): that
+                // tick raises the stance and nothing else — its presses are masked
+                // to the Block bit (the held buttons and the stick stay), so a
+                // roll, jump, drop-through, swing, grab, Echo Step, movement
+                // ability, Special or Ultimate needs a fresh press from the next
+                // tick, as Story's Block cancel enters Blocking and returns.
+                // Phase B: CM-CANCEL's D3 resolves BEFORE this mask, and never on
+                // a tick the Block cancel won (Story's Block branch returns
+                // before TryFireSpecialCancel).
                 if (FighterSpecialCastRules.IsBusy(in action)) {
                     if (FighterSpecialCastRules.IsRecovery(in action)
                         && FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb)) {
                         FighterSpecialCastRules.Clear(ref action);
+                        runtime.PressedButtons &= BlockButton;
                     } else {
                         FighterUltimateActivationRules.DiscardInput(ref runtime);
                     }
@@ -650,8 +689,14 @@ namespace FTT.FighterSim {
                                 in tuning,
                                 statusMoveMultiplier * speedBuffMultiplier);
                     // Q1 (2026-10-16): an airborne Special cast keeps its drift
-                    // and skips air control; a grounded one brakes to a stop.
-                    if (!movementHandled && !CastKeepsAirDrift(in action, in fighter)) {
+                    // and skips air control; a grounded one brakes to a stop. A
+                    // kit that writes its own velocity overrides that: Tubman's
+                    // Foresight plants its stance (X 0) on every tick its 322
+                    // stance is busy, grounded and airborne, as Story's
+                    // TubmanForesight does on every executing tick (fix round A).
+                    if (!movementHandled && FighterForesightRules.IsBusy(in counter)) {
+                        fighter.Velocity.x = FP64.Zero;
+                    } else if (!movementHandled && !CastKeepsAirDrift(in action, in fighter)) {
                         ApplyNormalMovement(
                             ref fighter,
                             ref runtime,
@@ -711,8 +756,9 @@ namespace FTT.FighterSim {
                         bool jumpedThisAirtime = FighterAirPhysics.HasJumpedThisAirtime(
                             fighter.RemainingJumps, tuning.MaxJumpCount);
                         // Decision 1.2: a cast that started airborne falls at
-                        // half gravity through its startup and active frames.
-                        fighter.Velocity.y = CastHalvesGravity(in action)
+                        // half gravity through its startup and active frames
+                        // (Foresight's through its startup and window).
+                        fighter.Velocity.y = CastHalvesGravity(in action, in counter)
                             ? FighterAirPhysics.StepMovement(
                                 fighter.Velocity.y,
                                 fastFalling,
@@ -800,12 +846,18 @@ namespace FTT.FighterSim {
                 // 1.1(3) (plan §2.1.3): the tech's own landing tick L takes no
                 // action either — its presses are discarded here, before the
                 // ability, combat and grab systems read them.
+                // Fix round A (CM-FIXA-SIM, ruling (a)): the missed tech's own
+                // landing tick L takes no action either — its buttons are
+                // discarded here (the knockdown branch's rule; the stick, which
+                // chooses the get-up, survives), and CanReadAbilityPress,
+                // CanStartGrab and UltimatePressPayable refuse while the
+                // knockdown is active.
                 if (wasAirborne && fighter.IsGrounded != 0
                     && !FighterSlamRules.TryBounce(ref fighter, in runtime, ref verb, ref knockdown)) {
                     if (FighterVerbRules.TryLandingTech(ref fighter, in runtime, ref verb)) {
                         FighterUltimateActivationRules.DiscardInput(ref runtime);
-                    } else {
-                        FighterKnockdownRules.TryBeginKnockdown(ref fighter, ref verb, ref knockdown);
+                    } else if (FighterKnockdownRules.TryBeginKnockdown(ref fighter, ref verb, ref knockdown)) {
+                        FighterUltimateActivationRules.DiscardButtons(ref runtime);
                     }
                 }
 
@@ -1432,7 +1484,9 @@ namespace FTT.FighterSim {
                     rollPressed: (runtime.PressedButtons & RollButton) != 0,
                     basicPressed: (runtime.PressedButtons & BasicButton) != 0,
                     grabLegal: FighterGrabRules.CanStartGrab(
-                        in fighter, in runtime, in verb, in frame.GetReadOnly<FighterActionStateComponent>(entity)),
+                        in fighter, in runtime, in verb, in frame.GetReadOnly<FighterActionStateComponent>(entity),
+                        in frame.GetReadOnly<FighterKnockdownComponent>(entity),
+                        in frame.GetReadOnly<FighterUltimateActivationComponent>(entity)),
                     echoLegal: echoLegal);
             bool requested =
                 directRequest || chosen == FTT.Combat.BasicComboRules.RecoveryVerb.EchoStep;
@@ -1868,11 +1922,17 @@ namespace FTT.FighterSim {
             ref FighterActionStateComponent actionTwo = ref frame.Get<FighterActionStateComponent>(second);
 
             // V7.2 grabs & throws advance before every other action: a fighter
-            // mid-grab or held takes no other offensive action this tick.
+            // mid-grab or held takes no other offensive action this tick. Fix
+            // round A: the grab start reads the knockdown (320) and the
+            // fighter's own Ultimate (321), both action locks.
             AdvanceGrabs(
                 ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, ref actionOne, in tuningOne,
                 ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, ref actionTwo, in tuningTwo,
-                oneFrozen, twoFrozen);
+                oneFrozen, twoFrozen,
+                in frame.GetReadOnly<FighterKnockdownComponent>(first),
+                in frame.GetReadOnly<FighterUltimateActivationComponent>(first),
+                in frame.GetReadOnly<FighterKnockdownComponent>(second),
+                in frame.GetReadOnly<FighterUltimateActivationComponent>(second));
             bool oneActing = !oneFrozen && !FighterGrabRules.IsBusy(in verbOne);
             bool twoActing = !twoFrozen && !FighterGrabRules.IsBusy(in verbTwo);
 
@@ -2000,19 +2060,23 @@ namespace FTT.FighterSim {
             ref FighterVerbComponent verbTwo, ref FighterDefenseComponent defenseTwo,
             ref FighterActionStateComponent actionTwo,
             in FighterTuningComponent tuningTwo,
-            bool oneFrozen, bool twoFrozen) {
+            bool oneFrozen, bool twoFrozen,
+            in FighterKnockdownComponent knockdownOne,
+            in FighterUltimateActivationComponent activationOne,
+            in FighterKnockdownComponent knockdownTwo,
+            in FighterUltimateActivationComponent activationTwo) {
             // Initiation. Both may start the same frame; the clash resolves it.
             // C01c: the direct bind and the preset chord request the same verb,
             // once (FighterGrabRules.Requested deduplicates them).
             if (!oneFrozen && FighterGrabRules.Requested(in runtimeOne)
-                && FighterGrabRules.CanStartGrab(in one, in runtimeOne, in verbOne, in actionOne)) {
+                && FighterGrabRules.CanStartGrab(in one, in runtimeOne, in verbOne, in actionOne, in knockdownOne, in activationOne)) {
                 verbOne.GrabPhase = FighterGrabRules.PhaseStartup;
                 verbOne.GrabPhaseFrames = FTT.Combat.BasicComboRules.GrabStartupFrames;
                 verbOne.ClearGrabPartner();
                 FighterActionRules.OnActionAccepted(ref one, ref verbOne, ref defenseOne, ref actionOne, FighterActionKind.Grab);
             }
             if (!twoFrozen && FighterGrabRules.Requested(in runtimeTwo)
-                && FighterGrabRules.CanStartGrab(in two, in runtimeTwo, in verbTwo, in actionTwo)) {
+                && FighterGrabRules.CanStartGrab(in two, in runtimeTwo, in verbTwo, in actionTwo, in knockdownTwo, in activationTwo)) {
                 verbTwo.GrabPhase = FighterGrabRules.PhaseStartup;
                 verbTwo.GrabPhaseFrames = FTT.Combat.BasicComboRules.GrabStartupFrames;
                 verbTwo.ClearGrabPartner();
@@ -2699,7 +2763,8 @@ namespace FTT.FighterSim {
                     in attacker, in attackerRuntime,
                     in frame.GetReadOnly<FighterVerbComponent>(attackerEntity),
                     in frame.GetReadOnly<FighterActionStateComponent>(attackerEntity),
-                    in activation)) return;
+                    in activation,
+                    in frame.GetReadOnly<FighterKnockdownComponent>(attackerEntity))) return;
             FighterUltimateActivationRules.Accept(
                 ref attacker, ref attackerRuntime, ref activation, _contracts.UltimateFor(attacker.PlayerID));
             FighterAbilityLockoutRules.ArmAbility(ref attackerRuntime);
@@ -2725,8 +2790,9 @@ namespace FTT.FighterSim {
             in FighterRuntimeComponent attackerRuntime,
             in FighterVerbComponent attackerVerb,
             in FighterActionStateComponent attackerAction,
-            in FighterUltimateActivationComponent activation) =>
-            UltimatePressPayable(in attacker, in attackerRuntime, in attackerVerb, in attackerAction, in activation)
+            in FighterUltimateActivationComponent activation,
+            in FighterKnockdownComponent knockdown) =>
+            UltimatePressPayable(in attacker, in attackerRuntime, in attackerVerb, in attackerAction, in activation, in knockdown)
             && FighterAbilityLockoutRules.AllowsUltimate(in attackerRuntime);
 
         /// <summary>
@@ -2743,8 +2809,9 @@ namespace FTT.FighterSim {
             in FighterRuntimeComponent attackerRuntime,
             in FighterVerbComponent attackerVerb,
             in FighterActionStateComponent attackerAction,
-            in FighterUltimateActivationComponent activation) =>
-            UltimatePressPayable(in attacker, in attackerRuntime, in attackerVerb, in attackerAction, in activation)
+            in FighterUltimateActivationComponent activation,
+            in FighterKnockdownComponent knockdown) =>
+            UltimatePressPayable(in attacker, in attackerRuntime, in attackerVerb, in attackerAction, in activation, in knockdown)
             && !FighterAbilityLockoutRules.AllowsUltimate(in attackerRuntime);
 
         /// <summary>
@@ -2758,14 +2825,17 @@ namespace FTT.FighterSim {
         /// Special cast (1.2). Every caller reads this one predicate — the
         /// combat Update, <see cref="FighterAbilityEntitySystem"/>'s tick claim
         /// and, through it, the refusal classifier — so a refused stance
-        /// Ultimate claims nothing either.
+        /// Ultimate claims nothing either. Fix round A (CM-FIXA-SIM): never
+        /// during the M05 knockdown or its get-up, from its landing tick on
+        /// (component 320), whose discard a hitstop thaw tick does not reach.
         /// </summary>
         internal static bool UltimatePressPayable(
             in FighterStateComponent attacker,
             in FighterRuntimeComponent attackerRuntime,
             in FighterVerbComponent attackerVerb,
             in FighterActionStateComponent attackerAction,
-            in FighterUltimateActivationComponent activation) =>
+            in FighterUltimateActivationComponent activation,
+            in FighterKnockdownComponent knockdown) =>
             (attackerRuntime.PressedButtons & UltimateButton) != 0
             && attacker.Influence >= MaxInfluence
             && attacker.HitstunFrames <= 0
@@ -2774,6 +2844,7 @@ namespace FTT.FighterSim {
             && attacker.RespawnFramesRemaining <= 0
             && attackerVerb.TechLockoutFrames <= 0
             && !FighterSpecialCastRules.IsBusy(in attackerAction)
+            && !FighterKnockdownRules.IsActive(in knockdown)
             && !FighterBasicAttackRules.IsBlockStance(in attacker, in attackerRuntime, in attackerVerb)
             && !FighterLedgeRules.IsHanging(in attackerRuntime)
             && !FighterUniversalMovementRules.IsCombatLocked(in attackerRuntime)
@@ -3059,6 +3130,11 @@ namespace FTT.FighterSim {
             if (attacker.HitstunFrames > 0
                 || attacker.DazeFrames > 0
                 || attacker.Stocks <= 0
+                // Fix round A (CM-FIXA-SIM): a caster KO'd earlier this tick (the
+                // blast zone, a lethal Venom tick) stands on the respawn platform
+                // with its cast still marked until the next movement pass clears
+                // it; it resolves no contact from the platform's anchor.
+                || FighterMatchFlowRules.IsOnRespawnPlatform(in attacker)
                 // Hanging suppresses the intent the way hitstun does (§2.11).
                 || FighterLedgeRules.IsHanging(in attackerRuntime)) return default;
             int slot = attackerAction.SpecialSlot;
