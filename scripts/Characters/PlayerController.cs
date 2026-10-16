@@ -1316,8 +1316,9 @@ namespace FTT.Characters {
 		// ResolveGroundStringBoxPixels. Story's pivot is the feet, so a box's
 		// vertical anchor is the hurtbox centre, 32 px above them (the
 		// factory's 64-px body and hurtbox) — the point the sim's pivot is to
-		// its own hurtbox.
-		private const float GroundStringBoxAnchorYPixels = -32f;
+		// its own hurtbox. CM-STORY (8.4, 2026-10-16): derived from the one named
+		// Story hurtbox height, not a second literal.
+		internal const float GroundStringBoxAnchorYPixels = -FTT.Combat.StoryCombatRules.HeroHurtboxHeightPixels / 2f;
 
 		// The Story air strike box takes string hit 1's grounded x-span
 		// (front-only, the sim's reach) and a Story-only vertical span that
