@@ -52,6 +52,17 @@ The main table gains left_lock_alive and passed_out (old-definition passes of
 mobs no lock owns). Turn-taking, the 1.5 camera, locks, the -20% speed and
 static knockback all landed together, so batches from before and after
 2026-10-12 are not comparable on any of these.
+
+CM-BOT (decision 7.2, 2026-10-16) adds a "rehits" table per tag, from each
+report's rehits block (absent before CM-BOT: those runs print "-"): the hero's
+damaging hits per run (status ticks apart), cross-source re-hits within 30
+frames of another source's hit (xsrc30, and its share of the hits), the 20-frame
+share, the same-source contrast (same30%, same20%), same-frame doubles from two
+sources (sf), the share of hit damage the cross-source re-hits dealt (xsrc_dmg%),
+the median gap back to the other source (pooled from the gap histograms), the
+three kinds (standard, elite, boss, mirror, projectile, hazard, other) with the
+most cross-source re-hits as the second hit, status ticks per run, and
+unobserved hits (HP losses no raise site saw; 0 unless a non-hit death).
 """
 import fnmatch
 import glob
@@ -481,6 +492,50 @@ def crowd_rows(tag_pattern):
     return rows
 
 
+def rehit_rows(tag_pattern):
+    """CM-BOT (7.2): one row per bot from the rehits blocks (raw counts pooled, never medians of medians)."""
+    rows = []
+    for bot, runs in by_bot(tag_pattern):
+        have = [r for r in runs if isinstance(r.get("rehits"), dict)]
+        hits, damage, x30, x20, s30, s20, sf, xdmg, status, unobserved = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        gaps, by_kind, per_run = {}, {}, []
+        for r in have:
+            b = r["rehits"]
+            run_hits = num(b.get("hits"), 0)
+            per_run.append(run_hits)
+            hits += run_hits
+            damage += num(b.get("hit_damage"), 0)
+            x30 += num(b.get("xsrc_30"), 0)
+            x20 += num(b.get("xsrc_20"), 0)
+            s30 += num(b.get("same_30"), 0)
+            s20 += num(b.get("same_20"), 0)
+            sf += num(b.get("xsrc_same_frame"), 0)
+            xdmg += num(b.get("xsrc_damage_30"), 0)
+            status += num(b.get("status_ticks"), 0)
+            unobserved += num(b.get("unobserved_hits"), 0)
+            add_counts(gaps, b.get("xsrc_gap_histogram"))
+            for kind, row in (b.get("by_kind") or {}).items():
+                by_kind[kind] = by_kind.get(kind, 0) + num((row or {}).get("xsrc_30"), 0)
+        ok = bool(have)
+        rows.append({
+            "bot": bot,
+            "runs": len(runs),
+            "hits/run": mean(per_run, 1),
+            "xsrc30": x30 if ok else "-",
+            "xsrc30%": pct(x30, hits) if ok else "-",
+            "xsrc20%": pct(x20, hits) if ok else "-",
+            "same30%": pct(s30, hits) if ok else "-",
+            "same20%": pct(s20, hits) if ok else "-",
+            "sf": sf if ok else "-",
+            "xsrc_dmg%": pct(xdmg, damage) if ok else "-",
+            "xgap_med": hist_median(gaps),
+            "top_kinds": top_counts(by_kind, 3) if ok else "-",
+            "status/run": round(status / len(have), 1) if ok else "-",
+            "unobserved": unobserved if ok else "-",
+        })
+    return rows
+
+
 # Must match BasicComboRules.AirAttackHitboxID: the air strike is airborne by
 # definition, so its by-hit key carries no "_air" suffix (PlaytestCombatMath.SwingHitKey).
 AIR_ATTACK_HIT = "air_attack"
@@ -552,6 +607,11 @@ def main(tags, swings=False):
                      "over_slots%", "holders_max", "holders_over_f", "handoffs/run", "grants/run", "waiter_gap_med",
                      "front_gap_med", "far_waiter%", "ranged_max", "ranged_mean", "ranged_over_f"],
                     crowd_rows(tag))
+        # CM-BOT (2026-10-16): hits on the hero by source, and cross-source re-hits.
+        print("\n#### rehits\n")
+        print_table(["bot", "runs", "hits/run", "xsrc30", "xsrc30%", "xsrc20%", "same30%", "same20%", "sf",
+                     "xsrc_dmg%", "xgap_med", "top_kinds", "status/run", "unobserved"],
+                    rehit_rows(tag))
         if swings:
             print("\n#### swings by hit\n")
             print_table(["hit", "count", "conn%", "whiff%", "whiff_gap_med", "connect_gap_med"], swing_hit_rows(tag))

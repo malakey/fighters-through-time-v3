@@ -551,6 +551,182 @@ namespace FTT.Diagnostics {
     }
 
     /// <summary>
+    /// CM-BOT (decision 7.2, 2026-10-16; dossier 2.7.2): the measurement that
+    /// decides whether Story needs post-hit mercy invulnerability. Every
+    /// positive HP loss the hero takes is one entry: its telemetry frame, a
+    /// source key (one key per mob, boss, shooter, Mirror clone or hazard), a
+    /// kind and its damage. For each non-status entry H at frame F:
+    /// <list type="bullet">
+    /// <item><b>cross-source re-hit</b> (<see cref="CrossSource30"/>): some
+    /// earlier non-status entry from a <i>different</i> source lies in
+    /// [F − 30, F);</item>
+    /// <item><b>same-source re-hit</b> (<see cref="SameSource30"/>, the
+    /// contrast): some earlier non-status entry from the <i>same</i> source lies
+    /// in [F − 30, F). A hit can be both;</item>
+    /// <item>the 20-frame figures (<see cref="CrossSource20"/>,
+    /// <see cref="SameSource20"/>) apply the same tests with a 20-frame window;</item>
+    /// <item><see cref="CrossSourceSameFrame"/>: a different-source entry
+    /// recorded earlier on the same frame F, which the half-open window above
+    /// leaves out (two mobs connecting together; a mercy window opened by the
+    /// first would refuse the second).</item>
+    /// </list>
+    /// Status ticks (<see cref="KindStatus"/>) are counted under their own kind
+    /// and kept out of every re-hit figure, as re-hit and as predecessor. The
+    /// log keeps the first <see cref="LogCap"/> non-status entries. Pure: it
+    /// reads nothing but its arguments.
+    /// </summary>
+    public sealed class RehitTracker {
+        /// <summary>The headline window: a hit within this many frames after another source's hit is a cross-source re-hit.</summary>
+        public const int WindowFrames = 30;
+        /// <summary>The shorter window the dossier also asks for.</summary>
+        public const int ShortWindowFrames = 20;
+        /// <summary>At most this many entries are kept in <see cref="Log"/>.</summary>
+        public const int LogCap = 500;
+
+        /// <summary>A standard mob's melee or contact hit.</summary>
+        public const string KindStandard = "standard";
+        /// <summary>An elite mob's melee or contact hit.</summary>
+        public const string KindElite = "elite";
+        /// <summary>Any hit a boss owns: its melee, its shots and its summons' payloads that name it.</summary>
+        public const string KindBoss = "boss";
+        /// <summary>Any hit the Level 13 Mirror clone owns, its shots included.</summary>
+        public const string KindMirror = "mirror";
+        /// <summary>A mob's (standard or elite) shot.</summary>
+        public const string KindProjectile = "projectile";
+        /// <summary>The environmental chokepoint: hazards, discharges, escape catches, debris.</summary>
+        public const string KindHazard = "hazard";
+        /// <summary>A damaging status tick (Venom). Never part of a re-hit figure.</summary>
+        public const string KindStatus = "status";
+        /// <summary>A hit whose payload names no owner the telemetry can classify.</summary>
+        public const string KindOther = "other";
+
+        /// <summary>One damaging entry, with its re-hit verdicts.</summary>
+        public sealed class Entry {
+            public int Frame;
+            public string Source = "";
+            /// <summary>A readable name for the source (enemy or boss ID, hazard ID).</summary>
+            public string Label = "";
+            public string Kind = "";
+            public int Damage;
+            public bool Cross30;
+            public bool Cross20;
+            public bool Same30;
+            public bool Same20;
+            public bool CrossSameFrame;
+            /// <summary>Frames back to the latest different-source entry inside the window; −1 for none.</summary>
+            public int CrossGap = -1;
+            /// <summary>That entry's kind; empty for none.</summary>
+            public string CrossKind = "";
+        }
+
+        /// <summary>Per-kind totals; a kind's figures count its entries as the re-hit (the second hit).</summary>
+        public sealed class KindCounts {
+            public int Hits;
+            public int Damage;
+            public int Cross30;
+            public int Cross20;
+            public int Same30;
+            public int Same20;
+            public int CrossDamage30;
+        }
+
+        public int Hits { get; private set; }
+        public int HitDamage { get; private set; }
+        public int StatusTicks { get; private set; }
+        public int CrossSource30 { get; private set; }
+        public int CrossSource20 { get; private set; }
+        public int SameSource30 { get; private set; }
+        public int SameSource20 { get; private set; }
+        public int CrossSourceSameFrame { get; private set; }
+        /// <summary>Damage dealt by the cross-source re-hits (30 frames): what a 30-frame mercy window could have refused.</summary>
+        public int CrossSourceDamage30 { get; private set; }
+        /// <summary>Per gap (1..30 frames) to the latest different-source entry, the cross-source re-hits.</summary>
+        public readonly SortedDictionary<int, int> CrossGapHistogram = new();
+        public readonly SortedDictionary<string, KindCounts> ByKind = new(StringComparer.Ordinal);
+        public readonly List<Entry> Log = new();
+
+        /// <summary>Non-status entries inside the window, oldest first.</summary>
+        private readonly List<Entry> _recent = new();
+
+        /// <summary>
+        /// Books one damaging entry. Frames must not decrease between calls;
+        /// entries on the same frame are taken in call order. Zero or negative
+        /// damage books nothing.
+        /// </summary>
+        public Entry Record(int frame, string source, string kind, int damage, string label = "") {
+            if (damage <= 0) return null;
+            var entry = new Entry {
+                Frame = frame,
+                Source = source ?? "",
+                Label = label ?? "",
+                Kind = string.IsNullOrEmpty(kind) ? KindOther : kind,
+                Damage = damage
+            };
+            KindCounts counts = CountsFor(entry.Kind);
+            counts.Hits++;
+            counts.Damage += damage;
+            if (entry.Kind == KindStatus) {
+                StatusTicks++;
+                return entry;
+            }
+
+            _recent.RemoveAll(e => e.Frame < frame - WindowFrames);
+            foreach (Entry earlier in _recent) {
+                bool sameSource = earlier.Source == entry.Source;
+                int gap = frame - earlier.Frame;
+                if (gap <= 0) {
+                    if (!sameSource) entry.CrossSameFrame = true;
+                    continue;
+                }
+                if (sameSource) {
+                    entry.Same30 = true;
+                    if (gap <= ShortWindowFrames) entry.Same20 = true;
+                } else {
+                    entry.Cross30 = true;
+                    if (gap <= ShortWindowFrames) entry.Cross20 = true;
+                    // _recent is oldest first, so the last match is the latest.
+                    entry.CrossGap = gap;
+                    entry.CrossKind = earlier.Kind;
+                }
+            }
+
+            Hits++;
+            HitDamage += damage;
+            if (entry.Cross30) {
+                CrossSource30++;
+                CrossSourceDamage30 += damage;
+                counts.Cross30++;
+                counts.CrossDamage30 += damage;
+                CrossGapHistogram[entry.CrossGap] = CrossGapHistogram.TryGetValue(entry.CrossGap, out int n) ? n + 1 : 1;
+            }
+            if (entry.Cross20) {
+                CrossSource20++;
+                counts.Cross20++;
+            }
+            if (entry.Same30) {
+                SameSource30++;
+                counts.Same30++;
+            }
+            if (entry.Same20) {
+                SameSource20++;
+                counts.Same20++;
+            }
+            if (entry.CrossSameFrame) CrossSourceSameFrame++;
+            _recent.Add(entry);
+            if (Log.Count < LogCap) Log.Add(entry);
+            return entry;
+        }
+
+        private KindCounts CountsFor(string kind) {
+            if (!ByKind.TryGetValue(kind, out KindCounts counts)) {
+                counts = new KindCounts();
+                ByKind[kind] = counts;
+            }
+            return counts;
+        }
+    }
+
+    /// <summary>
     /// The hero's Ultimate meter over a run: level start, gained and spent,
     /// time at full, clean bar-fill times and Defy History procs. "Full" is
     /// <see cref="InfluenceMeterRules.MaxValue"/>. A rebuilt hero (an Anchor

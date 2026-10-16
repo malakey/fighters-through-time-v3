@@ -165,7 +165,8 @@ namespace FTT.Diagnostics {
         // "not yet" flash, EventBus.OnAbilityLockoutRefused), both 2026-10-11, so
         // every member below has its post-A body. No other file under
         // scripts/Diagnostics/ names HitPayload.ContactLanded, PlayerController.SwingLanded,
-        // PlayerController.SpecialGateFramesRemaining or EventBus.OnAbilityLockoutRefused.
+        // PlayerController.SpecialGateFramesRemaining or EventBus.OnAbilityLockoutRefused
+        // (nor, since CM-BOT, PlayerController.DamageTaken).
 
         /// <summary>True once the hero has a hit-confirm Special gate distinct from the ability lockout (group A's D1).</summary>
         public static bool HasHitConfirmGate => true;
@@ -202,6 +203,17 @@ namespace FTT.Diagnostics {
             AbilitySlot.Special2 => PressSlot.Special2,
             _ => PressSlot.Ultimate
         };
+
+        // CM-BOT (decision 7.2, 2026-10-16): the hero's damage observations, the one
+        // place in scripts/Diagnostics/ that names PlayerController.DamageTaken. The
+        // event is observation only and may run inside the physics flush, so the
+        // handler must only record.
+        /// <summary>Subscribes to one hero's <c>DamageTaken</c> observations; returns the unsubscribe action.</summary>
+        public static Action SubscribeDamageTaken(PlayerController hero, Action<PlayerDamageObservation> handler) {
+            if (hero == null || handler == null || !GodotObject.IsInstanceValid(hero)) return () => { };
+            hero.DamageTaken += handler;
+            return () => hero.DamageTaken -= handler;
+        }
         #endregion
 
         #region Encounter locks and the engagement director — the 2026-10-12 gameplay update's seams (GU-BOT)

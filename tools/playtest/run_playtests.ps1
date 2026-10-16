@@ -40,6 +40,12 @@
     lock_reloads counts the lock instances a scene reload (an Act III Anchor
     Snap) rebuilt.
 
+    Since CM-BOT (2026-10-16) the CSV also carries xsrc_rehits (the hero's
+    damaging hits taken within 30 frames of a hit from a different source -
+    the mercy-invulnerability measurement, decision 7.2; the report's rehits
+    block has the rest, including the hit count without status ticks) and
+    hits_taken, every HP loss the hero took (player.hits_taken).
+
     The runner uses the developer direct-launch path and suppresses save
     writes, so no save slot or global save is touched. Build first:
     dotnet build FightersThroughTime.csproj
@@ -130,6 +136,11 @@ foreach ($r in $done) {
         policy = $(if ($c) { $c.policy } else { $null })
         # C2 (2026-10-11): the run's D5 Story meter scale (--story-meter-scale).
         meter_scale = $(if ($c) { $c.meter_scale } else { $null })
+        # CM-BOT (2026-10-16): hero hits taken within 30 frames of another
+        # source's hit (absent before CM-BOT), and every HP loss the hero took
+        # (status ticks included; the report's rehits.hits excludes them).
+        xsrc_rehits = $(if ($c) { $c.xsrc_rehits } else { $null })
+        hits_taken = $x.player.hits_taken
         # GU-BOT (2026-10-12): encounter locks and the hero's crowd.
         locks = $(if ($n) { $n.locks } else { $null })
         locks_cleared = $(if ($n) { $n.locks_cleared } else { $null })

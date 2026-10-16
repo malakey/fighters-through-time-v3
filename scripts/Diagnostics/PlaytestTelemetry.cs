@@ -96,7 +96,11 @@ namespace FTT.Diagnostics {
             _bot = bot;
             // D6d: hear the hero's melee contacts from the first frame on.
             PlayerController hero = world?.Player;
-            if (hero != null && hero.PlayerIndex == 0) EnsureMeleeSubscription(hero);
+            if (hero != null && hero.PlayerIndex == 0) {
+                EnsureMeleeSubscription(hero);
+                // CM-BOT: and every HP loss it takes (the re-hit counter).
+                EnsureDamageSubscription(hero);
+            }
             EventBus bus = EventBus.Instance;
             if (bus == null) return;
             _unsubscribeLockoutRefused = PlaytestWorld.SubscribeLockoutRefused(OnLockoutRefused);
@@ -118,6 +122,7 @@ namespace FTT.Diagnostics {
 
         public void Detach() {
             UnsubscribeMelee();
+            UnsubscribeDamage();
             CloseOpenMobSwings();
             UnsubscribeMobs();
             _unsubscribeLockoutRefused?.Invoke();
@@ -177,6 +182,8 @@ namespace FTT.Diagnostics {
 
         public void Tick(SceneTree tree) {
             Frame++;
+            // CM-BOT: the engine physics frame this Frame belongs to (the re-hit frame mapping).
+            _tickedPhysicsFrame = Engine.GetPhysicsFrames();
             PlayerController player = _world.Player;
             Vector2 playerPosition = Vector2.Zero;
             if (player != null) {
@@ -536,6 +543,7 @@ namespace FTT.Diagnostics {
             _finishers.AbandonOpen(Frame);
             CloseOpenSwing();
             UnsubscribeMelee();
+            UnsubscribeDamage();
             // C3: open mob swings close as they stand (cut), and every mob hitbox is let go.
             CloseOpenMobSwings();
             UnsubscribeMobs();
@@ -591,6 +599,7 @@ namespace FTT.Diagnostics {
                 _meter.Rebaseline(Frame, player.CurrentUltimateMeter, player.StoryDefyHistoryUsed);
             }
             EnsureMeleeSubscription(player);
+            EnsureDamageSubscription(player);
         }
 
         private void TrackMeter(PlayerController player) =>
@@ -943,6 +952,153 @@ namespace FTT.Diagnostics {
         private void CloseOpenMobSwings() {
             foreach (OpenMobSwing open in _openMobSwings.Values) open.Record.Close(natural: false);
             _openMobSwings.Clear();
+        }
+
+        // =================================================================
+        // CM-BOT (decision 7.2, 2026-10-16; plan dossier 2.7.2): the re-hit
+        // counter that measures whether Story needs post-hit mercy
+        // invulnerability. Observation only: the hero raises DamageTaken after
+        // every positive HP loss (read through PlaytestWorld's "Hero gates"
+        // seam), and this records it. damage_by_source and the per-enemy
+        // hits_on_player keep their nearest-enemy attribution unchanged, so
+        // batches from before and after compare on them.
+        // =================================================================
+
+        private readonly RehitTracker _rehits = new();
+        private Action _unsubscribeDamage;
+        private ulong _damageSubscriptionId;
+        private ulong _tickedPhysicsFrame = ulong.MaxValue;
+
+        public RehitTracker Rehits => _rehits;
+
+        /// <summary>
+        /// HP-loss events the bus carried for the hero minus the observations
+        /// heard: 0 unless a damage path bypasses the three raise sites. A
+        /// non-hit death (<c>KillPlayerNonHit</c>, a lethal pit) is the one
+        /// expected cause; no campaign level authors one today.
+        /// </summary>
+        public int UnobservedHeroHits => PlayerHitsTaken - (_rehits.Hits + _rehits.StatusTicks);
+
+        private void EnsureDamageSubscription(PlayerController player) {
+            ulong id = player?.GetInstanceId() ?? 0UL;
+            if (id == _damageSubscriptionId && id != 0UL) return;
+            UnsubscribeDamage();
+            if (player == null) return;
+            _unsubscribeDamage = PlaytestWorld.SubscribeDamageTaken(player, OnHeroDamageTaken);
+            _damageSubscriptionId = id;
+        }
+
+        private void UnsubscribeDamage() {
+            _unsubscribeDamage?.Invoke();
+            _unsubscribeDamage = null;
+            _damageSubscriptionId = 0UL;
+        }
+
+        /// <summary>
+        /// The telemetry frame an observation belongs to. A physics frame runs the
+        /// flush (hurtbox contacts) before the physics callbacks (this Tick, the
+        /// hero's status ticks, hazard updates), so an observation made before this
+        /// physics frame's Tick belongs to the frame that Tick is about to open
+        /// (the melee-contact <c>Frame + 1</c> convention), and one made after it
+        /// to the current Frame. Either way every observation in one physics frame
+        /// gets one frame number.
+        /// </summary>
+        private int ObservationFrame() => Engine.GetPhysicsFrames() == _tickedPhysicsFrame ? Frame : Frame + 1;
+
+        /// <summary>Records one hero HP loss (may run inside the physics flush: read-only).</summary>
+        private void OnHeroDamageTaken(PlayerDamageObservation observation) {
+            (string source, string label, string kind) = RehitSourceOf(in observation);
+            _rehits.Record(ObservationFrame(), source, kind, observation.Damage, label);
+        }
+
+        /// <summary>
+        /// The source key (one per owning body or hazard), a readable label and
+        /// the <see cref="RehitTracker"/> kind of one observation. A hit's owner is
+        /// its payload's <c>SourceActorId</c>: a mob's or boss's attack hitbox, the
+        /// shooter of a pooled shot, the Mirror clone's own hitboxes. A shot by a
+        /// standard or elite mob is <c>projectile</c>; a boss's or the clone's shot
+        /// stays <c>boss</c> / <c>mirror</c>, so a rule that exempts bosses and the
+        /// Mirror can be read off one partition. A hazard is keyed by the hot
+        /// hazard the hero stands in (<c>env</c> when none is recognised); every
+        /// status tick shares one key and is never part of a re-hit figure.
+        /// </summary>
+        private (string Source, string Label, string Kind) RehitSourceOf(in PlayerDamageObservation o) {
+            if (o.Kind == DamageObservationKind.Status) return ("status", "status", RehitTracker.KindStatus);
+            if (o.Kind == DamageObservationKind.Hazard) {
+                PlayerController hero = _trackedPlayer != null && GodotObject.IsInstanceValid(_trackedPlayer)
+                    ? _trackedPlayer
+                    : _world?.Player;
+                string hazard = (hero != null && _world != null ? HazardSourceAt(hero) : null) ?? "env";
+                return ("hazard:" + hazard, hazard, RehitTracker.KindHazard);
+            }
+            bool shot = o.HitboxID == "projectile";
+            string attack = string.IsNullOrEmpty(o.AttackID) ? o.HitboxID : o.AttackID;
+            if (o.SourceActorId != 0UL) {
+                string key = "actor:" + o.SourceActorId;
+                GodotObject owner = GodotObject.InstanceFromId(o.SourceActorId);
+                if (owner != null && GodotObject.IsInstanceValid(owner)) {
+                    switch (owner) {
+                        case EnemyController enemy:
+                            return (key, FoeIdOf(enemy), shot ? RehitTracker.KindProjectile
+                                : enemy.Data?.Tier == EnemyTier.Elite ? RehitTracker.KindElite : RehitTracker.KindStandard);
+                        case BossController boss:
+                            return (key, FoeIdOf(boss), RehitTracker.KindBoss);
+                        case PlayerController clone when clone.IsInGroup(MirrorParadoxController.MirrorGroup):
+                            return (key, "mirror", RehitTracker.KindMirror);
+                    }
+                }
+                // An owner freed or recycled since it fired (a mob's shot outliving it).
+                return (key, attack, shot ? RehitTracker.KindProjectile : RehitTracker.KindOther);
+            }
+            // No owner on the payload. The Jackal Priest's decoy bursts name their
+            // boss only in the attack ID ("boss.<id>.decoy_burst").
+            string kindOfUnowned = attack.StartsWith("boss.", StringComparison.Ordinal) ? RehitTracker.KindBoss
+                : shot ? RehitTracker.KindProjectile : RehitTracker.KindOther;
+            return ("attack:" + attack, attack, kindOfUnowned);
+        }
+
+        private static Dictionary<string, object> RehitKindRow(RehitTracker.KindCounts c) => new() {
+            ["hits"] = c.Hits,
+            ["damage"] = c.Damage,
+            ["xsrc_30"] = c.Cross30,
+            ["xsrc_20"] = c.Cross20,
+            ["same_30"] = c.Same30,
+            ["same_20"] = c.Same20,
+            ["xsrc_damage_30"] = c.CrossDamage30
+        };
+
+        /// <summary>The <c>rehits</c> report block (CM-BOT, decision 7.2).</summary>
+        private Dictionary<string, object> RehitsReport() {
+            RehitTracker r = _rehits;
+            return new Dictionary<string, object> {
+                ["window_frames"] = RehitTracker.WindowFrames,
+                ["short_window_frames"] = RehitTracker.ShortWindowFrames,
+                ["hits"] = r.Hits,
+                ["hit_damage"] = r.HitDamage,
+                ["status_ticks"] = r.StatusTicks,
+                ["xsrc_30"] = r.CrossSource30,
+                ["xsrc_20"] = r.CrossSource20,
+                ["same_30"] = r.SameSource30,
+                ["same_20"] = r.SameSource20,
+                ["xsrc_same_frame"] = r.CrossSourceSameFrame,
+                ["xsrc_damage_30"] = r.CrossSourceDamage30,
+                ["xsrc_pct"] = r.Hits > 0 ? Math.Round(100.0 * r.CrossSource30 / r.Hits, 1) : -1.0,
+                ["unobserved_hits"] = UnobservedHeroHits,
+                ["xsrc_gap_histogram"] = r.CrossGapHistogram.ToDictionary(kv => kv.Key.ToString(), kv => (object)kv.Value),
+                ["by_kind"] = r.ByKind.ToDictionary(kv => kv.Key, kv => (object)RehitKindRow(kv.Value)),
+                ["log"] = r.Log.Select(e => (object)new Dictionary<string, object> {
+                    ["f"] = e.Frame,
+                    ["kind"] = e.Kind,
+                    ["src"] = e.Label,
+                    ["dmg"] = e.Damage,
+                    ["x"] = e.Cross30,
+                    ["x20"] = e.Cross20,
+                    ["s"] = e.Same30,
+                    ["sf"] = e.CrossSameFrame,
+                    ["xgap"] = e.CrossGap,
+                    ["xk"] = e.CrossKind
+                }).ToList()
+            };
         }
 
         // =================================================================
@@ -1461,7 +1617,9 @@ namespace FTT.Diagnostics {
                 ["s_refused"] = _presses.For(PressSlot.Special1).Refused + _presses.For(PressSlot.Special2).Refused,
                 // C3: natural mob melee swings that whiffed, and the bot's Special press policy.
                 ["mob_whiff_pct"] = MobWhiffPercent(),
-                ["policy"] = PressPolicy
+                ["policy"] = PressPolicy,
+                // CM-BOT (7.2): hero hits taken within 30 frames of another source's hit.
+                ["xsrc_rehits"] = _rehits.CrossSource30
             };
         }
 
@@ -1558,6 +1716,9 @@ namespace FTT.Diagnostics {
                 // director, and every encounter lock.
                 ["mob_engagement"] = MobEngagementReport(),
                 ["locks"] = LocksReport(),
+                // CM-BOT (decision 7.2, 2026-10-16): hits on the hero by source, and
+                // the cross-source re-hits within 30 (and 20) frames.
+                ["rehits"] = RehitsReport(),
                 ["trace"] = Trace
             };
         }
