@@ -111,6 +111,123 @@ public class StoryUltimateActivationTests {
         }
     }
 
+    // === CM-ULT (2026-10-16, decision 2.1): the wind-up telegraph on the Mirror clone ===
+
+    /// <summary>
+    /// The clone draws the Fighter driver's telegraph — the steady red tint and
+    /// the Unblockable X — on every wind-up frame and drops both on the first
+    /// active frame; the wind-up's critical cue plays once, at acceptance.
+    /// </summary>
+    [TestCase]
+    public void TheFighterVersionShowsTheUnblockableTelegraphForExactlyItsWindup() {
+        Run(caster => {
+            AudioManager audio = AudioManager.Instance;
+            AssertObject(audio).IsNotNull();
+            CoreMechanicCuePresenter cues = audio.CoreCues;
+            AssertObject(cues).IsNotNull();
+            try {
+                cues.ResetTransient();
+                caster.AddInfluenceFromDamageDealt(UltimateMeter.MaxValue, collectsEcho: false);
+                AssertThat(UltimateActivationTelegraph.FindGlyph(caster)).IsNull();
+
+                Step(caster, GameplayButtons.Ultimate);
+                AssertThat(caster.UltimateActivationPhase).IsEqual(1);
+                AssertThat(cues.LastCueID).IsEqual(CoreMechanicCueIDs.UltimateActivationWindup);
+                AssertThat(cues.LastRoutedBus).IsEqual(AudioBuses.CriticalCues);
+                int played = cues.CuesPlayed;
+
+                AbilityData data = caster.GetNode<BaseSpecial>("Ultimate").Data;
+                int shown = 0;
+                for (int guard = 0; guard < 60 && caster.UltimateActivationPhase == 1; guard++) {
+                    shown++;
+                    AssertThat(caster.IsShowingUltimateTelegraph).IsTrue();
+                    TelegraphGlyph glyph = UltimateActivationTelegraph.FindGlyph(caster);
+                    AssertObject(glyph).IsNotNull();
+                    AssertThat(glyph.Visible).IsTrue();
+                    AssertThat(glyph.Shape).IsEqual(TelegraphGlyphShape.Unblockable);
+                    AssertThat(glyph.GlyphColor).IsEqual(TelegraphGlyph.UnblockableColor);
+                    AssertThat(caster.Glow.HasUltimateTelegraph).IsTrue();
+                    Step(caster, GameplayButtons.None);
+                }
+                AssertThat(shown).IsEqual(Math.Max(1, data.ActivationWindupFrames));
+                AssertThat(caster.UltimateActivationPhase).IsEqual(2);
+                AssertThat(caster.IsShowingUltimateTelegraph).IsFalse();
+                AssertThat(UltimateActivationTelegraph.IsGlyphShown(caster)).IsFalse();
+                AssertThat(caster.Glow.HasUltimateTelegraph).IsFalse();
+                // Once per wind-up: nothing re-played it.
+                AssertThat(cues.CuesPlayed).IsEqual(played);
+            } finally {
+                cues.ResetTransient();
+                audio.ReleaseAllVoices();
+            }
+        }, playerIndex: 1, fighterVersion: true);
+    }
+
+    /// <summary>
+    /// The latent A02 defect: leaving <see cref="CharacterState.UsingUltimate"/>
+    /// through a stun or a death used to leave the activation phase set. Now the
+    /// exit hook returns it to 0 and the telegraph is gone, and stays gone.
+    /// </summary>
+    [TestCase]
+    public void AStunnedOrKilledCloneDropsTheTelegraphAndItsActivationPhase() {
+        Run(caster => {
+            caster.AddInfluenceFromDamageDealt(UltimateMeter.MaxValue, collectsEcho: false);
+            Step(caster, GameplayButtons.Ultimate);
+            for (int frame = 0; frame < 3; frame++) Step(caster, GameplayButtons.None);
+            AssertThat(caster.UltimateActivationPhase).IsEqual(1);
+            AssertThat(caster.IsShowingUltimateTelegraph).IsTrue();
+
+            caster.ApplyStun(0.5f);
+            AssertThat(caster.CurrentState).IsEqual(CharacterState.Stunned);
+            AssertThat(caster.UltimateActivationPhase).IsEqual(0);
+            AssertThat(caster.IsShowingUltimateTelegraph).IsFalse();
+            AssertThat(UltimateActivationTelegraph.IsGlyphShown(caster)).IsFalse();
+            AssertThat(caster.Glow.HasUltimateTelegraph).IsFalse();
+            for (int frame = 0; frame < 10; frame++) {
+                Step(caster, GameplayButtons.None);
+                AssertThat(caster.UltimateActivationPhase).IsEqual(0);
+                AssertThat(UltimateActivationTelegraph.IsGlyphShown(caster)).IsFalse();
+            }
+        }, playerIndex: 1, fighterVersion: true);
+
+        Run(caster => {
+            caster.AddInfluenceFromDamageDealt(UltimateMeter.MaxValue, collectsEcho: false);
+            Step(caster, GameplayButtons.Ultimate);
+            for (int frame = 0; frame < 3; frame++) Step(caster, GameplayButtons.None);
+            AssertThat(caster.UltimateActivationPhase).IsEqual(1);
+            AssertThat(caster.IsShowingUltimateTelegraph).IsTrue();
+
+            caster.KillPlayerNonHit();
+            AssertThat(caster.CurrentState).IsEqual(CharacterState.Dead);
+            AssertThat(caster.UltimateActivationPhase).IsEqual(0);
+            AssertThat(caster.IsShowingUltimateTelegraph).IsFalse();
+            AssertThat(UltimateActivationTelegraph.IsGlyphShown(caster)).IsFalse();
+            AssertThat(caster.Glow.HasUltimateTelegraph).IsFalse();
+        }, playerIndex: 1, fighterVersion: true);
+    }
+
+    /// <summary>
+    /// The hero's own Story Ultimate casts at once and is never telegraphed:
+    /// no glyph node is ever created and the tint channel stays off.
+    /// </summary>
+    [TestCase]
+    public void APlayersOwnStoryUltimateNeverCreatesATelegraphGlyph() {
+        Run(caster => {
+            caster.AddInfluenceFromDamageDealt(UltimateMeter.MaxValue, collectsEcho: false);
+            Step(caster, GameplayButtons.Ultimate);
+            AssertThat(caster.CurrentState).IsEqual(CharacterState.UsingUltimate);
+            AssertThat(caster.GetNode<BaseSpecial>("Ultimate").IsExecuting).IsTrue();
+            for (int frame = 0; frame < 240; frame++) {
+                AssertThat(UltimateActivationTelegraph.FindGlyph(caster)).IsNull();
+                AssertThat(caster.IsShowingUltimateTelegraph).IsFalse();
+                AssertThat(caster.Glow.HasUltimateTelegraph).IsFalse();
+                Step(caster, GameplayButtons.None);
+            }
+            AssertThat(caster.UltimateActivationPhase).IsEqual(0);
+            AssertThat(UltimateActivationTelegraph.FindGlyph(caster)).IsNull();
+        }, playerIndex: 0, fighterVersion: false);
+    }
+
     private static void Run(Action<PlayerController> body, int playerIndex, bool fighterVersion) {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
         StaticBody2D floor = BuildFloor(tree);

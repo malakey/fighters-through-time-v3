@@ -43,6 +43,8 @@ namespace FTT.Core {
         public const string MatchTimerPip = "match_timer_pip";
         public const string MatchTimerPipFinal = "match_timer_pip_final";
         public const string UltimateReady = "ultimate_ready";
+        /// <summary>CM-ULT (decision 2.1): the A02 activation strike's 20-frame wind-up, once on its first frame.</summary>
+        public const string UltimateActivationWindup = "ultimate_activation_windup";
         public const string KoStinger = "ko_stinger";
         public const string KoStingerDecisive = "ko_stinger_decisive";
         public const string VictoryFanfare = "victory_fanfare";
@@ -62,7 +64,7 @@ namespace FTT.Core {
             PostLandingThawWarning, DefyToll, DefySealShatter,
             EchoStepWindup, EchoStepArrival, EchoStepReject, RallyReclaim,
             GrabCatch, GrabWhiff, ThrowHeave, ThrowImpact, LandingTech, KnockdownThud,
-            IntegrityTick, MatchTimerPip, MatchTimerPipFinal, UltimateReady,
+            IntegrityTick, MatchTimerPip, MatchTimerPipFinal, UltimateReady, UltimateActivationWindup,
             KoStinger, KoStingerDecisive, VictoryFanfare, DrawSting, SealCharge, SealLock,
             StageHazardWarningFallback, StageHazardImpactFallback
         };
@@ -70,12 +72,14 @@ namespace FTT.Core {
         /// <summary>
         /// The rows the GDD marks "Critical Cues path": Time Freeze (all of it),
         /// the Post-Landing thaw, Defy, the Integrity tick, the 00:10 pips, the KO
-        /// stinger and the stage hazards.
+        /// stinger and the stage hazards — plus (CM-ULT, decision 2.1) the A02
+        /// activation wind-up, which warns of an unblockable strike.
         /// </summary>
         public static readonly string[] Critical = {
             TimeFreezeActivate, TimeFreezeDrone, TimeFreezeThawWarning, TimeFreezeThawRelease,
             PostLandingThawWarning, DefyToll, DefySealShatter,
             IntegrityTick, MatchTimerPip, MatchTimerPipFinal,
+            UltimateActivationWindup,
             KoStinger, KoStingerDecisive,
             StageHazardWarningFallback, StageHazardImpactFallback
         };

@@ -845,6 +845,9 @@ namespace FTT.FighterSim {
                     HapticFeedbackManager.ResolveDevice(playerID));
             }
             _presentedInfluenceFull[playerID] = influenceFull;
+
+            // CM-ULT (decision 2.1): the A02 wind-up telegraph, from component 321.
+            SyncUltimateTelegraph(player, playerID, glow);
         }
 
         /// <summary>
@@ -980,6 +983,9 @@ namespace FTT.FighterSim {
             bool full = state.Influence >= FullInfluence;
             if (full && !_cueMeterFull[playerID]) cues?.Play(FTT.Core.CoreMechanicCueIDs.UltimateReady);
             _cueMeterFull[playerID] = full;
+
+            // CM-ULT (decision 2.1): the activation wind-up's critical cue, once.
+            SyncUltimateWindupCue(playerID, cues);
 
             _cuePosition[playerID] = position;
         }

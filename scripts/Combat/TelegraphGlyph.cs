@@ -1,6 +1,10 @@
 using Godot;
 
-namespace FTT.Enemies {
+// CM-ULT (2026-10-16, decision 2.1): moved from scripts/Enemies (FTT.Enemies)
+// to FTT.Combat, because the Fighter driver and the Level 13 Mirror clone now
+// draw the same Unblockable X on the Ultimate activation wind-up. The class
+// colours live here once; EnemyAbilityExecutor reads them.
+namespace FTT.Combat {
 
     /// <summary>Which block-class glyph the telegraph draws (V7.3 ruling #11).</summary>
     public enum TelegraphGlyphShape {
@@ -44,8 +48,26 @@ namespace FTT.Enemies {
     /// drawn around the caster's own origin so the Siphon Snare's 3-unit
     /// attachment range is visible before it resolves. Neither flashes and
     /// neither carries meaning in its colour.</para>
+    ///
+    /// <para>CM-ULT (2026-10-16): the A02 Ultimate activation wind-up uses the
+    /// same Unblockable glyph and colour in Fighter Mode and on the Level 13
+    /// Mirror clone (<see cref="UltimateActivationTelegraph"/>).</para>
     /// </summary>
     public partial class TelegraphGlyph : Node2D {
+
+        // V7.2 codified telegraph colour language — the flash is a promise:
+        // white/yellow = blockable (1 charge), orange = Guard-Crush (2),
+        // red = Unblockable. These three are the one canonical statement of the
+        // class colours (CM-ULT moved them here from EnemyAbilityExecutor).
+
+        /// <summary>The Basic-class white/yellow family default.</summary>
+        public static readonly Color BasicColor = new(1f, 0.95f, 0.6f);
+
+        /// <summary>The Guard-Crush orange.</summary>
+        public static readonly Color GuardCrushColor = new(1f, 0.6f, 0.15f);
+
+        /// <summary>The Unblockable red (enemy telegraphs and the A02 activation wind-up).</summary>
+        public static readonly Color UnblockableColor = new(1f, 0.25f, 0.2f);
 
         /// <summary>
         /// Localized explanation of the V7.6 tether accent, for the HUD/Systems

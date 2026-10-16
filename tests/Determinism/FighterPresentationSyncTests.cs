@@ -285,4 +285,240 @@ public class FighterPresentationSyncTests {
                 .IsTrue();
         }
     }
+
+    // === CM-ULT (2026-10-16, decision 2.1): the A02 activation wind-up telegraph ===
+
+    /// <summary>
+    /// The red tint and the Unblockable X show on every wind-up frame of the
+    /// activation strike and hide on its first active frame, derived from
+    /// component 321. A driver with the glow arbiter and one without it run the
+    /// same inputs, so the hash proves the telegraph never writes the simulation.
+    /// </summary>
+    [TestCase]
+    public void TheActivationWindupShowsTheTelegraphForExactlyItsWindupWithoutMovingTheHash() {
+        if (InputManager.Instance == null) return;
+        (FighterSimulationDriver withGlow, Node hostA, PlayerController oneA, PlayerController twoA) =
+            CreateTelegraphDriver("TelegraphHostWithGlow", attachGlow: true);
+        (FighterSimulationDriver withoutGlow, Node hostB, PlayerController oneB, PlayerController _) =
+            CreateTelegraphDriver("TelegraphHostWithoutGlow", attachGlow: false);
+        var playerOneInput = new BufferedInputSource();
+        var playerTwoInput = new BufferedInputSource();
+        try {
+            InputManager.Instance.SetInputSource(0, playerOneInput);
+            InputManager.Instance.SetInputSource(1, playerTwoInput);
+            var drivers = new[] { withGlow, withoutGlow };
+            StepTelegraphDrivers(drivers, playerOneInput, playerTwoInput,
+                FighterMatchFlowRules.CountdownFrames + 2, GameplayButtons.None);
+            foreach (FighterSimulationDriver driver in drivers) {
+                AssertThat(driver.Simulation.SeedFighterInfluenceForTest(0, FighterMeterRules.CapPoints)).IsTrue();
+            }
+            StepTelegraphDrivers(drivers, playerOneInput, playerTwoInput, 1, GameplayButtons.None);
+            AssertThat(TelegraphShown(oneA)).IsFalse();
+
+            int windupStart = PressUltimateUntilWindup(drivers, playerOneInput, playerTwoInput);
+            AssertThat(withGlow.Simulation.TryGetFighterUltimateActivation(0,
+                out FighterUltimateActivationComponent first)).IsTrue();
+            int windupFrames = first.PhaseFrames;
+            AssertThat(windupFrames > 0).IsTrue();
+
+            int shown = 0;
+            for (int guard = 0; guard < 60; guard++) {
+                AssertThat(withGlow.CurrentHash).IsEqual(withoutGlow.CurrentHash);
+                int phase = ActivationPhase(withGlow, 0);
+                AssertThat(ActivationPhase(withoutGlow, 0)).IsEqual(phase);
+                if (phase != FighterUltimateActivationRules.PhaseWindup) {
+                    // The first active frame: both channels are gone.
+                    AssertThat(phase).IsEqual(FighterUltimateActivationRules.PhaseActive);
+                    AssertThat(TelegraphShown(oneA)).IsFalse();
+                    AssertThat(TelegraphShown(oneB)).IsFalse();
+                    AssertThat(oneA.Glow.HasUltimateTelegraph).IsFalse();
+                    break;
+                }
+                shown++;
+                AssertThat(TelegraphShown(oneA)).IsTrue();
+                AssertThat(TelegraphShown(oneB)).IsTrue();
+                TelegraphGlyph glyph = UltimateActivationTelegraph.FindGlyph(oneA);
+                AssertThat(glyph.Shape).IsEqual(TelegraphGlyphShape.Unblockable);
+                AssertThat(glyph.GlyphColor).IsEqual(TelegraphGlyph.UnblockableColor);
+                AssertThat(glyph.Position).IsEqual(UltimateActivationTelegraph.GlyphOffset);
+                AssertThat(oneA.Glow.HasUltimateTelegraph).IsTrue();
+                AssertThat(oneA.Glow.EffectiveTint).IsEqual(TelegraphGlyph.UnblockableColor);
+                // Only the caster telegraphs.
+                AssertThat(TelegraphShown(twoA)).IsFalse();
+                AssertThat(twoA.Glow.HasUltimateTelegraph).IsFalse();
+                StepTelegraphDrivers(drivers, playerOneInput, playerTwoInput, 1, GameplayButtons.None);
+            }
+            AssertThat(shown).IsEqual(windupFrames);
+            AssertThat(windupStart > 0).IsTrue();
+        } finally {
+            InputManager.Instance.ClearInputSource(0);
+            InputManager.Instance.ClearInputSource(1);
+            hostA.Free();
+            hostB.Free();
+        }
+    }
+
+    /// <summary>
+    /// A hit flash on the armoured caster rides on top of the telegraph tint and,
+    /// once it times out, the sprite is red again — the flash never leaves the
+    /// wind-up untelegraphed.
+    /// </summary>
+    [TestCase]
+    public void AHitFlashMidWindupDoesNotLeaveTheTelegraphCleared() {
+        if (InputManager.Instance == null) return;
+        (FighterSimulationDriver driver, Node host, PlayerController one, PlayerController _) =
+            CreateTelegraphDriver("TelegraphFlashHost", attachGlow: true);
+        var playerOneInput = new BufferedInputSource();
+        var playerTwoInput = new BufferedInputSource();
+        try {
+            InputManager.Instance.SetInputSource(0, playerOneInput);
+            InputManager.Instance.SetInputSource(1, playerTwoInput);
+            var drivers = new[] { driver };
+            StepTelegraphDrivers(drivers, playerOneInput, playerTwoInput,
+                FighterMatchFlowRules.CountdownFrames + 2, GameplayButtons.None);
+            AssertThat(driver.Simulation.SeedFighterInfluenceForTest(0, FighterMeterRules.CapPoints)).IsTrue();
+            StepTelegraphDrivers(drivers, playerOneInput, playerTwoInput, 1, GameplayButtons.None);
+            PressUltimateUntilWindup(drivers, playerOneInput, playerTwoInput);
+            StepTelegraphDrivers(drivers, playerOneInput, playerTwoInput, 3, GameplayButtons.None);
+            AssertThat(ActivationPhase(driver, 0)).IsEqual(FighterUltimateActivationRules.PhaseWindup);
+
+            GlowPresentationController glow = one.Glow;
+            var sprite = one.GetNode<AnimatedSprite2D>("AnimatedSprite2D");
+            var flash = new Color(1f, 0.45f, 0.45f);
+            glow.FlashHit(flash, 0.08f);
+            AssertThat(glow.EffectiveTint).IsEqual(flash);
+            AssertThat(glow.HasUltimateTelegraph).IsTrue();
+            // The flash times out (its own clock) while the wind-up runs on.
+            glow._Process(1.0);
+            AssertThat(glow.HasTintOverride).IsFalse();
+            AssertThat(glow.EffectiveTint).IsEqual(TelegraphGlyph.UnblockableColor);
+            AssertThat(sprite.Modulate).IsEqual(TelegraphGlyph.UnblockableColor);
+
+            StepTelegraphDrivers(drivers, playerOneInput, playerTwoInput, 1, GameplayButtons.None);
+            AssertThat(ActivationPhase(driver, 0)).IsEqual(FighterUltimateActivationRules.PhaseWindup);
+            AssertThat(glow.HasUltimateTelegraph).IsTrue();
+            AssertThat(sprite.Modulate).IsEqual(TelegraphGlyph.UnblockableColor);
+            AssertThat(TelegraphShown(one)).IsTrue();
+        } finally {
+            InputManager.Instance.ClearInputSource(0);
+            InputManager.Instance.ClearInputSource(1);
+            host.Free();
+        }
+    }
+
+    /// <summary>
+    /// The wind-up's cue plays once, on the wind-up's first frame, on the
+    /// CriticalCues path — never again while the wind-up runs.
+    /// </summary>
+    [TestCase]
+    public void TheWindupCuePlaysOnceOnTheCriticalPath() {
+        if (InputManager.Instance == null) return;
+        AudioManager audio = AudioManager.Instance;
+        AssertObject(audio).IsNotNull();
+        CoreMechanicCuePresenter cues = audio.CoreCues;
+        AssertObject(cues).IsNotNull();
+        (FighterSimulationDriver driver, Node host, PlayerController _, PlayerController _) =
+            CreateTelegraphDriver("TelegraphCueHost", attachGlow: true);
+        var playerOneInput = new BufferedInputSource();
+        var playerTwoInput = new BufferedInputSource();
+        try {
+            cues.ResetTransient();
+            InputManager.Instance.SetInputSource(0, playerOneInput);
+            InputManager.Instance.SetInputSource(1, playerTwoInput);
+            var drivers = new[] { driver };
+            StepTelegraphDrivers(drivers, playerOneInput, playerTwoInput,
+                FighterMatchFlowRules.CountdownFrames + 2, GameplayButtons.None);
+            AssertThat(driver.Simulation.SeedFighterInfluenceForTest(0, FighterMeterRules.CapPoints)).IsTrue();
+            StepTelegraphDrivers(drivers, playerOneInput, playerTwoInput, 1, GameplayButtons.None);
+            AssertThat(cues.LastCueID).IsNotEqual(CoreMechanicCueIDs.UltimateActivationWindup);
+
+            PressUltimateUntilWindup(drivers, playerOneInput, playerTwoInput);
+            AssertThat(cues.LastCueID).IsEqual(CoreMechanicCueIDs.UltimateActivationWindup);
+            AssertThat(cues.LastRoutedBus).IsEqual(AudioBuses.CriticalCues);
+            int played = cues.CuesPlayed;
+            for (int guard = 0; guard < 60 && ActivationPhase(driver, 0) == FighterUltimateActivationRules.PhaseWindup; guard++) {
+                StepTelegraphDrivers(drivers, playerOneInput, playerTwoInput, 1, GameplayButtons.None);
+                if (ActivationPhase(driver, 0) == FighterUltimateActivationRules.PhaseWindup) {
+                    AssertThat(cues.CuesPlayed).IsEqual(played);
+                }
+            }
+            AssertThat(ActivationPhase(driver, 0)).IsNotEqual(FighterUltimateActivationRules.PhaseWindup);
+        } finally {
+            InputManager.Instance.ClearInputSource(0);
+            InputManager.Instance.ClearInputSource(1);
+            host.Free();
+            cues.ResetTransient();
+            audio.ReleaseAllVoices();
+        }
+    }
+
+    /// <summary>
+    /// The A02 telegraph harness: the suite's driver with stage hazards off, so
+    /// no hazard cue or hazard hit lands inside the measured wind-up.
+    /// </summary>
+    private static (FighterSimulationDriver driver, Node host, PlayerController one, PlayerController two)
+        CreateTelegraphDriver(string name, bool attachGlow) {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        var host = new Node2D { Name = name };
+        tree.Root.AddChild(host);
+        PlayerController one = CharacterFactory.CreateCharacter("einstein", 0, applyStoryProgression: false);
+        PlayerController two = CharacterFactory.CreateCharacter("joan", 1, applyStoryProgression: false);
+        if (!attachGlow) {
+            RemoveGlow(one);
+            RemoveGlow(two);
+        }
+        host.AddChild(one);
+        host.AddChild(two);
+        var driver = new FighterSimulationDriver { Name = "Driver" };
+        host.AddChild(driver);
+        MatchSettings settings = MatchSettings.GetDefault();
+        settings.StageHazardsEnabled = false;
+        driver.Initialize(one, two, settings, stageHazardTypeID: 1, stageID: "florence_workshop", matchSeed: 2026);
+        return (driver, host, one, two);
+    }
+
+    /// <summary>
+    /// Steps every driver <paramref name="frames"/> ticks on the same input. The
+    /// sources are re-registered each tick (the harness shares one engine
+    /// physics-frame ID), after which every driver reads the same cached frame.
+    /// </summary>
+    private static void StepTelegraphDrivers(FighterSimulationDriver[] drivers,
+        BufferedInputSource playerOne, BufferedInputSource playerTwo, int frames, GameplayButtons held,
+        GameplayButtons previousHeld = GameplayButtons.None) {
+        for (int frame = 0; frame < frames; frame++) {
+            uint tick = (uint)drivers[0].CurrentTick;
+            playerOne.SetNextFrame(PlayerInputFrame.Create(tick, 0f, 0f, held, previousHeld));
+            playerTwo.SetNextFrame(PlayerInputFrame.Create(tick, 0f, 0f, GameplayButtons.None));
+            InputManager.Instance.SetInputSource(0, playerOne);
+            InputManager.Instance.SetInputSource(1, playerTwo);
+            foreach (FighterSimulationDriver driver in drivers) driver._PhysicsProcess(Step);
+            previousHeld = held;
+        }
+    }
+
+    /// <summary>
+    /// Presses the Ultimate once and steps until component 321 is in its
+    /// wind-up (a short bound, so a chord or input delay upstream does not
+    /// break the harness). Returns the frames it took; fails if it never starts.
+    /// </summary>
+    private static int PressUltimateUntilWindup(FighterSimulationDriver[] drivers,
+        BufferedInputSource playerOne, BufferedInputSource playerTwo) {
+        StepTelegraphDrivers(drivers, playerOne, playerTwo, 1, GameplayButtons.Ultimate);
+        int frames = 1;
+        GameplayButtons previous = GameplayButtons.Ultimate;
+        while (ActivationPhase(drivers[0], 0) != FighterUltimateActivationRules.PhaseWindup && frames < 10) {
+            StepTelegraphDrivers(drivers, playerOne, playerTwo, 1, GameplayButtons.None, previous);
+            previous = GameplayButtons.None;
+            frames++;
+        }
+        AssertThat(ActivationPhase(drivers[0], 0)).IsEqual(FighterUltimateActivationRules.PhaseWindup);
+        return frames;
+    }
+
+    private static int ActivationPhase(FighterSimulationDriver driver, int playerID) =>
+        driver.Simulation.TryGetFighterUltimateActivation(playerID, out FighterUltimateActivationComponent activation)
+            ? activation.Phase
+            : -1;
+
+    private static bool TelegraphShown(PlayerController player) => UltimateActivationTelegraph.IsGlyphShown(player);
 }

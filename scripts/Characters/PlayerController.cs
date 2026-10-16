@@ -3938,6 +3938,11 @@ namespace FTT.Characters {
 				_attackStartedCrouched = false;
 			}
 			CurrentState = newState;
+			// CM-ULT (decision 2.1): leaving UsingUltimate by any edge ends the A02
+			// activation strike's phase and its wind-up telegraph.
+			if (oldState == CharacterState.UsingUltimate && newState != CharacterState.UsingUltimate) {
+				OnLeaveUltimateState();
+			}
 			// D3: the Special cancel buffer lives only inside one UsingSpecial stay.
 			if (oldState == CharacterState.UsingSpecial || newState == CharacterState.UsingSpecial) {
 				ClearSpecialCancelPress();
@@ -5613,6 +5618,9 @@ namespace FTT.Characters {
 			ApplyStoryHyperArmor(
 				(Math.Max(1, data.ActivationWindupFrames) + Math.Max(1, data.ActivationActiveFrames)) / 60f);
 			BeginUltimateCast();
+			// CM-ULT (decision 2.1): the wind-up telegraph and its critical cue.
+			SyncUltimateTelegraph();
+			PlayUltimateWindupCue();
 			return true;
 		}
 
@@ -5643,6 +5651,8 @@ namespace FTT.Characters {
 				_ultimateActivationPhase = UltimateActivationActive;
 				_ultimateActivationFrames = activeFrames;
 				_ultimateActivationOrigin = _hurtbox?.GlobalPosition ?? GlobalPosition;
+				// CM-ULT: the telegraph covers exactly the wind-up.
+				SyncUltimateTelegraph();
 			}
 
 			int activeIndex = activeFrames - _ultimateActivationFrames;
@@ -5665,6 +5675,7 @@ namespace FTT.Characters {
 		private void StartUltimateFromActivation() {
 			_ultimateActivationPhase = UltimateActivationNone;
 			_ultimateActivationFrames = 0;
+			SyncUltimateTelegraph();
 			float meterBefore = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
 			_ultimateMeter?.SetValue(FTT.Combat.UltimateMeter.MaxValue);
 			bool executed = _ultimate != null && _ultimate.TryExecute();
@@ -5676,6 +5687,7 @@ namespace FTT.Characters {
 		private void EndUltimateActivationStrike() {
 			_ultimateActivationPhase = UltimateActivationNone;
 			_ultimateActivationFrames = 0;
+			SyncUltimateTelegraph();
 			_ultimateStartedAerial = false;
 			TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
 		}

@@ -57,6 +57,13 @@ namespace FTT.Combat {
         private Color _tintOverride = Colors.White;
         private bool _tintOverrideActive;
         private float _flashSecondsRemaining;
+        // CM-ULT (2026-10-16, decision 2.1): the A02 activation wind-up's steady
+        // Unblockable-red tint. Its own flag rather than the tint override, so a
+        // FlashHit on the armoured caster rides on top of it and, when the flash
+        // times out, the sprite returns to the red rather than to the base tint;
+        // and ending the telegraph never cuts a running flash short. Below the
+        // override, above the base tint. Steady (no pulse), so C01a-safe.
+        private bool _ultimateTelegraph;
         private float _venomPhase;
         private bool _eventsBound;
         private bool _resolvedVisible;
@@ -105,9 +112,15 @@ namespace FTT.Combat {
         public PointLight2D Light => _light;
         public Color BaseTint => _baseTint;
         public bool HasTintOverride => _tintOverrideActive;
+
+        /// <summary>True while the A02 activation wind-up telegraph tint is set (CM-ULT).</summary>
+        public bool HasUltimateTelegraph => _ultimateTelegraph;
+
         public Color EffectiveTint {
             get {
-                Color tint = _tintOverrideActive ? _tintOverride : _baseTint;
+                Color tint = _tintOverrideActive ? _tintOverride
+                    : _ultimateTelegraph ? TelegraphGlyph.UnblockableColor
+                    : _baseTint;
                 // A6b: the hero aura warms the tint under whatever the transient
                 // channels are doing, so a status tint or a hit flash rides on
                 // top of the gold instead of erasing it.
@@ -262,6 +275,18 @@ namespace FTT.Combat {
         }
 
         public void FlashHit() => FlashHit(new Color(1f, 0.45f, 0.45f), 0.08f);
+
+        /// <summary>
+        /// CM-ULT (decision 2.1): shows or hides the steady Unblockable-red tint of
+        /// the A02 activation wind-up. Idempotent, so an owner can derive it from
+        /// state every frame. A transient tint override (a hit flash) still wins
+        /// while it runs; the base tint returns when this is cleared.
+        /// </summary>
+        public void SetUltimateTelegraph(bool active) {
+            if (_ultimateTelegraph == active) return;
+            _ultimateTelegraph = active;
+            ApplyTint();
+        }
 
         public void PushState(GlowState state) {
             _stack.Push(state);
