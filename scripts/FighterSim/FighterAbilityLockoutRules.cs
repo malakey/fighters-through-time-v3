@@ -50,10 +50,16 @@ namespace FTT.FighterSim {
         public static bool CanReadAbilityPress(
             in FighterStateComponent fighter,
             in FighterRuntimeComponent runtime,
-            in FighterVerbComponent verb) =>
+            in FighterVerbComponent verb,
+            in FighterActionStateComponent action) =>
             fighter.Stocks > 0
             && fighter.HitstunFrames <= 0
             && fighter.DazeFrames <= 0
+            // Combat and movement update 2026-10-16: the landing tech's lock
+            // (1.1(3)) and the fighter's own Special cast (1.2, component 323),
+            // the second gates behind those input discards.
+            && verb.TechLockoutFrames <= 0
+            && !FighterSpecialCastRules.IsBusy(in action)
             // V7.1 hitstop / V7.2 grabs: a frozen, grabbing, or held fighter
             // takes no ability action (their button presses are simply not
             // consumed).

@@ -49,6 +49,19 @@ namespace FTT.FighterSim {
         /// of the existing <c>AttackFlags</c> word: no new component state.
         /// </summary>
         public const int FlagQueuedBuffered = 64;
+        /// <summary>
+        /// Combat and movement update 2026-10-16, decision 10.1 (plan §2.10.1):
+        /// the string box's facing, latched on every Startup → Active transition
+        /// (chain continuations included) and read by the three box callers —
+        /// the fighter-target chain hit, the air strike and the construct sweep —
+        /// so steering mid-active turns the fighter and the sprite but never
+        /// flips the box, as Story places its box once at active start. A spare
+        /// bit of the existing <c>AttackFlags</c> word (plan §1.5); every swing
+        /// start rewrites the flags, so it never leaks into the next swing. The
+        /// Up-Attack and the Down-Air test a facing-symmetric box and need no
+        /// latch. Bit 512 is reserved for CM-MOVE's <c>FlagLedgeAttack</c>.
+        /// </summary>
+        public const int FlagActiveFacingRight = 256;
 
         private const int BasicButton = 1 << 2;
         private const int BlockButton = 1 << 6;

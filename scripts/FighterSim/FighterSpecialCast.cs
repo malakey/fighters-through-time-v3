@@ -91,4 +91,87 @@ namespace FTT.FighterSim {
         /// <summary><see cref="ActionFlags"/> bit 3: the current rise began with this airtime's own Jump press (CM-MOVE, Q5).</summary>
         public const int ActionFlagRiseFromOwnJump = 8;
     }
+
+    /// <summary>
+    /// The Fighter Special cast (decision 1.2, plan §2.1.6): the authored
+    /// startup, active and recovery of every Special, run on component 323.
+    /// Integer frame arithmetic only; nothing here reads Story state.
+    ///
+    /// <para><b>The cast lock.</b> While <see cref="IsBusy"/> is true the
+    /// caster's input is discarded on every tick, its own hitstop ticks
+    /// included (<c>FighterMovementSystem</c>: the hitstop branch and the cast
+    /// region before <c>TickCounters</c>). The only exit is the grounded recovery
+    /// Block cancel (and, from Phase B, CM-CANCEL's D3). The second gates are
+    /// <c>FighterGrabRules.CanStartGrab</c>,
+    /// <c>FighterAbilityLockoutRules.CanReadAbilityPress</c> and the Ultimate
+    /// predicate (<c>FighterCombatSystem.UltimatePressPayable</c>).</para>
+    ///
+    /// <para><b>Interrupts.</b> Hitstun, daze, a grab on either side, an
+    /// activation-strike capture, a stock loss or the respawn platform end the
+    /// cast (<see cref="ClearIfInterrupted"/>): the cooldown and lockout stay
+    /// spent, what already spawned survives, an unfired effect never fires.</para>
+    /// </summary>
+    public static class FighterSpecialCastRules {
+        public const int PhaseNone = 0;
+        public const int PhaseStartup = 1;
+        public const int PhaseActive = 2;
+        public const int PhaseRecovery = 3;
+        /// <summary>Tubman's Foresight: the stance runs on component 322; 323 records the cast.</summary>
+        public const int PhaseDelegated = 4;
+
+        /// <summary><see cref="FighterActionStateComponent.SpecialFlags"/>: the cast began airborne (half gravity through startup and active).</summary>
+        public const int FlagStartedAerial = 1;
+        /// <summary>The slot's effect (projectile, construct, zone, lunge) has fired.</summary>
+        public const int FlagEffectFired = 2;
+        /// <summary>A melee slot resolved its one contact this execution.</summary>
+        public const int FlagMeleeResolved = 4;
+        /// <summary>CM-CANCEL (Phase B): the cast landed a direct hit (arms D3).</summary>
+        public const int FlagLandedDirectHit = 8;
+        /// <summary>The contract carried no authored frames: the cast runs as 0 / 1 / 0, today's press-tick timing.</summary>
+        public const int FlagFallbackTiming = 16;
+
+        /// <summary>Any cast phase, Delegated included: the caster is action-locked.</summary>
+        public static bool IsBusy(in FighterActionStateComponent cast) => cast.SpecialPhase != PhaseNone;
+
+        public static bool IsStartup(in FighterActionStateComponent cast) => cast.SpecialPhase == PhaseStartup;
+        public static bool IsActive(in FighterActionStateComponent cast) => cast.SpecialPhase == PhaseActive;
+        public static bool IsRecovery(in FighterActionStateComponent cast) => cast.SpecialPhase == PhaseRecovery;
+        public static bool IsDelegated(in FighterActionStateComponent cast) => cast.SpecialPhase == PhaseDelegated;
+
+        /// <summary>The 0-based recovery frame (the tick's own frame), or -1 outside recovery.</summary>
+        public static int RecoveryFrame(in FighterActionStateComponent cast) =>
+            cast.SpecialPhase == PhaseRecovery ? cast.SpecialPhaseElapsed : -1;
+
+        public static bool HasFlag(in FighterActionStateComponent cast, int flag) => (cast.SpecialFlags & flag) != 0;
+
+        /// <summary>Ends the cast: the slot, the phase, its clock and the cast flags. The other 323 fields are left alone.</summary>
+        public static void Clear(ref FighterActionStateComponent cast) {
+            cast.SpecialSlot = 0;
+            cast.SpecialPhase = PhaseNone;
+            cast.SpecialPhaseFrames = 0;
+            cast.SpecialPhaseElapsed = 0;
+            cast.SpecialFlags = 0;
+        }
+
+        /// <summary>The interrupt set: hitstun, daze, a grab on either side, a capture, out of stocks, the respawn platform.</summary>
+        public static bool IsInterrupted(
+            in FighterStateComponent fighter, in FighterVerbComponent verb, bool captured) =>
+            fighter.HitstunFrames > 0
+            || fighter.DazeFrames > 0
+            || FighterGrabRules.IsBusy(in verb)
+            || captured
+            || fighter.Stocks <= 0
+            || FighterMatchFlowRules.IsOnRespawnPlatform(in fighter);
+
+        /// <summary>Clears a busy cast the interrupt set ends. Returns true when it did.</summary>
+        public static bool ClearIfInterrupted(
+            ref FighterActionStateComponent cast,
+            in FighterStateComponent fighter,
+            in FighterVerbComponent verb,
+            bool captured) {
+            if (!IsBusy(in cast) || !IsInterrupted(in fighter, in verb, captured)) return false;
+            Clear(ref cast);
+            return true;
+        }
+    }
 }

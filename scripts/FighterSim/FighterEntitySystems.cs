@@ -1084,7 +1084,8 @@ namespace FTT.FighterSim {
                 // action, the presses simply not consumed. One predicate, shared
                 // with the D10 "not yet" classifier (2026-10-11), so a press this
                 // system never reads never flashes.
-                if (!FighterAbilityLockoutRules.CanReadAbilityPress(in fighter, in runtime, in verbState)) continue;
+                ref FighterActionStateComponent actionState = ref frame.Get<FighterActionStateComponent>(entity);
+                if (!FighterAbilityLockoutRules.CanReadAbilityPress(in fighter, in runtime, in verbState, in actionState)) continue;
                 int specialOneCooldownBefore = runtime.SpecialOneCooldownFrames;
                 int specialTwoCooldownBefore = runtime.SpecialTwoCooldownFrames;
 
@@ -1097,14 +1098,14 @@ namespace FTT.FighterSim {
                 ref readonly FighterUltimateActivationComponent ultimateActivation =
                     ref frame.GetReadOnly<FighterUltimateActivationComponent>(entity);
                 bool ultimateClaimsTick = FighterCombatSystem.UltimatePressAccepted(
-                    in fighter, in runtime, in ultimateActivation);
+                    in fighter, in runtime, in verbState, in actionState, in ultimateActivation);
                 // §1.7 (2026-10-11, PROVISIONAL-HIT-CONFIRM-RULES (4)): a
                 // meter-paid Ultimate the lockout alone refuses still claims the
                 // tick from the Specials (not from the movement ability), so the
                 // Movement + Special 2 chord cannot cast Special 2 inside a
                 // hit-confirm.
                 bool ultimateHeldBack = FighterCombatSystem.UltimatePressHeldBackByLockout(
-                    in fighter, in runtime, in ultimateActivation);
+                    in fighter, in runtime, in verbState, in actionState, in ultimateActivation);
 
                 // Ability lockout (user direction 2026-10-08): every acceptance
                 // below checks it and arms it at once, so the first special

@@ -545,6 +545,111 @@ public class FighterBasicStringParityTests {
         }
     }
 
+    /// <summary>
+    /// Combat and movement update 2026-10-16, decision 10.1 (plan §2.10.1): the
+    /// sim latches the string box's facing at active start, as Story places its
+    /// box once. Reversing the stick on the first active tick turns the fighter
+    /// (and its sprite) but not the box, for the chain, the air strike and the
+    /// construct sweep; the next chain hit re-latches from the new facing.
+    /// </summary>
+    [TestCase]
+    public void TheBoxFacingIsLatchedAtActiveStartForTheChainTheAirStrikeAndTheConstructSweep() {
+        // The chain: hit 1 lands though the stick reverses on its first active tick.
+        var chain = NewAdjacentSimulation(seed: 96);
+        Advance(chain, 0, p1Buttons: GameplayButtons.BasicAttack);
+        int tick = RunToActiveEntry(chain, 1);
+        AssertThat(chain.TryGetFighter(1, out FighterStateComponent beforeChain)).IsTrue();
+        Advance(chain, tick++, p1MoveX: -127);
+        AssertThat(chain.TryGetFighter(0, out FighterStateComponent turned)).IsTrue();
+        AssertThat(turned.FacingRight)
+            .OverrideFailureMessage("Steering still turns the fighter on the first active tick.")
+            .IsEqual(0);
+        AssertThat(chain.TryGetFighterRuntime(0, out FighterRuntimeComponent latched)).IsTrue();
+        AssertThat((latched.AttackFlags & FighterBasicAttackRules.FlagActiveFacingRight) != 0)
+            .OverrideFailureMessage("The box facing must be latched right at active start.")
+            .IsTrue();
+        AssertThat(chain.TryGetFighter(1, out FighterStateComponent struck)).IsTrue();
+        AssertThat(struck.CurrentHP < beforeChain.CurrentHP)
+            .OverrideFailureMessage("A reversal on the first active tick must not flip the chain's box off the target.")
+            .IsTrue();
+
+        // A new chain hit re-latches from the facing it starts with (left now).
+        bool reLatched = false;
+        for (int step = 0; step < 90 && !reLatched; step++, tick++) {
+            Advance(chain, tick, p1MoveX: -127, p1Buttons: GameplayButtons.BasicAttack);
+            AssertThat(chain.TryGetFighterRuntime(0, out FighterRuntimeComponent next)).IsTrue();
+            if (next.ComboIndex == 1 && next.AttackPhase == FighterBasicAttackRules.PhaseActive) {
+                reLatched = (next.AttackFlags & FighterBasicAttackRules.FlagActiveFacingRight) == 0;
+                AssertThat(reLatched)
+                    .OverrideFailureMessage("Hit 2 must latch the facing it entered its active frames with.")
+                    .IsTrue();
+            }
+        }
+        AssertThat(reLatched).OverrideFailureMessage("Harness: hit 2 never reached its active frames.").IsTrue();
+
+        // The air strike: the same reversal on its first active tick still lands it.
+        var air = NewAdjacentSimulation(seed: 97);
+        Advance(air, 0, p1Buttons: GameplayButtons.Jump);
+        Advance(air, 1, p1Buttons: GameplayButtons.BasicAttack);
+        AssertThat(air.TryGetFighterRuntime(0, out FighterRuntimeComponent strike)).IsTrue();
+        AssertThat((strike.AttackFlags & FighterBasicAttackRules.FlagAirAttack) != 0)
+            .OverrideFailureMessage("Harness: the airborne press must start the air strike.")
+            .IsTrue();
+        tick = RunToActiveEntry(air, 2);
+        AssertThat(air.TryGetFighter(1, out FighterStateComponent beforeAir)).IsTrue();
+        Advance(air, tick, p1MoveX: -127);
+        AssertThat(air.TryGetFighter(1, out FighterStateComponent struckAir)).IsTrue();
+        AssertThat(struckAir.CurrentHP < beforeAir.CurrentHP)
+            .OverrideFailureMessage("A reversal on the air strike's first active tick must not flip its box.")
+            .IsTrue();
+
+        // The construct sweep: an opposing coil to the right is still struck.
+        var sweep = new FighterSimulation(
+            FighterLoadout.Default(FighterCharacterID.Tesla),
+            FighterLoadoutFactory.FromCharacterData(
+                AuthoredResources.Load<CharacterData>("res://resources/Characters/tesla_data.tres")),
+            seed: 98,
+            spawnDistance: 1,
+            rules: FighterMatchRules.Disabled);
+        tick = 0;
+        for (int step = 0; step < 60 && sweep.PersistentObjectCount == 0; step++, tick++) {
+            Advance(sweep, tick, p2Buttons: step == 0 ? GameplayButtons.Special1 : GameplayButtons.None);
+        }
+        AssertThat(sweep.TryGetFirstPersistentObject(out FighterPersistentObjectComponent coil)).IsTrue();
+        AssertThat(coil.OwnerPlayerID).IsEqual(1);
+        // Let the coil's owner step back out of the swing, so only the construct is in it.
+        tick = Idle(sweep, tick, 8, p2MoveX: 127);
+        Advance(sweep, tick++, p1Buttons: GameplayButtons.BasicAttack);
+        tick = RunToActiveEntry(sweep, tick);
+        Advance(sweep, tick, p1MoveX: -127);
+        AssertThat(sweep.TryGetFirstPersistentObject(out FighterPersistentObjectComponent struckCoil)).IsTrue();
+        AssertThat(struckCoil.CurrentHP < coil.CurrentHP)
+            .OverrideFailureMessage("A reversal on the first active tick must not flip the construct sweep's box.")
+            .IsTrue();
+    }
+
+    /// <summary>
+    /// Steps neutral ticks from <paramref name="tick"/> until player one's
+    /// swing has one startup frame left, so the NEXT tick enters its active
+    /// frames. Returns that next tick.
+    /// </summary>
+    private static int RunToActiveEntry(FighterSimulation simulation, int tick) {
+        for (int step = 0; step < 30; step++) {
+            AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
+            if (runtime.AttackPhase == FighterBasicAttackRules.PhaseStartup && runtime.AttackPhaseFrames == 1) {
+                return tick;
+            }
+            Advance(simulation, tick++);
+        }
+        AssertThat(false).OverrideFailureMessage("Harness: the swing never neared its active frames.").IsTrue();
+        return tick;
+    }
+
+    private static int Idle(FighterSimulation simulation, int tick, int frames, sbyte p2MoveX = 0) {
+        for (int step = 0; step < frames; step++) Advance(simulation, tick++, p2MoveX: p2MoveX);
+        return tick;
+    }
+
     private static FighterSimulation NewAdjacentSimulation(int seed, int spawnDistance = 1) => new(
         FighterCharacterID.Tesla,
         FighterCharacterID.Joan,

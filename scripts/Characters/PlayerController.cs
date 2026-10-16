@@ -3222,7 +3222,7 @@ namespace FTT.Characters {
 			}
 			float gravityMultiplier = _specialStartedAerial && ability?.CurrentPhase is
 				FTT.Combat.AbilityPhase.Startup or FTT.Combat.AbilityPhase.Active
-				? 0.5f
+				? FTT.Core.UniversalMovementRules.AerialSpecialGravityMultiplier
 				: 1f;
 			ApplyGravity(dt * gravityMultiplier);
 			// A06 (Package 13 W1): Echo Step is eligible only from the recovery

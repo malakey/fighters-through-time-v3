@@ -70,14 +70,20 @@ namespace FTT.FighterSim {
         /// <summary>
         /// Grab initiation gate: grounded only (like the block stance it
         /// answers), free of hitstun/daze/roll/swing/hang/respawn, not already
-        /// grabbing or held.
+        /// grabbing or held. Combat and movement update 2026-10-16: never during
+        /// the landing tech's lock (1.1(3), plan §2.1.3) or the fighter's own
+        /// Special cast (1.2, plan §2.1.6) — the second gates behind the input
+        /// discards.
         /// </summary>
         public static bool CanStartGrab(
             in FighterStateComponent fighter,
             in FighterRuntimeComponent runtime,
-            in FighterVerbComponent verb) =>
+            in FighterVerbComponent verb,
+            in FighterActionStateComponent action) =>
             verb.GrabPhase == PhaseNone
             && verb.BeingHeld == 0
+            && verb.TechLockoutFrames <= 0
+            && !FighterSpecialCastRules.IsBusy(in action)
             // V7.3 shieldstun locks the stance up completely — including the
             // grab chord out of it.
             && verb.ShieldStunFrames <= 0

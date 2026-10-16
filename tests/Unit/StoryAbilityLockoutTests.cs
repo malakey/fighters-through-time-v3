@@ -417,6 +417,37 @@ public class StoryAbilityLockoutTests {
         });
     }
 
+    /// <summary>
+    /// Combat and movement update 2026-10-16, decision 2.3 (Story parity half):
+    /// the sim now refuses the Ultimate from the block stance and shieldstun,
+    /// which Story's Blocking state already did — it never polls the Ultimate.
+    /// A full meter and an Ultimate press inside the stance leave the hero
+    /// blocking with the meter untouched.
+    /// </summary>
+    [TestCase]
+    public void BlockingWithAFullMeterStaysInBlocking() {
+        Run(player => {
+            var meter = player.GetNode<UltimateMeter>("UltimateMeter");
+            player.SetUltimateMeter(InfluenceMeterRules.MaxValue);
+            AssertThat(meter.IsFull).IsTrue();
+
+            Tick(player, GameplayButtons.Block);
+            Tick(player, GameplayButtons.Block);
+            AssertThat(player.CurrentState)
+                .OverrideFailureMessage("Harness: a held Block must raise the stance.")
+                .IsEqual(CharacterState.Blocking);
+
+            for (int tick = 0; tick < 5; tick++) {
+                Tick(player, GameplayButtons.Block | GameplayButtons.Ultimate);
+                AssertThat(player.CurrentState)
+                    .OverrideFailureMessage($"An Ultimate press left the block stance on tick {tick}.")
+                    .IsEqual(CharacterState.Blocking);
+                AssertThat(meter.CurrentValue).IsEqual(UltimateMeter.MaxValue);
+                AssertThat(player.CurrentUltimateMeter).IsEqual(UltimateMeter.MaxValue);
+            }
+        });
+    }
+
     // === helpers ==============================================================
 
     private static void Run(Action<PlayerController> body) {

@@ -219,6 +219,102 @@ public class UltimateActivationTests {
         AssertThat(verb.GrabPhase).IsEqual(0);
     }
 
+    /// <summary>
+    /// Combat and movement update 2026-10-16, decision 2.3: no Ultimate from
+    /// the block stance. The press is refused, the meter stays full, and the
+    /// refused press claims nothing — no Special 2 or movement ability beside
+    /// it (the default pad Ultimate is the Movement + Special 2 chord) and no
+    /// "not yet" flash. Story's Blocking state never polled the Ultimate.
+    /// </summary>
+    [TestCase]
+    public void AnUltimatePressedFromTheBlockStanceIsRefusedKeepsTheMeterAndClaimsNothing() {
+        FighterSimulation simulation = NewSimulation(spawnDistance: 5, out int tick);
+        for (int i = 0; i < 3; i++, tick++) {
+            simulation.Advance(UltimateActivationTestKit.Holding(tick, GameplayButtons.Block),
+                UltimateActivationTestKit.Input(tick, 0, GameplayButtons.None));
+        }
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent stance)).IsTrue();
+        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent stanceRuntime)).IsTrue();
+        AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent stanceVerb)).IsTrue();
+        AssertThat(FighterBasicAttackRules.IsBlockStance(in stance, in stanceRuntime, in stanceVerb))
+            .OverrideFailureMessage("Harness: a held Block must raise the stance.")
+            .IsTrue();
+
+        const GameplayButtons chord = GameplayButtons.Block | GameplayButtons.Ultimate
+            | GameplayButtons.Special2 | GameplayButtons.MovementAbility;
+        for (int i = 0; i < 5; i++, tick++) {
+            LockoutRefusalBaseline baseline = Baseline(simulation, 0);
+            simulation.Advance(new PlayerInputFrame {
+                    Tick = (uint)tick, Held = chord,
+                    Pressed = chord & ~GameplayButtons.Block
+                },
+                UltimateActivationTestKit.Input(tick, 0, GameplayButtons.None));
+            AssertThat(UltimateActivationTestKit.Phase(simulation, 0)).IsEqual(FighterUltimateActivationRules.PhaseNone);
+            AssertThat(Classify(simulation, 0, in baseline)).IsEqual(FighterLockoutRefusal.None);
+        }
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
+        AssertThat(caster.Influence.RawValue).IsEqual(FP64.FromInt(100).RawValue);
+        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
+        AssertThat(runtime.SpecialTwoCooldownFrames).IsEqual(0);
+        AssertThat(runtime.MovementCooldownFrames).IsEqual(0);
+        AssertThat(simulation.ZoneCount + simulation.ProjectileCount).IsEqual(0);
+
+        // Positive control: out of the stance the same press is accepted.
+        simulation.Advance(UltimateActivationTestKit.Input(tick, 0, GameplayButtons.Ultimate),
+            UltimateActivationTestKit.Input(tick, 0, GameplayButtons.None));
+        AssertThat(UltimateActivationTestKit.Phase(simulation, 0)).IsEqual(FighterUltimateActivationRules.PhaseWindup);
+    }
+
+    /// <summary>
+    /// Decision 2.3: no Ultimate in shieldstun either. A blocked swing locks the
+    /// caster into the stance for its shieldstun; an Ultimate pressed with Block
+    /// already released is still refused there, with the meter kept.
+    /// </summary>
+    [TestCase]
+    public void AnUltimatePressedInShieldstunIsRefusedAndKeepsTheMeter() {
+        FighterSimulation simulation = NewSimulation(spawnDistance: 1, out int tick);
+        bool stunned = false;
+        for (int i = 0; i < 40 && !stunned; i++, tick++) {
+            simulation.Advance(UltimateActivationTestKit.Holding(tick, GameplayButtons.Block),
+                UltimateActivationTestKit.Input(tick, -127, i == 0 ? GameplayButtons.BasicAttack : GameplayButtons.None));
+            AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent verb)).IsTrue();
+            stunned = verb.HitstopFrames == 0 && verb.ShieldStunFrames >= 2;
+        }
+        AssertThat(stunned)
+            .OverrideFailureMessage("Harness: the target's swing never left the blocker in shieldstun.")
+            .IsTrue();
+
+        LockoutRefusalBaseline baseline = Baseline(simulation, 0);
+        simulation.Advance(UltimateActivationTestKit.Input(tick, 0, GameplayButtons.Ultimate),
+            UltimateActivationTestKit.Input(tick, 0, GameplayButtons.None));
+        tick++;
+        AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent during)).IsTrue();
+        AssertThat(during.ShieldStunFrames > 0)
+            .OverrideFailureMessage("Harness: the press must land inside the shieldstun.")
+            .IsTrue();
+        AssertThat(UltimateActivationTestKit.Phase(simulation, 0)).IsEqual(FighterUltimateActivationRules.PhaseNone);
+        AssertThat(Classify(simulation, 0, in baseline)).IsEqual(FighterLockoutRefusal.None);
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
+        AssertThat(caster.Influence.RawValue).IsEqual(FP64.FromInt(100).RawValue);
+    }
+
+    private static LockoutRefusalBaseline Baseline(FighterSimulation simulation, int playerID) {
+        AssertThat(simulation.TryGetFighter(playerID, out FighterStateComponent fighter)).IsTrue();
+        AssertThat(simulation.TryGetFighterRuntime(playerID, out FighterRuntimeComponent runtime)).IsTrue();
+        AssertThat(simulation.TryGetFighterVerb(playerID, out FighterVerbComponent verb)).IsTrue();
+        AssertThat(simulation.TryGetFighterUltimateActivation(playerID, out FighterUltimateActivationComponent activation)).IsTrue();
+        return LockoutRefusalBaseline.Capture(in runtime, in verb, in fighter, in activation);
+    }
+
+    private static FighterLockoutRefusal Classify(FighterSimulation simulation, int playerID, in LockoutRefusalBaseline baseline) {
+        AssertThat(simulation.TryGetFighter(playerID, out FighterStateComponent fighter)).IsTrue();
+        AssertThat(simulation.TryGetFighterRuntime(playerID, out FighterRuntimeComponent runtime)).IsTrue();
+        AssertThat(simulation.TryGetFighterVerb(playerID, out FighterVerbComponent verb)).IsTrue();
+        AssertThat(simulation.TryGetFighterUltimateActivation(playerID, out FighterUltimateActivationComponent activation)).IsTrue();
+        AssertThat(simulation.TryGetFighterActionState(playerID, out FighterActionStateComponent action)).IsTrue();
+        return FighterLockoutRefusalRules.Evaluate(in baseline, in fighter, in runtime, in verb, in activation, in action);
+    }
+
     [TestCase]
     public void AnAerialActivationFreezesTheCasterThroughTheWindup() {
         FighterSimulation simulation = NewSimulation(spawnDistance: 5, out int tick);

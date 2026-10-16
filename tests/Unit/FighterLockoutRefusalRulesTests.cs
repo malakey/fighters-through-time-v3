@@ -245,7 +245,7 @@ public class FighterLockoutRefusalRulesTests {
         Idle(simulation, 2);
         Components components = Read(simulation);
         AssertThat(FighterAbilityLockoutRules.CanReadAbilityPress(
-                in components.Fighter, in components.Runtime, in components.Verb))
+                in components.Fighter, in components.Runtime, in components.Verb, default))
             .OverrideFailureMessage("Harness: an idle fighter reads ability presses.")
             .IsTrue();
         components.Runtime.PressedButtons = pressed;
