@@ -345,10 +345,19 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnActive() {
             PhaseTimer = _chargeDuration;
+            // CM-STORY (Q7, 2026-10-16): the charge moves from its first active
+            // tick, so its PhaseTimer frames cover exactly the authored distance
+            // (it used to start one tick late and stop 10 px short of 300).
+            DriveCharge();
         }
 
         protected override void OnRecovery() {
             UseAuthoredPhaseFrames();
+            // CM-STORY (Q7, ruled 2026-10-16 "stop it like the sim"): the charge
+            // stops where its travel ends, as the sim zeroes X at the end of
+            // FighterKitMotion.RailCharge — it used to carry 600 px/s through the
+            // 18 recovery frames, about 180 px past the authored 300.
+            if (Owner != null) Owner.Velocity = new Vector2(0f, Owner.Velocity.Y);
             FTT.Core.EventBus.Instance?.RaiseMovementAbilityUsed(new FTT.Core.MovementAbilityPayload {
                 PlayerIndex = Owner.PlayerIndex,
                 AbilityName = Data?.AbilityName ?? "Rail Charge",
@@ -361,7 +370,7 @@ namespace FTT.Characters.Abilities {
             // F5: the charge and its contacts hold with the frozen caster.
             if (CastClockSuspended) return;
             if (CurrentPhase == AbilityPhase.Active) {
-                Owner.Velocity = _chargeDirection * _chargeSpeed;
+                DriveCharge();
                 // Rail Breaker runs BEFORE contact resolution so the broken
                 // projectile never applies its damage or on-hit effects.
                 TryBreakProjectile();
@@ -379,6 +388,18 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnInterrupted() {
             _contactStopPending = false;
+        }
+
+        /// <summary>
+        /// CM-STORY (1.1(1)): the charge writes its horizontal speed only, so Story
+        /// gravity accumulates on the vertical through the whole cast — a charge
+        /// that leaves a ledge falls, as the sim's <c>RailCharge</c> phase (which
+        /// writes <c>Velocity.x</c> only) does. It used to write the whole vector,
+        /// zeroing the fall every tick.
+        /// </summary>
+        private void DriveCharge() {
+            if (Owner == null) return;
+            Owner.Velocity = new Vector2(_chargeDirection.X * _chargeSpeed, Owner.Velocity.Y);
         }
 
         /// <summary>

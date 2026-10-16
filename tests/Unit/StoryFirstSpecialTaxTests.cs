@@ -71,7 +71,7 @@ public class StoryFirstSpecialTaxTests {
 
     [TestCase]
     public void TheFirstSpecialsHitsNeverDecayButStillCountTowardTheChain() {
-        // 6-damage hits keep the whole case under an Easy-scaled 28 HP.
+        // 6-damage Specials (the fixture mob has headroom since CM-STORY 8.1).
         EnemyController enemy = CreateEnemy("chrono_slasher", WorldOrigin);
         try {
             var hurtbox = enemy.GetNode<Hurtbox>("Hurtbox");
@@ -506,6 +506,11 @@ public class StoryFirstSpecialTaxTests {
         ((SceneTree)Engine.GetMainLoop()).Root.AddChild(enemy);
         enemy.OnSpawn();
         enemy.GlobalPosition = position;
+        // CM-STORY (8.1, 2026-10-16): the standard basic floor lifts each
+        // 1-damage string fixture hit to 6, which took several cases to within a
+        // hit of a Normal 40 HP and past an Easy 28. No case here is about a kill,
+        // so every fixture mob gets headroom on any difficulty.
+        enemy.CurrentHP = 999;
         return enemy;
     }
 }

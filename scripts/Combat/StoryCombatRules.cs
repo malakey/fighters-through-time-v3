@@ -41,12 +41,58 @@ namespace FTT.Combat {
         public static float MeterGainFactor(bool storyScaled, float buildRateLane) =>
             (storyScaled ? MeterGainScale : 1f) * System.MathF.Max(0f, buildRateLane);
 
+        // === CM-STORY (decision 7.3, 2026-10-16): the Story Echo Step cost ===
+        // Findings CMB-16, TWO-10; ledger USER-STORY-ECHO-STEP-COST, amending
+        // PROVISIONAL-STORY-METER-SCALE-RULES (5) ("spends are unchanged"). The
+        // campaign hero earns meter x0.35 (D5), so a 30-meter Echo Step cost him
+        // about three times the play it costs in Fighter Mode. Derived, not a
+        // second 0.35: the cross-mode cost times the D5 scale. Like the gain
+        // scale it never enters InfluenceMeterRules or scripts/FighterSim/
+        // (InfluenceMeterSourceScanTests), and only the campaign hero pays it.
+
+        /// <summary>
+        /// 7.3 (Provisional, 10.5, unrounded): the campaign hero's Echo Step cost —
+        /// <see cref="BasicComboRules.EchoStepMeterCost"/> (30) ×
+        /// <see cref="MeterGainScale"/> (0.35).
+        /// </summary>
+        public const float StoryEchoStepMeterCost = BasicComboRules.EchoStepMeterCost * MeterGainScale;
+
+        /// <summary>
+        /// 7.3: the Echo Step cost a Story body pays — <see cref="StoryEchoStepMeterCost"/>
+        /// when it earns the D5 scale (<paramref name="storyScaled"/>, the campaign
+        /// hero), else the cross-mode 30 (the Mirror clone, the drills, the
+        /// Holodeck, Fighter Mode and the bots' unscaled A/B).
+        /// </summary>
+        public static float EchoStepMeterCost(bool storyScaled) =>
+            storyScaled ? StoryEchoStepMeterCost : BasicComboRules.EchoStepMeterCost;
+
         public static bool IsDropThroughAllowed(CharacterState state) => state is
             CharacterState.Idle or
             CharacterState.Running or
             CharacterState.Crouching or
             CharacterState.Blocking or
             CharacterState.Attacking;
+
+        // === CM-STORY (combat and movement update 2026-10-16) ===
+        // Decision 2.4 with the Q2 ruling ("startup only"): the Story hero's
+        // Ultimate is armoured while its own cast clock is in Startup, so a paid
+        // Ultimate is never lost to a mob or boss stun before it fires. A Story
+        // rule, not the .tres GrantsHyperArmor flag: that flag armours Startup
+        // AND Active (84-210 frames per Ultimate) and the nine Ultimate resources
+        // keep it false, so nothing here reaches the Fighter sim (which reads the
+        // flag for the movement ability only). Ledger PROVISIONAL-STORY-ULTIMATE-ARMOR.
+
+        /// <summary>
+        /// CM-STORY (2.4, Q2): true while a Story Ultimate in
+        /// <paramref name="phase"/> shrugs off the interruption of an incoming
+        /// <paramref name="incomingAttackClass"/>: during its Startup, against
+        /// anything but another Ultimate. Keyed to the cast's own phase clock, so
+        /// hitstop and Time Freeze, which pause that clock, pause the armour too.
+        /// </summary>
+        public static bool UltimateStartupArmorPreventsInterruption(
+            AbilityPhase phase,
+            AttackClass incomingAttackClass) =>
+            phase == AbilityPhase.Startup && incomingAttackClass != AttackClass.Ultimate;
 
         public static bool HyperArmorPreventsInterruption(
             bool grantsHyperArmor,

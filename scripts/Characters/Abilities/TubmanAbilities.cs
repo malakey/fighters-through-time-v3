@@ -409,6 +409,16 @@ namespace FTT.Characters.Abilities {
         public static float LedgeSnapBonusPixels =>
             TubmanKitRules.NorthStarLeapLedgeSnapBonusUnits * KitMotionRules.StoryPixelsPerUnit;
 
+        /// <summary>
+        /// CM-STORY (1.1(1)): the hold and the guided travel fly straight, and so
+        /// does the first recovery frame — the sim's <c>LeapEnd</c> settle frame,
+        /// in which the extended ledge snap can catch. The rest of the recovery
+        /// falls.
+        /// </summary>
+        public override bool SuspendsOwnerGravityNow =>
+            CurrentPhase is AbilityPhase.Startup or AbilityPhase.Active
+            || (CurrentPhase == AbilityPhase.Recovery && RecoveryFramesElapsed == 0);
+
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
             _redirectUsed = false;

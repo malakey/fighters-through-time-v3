@@ -71,6 +71,42 @@ public class StoryEnemyCombatRulesTests {
         AssertThat(StoryEnemyCombatRules.IsBasicsPacingHit(AttackClass.Basic, null)).IsFalse();
     }
 
+    /// <summary>
+    /// CM-STORY (decision 8.1, 2026-10-16, finding CMB-03): the S4 factor gains a
+    /// floor of 6 for small basics against standards — max(1.25, 6 / base) — and
+    /// it folds in before the chain proration and the Punish window, with one
+    /// rounding: a 3-damage basic doubles to 6, an 8 keeps ×1.25, a 0 stays 0,
+    /// hit 4 of a chain decays a floored 6 to 5, and a punished floored 6 is 7.
+    /// </summary>
+    [TestCase]
+    public void TheStandardBasicFloorLiftsSmallHitsToSixBeforeProrationAndPunish() {
+        AssertThat(StoryEnemyCombatRules.StandardBasicDamageFloor).IsEqual(6);
+        AssertThat(StoryEnemyCombatRules.StandardBasicPacingScale(3)).IsEqualApprox(2f, 0.0001f);
+        AssertThat(StoryEnemyCombatRules.StandardBasicPacingScale(8))
+            .IsEqualApprox(StoryEnemyCombatRules.StandardBasicDamageScale, 0.0001f);
+        AssertThat(StoryEnemyCombatRules.StandardBasicPacingScale(0)).IsEqualApprox(1f, 0.0001f);
+        AssertThat(StoryEnemyCombatRules.StandardBasicPacingScale(-2)).IsEqualApprox(1f, 0.0001f);
+        // Every damaging basic lands for at least the floor on its own.
+        for (int damage = 1; damage <= 20; damage++) {
+            int dealt = StoryEnemyCombatRules.ScaleIntakeDamage(damage, StoryEnemyCombatRules.StandardBasicPacingScale(damage));
+            AssertThat(dealt >= StoryEnemyCombatRules.StandardBasicDamageFloor)
+                .OverrideFailureMessage($"A {damage}-damage basic landed for {dealt}.")
+                .IsTrue();
+        }
+        AssertThat(StoryEnemyCombatRules.ScaleIntakeDamage(0, StoryEnemyCombatRules.StandardBasicPacingScale(0))).IsEqual(0);
+        // Before the chain decay and the Punish window, one rounding.
+        float floored = StoryEnemyCombatRules.StandardBasicPacingScale(3);
+        AssertThat(StoryEnemyCombatRules.ScaleIntakeDamage(3,
+            floored * StoryEnemyCombatRules.ConfirmProrationScale(4, specialOnHitstun: false))).IsEqual(5);
+        AssertThat(StoryEnemyCombatRules.ScaleIntakeDamage(3, floored * StoryEnemyCombatRules.PunishDamageScale))
+            .IsEqual(7);
+        // 8.2's dim test reads the same chain factor.
+        AssertThat(StoryEnemyCombatRules.IsProrated(StoryEnemyCombatRules.ConfirmProrationScale(4, false))).IsTrue();
+        AssertThat(StoryEnemyCombatRules.IsProrated(StoryEnemyCombatRules.ConfirmProrationScale(3, true))).IsTrue();
+        AssertThat(StoryEnemyCombatRules.IsProrated(StoryEnemyCombatRules.ConfirmProrationScale(3, false))).IsFalse();
+        AssertThat(StoryEnemyCombatRules.ProratedDamageNumberScale).IsEqualApprox(0.8f, 0.0001f);
+    }
+
     [TestCase]
     public void TheHitIndexedStunFloorSpansEveryBufferedStringGap() {
         // Template connect-to-connect gaps (hitstop freezes both parties, so it
@@ -268,30 +304,97 @@ public class StoryEnemyCombatRulesTests {
         AssertThat(StoryEnemyCombatRules.ChargesStandardPoise(AttackClass.Basic, HitOrigin.Basic)).IsTrue();
     }
 
+    /// <summary>
+    /// Rewritten in place by CM-STORY (7.1, 2026-10-16) from
+    /// <c>AnAbilitysAuthoredShakeWinsAndBasicsKeepTheDamageCurve</c>: the rule now
+    /// takes the hit's authored origin, and the authored shake wins outright only
+    /// for an Ultimate (a non-Ultimate Special takes the larger of it and the
+    /// damage curve, pinned in <see cref="ASpecialsShakeScalesWithDamageWhileUltimatesKeepTheirAuthoredValue"/>).
+    /// </summary>
     [TestCase]
-    public void AnAbilitysAuthoredShakeWinsAndBasicsKeepTheDamageCurve() {
+    public void AnUltimatesAuthoredShakeWinsAndBasicsKeepTheDamageCurve() {
         // An ability payload carries its AbilityData shake: x12 like the player-hit path.
         AssertThat(StoryEnemyCombatRules.UsesAuthoredShake(AttackClass.Special, 0.2f)).IsTrue();
         AssertThat(StoryEnemyCombatRules.UsesAuthoredShake(AttackClass.Ultimate, 0.6f)).IsTrue();
-        AssertThat(StoryEnemyCombatRules.DealtHitShakeIntensity(AttackClass.Ultimate, 0.6f, damage: 30, launches: true))
+        AssertThat(StoryEnemyCombatRules.DealtHitShakeIntensity(
+                AttackClass.Ultimate, HitOrigin.Ultimate, 0.6f, damage: 30, launches: true))
             .IsEqualApprox(0.6f * StoryEnemyCombatRules.AuthoredShakePixelsPerIntensity, 0.0001f);
         AssertThat(StoryEnemyCombatRules.AuthoredShakePixelsPerIntensity).IsEqualApprox(12f, 0.0001f);
-        AssertThat(StoryEnemyCombatRules.DealtHitShakeDuration(AttackClass.Special, 0.8f, 0.3f, launches: false))
+        AssertThat(StoryEnemyCombatRules.DealtHitShakeDuration(
+                AttackClass.Special, HitOrigin.Special, 0.8f, 0.3f, launches: false))
             .IsEqualApprox(0.3f, 0.0001f);
         // An authored intensity with no duration keeps the curve's duration.
-        AssertThat(StoryEnemyCombatRules.DealtHitShakeDuration(AttackClass.Special, 0.8f, 0f, launches: true))
+        AssertThat(StoryEnemyCombatRules.DealtHitShakeDuration(
+                AttackClass.Special, HitOrigin.Special, 0.8f, 0f, launches: true))
             .IsEqualApprox(StoryEnemyCombatRules.DealtHitShakeDuration(true), 0.0001f);
 
         // Basics carry the hitbox default, not a per-move value: damage curve.
         AssertThat(StoryEnemyCombatRules.UsesAuthoredShake(AttackClass.Basic, 0.2f)).IsFalse();
-        AssertThat(StoryEnemyCombatRules.DealtHitShakeIntensity(AttackClass.Basic, 0.2f, damage: 12, launches: true))
+        AssertThat(StoryEnemyCombatRules.DealtHitShakeIntensity(
+                AttackClass.Basic, HitOrigin.Basic, 0.2f, damage: 12, launches: true))
             .IsEqualApprox(StoryEnemyCombatRules.DealtHitShakeIntensity(12, launches: true), 0.0001f);
-        AssertThat(StoryEnemyCombatRules.DealtHitShakeDuration(AttackClass.Basic, 0.2f, 0.1f, launches: false))
+        AssertThat(StoryEnemyCombatRules.DealtHitShakeDuration(
+                AttackClass.Basic, HitOrigin.Basic, 0.2f, 0.1f, launches: false))
             .IsEqualApprox(StoryEnemyCombatRules.DealtHitShakeDuration(false), 0.0001f);
         // An ability payload with no authored shake falls back too.
         AssertThat(StoryEnemyCombatRules.UsesAuthoredShake(AttackClass.Special, 0f)).IsFalse();
-        AssertThat(StoryEnemyCombatRules.DealtHitShakeIntensity(AttackClass.Special, 0f, damage: 8, launches: false))
+        AssertThat(StoryEnemyCombatRules.DealtHitShakeIntensity(
+                AttackClass.Special, HitOrigin.Special, 0f, damage: 8, launches: false))
             .IsEqualApprox(StoryEnemyCombatRules.DealtHitShakeIntensity(8, launches: false), 0.0001f);
+    }
+
+    /// <summary>
+    /// CM-STORY (decision 7.1, 2026-10-16, finding CMB-02): a non-Ultimate
+    /// Special shakes by the larger of its authored value and the
+    /// damage-and-launch curve, so no Special shakes less than a basic of the
+    /// same damage. The Emancipator (40, launching) reaches 8 px; a 4-damage
+    /// Special keeps its authored 2.4; an Ultimate keeps its authored 7.2, and so
+    /// does a Special-class hit whose authored origin is Ultimate. The duration
+    /// takes the longer of the two the same way.
+    /// </summary>
+    [TestCase]
+    public void ASpecialsShakeScalesWithDamageWhileUltimatesKeepTheirAuthoredValue() {
+        AssertThat(StoryEnemyCombatRules.ScalesAbilityShakeWithDamage(AttackClass.Special, HitOrigin.Special)).IsTrue();
+        AssertThat(StoryEnemyCombatRules.ScalesAbilityShakeWithDamage(AttackClass.Special, HitOrigin.Ultimate)).IsFalse();
+        AssertThat(StoryEnemyCombatRules.ScalesAbilityShakeWithDamage(AttackClass.Ultimate, HitOrigin.Ultimate)).IsFalse();
+        AssertThat(StoryEnemyCombatRules.ScalesAbilityShakeWithDamage(AttackClass.Basic, HitOrigin.Basic)).IsFalse();
+
+        AssertThat(StoryEnemyCombatRules.DealtHitShakeIntensity(
+                AttackClass.Special, HitOrigin.Special, 0.2f, damage: 40, launches: true))
+            .IsEqualApprox(8f, 0.0001f);
+        AssertThat(StoryEnemyCombatRules.DealtHitShakeIntensity(
+                AttackClass.Special, HitOrigin.Special, 0.2f, damage: 4, launches: false))
+            .IsEqualApprox(2.4f, 0.0001f);
+        AssertThat(StoryEnemyCombatRules.DealtHitShakeIntensity(
+                AttackClass.Ultimate, HitOrigin.Ultimate, 0.6f, damage: 40, launches: true))
+            .IsEqualApprox(7.2f, 0.0001f);
+        AssertThat(StoryEnemyCombatRules.DealtHitShakeIntensity(
+                AttackClass.Special, HitOrigin.Ultimate, 0.2f, damage: 40, launches: true))
+            .OverrideFailureMessage("An Ultimate-origin Special keeps its authored shake.")
+            .IsEqualApprox(2.4f, 0.0001f);
+        // Never less than a basic of the same damage.
+        for (int damage = 0; damage <= 60; damage += 5) {
+            foreach (bool launches in new[] { false, true }) {
+                AssertThat(StoryEnemyCombatRules.DealtHitShakeIntensity(
+                        AttackClass.Special, HitOrigin.Special, 0.2f, damage, launches)
+                    >= StoryEnemyCombatRules.DealtHitShakeIntensity(
+                        AttackClass.Basic, HitOrigin.Basic, 0.2f, damage, launches))
+                    .OverrideFailureMessage($"A {damage}-damage Special shook less than a basic.")
+                    .IsTrue();
+            }
+        }
+
+        // Duration: the longer of the authored and the curve's, for a Special only.
+        float launchCurve = StoryEnemyCombatRules.DealtHitShakeDuration(true);
+        AssertThat(StoryEnemyCombatRules.DealtHitShakeDuration(
+                AttackClass.Special, HitOrigin.Special, 0.2f, 0.05f, launches: true))
+            .IsEqualApprox(launchCurve, 0.0001f);
+        AssertThat(StoryEnemyCombatRules.DealtHitShakeDuration(
+                AttackClass.Special, HitOrigin.Special, 0.2f, 0.3f, launches: true))
+            .IsEqualApprox(0.3f, 0.0001f);
+        AssertThat(StoryEnemyCombatRules.DealtHitShakeDuration(
+                AttackClass.Ultimate, HitOrigin.Ultimate, 0.6f, 0.05f, launches: true))
+            .IsEqualApprox(0.05f, 0.0001f);
     }
 
     [TestCase]

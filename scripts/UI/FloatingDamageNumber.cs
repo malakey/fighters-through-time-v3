@@ -10,11 +10,14 @@ namespace FTT.UI {
     /// fade, and the undesigned "&gt;=15 damage renders red" rule are gone — the
     /// cyan chronal shimmer shader is Package 10 art.
     ///
-    /// <para>Two tints exist: a warded boss's refused "0" (A5, 2026-10-04) and,
+    /// <para>Three tints exist: a warded boss's refused "0" (A5, 2026-10-04);
     /// D8 (2026-10-11), <c>UIPalette.GoldBright</c> for a hit that landed on a
-    /// mob's open Punish window. A punished number is also drawn larger
+    /// mob's open Punish window, also drawn larger
     /// (<c>StoryEnemyCombatRules.PunishDamageNumberScale</c>), so the payoff
-    /// never rests on colour alone. Every other number is white at scale 1.</para>
+    /// never rests on colour alone; and CM-STORY 8.2 (2026-10-16),
+    /// <c>UIPalette.DamageNumberReduced</c> for a hit the chain proration cut,
+    /// drawn smaller (<c>StoryEnemyCombatRules.ProratedDamageNumberScale</c>).
+    /// Every other number is white at scale 1.</para>
     /// </summary>
     public partial class FloatingDamageNumber : FTT.Core.PooledNode, FTT.Core.IPoolable {
         private const string ScenePath = "res://scenes/ui/FloatingDamageNumber.tscn";

@@ -62,6 +62,10 @@ namespace FTT.Combat {
 
     public sealed class StaticChargeStrategy : IStatusStrategy {
         public void OnApply(FTT.Characters.PlayerController target, float duration, float intensity) {
+            // CM-STORY (2.4, 2026-10-16): a hit the target's armour shrugs off
+            // brings its charge without the stun half, so it cannot interrupt
+            // the armoured cast after the armour gate let the hit through.
+            if (target.ArmorAbsorbsStatusStun) return;
             target.ApplyStun(duration);
         }
         public void OnTick(FTT.Characters.PlayerController target, float delta) { }

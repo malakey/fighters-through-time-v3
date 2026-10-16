@@ -25,6 +25,26 @@ public class StoryCombatantGeometryTests {
             AssertThat(pushbox.BoxSize.X)
                 .IsEqual(BasicComboRules.PushboxWidthUnits * KitMotionRules.StoryPixelsPerUnit);
             AssertThat(pushbox.BoxSize.X).IsEqual(36f);
+
+            // CM-STORY (8.4, 2026-10-16, in place): one named value per Story box,
+            // no number change — the hurtbox (StoryCombatRules.HeroHurtbox*), the
+            // collision body (CharacterFactory.HeroBodyBox*) and the string-box
+            // anchor, derived from the hurtbox height.
+            var hurtboxShape = player.GetNode<CollisionShape2D>("Hurtbox/CollisionShape2D");
+            AssertThat(((RectangleShape2D)hurtboxShape.Shape).Size).IsEqual(
+                new Vector2(StoryCombatRules.HeroHurtboxWidthPixels, StoryCombatRules.HeroHurtboxHeightPixels));
+            AssertThat(hurtboxShape.Position.Y).IsEqual(-StoryCombatRules.HeroHurtboxHeightPixels / 2f);
+            var bodyShape = player.GetNode<CollisionShape2D>("CollisionShape2D");
+            AssertThat(((RectangleShape2D)bodyShape.Shape).Size).IsEqual(
+                new Vector2(CharacterFactory.HeroBodyBoxWidthPixels, CharacterFactory.HeroBodyBoxHeightPixels));
+            AssertThat(bodyShape.Position.Y).IsEqual(-CharacterFactory.HeroBodyBoxHeightPixels / 2f);
+            AssertThat(((RectangleShape2D)bodyShape.Shape).Size).IsEqual(new Vector2(40f, 64f));
+            AssertThat(PlayerController.GroundStringBoxAnchorYPixels)
+                .IsEqual(-StoryCombatRules.HeroHurtboxHeightPixels / 2f);
+            AssertThat(PlayerController.GroundStringBoxAnchorYPixels).IsEqual(-32f);
+            PlayerController.ResolveGroundStringBoxPixels(0, null, 1f, out _, out Vector2 hitOneOffset);
+            AssertThat(hitOneOffset.Y).IsEqualApprox(PlayerController.GroundStringBoxAnchorYPixels
+                + (float)(BasicComboRules.StringBoxOffsetYUnits[0] * KitMotionRules.StoryPixelsPerUnit), 0.0001f);
         } finally {
             player.Free();
         }

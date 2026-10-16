@@ -8,6 +8,19 @@ using FTT.Core;
 namespace FTT.Characters {
 
 	public static class CharacterFactory {
+		/// <summary>
+		/// CM-STORY (decision 8.4, 2026-10-16; ledger <c>USER-HURTBOX-ONE-VALUE</c>):
+		/// the Story hero's collision body box width in pixels. A collision box, not
+		/// the hurtbox — the hurtbox is <c>StoryCombatRules.HeroHurtboxWidthPixels</c>
+		/// — so it carries its own name even though the two are the same 40 × 64
+		/// today, and a later hurtbox resize (<c>VERIFY-STORY-HURTBOX-UNIVERSAL</c>)
+		/// cannot silently move the body.
+		/// </summary>
+		public const float HeroBodyBoxWidthPixels = 40f;
+
+		/// <summary>The Story hero's collision body box height in pixels (see <see cref="HeroBodyBoxWidthPixels"/>).</summary>
+		public const float HeroBodyBoxHeightPixels = 64f;
+
 		public struct CharacterVisual {
 			public Color Body;
 			public Color Accent;
@@ -165,8 +178,11 @@ namespace FTT.Characters {
 				}
 			}
 
-			var bodyShape = new CollisionShape2D { Name = "CollisionShape2D", Position = new Vector2(0, -32) };
-			bodyShape.Shape = new RectangleShape2D { Size = new Vector2(40, 64) };
+			var bodyShape = new CollisionShape2D {
+				Name = "CollisionShape2D",
+				Position = new Vector2(0, -HeroBodyBoxHeightPixels / 2f)
+			};
+			bodyShape.Shape = new RectangleShape2D { Size = new Vector2(HeroBodyBoxWidthPixels, HeroBodyBoxHeightPixels) };
 			player.AddChild(bodyShape);
 
 			CharacterVisual visual = ResolveVisual(data);

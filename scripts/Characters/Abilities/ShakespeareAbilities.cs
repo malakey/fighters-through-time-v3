@@ -343,6 +343,12 @@ namespace FTT.Characters.Abilities {
         /// <summary>The gust's velocity in px/s (x along facing, y up is negative). Test seam.</summary>
         public Vector2 GustVelocity => _gustVelocity;
 
+        /// <summary>
+        /// CM-STORY (1.1(1)): the gust burst carries him on its own velocity (the
+        /// sim's <c>GustBurst</c>); the one-frame startup and the recovery fall.
+        /// </summary>
+        public override bool SuspendsOwnerGravityNow => CurrentPhase == AbilityPhase.Active;
+
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
             _startPosition = Owner.GlobalPosition;

@@ -259,6 +259,52 @@ namespace FTT.Combat {
         public static bool IsBasicsPacingHit(AttackClass attackClass, string hitboxID) =>
             attackClass == AttackClass.Basic && BasicComboRules.IsBasicStringHitbox(hitboxID);
 
+        // === CM-STORY (decision 8.1, 2026-10-16): a per-hit floor on basics against standards ===
+        // Finding CMB-03; ledger USER-STORY-BASIC-FLOOR, the order PROVISIONAL-STORY-BASIC-FLOOR-ORDER,
+        // amending PROVISIONAL-BASICS-PACING. A zoner's 4 / 5 / 8 string took about
+        // eight hits to kill a Normal 40-HP Chrono-Slasher. Story intake only: the
+        // shared .tres damages and the Fighter sim are untouched.
+
+        /// <summary>
+        /// 8.1 (Provisional, the decision's "about 6–7"): no hit of the universal
+        /// basic set lands on a Standard-tier mob for less than this, before the
+        /// chain proration, the Punish window and the mob's own defences.
+        /// </summary>
+        public const int StandardBasicDamageFloor = 6;
+
+        /// <summary>
+        /// The S4 basics-pacing factor with the 8.1 floor folded in:
+        /// max(<see cref="StandardBasicDamageScale"/>, <see cref="StandardBasicDamageFloor"/> / base),
+        /// 1 for a non-damaging hit. It multiplies with the S2/D4 chain scale and the
+        /// D8 Punish scale into the one <see cref="ScaleIntakeDamage"/> rounding, so the
+        /// floor applies before proration (hit 4 of a chain decays a floored 6 to 5)
+        /// and before Punish (a floored 6 punished is 7). Frontal shields and the
+        /// bubble still reduce it, because they act after the intake.
+        /// </summary>
+        public static float StandardBasicPacingScale(int baseDamage) {
+            if (baseDamage <= 0) return 1f;
+            float floor = (float)StandardBasicDamageFloor / baseDamage;
+            return floor > StandardBasicDamageScale ? floor : StandardBasicDamageScale;
+        }
+
+        // === CM-STORY (decision 8.2, 2026-10-16): reduced damage numbers are dimmed ===
+        // Finding CMB-11; ledger USER-DIM-REDUCED-NUMBERS, amending F9-DEALT-HIT-FEEDBACK
+        // and PROVISIONAL-STORY-CONFIRM-PRORATION. No poise-trip flash (ruled out).
+
+        /// <summary>
+        /// 8.2 (Provisional): a prorated hit's damage number is drawn at this scale
+        /// (the non-colour channel), in <c>UIPalette.DamageNumberReduced</c>.
+        /// </summary>
+        public const float ProratedDamageNumberScale = 0.8f;
+
+        /// <summary>
+        /// 8.2: a hit is prorated — its number dimmed — when the S2/D4 chain factor
+        /// cut it below full value: a second or later Special's ×0.6 confirm tax,
+        /// or the chain's ×0.85 decay. An untaxed first Special and any S4 or floor
+        /// increase never are.
+        /// </summary>
+        public static bool IsProrated(float chainScale) => chainScale < 1f;
+
         /// <summary>
         /// Applies an intake scale to a whole-number hit. Rounds half away from zero
         /// and never takes a damaging hit below 1; a unit scale is the identity.
@@ -405,27 +451,46 @@ namespace FTT.Combat {
             attackClass != AttackClass.Basic && authoredIntensity > 0f;
 
         /// <summary>
+        /// CM-STORY (decision 7.1, 2026-10-16, finding CMB-02; ledger
+        /// <c>USER-STORY-ABILITY-SHAKE</c>): an authored ability shake is a floor
+        /// for a non-Ultimate Special, never a ceiling. 25 of the 27 Specials and
+        /// movement abilities author 0.2 (2.4 px), so the Emancipator shook less
+        /// than a launching string finisher (about 5.4 px). A Special-class hit
+        /// whose authored origin is not Ultimate now takes the larger of its
+        /// authored shake and the damage-and-launch curve, so no such Special
+        /// shakes less than a basic of the same damage. Ultimates (class or
+        /// origin) keep their authored value; basics keep the curve.
+        /// </summary>
+        public static bool ScalesAbilityShakeWithDamage(AttackClass attackClass, HitOrigin origin) =>
+            attackClass == AttackClass.Special && origin != HitOrigin.Ultimate;
+
+        /// <summary>
         /// Shake intensity (before the accessibility scale) for a dealt hit: the
         /// authored ability value × <see cref="AuthoredShakePixelsPerIntensity"/>
-        /// when <see cref="UsesAuthoredShake"/>, else
+        /// when <see cref="UsesAuthoredShake"/> (raised to the damage curve for a
+        /// non-Ultimate Special, <see cref="ScalesAbilityShakeWithDamage"/>), else
         /// <see cref="DealtHitShakeIntensity(int, bool)"/>.
         /// </summary>
         public static float DealtHitShakeIntensity(
-            AttackClass attackClass, float authoredIntensity, int damage, bool launches) =>
-            UsesAuthoredShake(attackClass, authoredIntensity)
-                ? authoredIntensity * AuthoredShakePixelsPerIntensity
-                : DealtHitShakeIntensity(damage, launches);
+            AttackClass attackClass, HitOrigin origin, float authoredIntensity, int damage, bool launches) {
+            float curve = DealtHitShakeIntensity(damage, launches);
+            if (!UsesAuthoredShake(attackClass, authoredIntensity)) return curve;
+            float authored = authoredIntensity * AuthoredShakePixelsPerIntensity;
+            return ScalesAbilityShakeWithDamage(attackClass, origin) && curve > authored ? curve : authored;
+        }
 
         /// <summary>
         /// Shake duration for a dealt hit: the authored ability duration when
-        /// <see cref="UsesAuthoredShake"/> and it is positive, else
+        /// <see cref="UsesAuthoredShake"/> and it is positive (for a non-Ultimate
+        /// Special, the longer of it and the curve's duration), else
         /// <see cref="DealtHitShakeDuration(bool)"/>.
         /// </summary>
         public static float DealtHitShakeDuration(
-            AttackClass attackClass, float authoredIntensity, float authoredDuration, bool launches) =>
-            UsesAuthoredShake(attackClass, authoredIntensity) && authoredDuration > 0f
-                ? authoredDuration
-                : DealtHitShakeDuration(launches);
+            AttackClass attackClass, HitOrigin origin, float authoredIntensity, float authoredDuration, bool launches) {
+            float curve = DealtHitShakeDuration(launches);
+            if (!UsesAuthoredShake(attackClass, authoredIntensity) || authoredDuration <= 0f) return curve;
+            return ScalesAbilityShakeWithDamage(attackClass, origin) && curve > authoredDuration ? curve : authoredDuration;
+        }
 
         /// <summary>
         /// Only a player-dealt direct hit shakes the camera: tick, construct and

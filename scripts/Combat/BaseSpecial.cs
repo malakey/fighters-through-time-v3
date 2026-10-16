@@ -188,6 +188,29 @@ namespace FTT.Combat {
         public virtual bool PassesThroughProjectilesNow => false;
 
         /// <summary>
+        /// CM-STORY (decision 1.1(1), 2026-10-16): true while this movement
+        /// ability holds its owner off Story gravity this tick. The owner's
+        /// <c>ProcessUsingMovementAbility</c> applies gravity whenever this is
+        /// false, so no movement ability gains height after its authored rise.
+        /// A kit returns true exactly where the Fighter sim suspends gravity
+        /// (<c>FighterKitMotion.SuspendsGravity</c>) or where it rewrites its
+        /// owner's velocity every tick of a phase. Read by the owner before this
+        /// node processes, so <see cref="CurrentPhase"/> is the phase the cast is
+        /// in for the tick being moved. Story only; the sim never reads it.
+        /// Default: never.
+        /// </summary>
+        public virtual bool SuspendsOwnerGravityNow => false;
+
+        /// <summary>
+        /// CM-STORY (1.1(1)): the fastest this movement ability lets its owner
+        /// fall this tick, in px/s (positive is down), applied by the owner right
+        /// after the tick's gravity step and before the move, so a capped descent
+        /// is the cap exactly. Leonardo's glide caps it at its sink speed.
+        /// Default: no cap.
+        /// </summary>
+        public virtual float OwnerFallSpeedCapNow => float.PositiveInfinity;
+
+        /// <summary>
         /// Design 776: the cooldown starts on the first frame of the cast action,
         /// matching the Fighter sim's press-time cooldown start. Centralized here
         /// so no kit re-authors the timing; the authored

@@ -1316,8 +1316,9 @@ namespace FTT.Characters {
 		// ResolveGroundStringBoxPixels. Story's pivot is the feet, so a box's
 		// vertical anchor is the hurtbox centre, 32 px above them (the
 		// factory's 64-px body and hurtbox) — the point the sim's pivot is to
-		// its own hurtbox.
-		private const float GroundStringBoxAnchorYPixels = -32f;
+		// its own hurtbox. CM-STORY (8.4, 2026-10-16): derived from the one named
+		// Story hurtbox height, not a second literal.
+		internal const float GroundStringBoxAnchorYPixels = -FTT.Combat.StoryCombatRules.HeroHurtboxHeightPixels / 2f;
 
 		// The Story air strike box takes string hit 1's grounded x-span
 		// (front-only, the sim's reach) and a Story-only vertical span that
@@ -1797,7 +1798,7 @@ namespace FTT.Characters {
 
 			if (hit.AppliedStatus != FTT.Core.StatusType.None && !defySuppressed
 				&& CurrentState != CharacterState.Dead) {
-				_statusController?.ApplyStatus(hit.AppliedStatus, hit.StatusDuration, hit.StatusIntensity);
+				ApplyHitStatus(in hit, hasHyperArmor);
 			}
 
 			// V7.6 F07: the caster-owned combo mark rides the same hit but is not
@@ -1838,7 +1839,12 @@ namespace FTT.Characters {
 			float shakeIntensity = hit.ScreenShakeIntensity > 0f
 				? hit.ScreenShakeIntensity * FTT.Combat.StoryEnemyCombatRules.AuthoredShakePixelsPerIntensity
 				: damageApplied * 0.25f;
-			FTT.Core.CameraShake.Instance?.Shake(shakeIntensity, hit.ScreenShakeDuration);
+			float shakeDuration = hit.ScreenShakeDuration;
+			// CM-STORY (7.1): a player-sourced hit (the Level 13 clone's body)
+			// shakes by the mobs' dealt-hit rule, so an ability shakes the same
+			// whichever side of it the player stands on.
+			ResolvePlayerDealtShake(in hit, damageApplied, ref shakeIntensity, ref shakeDuration);
+			FTT.Core.CameraShake.Instance?.Shake(shakeIntensity, shakeDuration);
 			_glow?.FlashHit();
 			SpawnDamageNumber(damageApplied, hit.HitOrigin);
 			return damageApplied;
@@ -3120,7 +3126,8 @@ namespace FTT.Characters {
 		/// <para><b>Exact or nothing.</b> The destination is resolved and validated
 		/// before anything is spent: insufficient history, or a target inside
 		/// terrain, refuses the activation at <b>no meter and no cooldown cost</b>
-		/// and does not start the wind-up. Acceptance spends the 30 meter, arms the
+		/// and does not start the wind-up. Acceptance spends <see cref="EchoStepMeterCost"/>
+		/// (30; 10.5 on the campaign hero since CM-STORY 7.3), arms the
 		/// 8-frame wind-up and starts the 120-frame cooldown atomically, once.</para>
 		///
 		/// <para>Callers gate the "recovery frames" half; hitstop cannot reach here
@@ -3133,7 +3140,7 @@ namespace FTT.Characters {
 			bool echoLegal =
 				TryGetEchoStepLookback(out Vector2 destination)
 				&& IsEchoStepDestinationClear(destination)
-				&& CurrentUltimateMeter >= FTT.Combat.BasicComboRules.EchoStepMeterCost;
+				&& CurrentUltimateMeter >= EchoStepMeterCost;
 
 			// V7.6 same-frame chord priority, from the one shared table both modes
 			// read. A direct bind requests the same verb once and grants no extra
@@ -3153,7 +3160,7 @@ namespace FTT.Characters {
 			// A refused direct action does nothing and spends nothing.
 			if (!echoLegal) return false;
 
-			DrainUltimateMeter(FTT.Combat.BasicComboRules.EchoStepMeterCost);
+			DrainUltimateMeter(EchoStepMeterCost);
 			_echoStepCooldownFrames = FTT.Combat.BasicComboRules.EchoStepCooldownFrames;
 			_echoStepWindupFrames = FTT.Combat.BasicComboRules.EchoStepWindupFrames;
 			_echoStepDestination = destination;
@@ -3887,6 +3894,7 @@ namespace FTT.Characters {
 				TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
 				return;
 			}
+			ApplyMovementAbilityGravity(dt);
 			// Package 13 W5 (Tubman): Star Guide re-aims a North Star Leap once
 			// mid-flight on a fresh Movement press (Story-only traversal node).
 			if (_movementAbility is Abilities.TubmanNorthStarLeap leap
@@ -4590,14 +4598,16 @@ namespace FTT.Characters {
 			AbilityHasActiveHyperArmor(_special1) ||
 			AbilityHasActiveHyperArmor(_special2) ||
 			AbilityHasActiveHyperArmor(_movementAbility) ||
-			AbilityHasActiveHyperArmor(_ultimate);
+			AbilityHasActiveHyperArmor(_ultimate) ||
+			UltimateHasStartupArmor(FTT.Combat.AttackClass.Basic);
 
 		public bool HasActiveHyperArmorAgainst(FTT.Combat.AttackClass attackClass) =>
 			(StoryHyperArmorActive && attackClass != FTT.Combat.AttackClass.Ultimate) ||
 			AbilityHasActiveHyperArmor(_special1, attackClass) ||
 			AbilityHasActiveHyperArmor(_special2, attackClass) ||
 			AbilityHasActiveHyperArmor(_movementAbility, attackClass) ||
-			AbilityHasActiveHyperArmor(_ultimate, attackClass);
+			AbilityHasActiveHyperArmor(_ultimate, attackClass) ||
+			UltimateHasStartupArmor(attackClass);
 
 		private static bool AbilityHasActiveHyperArmor(FTT.Combat.BaseSpecial ability) =>
 			AbilityHasActiveHyperArmor(ability, FTT.Combat.AttackClass.Basic);
@@ -4921,9 +4931,12 @@ namespace FTT.Characters {
 		/// on press). The hang applies after a jump this airtime
 		/// (<see cref="JumpedThisAirtime"/>, the sim's discriminator read without
 		/// Story's jump budget), so a walk-off, a drop-through or a ledge drop gets
-		/// none and a ledge or rope jump-off gets it.
+		/// none and a ledge or rope jump-off gets it. <paramref name="ignoreShortHop"/>
+		/// (CM-STORY, 2026-10-16) reads Jump as held for the tick, so the ×2.5
+		/// short-hop band never cuts a movement ability's own boost
+		/// (<see cref="ApplyMovementAbilityGravity"/>).
 		/// </summary>
-		private void ApplyGravity(float dt, bool fastFalling = false) {
+		private void ApplyGravity(float dt, bool fastFalling = false, bool ignoreShortHop = false) {
 			if (IsOnFloor()) {
 				StoryFloatTimer = 0f;
 				return;
@@ -4942,7 +4955,9 @@ namespace FTT.Characters {
 				dt,
 				fastFalling: fastFalling,
 				floatActive: floatActive,
-				jumpHeld: _jumpHeld,
+				// CM-STORY (1.1(1)): a movement ability's rise is read as a held
+				// jump, so its boost is never cut by the short-hop band.
+				jumpHeld: ignoreShortHop || _jumpHeld,
 				jumpedThisAirtime: JumpedThisAirtime,
 				launch: launch);
 			Velocity = new Vector2(Velocity.X, vy);

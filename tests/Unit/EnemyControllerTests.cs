@@ -930,11 +930,12 @@ public class EnemyControllerTests {
                 HitOrigin = Vector2.Zero,
                 AttackerFacingRight = true
             });
-            // (2026-10-04 S4: a string hit lands x1.25 on a Standard-tier mob.)
+            // (2026-10-04 S4: a string hit lands x1.25 on a Standard-tier mob;
+            // CM-STORY 8.1, 2026-10-16: and never below the floor of 6, so 3 -> 6.)
             AssertThat(enemy.CurrentHP)
                 .OverrideFailureMessage("Armor never reduces damage.")
                 .IsEqual(hpBefore - StoryEnemyCombatRules.ScaleIntakeDamage(
-                    3, StoryEnemyCombatRules.StandardBasicDamageScale));
+                    3, StoryEnemyCombatRules.StandardBasicPacingScale(3)));
             AssertThat(enemy.CurrentState)
                 .OverrideFailureMessage("An armored hit must not re-stun the enemy.")
                 .IsNotEqual(EnemyState.Stunned);

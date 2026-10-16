@@ -1995,7 +1995,8 @@ namespace FTT.Enemies {
         /// F9 (2026-10-04): a player-dealt hit floats a damage number over the
         /// boss (honouring the damage-number setting) and, for a direct hit,
         /// shakes the camera through the CameraShake autoload — the ability's
-        /// authored shake when the payload carries one, else the basics'
+        /// authored shake when the payload carries one (raised to the damage curve
+        /// for a non-Ultimate Special since CM-STORY 7.1), else the basics'
         /// damage-and-launch curve. Presentation only; shares the mob rule in
         /// <see cref="FTT.Combat.StoryEnemyCombatRules"/>.
         /// </summary>
@@ -2005,9 +2006,9 @@ namespace FTT.Enemies {
             if (FTT.Combat.StoryEnemyCombatRules.DealtHitShakes(hit.Delivery, hit.ExemptFromHitstop)) {
                 FTT.Core.CameraShake.Instance?.Shake(
                     FTT.Combat.StoryEnemyCombatRules.DealtHitShakeIntensity(
-                        hit.AttackClass, hit.ScreenShakeIntensity, damageApplied, hit.Launches),
+                        hit.AttackClass, hit.Origin, hit.ScreenShakeIntensity, damageApplied, hit.Launches),
                     FTT.Combat.StoryEnemyCombatRules.DealtHitShakeDuration(
-                        hit.AttackClass, hit.ScreenShakeIntensity, hit.ScreenShakeDuration, hit.Launches));
+                        hit.AttackClass, hit.Origin, hit.ScreenShakeIntensity, hit.ScreenShakeDuration, hit.Launches));
             }
             if (!IsInsideTree()) return;
             Vector2 numberPosition = GlobalPosition + new Vector2(
