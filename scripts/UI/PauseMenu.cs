@@ -117,13 +117,19 @@ namespace FTT.UI {
 
         /// <summary>
         /// A face button from a connected joypad while the notice is up: that
-        /// controller becomes player 1's and the game resumes. Returns true when it
-        /// resolved. Public so tests can drive it with a synthetic device.
+        /// controller becomes player 1's and the game resumes. Since 9.1
+        /// (2026-10-16) a keyboard press does the same for the keyboard
+        /// (<see cref="FTT.Core.InputManager.KeyboardDevice"/>): player 1 follows
+        /// the last-used device, so the keyboard is as good a way back as a pad.
+        /// Returns true when it resolved. Public so tests can drive it with a
+        /// synthetic device.
         /// </summary>
         public bool ResolveControllerLost(int deviceId) {
             if (!_awaitingController) return false;
             var input = FTT.Core.InputManager.Instance;
-            if (input != null && deviceId >= 0) {
+            if (input != null && deviceId == FTT.Core.InputManager.KeyboardDevice) {
+                input.AssignKeyboardToPlayer(0);
+            } else if (input != null && deviceId >= 0) {
                 try {
                     input.AssignJoypadToPlayer(deviceId, 0);
                 } catch (System.ArgumentException) {
@@ -138,6 +144,10 @@ namespace FTT.UI {
 
         public override void _Input(InputEvent @event) {
             if (!_awaitingController || !IsPaused) return;
+            if (@event is InputEventKey key && key.Pressed && !key.Echo) {
+                if (ResolveControllerLost(FTT.Core.InputManager.KeyboardDevice)) GetViewport()?.SetInputAsHandled();
+                return;
+            }
             if (@event is not InputEventJoypadButton button || !button.Pressed) return;
             bool faceButton = button.ButtonIndex is JoyButton.A or JoyButton.B or JoyButton.X or JoyButton.Y;
             if (!faceButton) return;

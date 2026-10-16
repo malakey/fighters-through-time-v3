@@ -132,7 +132,40 @@ public class PauseFocusLossTests {
             if (input != null) AssertThat(input.GetDeviceForPlayer(0)).IsEqual(7);
         } finally {
             tree.Paused = false;
-            input?.SetConnectedJoypadsForTesting();
+            // 9.1: back to the real connected pads (an empty fake set used to be
+            // left behind) and the boot assignment.
+            input?.RestoreConnectedDevicesForTesting();
+            input?.AutoAssignDevices();
+            Free(scene);
+        }
+    }
+
+    /// <summary>
+    /// 9.1 (2026-10-16, CM-INPUT): player 1 follows the last-used device, so a
+    /// keyboard press is as good a way back from a lost controller as a face
+    /// button: it hands slot 0 the keyboard and resumes.
+    /// </summary>
+    [TestCase]
+    public void AKeyboardKeyResumesAStoryControllerLoss() {
+        var scene = Host("ControllerLossKeyboardHost");
+        PauseMenu pause = AddStoryPause(scene);
+        SceneTree tree = scene.GetTree();
+        InputManager input = InputManager.Instance;
+        try {
+            input?.SetConnectedJoypadsForTesting(7);
+            input?.AssignJoypadToPlayer(7, 0);
+            pause.ForceControllerLostPause();
+            AssertThat(pause.IsAwaitingController).IsTrue();
+
+            pause._Input(new InputEventKey { Pressed = true, PhysicalKeycode = Key.Space, Keycode = Key.Space });
+            AssertThat(pause.IsPaused).IsFalse();
+            AssertThat(tree.Paused).IsFalse();
+            AssertThat(pause.IsAwaitingController).IsFalse();
+            AssertThat(pause.GetNode<Label>("Root/Center/Panel/Layout/ControllerNotice").Visible).IsFalse();
+            if (input != null) AssertThat(input.GetDeviceForPlayer(0)).IsEqual(InputManager.KeyboardDevice);
+        } finally {
+            tree.Paused = false;
+            input?.RestoreConnectedDevicesForTesting();
             input?.AutoAssignDevices();
             Free(scene);
         }

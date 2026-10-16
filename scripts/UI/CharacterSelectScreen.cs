@@ -99,6 +99,7 @@ namespace FTT.UI {
         private Label _p2Name;
         private Label _p2Ready;
         private Label _p2Stats;
+        private Label _p2JoinPrompt;
         private Label _countdownLabel;
         private SpinBox _stockCount;
         private SpinBox _timeLimit;
@@ -162,7 +163,15 @@ namespace FTT.UI {
             _p2Name = GetNode<Label>(SelectRoot + "PlayersRow/P2Panel/P2Name");
             _p2Ready = GetNode<Label>(SelectRoot + "PlayersRow/P2Panel/P2Ready");
             _p2Stats = GetNode<Label>(SelectRoot + "PlayersRow/P2Panel/P2Stats");
+            _p2JoinPrompt = GetNodeOrNull<Label>(SelectRoot + "PlayersRow/P2Panel/P2JoinPrompt");
             _countdownLabel = GetNode<Label>(SelectRoot + "CountdownLabel");
+
+            // 9.1 (2026-10-16, CM-INPUT): Local Versus is a press-to-join select.
+            // Player 1 keeps the device it was following; Player 2 drives no token
+            // until a face, confirm or Interact press on an unclaimed device claims
+            // the slot. Versus CPU (and every other origin) never joins.
+            if (_origin == FighterMatchOrigin.LocalVersus) InputManager.Instance?.BeginLocalJoin();
+            if (InputManager.Instance != null) InputManager.Instance.DeviceAssigned += OnDeviceAssigned;
             _stageSelect = GetNode<OptionButton>(StageRoot + "StageRow/StageSelect");
             _stagePreview = GetNode<TextureRect>(StageRoot + "StageRow/StagePreview");
             _matchMode = GetNode<OptionButton>(StageRoot + "RulesRow/MatchMode");
@@ -210,6 +219,26 @@ namespace FTT.UI {
                 }
             }
         }
+
+        public override void _ExitTree() {
+            // The join itself outlives the screen (a match and Rematch keep it);
+            // GameManager.LoadScene ends it on the way out of the Fighter flow.
+            if (InputManager.Instance != null) InputManager.Instance.DeviceAssigned -= OnDeviceAssigned;
+        }
+
+        /// <summary>A device joined (or a slot was emptied): repaint Player 2's presence.</summary>
+        private void OnDeviceAssigned(int playerIndex, int deviceId) {
+            if (playerIndex != 1 || !IsInsideTree()) return;
+            RefreshPanels();
+            RepaintTiles();
+        }
+
+        /// <summary>
+        /// 9.1: whether Player 2 has joined — a device claimed slot 1, or an input
+        /// source drives it (tests, bots). With no InputManager every slot counts
+        /// as joined, the pre-9.1 behaviour.
+        /// </summary>
+        public bool IsPlayerTwoJoined => InputManager.Instance?.IsSlotJoined(1) ?? true;
 
         // === Flow: polled per-player input ===================================
 
@@ -716,8 +745,12 @@ namespace FTT.UI {
             button.AddThemeColorOverride("font_focus_color", textColor);
         }
 
-        /// <summary>Player 2's token only exists in Local Versus.</summary>
-        private bool OpponentCursorActive => !IsVersusCpuFlow;
+        /// <summary>
+        /// Player 2's token only exists in Local Versus, and (9.1) only once Player
+        /// 2 has joined — or has locked a pick through the token API, which only a
+        /// joined device can do through the polled input.
+        /// </summary>
+        private bool OpponentCursorActive => !IsVersusCpuFlow && (IsPlayerTwoJoined || _tokens[1].Ready);
 
         /// <summary>G12: the two player panels' name tags wear the local slot palette.</summary>
         private void ApplySlotColours() {
@@ -743,6 +776,16 @@ namespace FTT.UI {
                 _p2Name.Text = $"{PlayerSlotPalettes.PlayerTwoGlyph} {Tr("fighter_versus_cpu_title")}";
                 _p2Ready.Visible = false;
                 _p2Stats.Text = Tr("fighter_cpu_configured_next");
+                if (_p2JoinPrompt != null) _p2JoinPrompt.Visible = false;
+                return;
+            }
+            // 9.1: an unjoined Player 2 shows only the press-to-join prompt.
+            bool joined = OpponentCursorActive;
+            if (_p2JoinPrompt != null) _p2JoinPrompt.Visible = !joined;
+            _p2Stats.Visible = joined;
+            if (!joined) {
+                _p2Name.Text = PlayerSlotPalettes.PlayerTwoGlyph;
+                _p2Ready.Visible = false;
                 return;
             }
             int p2Index = EffectiveIndex(_tokens[1]);

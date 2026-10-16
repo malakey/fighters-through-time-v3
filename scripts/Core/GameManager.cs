@@ -296,6 +296,9 @@ namespace FTT.Core {
             _isLoading = true;
             _pendingScenePath = scenePath;
             _loadingDisplayTimer = 0.0;
+            // 9.1 (2026-10-16): leaving the Fighter select / match flow ends a
+            // Local Versus join; Rematch and Back-to-select keep it.
+            InputManager.Instance?.ApplyJoinLifetimeForDestination(scenePath);
 
             // The scene being left owns the LowHealth/Ultimate snapshot state; a
             // duck must not follow the player into the next scene (audit H-9).
