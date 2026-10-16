@@ -169,8 +169,11 @@ public class InputBindingSchemaTests {
 
             manager.ApplySavedInputBindings();
 
+            // Since 9.2 (2026-10-16) the authored pad Ultimate slot is empty (the
+            // pad Ultimate is the Movement Ability + Special 2 recipe chord), so the
+            // stale pair is dropped to that empty default and only the key stays.
             List<InputBindingEvent> ultimate = InputBindingService.CaptureAction(InputManager.Actions.Ultimate);
-            AssertThat(ultimate.Count).IsEqual(3);
+            AssertThat(ultimate.Count).IsEqual(1);
             AssertThat(ultimate.Any(binding => binding.Kind == InputBindingKind.Key && binding.Code == (int)Key.Y))
                 .OverrideFailureMessage("The player's rebound keyboard key must survive the repair.")
                 .IsTrue();
@@ -179,14 +182,14 @@ public class InputBindingSchemaTests {
                 .Select(binding => binding.Code)
                 .OrderBy(code => code)
                 .ToList();
-            AssertThat(string.Join(",", pad))
-                .OverrideFailureMessage($"The applied gamepad chord is [{string.Join(",", pad)}], not LB + RB.")
-                .IsEqual($"{(int)JoyButton.LeftShoulder},{(int)JoyButton.RightShoulder}");
+            AssertThat(pad.Count)
+                .OverrideFailureMessage($"The applied gamepad Ultimate slot is [{string.Join(",", pad)}], not empty.")
+                .IsEqual(0);
             // The repaired row is what the next global save writes.
             AssertThat(manager.GlobalData.InputBindings
                     .EventsFor(InputManager.Actions.Ultimate, InputDeviceKind.Joypad)
-                    .Any(binding => binding.Code == (int)JoyButton.Guide))
-                .IsFalse();
+                    .Count)
+                .IsEqual(0);
         } finally {
             manager.GlobalData.InputBindings = original;
             InputMap.LoadFromProjectSettings();
@@ -434,6 +437,47 @@ public class InputBindingSchemaTests {
         });
         AssertThat(InputShortcuts.ProfileIsReachable(effective, out System.Collections.Generic.List<string> _))
             .IsTrue();
+    }
+
+    /// <summary>
+    /// 9.2 (2026-10-16): the Controls tab's Ultimate shortcut toggle is wired, and
+    /// the pad has no default direct Ultimate, so switching the pad chord off with
+    /// no direct pad bind leaves the gamepad Ultimate unreachable. C01c's validator
+    /// must refuse that profile and name the action in its explanation.
+    /// </summary>
+    [TestCase]
+    public void WithThePadChordOffAndNoDirectBindTheUltimateIsUnreachableAndNamed() {
+        TranslationServer.SetLocale("en");
+        InputBindingService.EnsureDefaultsCaptured();
+        InputBindingSet effective = InputBindingService.CaptureEffective();
+        AssertThat(InputShortcuts.HasDirectRoute(
+            effective, InputShortcuts.UltimateAction, InputDeviceKind.Joypad)).IsFalse();
+        AssertThat(InputShortcuts.HasShortcutRoute(
+            effective, InputShortcuts.UltimateAction, InputDeviceKind.Joypad)).IsTrue();
+
+        effective.SetShortcutEnabled(InputShortcuts.UltimateAction, InputDeviceKind.Joypad, false);
+        List<string> unreachable = InputShortcuts.UnreachableActions(effective, InputDeviceKind.Joypad);
+        AssertThat(unreachable.Contains(InputShortcuts.UltimateAction))
+            .OverrideFailureMessage("The pad Ultimate kept a route with its chord off and no direct bind.")
+            .IsTrue();
+        AssertThat(InputShortcuts.ProfileIsReachable(effective, out List<string> _)).IsFalse();
+        string name = TranslationServer.Translate(InputShortcuts.ActionLabelKey(InputShortcuts.UltimateAction)).ToString();
+        AssertThat(name).IsNotEqual(InputShortcuts.ActionLabelKey(InputShortcuts.UltimateAction));
+        string explanation = string.Format(TranslationServer.Translate("controls_unreachable_action").ToString(), name);
+        AssertThat(explanation.Contains(name))
+            .OverrideFailureMessage($"The unreachable explanation does not name the Ultimate: \"{explanation}\".")
+            .IsTrue();
+
+        // The keyboard route is untouched: the chord was never a keyboard route.
+        AssertThat(InputShortcuts.UnreachableActions(effective, InputDeviceKind.Keyboard)
+            .Contains(InputShortcuts.UltimateAction)).IsFalse();
+        // A captured direct pad button restores the route, as C01c allows.
+        var withDirect = new List<InputBindingEvent>(effective.For(InputShortcuts.UltimateAction)) {
+            new(InputBindingKind.JoyButton, (int)JoyButton.Y)
+        };
+        effective.Set(InputShortcuts.UltimateAction, withDirect);
+        AssertThat(InputShortcuts.UnreachableActions(effective, InputDeviceKind.Joypad)
+            .Contains(InputShortcuts.UltimateAction)).IsFalse();
     }
 
     [TestCase]

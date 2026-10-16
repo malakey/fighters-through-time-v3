@@ -304,6 +304,7 @@ namespace FTT.FighterSim {
             playerTwoInput.Tick = tick;
             CaptureLockoutRefusalBaselines();
             Simulation.Advance(playerOneInput, playerTwoInput);
+            PushUltimateReadiness();
             SyncPresentation();
             FlashLockoutRefusals();
             PublishMatchFlowPresentation();

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using FTT.Core;
 using FTT.UI;
 using GdUnit4;
@@ -422,6 +423,113 @@ public class CharacterSelectSceneTests {
         }
     }
 
+    // ---- 9.1 press-to-join (2026-10-16, CM-INPUT) ---------------------------
+    // Real physics frames: the screen polls InputManager once per engine tick,
+    // and the manager polls the (fake) devices before sampling, so the join and
+    // the seeded first frame are exercised end to end.
+
+    [TestCase]
+    public async Task NoPlayerTwoTokenAppearsUntilPadBPressesAndThatPressConfirmsNothing() {
+        InputManager input = InputManager.Instance;
+        if (input == null) return;
+        FakeInputDeviceProbe probe = FakeInputDeviceProbe.Install(input, 0, 1);
+        input.AutoAssignDevices();
+        CharacterSelectScreen screen = Open(out Node host);
+        SceneTree tree = screen.GetTree();
+        JoyButton confirm = FakeInputDeviceProbe.PadButtonFor(InputManager.Actions.BasicAttack);
+        var prompt = screen.GetNode<Label>(SelectRoot + "PlayersRow/P2Panel/P2JoinPrompt");
+        try {
+            AssertThat(input.JoinMode).IsEqual(LocalJoinMode.Joined);
+            await Frames(tree, 2);
+            AssertThat(screen.IsPlayerTwoJoined).IsFalse();
+            AssertThat(prompt.Visible).IsTrue();
+            AssertThat(prompt.Text).IsEqual("select_press_to_join");
+            AssertThat(screen.TileBadgeText(screen.GetCursor(1)).Contains(FTT.Combat.PlayerSlotPalettes.PlayerTwoGlyph))
+                .OverrideFailureMessage("An unjoined Player 2 already shows a token.")
+                .IsFalse();
+
+            probe.SetButton(1, confirm, true);
+            await Frames(tree, 3);
+            AssertThat(input.GetDeviceForPlayer(1)).IsEqual(1);
+            AssertThat(screen.IsPlayerTwoJoined).IsTrue();
+            AssertThat(prompt.Visible).IsFalse();
+            AssertThat(screen.TileBadgeText(screen.GetCursor(1)).Contains(FTT.Combat.PlayerSlotPalettes.PlayerTwoGlyph))
+                .IsTrue();
+            AssertThat(screen.IsSlotReady(1))
+                .OverrideFailureMessage("The press that joined Player 2 also confirmed a tile.")
+                .IsFalse();
+
+            // The next press is an ordinary confirm.
+            probe.SetButton(1, confirm, false);
+            await Frames(tree, 2);
+            probe.SetButton(1, confirm, true);
+            await Frames(tree, 2);
+            AssertThat(screen.IsSlotReady(1)).IsTrue();
+        } finally {
+            probe.ReleaseAll();
+            Teardown(host);
+            FakeInputDeviceProbe.Restore(input);
+        }
+    }
+
+    [TestCase]
+    public async Task PlayerOnesDeviceCannotTakeTheSecondSlot() {
+        InputManager input = InputManager.Instance;
+        if (input == null) return;
+        FakeInputDeviceProbe probe = FakeInputDeviceProbe.Install(input, 0, 1);
+        input.AutoAssignDevices();
+        input.AssignJoypadToPlayer(0, 0);
+        CharacterSelectScreen screen = Open(out Node host);
+        SceneTree tree = screen.GetTree();
+        try {
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(0);
+            await Frames(tree, 2);
+            probe.SetButton(0, JoyButton.A, true);
+            probe.SetButton(0, FakeInputDeviceProbe.PadButtonFor(InputManager.Actions.BasicAttack), true);
+            await Frames(tree, 3);
+            AssertThat(input.GetDeviceForPlayer(1))
+                .OverrideFailureMessage("Player 1's pad also claimed Player 2's slot.")
+                .IsEqual(InputManager.UnassignedDevice);
+            AssertThat(input.GetPlayerForDevice(0)).IsEqual(0);
+            AssertThat(screen.IsPlayerTwoJoined).IsFalse();
+        } finally {
+            probe.ReleaseAll();
+            Teardown(host);
+            FakeInputDeviceProbe.Restore(input);
+        }
+    }
+
+    [TestCase]
+    public async Task TheKeyboardCanJoinAsPlayerTwo() {
+        InputManager input = InputManager.Instance;
+        if (input == null) return;
+        FakeInputDeviceProbe probe = FakeInputDeviceProbe.Install(input, 0);
+        input.AutoAssignDevices();
+        input.AssignJoypadToPlayer(0, 0);
+        CharacterSelectScreen screen = Open(out Node host);
+        SceneTree tree = screen.GetTree();
+        Key interact = FakeInputDeviceProbe.KeyFor(InputManager.Actions.Interact);
+        try {
+            AssertThat(interact).IsNotEqual(Key.None);
+            await Frames(tree, 2);
+            AssertThat(screen.IsPlayerTwoJoined).IsFalse();
+            probe.SetKey(interact, true);
+            await Frames(tree, 3);
+            AssertThat(input.GetDeviceForPlayer(1)).IsEqual(InputManager.KeyboardDevice);
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(0);
+            AssertThat(screen.IsPlayerTwoJoined).IsTrue();
+            AssertThat(screen.IsSlotReady(1)).IsFalse();
+        } finally {
+            probe.ReleaseAll();
+            Teardown(host);
+            FakeInputDeviceProbe.Restore(input);
+        }
+    }
+
+    private static async Task Frames(SceneTree tree, int count) {
+        for (int frame = 0; frame < count; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+    }
+
     [TestCase]
     public void TheHolodeckOriginStillBacksOutToTheHub() {
         CharacterSelectScreen screen = Open(out Node host, FighterMatchOrigin.Holodeck);
@@ -678,6 +786,10 @@ public class CharacterSelectSceneTests {
             GameManager.Instance.CurrentSession = _savedSession.Value;
             _savedSession = null;
         }
+        // 9.1: a Local Versus screen begins a local join, which only a scene load
+        // out of the Fighter flow ends; a test that never loads one must end it,
+        // or the join would outlive the suite.
+        InputManager.Instance?.EndLocalJoin();
         if (host == null || !GodotObject.IsInstanceValid(host)) return;
         host.GetParent()?.RemoveChild(host);
         host.Free();

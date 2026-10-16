@@ -98,27 +98,49 @@ public class GamepadDefaultBindingTests {
     }
 
     [TestCase]
-    public void TheUltimateChordIsBothShouldersAndSpellsItsPresetRecipe() {
-        List<int> chord = AuthoredJoyButtons(InputManager.Actions.Ultimate);
-        AssertThat(Describe(chord))
-            .OverrideFailureMessage($"The gamepad Ultimate chord must be LB + RB, not {Describe(chord)}.")
-            .IsEqual(Describe(new[] { (int)JoyButton.LeftShoulder, (int)JoyButton.RightShoulder }));
-
+    public void TheUltimateChordIsItsPresetRecipeOnBothShoulders() {
         // C01c: the chord is the Movement Ability + Special 2 recipe, "LB+RB at
-        // defaults". The InputMap conjunction InputManager reads must spell
-        // exactly the recipe's component defaults, or the Controls tab's chord
-        // label (which renders the components) would describe a different chord.
+        // defaults". Since 9.2 (2026-10-16) InputManager recognizes it from those
+        // components' live bindings (no longer from the Ultimate action's own pad
+        // events), so the recipe's component defaults ARE the chord, and the
+        // Controls tab's chord label (which renders the components) describes it.
         InputShortcuts.Recipe recipe = InputShortcuts.RecipeFor(InputShortcuts.UltimateAction);
         AssertObject(recipe).IsNotNull();
+        AssertThat(string.Join(",", recipe.Components))
+            .IsEqual($"{InputManager.Actions.MovementAbility},{InputManager.Actions.Special2}");
+        AssertThat(InputShortcuts.AppliesTo(recipe, InputDeviceKind.Joypad)).IsTrue();
+        AssertThat(InputShortcuts.AppliesTo(recipe, InputDeviceKind.Keyboard)).IsFalse();
         List<int> components = recipe.Components
             .SelectMany(component => AuthoredJoyButtons(component))
             .Distinct()
             .OrderBy(code => code)
             .ToList();
         AssertThat(Describe(components))
-            .OverrideFailureMessage(
-                $"The recipe's components default to {Describe(components)} but the chord is {Describe(chord)}.")
-            .IsEqual(Describe(chord));
+            .OverrideFailureMessage($"The chord's components default to {Describe(components)}, not LB + RB.")
+            .IsEqual(Describe(new[] { (int)JoyButton.LeftShoulder, (int)JoyButton.RightShoulder }));
+    }
+
+    /// <summary>
+    /// 9.2 (2026-10-16, ledger <c>USER-PAD-ULTIMATE-CHORD-LENIENCY</c>): "No direct
+    /// bind". The Ultimate's gamepad direct slot is authored empty — C01c's
+    /// "initially Unbound" — so the pad Ultimate is only the recipe chord, while
+    /// the keyboard keeps its direct U.
+    /// </summary>
+    [TestCase]
+    public void TheGamepadUltimateDirectSlotIsAuthoredEmptyAndTheKeyboardKeepsU() {
+        List<InputBindingEvent> authored = AuthoredEvents(InputManager.Actions.Ultimate);
+        List<InputBindingEvent> pad = authored.Where(binding => binding.DeviceKind == InputDeviceKind.Joypad).ToList();
+        AssertThat(pad.Count)
+            .OverrideFailureMessage($"The gamepad Ultimate direct slot must be empty, not [{string.Join(", ", pad.Select(binding => binding.Signature))}].")
+            .IsEqual(0);
+        AssertThat(authored.Any(binding => binding.Kind == InputBindingKind.Key && binding.Code == (int)Key.U))
+            .OverrideFailureMessage("The keyboard Ultimate must stay U (physical keycode 85).")
+            .IsTrue();
+        // The chord's two buttons now belong to their components alone.
+        AssertThat(Describe(AuthoredJoyButtons(InputManager.Actions.MovementAbility)))
+            .IsEqual(Describe(new[] { (int)JoyButton.LeftShoulder }));
+        AssertThat(Describe(AuthoredJoyButtons(InputManager.Actions.Special2)))
+            .IsEqual(Describe(new[] { (int)JoyButton.RightShoulder }));
     }
 
     [TestCase]
@@ -160,16 +182,17 @@ public class GamepadDefaultBindingTests {
     }
 
     [TestCase]
-    public void NoTwoActionsShareADefaultGamepadButtonOutsideTheUltimateChord() {
-        // The Ultimate's events deliberately reuse the Movement Ability and
-        // Special 2 buttons when they form a chord; every other default button
-        // belongs to exactly one action. The Godot 3 numbering broke this: the
-        // Movement Ability and Time Freeze both sat on Back (4), so a gamepad
-        // Movement press in Story also froze time.
+    public void NoTwoActionsShareADefaultGamepadButton() {
+        // Every default button belongs to exactly one action. Until 9.2
+        // (2026-10-16) the Ultimate's own events reused the Movement Ability and
+        // Special 2 buttons as its chord, and this case exempted them; the pad
+        // Ultimate is now the recipe chord with an empty direct slot, so there is
+        // no exception left. The Godot 3 numbering broke this too: the Movement
+        // Ability and Time Freeze both sat on Back (4), so a gamepad Movement
+        // press in Story also froze time.
         var owners = new Dictionary<int, List<string>>();
         foreach (string action in AuthoredActions()) {
             List<int> buttons = AuthoredJoyButtons(action);
-            if (action == InputManager.Actions.Ultimate && buttons.Count > 1) continue;
             foreach (int button in buttons.Distinct()) {
                 if (!owners.TryGetValue(button, out List<string> list)) owners[button] = list = new List<string>();
                 list.Add(action);

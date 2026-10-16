@@ -148,6 +148,96 @@ public class FighterCpuBehaviorTests {
         }
     }
 
+    /// <summary>
+    /// 1.1(5) (2026-10-16, ledger <c>FIX-CPU-JUMP-HOLD</c>): Jump used to pulse for
+    /// two ticks like every edge button. Now the CPU keeps it held after the pulse
+    /// until the fighter falls at 2 u/s or faster (just past the apex hang), so a
+    /// CPU jump is a full hop. One grounded approach decision at tick 0 queues
+    /// the only jump; from tick 1 the hand-built fighter is airborne, rising at
+    /// 8 u/s until the press and then decelerating by 0.5 u/s per tick.
+    /// </summary>
+    [TestCase]
+    public void JumpStaysHeldAfterItsPulseUntilTheFighterFallsAtTwoUnitsPerSecond() {
+        CpuBandTuning tuning = CpuBandTuning.Hard with {
+            ApproachJumpPercent = 100,
+            SpecialOneRangedPercent = 0,
+            MovementAbilityPercent = 0
+        };
+        var cpu = new FighterCpuController(CpuDifficulty.Hard, 77, geometry: null, world: null, tuningOverride: tuning);
+        CpuDecisionObservation observation = Neutral(selfX: 0, targetX: 9);
+        PlayerInputFrame previous = default;
+        int firstPress = -1;
+        int releaseTick = -1;
+        double velocityY = 8.0;
+        for (uint tick = 0; tick < 120 && releaseTick < 0; tick++) {
+            if (tick == 1) observation.IsGrounded = 0;
+            if (firstPress >= 0) velocityY -= 0.5;
+            observation.SelfVelocityYRaw = FP64.FromDouble(velocityY).RawValue;
+            PlayerInputFrame frame = cpu.Sample(tick, in observation, in previous);
+            previous = frame;
+            if (frame.IsPressed(GameplayButtons.Jump) && firstPress < 0) {
+                firstPress = (int)tick;
+                continue;
+            }
+            if (firstPress < 0) continue;
+            if (!frame.IsHeld(GameplayButtons.Jump)) {
+                releaseTick = (int)tick;
+                // The release is the tick the observed fall first reaches 2 u/s.
+                AssertThat(velocityY <= -2.0)
+                    .OverrideFailureMessage($"Jump was released at {velocityY:F1} u/s, before the fall reached 2 u/s.")
+                    .IsTrue();
+                AssertThat(velocityY > -2.5)
+                    .OverrideFailureMessage($"Jump was still held at {velocityY + 0.5:F1} u/s, past the release speed.")
+                    .IsTrue();
+            }
+        }
+        AssertThat(firstPress >= 0).OverrideFailureMessage("Harness: the CPU never pressed Jump.").IsTrue();
+        AssertThat(releaseTick > firstPress + 2)
+            .OverrideFailureMessage($"Jump pressed at {firstPress} was released at {releaseTick}: still a two-tick pulse.")
+            .IsTrue();
+    }
+
+    /// <summary>
+    /// 1.1(5): the sustained hold must not swallow a second jump. A recovering
+    /// CPU hanging at its apex (vertical speed 0: recovery jumps only from a
+    /// non-rising state, and the hold ends only at a 2 u/s fall) queues a jump
+    /// on every decision; each later press still reaches the simulation as its
+    /// own edge, with exactly one released tick in front of it and Jump held
+    /// throughout before that.
+    /// </summary>
+    [TestCase]
+    public void TwoQueuedJumpsStillProduceTwoPressedEdgesWithOneReleaseTickBetween() {
+        foreach (CpuDifficulty band in Bands()) {
+            var cpu = new FighterCpuController(band, 9001);
+            CpuDecisionObservation observation = OffStage(selfX: -8, selfY: -1);
+            // At the apex: the sustained hold has no reason to end before the next press.
+            observation.SelfVelocityYRaw = 0;
+            observation.RemainingJumps = 2;
+            PlayerInputFrame previous = default;
+            var presses = new List<int>();
+            var held = new List<bool>();
+            for (uint tick = 0; tick < Ticks && presses.Count < 2; tick++) {
+                PlayerInputFrame frame = cpu.Sample(tick, in observation, in previous);
+                previous = frame;
+                held.Add(frame.IsHeld(GameplayButtons.Jump));
+                if (frame.IsPressed(GameplayButtons.Jump)) presses.Add((int)tick);
+            }
+            AssertThat(presses.Count)
+                .OverrideFailureMessage($"{band} produced {presses.Count} Jump edge(s); the hold swallowed the second.")
+                .IsEqual(2);
+            int first = presses[0];
+            int second = presses[1];
+            AssertThat(held[second - 1])
+                .OverrideFailureMessage($"{band}: Jump was held on the tick before its second press.")
+                .IsFalse();
+            for (int tick = first; tick <= second - 2; tick++) {
+                AssertThat(held[tick])
+                    .OverrideFailureMessage($"{band}: Jump dropped at tick {tick}, between the press at {first} and the release at {second - 1}.")
+                    .IsTrue();
+            }
+        }
+    }
+
     // === Off-stage recovery ===
 
     [TestCase]

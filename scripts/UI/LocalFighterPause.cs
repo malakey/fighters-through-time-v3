@@ -114,6 +114,33 @@ namespace FTT.UI {
 
         private void OnPlayerDeviceDisconnected(int playerIndex) => ForceDisconnectPause(playerIndex);
 
+        /// <summary>
+        /// 9.1 (2026-10-16, CM-INPUT): outside a local join (Versus CPU, the
+        /// Holodeck, a drill) player 1 follows the last-used device, so a lost
+        /// player-1 controller resolves the way the Story pause's does — a key
+        /// press hands slot 0 the keyboard, a face button on a connected pad hands
+        /// it that pad, and the assignment clears the modal. In a local join the
+        /// per-slot modal stays as it was: Rebind or Forfeit.
+        /// </summary>
+        public override void _Input(InputEvent @event) {
+            if (_disconnectedPlayer != 0 || !IsPaused) return;
+            InputManager input = InputManager.Instance;
+            if (input == null || input.JoinMode != LocalJoinMode.FollowLastUsed) return;
+            if (@event is InputEventKey key && key.Pressed && !key.Echo) {
+                input.AssignKeyboardToPlayer(0);
+                GetViewport()?.SetInputAsHandled();
+                return;
+            }
+            if (@event is not InputEventJoypadButton button || !button.Pressed) return;
+            if (button.ButtonIndex is not (JoyButton.A or JoyButton.B or JoyButton.X or JoyButton.Y)) return;
+            try {
+                input.AssignJoypadToPlayer(button.Device, 0);
+            } catch (System.ArgumentException) {
+                return;
+            }
+            GetViewport()?.SetInputAsHandled();
+        }
+
         private void OnDeviceAssigned(int playerIndex, int deviceID) {
             if (deviceID == InputManager.UnassignedDevice) return;
             ResolveDisconnect(playerIndex);

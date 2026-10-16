@@ -571,10 +571,20 @@ namespace FTT.Enemies {
         /// <c>CpuBandTuning.For</c>, so Easy keeps the boss's full core kit instead
         /// of inheriting the practice CPU's stripped preset.
         /// </summary>
-        public MirrorParadoxDecisionAdapter(int seed, CpuDifficulty difficulty) {
+        public MirrorParadoxDecisionAdapter(int seed, CpuDifficulty difficulty)
+            : this(seed, difficulty, CpuBandTuning.BossOverride(difficulty)) {
+        }
+
+        /// <summary>
+        /// Test seam (2026-10-16, CM-INPUT, ledger <c>FIX-CPU-JUMP-HOLD</c>): the
+        /// same adapter with an explicit band, so a case can pin a rate such as
+        /// <see cref="CpuBandTuning.ApproachJumpPercent"/> at 100. Production
+        /// always takes the public constructor, which forwards the boss band.
+        /// </summary>
+        internal MirrorParadoxDecisionAdapter(int seed, CpuDifficulty difficulty, CpuBandTuning tuningOverride) {
             _cpu = new FighterCpuController(
                 difficulty, seed, geometry: null, world: null,
-                tuningOverride: CpuBandTuning.BossOverride(difficulty));
+                tuningOverride: tuningOverride);
         }
 
         public PlayerController Target { get; private set; }

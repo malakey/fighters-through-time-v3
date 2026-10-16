@@ -507,6 +507,98 @@ public class MirrorParadoxTests {
         }
     }
 
+    /// <summary>
+    /// 1.1(5) (2026-10-16, CM-INPUT, ledger <c>FIX-CPU-JUMP-HOLD</c>): the CPU
+    /// used to pulse Jump for two ticks like every edge button, so the clone's
+    /// held-Jump latch dropped on its third airborne tick and Story's short-hop
+    /// band (×2.5 while rising with Jump released) cut every jump. Driven
+    /// through the shared engine with an approach jump on every decision, the
+    /// clone's jump must now reach at least 95 % of a held single jump's rise.
+    /// The approach decisions queued before the first press is observed also
+    /// deliver an air jump a few ticks into the arc, so the measured apex can
+    /// exceed one single jump; the floor is what the fix guarantees.
+    /// </summary>
+    [TestCase]
+    public void TheCloneHoldsJumpForAFullHopInsteadOfShortHoppingEveryJump() {
+        MirrorParadoxController mirror = CreateMirror();
+        PlayerController clone = mirror.Clone;
+        int cloneIndex = clone.PlayerIndex;
+        var root = ((SceneTree)Engine.GetMainLoop()).Root;
+        var floor = new StaticBody2D {
+            Name = "MirrorJumpHoldFloor",
+            CollisionLayer = CollisionLayers.Environment,
+            CollisionMask = 0,
+            Position = new Vector2(600f, 300f)
+        };
+        floor.AddChild(new CollisionShape2D {
+            Shape = new RectangleShape2D { Size = new Vector2(4000f, 40f) },
+            Position = new Vector2(0f, 20f)
+        });
+        root.AddChild(floor);
+        PlayerController hero = null;
+        try {
+            hero = CharacterFactory.CreateCharacter(MirroredCharacter, 0, applyStoryProgression: false);
+            root.AddChild(hero);
+            clone.GlobalPosition = new Vector2(600f, 292f);
+            for (int frame = 0; frame < 120 && !clone.IsOnFloor(); frame++) {
+                clone.Velocity = new Vector2(0f, 400f);
+                StepClone(clone, cloneIndex, GameplayButtons.None, GameplayButtons.None);
+            }
+            for (int frame = 0; frame < 60 && clone.CurrentState != CharacterState.Idle; frame++) {
+                StepClone(clone, cloneIndex, GameplayButtons.None, GameplayButtons.None);
+            }
+            AssertThat(clone.IsOnFloor() && clone.CurrentState == CharacterState.Idle)
+                .OverrideFailureMessage($"Harness: the clone is {clone.CurrentState}, on floor {clone.IsOnFloor()}.")
+                .IsTrue();
+            // Ten units away, far past the 5-unit far range, so every grounded
+            // decision is an approach and every approach jumps; no ranged
+            // Special or movement ability competes with it.
+            hero.GlobalPosition = clone.GlobalPosition + new Vector2(600f, 0f);
+            CpuBandTuning tuning = CpuBandTuning.BossOverride(CpuDifficulty.Hard) with {
+                ApproachJumpPercent = 100,
+                SpecialOneRangedPercent = 0,
+                MovementAbilityPercent = 0
+            };
+            var adapter = new MirrorParadoxDecisionAdapter(4242, CpuDifficulty.Hard, tuning);
+            adapter.Bind(clone, hero);
+
+            float startY = clone.GlobalPosition.Y;
+            float highestRise = 0f;
+            bool jumped = false;
+            int firstJumpTick = -1;
+            PlayerInputFrame previous = default;
+            var source = new BufferedInputSource();
+            for (uint tick = 0; tick < 240; tick++) {
+                PlayerInputFrame frame = adapter.Sample(tick, in previous);
+                previous = frame;
+                if (frame.IsPressed(GameplayButtons.Jump) && firstJumpTick < 0) firstJumpTick = (int)tick;
+                source.SetNextFrame(frame);
+                InputManager.Instance.SetInputSource(cloneIndex, source);
+                clone._PhysicsProcess(1.0 / 60.0);
+                if (!clone.IsOnFloor()) jumped = true;
+                highestRise = Mathf.Max(highestRise, startY - clone.GlobalPosition.Y);
+                // One arc: stop at the first landing after leaving the floor.
+                if (jumped && clone.IsOnFloor()) break;
+            }
+
+            float fullRise = StoryAirPhysics.SingleJumpRise(
+                StoryAirPhysics.JumpLaunchSpeed(clone.Data.MaxJumpForce), clone.Data.Weight);
+            GD.Print($"[CM-INPUT] Mirror {MirroredCharacter} approach-jump apex {highestRise:F1} px "
+                + $"(first Jump press tick {firstJumpTick}); a held single jump rises {fullRise:F1} px.");
+            AssertThat(jumped).OverrideFailureMessage("Harness: the clone never left the floor.").IsTrue();
+            AssertThat(highestRise >= 0.95f * fullRise)
+                .OverrideFailureMessage(
+                    $"The clone's jump peaked at {highestRise:F1} px, below 95 % of a held single jump ({fullRise:F1} px).")
+                .IsTrue();
+        } finally {
+            InputManager.Instance?.ClearInputSource(cloneIndex);
+            DetachAndFree(hero);
+            FreeMirror(mirror);
+            floor.GetParent()?.RemoveChild(floor);
+            floor.Free();
+        }
+    }
+
     [TestCase]
     public void TheStoryAdapterLeavesTheVerbLayerAbsentSoFighterVerbsStayOutOfTheCampaign() {
         // Package 11 A9b: the F19 grab and Echo Step branches are gated behind
