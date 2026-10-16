@@ -128,7 +128,6 @@ namespace FTT.FighterSim {
         public const int PhaseWhiffRecovery = 3;
         public const int PhaseCinematic = 4;
 
-        private static readonly FPVector2 VictimHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
         /// <summary>A ground wave reaches targets standing within this height of its own floor line.</summary>
         private static readonly FP64 GroundWaveFloorTolerance = FP64.FromDouble(0.5);
         private static readonly FP64 FramesPerSecond = FP64.FromInt(FighterSimulation.TickRate);
@@ -306,9 +305,9 @@ namespace FTT.FighterSim {
                 // airborne slam sends it along whatever floor the target stands on.
                 if (activation.StartedAerial == 0
                     && FP64.Abs(target.Position.y - activation.Origin.y) > GroundWaveFloorTolerance) return false;
-                return FP64.Abs(center.x - target.Position.x) <= half.x + VictimHalfExtents.x;
+                return FP64.Abs(center.x - target.Position.x) <= half.x + FighterHurtbox.HalfExtents.x;
             }
-            return FighterEntityQueries.Overlaps(in center, in half, in target.Position, in VictimHalfExtents);
+            return FighterEntityQueries.Overlaps(in center, in half, in target.Position, in FighterHurtbox.HalfExtents);
         }
     }
 }

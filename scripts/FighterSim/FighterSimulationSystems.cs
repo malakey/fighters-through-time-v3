@@ -1662,16 +1662,14 @@ namespace FTT.FighterSim {
             FP64.FromDouble(FTT.Combat.BasicComboRules.StringBoxOffsetYUnits[1]),
             FP64.FromDouble(FTT.Combat.BasicComboRules.StringBoxOffsetYUnits[2])
         };
-        /// <summary>The universal fighter hurtbox half-extents the sim uses.</summary>
-        private static readonly FPVector2 VictimHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
 
         /// <summary>
         /// The horizontal half-width of the hurtbox every basic swing is tested
-        /// against (<see cref="VictimHalfExtents"/>). Exposed so the CPU's
+        /// against (<see cref="FighterHurtbox.HalfExtents"/>, plan §2.8.3). Exposed so the CPU's
         /// neutral melee band reads the live value rather than a copy
         /// (2026-10-11; ledger <c>VERIFY-SIM-HURTBOX-WIDTH</c> may change it).
         /// </summary>
-        internal static FP64 VictimHurtboxHalfWidth => VictimHalfExtents.x;
+        internal static FP64 VictimHurtboxHalfWidth => FighterHurtbox.HalfExtents.x;
 
         /// <summary>
         /// How far in front of the attacker's pivot a profile's grounded string
@@ -2275,7 +2273,7 @@ namespace FTT.FighterSim {
             // attacker's current facing only — a swing never hits behind.
             ResolveStringBox(in attacker, in profile, step, out FPVector2 boxCenter, out FPVector2 boxHalf);
             if (!FighterEntityQueries.Overlaps(
-                    in boxCenter, in boxHalf, in target.Position, in VictimHalfExtents)) return;
+                    in boxCenter, in boxHalf, in target.Position, in FighterHurtbox.HalfExtents)) return;
 
             int damage = attackerTuning.BasicDamage * profile.DamageTenths[step] / 10;
             bool finisher = step == 2;
@@ -2415,7 +2413,7 @@ namespace FTT.FighterSim {
                 FighterBasicAttackRules.StringProfileFor(attacker.CharacterID);
             ResolveStringBox(in attacker, in profile, step, out FPVector2 boxCenter, out FPVector2 boxHalf);
             if (!FighterEntityQueries.Overlaps(
-                    in boxCenter, in boxHalf, in target.Position, in VictimHalfExtents)) {
+                    in boxCenter, in boxHalf, in target.Position, in FighterHurtbox.HalfExtents)) {
                 return FighterHitOutcome.Refused;
             }
 

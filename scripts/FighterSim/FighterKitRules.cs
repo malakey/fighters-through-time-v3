@@ -11,8 +11,8 @@ namespace FTT.FighterSim {
     /// reads a Story modifier or Godot state.
     /// </summary>
     public static class FighterKitGeometry {
-        /// <summary>The fighter hit box every entity system tests against (half extents).</summary>
-        public static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
+        /// <summary>The fighter hit box the kit rules test against; forwards to <see cref="FighterHurtbox.HalfExtents"/> (plan §2.8.3).</summary>
+        public static readonly FPVector2 FighterHalfExtents = FighterHurtbox.HalfExtents;
         private static readonly FP64 InverseSqrtTwo = FP64.FromDouble(0.70710678118654752);
         private static readonly FP64 Half = FP64.One / FP64.FromInt(2);
 
