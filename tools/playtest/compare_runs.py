@@ -63,6 +63,13 @@ the median gap back to the other source (pooled from the gap histograms), the
 three kinds (standard, elite, boss, mirror, projectile, hazard, other) with the
 most cross-source re-hits as the second hit, status ticks per run, and
 unobserved hits (HP losses no raise site saw; 0 unless a non-hit death).
+CM-FIXA-PRES (2026-10-16): every periodic tick (status, zone pulse, drown
+tick, stage-hazard DPS) is kept out of hits and every re-hit figure and counted
+apart (ticks/run); xsrc30c and xsrc30c% are the combat-only figure (hazard
+contacts left out on both sides, over the combat hits). by_kind books a re-hit
+under the second hit's kind, so only xsrc30c removes a hazard predecessor.
+Reports from before the fix print "-" for both, and their hits include zone
+and periodic environmental ticks.
 """
 import fnmatch
 import glob
@@ -498,9 +505,17 @@ def rehit_rows(tag_pattern):
     for bot, runs in by_bot(tag_pattern):
         have = [r for r in runs if isinstance(r.get("rehits"), dict)]
         hits, damage, x30, x20, s30, s20, sf, xdmg, status, unobserved = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        # CM-FIXA-PRES: the combat-only figure and the periodic ticks, from the
+        # reports that carry them (absent before the fix).
+        combat_hits, x30c, ticks, have_combat = 0, 0, 0, 0
         gaps, by_kind, per_run = {}, {}, []
         for r in have:
             b = r["rehits"]
+            if "xsrc_30_combat" in b:
+                have_combat += 1
+                combat_hits += num(b.get("combat_hits"), 0)
+                x30c += num(b.get("xsrc_30_combat"), 0)
+                ticks += num(b.get("ticks"), 0)
             run_hits = num(b.get("hits"), 0)
             per_run.append(run_hits)
             hits += run_hits
@@ -523,6 +538,8 @@ def rehit_rows(tag_pattern):
             "hits/run": mean(per_run, 1),
             "xsrc30": x30 if ok else "-",
             "xsrc30%": pct(x30, hits) if ok else "-",
+            "xsrc30c": x30c if have_combat else "-",
+            "xsrc30c%": pct(x30c, combat_hits) if have_combat else "-",
             "xsrc20%": pct(x20, hits) if ok else "-",
             "same30%": pct(s30, hits) if ok else "-",
             "same20%": pct(s20, hits) if ok else "-",
@@ -531,6 +548,7 @@ def rehit_rows(tag_pattern):
             "xgap_med": hist_median(gaps),
             "top_kinds": top_counts(by_kind, 3) if ok else "-",
             "status/run": round(status / len(have), 1) if ok else "-",
+            "ticks/run": round(ticks / have_combat, 1) if have_combat else "-",
             "unobserved": unobserved if ok else "-",
         })
     return rows
@@ -609,8 +627,8 @@ def main(tags, swings=False):
                     crowd_rows(tag))
         # CM-BOT (2026-10-16): hits on the hero by source, and cross-source re-hits.
         print("\n#### rehits\n")
-        print_table(["bot", "runs", "hits/run", "xsrc30", "xsrc30%", "xsrc20%", "same30%", "same20%", "sf",
-                     "xsrc_dmg%", "xgap_med", "top_kinds", "status/run", "unobserved"],
+        print_table(["bot", "runs", "hits/run", "xsrc30", "xsrc30%", "xsrc30c", "xsrc30c%", "xsrc20%", "same30%",
+                     "same20%", "sf", "xsrc_dmg%", "xgap_med", "top_kinds", "status/run", "ticks/run", "unobserved"],
                     rehit_rows(tag))
         if swings:
             print("\n#### swings by hit\n")

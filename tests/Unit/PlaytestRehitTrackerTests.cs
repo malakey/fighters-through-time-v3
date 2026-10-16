@@ -120,11 +120,19 @@ public class PlaytestRehitTrackerTests {
         AssertThat(tracker.ByKind[RehitTracker.KindProjectile].Hits).IsEqual(1);
     }
 
+    /// <summary>
+    /// CM-FIXA-PRES (2026-10-16) rewrote this case in place: status ticks now
+    /// live in the tick block (<see cref="RehitTracker.TicksByKind"/>), not in a
+    /// <see cref="RehitTracker.ByKind"/> row, which holds hits only.
+    /// </summary>
     [TestCase]
-    public void StatusTicksAreCountedUnderTheirOwnKindAndKeptOutOfTheHeadline() {
+    public void StatusTicksAreCountedApartAsTicksAndKeptOutOfTheHeadline() {
         var tracker = new RehitTracker();
 
-        tracker.Record(100, "status", RehitTracker.KindStatus, 2);
+        RehitTracker.Entry first = tracker.Record(100, "status", RehitTracker.KindStatus, 2);
+        AssertThat(first.Tick)
+            .OverrideFailureMessage("A status entry is always a periodic tick.")
+            .IsTrue();
         RehitTracker.Entry hit = tracker.Record(105, "a", RehitTracker.KindStandard, 8);
         AssertThat(hit.Cross30)
             .OverrideFailureMessage("A status tick is never the predecessor of a re-hit.")
@@ -138,16 +146,129 @@ public class PlaytestRehitTrackerTests {
             .IsNull();
 
         AssertThat(tracker.StatusTicks).IsEqual(2);
+        AssertThat(tracker.Ticks).IsEqual(2);
+        AssertThat(tracker.TickDamage).IsEqual(4);
         AssertThat(tracker.Hits).IsEqual(1);
         AssertThat(tracker.HitDamage).IsEqual(8);
         AssertThat(tracker.CrossSource30).IsEqual(0);
-        AssertThat(tracker.ByKind[RehitTracker.KindStatus].Hits).IsEqual(2);
-        AssertThat(tracker.ByKind[RehitTracker.KindStatus].Damage).IsEqual(4);
-        AssertThat(tracker.ByKind[RehitTracker.KindStatus].Cross30).IsEqual(0);
+        AssertThat(tracker.TicksByKind[RehitTracker.KindStatus].Ticks).IsEqual(2);
+        AssertThat(tracker.TicksByKind[RehitTracker.KindStatus].Damage).IsEqual(4);
+        AssertThat(tracker.ByKind.ContainsKey(RehitTracker.KindStatus))
+            .OverrideFailureMessage("by_kind holds hits only; status ticks live in the tick block.")
+            .IsFalse();
         AssertThat(tracker.Log.Count)
-            .OverrideFailureMessage("The log keeps hits only; status ticks live in their kind row.")
+            .OverrideFailureMessage("The log keeps hits only.")
             .IsEqual(1);
         AssertThat(tracker.Log[0].Kind).IsEqual(RehitTracker.KindStandard);
+    }
+
+    /// <summary>
+    /// CM-FIXA-PRES (2026-10-16): a periodic tick of any kind — a drown tick
+    /// (hazard), a Mirror zone pulse (mirror) — is booked with <c>tick: true</c>:
+    /// it is not a hit, never a predecessor and never a re-hit, and it is counted
+    /// apart per kind. The same kinds as discrete contacts stay hits.
+    /// </summary>
+    [TestCase]
+    public void PeriodicZoneAndHazardTicksAreNeitherHitsNorPredecessors() {
+        var tracker = new RehitTracker();
+
+        // Level 5's drown tick (hazard:env, 4 HP) 20 frames before the boss's swing.
+        RehitTracker.Entry drown = tracker.Record(600, "hazard:env", RehitTracker.KindHazard, 4, "env", tick: true);
+        AssertThat(drown.Tick).IsTrue();
+        RehitTracker.Entry boss = tracker.Record(620, "actor:7", RehitTracker.KindBoss, 18, "tidal_overseer");
+        AssertThat(boss.Cross30)
+            .OverrideFailureMessage("A periodic hazard tick is never the predecessor of a boss re-hit.")
+            .IsFalse();
+        AssertThat(boss.CrossGap).IsEqual(-1);
+
+        // The Mirror clone's zone pulse 5 frames after the boss: not a re-hit, not a hit.
+        RehitTracker.Entry pulse = tracker.Record(625, "actor:9", RehitTracker.KindMirror, 3, "mirror", tick: true);
+        AssertThat(pulse.Cross30)
+            .OverrideFailureMessage("A zone pulse is never a re-hit itself.")
+            .IsFalse();
+        // And a mob 10 frames on: the boss swing is its only predecessor, the pulse is none.
+        RehitTracker.Entry mob = tracker.Record(635, "actor:11", RehitTracker.KindStandard, 6, "chrono_slasher");
+        AssertThat(mob.Cross30).IsTrue();
+        AssertThat(mob.CrossGap)
+            .OverrideFailureMessage("The latest predecessor is the boss swing at gap 15, not the pulse at 10.")
+            .IsEqual(15);
+        AssertThat(mob.CrossKind).IsEqual(RehitTracker.KindBoss);
+
+        // A discrete hazard contact (a discharge) is still a hit and a predecessor.
+        tracker.Record(900, "hazard:extractor", RehitTracker.KindHazard, 10, "extractor");
+        RehitTracker.Entry afterContact = tracker.Record(910, "actor:11", RehitTracker.KindStandard, 6);
+        AssertThat(afterContact.Cross30)
+            .OverrideFailureMessage("A discrete hazard contact stays in the headline (CM-BOT Decision 6).")
+            .IsTrue();
+
+        AssertThat(tracker.Hits).IsEqual(4);
+        AssertThat(tracker.HitDamage).IsEqual(18 + 6 + 10 + 6);
+        AssertThat(tracker.Ticks).IsEqual(2);
+        AssertThat(tracker.TickDamage).IsEqual(7);
+        AssertThat(tracker.StatusTicks)
+            .OverrideFailureMessage("Only a status kind counts as a status tick.")
+            .IsEqual(0);
+        AssertThat(tracker.TicksByKind[RehitTracker.KindHazard].Ticks).IsEqual(1);
+        AssertThat(tracker.TicksByKind[RehitTracker.KindMirror].Ticks).IsEqual(1);
+        AssertThat(tracker.TicksByKind[RehitTracker.KindMirror].Damage).IsEqual(3);
+        AssertThat(tracker.ByKind.ContainsKey(RehitTracker.KindMirror))
+            .OverrideFailureMessage("A kind with ticks only has no hit row.")
+            .IsFalse();
+        AssertThat(tracker.ByKind[RehitTracker.KindHazard].Hits)
+            .OverrideFailureMessage("The hazard hit row counts the discrete contact only.")
+            .IsEqual(1);
+        AssertThat(tracker.CrossSource30).IsEqual(2);
+        AssertThat(tracker.Log.Count)
+            .OverrideFailureMessage("Ticks are not logged.")
+            .IsEqual(4);
+    }
+
+    /// <summary>
+    /// CM-FIXA-PRES (2026-10-16): the combat-only figures leave hazard contacts
+    /// out on both sides, so a mob hit whose only cross-source predecessor is a
+    /// hazard contact is in the headline but not in <c>xsrc_30_combat</c>, and a
+    /// hazard contact after a mob is never a combat re-hit. <c>by_kind</c> books
+    /// by the second hit's kind, which is why it cannot do this.
+    /// </summary>
+    [TestCase]
+    public void TheCombatFigureLeavesHazardContactsOutOnBothSides() {
+        var tracker = new RehitTracker();
+
+        tracker.Record(100, "hazard:debris", RehitTracker.KindHazard, 5, "env");
+        RehitTracker.Entry mob = tracker.Record(110, "actor:1", RehitTracker.KindStandard, 8, "chrono_slasher");
+        AssertThat(mob.Cross30).IsTrue();
+        AssertThat(mob.Cross30Combat)
+            .OverrideFailureMessage("A mob hit whose only predecessor is a hazard contact is not a combat re-hit.")
+            .IsFalse();
+        AssertThat(tracker.ByKind[RehitTracker.KindStandard].Cross30)
+            .OverrideFailureMessage("by_kind books the hazard-preceded re-hit under the mob.")
+            .IsEqual(1);
+
+        // A hazard contact 5 frames after the mob: a headline re-hit, never a combat one.
+        RehitTracker.Entry hazard = tracker.Record(115, "hazard:debris", RehitTracker.KindHazard, 5, "env");
+        AssertThat(hazard.Cross30).IsTrue();
+        AssertThat(hazard.Cross30Combat).IsFalse();
+
+        // A boss 10 frames after the mob (with the hazard between): a combat re-hit at both windows.
+        RehitTracker.Entry boss = tracker.Record(120, "actor:2", RehitTracker.KindBoss, 20, "duke");
+        AssertThat(boss.Cross30Combat).IsTrue();
+        AssertThat(boss.Cross20Combat).IsTrue();
+        // Another mob 25 frames after the boss: combat within 30, not within 20.
+        RehitTracker.Entry late = tracker.Record(145, "actor:3", RehitTracker.KindStandard, 8);
+        AssertThat(late.Cross30Combat).IsTrue();
+        AssertThat(late.Cross20Combat).IsFalse();
+
+        AssertThat(tracker.Hits).IsEqual(5);
+        AssertThat(tracker.CombatHits)
+            .OverrideFailureMessage("The combat denominator leaves the hazard contacts out.")
+            .IsEqual(3);
+        AssertThat(tracker.CrossSource30).IsEqual(4);
+        AssertThat(tracker.CrossSource30Combat).IsEqual(2);
+        AssertThat(tracker.CrossSource20Combat).IsEqual(1);
+        AssertThat(tracker.CrossSourceDamage30Combat).IsEqual(28);
+        AssertThat(tracker.ByKind[RehitTracker.KindBoss].Cross30Combat).IsEqual(1);
+        AssertThat(tracker.ByKind[RehitTracker.KindStandard].Cross30Combat).IsEqual(1);
+        AssertThat(tracker.ByKind[RehitTracker.KindHazard].Cross30Combat).IsEqual(0);
     }
 
     [TestCase]

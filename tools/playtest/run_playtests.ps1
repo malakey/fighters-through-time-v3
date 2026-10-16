@@ -44,7 +44,11 @@
     damaging hits taken within 30 frames of a hit from a different source -
     the mercy-invulnerability measurement, decision 7.2; the report's rehits
     block has the rest, including the hit count without status ticks) and
-    hits_taken, every HP loss the hero took (player.hits_taken).
+    hits_taken, every HP loss the hero took (player.hits_taken). Since
+    CM-FIXA-PRES (2026-10-16) xsrc_rehits counts hits only - every periodic
+    tick (status, zone pulse, drown tick, stage-hazard DPS) is neither a
+    re-hit nor a predecessor - and xsrc_rehits_combat is the same figure
+    with hazard contacts left out on both sides.
 
     The runner uses the developer direct-launch path and suppresses save
     writes, so no save slot or global save is touched. Build first:
@@ -140,6 +144,9 @@ foreach ($r in $done) {
         # source's hit (absent before CM-BOT), and every HP loss the hero took
         # (status ticks included; the report's rehits.hits excludes them).
         xsrc_rehits = $(if ($c) { $c.xsrc_rehits } else { $null })
+        # CM-FIXA-PRES (2026-10-16): the same with hazard contacts left out on
+        # both sides (absent before the fix).
+        xsrc_rehits_combat = $(if ($c) { $c.xsrc_rehits_combat } else { $null })
         hits_taken = $x.player.hits_taken
         # GU-BOT (2026-10-12): encounter locks and the hero's crowd.
         locks = $(if ($n) { $n.locks } else { $null })

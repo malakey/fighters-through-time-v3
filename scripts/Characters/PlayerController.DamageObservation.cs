@@ -77,12 +77,20 @@ namespace FTT.Characters {
 				hit.HitboxID, hit.AttackerIndex, hit.Delivery, damageApplied));
 		}
 
-		/// <summary>The environmental and status paths' observation: no source is known there.</summary>
-		private void ObserveDamageTaken(DamageObservationKind kind, int damageApplied) {
+		/// <summary>
+		/// The environmental and status paths' observation: no source is known
+		/// there. A status tick is always <see cref="HitDelivery.Tick"/>; an
+		/// environmental loss is <see cref="HitDelivery.Hazard"/> (a discrete
+		/// contact) unless its caller marked it a periodic tick (a drown tick, a
+		/// stage-hazard DPS payout), which is <see cref="HitDelivery.Tick"/>
+		/// (CM-FIXA-PRES). The delivery is observation only and changes no value.
+		/// </summary>
+		private void ObserveDamageTaken(DamageObservationKind kind, int damageApplied, bool periodicTick = false) {
 			Action<PlayerDamageObservation> handler = DamageTaken;
 			if (handler == null || damageApplied <= 0) return;
 			handler(new PlayerDamageObservation(kind, 0UL, "", "", -1,
-				kind == DamageObservationKind.Status ? HitDelivery.Tick : HitDelivery.Hazard, damageApplied));
+				kind == DamageObservationKind.Status || periodicTick ? HitDelivery.Tick : HitDelivery.Hazard,
+				damageApplied));
 		}
 	}
 }
