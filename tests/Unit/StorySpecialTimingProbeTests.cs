@@ -64,13 +64,15 @@ public class StorySpecialTimingProbeTests {
     }
 
     /// <summary>
-    /// Story's cast motion before the Q1 ruling: <c>ProcessUsingSpecial</c>
-    /// writes only Y, so a running grounded caster slides at its entry speed
-    /// with no friction for the whole cast and an airborne caster keeps its
-    /// drift. (Rewritten in place to the braking rule when it lands.)
+    /// Story's cast motion. Recorded first before the Q1 ruling landed (commit
+    /// 6): <c>ProcessUsingSpecial</c> wrote only Y, so a running grounded
+    /// caster slid at its entry speed (324 px/s on every cast tick) and an
+    /// airborne caster kept its drift. Rewritten in place to the ruled rule
+    /// ("brake to a stop, both modes"): the grounded caster now brakes to zero
+    /// over the run-stop ramp, and the airborne drift is unchanged.
     /// </summary>
     [TestCase]
-    public void StorysCastMotionKeepsTheEntrySpeedGroundedAndAirborne() {
+    public void StorysCastMotionBrakesGroundedAndKeepsTheAirborneDrift() {
         Run("einstein", (player, host) => {
             var blast = player.GetNode<EinsteinEmc2Blast>("Special1");
             for (int tick = 0; tick < 20; tick++) Tick(player, GameplayButtons.None, horizontal: 1f);
@@ -78,18 +80,17 @@ public class StorySpecialTimingProbeTests {
             AssertThat(entry > 100f).OverrideFailureMessage($"Harness: the hero never ran ({entry} px/s).").IsTrue();
             Tick(player, GameplayButtons.Special1, horizontal: 1f);
             AssertThat(player.CurrentState).IsEqual(CharacterState.UsingSpecial);
-            float min = player.Velocity.X;
-            float max = player.Velocity.X;
+            int stoppedOn = -1;
             string trace = $"{player.Velocity.X:0.#}";
             for (int tick = 1; tick < 12 && blast.IsExecuting; tick++) {
                 Tick(player, GameplayButtons.None, horizontal: 1f);
-                min = Mathf.Min(min, player.Velocity.X);
-                max = Mathf.Max(max, player.Velocity.X);
                 trace += $" {player.Velocity.X:0.#}";
+                if (stoppedOn < 0 && player.Velocity.X == 0f) stoppedOn = tick;
             }
             Console.WriteLine($"[CM-SIM probe] Story grounded cast X velocity from entry {entry:0.#}: {trace}");
-            AssertFloat(min).OverrideFailureMessage($"Grounded cast velocity dropped to {min}.").IsEqualApprox(entry, 1f);
-            AssertFloat(max).IsEqualApprox(entry, 1f);
+            AssertThat(stoppedOn)
+                .OverrideFailureMessage($"The grounded cast stopped on tick {stoppedOn} ({trace}).")
+                .IsEqual(FTT.Core.UniversalMovementRules.RunDecelerationFrames);
         });
 
         Run("einstein", (player, host) => {

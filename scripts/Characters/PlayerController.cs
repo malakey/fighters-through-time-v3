@@ -3225,6 +3225,8 @@ namespace FTT.Characters {
 				? FTT.Core.UniversalMovementRules.AerialSpecialGravityMultiplier
 				: 1f;
 			ApplyGravity(dt * gravityMultiplier);
+			// Q1 (2026-10-16): a grounded cast brakes to a stop; an airborne one keeps its drift.
+			ApplySpecialCastBrake(ability, dt);
 			// A06 (Package 13 W1): Echo Step is eligible only from the recovery
 			// of your own basic or directional attack — a Special's recovery no
 			// longer qualifies, so a zoner cannot fire and rewind to safety.
