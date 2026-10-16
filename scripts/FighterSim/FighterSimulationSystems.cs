@@ -540,7 +540,10 @@ namespace FTT.FighterSim {
                     // strike (GU-A; it was the aerial string) — the dive is an
                     // approach, not a hover.
                     FighterKitMotion.TryWingDiveAttackCancel(ref runtime);
-                    ProcessBasicAttackPhase(ref fighter, ref runtime, in verb);
+                    if (ProcessBasicAttackPhase(ref fighter, ref runtime, in verb)) {
+                        FighterActionRules.OnActionAccepted(
+                            ref fighter, ref verb, ref defense, FighterActionKind.Swing);
+                    }
                     bool attacking = runtime.AttackPhase != FighterBasicAttackRules.PhaseNone;
                     bool blockStance = FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb);
                     // V7.3 shieldstun: the stunned blocker is locked into the
@@ -550,6 +553,8 @@ namespace FTT.FighterSim {
                         ref fighter,
                         ref runtime,
                         ref knockdown,
+                        ref verb,
+                        ref defense,
                         rooted,
                         // An Echo Step wind-up owns the Roll press that armed it.
                         allowRoll: !attacking && verb.EchoStepWindupFrames == 0 && !shieldStunned);
@@ -584,6 +589,8 @@ namespace FTT.FighterSim {
                         ApplyNormalMovement(
                             ref fighter,
                             ref runtime,
+                            ref verb,
+                            ref defense,
                             in tuning,
                             rooted,
                             statusMoveMultiplier,
@@ -741,6 +748,8 @@ namespace FTT.FighterSim {
                 if (TryGrabLedge(ref fighter, ref runtime, ref verb, in tuning)) {
                     FighterAirDodgeRules.Refresh(ref knockdown);
                     knockdown.StaffRefundUsed = 0;
+                    FighterActionRules.OnActionAccepted(
+                        ref fighter, ref verb, ref defense, FighterActionKind.LedgeGrab);
                 }
             }
 
@@ -915,13 +924,17 @@ namespace FTT.FighterSim {
             ref FighterStateComponent fighter,
             ref FighterRuntimeComponent runtime,
             ref FighterKnockdownComponent knockdown,
+            ref FighterVerbComponent verb,
+            ref FighterDefenseComponent defense,
             bool rooted,
             bool allowRoll = true) {
             // A03 (Package 13 W1): Roll pressed while airborne is the air dodge.
             // A05: Root refuses it exactly as it refuses the grounded roll.
             if (fighter.IsGrounded == 0) {
-                if (allowRoll && (runtime.PressedButtons & RollButton) != 0) {
-                    FighterAirDodgeRules.TryStart(ref fighter, ref runtime, ref knockdown, rooted);
+                if (allowRoll && (runtime.PressedButtons & RollButton) != 0
+                    && FighterAirDodgeRules.TryStart(ref fighter, ref runtime, ref knockdown, rooted)) {
+                    FighterActionRules.OnActionAccepted(
+                        ref fighter, ref verb, ref defense, FighterActionKind.AirDodge);
                 }
                 return;
             }
@@ -932,6 +945,8 @@ namespace FTT.FighterSim {
                 runtime.UniversalMovementState = (int)UniversalMovementPhase.RollStartup;
                 runtime.UniversalMovementFramesRemaining = UniversalMovementRules.RollStartupFrames;
                 runtime.UniversalMovementDirection = direction;
+                FighterActionRules.OnActionAccepted(
+                    ref fighter, ref verb, ref defense, FighterActionKind.Roll);
             }
         }
 
@@ -988,6 +1003,8 @@ namespace FTT.FighterSim {
         private static void ApplyNormalMovement(
             ref FighterStateComponent fighter,
             ref FighterRuntimeComponent runtime,
+            ref FighterVerbComponent verb,
+            ref FighterDefenseComponent defense,
             in FighterTuningComponent tuning,
             bool rooted,
             FP64 statusMoveMultiplier,
@@ -1054,9 +1071,11 @@ namespace FTT.FighterSim {
                 fighter.Velocity.y = tuning.JumpSpeed * statusMoveMultiplier * jumpBuffMultiplier;
                 fighter.IsGrounded = 0;
                 fighter.RemainingJumps = tuning.MaxJumpCount - 1;
+                FighterActionRules.OnActionAccepted(ref fighter, ref verb, ref defense, FighterActionKind.Jump);
             } else if (allowJump && jumpPressed && fighter.IsGrounded == 0 && fighter.RemainingJumps > 0 && !rooted) {
                 fighter.Velocity.y = tuning.JumpSpeed * statusMoveMultiplier * jumpBuffMultiplier;
                 fighter.RemainingJumps--;
+                FighterActionRules.OnActionAccepted(ref fighter, ref verb, ref defense, FighterActionKind.AirJump);
             }
         }
 
@@ -1071,8 +1090,11 @@ namespace FTT.FighterSim {
         /// press is the single air strike, and no chain hit ever starts in the
         /// air — a continuation that would begin airborne ends the string.
         /// Internal so the GU-A suites can drive it on a hand-built fighter.
+        /// Returns true when a swing started this tick (a fresh swing or a chain
+        /// continuation), the caller's cue for the action chokepoint
+        /// (<see cref="FighterActionRules.OnActionAccepted"/>, plan §1.5).
         /// </summary>
-        internal static void ProcessBasicAttackPhase(
+        internal static bool ProcessBasicAttackPhase(
             ref FighterStateComponent fighter,
             ref FighterRuntimeComponent runtime,
             in FighterVerbComponent verb) {
@@ -1087,8 +1109,9 @@ namespace FTT.FighterSim {
                         ref runtime,
                         0,
                         FighterBasicAttackRules.SelectVariant(in fighter, in runtime));
+                    return true;
                 }
-                return;
+                return false;
             }
 
             bool aerial = (runtime.AttackFlags & FighterBasicAttackRules.FlagAerial) != 0;
@@ -1098,7 +1121,7 @@ namespace FTT.FighterSim {
                 // Landing cancels a swing started in the air (the air strike, an
                 // airborne up-attack, the down-air) with no landing lag.
                 FighterBasicAttackRules.CancelString(ref runtime);
-                return;
+                return false;
             }
 
             // The air strike and the directional attacks stand outside the
@@ -1113,10 +1136,13 @@ namespace FTT.FighterSim {
                     int variant = FighterBasicAttackRules.SelectVariant(in fighter, in runtime);
                     if (variant != FTT.Combat.BasicComboRules.VariantChain) {
                         FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, 0, variant);
-                    } else if (runtime.ComboIndex < FTT.Combat.BasicComboRules.ComboHits - 1) {
-                        FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, runtime.ComboIndex + 1);
+                        return true;
                     }
-                    return;
+                    if (runtime.ComboIndex < FTT.Combat.BasicComboRules.ComboHits - 1) {
+                        FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, runtime.ComboIndex + 1);
+                        return true;
+                    }
+                    return false;
                 }
                 // F3 (2026-10-04 feel pass): startup, ACTIVE or recovery — the
                 // old active-frame exclusion is gone (it is not in the design);
@@ -1132,7 +1158,7 @@ namespace FTT.FighterSim {
                     || (runtime.HeldButtons & BlockButton) != 0;
                 if (cancels) {
                     FighterBasicAttackRules.CancelString(ref runtime);
-                    return;
+                    return false;
                 }
             }
 
@@ -1148,15 +1174,16 @@ namespace FTT.FighterSim {
                 // held continuation ends the string instead.
                 if (airborne) {
                     FighterBasicAttackRules.CancelString(ref runtime);
-                } else {
-                    FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, runtime.ComboIndex + 1);
+                    return false;
                 }
-                return;
+                FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, runtime.ComboIndex + 1);
+                return true;
             }
 
             runtime.AttackPhaseFrames--;
-            if (runtime.AttackPhaseFrames > 0) return;
+            if (runtime.AttackPhaseFrames > 0) return false;
             int step = runtime.ComboIndex < 0 ? 0 : runtime.ComboIndex > 2 ? 2 : runtime.ComboIndex;
+            bool started = false;
             switch (phase) {
                 case FighterBasicAttackRules.PhaseStartup:
                     runtime.AttackPhase = FighterBasicAttackRules.PhaseActive;
@@ -1192,6 +1219,7 @@ namespace FTT.FighterSim {
                         bool queued = (runtime.AttackFlags & FighterBasicAttackRules.FlagQueuedBuffered) != 0;
                         FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, step + 1);
                         if (queued) runtime.AttackFlags |= FighterBasicAttackRules.FlagBuffered;
+                        started = true;
                     } else if (step >= FTT.Combat.BasicComboRules.ComboHits - 1) {
                         // The finisher exits straight out; the chain resets.
                         FighterBasicAttackRules.CancelString(ref runtime);
@@ -1206,6 +1234,7 @@ namespace FTT.FighterSim {
                     FighterBasicAttackRules.CancelString(ref runtime);
                     break;
             }
+            return started;
         }
 
         private static FP64 MoveToward(FP64 current, FP64 target, FP64 maximumDelta) {
@@ -1324,6 +1353,8 @@ namespace FTT.FighterSim {
             ref FighterEchoStepRing0Component ring = ref frame.Get<FighterEchoStepRing0Component>(entity);
             ring.Armed = 1;
             ring.ActivationTick = ring.LatestTick;
+            FighterActionRules.OnActionAccepted(
+                ref fighter, ref verb, ref frame.Get<FighterDefenseComponent>(entity), FighterActionKind.EchoStep);
         }
 
         /// <summary>The state gates an Echo Step shares with every other verb.</summary>
@@ -1760,8 +1791,8 @@ namespace FTT.FighterSim {
             // Special intent or a basic swing on the victim's side.
             ref FighterCounterComponent counterOne = ref frame.Get<FighterCounterComponent>(first);
             ref FighterCounterComponent counterTwo = ref frame.Get<FighterCounterComponent>(second);
-            ApplyIntent(ref fighterOne, ref runtimeOne, ref verbOne, ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo, in firstIntent, ref counterTwo);
-            ApplyIntent(ref fighterTwo, ref runtimeTwo, ref verbTwo, ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne, in secondIntent, ref counterOne);
+            ApplyIntent(ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo, in firstIntent, ref counterTwo);
+            ApplyIntent(ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne, in secondIntent, ref counterOne);
             // F07 marks are written onto the VICTIM's component 318.
             ref FighterConductiveComponent conductiveOne = ref frame.Get<FighterConductiveComponent>(first);
             ref FighterConductiveComponent conductiveTwo = ref frame.Get<FighterConductiveComponent>(second);
@@ -1855,12 +1886,14 @@ namespace FTT.FighterSim {
                 verbOne.GrabPhase = FighterGrabRules.PhaseStartup;
                 verbOne.GrabPhaseFrames = FTT.Combat.BasicComboRules.GrabStartupFrames;
                 verbOne.ClearGrabPartner();
+                FighterActionRules.OnActionAccepted(ref one, ref verbOne, ref defenseOne, FighterActionKind.Grab);
             }
             if (!twoFrozen && FighterGrabRules.Requested(in runtimeTwo)
                 && FighterGrabRules.CanStartGrab(in two, in runtimeTwo, in verbTwo)) {
                 verbTwo.GrabPhase = FighterGrabRules.PhaseStartup;
                 verbTwo.GrabPhaseFrames = FTT.Combat.BasicComboRules.GrabStartupFrames;
                 verbTwo.ClearGrabPartner();
+                FighterActionRules.OnActionAccepted(ref two, ref verbTwo, ref defenseTwo, FighterActionKind.Grab);
             }
 
             // A hit breaks a grab in every pre-throw phase (attack beats grab);
@@ -2536,6 +2569,11 @@ namespace FTT.FighterSim {
             FighterUltimateActivationRules.Accept(
                 ref attacker, ref attackerRuntime, ref activation, _contracts.UltimateFor(attacker.PlayerID));
             FighterAbilityLockoutRules.ArmAbility(ref attackerRuntime);
+            FighterActionRules.OnActionAccepted(
+                ref attacker,
+                ref frame.Get<FighterVerbComponent>(attackerEntity),
+                ref frame.Get<FighterDefenseComponent>(attackerEntity),
+                FighterActionKind.Ultimate);
         }
 
         /// <summary>
@@ -2953,6 +2991,7 @@ namespace FTT.FighterSim {
             ref FighterStateComponent attacker,
             ref FighterRuntimeComponent attackerRuntime,
             ref FighterVerbComponent attackerVerb,
+            ref FighterDefenseComponent attackerDefense,
             ref FighterStateComponent target,
             ref FighterRuntimeComponent targetRuntime,
             ref FighterVerbComponent targetVerb,
@@ -2972,10 +3011,14 @@ namespace FTT.FighterSim {
                 // A fresh cooldown cycle re-arms its Resonance Momentum refunds.
                 attackerVerb.MomentumRefundedFramesSlotOne = 0;
                 FighterAbilityLockoutRules.ArmAbility(ref attackerRuntime);
+                FighterActionRules.OnActionAccepted(
+                    ref attacker, ref attackerVerb, ref attackerDefense, FighterActionKind.Special);
             } else if (intent.Kind == 4) {
                 attackerRuntime.SpecialTwoCooldownFrames = intent.CooldownFrames > 1 ? intent.CooldownFrames : 1;
                 attackerVerb.MomentumRefundedFramesSlotTwo = 0;
                 FighterAbilityLockoutRules.ArmAbility(ref attackerRuntime);
+                FighterActionRules.OnActionAccepted(
+                    ref attacker, ref attackerVerb, ref attackerDefense, FighterActionKind.Special);
             } else {
                 attacker.Influence = FP64.Zero;
             }

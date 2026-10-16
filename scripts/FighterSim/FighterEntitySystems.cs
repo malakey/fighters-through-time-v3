@@ -1230,6 +1230,10 @@ namespace FTT.FighterSim {
                     ref FighterVerbComponent verb = ref frame.Get<FighterVerbComponent>(entity);
                     if (armedSlotOne) verb.MomentumRefundedFramesSlotOne = 0;
                     if (armedSlotTwo) verb.MomentumRefundedFramesSlotTwo = 0;
+                    // Plan §1.5: the action chokepoint, once per accepted Special.
+                    FighterActionRules.OnActionAccepted(
+                        ref fighter, ref verb, ref frame.Get<FighterDefenseComponent>(entity),
+                        FighterActionKind.Special);
                 }
 
                 // Story never polls the movement ability during a swing.
@@ -1251,6 +1255,11 @@ namespace FTT.FighterSim {
                     && runtime.MovementCooldownFrames <= 0
                     && runtime.StatusType != (int)StatusType.Root) {
                     ApplyMovement(ref frame, ref fighter, ref runtime, in tuning, in modes);
+                    FighterActionRules.OnActionAccepted(
+                        ref fighter,
+                        ref frame.Get<FighterVerbComponent>(entity),
+                        ref frame.Get<FighterDefenseComponent>(entity),
+                        FighterActionKind.MovementAbility);
                 }
             }
         }
