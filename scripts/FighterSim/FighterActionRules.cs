@@ -77,6 +77,7 @@ namespace FTT.FighterSim {
             ref FighterStateComponent fighter,
             ref FighterVerbComponent verb,
             ref FighterDefenseComponent defense,
+            ref FighterActionStateComponent action,
             FighterActionKind kind) {
         }
     }

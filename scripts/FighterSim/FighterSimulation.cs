@@ -283,6 +283,42 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
+        /// Combat and movement update 2026-10-16 (plan §1.5): reads a fighter's
+        /// action state (component 323) — the Fighter Special cast phase, the D3
+        /// buffer, the perfect-block clock, the Down tap and the action flags.
+        /// Snapshot and hash state like everything else.
+        /// </summary>
+        public bool TryGetFighterActionState(int playerID, out FighterActionStateComponent actionState) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterActionStateComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref readonly FighterStateComponent fighter = ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
+                if (fighter.PlayerID == playerID) {
+                    actionState = _simulation.Frame.GetReadOnly<FighterActionStateComponent>(entity);
+                    return true;
+                }
+            }
+            actionState = default;
+            return false;
+        }
+
+        /// <summary>
+        /// Combat and movement update test seam (plan §1.5): overwrites a
+        /// fighter's component 323 directly, so the A0 suites can prove its
+        /// resets and its snapshot round trip before any rule writes it. Writes
+        /// deterministic state (it moves the hash).
+        /// </summary>
+        internal bool SeedFighterActionStateForTest(int playerID, in FighterActionStateComponent actionState) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterActionStateComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref readonly FighterStateComponent fighter = ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
+                if (fighter.PlayerID != playerID) continue;
+                _simulation.Frame.Get<FighterActionStateComponent>(entity) = actionState;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Package 13 W6 test seam: sets a fighter's Influence meter directly
         /// (clamped to 0..100), so the A02 suites can fill the meter — or give a
         /// whiffing caster Echo Step's 30 — without a scripted damage exchange.

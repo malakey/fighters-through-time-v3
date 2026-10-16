@@ -1233,7 +1233,7 @@ namespace FTT.FighterSim {
                     // Plan §1.5: the action chokepoint, once per accepted Special.
                     FighterActionRules.OnActionAccepted(
                         ref fighter, ref verb, ref frame.Get<FighterDefenseComponent>(entity),
-                        FighterActionKind.Special);
+                        ref frame.Get<FighterActionStateComponent>(entity), FighterActionKind.Special);
                 }
 
                 // Story never polls the movement ability during a swing.
@@ -1259,6 +1259,7 @@ namespace FTT.FighterSim {
                         ref fighter,
                         ref frame.Get<FighterVerbComponent>(entity),
                         ref frame.Get<FighterDefenseComponent>(entity),
+                        ref frame.Get<FighterActionStateComponent>(entity),
                         FighterActionKind.MovementAbility);
                 }
             }
