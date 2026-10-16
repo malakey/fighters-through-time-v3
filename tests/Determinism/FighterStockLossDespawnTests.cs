@@ -25,10 +25,11 @@ public class FighterStockLossDespawnTests {
             rules: FighterMatchRules.Disabled);
         // Both Teslas plant a coil.
         simulation.Advance(Frame(0, GameplayButtons.Special1), Frame(0, GameplayButtons.Special1));
+        int tick = StepThroughBothCasts(simulation, 1);
         AssertThat(OwnedObjects(simulation, 0)).IsEqual(1);
         AssertThat(OwnedObjects(simulation, 1)).IsEqual(1);
 
-        int koTick = DropOwnerOffTheBottom(simulation, 1, player: 0);
+        int koTick = DropOwnerOffTheBottom(simulation, tick, player: 0);
         AssertThat(koTick > 0).IsTrue();
         AssertThat(OwnedObjects(simulation, 0))
             .OverrideFailureMessage("A04: the fallen owner's coil despawns on the KO tick.")
@@ -44,10 +45,12 @@ public class FighterStockLossDespawnTests {
             rules: FighterMatchRules.Disabled);
         // Relativity Rift is Einstein's Area special (a component 309 zone).
         simulation.Advance(Frame(0, GameplayButtons.Special2), Frame(0, GameplayButtons.None));
+        int tick = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
         AssertThat(simulation.ZoneCount)
             .OverrideFailureMessage("setup: Relativity Rift must open a zone.")
             .IsEqual(1);
-        DropOwnerOffTheBottom(simulation, 1, player: 0);
+        tick = SpecialCastTestKit.StepUntilCastEnds(simulation, 0, tick);
+        DropOwnerOffTheBottom(simulation, tick, player: 0);
         AssertThat(simulation.ZoneCount)
             .OverrideFailureMessage("A04: the fallen owner's zone despawns on the KO tick.")
             .IsEqual(0);
@@ -58,14 +61,29 @@ public class FighterStockLossDespawnTests {
         var simulation = new FighterSimulation(Load("mozart"), Load("joan"), seed: 1313, spawnDistance: 10,
             rules: FighterMatchRules.Disabled);
         simulation.Advance(Frame(0, GameplayButtons.Special1), Frame(0, GameplayButtons.None));
+        int tick = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
         AssertThat(simulation.ProjectileCount)
             .OverrideFailureMessage("setup: Requiem Chord must be in flight.")
             .IsEqual(1);
+        tick = SpecialCastTestKit.StepUntilCastEnds(simulation, 0, tick);
         int projectilesAtKo = -1;
-        DropOwnerOffTheBottom(simulation, 1, player: 0, onKo: () => projectilesAtKo = simulation.ProjectileCount);
+        DropOwnerOffTheBottom(simulation, tick, player: 0, onKo: () => projectilesAtKo = simulation.ProjectileCount);
         AssertThat(projectilesAtKo)
             .OverrideFailureMessage("A04: projectiles already in flight are not despawned by the owner's KO.")
             .IsEqual(1);
+    }
+
+    /// <summary>
+    /// Decision 1.2 (2026-10-16): a Special's effect fires on its active entry
+    /// and the cast lock holds every input until its recovery ends, so a
+    /// fixture steps both casts to their end before the owner drops. Returns
+    /// the next tick.
+    /// </summary>
+    private static int StepThroughBothCasts(FighterSimulation simulation, int tick) {
+        tick = SpecialCastTestKit.StepUntilFired(simulation, 0, tick);
+        tick = SpecialCastTestKit.StepUntilFired(simulation, 1, tick);
+        tick = SpecialCastTestKit.StepUntilCastEnds(simulation, 0, tick);
+        return SpecialCastTestKit.StepUntilCastEnds(simulation, 1, tick);
     }
 
     private static FighterLoadout Load(string characterID) =>

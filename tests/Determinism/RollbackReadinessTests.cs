@@ -203,15 +203,32 @@ public class RollbackReadinessTests {
         int seed,
         int ticks,
         int latencyPolls,
-        int stocks) {
+        int stocks) =>
+        RunConvergence(
+            () => BuildSimulation(playerOne, playerTwo, geometry, seed, stocks),
+            $"{playerOne} vs {playerTwo} on '{geometry.StageID}'",
+            seed, ticks, latencyPolls, observeReplay: null);
+
+    /// <summary>
+    /// <see cref="RunConvergence(FighterCharacterID, FighterCharacterID, FighterStageGeometry, int, int, int, int)"/>
+    /// on any simulation <paramref name="build"/> makes (three identical ones:
+    /// the two peers and the plain replay). <paramref name="observeReplay"/>, if
+    /// given, sees the replay after every tick.
+    /// </summary>
+    private static (int PeakHazards, int PeakOrbs, int[] AcceptedSpecials) RunConvergence(
+        Func<FighterSimulation> build,
+        string context,
+        int seed,
+        int ticks,
+        int latencyPolls,
+        Action<FighterSimulation> observeReplay) {
         (InMemoryRollbackTransport firstTransport, InMemoryRollbackTransport secondTransport) =
             InMemoryRollbackTransport.CreatePair(latencyPolls);
-        FighterSimulation firstSimulation = BuildSimulation(playerOne, playerTwo, geometry, seed, stocks);
-        FighterSimulation secondSimulation = BuildSimulation(playerOne, playerTwo, geometry, seed, stocks);
+        FighterSimulation firstSimulation = build();
+        FighterSimulation secondSimulation = build();
         using var first = new OnlineRollbackSession(firstSimulation, firstTransport, 4400, 0);
         using var second = new OnlineRollbackSession(secondSimulation, secondTransport, 4400, 1);
 
-        string context = $"{playerOne} vs {playerTwo} on '{geometry.StageID}'";
         int lateInputs = 0;
         int corrections = 0;
         first.InputArrivedTooLate += _ => lateInputs++;
@@ -263,13 +280,14 @@ public class RollbackReadinessTests {
         // The session applies inputs on their own tick, so the converged state is
         // exactly a plain replay of both scripts — which is also where the
         // accepted specials can be counted without rollback noise.
-        FighterSimulation replay = BuildSimulation(playerOne, playerTwo, geometry, seed, stocks);
+        FighterSimulation replay = build();
         var replayOne = new ScriptedInputs(seed, 0);
         var replayTwo = new ScriptedInputs(seed, 1);
         var specials = new AcceptedSpecialCounter();
         for (int tick = 0; tick < ticks; tick++) {
             replay.Advance(replayOne.Next(tick), replayTwo.Next(tick));
             specials.Observe(replay);
+            observeReplay?.Invoke(replay);
         }
         AssertThat(replay.CurrentHash)
             .OverrideFailureMessage($"{context}: the converged peers differ from a plain replay of both scripts.")
@@ -318,6 +336,55 @@ public class RollbackReadinessTests {
             seed++;
         }
     }
+
+    /// <summary>
+    /// Combat and movement update 2026-10-16, decision 1.2: the production
+    /// loadouts — built from the nine <c>*_data.tres</c> — cast their Specials
+    /// through full authored startup, active and recovery phases inside the
+    /// measured window, so the delayed-input rollback resimulates casts across
+    /// their active entries and the snapshot carries component 323. Both peers
+    /// and the plain replay agree, and every player is seen in all three phases.
+    /// </summary>
+    [TestCase]
+    [RequireGodotRuntime]
+    public void ProductionLoadoutsConvergeWithSpecialsCastThroughTheirFullPhases() {
+        FighterStageGeometry geometry = FighterStageGeometry.Florence;
+        (string One, string Two)[] matchups = { ("tesla", "mozart"), ("lincoln", "joan"), ("tubman", "einstein") };
+        int seed = 6900;
+        foreach ((string one, string two) in matchups) {
+            FighterLoadout loadoutOne = ProductionLoadout(one);
+            FighterLoadout loadoutTwo = ProductionLoadout(two);
+            var phasesSeen = new[] { new HashSet<int>(), new HashSet<int>() };
+            (_, _, int[] specials) = RunConvergence(
+                () => new FighterSimulation(
+                    loadoutOne, loadoutTwo, stocks: 9, matchSeconds: 480, seed: seed,
+                    rules: HighFrequencyRules(geometry), stageGeometry: geometry),
+                $"production {one} vs {two} on '{geometry.StageID}'",
+                seed, ticks: 420, latencyPolls: 3,
+                observeReplay: replay => {
+                    for (int player = 0; player < 2; player++) {
+                        if (replay.TryGetFighterActionState(player, out FighterActionStateComponent cast)) {
+                            phasesSeen[player].Add(cast.SpecialPhase);
+                        }
+                    }
+                });
+            for (int player = 0; player < 2; player++) {
+                AssertThat(specials[player])
+                    .OverrideFailureMessage($"production {one} vs {two}: player {player} cast only {specials[player]} specials.")
+                    .IsGreaterEqual(2);
+                AssertThat(phasesSeen[player].Contains(FighterSpecialCastRules.PhaseStartup)
+                        && phasesSeen[player].Contains(FighterSpecialCastRules.PhaseActive)
+                        && phasesSeen[player].Contains(FighterSpecialCastRules.PhaseRecovery))
+                    .OverrideFailureMessage($"production {one} vs {two}: player {player} never ran a full cast.")
+                    .IsTrue();
+            }
+            seed++;
+        }
+    }
+
+    private static FighterLoadout ProductionLoadout(string characterID) =>
+        FighterLoadoutFactory.FromCharacterData(
+            AuthoredResources.Load<FTT.Characters.CharacterData>($"res://resources/Characters/{characterID}_data.tres"));
 
     /// <summary>
     /// The sweep above is short enough to keep the gate cheap per matchup; this

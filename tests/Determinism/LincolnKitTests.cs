@@ -29,6 +29,8 @@ public class LincolnKitTests {
             rules: FighterMatchRules.Disabled);
 
         simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
+        // Decision 1.2 (2026-10-16): the wave leaves on the cast's active entry.
+        int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
 
         // LN03 (Package 13 W7b), rewritten in place: the wave is a travelling
         // ground wave (projectile type CharacterID 3 * 10 + slot 1) riding the
@@ -40,7 +42,7 @@ public class LincolnKitTests {
 
         // It reaches the grounded opponent within a few ticks and carries real
         // impulse: damage, hitstun, and an upward launch off the ground.
-        for (int tick = 1; tick <= 6; tick++) {
+        for (int tick = fired; tick < fired + 6; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();

@@ -26,11 +26,13 @@ public class ProjectileBurstSimTests {
             Authored("einstein"), FighterLoadout.Default(FighterCharacterID.Joan),
             seed: 7101, spawnDistance: 3, rules: FighterMatchRules.Disabled);
         simulation.Advance(Frame(0, GameplayButtons.Special1), Frame(0, GameplayButtons.None));
+        // Decision 1.2 (2026-10-16): the shot leaves on the cast's active entry.
+        int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
         AssertThat(simulation.TryGetFirstProjectile(out FighterProjectileComponent shot)).IsTrue();
         // 720 px/s = 12 units/s, straight (no arc).
         AssertThat(shot.Velocity.x).IsEqual(FP64.FromFloat(720f / 60f));
         AssertThat(shot.GravityPerSecond).IsEqual(FP64.Zero);
-        Run(simulation, 1, 60);
+        Run(simulation, fired, 60);
         AssertThat(simulation.ProjectileCount).IsEqual(0);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
         AssertThat(target.CurrentHP).IsEqual(100 - 7 - 20);
@@ -44,11 +46,11 @@ public class ProjectileBurstSimTests {
             seed: 7102, spawnDistance: 2, rules: FighterMatchRules.Disabled);
         simulation.Advance(Frame(0, GameplayButtons.None), Frame(0, GameplayButtons.None, 127));
         simulation.Advance(Frame(1, GameplayButtons.None), Frame(1, GameplayButtons.Special1));
+        int tick = SpecialCastTestKit.StepUntilFired(simulation, 1, 2);
         AssertThat(simulation.TryGetFirstProjectile(out FighterProjectileComponent shot)).IsTrue();
         AssertThat(shot.Velocity.x > FP64.Zero).IsTrue();
         FP64 lastX = shot.Position.x;
-        int tick = 2;
-        for (; tick < 200 && simulation.ProjectileCount > 0; tick++) {
+        for (int end = tick + 198; tick < end && simulation.ProjectileCount > 0; tick++) {
             simulation.TryGetFirstProjectile(out FighterProjectileComponent flying);
             lastX = flying.Position.x;
             simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
@@ -69,12 +71,13 @@ public class ProjectileBurstSimTests {
             Authored("shakespeare"), FighterLoadout.Default(FighterCharacterID.Joan),
             seed: 7103, spawnDistance: 5, rules: FighterMatchRules.Disabled);
         simulation.Advance(Frame(0, GameplayButtons.Special1), Frame(0, GameplayButtons.None));
+        int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
         AssertThat(simulation.TryGetFirstProjectile(out FighterProjectileComponent skull)).IsTrue();
         AssertThat(skull.Velocity.x).IsEqual(FP64.FromFloat(600f / 60f));
         // 0.8 s = 48 frames authored; the spawn tick already flew one.
         AssertThat(skull.LifetimeFrames).IsEqual(47);
         bool slowed = false;
-        for (int tick = 1; tick < 80; tick++) {
+        for (int tick = fired; tick < fired + 79; tick++) {
             simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
             if (simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)
                 && runtime.StatusType == (int)StatusType.TimeDilation) slowed = true;

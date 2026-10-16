@@ -28,9 +28,11 @@ public class LeonardoKitTests {
             spawnDistance: 1,
             rules: FighterMatchRules.Disabled);
 
-        // Cast frame: the zone spawns owner-centered with Leonardo's identity and
-        // lands its first impulse-free tick immediately.
+        // Active entry (decision 1.2, 2026-10-16: after the authored startup):
+        // the zone spawns owner-centered with Leonardo's identity and lands its
+        // first impulse-free tick immediately.
         simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
+        int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
         AssertThat(zone.ZoneTypeID).IsEqual((int)FighterCharacterID.Leonardo * 10 + 1);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent afterFirstTick)).IsTrue();
@@ -38,7 +40,7 @@ public class LeonardoKitTests {
         AssertThat(afterFirstTick.HitstunFrames).IsEqual(0);
 
         // Ticks 2 and 3 land at the authored 0.5 s interval; still impulse-free.
-        for (int tick = 1; tick <= 88; tick++) {
+        for (int tick = fired; tick < fired + 88; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent afterAllTicks)).IsTrue();
@@ -47,14 +49,15 @@ public class LeonardoKitTests {
         var xBeforeExpiry = afterAllTicks.Position.x;
 
         // The 1.5 s lifetime expires with a damage-free radial knockback pulse.
-        simulation.Advance(Frame(89, 0, GameplayButtons.None), Frame(89, 0, GameplayButtons.None));
+        int expiry = fired + 88;
+        simulation.Advance(Frame(expiry, 0, GameplayButtons.None), Frame(expiry, 0, GameplayButtons.None));
         AssertThat(simulation.ZoneCount).IsEqual(0);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent afterExpiry)).IsTrue();
         AssertThat(afterExpiry.CurrentHP).IsEqual(70);
         AssertThat(afterExpiry.HitstunFrames > 0).IsTrue();
 
         // The target (right of the spiral center) is shoved farther right.
-        for (int tick = 90; tick <= 110; tick++) {
+        for (int tick = expiry + 1; tick <= expiry + 21; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent shoved)).IsTrue();
@@ -71,6 +74,8 @@ public class LeonardoKitTests {
             rules: FighterMatchRules.Disabled);
 
         simulation.Advance(Frame(0, 0, GameplayButtons.Special2), Frame(0, 0, GameplayButtons.None));
+        // Decision 1.2 (2026-10-16): the turret deploys on the cast's active entry.
+        int deployed = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
         AssertThat(simulation.TryGetFirstPersistentObject(out FighterPersistentObjectComponent turret)).IsTrue();
         AssertThat(turret.ObjectTypeID).IsEqual(2);
         AssertThat(turret.MaxHP).IsEqual(20);
@@ -81,7 +86,7 @@ public class LeonardoKitTests {
         // V7 tuning batch: 4 bolts of 6 landing every 2 s (frames ~120/241/362/
         // 483); after the fourth bolt the turret self-destructs well before its
         // 15 s lifespan.
-        for (int tick = 1; tick <= 800; tick++) {
+        for (int tick = deployed; tick < deployed + 800; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.PersistentObjectCount).IsEqual(0);

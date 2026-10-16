@@ -160,6 +160,9 @@ public class FighterSimulationTests {
         simulation.Advance(
             Frame(0, 0, GameplayButtons.Special1),
             Frame(0, 0, GameplayButtons.None));
+        // Decision 1.2 (2026-10-16): the melee Special lands on its active
+        // entry, T+S, after its authored startup.
+        int tick = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent firstStatus)).IsTrue();
         // V7 two-slot rule: RadiantBurn is a damaging status and occupies the
         // damage slot, leaving the control slot free.
@@ -168,10 +171,11 @@ public class FighterSimulationTests {
 
         // Special 2 waits out Special 1's ability lockout; the burn (180
         // frames) is still running when the root lands.
-        int tick = AdvanceUntilAbilityReady(simulation, 1);
+        tick = AdvanceUntilAbilityReady(simulation, tick);
         simulation.Advance(
             Frame(tick, 0, GameplayButtons.Special2),
             Frame(tick, 0, GameplayButtons.None));
+        SpecialCastTestKit.StepUntilFired(simulation, 0, tick + 1);
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent layered)).IsTrue();
         // Root lands in the control slot while the burn keeps running — the
         // two coexist instead of the newest deleting the previous.
@@ -191,12 +195,14 @@ public class FighterSimulationTests {
             spawnDistance: 3);
 
         simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
+        // Decision 1.2: the projectile spawns on the cast's active entry, T+S.
+        int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
         AssertThat(simulation.ProjectileCount).IsEqual(1);
         AssertThat(simulation.TryGetFirstProjectile(out FighterProjectileComponent projectile)).IsTrue();
         AssertThat(projectile.Damage).IsEqual(13);
 
         int initialHP = 100;
-        for (int tick = 1; tick < 90; tick++) {
+        for (int tick = fired; tick < fired + 90; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             if (simulation.TryGetFighter(1, out FighterStateComponent target) && target.CurrentHP < initialHP) break;
         }
@@ -210,7 +216,10 @@ public class FighterSimulationTests {
         FighterLoadout projectileLoadout = FighterLoadoutFactory.FromCharacterData(BuildProjectileTestCharacter());
         var uninterrupted = new FighterSimulation(projectileLoadout, FighterLoadout.Default(FighterCharacterID.Joan), seed: 82, spawnDistance: 4);
         uninterrupted.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
-        for (int tick = 1; tick < 12; tick++) {
+        // Decision 1.2: the shot spawns on the cast's active entry; the snapshot
+        // is taken eleven ticks into its flight, as before.
+        int fired = SpecialCastTestKit.StepUntilFired(uninterrupted, 0, 1);
+        for (int tick = fired; tick < fired + 11; tick++) {
             uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         byte[] snapshot = uninterrupted.CaptureFullState();
@@ -218,7 +227,7 @@ public class FighterSimulationTests {
 
         var restored = new FighterSimulation(projectileLoadout, FighterLoadout.Default(FighterCharacterID.Joan), seed: 82, spawnDistance: 4);
         restored.RestoreFullState(snapshot);
-        for (int tick = 12; tick < 100; tick++) {
+        for (int tick = fired + 11; tick < fired + 99; tick++) {
             long expected = uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             long actual = restored.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             AssertThat(actual).IsEqual(expected);
@@ -231,12 +240,15 @@ public class FighterSimulationTests {
         var simulation = new FighterSimulation(persistentLoadout, FighterLoadout.Default(FighterCharacterID.Joan), seed: 46, spawnDistance: 4);
 
         simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
+        // Decision 1.2: each construct deploys on its cast's active entry.
+        int tick = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
         AssertThat(simulation.TryGetFirstPersistentObject(out FighterPersistentObjectComponent first)).IsTrue();
         AssertThat(simulation.PersistentObjectCount).IsEqual(1);
 
         // The second deploy waits out the first one's ability lockout.
-        int tick = AdvanceUntilAbilityReady(simulation, 1);
+        tick = AdvanceUntilAbilityReady(simulation, tick);
         simulation.Advance(Frame(tick, 0, GameplayButtons.Special1), Frame(tick, 0, GameplayButtons.None));
+        SpecialCastTestKit.StepUntilFired(simulation, 0, tick + 1);
         AssertThat(simulation.TryGetFirstPersistentObject(out FighterPersistentObjectComponent replacement)).IsTrue();
         AssertThat(simulation.PersistentObjectCount).IsEqual(1);
         AssertThat(replacement.EntityID > first.EntityID).IsTrue();
@@ -667,6 +679,8 @@ public class FighterSimulationTests {
             rules: FighterMatchRules.Disabled);
 
         simulation.Advance(Frame(0, 0, GameplayButtons.Special2), Frame(0, 0, GameplayButtons.None));
+        // Decision 1.2: the zone is placed on the cast's active entry, T+S.
+        int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
 
         AssertThat(simulation.ZoneCount).IsEqual(1);
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
@@ -691,7 +705,7 @@ public class FighterSimulationTests {
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent ownerRuntime)).IsTrue();
         AssertThat(ownerRuntime.ZoneSpeedBonusFrames).IsEqual(0);
 
-        for (int tick = 1; tick <= 200; tick++) {
+        for (int tick = fired; tick < fired + 200; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.ZoneCount).IsEqual(0);

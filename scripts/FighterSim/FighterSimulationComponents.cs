@@ -82,8 +82,22 @@ namespace FTT.FighterSim {
         public int Damage { get; init; }
         /// <summary>W7b: the authored <c>HitCount</c> (thrusts, burst pulses); at least 1.</summary>
         public int HitCount { get; init; }
-        /// <summary>W7b: the authored active frames (Divine Piercing's lunge length).</summary>
+        /// <summary>
+        /// W7b: the authored active frames (Divine Piercing's lunge length). Since
+        /// the combat and movement update (2026-10-16, decision 1.2) also the
+        /// Special cast's active window. Zero for a slot with no projected
+        /// ability, which is the cast's fallback marker: it runs as 0 / 1 / 0,
+        /// today's press-tick timing (<c>FighterSpecialCastRules</c>).
+        /// </summary>
         public int ActiveFrames { get; init; }
+        /// <summary>
+        /// Combat and movement update 2026-10-16 (decision 1.2): the authored
+        /// startup frames, so a Fighter Special honours them as Story does.
+        /// Loadout data, not snapshot state.
+        /// </summary>
+        public int StartupFrames { get; init; }
+        /// <summary>Decision 1.2: the authored recovery frames (loadout data).</summary>
+        public int RecoveryFrames { get; init; }
         /// <summary>W7b: startup + active + recovery (Ascendant Wings' rise lasts the whole cast).</summary>
         public int TotalFrames { get; init; }
         /// <summary>W7b: the authored <c>HitboxSize</c> as world-unit half extents (0 when unprojected).</summary>

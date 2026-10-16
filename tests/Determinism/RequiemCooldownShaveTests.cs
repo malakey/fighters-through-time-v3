@@ -24,18 +24,21 @@ public class RequiemCooldownShaveTests {
         var simulation = NewMatch(spawnDistance: 5);
         // Fortissimo first (its 6-unit wall stops short of the opponent 10
         // units away), then the chord once Fortissimo's 30-frame ability
-        // lockout has run out (tick 30).
+        // lockout and its 16 / 6 / 22 cast have run out.
         simulation.Advance(Frame(0, 0, GameplayButtons.Special2), Frame(0, 0, GameplayButtons.None));
         int chordTick = IdleUntilAbilityReady(simulation, 1);
         simulation.Advance(Frame(chordTick, 0, GameplayButtons.Special1), Frame(chordTick, 0, GameplayButtons.None));
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent start)).IsTrue();
         AssertThat(start.SpecialOneCooldownFrames > 0).OverrideFailureMessage("The chord was not cast.").IsTrue();
-        int previous = start.SpecialTwoCooldownFrames;
         // 720 frames, minus the ticks spent waiting: the shave still has room.
-        AssertThat(previous > 600).IsTrue();
+        AssertThat(start.SpecialTwoCooldownFrames > 600).IsTrue();
+        // Decision 1.2 (2026-10-16): the chord leaves on the cast's active entry.
+        int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, chordTick + 1);
+        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent leaving)).IsTrue();
+        int previous = leaving.SpecialTwoCooldownFrames;
 
         int shaves = 0;
-        for (int tick = chordTick + 1; tick <= chordTick + 89; tick++) {
+        for (int tick = fired; tick < fired + 89; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
             int drop = previous - runtime.SpecialTwoCooldownFrames;
@@ -64,11 +67,13 @@ public class RequiemCooldownShaveTests {
         simulation.Advance(Frame(chordTick, 0, GameplayButtons.Special1), Frame(chordTick, 0, GameplayButtons.None));
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent start)).IsTrue();
         AssertThat(start.SpecialOneCooldownFrames > 0).OverrideFailureMessage("The chord was not cast.").IsTrue();
-        int previous = start.SpecialTwoCooldownFrames;
+        int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, chordTick + 1);
+        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent leaving)).IsTrue();
+        int previous = leaving.SpecialTwoCooldownFrames;
 
         bool burstAtWall = false;
         var zones = new List<FighterZoneComponent>();
-        for (int tick = chordTick + 1; tick <= chordTick + 58; tick++) {
+        for (int tick = fired; tick < fired + 58; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
             AssertThat(previous - runtime.SpecialTwoCooldownFrames <= 1).IsTrue();
@@ -91,6 +96,7 @@ public class RequiemCooldownShaveTests {
     public void TheChordFliesStraightAtFourteenUnitsPerSecond() {
         var simulation = NewMatch(spawnDistance: 8);
         simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
+        SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
         AssertThat(simulation.TryGetFirstProjectile(out FighterProjectileComponent chord)).IsTrue();
         AssertThat(chord.Velocity.x).IsEqual(FP64.FromInt(14));
         AssertThat(chord.Velocity.y).IsEqual(FP64.Zero);
@@ -105,12 +111,15 @@ public class RequiemCooldownShaveTests {
         spawnDistance: spawnDistance,
         rules: FighterMatchRules.Disabled);
 
-    /// <summary>Idles both players until Mozart's ability lockout has run out; returns the next tick.</summary>
+    /// <summary>
+    /// Idles both players until Mozart's ability lockout has run out and (decision
+    /// 1.2, 2026-10-16) his Fortissimo cast has ended; returns the next tick.
+    /// </summary>
     private static int IdleUntilAbilityReady(FighterSimulation simulation, int startTick) {
         int tick = startTick;
-        for (int limit = startTick + 60; tick < limit; tick++) {
+        for (int limit = startTick + 90; tick < limit; tick++) {
             AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
-            if (runtime.AbilityLockoutFrames == 0) break;
+            if (runtime.AbilityLockoutFrames == 0 && !SpecialCastTestKit.IsCasting(simulation, 0)) break;
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent ready)).IsTrue();

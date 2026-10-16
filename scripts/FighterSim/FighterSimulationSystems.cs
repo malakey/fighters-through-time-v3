@@ -288,9 +288,17 @@ namespace FTT.FighterSim {
         private static readonly FP64 RollSpeedMultiplier = FP64.FromDouble(UniversalMovementRules.RollSpeedMultiplier);
 
         private readonly FighterStageGeometry _geometry;
+        /// <summary>
+        /// Decision 1.2 (combat and movement update 2026-10-16): the fighters'
+        /// projected hit contracts, which carry each Special's authored startup,
+        /// active and recovery frames for the cast clock. Static match
+        /// configuration, never snapshot state.
+        /// </summary>
+        private readonly FighterHitContractTable _contracts;
 
-        public FighterMovementSystem(FighterStageGeometry geometry = null) {
+        public FighterMovementSystem(FighterStageGeometry geometry = null, FighterHitContractTable contracts = null) {
             _geometry = geometry ?? FighterStageGeometry.Default;
+            _contracts = contracts ?? FighterHitContractTable.Default;
         }
 
         public void Update(ref Frame frame) {
@@ -375,6 +383,12 @@ namespace FTT.FighterSim {
                 FighterForesightRules.Advance(
                     ref counter, in fighter, in verb,
                     FighterUltimateActivationRules.IsCaptured(in ultimateActivation));
+                // Decision 1.2 (plan §2.1.6): the Special cast clock, after the
+                // hitstop gate so a cast pauses in its own hitstop. The interrupt
+                // set ends it first (the cost stays spent; an unfired effect never
+                // fires). A Delegated cast (Foresight) ends with its 322 stance.
+                AdvanceSpecialCast(ref frame, entity, ref fighter, ref runtime, in verb, ref action,
+                    in counter, FighterUltimateActivationRules.IsCaptured(in ultimateActivation));
                 if (FighterUltimateActivationRules.IsCaptured(in ultimateActivation)) {
                     ref FighterDefenseComponent capturedDefense = ref frame.Get<FighterDefenseComponent>(entity);
                     TickCounters(ref fighter, ref runtime, ref verb, ref capturedDefense, in tuning);
@@ -635,7 +649,9 @@ namespace FTT.FighterSim {
                                 ref runtime,
                                 in tuning,
                                 statusMoveMultiplier * speedBuffMultiplier);
-                    if (!movementHandled) {
+                    // Q1 (2026-10-16): an airborne Special cast keeps its drift
+                    // and skips air control; a grounded one brakes to a stop.
+                    if (!movementHandled && !CastKeepsAirDrift(in action, in fighter)) {
                         ApplyNormalMovement(
                             ref fighter,
                             ref runtime,
@@ -692,12 +708,22 @@ namespace FTT.FighterSim {
                             && fighter.HitstunFrames <= 0
                             && fighter.DazeFrames <= 0;
                         if (fastFalling) runtime.FloatFrames = 0;
-                        fighter.Velocity.y = FighterAirPhysics.StepMovement(
-                            fighter.Velocity.y,
-                            fastFalling,
-                            floating: runtime.FloatFrames > 0,
-                            jumpedThisAirtime: FighterAirPhysics.HasJumpedThisAirtime(
-                                fighter.RemainingJumps, tuning.MaxJumpCount));
+                        bool jumpedThisAirtime = FighterAirPhysics.HasJumpedThisAirtime(
+                            fighter.RemainingJumps, tuning.MaxJumpCount);
+                        // Decision 1.2: a cast that started airborne falls at
+                        // half gravity through its startup and active frames.
+                        fighter.Velocity.y = CastHalvesGravity(in action)
+                            ? FighterAirPhysics.StepMovement(
+                                fighter.Velocity.y,
+                                fastFalling,
+                                floating: runtime.FloatFrames > 0,
+                                jumpedThisAirtime,
+                                FighterAirPhysics.AerialSpecialGravityScale)
+                            : FighterAirPhysics.StepMovement(
+                                fighter.Velocity.y,
+                                fastFalling,
+                                floating: runtime.FloatFrames > 0,
+                                jumpedThisAirtime: jumpedThisAirtime);
                     }
                 }
 
@@ -802,7 +828,9 @@ namespace FTT.FighterSim {
                 // both win: a fighter who reached a surface is standing on it, not
                 // hanging off it. Only fighters still airborne after the whole
                 // resolve are candidates. A03: a grab refreshes the air dodge.
-                if (TryGrabLedge(ref fighter, ref runtime, ref verb, in tuning)) {
+                // Decision 1.2: no ledge capture while casting (Story grabs only from Airborne).
+                if (!FighterSpecialCastRules.IsBusy(in action)
+                    && TryGrabLedge(ref fighter, ref runtime, ref verb, in tuning)) {
                     FighterAirDodgeRules.Refresh(ref knockdown);
                     knockdown.StaffRefundUsed = 0;
                     FighterActionRules.OnActionAccepted(
@@ -1866,17 +1894,20 @@ namespace FTT.FighterSim {
                 in frame.GetReadOnly<FighterUltimateActivationComponent>(second));
             if (oneActing) TryCharacterUltimate(ref frame, first, ref fighterOne, ref runtimeOne);
             if (twoActing) TryCharacterUltimate(ref frame, second, ref fighterTwo, ref runtimeTwo);
-            // §1.7 (2026-10-11): a meter-paid Ultimate the lockout alone refused
-            // still claims the tick from the melee Special intents.
-            bool oneHeldBack = UltimatePressHeldBackByLockout(
-                in fighterOne, in runtimeOne, in verbOne, in actionOne,
-                in frame.GetReadOnly<FighterUltimateActivationComponent>(first));
-            bool twoHeldBack = UltimatePressHeldBackByLockout(
-                in fighterTwo, in runtimeTwo, in verbTwo, in actionTwo,
-                in frame.GetReadOnly<FighterUltimateActivationComponent>(second));
 
-            AttackIntent firstIntent = !oneActing ? default : BuildIntent(in fighterOne, in runtimeOne, in verbOne, in tuningOne, in fighterTwo, _contracts, oneHeldBack);
-            AttackIntent secondIntent = !twoActing ? default : BuildIntent(in fighterTwo, in runtimeTwo, in verbTwo, in tuningTwo, in fighterOne, _contracts, twoHeldBack);
+            // Decision 1.2 (plan §2.1.6): a Melee-execution Special was accepted
+            // (and paid for) on its press in FighterAbilityEntitySystem; here it
+            // is tested for contact on every active tick of its cast until it
+            // resolves one (MeleeResolved). The §1.7 tick claim of a held-back
+            // Ultimate is settled at that acceptance, so it needs no read here.
+            AttackIntent firstIntent = !oneActing ? default : BuildIntent(
+                in fighterOne, in runtimeOne, in actionOne,
+                in frame.GetReadOnly<FighterAbilityModeComponent>(first), in tuningOne, in fighterTwo, _contracts);
+            AttackIntent secondIntent = !twoActing ? default : BuildIntent(
+                in fighterTwo, in runtimeTwo, in actionTwo,
+                in frame.GetReadOnly<FighterAbilityModeComponent>(second), in tuningTwo, in fighterOne, _contracts);
+            if (firstIntent.Kind != 0) actionOne.SpecialFlags |= FighterSpecialCastRules.FlagMeleeResolved;
+            if (secondIntent.Kind != 0) actionTwo.SpecialFlags |= FighterSpecialCastRules.FlagMeleeResolved;
             // Package 13 W5 (component 322): Tubman's Foresight catches a melee
             // Special intent or a basic swing on the victim's side.
             ref FighterCounterComponent counterOne = ref frame.Get<FighterCounterComponent>(first);
@@ -3000,43 +3031,49 @@ namespace FTT.FighterSim {
                 knockbackVertical: contract.KnockbackY);
         }
 
+        /// <summary>
+        /// Decision 1.2 (plan §2.1.6): a Melee-execution Special's contact test.
+        /// The press was accepted — cooldown, lockout and cast begun — in
+        /// <see cref="FighterAbilityEntitySystem"/>; here the slot is tested on
+        /// EVERY active tick of its cast until it resolves one contact (the
+        /// caller sets <c>FlagMeleeResolved</c> once an intent is built). It never
+        /// arms a cooldown or the lockout. Divine Piercing (the lunge's thrusts)
+        /// and Foresight (the 322 stance) resolve elsewhere. The generic branch
+        /// applies the tuning component's folded total, which equals the
+        /// authored damage only for single-hit slots — in the production roster
+        /// only Splitting Strike reaches it (ledger
+        /// <c>VERIFY-TUNING-SPECIAL-TOTAL-FOLD</c>).
+        /// </summary>
         private static AttackIntent BuildIntent(
             in FighterStateComponent attacker,
             in FighterRuntimeComponent attackerRuntime,
-            in FighterVerbComponent attackerVerb,
+            in FighterActionStateComponent attackerAction,
+            in FighterAbilityModeComponent attackerModes,
             in FighterTuningComponent tuning,
             in FighterStateComponent target,
-            FighterHitContractTable contracts,
-            bool ultimateHeldBack = false) {
+            FighterHitContractTable contracts) {
+            if (!FighterSpecialCastRules.IsActive(in attackerAction)
+                || FighterSpecialCastRules.HasFlag(in attackerAction, FighterSpecialCastRules.FlagMeleeResolved)) {
+                return default;
+            }
             if (attacker.HitstunFrames > 0
                 || attacker.DazeFrames > 0
                 || attacker.Stocks <= 0
-                // Hanging suppresses the intent the way hitstun does (§2.11):
-                // attacks, specials and the ultimate are all unavailable off a ledge.
-                || FighterLedgeRules.IsHanging(in attackerRuntime)
-                || FighterUniversalMovementRules.IsCombatLocked(in attackerRuntime)) return default;
-            // The block stance ignores attack inputs, exactly as Story's Blocking
-            // state does.
-            if (FighterBasicAttackRules.IsBlockStance(in attacker, in attackerRuntime, in attackerVerb)) return default;
+                // Hanging suppresses the intent the way hitstun does (§2.11).
+                || FighterLedgeRules.IsHanging(in attackerRuntime)) return default;
+            int slot = attackerAction.SpecialSlot;
+            int executionType = slot == FighterHitContractTable.SlotSpecialOne
+                ? attackerModes.SpecialOneExecutionType
+                : attackerModes.SpecialTwoExecutionType;
+            if (executionType != FighterSpecialCastRules.MeleeExecutionType
+                || FighterSpecialCastRules.IsPiercingLunge(in attacker, in attackerModes, slot)
+                || FighterSpecialCastRules.IsForesight(in attacker, slot)) return default;
+
             // Package 13 W7b (LN03): Splitting Strike is a 2.2-unit overhead arc
             // that catches grounded and airborne targets alike and spikes the
             // airborne ones — tested against its own box, not the generic 2-unit
             // melee gate.
-            // Ability lockout: a special fired by FighterAbilityEntitySystem
-            // earlier this tick, a swing started this tick or an Ultimate just
-            // accepted (TryCharacterUltimate runs first, so an accepted Ultimate
-            // claims the tick) refuses every melee special intent below at no
-            // cost. A pressed Ultimate that was NOT accepted no longer blocks
-            // Splitting Strike: the special takes the tick, as in Story.
-            // D1 (2026-10-11): the Specials' gate — S once the current swing has
-            // landed, the whole lockout otherwise. A meter-paid Ultimate the
-            // lockout alone held back claims the tick (§1.7).
-            if (ultimateHeldBack) return default;
-            bool abilityClear = FighterAbilityLockoutRules.AllowsSpecial(in attackerRuntime);
-            if (attacker.CharacterID == (int)FighterCharacterID.Lincoln
-                && abilityClear
-                && (attackerRuntime.PressedButtons & SpecialTwoButton) != 0
-                && attackerRuntime.SpecialTwoCooldownFrames <= 0) {
+            if (attacker.CharacterID == (int)FighterCharacterID.Lincoln && slot == FighterHitContractTable.SlotSpecialTwo) {
                 if (!FighterReachKitRules.SplittingArcReaches(in attacker, in target)) return default;
                 FighterAbilityHitData splitting = contracts.For(attacker.PlayerID, FighterHitContractTable.SlotSpecialTwo);
                 ResolveIntentContract(splitting, LegacySpecialHitstunFrames, out int splitHitstun, out bool splitLaunches);
@@ -3055,9 +3092,9 @@ namespace FTT.FighterSim {
                     knockbackVertical: FighterReachKitRules.SplittingVertical(in splitting, in target));
             }
             if (FP64.Abs(target.Position.x - attacker.Position.x) > AttackRange) return default;
-            // V7.3: melee-execution specials and the generic melee ultimate are
-            // front-only, matching ResolveStringBox's convention — nothing in
-            // the kit hits behind the attacker's back.
+            // V7.3: melee-execution specials are front-only, matching
+            // ResolveStringBox's convention — nothing in the kit hits behind
+            // the attacker's back.
             bool targetInFront = attacker.FacingRight != 0
                 ? target.Position.x >= attacker.Position.x
                 : target.Position.x <= attacker.Position.x;
@@ -3066,13 +3103,9 @@ namespace FTT.FighterSim {
             // M08/M05 (Package 12 W3b): hitstun and launch come from the
             // attacker's authored contract (DEFER-SIM-ABILITY-HITSTUN, generic
             // half), not the old fixed 18/30 frames.
-            // A02 (Package 13 W6): there is no melee-range Ultimate intent any
-            // more — every Ultimate is accepted in TryCharacterUltimate, which
-            // spends the meter before this runs, and lands only through its
-            // activation strike (AdvanceUltimate).
             // A01/D10 (Package 13 W1): a melee Special intent reads the
             // contract's block class (Shield-Breaker) and signed knockback.
-            if (abilityClear && (attackerRuntime.PressedButtons & SpecialOneButton) != 0 && attackerRuntime.SpecialOneCooldownFrames <= 0) {
+            if (slot == FighterHitContractTable.SlotSpecialOne) {
                 FighterAbilityHitData contract = contracts.For(attacker.PlayerID, FighterHitContractTable.SlotSpecialOne);
                 ResolveIntentContract(contract, LegacySpecialHitstunFrames, out int hitstun, out bool launches);
                 return AttackIntent.Special(
@@ -3087,7 +3120,7 @@ namespace FTT.FighterSim {
                     launches,
                     in contract);
             }
-            if (abilityClear && (attackerRuntime.PressedButtons & SpecialTwoButton) != 0 && attackerRuntime.SpecialTwoCooldownFrames <= 0) {
+            {
                 FighterAbilityHitData contract = contracts.For(attacker.PlayerID, FighterHitContractTable.SlotSpecialTwo);
                 ResolveIntentContract(contract, LegacySpecialHitstunFrames, out int hitstun, out bool launches);
                 return AttackIntent.Special(
@@ -3102,10 +3135,6 @@ namespace FTT.FighterSim {
                     launches,
                     in contract);
             }
-            // Basic attacks no longer resolve here: the phase machine in
-            // FighterMovementSystem starts and times the swing, and
-            // ApplyBasicSwing lands the hit during its active window.
-            return default;
         }
 
         private static void ApplyIntent(
@@ -3123,27 +3152,12 @@ namespace FTT.FighterSim {
             ref FighterCounterComponent targetCounter) {
             if (intent.Kind == 0) return;
 
-            FighterUniversalMovementRules.Cancel(ref attackerRuntime);
-            // A special or the ultimate cancels an in-progress basic at any point
-            // and resets the chain (design 1051) — the same rule Story applies.
-            FighterBasicAttackRules.CancelString(ref attackerRuntime);
-
-            if (intent.Kind == 2) {
-                attackerRuntime.SpecialOneCooldownFrames = intent.CooldownFrames > 1 ? intent.CooldownFrames : 1;
-                // A fresh cooldown cycle re-arms its Resonance Momentum refunds.
-                attackerVerb.MomentumRefundedFramesSlotOne = 0;
-                FighterAbilityLockoutRules.ArmAbility(ref attackerRuntime);
-                FighterActionRules.OnActionAccepted(
-                    ref attacker, ref attackerVerb, ref attackerDefense, ref attackerAction, FighterActionKind.Special);
-            } else if (intent.Kind == 4) {
-                attackerRuntime.SpecialTwoCooldownFrames = intent.CooldownFrames > 1 ? intent.CooldownFrames : 1;
-                attackerVerb.MomentumRefundedFramesSlotTwo = 0;
-                FighterAbilityLockoutRules.ArmAbility(ref attackerRuntime);
-                FighterActionRules.OnActionAccepted(
-                    ref attacker, ref attackerVerb, ref attackerDefense, ref attackerAction, FighterActionKind.Special);
-            } else {
-                attacker.Influence = FP64.Zero;
-            }
+            // Decision 1.2 (plan §2.1.6): the Special was accepted on its press —
+            // its cooldown, the ability lockout, the Momentum reset, the string
+            // cancel and the action chokepoint all ran in
+            // FighterAbilityEntitySystem — so the contact arms nothing here.
+            // (Kind 3, the retired melee Ultimate intent, has no producer since
+            // A02; every Ultimate lands through its activation strike.)
 
             // Package 13 W5: a melee Special intent is a strike Foresight can
             // catch. The attacker's cooldown is already spent; nothing lands.

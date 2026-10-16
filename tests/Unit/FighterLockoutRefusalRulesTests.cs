@@ -214,6 +214,66 @@ public class FighterLockoutRefusalRulesTests {
             .IsEqual(FighterLockoutRefusal.None);
     }
 
+    /// <summary>
+    /// Combat and movement update 2026-10-16, decision 1.2: a press during the
+    /// fighter's own Special cast never flashes. The cast lock discards it
+    /// before any system reads it, and the classifier's second gate
+    /// (<c>CanReadAbilityPress</c> with the component-323 state) refuses an
+    /// undiscarded one too — Story never polls Specials in UsingSpecial either.
+    /// </summary>
+    [TestCase]
+    public void APressDuringOnesOwnCastNeverFlashes() {
+        // The second gate, on an undiscarded press inside a running lockout.
+        Components pressed = LockedIdle(SpecialTwoBit);
+        AssertThat(Evaluate(Ready(), pressed)).IsEqual(FighterLockoutRefusal.SpecialTwo);
+        var casting = new FighterActionStateComponent();
+        FighterAbilityHitData authored = FighterAbilityHitData.DefaultSpecial with {
+            StartupFrames = 12, ActiveFrames = 6, RecoveryFrames = 12
+        };
+        FighterSpecialCastRules.Begin(ref casting, 1, in authored, startedAerial: false);
+        AssertThat(FighterLockoutRefusalRules.Evaluate(
+                Ready(), in pressed.Fighter, in pressed.Runtime, in pressed.Verb, in pressed.Activation, in casting))
+            .OverrideFailureMessage("A press read during one's own cast is not a lockout refusal.")
+            .IsEqual(FighterLockoutRefusal.None);
+
+        // A real cast with authored 12 / 6 / 12 frames: Special 2 pressed on every
+        // tick of it (the cast's own lockout running all the while) is discarded
+        // and never classified.
+        FighterAbilityLoadout modes = ProjectileModes() with { SpecialOneHit = authored };
+        var simulation = new FighterSimulation(
+            Loadout(FighterCharacterID.Einstein, modes), Loadout(FighterCharacterID.Einstein, ProjectileModes()),
+            seed: 304, spawnDistance: 4, rules: FighterMatchRules.Disabled);
+        Idle(simulation, 2);
+        AssertThat(StepAndClassify(simulation, GameplayButtons.Special1)).IsEqual(FighterLockoutRefusal.None);
+        int castTicks = 0;
+        FighterLockoutRefusal onFreeTick = FighterLockoutRefusal.None;
+        for (int tick = 0; tick < 40; tick++) {
+            FighterLockoutRefusal refused = StepAndClassify(simulation, GameplayButtons.Special2);
+            AssertThat(simulation.TryGetFighterActionState(0, out FighterActionStateComponent cast)).IsTrue();
+            // The tick Special 1's cast ends (T+30) is free: its press is live,
+            // read and — the lockout run out — accepted.
+            if (!FighterSpecialCastRules.IsBusy(in cast) || cast.SpecialSlot != 1) {
+                onFreeTick = refused;
+                break;
+            }
+            castTicks++;
+            AssertThat(refused)
+                .OverrideFailureMessage($"Cast tick {castTicks}: a press inside one's own cast flashed.")
+                .IsEqual(FighterLockoutRefusal.None);
+            AssertThat(Runtime(simulation).PressedButtons & SpecialTwoBit)
+                .OverrideFailureMessage($"Cast tick {castTicks}: the press was not discarded.")
+                .IsEqual(0);
+            AssertThat(Shots(simulation, 2)).IsEqual(0);
+        }
+        AssertThat(castTicks)
+            .OverrideFailureMessage("Harness: every tick after the press, T+1..T+29, is a cast tick.")
+            .IsEqual(29);
+        AssertThat(onFreeTick).IsEqual(FighterLockoutRefusal.None);
+        AssertThat(Shots(simulation, 2))
+            .OverrideFailureMessage("The press on the cast's free tick is accepted.")
+            .IsEqual(1);
+    }
+
     // === helpers ==============================================================
 
     /// <summary>The post-tick components of player one.</summary>

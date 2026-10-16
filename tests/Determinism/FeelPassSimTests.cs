@@ -265,6 +265,65 @@ public class FeelPassSimTests {
         }
     }
 
+    /// <summary>
+    /// Combat and movement update 2026-10-16, decision 1.2: a Fighter Special is
+    /// posed from its own cast phases on component 323 — the wind-up through the
+    /// authored startup, the strike through the active frames, the
+    /// follow-through through the recovery — with no cosmetic hold trailing it.
+    /// Einstein's Relativity Rift (12 / 18 / 18).
+    /// </summary>
+    [TestCase]
+    public void TheWholeSpecialCastIsPosedFromItsPhases() {
+        AssertThat(FighterSimulationDriver.SpecialCastPose(FighterSpecialCastRules.PhaseStartup))
+            .IsEqual(AttackPoseRules.WindUpPose);
+        AssertThat(FighterSimulationDriver.SpecialCastPose(FighterSpecialCastRules.PhaseActive))
+            .IsEqual(AttackPoseRules.StrikePose);
+        AssertThat(FighterSimulationDriver.SpecialCastPose(FighterSpecialCastRules.PhaseRecovery))
+            .IsEqual(AttackPoseRules.FollowThroughPose);
+
+        AssertObject(InputManager.Instance).IsNotNull();
+        (FighterSimulationDriver driver, Node host, PlayerController one) = CreateDriver("FeelSpecialCastPoseHost");
+        var playerOne = new BufferedInputSource();
+        var playerTwo = new BufferedInputSource();
+        try {
+            RunCountdown(driver, playerOne, playerTwo);
+            DriverStep(driver, playerOne, playerTwo, GameplayButtons.Special2, GameplayButtons.None);
+            var sprite = one.GetNode<AnimatedSprite2D>("AnimatedSprite2D");
+            var phasesSeen = new System.Collections.Generic.HashSet<int>();
+            GameplayButtons previous = GameplayButtons.Special2;
+            bool ended = false;
+            for (int frame = 0; frame < 120; frame++) {
+                AssertThat(driver.Simulation.TryGetFighterActionState(0, out FighterActionStateComponent cast)).IsTrue();
+                if (!FighterSpecialCastRules.IsBusy(in cast)) {
+                    ended = true;
+                    break;
+                }
+                phasesSeen.Add(cast.SpecialPhase);
+                AssertThat(sprite.Animation)
+                    .OverrideFailureMessage($"Cast phase {cast.SpecialPhase}: the caster left the special_2 sheet.")
+                    .IsEqual(new StringName("special_2"));
+                AssertThat(sprite.Frame)
+                    .OverrideFailureMessage($"Cast phase {cast.SpecialPhase}: wrong pose.")
+                    .IsEqual(FighterSimulationDriver.SpecialCastPose(cast.SpecialPhase));
+                AssertThat(one.IsShowingAttackPose).IsTrue();
+                DriverStep(driver, playerOne, playerTwo, GameplayButtons.None, previous);
+                previous = GameplayButtons.None;
+            }
+            AssertThat(ended).OverrideFailureMessage("The cast never ended.").IsTrue();
+            AssertThat(phasesSeen.Contains(FighterSpecialCastRules.PhaseStartup)
+                    && phasesSeen.Contains(FighterSpecialCastRules.PhaseActive)
+                    && phasesSeen.Contains(FighterSpecialCastRules.PhaseRecovery))
+                .OverrideFailureMessage("The cast must run through startup, active and recovery.")
+                .IsTrue();
+            // No cosmetic hold trails the cast: control is back, so is the body's reel.
+            AssertThat(sprite.Animation).IsNotEqual(new StringName("special_2"));
+        } finally {
+            InputManager.Instance.ClearInputSource(0);
+            InputManager.Instance.ClearInputSource(1);
+            host.Free();
+        }
+    }
+
     // === helpers ==============================================================
 
     private const double PresentationStep = 1.0 / 60.0;

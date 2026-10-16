@@ -1167,9 +1167,24 @@ namespace FTT.FighterSim {
         };
 
         /// <summary>
-        /// Fighter abilities resolve immediately in deterministic state, so their
-        /// presentation pose needs a cosmetic hold clock. It is driven only from
-        /// accepted button/cooldown edges and never feeds back into simulation.
+        /// Decision 1.2: the pose for a Fighter Special's cast phase on component
+        /// 323 — Startup the wind-up, Active the strike, Recovery the
+        /// follow-through — through the shared <c>AttackPoseRules.PoseFor</c>.
+        /// Pure; read-only.
+        /// </summary>
+        public static int SpecialCastPose(int castPhase) => FTT.Combat.AttackPoseRules.PoseFor(castPhase switch {
+            FighterSpecialCastRules.PhaseStartup => FTT.Combat.AbilityPhase.Startup,
+            FighterSpecialCastRules.PhaseActive => FTT.Combat.AbilityPhase.Active,
+            _ => FTT.Combat.AbilityPhase.Recovery
+        });
+
+        /// <summary>
+        /// The presentation of a Fighter ability. Since decision 1.2 a Special
+        /// is posed from its cast phases on component 323; the cosmetic hold
+        /// clock below is kept for the movement ability (a reel), the
+        /// press-tick Ultimate edge and a 0 / 1 / 0 fallback cast, and is driven
+        /// only from accepted button/cooldown edges — it never feeds back into
+        /// simulation.
         /// </summary>
         private string ResolveAbilityPresentation(int playerID, in FighterStateComponent state,
             in FighterRuntimeComponent runtime) {
@@ -1212,6 +1227,21 @@ namespace FTT.FighterSim {
                 _presentedAbilityPastStrike[playerID] = true;
                 return "special_2";
             }
+            // Decision 1.2 (combat and movement update 2026-10-16): a Fighter
+            // Special now has its authored startup, active and recovery
+            // (component 323), so the whole cast is posed from its own phase —
+            // wind-up, strike, follow-through — with no cosmetic hold trailing it.
+            // A 0 / 1 / 0 fallback cast (a hand-built contract) keeps the hold.
+            if (Simulation.TryGetFighterActionState(playerID, out FighterActionStateComponent cast)
+                && FighterSpecialCastRules.IsCasting(in cast)
+                && !FighterSpecialCastRules.HasFlag(in cast, FighterSpecialCastRules.FlagFallbackTiming)) {
+                string castAnimation = cast.SpecialSlot == FighterHitContractTable.SlotSpecialTwo ? "special_2" : "special_1";
+                _presentedAbilityAnimation[playerID] = castAnimation;
+                _presentedAbilityAnimationFrames[playerID] = 0;
+                _presentedAbilityPose[playerID] = SpecialCastPose(cast.SpecialPhase);
+                _presentedAbilityPastStrike[playerID] = false;
+                return castAnimation;
+            }
 
             string started = "";
             if ((runtime.PressedButtons & UltimateButton) != 0
@@ -1245,9 +1275,10 @@ namespace FTT.FighterSim {
                 _presentedAbilityPose[playerID] = -1;
                 return _presentedAbilityAnimation[playerID];
             }
-            // F1: the sim still resolves Specials on press (DEFER-SIM-SPECIAL-PHASES),
-            // so the cosmetic hold is split into thirds; the hold after a
-            // Foresight stance is all follow-through.
+            // F1: a hold with no authored phases (the press-tick Ultimate edge, a
+            // 0 / 1 / 0 fallback Special) is split into thirds; the hold after a
+            // Foresight stance is all follow-through. An authored Special is posed
+            // from its cast above (decision 1.2 closed DEFER-SIM-SPECIAL-PHASES).
             _presentedAbilityPose[playerID] = _presentedAbilityPastStrike[playerID]
                 ? FTT.Combat.AttackPoseRules.FollowThroughPose
                 : FTT.Combat.AttackPoseRules.PoseForHold(
