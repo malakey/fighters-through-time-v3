@@ -435,6 +435,12 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnActive() {
             UseAuthoredPhaseFrames();
+            // CM-FIXA-STORY: the controller moves before this node processes, so
+            // the leap is driven here, on entry to Active, and every one of the 18
+            // travel ticks moves (240 px, the sim's LeapTravel) — so the extended
+            // ledge snap below measures from the authored end. It used to start
+            // one tick late (226.7 px).
+            Owner.Velocity = _direction * _speed;
         }
 
         protected override void OnRecovery() {

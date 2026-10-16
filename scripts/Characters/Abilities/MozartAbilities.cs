@@ -408,6 +408,11 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnActive() {
             PhaseTimer = MovementData?.MovementDuration > 0f ? MovementData.MovementDuration : DefaultDurationSeconds;
+            // CM-FIXA-STORY: the controller moves before this node processes, so
+            // the glissando is driven here, on entry to Active, and every one of
+            // its 18 ticks moves (180 px, the sim's Glissando) — so the staff is
+            // placed at the authored end. It used to start one tick late (170 px).
+            if (Owner != null) Owner.Velocity = _glissandoDirection * _glissandoSpeed;
         }
 
         protected override void OnRecovery() {

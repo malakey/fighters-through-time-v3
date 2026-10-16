@@ -475,6 +475,11 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnActive() {
             UseAuthoredPhaseFrames();
+            // CM-FIXA-STORY: the controller moves before this node processes, so
+            // the translation is driven here, on entry to Active, and every one of
+            // the 12 translation ticks moves (180 px, the sim's BlinkTravel). It
+            // used to start one tick late (165 px).
+            DriveBlink();
         }
 
         protected override void OnRecovery() {
@@ -489,13 +494,19 @@ namespace FTT.Characters.Abilities {
             });
         }
 
+        /// <summary>Writes the translation velocity: the blink distance over the translation time.</summary>
+        private void DriveBlink() {
+            if (Owner == null || _translationSeconds <= 0f) return;
+            Owner.Velocity = _blinkDirection * (_blinkDistance / _translationSeconds);
+        }
+
         public override void _PhysicsProcess(double delta) {
             // F5: the blink carries its caster, so it holds with a frozen caster.
             if (CastClockSuspended) return;
             if (CurrentPhase == AbilityPhase.Startup) {
                 Owner.Velocity = Vector2.Zero;
-            } else if (CurrentPhase == AbilityPhase.Active && _translationSeconds > 0f) {
-                Owner.Velocity = _blinkDirection * (_blinkDistance / _translationSeconds);
+            } else if (CurrentPhase == AbilityPhase.Active) {
+                DriveBlink();
             }
             base._PhysicsProcess(delta);
         }

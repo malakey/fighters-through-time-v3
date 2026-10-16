@@ -341,6 +341,13 @@ namespace FTT.Characters.Abilities {
             _struckHurtboxes.Clear();
             // One break per ACTIVATION, armed here and spent at most once.
             RailBreakerSpent = false;
+            // CM-FIXA-STORY (Q7's "travels the authored 300 px"): the sim's
+            // RailCharge overwrites X from the press, so nothing the hero was doing
+            // carries into the charge. Story's 12-frame startup holds him
+            // horizontally (the movement-ability state applies no friction, so
+            // a running Lincoln used to slide about 45 px before charging); the
+            // vertical is left to Story gravity, which runs through the whole cast.
+            Owner.Velocity = new Vector2(0f, Owner.Velocity.Y);
         }
 
         protected override void OnActive() {

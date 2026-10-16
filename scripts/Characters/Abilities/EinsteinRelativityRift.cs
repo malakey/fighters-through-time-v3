@@ -286,8 +286,15 @@ namespace FTT.Characters.Abilities {
             // The player damage path stops at a zero-damage hit (enemies still
             // take its knockback and stun), so a caught PlayerController — the
             // Level 13 Mirror, a sparring partner — gets the launch directly.
+            // CM-FIXA-STORY (2.4 / Q2): the launch is this hit's knockback and
+            // stun, so it reads the same armour ResolveIncomingHit reads for every
+            // other hit — an Ultimate's startup armour, an armoured cast or a
+            // Story hyper-armour window denies both, and the cast is not
+            // interrupted. It is read at launch, not at the catch, because an
+            // Ultimate accepted during the six-frame pull is armoured too.
             if (FindBody(hurtbox) is PlayerController caughtPlayer && IsInstanceValid(caughtPlayer)
-                && caughtPlayer.CurrentState != CharacterState.Dead) {
+                && caughtPlayer.CurrentState != CharacterState.Dead
+                && !caughtPlayer.HasActiveHyperArmorAgainst(hit.AttackClass)) {
                 caughtPlayer.Velocity = hit.Knockback * 60f;
                 caughtPlayer.ApplyStun(hit.HitstunDuration);
             }
