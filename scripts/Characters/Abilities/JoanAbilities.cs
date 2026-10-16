@@ -277,6 +277,14 @@ namespace FTT.Characters.Abilities {
 
         private MovementAbilityData MovementData => Data as MovementAbilityData;
 
+        /// <summary>
+        /// CM-STORY (1.1(1)): the rise is intended (<c>VERIFY-WING-DIVE-LEAP</c>)
+        /// and the held dive rewrites velocity every tick, so gravity is off for
+        /// every phase of the cast and the dive — as the sim's <c>WingRise</c> /
+        /// <c>WingDive</c> phases suspend it.
+        /// </summary>
+        public override bool SuspendsOwnerGravityNow => IsExecuting;
+
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
             _isDiving = false;

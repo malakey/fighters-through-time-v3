@@ -2001,9 +2001,9 @@ namespace FTT.Enemies {
             if (FTT.Combat.StoryEnemyCombatRules.DealtHitShakes(hit.Delivery, hit.ExemptFromHitstop)) {
                 FTT.Core.CameraShake.Instance?.Shake(
                     FTT.Combat.StoryEnemyCombatRules.DealtHitShakeIntensity(
-                        hit.AttackClass, hit.ScreenShakeIntensity, damageApplied, hit.Launches),
+                        hit.AttackClass, hit.Origin, hit.ScreenShakeIntensity, damageApplied, hit.Launches),
                     FTT.Combat.StoryEnemyCombatRules.DealtHitShakeDuration(
-                        hit.AttackClass, hit.ScreenShakeIntensity, hit.ScreenShakeDuration, hit.Launches));
+                        hit.AttackClass, hit.Origin, hit.ScreenShakeIntensity, hit.ScreenShakeDuration, hit.Launches));
             }
             if (!IsInsideTree()) return;
             Vector2 numberPosition = GlobalPosition + new Vector2(

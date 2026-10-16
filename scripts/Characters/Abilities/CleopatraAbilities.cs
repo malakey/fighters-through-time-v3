@@ -380,6 +380,13 @@ namespace FTT.Characters.Abilities {
         public Vector2 MirageDirection => _mirageDirection;
 
         /// <summary>
+        /// CM-STORY (1.1(1)): only the sand rush flies on its own velocity (the
+        /// sim's <c>SandRush</c>). The startup carries her entry velocity under
+        /// gravity, and the recovery falls.
+        /// </summary>
+        public override bool SuspendsOwnerGravityNow => CurrentPhase == AbilityPhase.Active;
+
+        /// <summary>
         /// C03: the held stick quantized to the eight directions (diagonals
         /// normalized); neutral rushes along facing.
         /// </summary>

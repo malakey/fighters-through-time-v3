@@ -45,6 +45,14 @@ namespace FTT.Characters.Abilities {
         /// <summary>True while the destination ghost is shown (the startup). Test seam.</summary>
         public bool GhostVisible => _ghost != null && IsInstanceValid(_ghost) && _ghost.Visible;
 
+        /// <summary>
+        /// CM-STORY (1.1(1)): the fold startup holds him in place (the sim's
+        /// <c>WarpFoldStartup</c>) and the relocation frame writes his position;
+        /// from the recovery on he falls through the float window.
+        /// </summary>
+        public override bool SuspendsOwnerGravityNow =>
+            CurrentPhase is AbilityPhase.Startup or AbilityPhase.Active;
+
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
             EmitCharacterVfx(

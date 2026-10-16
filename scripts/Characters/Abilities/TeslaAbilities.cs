@@ -446,6 +446,14 @@ namespace FTT.Characters.Abilities {
         /// <summary>Projectiles pass through Tesla during the translation only.</summary>
         public override bool PassesThroughProjectilesNow => CurrentPhase == AbilityPhase.Active;
 
+        /// <summary>
+        /// CM-STORY (1.1(1)): the spark gather holds and the translation flies
+        /// straight (the sim's <c>BlinkStartup</c> / <c>BlinkTravel</c>); the
+        /// recovery falls (the sim's <c>BlinkRecovery</c> keeps gravity).
+        /// </summary>
+        public override bool SuspendsOwnerGravityNow =>
+            CurrentPhase is AbilityPhase.Startup or AbilityPhase.Active;
+
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
             _blinkDistance = ResolveBlinkDistancePixels();

@@ -296,6 +296,23 @@ namespace FTT.Characters.Abilities {
         /// <summary>True once this flight's one commanded turret bolt has been fired. Test seam.</summary>
         public bool MidGlideBoltSpent { get; private set; }
 
+        /// <summary>The glide's sink speed in px/s (positive is down). Test seam.</summary>
+        public static float GlideSinkSpeed => GlideSinkSpeedPixels;
+
+        /// <summary>
+        /// CM-STORY (1.1(1)): the wing boost decays under gravity (no override for
+        /// the boost or the glide). Only the Daedalus dive, which rewrites its
+        /// owner's velocity every tick, holds him off it.
+        /// </summary>
+        public override bool SuspendsOwnerGravityNow => _isDiving;
+
+        /// <summary>
+        /// CM-STORY (1.1(1)): the glide sinks — gravity runs, and the descent is
+        /// capped at <see cref="GlideSinkSpeedPixels"/> before the move, so he
+        /// glides down at exactly the sink speed from his first glide frame.
+        /// </summary>
+        public override float OwnerFallSpeedCapNow => _isGliding ? GlideSinkSpeedPixels : float.PositiveInfinity;
+
         /// <summary>
         /// Package 12 W4 (V7 kit rule): during the glide, a basic-attack press
         /// commands his deployed Clockwork Turret to fire one bolt — once per

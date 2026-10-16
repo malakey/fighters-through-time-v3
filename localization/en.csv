@@ -956,7 +956,9 @@ systems_card_rally_body,"20–50% of damage taken lingers as a reclaimable echo;
 systems_card_defy_title,Defy History
 systems_card_defy_body,"At 100 meter, a lethal hit shatters the meter instead of you — survive at 1 HP, once per match."
 systems_card_echo_title,Echo Step & Resonance Momentum
-systems_card_echo_body,"Spend 30 meter during the recovery of your own basic or directional attack to snap back 30 frames of position. Every basic hit that lands takes time off both special cooldowns (a third of a second; a full second for the finisher), up to 2 seconds per cooldown."
+# CM-STORY
+# Combat and movement update 2026-10-16 (decision 7.3): the Story Echo Step costs less meter than Fighter's 30, so the card names no cost.
+systems_card_echo_body,"Spend meter during the recovery of your own basic or directional attack to snap back 30 frames of position. Every basic hit that lands takes time off both special cooldowns (a third of a second; a full second for the finisher), up to 2 seconds per cooldown."
 systems_card_overtime_title,Overtime
 systems_card_overtime_body,"The final 60 seconds of a timed match double the hazard cadence and raise the Rally echo by half."
 dialogue_hold_skip,"Hold {0} to skip"

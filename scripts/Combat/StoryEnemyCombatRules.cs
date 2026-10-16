@@ -405,27 +405,46 @@ namespace FTT.Combat {
             attackClass != AttackClass.Basic && authoredIntensity > 0f;
 
         /// <summary>
+        /// CM-STORY (decision 7.1, 2026-10-16, finding CMB-02; ledger
+        /// <c>USER-STORY-ABILITY-SHAKE</c>): an authored ability shake is a floor
+        /// for a non-Ultimate Special, never a ceiling. 25 of the 27 Specials and
+        /// movement abilities author 0.2 (2.4 px), so the Emancipator shook less
+        /// than a launching string finisher (about 5.4 px). A Special-class hit
+        /// whose authored origin is not Ultimate now takes the larger of its
+        /// authored shake and the damage-and-launch curve, so no such Special
+        /// shakes less than a basic of the same damage. Ultimates (class or
+        /// origin) keep their authored value; basics keep the curve.
+        /// </summary>
+        public static bool ScalesAbilityShakeWithDamage(AttackClass attackClass, HitOrigin origin) =>
+            attackClass == AttackClass.Special && origin != HitOrigin.Ultimate;
+
+        /// <summary>
         /// Shake intensity (before the accessibility scale) for a dealt hit: the
         /// authored ability value × <see cref="AuthoredShakePixelsPerIntensity"/>
-        /// when <see cref="UsesAuthoredShake"/>, else
+        /// when <see cref="UsesAuthoredShake"/> (raised to the damage curve for a
+        /// non-Ultimate Special, <see cref="ScalesAbilityShakeWithDamage"/>), else
         /// <see cref="DealtHitShakeIntensity(int, bool)"/>.
         /// </summary>
         public static float DealtHitShakeIntensity(
-            AttackClass attackClass, float authoredIntensity, int damage, bool launches) =>
-            UsesAuthoredShake(attackClass, authoredIntensity)
-                ? authoredIntensity * AuthoredShakePixelsPerIntensity
-                : DealtHitShakeIntensity(damage, launches);
+            AttackClass attackClass, HitOrigin origin, float authoredIntensity, int damage, bool launches) {
+            float curve = DealtHitShakeIntensity(damage, launches);
+            if (!UsesAuthoredShake(attackClass, authoredIntensity)) return curve;
+            float authored = authoredIntensity * AuthoredShakePixelsPerIntensity;
+            return ScalesAbilityShakeWithDamage(attackClass, origin) && curve > authored ? curve : authored;
+        }
 
         /// <summary>
         /// Shake duration for a dealt hit: the authored ability duration when
-        /// <see cref="UsesAuthoredShake"/> and it is positive, else
+        /// <see cref="UsesAuthoredShake"/> and it is positive (for a non-Ultimate
+        /// Special, the longer of it and the curve's duration), else
         /// <see cref="DealtHitShakeDuration(bool)"/>.
         /// </summary>
         public static float DealtHitShakeDuration(
-            AttackClass attackClass, float authoredIntensity, float authoredDuration, bool launches) =>
-            UsesAuthoredShake(attackClass, authoredIntensity) && authoredDuration > 0f
-                ? authoredDuration
-                : DealtHitShakeDuration(launches);
+            AttackClass attackClass, HitOrigin origin, float authoredIntensity, float authoredDuration, bool launches) {
+            float curve = DealtHitShakeDuration(launches);
+            if (!UsesAuthoredShake(attackClass, authoredIntensity) || authoredDuration <= 0f) return curve;
+            return ScalesAbilityShakeWithDamage(attackClass, origin) && curve > authoredDuration ? curve : authoredDuration;
+        }
 
         /// <summary>
         /// Only a player-dealt direct hit shakes the camera: tick, construct and

@@ -630,6 +630,62 @@ public class StoryEnemyCombatTests {
         }
     }
 
+    /// <summary>
+    /// CM-STORY (decision 7.1, 2026-10-16): a launching 40-damage Special that
+    /// authors the common 0.2 shake (the Emancipator's numbers) shakes by the
+    /// damage curve, 8 px, on a mob and on a boss alike, and the accessibility
+    /// screen-shake scale still applies to it.
+    /// </summary>
+    [TestCase]
+    public void ALaunchingSpecialShakesByTheDamageCurveOnMobsAndBossesUnderTheAccessibilityScale() {
+        CameraShake shake = CameraShake.Instance;
+        AssertThat(shake).IsNotNull();
+        const System.Reflection.BindingFlags flags =
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        System.Reflection.FieldInfo intensityField = typeof(CameraShake).GetField("_shakeIntensity", flags);
+        System.Reflection.FieldInfo durationField = typeof(CameraShake).GetField("_shakeDuration", flags);
+        System.Reflection.FieldInfo timerField = typeof(CameraShake).GetField("_shakeTimer", flags);
+        System.Reflection.FieldInfo scaleField = typeof(CameraShake).GetField("_intensityScale", flags);
+        AssertThat(intensityField != null && durationField != null && timerField != null && scaleField != null)
+            .IsTrue();
+        object savedIntensity = intensityField.GetValue(shake);
+        object savedDuration = durationField.GetValue(shake);
+        object savedTimer = timerField.GetValue(shake);
+        object savedScale = scaleField.GetValue(shake);
+
+        EnemyController enemy = CreateEnemy("chrono_slasher");
+        BossController boss = CreateBoss();
+        try {
+            enemy.CurrentHP = 999;
+            foreach (float accessibilityScale in new[] { 1f, 0.5f }) {
+                shake.SetIntensityScale(accessibilityScale);
+                foreach (Hurtbox hurtbox in new[] { enemy.GetNode<Hurtbox>("Hurtbox"), boss.GetNode<Hurtbox>("Hurtbox") }) {
+                    HitPayload special = Hit(AttackClass.Special, "special_test", 40f, hitstun: 0f,
+                        attackID: "test.emancipator");
+                    special.Launches = true;
+                    special.ScreenShakeIntensity = 0.2f;
+                    special.ScreenShakeDuration = 0.15f;
+                    intensityField.SetValue(shake, 0f);
+                    durationField.SetValue(shake, 0f);
+                    timerField.SetValue(shake, 0f);
+                    int dealt = Mathf.RoundToInt(hurtbox.TakeHit(special));
+                    AssertThat(dealt).IsEqual(40);
+                    AssertThat((float)intensityField.GetValue(shake))
+                        .OverrideFailureMessage($"Shake at scale {accessibilityScale}: {intensityField.GetValue(shake)}.")
+                        .IsEqualApprox(8f * accessibilityScale, 0.0001f);
+                    AssertThat((float)durationField.GetValue(shake)).IsEqualApprox(0.15f, 0.0001f);
+                }
+            }
+        } finally {
+            intensityField.SetValue(shake, savedIntensity);
+            durationField.SetValue(shake, savedDuration);
+            timerField.SetValue(shake, savedTimer);
+            scaleField.SetValue(shake, savedScale);
+            enemy.Free();
+            boss.Free();
+        }
+    }
+
     // === P3: AbilityOrigin mirroring ===
 
     [TestCase]

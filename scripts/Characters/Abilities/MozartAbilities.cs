@@ -377,6 +377,14 @@ namespace FTT.Characters.Abilities {
         public Vector2 GlissandoDirection => _glissandoDirection;
 
         /// <summary>
+        /// CM-STORY (1.1(1)): the opening beat holds him in place (Story's own
+        /// startup, kept) and the glissando rises on its own velocity (the sim's
+        /// <c>Glissando</c>). The recovery falls, onto the staff it just placed.
+        /// </summary>
+        public override bool SuspendsOwnerGravityNow =>
+            CurrentPhase is AbilityPhase.Startup or AbilityPhase.Active;
+
+        /// <summary>
         /// M04: the held direction, 8-way, with any Down component dropped;
         /// neutral rises straight up.
         /// </summary>
