@@ -228,5 +228,36 @@ public class CoreMechanicCueCatalogTests {
         }
     }
 
+    /// <summary>
+    /// CM-ULT (2026-10-16, decision 2.1): the A02 activation wind-up cue is a
+    /// Critical row — it warns of an unblockable strike — with a silent
+    /// placeholder stream, listed in both ID tables, and it plays on the
+    /// CriticalCues path.
+    /// </summary>
+    [TestCase]
+    public void TheUltimateActivationWindupRowIsACriticalSilentCue() {
+        CoreMechanicCueEntry entry = Catalog().Find(CoreMechanicCueIDs.UltimateActivationWindup);
+        AssertObject(entry).IsNotNull();
+        AssertThat(entry.Critical).IsTrue();
+        AssertThat(entry.ResolvedBus).IsEqual(AudioBuses.CriticalCues);
+        AssertObject(entry.Stream).IsNotNull();
+        var issues = new List<string>();
+        CheckSilent(entry.Stream, entry.CueID, issues);
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+        AssertThat(System.Array.IndexOf(CoreMechanicCueIDs.All, CoreMechanicCueIDs.UltimateActivationWindup) >= 0).IsTrue();
+        AssertThat(System.Array.IndexOf(CoreMechanicCueIDs.Critical, CoreMechanicCueIDs.UltimateActivationWindup) >= 0).IsTrue();
+
+        AudioManager audio = AudioManager.Instance;
+        AssertObject(audio).IsNotNull();
+        CoreMechanicCuePresenter cues = audio.CoreCues;
+        try {
+            AssertThat(cues.Play(CoreMechanicCueIDs.UltimateActivationWindup)).IsTrue();
+            AssertThat(cues.LastCueID).IsEqual(CoreMechanicCueIDs.UltimateActivationWindup);
+            AssertThat(cues.LastRoutedBus).IsEqual(AudioBuses.CriticalCues);
+        } finally {
+            audio.ReleaseAllVoices();
+        }
+    }
+
     private static bool IsInstanceValid(GodotObject node) => GodotObject.IsInstanceValid(node);
 }
