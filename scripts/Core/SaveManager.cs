@@ -1135,6 +1135,13 @@ namespace FTT.Core {
             if (saved != null && saved.RepairGodot3ShoulderRows(InputBindingService.ProjectDefaults)) {
                 GD.Print("[SaveManager] Repaired saved gamepad binding rows that still used the Godot 3 shoulder numbers.");
             }
+            // 9.2 (CM-FIXA-INPUT): a gamepad Ultimate chord switched off before
+            // the pad Ultimate became the chord left the Ultimate with no pad route
+            // at all. Re-enable it; idempotent, and runs after the shoulder repair,
+            // which can drop the old LB + RB direct half.
+            if (saved != null && saved.RestoreUnreachableUltimateChord(InputBindingService.ProjectDefaults)) {
+                GD.Print("[SaveManager] Re-enabled the gamepad Ultimate chord: the saved profile left the pad Ultimate with no route.");
+            }
             InputBindingService.Apply(saved);
         }
 

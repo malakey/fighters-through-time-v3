@@ -199,6 +199,71 @@ public class GamepadOverrideRepairTests {
         AssertThat(lone.Actions.Count).IsEqual(1);
     }
 
+    /// <summary>
+    /// CM-FIXA-INPUT (2026-10-16): before 9.2 the gamepad Ultimate chord flag was
+    /// never read and the Ultimate's own LB + RB events were a direct route, so a
+    /// player could switch the chord off with nothing lost. Since 9.2 the flag is
+    /// the pad Ultimate's only route, so a payload with it off and no direct pad
+    /// bind gets it back at load — including the payload with no action rows at
+    /// all, which <c>RepairGodot3ShoulderRows</c> returns early for. A real direct
+    /// pad bind keeps the player's "off".
+    /// </summary>
+    [TestCase]
+    public void AChordSwitchedOffBeforeTheUpdateComesBackWhenItLeavesThePadUltimateNoRoute() {
+        string ultimate = InputManager.Actions.Ultimate;
+
+        // Only the toggle flipped: no rows, so the shoulder repair has nothing to do.
+        var toggleOnly = new InputBindingSet();
+        toggleOnly.SetShortcutEnabled(ultimate, InputDeviceKind.Joypad, false);
+        AssertThat(toggleOnly.RepairGodot3ShoulderRows(PostFixDefaults())).IsFalse();
+        AssertThat(toggleOnly.RestoreUnreachableUltimateChord(PostFixDefaults())).IsTrue();
+        AssertThat(toggleOnly.IsShortcutEnabled(ultimate, InputDeviceKind.Joypad)).IsTrue();
+        AssertThat(toggleOnly.Actions.Count).IsEqual(0);
+        // Idempotent: the second load finds the chord on and changes nothing.
+        AssertThat(toggleOnly.RestoreUnreachableUltimateChord(PostFixDefaults())).IsFalse();
+
+        // The old default LB + RB frozen beside a rebound key: the shoulder repair
+        // drops the pair first, and that leaves the chord as the only pad route.
+        var stale = new InputBindingSet();
+        stale.Set(ultimate, new[] { Key(KeyY), Pad(LeftShoulder), Pad(RightShoulder) });
+        stale.SetShortcutEnabled(ultimate, InputDeviceKind.Joypad, false);
+        AssertThat(stale.RepairGodot3ShoulderRows(PostFixDefaults())).IsTrue();
+        AssertThat(stale.RestoreUnreachableUltimateChord(PostFixDefaults())).IsTrue();
+        AssertRow(stale, ultimate, Key(KeyY));
+        AssertThat(stale.IsShortcutEnabled(ultimate, InputDeviceKind.Joypad)).IsTrue();
+
+        // An explicitly cleared pad slot is no route either.
+        var cleared = new InputBindingSet();
+        cleared.SetUnbound(ultimate, InputDeviceKind.Joypad, unbound: true);
+        cleared.SetShortcutEnabled(ultimate, InputDeviceKind.Joypad, false);
+        AssertThat(cleared.RestoreUnreachableUltimateChord(PostFixDefaults())).IsTrue();
+        AssertThat(cleared.IsShortcutEnabled(ultimate, InputDeviceKind.Joypad)).IsTrue();
+        AssertThat(cleared.IsUnbound(ultimate, InputDeviceKind.Joypad)).IsTrue();
+
+        // A captured single pad button is a direct route: the player's "off" stands.
+        var direct = new InputBindingSet();
+        direct.Set(ultimate, new[] { Key(KeyU), Pad(3) });
+        direct.SetShortcutEnabled(ultimate, InputDeviceKind.Joypad, false);
+        AssertThat(direct.RestoreUnreachableUltimateChord(PostFixDefaults())).IsFalse();
+        AssertThat(direct.IsShortcutEnabled(ultimate, InputDeviceKind.Joypad)).IsFalse();
+
+        // So is a pad default the player inherits (a project file that ships one).
+        InputBindingSet padDefault = PostFixDefaults();
+        padDefault.Set(ultimate, new[] { Key(KeyU), Pad(3) });
+        var inherits = new InputBindingSet();
+        inherits.SetShortcutEnabled(ultimate, InputDeviceKind.Joypad, false);
+        AssertThat(inherits.RestoreUnreachableUltimateChord(padDefault)).IsFalse();
+        AssertThat(inherits.IsShortcutEnabled(ultimate, InputDeviceKind.Joypad)).IsFalse();
+
+        // The keyboard flag and the other recipes are never touched.
+        var others = new InputBindingSet();
+        others.SetShortcutEnabled(InputShortcuts.GrabAction, InputDeviceKind.Joypad, false);
+        others.SetShortcutEnabled(ultimate, InputDeviceKind.Keyboard, false);
+        AssertThat(others.RestoreUnreachableUltimateChord(PostFixDefaults())).IsFalse();
+        AssertThat(others.IsShortcutEnabled(InputShortcuts.GrabAction, InputDeviceKind.Joypad)).IsFalse();
+        AssertThat(others.IsShortcutEnabled(ultimate, InputDeviceKind.Keyboard)).IsFalse();
+    }
+
     [TestCase]
     public void CurrentRowsEmptyPayloadsAndOldNumberDefaultsAreLeftAlone() {
         // An empty payload and a missing defaults set are no-ops.
