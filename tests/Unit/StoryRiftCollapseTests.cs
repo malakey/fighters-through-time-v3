@@ -124,6 +124,86 @@ public class StoryRiftCollapseTests {
         }
     }
 
+    /// <summary>
+    /// CM-FIXA-STORY (decision 2.4, Q2 "startup only"): the collapse's launch on a
+    /// caught <see cref="PlayerController"/> is that hit's knockback and stun, so
+    /// it reads the same armour <c>ResolveIncomingHit</c> reads. The Level 13
+    /// shape: an Einstein clone on the opposing slot collapses its rift on a hero
+    /// in its paid Ultimate's startup — the Ultimate must keep executing and the
+    /// hero must not be launched. An unarmoured hero is still launched and stunned.
+    /// </summary>
+    [TestCase]
+    public void ARiftCollapseNeitherLaunchesNorInterruptsAHeroInItsUltimateStartup() {
+        Node2D host = CreateHost("RiftCollapseArmour");
+        PlayerController hero = null;
+        try {
+            EinsteinRelativityRift rift = OpenRift(AddOpposingEinstein(host));
+            hero = AddHeroInRift(host, "joan", rift.ActiveRiftCenter);
+            BaseSpecial ultimate = StartUltimate(hero);
+            AssertThat(ultimate).OverrideFailureMessage("Harness: the hero's Ultimate did not start.").IsNotNull();
+            AssertThat(ultimate.CurrentPhase).IsEqual(AbilityPhase.Startup);
+            AssertThat(hero.HasActiveHyperArmorAgainst(AttackClass.Special)).IsTrue();
+
+            AssertThat(rift.TryCollapse(rift.ActiveRiftCenter)).IsTrue();
+            for (int frame = 0; frame < KitMotionRules.RiftCollapsePullFrames; frame++) rift._PhysicsProcess(Step);
+            AssertThat(rift.IsCollapsing).IsFalse();
+
+            AssertThat(ultimate.IsExecuting)
+                .OverrideFailureMessage("A Rift Collapse must not interrupt an armoured Ultimate startup.")
+                .IsTrue();
+            AssertThat(hero.CurrentState).IsEqual(CharacterState.UsingUltimate);
+            AssertThat(hero.Velocity.Y >= 0f)
+                .OverrideFailureMessage($"The armour denies the collapse's launch; vy {hero.Velocity.Y:0.0}.")
+                .IsTrue();
+        } finally {
+            if (hero != null && GodotObject.IsInstanceValid(hero)) InputManager.Instance?.ClearInputSource(hero.PlayerIndex);
+            host.Free();
+        }
+
+        // Positive control: the same collapse on an unarmoured hero launches and stuns it.
+        Node2D control = CreateHost("RiftCollapseUnarmoured");
+        try {
+            EinsteinRelativityRift rift = OpenRift(AddOpposingEinstein(control));
+            PlayerController idle = AddHeroInRift(control, "joan", rift.ActiveRiftCenter);
+            AssertThat(idle.HasActiveHyperArmorAgainst(AttackClass.Special)).IsFalse();
+            AssertThat(rift.TryCollapse(rift.ActiveRiftCenter)).IsTrue();
+            for (int frame = 0; frame < KitMotionRules.RiftCollapsePullFrames; frame++) rift._PhysicsProcess(Step);
+            AssertThat(idle.CurrentState).IsEqual(CharacterState.Stunned);
+            AssertThat(idle.Velocity.Y < 0f).OverrideFailureMessage("The collapse must launch an unarmoured hero upward.").IsTrue();
+        } finally {
+            control.Free();
+        }
+    }
+
+    /// <summary>An Einstein on the opposing slot (the Level 13 clone's), whose rift catches player 0.</summary>
+    private static PlayerController AddOpposingEinstein(Node2D host) {
+        PlayerController clone = CharacterFactory.CreateCharacter("einstein", 1, applyStoryProgression: false);
+        host.AddChild(clone);
+        clone.GlobalPosition = Origin;
+        return clone;
+    }
+
+    /// <summary>The campaign-slot hero, airborne inside the rift. Positioned before it enters the tree.</summary>
+    private static PlayerController AddHeroInRift(Node2D host, string heroID, Vector2 center) {
+        PlayerController hero = CharacterFactory.CreateCharacter(heroID, 0, applyStoryProgression: false);
+        hero.Position = center + new Vector2(40f, 0f);
+        host.AddChild(hero);
+        hero.TransitionTo(CharacterState.Airborne);
+        return hero;
+    }
+
+    /// <summary>Fills the meter and presses the Ultimate (the StoryUltimateArmorTests harness); null when refused.</summary>
+    private static BaseSpecial StartUltimate(PlayerController hero) {
+        hero.SetUltimateMeter(InfluenceMeterRules.MaxValue);
+        var source = new BufferedInputSource();
+        source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, GameplayButtons.Ultimate));
+        InputManager.Instance.SetInputSource(hero.PlayerIndex, source);
+        hero._PhysicsProcess(Step);
+        source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, GameplayButtons.None, GameplayButtons.Ultimate));
+        var ultimate = hero.GetNode<BaseSpecial>("Ultimate");
+        return hero.CurrentState == CharacterState.UsingUltimate && ultimate.IsExecuting ? ultimate : null;
+    }
+
     private static EinsteinRelativityRift OpenRift(PlayerController einstein) {
         var rift = einstein.GetNode<EinsteinRelativityRift>("Special2");
         AssertThat(rift.TryExecute()).IsTrue();
