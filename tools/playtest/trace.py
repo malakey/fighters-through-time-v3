@@ -19,6 +19,11 @@ left>), the mobs attacking within 250 px of the hero (atk=) and its melee slot
 holders (slots=). A run that ended stuck_lock:<id> also prints the bot's lock
 nav notes. FIX-BOT (2026-10-13): a lock a scene reload rebuilt (an Act III
 Anchor Snap) is its own line, its id suffixed #2, #3, ...
+
+CM-BOT (2026-10-16) adds one "rehits" header line: the hero's damaging hits,
+cross-source re-hits within 30 / 20 frames, the same-source contrast,
+same-frame doubles, status ticks and unobserved hits, then per kind
+"kind=hits/xsrc30".
 """
 import json
 import os
@@ -88,6 +93,14 @@ def main(argv):
                   f"living={entry.get('living', 0)} reverts={entry.get('reverts', 0)} "
                   f"left_alive={entry.get('left_with_members_alive', 0)} reloc={entry.get('member_relocations', 0)}"
                   f"{' forced' if entry.get('force_cleared') else ''}{' restored' if entry.get('restored_cleared') else ''}")
+    # CM-BOT (2026-10-16): hits on the hero and cross-source re-hits, one line,
+    # with by_kind folded to "kind=hits/xsrc30" (no gap histogram, no log).
+    rehits = report.get("rehits")
+    if isinstance(rehits, dict):
+        summary = {k: v for k, v in rehits.items() if k not in ("log", "xsrc_gap_histogram", "by_kind")}
+        kinds = " ".join(f"{kind}={row.get('hits', 0)}/{row.get('xsrc_30', 0)}"
+                         for kind, row in sorted((rehits.get("by_kind") or {}).items()))
+        print("rehits", json.dumps(summary), kinds)
     if str(report.get("end_reason", "")).startswith("stuck_lock:"):
         for event in report.get("events") or []:
             if event.get("type") == "nav" and str(event.get("detail", "")).startswith("lock "):

@@ -1697,6 +1697,7 @@ namespace FTT.Characters {
 
 			int damageApplied = ApplyDamage(Math.Max(0, (int)MathF.Round(hit.Damage)));
 			if (damageApplied <= 0) return 0f;
+			ObserveDamageTaken(in hit, damageApplied); // CM-BOT (7.2): observation only, changes nothing
 			// 2026-10-11 (D1a): damage applied is a LANDED contact. ApplyDamage
 			// already returned 0 for every invulnerable body.
 			_hurtbox?.ReportLanded(hit.ContactId);
@@ -4247,7 +4248,9 @@ namespace FTT.Characters {
 			if (IsDefyProtected) return 0;
 			int remaining = ResolveProtectionLayers(damage);
 			if (damage > 0 && remaining <= 0) return 0;
-			return ApplyDamage(remaining, ignoreRollInvulnerability: true);
+			int tickApplied = ApplyDamage(remaining, ignoreRollInvulnerability: true);
+			ObserveDamageTaken(DamageObservationKind.Status, tickApplied); // CM-BOT (7.2): observation only
+			return tickApplied;
 		}
 
 		/// <summary>
@@ -4275,6 +4278,7 @@ namespace FTT.Characters {
 			bool defied = _defyFiredThisHit;
 			_defyFiredThisHit = false;
 			if (damageApplied <= 0) return damageApplied;
+			ObserveDamageTaken(DamageObservationKind.Hazard, damageApplied); // CM-BOT (7.2): observation only
 
 			float echoAmount = 0f;
 			if (!defied && CurrentState != CharacterState.Dead && CurrentHP > 0 && MaximumHP > 0) {

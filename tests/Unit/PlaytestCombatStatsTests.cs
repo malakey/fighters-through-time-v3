@@ -360,6 +360,200 @@ public class PlaytestCombatStatsTests {
         }
     }
 
+    /// <summary>
+    /// CM-BOT (decision 7.2): two mobs' real attack payloads reach the hero
+    /// through its damage chokepoint 10 physics frames apart. The telemetry reads
+    /// one cross-source re-hit, and raising the observation changes nothing: the
+    /// same sequence on a fresh hero with no subscriber leaves HP, meter and the
+    /// Rally echo pool identical after each hit and after the drain.
+    /// </summary>
+    [TestCase]
+    public async Task TwoMobsHittingTenFramesApartReadOneCrossSourceReHitAndTheObservationChangesNothing() {
+        var tree = (SceneTree)Engine.GetMainLoop();
+        var probe = new TelemetryTickProbe { Name = "TelemetryTickProbe" };
+        tree.Root.AddChild(probe);
+        StaticBody2D floor = CreateFloor();
+        EnemyController first = null;
+        EnemyController second = null;
+        PlayerController hero = null;
+        PlaytestWorld world = null;
+        PlaytestTelemetry telemetry = null;
+        try {
+            first = CreatePassiveMob("chrono_slasher", new Vector2(OriginX + 400f, 0f));
+            second = CreatePassiveMob("chrono_slasher", new Vector2(OriginX - 400f, 0f));
+            var source = new BufferedInputSource();
+            InputManager.Instance.SetInputSource(0, source);
+            source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, GameplayButtons.None));
+
+            // Unobserved: nothing subscribes to the hero's DamageTaken.
+            hero = await SpawnHeroAsync(tree);
+            List<(int HP, float Meter, float Echo)> unobserved = await TwoHitSequenceAsync(tree, hero, first, second);
+            hero.Free();
+            hero = null;
+
+            // Observed: the telemetry subscribes through PlaytestWorld's seam.
+            hero = await SpawnHeroAsync(tree);
+            world = new PlaytestWorld(tree);
+            telemetry = new PlaytestTelemetry();
+            telemetry.Attach(world, bot: null);
+            probe.Telemetry = telemetry;
+            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            List<(int HP, float Meter, float Echo)> observed = await TwoHitSequenceAsync(tree, hero, first, second);
+
+            AssertThat(unobserved[0].HP < hero.MaximumHP && unobserved[1].HP < unobserved[0].HP)
+                .OverrideFailureMessage("Harness fault: a mob hit dealt no damage.")
+                .IsTrue();
+            for (int i = 0; i < unobserved.Count; i++) {
+                AssertThat(observed[i].HP).OverrideFailureMessage($"HP differs at sample {i}.").IsEqual(unobserved[i].HP);
+                AssertThat(observed[i].Meter).OverrideFailureMessage($"Meter differs at sample {i}.").IsEqual(unobserved[i].Meter);
+                AssertThat(observed[i].Echo).OverrideFailureMessage($"The Rally pool differs at sample {i}.").IsEqual(unobserved[i].Echo);
+            }
+
+            RehitTracker rehits = telemetry.Rehits;
+            AssertThat(rehits.Hits).IsEqual(2);
+            AssertThat(rehits.CrossSource30)
+                .OverrideFailureMessage("Two mobs 10 frames apart are one cross-source re-hit.")
+                .IsEqual(1);
+            AssertThat(rehits.CrossSource20).IsEqual(1);
+            AssertThat(rehits.SameSource30).IsEqual(0);
+            AssertThat(rehits.Log[0].Kind).IsEqual(RehitTracker.KindStandard);
+            AssertThat(rehits.Log[0].Label).IsEqual("chrono_slasher");
+            AssertThat(rehits.Log[1].CrossGap)
+                .OverrideFailureMessage("Both observations map onto the telemetry frames 10 apart.")
+                .IsEqual(10);
+            AssertThat(rehits.Log[0].Source != rehits.Log[1].Source)
+                .OverrideFailureMessage("Two mob instances are two sources.")
+                .IsTrue();
+            AssertThat(telemetry.UnobservedHeroHits)
+                .OverrideFailureMessage("Every HP loss the bus carried was observed.")
+                .IsEqual(0);
+            AssertThat((int)telemetry.CombatSummary()["xsrc_rehits"]).IsEqual(1);
+        } finally {
+            probe.Telemetry = null;
+            telemetry?.FinishPending();
+            telemetry?.Detach();
+            world?.Detach();
+            InputManager.Instance?.ClearInputSource(0);
+            if (hero != null && GodotObject.IsInstanceValid(hero)) hero.Free();
+            if (first != null && GodotObject.IsInstanceValid(first)) first.Free();
+            if (second != null && GodotObject.IsInstanceValid(second)) second.Free();
+            floor.Free();
+            probe.Free();
+        }
+    }
+
+    /// <summary>
+    /// CM-BOT (decision 7.2): a boss's melee payload names its boss (the
+    /// <c>BossController</c> stamp), so the re-hit counter attributes the hit to
+    /// the boss, and a mob's hit 5 frames later is a cross-source re-hit whose
+    /// predecessor is the boss.
+    /// </summary>
+    [TestCase]
+    public async Task ABossHitIsAttributedToTheBoss() {
+        var tree = (SceneTree)Engine.GetMainLoop();
+        var probe = new TelemetryTickProbe { Name = "TelemetryTickProbe" };
+        tree.Root.AddChild(probe);
+        StaticBody2D floor = CreateFloor();
+        BossController boss = null;
+        EnemyController mob = null;
+        PlayerController hero = null;
+        PlaytestWorld world = null;
+        PlaytestTelemetry telemetry = null;
+        try {
+            BossData data = AuthoredResources.Load<BossData>("res://resources/Bosses/borgia_inquisitor.tres");
+            PackedScene scene = ResourceLoader.Load<PackedScene>("res://scenes/enemies/Boss.tscn");
+            boss = scene.Instantiate<BossController>();
+            boss.Data = data;
+            boss.Position = new Vector2(OriginX + 600f, 0f);
+            tree.Root.AddChild(boss);
+            boss.ApplyData(data);
+            boss.SetPhysicsProcess(false);
+            boss.GlobalPosition = new Vector2(OriginX + 600f, 0f);
+            mob = CreatePassiveMob("chrono_slasher", new Vector2(OriginX - 400f, 0f));
+            var source = new BufferedInputSource();
+            InputManager.Instance.SetInputSource(0, source);
+            source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, GameplayButtons.None));
+
+            hero = await SpawnHeroAsync(tree);
+            world = new PlaytestWorld(tree);
+            telemetry = new PlaytestTelemetry();
+            telemetry.Attach(world, bot: null);
+            probe.Telemetry = telemetry;
+            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+
+            HitPayload bossHit = AttackHitboxOf(boss).CreatePayload(0);
+            AssertThat(bossHit.SourceActorId)
+                .OverrideFailureMessage("The boss's melee hitbox must name its boss.")
+                .IsEqual(boss.GetInstanceId());
+            AssertThat(hero.TakeDamage(in bossHit) > 0f)
+                .OverrideFailureMessage("Harness fault: the boss hit dealt no damage.")
+                .IsTrue();
+            for (int frame = 0; frame < 5; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            HitPayload mobHit = AttackHitboxOf(mob).CreatePayload(0);
+            hero.TakeDamage(in mobHit);
+            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+
+            RehitTracker rehits = telemetry.Rehits;
+            AssertThat(rehits.Log.Count).IsEqual(2);
+            AssertThat(rehits.Log[0].Kind)
+                .OverrideFailureMessage("A boss's own hit is attributed to the boss.")
+                .IsEqual(RehitTracker.KindBoss);
+            AssertThat(rehits.Log[0].Label).IsEqual("borgia_inquisitor");
+            AssertThat(rehits.Log[0].Source).IsEqual("actor:" + boss.GetInstanceId());
+            AssertThat(rehits.Log[1].Kind).IsEqual(RehitTracker.KindStandard);
+            AssertThat(rehits.Log[1].Cross30).IsTrue();
+            AssertThat(rehits.Log[1].CrossKind).IsEqual(RehitTracker.KindBoss);
+            AssertThat(rehits.Log[1].CrossGap).IsEqual(5);
+            AssertThat(rehits.ByKind[RehitTracker.KindBoss].Hits).IsEqual(1);
+        } finally {
+            probe.Telemetry = null;
+            telemetry?.FinishPending();
+            telemetry?.Detach();
+            world?.Detach();
+            InputManager.Instance?.ClearInputSource(0);
+            if (hero != null && GodotObject.IsInstanceValid(hero)) hero.Free();
+            if (mob != null && GodotObject.IsInstanceValid(mob)) mob.Free();
+            // The boss node only: its BossData is a cached authored resource (never Dispose a Resource).
+            if (boss != null && GodotObject.IsInstanceValid(boss)) boss.Free();
+            floor.Free();
+            probe.Free();
+        }
+    }
+
+    /// <summary>Joan on the floor at the origin, settled for 10 physics frames.</summary>
+    private static async Task<PlayerController> SpawnHeroAsync(SceneTree tree) {
+        PlayerController hero = CharacterFactory.CreateCharacter("joan", 0);
+        hero.Position = new Vector2(OriginX, -2f);
+        tree.Root.AddChild(hero);
+        hero.GlobalPosition = new Vector2(OriginX, -2f);
+        for (int frame = 0; frame < 10; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        return hero;
+    }
+
+    /// <summary>
+    /// <paramref name="first"/>'s attack payload, 10 physics frames, then
+    /// <paramref name="second"/>'s, then 30 frames of drain. Samples HP, meter and
+    /// the Rally pool after each hit and at the end.
+    /// </summary>
+    private static async Task<List<(int HP, float Meter, float Echo)>> TwoHitSequenceAsync(
+        SceneTree tree, PlayerController hero, EnemyController first, EnemyController second) {
+        var samples = new List<(int HP, float Meter, float Echo)>();
+        HitPayload a = AttackHitboxOf(first).CreatePayload(0);
+        hero.TakeDamage(in a);
+        samples.Add((hero.CurrentHP, hero.CurrentUltimateMeter, hero.EchoPool));
+        for (int frame = 0; frame < 10; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        HitPayload b = AttackHitboxOf(second).CreatePayload(0);
+        hero.TakeDamage(in b);
+        samples.Add((hero.CurrentHP, hero.CurrentUltimateMeter, hero.EchoPool));
+        for (int frame = 0; frame < 30; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        samples.Add((hero.CurrentHP, hero.CurrentUltimateMeter, hero.EchoPool));
+        return samples;
+    }
+
+    /// <summary>The attack hitbox a mob or boss resolves (its "Hitbox" node, else "AttackHitbox").</summary>
+    private static Hitbox AttackHitboxOf(Node body) =>
+        body.GetNodeOrNull<Hitbox>("Hitbox") ?? body.GetNode<Hitbox>("AttackHitbox");
+
     private static void AssertLabels(in PressSnapshot snapshot, params string[] expected) {
         AssertThat(string.Join(",", PlaytestCombatMath.RefusalConditions(snapshot)))
             .IsEqual(string.Join(",", expected));

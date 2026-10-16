@@ -251,6 +251,10 @@ namespace FTT.Enemies {
             if (_hurtbox != null) _hurtbox.OwnerPlayerIndex = -1;
             _attackHitbox = GetNodeOrNull<FTT.Combat.Hitbox>("Hitbox")
                 ?? GetNodeOrNull<FTT.Combat.Hitbox>("AttackHitbox");
+            // CM-BOT (7.2): the melee hitbox names this boss, as a mob's does (D8) and as the
+            // executor already stamps a boss's shots. Gameplay-neutral: ReportEnemyAttack, the
+            // one hero-side reader, acts only on an EnemyController owner.
+            if (_attackHitbox != null) _attackHitbox.SourceActorIdOverride = GetInstanceId();
             _abilityOrigin = GetNodeOrNull<Node2D>("AbilityOrigin");
             // P3: Boss.tscn authors the marker at (64, -88) for a right-facing
             // body; SetFacing mirrors it with the sprite.
