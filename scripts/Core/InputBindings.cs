@@ -352,8 +352,11 @@ namespace FTT.Core {
         /// <see cref="InputBindingConflicts"/> refuses an event that any action
         /// already holds. So:</para>
         /// <list type="bullet">
-        /// <item>an Ultimate gamepad half of exactly Back + Guide is the old
-        /// default and nothing else, and is always repaired;</item>
+        /// <item>an Ultimate gamepad half of exactly Back + Guide, or (since 9.2,
+        /// 2026-10-16) of exactly LB + RB, is an old authored conjunction and
+        /// nothing else, and is always repaired — towards the current default,
+        /// which is <b>empty</b> since the pad Ultimate became the recipe chord
+        /// (<see cref="RepairStaleUltimatePadChord"/>);</item>
         /// <item>a Movement Ability half of exactly Back, or a Special 2 half of
         /// exactly Guide, is repaired only while another action (judged on the
         /// payload as loaded) also holds that button — two actions sharing one
@@ -368,8 +371,7 @@ namespace FTT.Core {
             // Every rule is judged against the payload as it was loaded, so the
             // order of the repairs below cannot change the outcome.
             InputBindingSet loaded = Clone();
-            bool changed = RepairStaleJoypadHalf(loaded, projectDefaults, InputManager.Actions.Ultimate,
-                new[] { Godot3LeftShoulderButton, Godot3RightShoulderButton }, requireSharedButton: false);
+            bool changed = RepairStaleUltimatePadChord(loaded, projectDefaults);
             changed |= RepairStaleJoypadHalf(loaded, projectDefaults, InputManager.Actions.MovementAbility,
                 new[] { Godot3LeftShoulderButton }, requireSharedButton: true);
             changed |= RepairStaleJoypadHalf(loaded, projectDefaults, InputManager.Actions.Special2,
@@ -394,6 +396,46 @@ namespace FTT.Core {
                 && !AnotherActionHoldsJoyButton(loaded, projectDefaults, action, staleButtons[0])) {
                 return false;
             }
+
+            List<InputBindingEvent> rebuilt = For(action)
+                .Where(existing => existing.DeviceKind != InputDeviceKind.Joypad)
+                .Select(existing => existing.Clone())
+                .ToList();
+            rebuilt.AddRange(target);
+            Set(action, rebuilt);
+            return true;
+        }
+
+        /// <summary>The Godot 4 shoulder numbers (LB 9, RB 10), the conjunction the pad Ultimate carried until 9.2.</summary>
+        public const int LeftShoulderButton = 9;
+
+        /// <inheritdoc cref="LeftShoulderButton"/>
+        public const int RightShoulderButton = 10;
+
+        /// <summary>
+        /// 9.2 (2026-10-16, amends <c>PROVISIONAL-GAMEPAD-OVERRIDE-NO-MIGRATION</c> (1)):
+        /// the pad Ultimate is no longer its own two-button conjunction but the
+        /// C01c recipe chord (Movement Ability + Special 2), so <c>project.godot</c>
+        /// authors its gamepad direct slot empty. A saved Ultimate row whose pad half
+        /// is exactly LB + RB (9 + 10, the 2026-10-11 default) or Back + Guide
+        /// (4 + 5, the Godot 3 one) is an old default frozen into the payload by a
+        /// keyboard-only rebind — a capture writes one event — so its pad half is
+        /// rewritten to the current default (dropped, at the empty default) and the
+        /// keyboard half is kept. A project file that still ships the same
+        /// conjunction has nothing to repair towards.
+        /// </summary>
+        private bool RepairStaleUltimatePadChord(InputBindingSet loaded, InputBindingSet projectDefaults) {
+            string action = InputManager.Actions.Ultimate;
+            if (!loaded.HasOverride(action) || loaded.IsUnbound(action, InputDeviceKind.Joypad)) return false;
+            List<InputBindingEvent> pad = loaded.EventsFor(action, InputDeviceKind.Joypad);
+            int[] godot3 = { Godot3LeftShoulderButton, Godot3RightShoulderButton };
+            int[] shoulders = { LeftShoulderButton, RightShoulderButton };
+            int[] stale = IsExactlyJoyButtons(pad, godot3) ? godot3
+                : IsExactlyJoyButtons(pad, shoulders) ? shoulders
+                : null;
+            if (stale == null) return false;
+            List<InputBindingEvent> target = projectDefaults.EventsFor(action, InputDeviceKind.Joypad);
+            if (IsExactlyJoyButtons(target, stale)) return false;
 
             List<InputBindingEvent> rebuilt = For(action)
                 .Where(existing => existing.DeviceKind != InputDeviceKind.Joypad)
@@ -470,12 +512,16 @@ namespace FTT.Core {
     public static class InputShortcuts {
 
         /// <summary>
-        /// Direct Ultimate action. Its authored gamepad events are the chord itself:
-        /// <c>JoyButton.LeftShoulder</c> (9) + <c>JoyButton.RightShoulder</c> (10),
-        /// the Movement Ability and Special 2 defaults, which
-        /// <c>InputManager.ReadUltimatePressed</c> reads as a conjunction. (Until
-        /// 2026-10-11 project.godot carried the Godot 3 numbers 4 + 5, which Godot 4
-        /// reads as Back + Guide; <c>GamepadDefaultBindingTests</c> pins the fix.)
+        /// Direct Ultimate action. Since 9.2 (2026-10-16) its authored gamepad slot
+        /// is <b>empty</b> — C01c's "initially Unbound" — and the pad Ultimate is
+        /// the recipe below (Movement Ability + Special 2, LB + RB at defaults),
+        /// recognized from the components' live bindings behind this action's
+        /// joypad shortcut flag and resolved through <c>UltimateChordWindow</c>.
+        /// Until then the action carried <c>JoyButton.LeftShoulder</c> (9) +
+        /// <c>JoyButton.RightShoulder</c> (10) itself, read as a conjunction (and
+        /// before 2026-10-11 the Godot 3 numbers 4 + 5, Back + Guide in Godot 4);
+        /// <see cref="InputBindingSet.RepairGodot3ShoulderRows"/> drops either
+        /// pair from a saved row. A captured direct pad bind stays legal.
         /// </summary>
         public const string UltimateAction = "gameplay_ultimate";
 
@@ -852,6 +898,7 @@ namespace FTT.Core {
             if (string.IsNullOrWhiteSpace(action) || !InputMap.HasAction(action)) return;
             if (!RestorableActions.Contains(action)) return;
             if (events == null || (events.Count == 0 && !allowEmpty)) return;
+            Generation++;
             InputMap.ActionEraseEvents(action);
             int applied = 0;
             foreach (InputBindingEvent binding in events) {
@@ -866,8 +913,16 @@ namespace FTT.Core {
         /// <summary>Restores every action from project.godot. Pairs with clearing the saved set.</summary>
         public static void ResetToProjectDefaults() {
             EnsureDefaultsCaptured();
+            Generation++;
             InputMap.LoadFromProjectSettings();
         }
+
+        /// <summary>
+        /// 9.1 (2026-10-16): bumped on every InputMap write this service makes, so
+        /// <see cref="InputManager"/>'s device-activity poll knows to re-read the
+        /// keys and buttons it watches. Process-local; never persisted.
+        /// </summary>
+        public static int Generation { get; private set; }
 
         /// <summary>Restores one action from the captured project defaults.</summary>
         public static void ResetActionToProjectDefault(string action) {

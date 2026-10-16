@@ -13,7 +13,8 @@ namespace FTT.Tests.Unit;
 /// LB (9) / RB (10).
 ///
 /// <para>A row is repaired only when the Controls tab could not have produced it
-/// on purpose: an Ultimate gamepad half of exactly Back + Guide (a capture writes
+/// on purpose: an Ultimate gamepad half of exactly Back + Guide or, since 9.2
+/// (2026-10-16), LB + RB — dropped to the now-empty pad default (a capture writes
 /// one event, there is no chord editor), or a Movement Ability on Back / Special 2
 /// on Guide while another action also holds that button (a capture of a held
 /// button is refused). Anything else may be a deliberate bind and stays.</para>
@@ -49,13 +50,15 @@ public class GamepadOverrideRepairTests {
 
     /// <summary>
     /// The authored post-fix defaults of the actions the repair reads, including
-    /// Time Freeze on L3 since D11 (2026-10-11, <c>USER-GAMEPAD-TIME-FREEZE-L3</c>).
+    /// Time Freeze on L3 since D11 (2026-10-11, <c>USER-GAMEPAD-TIME-FREEZE-L3</c>)
+    /// and, since 9.2 (2026-10-16), the Ultimate's empty gamepad direct slot: the
+    /// pad Ultimate is the Movement Ability + Special 2 recipe chord.
     /// </summary>
     private static InputBindingSet PostFixDefaults() {
         var defaults = new InputBindingSet();
         defaults.Set(InputManager.Actions.MovementAbility, new[] { Key(KeyShift), Pad(LeftShoulder) });
         defaults.Set(InputManager.Actions.Special2, new[] { Key(KeyL), Mouse(MouseMiddle), Pad(RightShoulder) });
-        defaults.Set(InputManager.Actions.Ultimate, new[] { Key(KeyU), Pad(LeftShoulder), Pad(RightShoulder) });
+        defaults.Set(InputManager.Actions.Ultimate, new[] { Key(KeyU) });
         defaults.Set(InputManager.Actions.TimeFreeze, new[] { Key(KeyR), Pad(LeftStick) });
         defaults.Set(InputManager.Actions.Jump, new[] { Key(32), Pad(0) });
         return defaults;
@@ -71,20 +74,54 @@ public class GamepadOverrideRepairTests {
     }
 
     [TestCase]
-    public void AStaleUltimateChordBesideAReboundKeyMovesOntoTheShoulders() {
+    public void AStaleGodot3UltimateChordBesideAReboundKeyIsDroppedToTheEmptyPadDefault() {
         // A keyboard-only rebind of the Ultimate (U -> Y) before the fix saved the
-        // whole row, freezing the old Back + Guide chord into the payload.
+        // whole row, freezing the old Back + Guide chord into the payload. Since
+        // 9.2 the pad default is empty (the recipe chord), so the stale pair is
+        // dropped rather than moved onto the shoulders.
         var saved = new InputBindingSet();
         saved.Set(InputManager.Actions.Ultimate, new[] { Key(KeyY), Pad(Back), Pad(Guide) });
 
         AssertThat(saved.RepairGodot3ShoulderRows(PostFixDefaults())).IsTrue();
-        AssertRow(saved, InputManager.Actions.Ultimate, Key(KeyY), Pad(LeftShoulder), Pad(RightShoulder));
+        AssertRow(saved, InputManager.Actions.Ultimate, Key(KeyY));
         // Nothing else gained a row: an untouched action keeps inheriting its default.
         AssertThat(saved.Actions.Count).IsEqual(1);
 
         // Idempotent: a second load finds nothing to repair and changes nothing.
         AssertThat(saved.RepairGodot3ShoulderRows(PostFixDefaults())).IsFalse();
-        AssertRow(saved, InputManager.Actions.Ultimate, Key(KeyY), Pad(LeftShoulder), Pad(RightShoulder));
+        AssertRow(saved, InputManager.Actions.Ultimate, Key(KeyY));
+    }
+
+    /// <summary>
+    /// 9.2 (2026-10-16, amends <c>PROVISIONAL-GAMEPAD-OVERRIDE-NO-MIGRATION</c> (1)):
+    /// the 2026-10-11 default LB + RB (9 + 10) frozen into a saved Ultimate row is
+    /// dropped exactly like the Godot 3 Back + Guide; the keyboard half is kept,
+    /// whatever it is, and a single captured pad button is never touched.
+    /// </summary>
+    [TestCase]
+    public void StaleShoulderAndGodot3UltimateRowsAreDroppedAndTheKeyboardIsKept() {
+        var shoulders = new InputBindingSet();
+        shoulders.Set(InputManager.Actions.Ultimate, new[] { Key(KeyY), Pad(LeftShoulder), Pad(RightShoulder) });
+        AssertThat(shoulders.RepairGodot3ShoulderRows(PostFixDefaults())).IsTrue();
+        AssertRow(shoulders, InputManager.Actions.Ultimate, Key(KeyY));
+        AssertThat(shoulders.RepairGodot3ShoulderRows(PostFixDefaults())).IsFalse();
+
+        // The default keyboard key beside the old default pad pair: only the pair goes.
+        var defaultKey = new InputBindingSet();
+        defaultKey.Set(InputManager.Actions.Ultimate, new[] { Key(KeyU), Pad(RightShoulder), Pad(LeftShoulder) });
+        AssertThat(defaultKey.RepairGodot3ShoulderRows(PostFixDefaults())).IsTrue();
+        AssertRow(defaultKey, InputManager.Actions.Ultimate, Key(KeyU));
+
+        var godot3 = new InputBindingSet();
+        godot3.Set(InputManager.Actions.Ultimate, new[] { Key(KeyU), Pad(Guide), Pad(Back) });
+        AssertThat(godot3.RepairGodot3ShoulderRows(PostFixDefaults())).IsTrue();
+        AssertRow(godot3, InputManager.Actions.Ultimate, Key(KeyU));
+
+        // One captured pad button is a deliberate direct bind (C01c capture stays legal).
+        var direct = new InputBindingSet();
+        direct.Set(InputManager.Actions.Ultimate, new[] { Key(KeyU), Pad(3) });
+        AssertThat(direct.RepairGodot3ShoulderRows(PostFixDefaults())).IsFalse();
+        AssertRow(direct, InputManager.Actions.Ultimate, Key(KeyU), Pad(3));
     }
 
     [TestCase]
@@ -113,7 +150,7 @@ public class GamepadOverrideRepairTests {
 
         AssertThat(chord.RepairGodot3ShoulderRows(PostFixDefaults())).IsTrue();
         AssertRow(chord, InputManager.Actions.MovementAbility, Key(KeyF), Pad(LeftShoulder));
-        AssertRow(chord, InputManager.Actions.Ultimate, Key(KeyY), Pad(LeftShoulder), Pad(RightShoulder));
+        AssertRow(chord, InputManager.Actions.Ultimate, Key(KeyY));
         AssertThat(chord.HasOverride(InputManager.Actions.TimeFreeze)).IsFalse();
         AssertThat(chord.RepairGodot3ShoulderRows(PostFixDefaults())).IsFalse();
     }
@@ -128,7 +165,7 @@ public class GamepadOverrideRepairTests {
 
         AssertThat(saved.RepairGodot3ShoulderRows(PostFixDefaults())).IsTrue();
         AssertRow(saved, InputManager.Actions.Special2, Key(KeyK), Mouse(MouseMiddle), Pad(RightShoulder));
-        AssertRow(saved, InputManager.Actions.Ultimate, Key(KeyY), Pad(LeftShoulder), Pad(RightShoulder));
+        AssertRow(saved, InputManager.Actions.Ultimate, Key(KeyY));
     }
 
     [TestCase]
@@ -171,7 +208,7 @@ public class GamepadOverrideRepairTests {
 
         var current = new InputBindingSet();
         current.Set(InputManager.Actions.MovementAbility, new[] { Key(KeyF), Pad(LeftShoulder) });
-        current.Set(InputManager.Actions.Ultimate, new[] { Key(KeyY), Pad(LeftShoulder), Pad(RightShoulder) });
+        current.Set(InputManager.Actions.Ultimate, new[] { Key(KeyY) });
         AssertThat(current.RepairGodot3ShoulderRows(PostFixDefaults())).IsFalse();
         AssertThat(current.RepairGodot3ShoulderRows(null)).IsFalse();
         AssertRow(current, InputManager.Actions.MovementAbility, Key(KeyF), Pad(LeftShoulder));

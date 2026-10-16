@@ -111,8 +111,10 @@ public class LocalFighterPauseTests {
 
     [TestCase]
     public void ADisconnectOnlyClearsTheAffectedSlot() {
+        // 9.1 (2026-10-16): two pads in a local match means a local join.
         var manager = AutoFree(new InputManager { MaxPlayers = 2 });
         manager.SetConnectedJoypadsForTesting(0, 1);
+        manager.BeginLocalJoin();
         manager.AssignJoypadToPlayer(0, 0);
         manager.AssignJoypadToPlayer(1, 1);
 
@@ -121,10 +123,18 @@ public class LocalFighterPauseTests {
         AssertThat(manager.GetDeviceForPlayer(0)).IsEqual(0);
         AssertThat(manager.GetDeviceForPlayer(1)).IsEqual(InputManager.UnassignedDevice);
 
-        // Reconnect: the free pad binds back to the empty slot only.
+        // Reconnect: the free pad binds back to the slot the disconnect emptied only.
         manager.SetConnectedJoypadsForTesting(0, 1);
         AssertThat(manager.GetDeviceForPlayer(0)).IsEqual(0);
         AssertThat(manager.GetDeviceForPlayer(1)).IsEqual(1);
+
+        // Outside a join, slot 1 is never filled just because a pad is connected:
+        // a lone pad follows onto slot 0 instead of becoming player two.
+        manager.EndLocalJoin();
+        AssertThat(manager.GetDeviceForPlayer(1)).IsEqual(InputManager.UnassignedDevice);
+        manager.SetConnectedJoypadsForTesting(0);
+        manager.SetConnectedJoypadsForTesting(0, 1);
+        AssertThat(manager.GetDeviceForPlayer(1)).IsEqual(InputManager.UnassignedDevice);
     }
 
     [TestCase]
@@ -137,7 +147,11 @@ public class LocalFighterPauseTests {
         AssertThat(manager.TryAssignFirstFreeDevice(1)).IsFalse();
         AssertThat(manager.GetDeviceForPlayer(0)).IsEqual(3);
 
+        // 9.1: a newly connected pad is not handed a slot by itself; the
+        // disconnect modal's Rebind (this call) takes the first unclaimed one.
         manager.SetConnectedJoypadsForTesting(3, 5);
+        AssertThat(manager.GetDeviceForPlayer(1)).IsEqual(InputManager.UnassignedDevice);
+        AssertThat(manager.TryAssignFirstFreeDevice(1)).IsTrue();
         AssertThat(manager.GetDeviceForPlayer(1)).IsEqual(5);
         AssertThat(manager.GetDeviceForPlayer(0)).IsEqual(3);
     }

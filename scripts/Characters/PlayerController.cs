@@ -2093,6 +2093,7 @@ namespace FTT.Characters {
 			_storyFrame++;
 			_ultimateHeldBackThisTick = false;
 			CurrentInputFrame = FTT.Core.InputManager.Instance?.GetFrame(PlayerIndex) ?? default;
+			ReportUltimateReadiness();
 			// The freeze-only Special buffer (2026-10-11): the first tick after a
 			// landed swing's freeze re-presents the Special press held through it.
 			if (_hitstopFramesRemaining <= 0
