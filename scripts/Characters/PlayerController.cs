@@ -4295,6 +4295,17 @@ namespace FTT.Characters {
 			// the D02b order; only the remainder reaches HP.
 			int remaining = ResolveProtectionLayers(damage);
 			if (damage > 0 && remaining <= 0) return 0;
+			return ApplyEnvironmentalRemainder(remaining, appliesHitstop, periodicTick);
+		}
+
+		/// <summary>
+		/// CM-BLOCK (7.4): the environmental pipeline below the D04 window and the
+		/// Aegis / barrier layers — HP, Defy, Rally echo, victim meter and the
+		/// optional hitstop — shared by <see cref="ApplyEnvironmentalDamage"/> and
+		/// <see cref="ApplyEnvironmentalHit(int, Vector2, bool, out int, bool)"/>,
+		/// whose block layer sits between the two.
+		/// </summary>
+		private int ApplyEnvironmentalRemainder(int remaining, bool appliesHitstop, bool periodicTick) {
 			int damageApplied = ApplyDamage(remaining);
 			// Consume the Defy flag whether or not damage landed — the flag
 			// belongs to this hit's accounting alone.

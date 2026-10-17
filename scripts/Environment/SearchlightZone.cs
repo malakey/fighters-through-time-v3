@@ -147,9 +147,14 @@ namespace FTT.Environment {
         public int TriggerStrike(PlayerController player) {
             if (player == null) return 0;
             // V7.3: environmental chokepoint — Defy/echo/meter accounting.
-            int applied = player.ApplyEnvironmentalDamage(StrikeDamage);
-            float direction = player.GlobalPosition.X >= GlobalPosition.X ? 1f : -1f;
-            player.Velocity += new Vector2(StrikeKnockback.X * direction, StrikeKnockback.Y);
+            // CM-BLOCK (7.4): a raised front-facing block absorbs the strike
+            // for one charge and skips the knockback.
+            PlayerController.EnvironmentalHitResult result =
+                player.ApplyEnvironmentalHit(StrikeDamage, GlobalPosition, blockable: true, out int applied);
+            if (result != PlayerController.EnvironmentalHitResult.Blocked) {
+                float direction = player.GlobalPosition.X >= GlobalPosition.X ? 1f : -1f;
+                player.Velocity += new Vector2(StrikeKnockback.X * direction, StrikeKnockback.Y);
+            }
             if (_exposure.ContainsKey(player)) _exposure[player] = 0f;
             StrikeCount++;
             EmitSignal(SignalName.StrikeTriggered, player.PlayerIndex, applied);
