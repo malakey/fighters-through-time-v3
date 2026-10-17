@@ -1350,6 +1350,125 @@ public class MirrorParadoxTests {
         return (edges, walkIn);
     }
 
+    // === CM-CANCEL (combat and movement update 2026-10-16, decision 9.3): the clone's own Special cast ===
+
+    /// <summary>
+    /// One clone tick with no input, then one tick of the casting ability node,
+    /// whose own clock the engine would advance after its owner's (a test calls
+    /// <c>_PhysicsProcess</c> by hand, so it ticks the child too).
+    /// </summary>
+    private static void StepCloneAndCast(PlayerController clone, int cloneIndex, FTT.Combat.BaseSpecial ability) {
+        StepClone(clone, cloneIndex, GameplayButtons.None, GameplayButtons.None);
+        if (ability != null && GodotObject.IsInstanceValid(ability)) ability._PhysicsProcess(1.0 / 60.0);
+    }
+
+    /// <summary>
+    /// Plan §2.9.3: the Story adapter projects the clone's executing Special into
+    /// the shared table's <see cref="CpuDecisionObservation.SelfSpecialCastPhase"/>,
+    /// so the CPU stops pressing into its own cast. At rest it reads None with no
+    /// frames; a cast of the clone's E=mc² reads Startup, then Active, then
+    /// Recovery (its one-tick Cleanup included), then None again.
+    /// </summary>
+    [TestCase]
+    public void TheStoryAdapterProjectsTheClonesSpecialCastThroughItsPhasesAndNoneAtRest() {
+        MirrorParadoxController mirror = CreateMirror();
+        int cloneIndex = mirror.Clone.PlayerIndex;
+        try {
+            PlayerController clone = mirror.Clone;
+            clone.GlobalPosition = new Vector2(600f, 300f);
+            CpuDecisionObservation idle = mirror.Decisions.Observe();
+            AssertThat(clone.ExecutingSpecialCast).IsNull();
+            AssertThat(idle.SelfSpecialCastPhase).IsEqual(CpuCastPhase.None);
+            AssertThat(idle.SelfSpecialCastPhaseFrames).IsEqual(0);
+
+            // The input slot's first read can lag a frame (as for the swing above).
+            for (int attempt = 0; attempt < 3 && clone.ExecutingSpecialCast == null; attempt++) {
+                StepClone(clone, cloneIndex, GameplayButtons.Special1, GameplayButtons.None);
+            }
+            AssertObject(clone.ExecutingSpecialCast)
+                .OverrideFailureMessage($"Harness: the clone did not cast Special 1 (state {clone.CurrentState}).")
+                .IsNotNull();
+            var phases = new List<int>();
+            FTT.Combat.BaseSpecial ability = clone.ExecutingSpecialCast;
+            for (int frame = 0; frame < 180; frame++) {
+                int phase = mirror.Decisions.Observe().SelfSpecialCastPhase;
+                if (phases.Count == 0 || phases[^1] != phase) phases.Add(phase);
+                if (phase == CpuCastPhase.None) break;
+                StepCloneAndCast(clone, cloneIndex, ability);
+            }
+            AssertThat(string.Join(",", phases))
+                .OverrideFailureMessage($"The clone's cast must read Startup, Active, Recovery and then None (read {string.Join(",", phases)}).")
+                .IsEqual($"{CpuCastPhase.Startup},{CpuCastPhase.Active},{CpuCastPhase.Recovery},{CpuCastPhase.None}");
+            AssertThat(mirror.Decisions.Observe().SelfSpecialCastPhaseFrames).IsEqual(0);
+        } finally {
+            InputManager.Instance?.ClearInputSource(cloneIndex);
+            FreeMirror(mirror);
+        }
+    }
+
+    /// <summary>
+    /// Plan §2.9.3: the projection is lossless. On every tick of the clone's
+    /// cast the observed phase is the executing ability's own phase on the sim's
+    /// scale (Startup 1, Active 2, Recovery 3 — <c>FighterSpecialCastRules</c>'
+    /// values, so the shared table reads one scale in both modes; the one-tick
+    /// Cleanup reads Recovery with nothing left) and the observed frames are its
+    /// own <c>PhaseFramesRemaining</c>; a missing or freed ability reads None.
+    /// </summary>
+    [TestCase]
+    public void TheClonesCastProjectionIsLosslessOnTheSimsScale() {
+        AssertThat(CpuCastPhase.Startup).IsEqual(FighterSpecialCastRules.PhaseStartup);
+        AssertThat(CpuCastPhase.Active).IsEqual(FighterSpecialCastRules.PhaseActive);
+        AssertThat(CpuCastPhase.Recovery).IsEqual(FighterSpecialCastRules.PhaseRecovery);
+        AssertThat(MirrorParadoxDecisionAdapter.ProjectSpecialCastPhase(null, out int noFrames)).IsEqual(CpuCastPhase.None);
+        AssertThat(noFrames).IsEqual(0);
+
+        MirrorParadoxController mirror = CreateMirror();
+        int cloneIndex = mirror.Clone.PlayerIndex;
+        try {
+            PlayerController clone = mirror.Clone;
+            clone.GlobalPosition = new Vector2(600f, 300f);
+            // The input slot's first read can lag a frame (as for the swing above).
+            for (int attempt = 0; attempt < 3 && clone.ExecutingSpecialCast == null; attempt++) {
+                StepClone(clone, cloneIndex, GameplayButtons.Special1, GameplayButtons.None);
+            }
+            var failures = new List<string>();
+            int castTicks = 0;
+            bool ended = false;
+            FTT.Combat.BaseSpecial ability = clone.ExecutingSpecialCast;
+            for (int frame = 0; frame < 180; frame++) {
+                FTT.Combat.BaseSpecial cast = clone.ExecutingSpecialCast;
+                CpuDecisionObservation observation = mirror.Decisions.Observe();
+                if (cast == null) {
+                    if (observation.SelfSpecialCastPhase != CpuCastPhase.None) {
+                        failures.Add($"tick {frame}: no cast, but read phase {observation.SelfSpecialCastPhase}");
+                    }
+                    ended = true;
+                    break;
+                }
+                castTicks++;
+                (int phase, int frames) = cast.CurrentPhase switch {
+                    FTT.Combat.AbilityPhase.Startup => (CpuCastPhase.Startup, cast.PhaseFramesRemaining),
+                    FTT.Combat.AbilityPhase.Active => (CpuCastPhase.Active, cast.PhaseFramesRemaining),
+                    FTT.Combat.AbilityPhase.Recovery => (CpuCastPhase.Recovery, cast.PhaseFramesRemaining),
+                    FTT.Combat.AbilityPhase.Cleanup => (CpuCastPhase.Recovery, 0),
+                    _ => (CpuCastPhase.None, 0)
+                };
+                if (observation.SelfSpecialCastPhase != phase || observation.SelfSpecialCastPhaseFrames != frames) {
+                    failures.Add($"tick {frame}: {cast.CurrentPhase} {cast.PhaseFramesRemaining} read as "
+                        + $"{observation.SelfSpecialCastPhase} {observation.SelfSpecialCastPhaseFrames}");
+                }
+                StepCloneAndCast(clone, cloneIndex, ability);
+            }
+            AssertThat(ended && castTicks > 10)
+                .OverrideFailureMessage($"Harness: the cast lasted {castTicks} ticks (ended {ended}).")
+                .IsTrue();
+            if (failures.Count > 0) AssertThat(string.Join(" | ", failures)).IsEqual("");
+        } finally {
+            InputManager.Instance?.ClearInputSource(cloneIndex);
+            FreeMirror(mirror);
+        }
+    }
+
     private static MirrorParadoxController CreateMirror(ulong seed = 4242) {
         var mirror = new MirrorParadoxController {
             Name = "MirrorParadoxUnderTest",

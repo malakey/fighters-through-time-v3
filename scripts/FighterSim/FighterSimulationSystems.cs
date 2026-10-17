@@ -346,12 +346,17 @@ namespace FTT.FighterSim {
                     // tick included, whose presses the ability and combat systems
                     // read — a busy caster's input is discarded here. An
                     // interrupted cast (a hit put the caster in hitstun) is
-                    // cleared first, so the victim keeps its DI read. Phase B's D3
-                    // feed call goes before this line, after the two buffers.
+                    // cleared first, so the victim keeps its DI read.
                     FighterSpecialCastRules.ClearIfInterrupted(
                         ref action, in fighter, in verb,
                         FighterUltimateActivationRules.IsCaptured(in ultimateActivation),
                         FighterKnockdownRules.IsActive(in knockdown));
+                    // D3 (CM-CANCEL, plan §2.11.1): a cancel press made in the
+                    // caster's own freeze (its landed hit's) is buffered here,
+                    // before the discard below zeroes it, and never aged. After
+                    // the interrupt check, so an interrupted cast's buffer is
+                    // emptied at once rather than fed.
+                    FighterSpecialCancelRules.Feed(ref action, in fighter, in runtime, hitstopTick: true);
                     if (FighterSpecialCastRules.IsBusy(in action)) {
                         FighterUltimateActivationRules.DiscardInput(ref runtime);
                     }
@@ -528,18 +533,13 @@ namespace FTT.FighterSim {
                 // roll, jump, drop-through, swing, grab, Echo Step, movement
                 // ability, Special or Ultimate needs a fresh press from the next
                 // tick, as Story's Block cancel enters Blocking and returns.
-                // Phase B: CM-CANCEL's D3 resolves BEFORE this mask, and never on
-                // a tick the Block cancel won (Story's Block branch returns
-                // before TryFireSpecialCancel).
-                if (FighterSpecialCastRules.IsBusy(in action)) {
-                    if (FighterSpecialCastRules.IsRecovery(in action)
-                        && FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb)) {
-                        FighterSpecialCastRules.Clear(ref action);
-                        runtime.PressedButtons &= BlockButton;
-                    } else {
-                        FighterUltimateActivationRules.DiscardInput(ref runtime);
-                    }
-                }
+                // D3 (CM-CANCEL, plan §2.11.1): the region's body lives in
+                // ResolveSpecialCastRegion (FighterMovementSystem.SpecialCancel.cs):
+                // the buffer feed, then the Block cancel (now also out of
+                // Foresight's whiff recovery and sidestep), then — never on a tick
+                // the Block cancel won, and on the live input, before any mask —
+                // a landed cast's D3 cancel, else the discard.
+                ResolveSpecialCastRegion(ref fighter, ref runtime, in verb, ref action, ref counter, in knockdown);
 
                 TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning);
 
@@ -2013,8 +2013,8 @@ namespace FTT.FighterSim {
             // Special intent or a basic swing on the victim's side.
             ref FighterCounterComponent counterOne = ref frame.Get<FighterCounterComponent>(first);
             ref FighterCounterComponent counterTwo = ref frame.Get<FighterCounterComponent>(second);
-            ApplyIntent(ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, ref actionOne, ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo, in firstIntent, ref counterTwo, ref actionTwo);
-            ApplyIntent(ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, ref actionTwo, ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne, in secondIntent, ref counterOne, ref actionOne);
+            ApplyIntent(ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, ref actionOne, ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo, in firstIntent, ref counterTwo, ref actionTwo, _contracts);
+            ApplyIntent(ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, ref actionTwo, ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne, in secondIntent, ref counterOne, ref actionOne, _contracts);
             // F07 marks are written onto the VICTIM's component 318.
             ref FighterConductiveComponent conductiveOne = ref frame.Get<FighterConductiveComponent>(first);
             ref FighterConductiveComponent conductiveTwo = ref frame.Get<FighterConductiveComponent>(second);
@@ -2053,10 +2053,10 @@ namespace FTT.FighterSim {
             // projectile's answer lands on the next tick, because projectiles
             // resolve after this system).
             ResolveForesightAnswer(
-                ref fighterOne, ref runtimeOne, ref verbOne, ref counterOne, in tuningOne,
+                ref fighterOne, ref runtimeOne, ref verbOne, ref counterOne, ref actionOne, in tuningOne,
                 ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo, ref actionTwo);
             ResolveForesightAnswer(
-                ref fighterTwo, ref runtimeTwo, ref verbTwo, ref counterTwo, in tuningTwo,
+                ref fighterTwo, ref runtimeTwo, ref verbTwo, ref counterTwo, ref actionTwo, in tuningTwo,
                 ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne, ref actionOne);
         }
 
@@ -3130,6 +3130,7 @@ namespace FTT.FighterSim {
             ref FighterRuntimeComponent tubmanRuntime,
             ref FighterVerbComponent tubmanVerb,
             ref FighterCounterComponent counter,
+            ref FighterActionStateComponent tubmanAction,
             in FighterTuningComponent tubmanTuning,
             ref FighterStateComponent opponent,
             ref FighterRuntimeComponent opponentRuntime,
@@ -3144,7 +3145,9 @@ namespace FTT.FighterSim {
             ResolveIntentContract(contract, LegacySpecialHitstunFrames, out int hitstun, out bool launches);
             // The answer faces the attacker it read.
             tubman.FacingRight = opponent.Position.x >= tubman.Position.x ? 1 : 0;
-            FighterDamageRules.ApplyFighterHit(
+            // D3 (CM-CANCEL, plan §2.11.1): a landed answer arms the recovery
+            // cancel out of the sidestep (Foresight's Delegated cast, slot 2).
+            FighterHitOutcome outcome = FighterDamageRules.ResolveFighterHit(
                 ref opponentAction,
                 ref tubman,
                 ref tubmanRuntime,
@@ -3166,6 +3169,8 @@ namespace FTT.FighterSim {
                 shieldBreaker: contract.ShieldBreaker,
                 hasKnockbackVector: contract.HasKnockbackVector,
                 knockbackVertical: contract.KnockbackY);
+            FighterSpecialCancelRules.NoteLanded(
+                ref tubmanAction, FighterHitContractTable.SlotSpecialTwo, outcome, tubmanTuning.SpecialTwoDamage, in contract);
         }
 
         /// <summary>
@@ -3292,7 +3297,8 @@ namespace FTT.FighterSim {
             in FighterTuningComponent targetTuning,
             in AttackIntent intent,
             ref FighterCounterComponent targetCounter,
-            ref FighterActionStateComponent targetAction) {
+            ref FighterActionStateComponent targetAction,
+            FighterHitContractTable contracts) {
             if (intent.Kind == 0) return;
 
             // Decision 1.2 (plan §2.1.6): the Special was accepted on its press —
@@ -3311,7 +3317,7 @@ namespace FTT.FighterSim {
                 : intent.Kind == 3
                     ? FighterDamageRules.UltimateAttackClass
                     : FighterDamageRules.SpecialAttackClass;
-            FighterDamageRules.ApplyFighterHit(
+            FighterHitOutcome outcome = FighterDamageRules.ResolveFighterHit(
                 ref targetAction,
                 ref attacker,
                 ref attackerRuntime,
@@ -3340,6 +3346,16 @@ namespace FTT.FighterSim {
                 shieldBreaker: intent.ShieldBreaker,
                 hasKnockbackVector: intent.HasKnockbackVector,
                 knockbackVertical: intent.KnockbackVertical);
+            // D3 (CM-CANCEL, plan §2.11.1): a melee Special intent that landed
+            // (D1a) arms its cast's recovery cancel. Kind 2 is Special 1, 4 is
+            // Special 2.
+            int slot = intent.Kind == 2
+                ? FighterHitContractTable.SlotSpecialOne
+                : intent.Kind == 4 ? FighterHitContractTable.SlotSpecialTwo : 0;
+            if (slot != 0) {
+                FighterSpecialCancelRules.NoteLanded(
+                    ref attackerAction, slot, outcome, intent.Damage, contracts.For(attacker.PlayerID, slot));
+            }
         }
 
         private readonly struct AttackIntent {

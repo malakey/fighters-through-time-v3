@@ -119,15 +119,16 @@ namespace FTT.Combat {
         // its whole recovery (only the existing grounded Block cancel), Echo Step
         // never comes out of a Special (A06), and Special -> Special stays
         // lockout-gated (neither a Special nor the Ultimate is polled in a
-        // Special's recovery). Story only until DEFER-SIM-SPECIAL-PHASES closes:
-        // the Fighter sim resolves Specials on the press tick, and must adopt the
-        // same table when it gains Special phases.
+        // Special's recovery). CM-CANCEL (combat and movement update 2026-10-16,
+        // decision 11.1): D3 is one rule in both modes now, so the table lives in
+        // BasicComboRules (its D3 section) and these Story names forward to it;
+        // the Fighter sim reads the same table (FighterSpecialCancelRules).
 
         /// <summary>D3 (user direction): the recovery frame a landed Special first allows a roll or a jump on.</summary>
-        public const int SpecialRecoveryEvadeCancelFrame = 0;
+        public const int SpecialRecoveryEvadeCancelFrame = BasicComboRules.SpecialRecoveryEvadeCancelFrame;
 
         /// <summary>D3 (user direction): the recovery frame a landed Special first allows a basic attack or the movement ability on.</summary>
-        public const int SpecialRecoveryActionCancelFrame = 6;
+        public const int SpecialRecoveryActionCancelFrame = BasicComboRules.SpecialRecoveryActionCancelFrame;
 
         /// <summary>
         /// D3 (provisional): how many of the controller's unfrozen ticks a cancel
@@ -135,18 +136,18 @@ namespace FTT.Combat {
         /// hitstop ticks feed it but never age it). A press at recovery frame 0 is
         /// exactly this old at <see cref="SpecialRecoveryActionCancelFrame"/>.
         /// </summary>
-        public const int SpecialCancelBufferFrames = 6;
+        public const int SpecialCancelBufferFrames = BasicComboRules.SpecialCancelBufferFrames;
 
         /// <summary>D3: true when a Special's recovery may cancel into a roll (or air dodge) or a jump.</summary>
         public static bool SpecialRecoveryAllowsEvade(bool landed, int recoveryFrame) =>
-            landed && recoveryFrame >= SpecialRecoveryEvadeCancelFrame;
+            BasicComboRules.SpecialRecoveryAllowsEvade(landed, recoveryFrame);
 
         /// <summary>D3: true when a Special's recovery may cancel into a basic attack or the movement ability.</summary>
         public static bool SpecialRecoveryAllowsAction(bool landed, int recoveryFrame) =>
-            landed && recoveryFrame >= SpecialRecoveryActionCancelFrame;
+            BasicComboRules.SpecialRecoveryAllowsAction(landed, recoveryFrame);
 
         /// <summary>D3: true while a buffered cancel press of this age may still fire.</summary>
         public static bool SpecialCancelBufferHolds(int ageFrames) =>
-            ageFrames >= 0 && ageFrames <= SpecialCancelBufferFrames;
+            BasicComboRules.SpecialCancelBufferHolds(ageFrames);
     }
 }

@@ -1624,7 +1624,9 @@ namespace FTT.FighterSim {
                     int thrustDamage = contract.Damage > 0
                         ? contract.Damage
                         : attackerTuning.SpecialTwoDamage / (contract.HitCount > 0 ? contract.HitCount : 1);
-                    FighterDamageRules.ApplyFighterHit(
+                    // D3 (CM-CANCEL, plan §2.11.1): a landed thrust arms the
+                    // recovery cancel of Joan's Divine Piercing cast (slot 2).
+                    FighterHitOutcome thrustOutcome = FighterDamageRules.ResolveFighterHit(
                         ref frame.Get<FighterActionStateComponent>(targetEntity),
                         ref attacker, ref runtime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                         FighterDamageRules.SpecialAttackClass,
@@ -1639,6 +1641,9 @@ namespace FTT.FighterSim {
                         shieldBreaker: contract.ShieldBreaker,
                         hasKnockbackVector: finalThrust && contract.HasKnockbackVector,
                         knockbackVertical: finalThrust ? contract.KnockbackY : FP64.Zero);
+                    FighterSpecialCancelRules.NoteLanded(
+                        ref frame.Get<FighterActionStateComponent>(entity),
+                        FighterHitContractTable.SlotSpecialTwo, thrustOutcome, thrustDamage, in contract);
                 } else {
                     FighterDamageRules.ApplyFighterHit(
                         ref frame.Get<FighterActionStateComponent>(targetEntity),
@@ -2306,11 +2311,12 @@ namespace FTT.FighterSim {
                 // hits — it holds the target in hitstun with no impulse, so the
                 // burst's pulses land; the last pulse carries the authored knockback.
                 if (requiem) projectileVector = false;
-                bool projectileLanded = FighterDamageRules.ApplyFighterHit(
+                int contactDamage = bursting ? projectileContract.ContactDamage : projectile.Damage;
+                FighterHitOutcome projectileOutcome = FighterDamageRules.ResolveFighterHit(
                     ref frame.Get<FighterActionStateComponent>(targetEntity),
                     ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     projectile.AttackClass,
-                    bursting ? projectileContract.ContactDamage : projectile.Damage,
+                    contactDamage,
                     bursting || requiem ? FP64.Zero : projectileVector ? projectileContract.KnockbackX : projectile.Knockback.x,
                     projectileHitstun,
                     bursting ? (int)StatusType.None : projectile.StatusType,
@@ -2327,6 +2333,21 @@ namespace FTT.FighterSim {
                         && projectileContract.ShieldBreaker,
                     hasKnockbackVector: projectileVector,
                     knockbackVertical: projectileContract.KnockbackY);
+                bool projectileLanded = projectileOutcome == FighterHitOutcome.Landed;
+                // D3 (CM-CANCEL, plan §2.11.1): a Special shot's or ground wave's
+                // landed contact arms its owner's recovery cancel when the shot's
+                // slot is the slot being cast. A construct bolt and an
+                // Ultimate-origin shot never arm it.
+                if (!constructBolt && projectile.UltimateOrigin == 0) {
+                    int shotSlot = projectile.ProjectileTypeID % 10;
+                    if (shotSlot == FighterHitContractTable.SlotSpecialOne
+                        || shotSlot == FighterHitContractTable.SlotSpecialTwo) {
+                        FighterSpecialCancelRules.NoteLanded(
+                            ref frame.Get<FighterActionStateComponent>(ownerEntity),
+                            shotSlot, projectileOutcome, contactDamage,
+                            _contracts.For(projectile.OwnerPlayerID, shotSlot));
+                    }
+                }
                 if (bursting) {
                     FPVector2 burstPoint = projectile.Position;
                     FighterProjectileBurstRules.Burst(ref frame, in projectile, in projectileContract, in burstPoint);
@@ -3434,7 +3455,7 @@ namespace FTT.FighterSim {
                 // V7.6 D03h: an Ultimate-spawned zone earns its caster zero
                 // damage-dealt meter; ZoneTypeID's slot digit is the origin.
                 bool pulseVector = !ultimateZone && pulseContract.HasKnockbackVector;
-                bool pulseLanded = FighterDamageRules.ApplyFighterHit(
+                FighterHitOutcome pulseOutcome = FighterDamageRules.ResolveFighterHit(
                     ref frame.Get<FighterActionStateComponent>(targetEntity),
                     ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     pulseAttackClass, pulseDamage,
@@ -3451,6 +3472,21 @@ namespace FTT.FighterSim {
                     hasKnockbackVector: pulseVector,
                     knockbackVertical: pulseContract.KnockbackY,
                     launches: !requiemBurst || (requiemFinalPulse && pulseContract.Launches));
+                bool pulseLanded = pulseOutcome == FighterHitOutcome.Landed;
+                // D3 (CM-CANCEL, plan §2.11.1): a Special zone pulse whose slot's
+                // contract is a DirectHit delivery — Golden Ratio, the Lorentz
+                // Pulse and the Requiem burst, which Story authors as direct
+                // hits — arms its owner's recovery cancel while that slot is
+                // being cast. The Rift and the Vortex are Tick deliveries and
+                // never arm it; an Ultimate zone never does.
+                int pulseSlot = zone.ZoneTypeID % 10;
+                if (!ultimateZone
+                    && (pulseSlot == FighterHitContractTable.SlotSpecialOne
+                        || pulseSlot == FighterHitContractTable.SlotSpecialTwo)) {
+                    FighterSpecialCancelRules.NoteLanded(
+                        ref frame.Get<FighterActionStateComponent>(attackerEntity),
+                        pulseSlot, pulseOutcome, pulseDamage, _contracts.For(zone.OwnerPlayerID, pulseSlot));
+                }
 
                 // M02: the first pulse of a chord execution that lands shaves
                 // Fortissimo's remaining cooldown, once per execution.
@@ -3463,6 +3499,8 @@ namespace FTT.FighterSim {
                     TryResolveLorentzChain(
                         ref frame, in zone, targetEntity,
                         ref attacker, ref attackerRuntime, ref attackerVerb,
+                        ref frame.Get<FighterActionStateComponent>(attackerEntity),
+                        _contracts.For(zone.OwnerPlayerID, FighterHitContractTable.SlotSpecialTwo),
                         ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning);
                 }
             }
@@ -3490,6 +3528,8 @@ namespace FTT.FighterSim {
             ref FighterStateComponent attacker,
             ref FighterRuntimeComponent attackerRuntime,
             ref FighterVerbComponent attackerVerb,
+            ref FighterActionStateComponent attackerAction,
+            in FighterAbilityHitData lorentzContract,
             ref FighterStateComponent target,
             ref FighterRuntimeComponent targetRuntime,
             ref FighterVerbComponent targetVerb,
@@ -3513,6 +3553,7 @@ namespace FTT.FighterSim {
                 ref frame, zone.OwnerPlayerID,
                 ref frame.Get<FighterActionStateComponent>(targetEntity),
                 ref attacker, ref attackerRuntime, ref attackerVerb,
+                ref attackerAction, in lorentzContract,
                 ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning);
         }
 

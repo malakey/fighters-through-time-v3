@@ -765,6 +765,195 @@ public class FighterCpuBehaviorTests {
         AssertThat(diverged).IsTrue();
     }
 
+    // === CM-CANCEL (combat and movement update 2026-10-16, decision 9.3): the CPU's own Special cast ===
+
+    /// <summary>
+    /// Plan §2.9.3: since decision 1.2 a Special cast discards its caster's
+    /// presses until its recovery ends, so the CPU reads its own cast
+    /// (<see cref="CpuDecisionObservation.SelfSpecialCastPhase"/>) before it
+    /// schedules a grab or Echo Step. With both admissions forced to 100 %, a
+    /// grab opportunity and a whiffed swing's recovery produce no chord while a
+    /// cast runs (startup, active or recovery), and the grab opportunity is never
+    /// opened, so no admission is rolled or spent on it; the moment the cast ends,
+    /// the same continuing opportunity is the CPU's first and it acts on it.
+    /// </summary>
+    [TestCase]
+    public void NoGrabOrEchoStepIsScheduledDuringTheCpusOwnCastAndNoAdmissionIsSpent() {
+        CpuBandTuning tuning = CpuBandTuning.Normal with {
+            GrabAdmissionPercent = 100,
+            EchoStepAdmissionPercent = 100,
+            UltimatePercent = 0,
+            SpecialOneClosePercent = 0,
+            SpecialOneRangedPercent = 0,
+            SpecialTwoPercent = 0
+        };
+        var failures = new List<string>();
+        foreach ((string name, int phase, int frames) in CastPhases()) {
+            // The grab: a blocking opponent half a unit in front.
+            var grabber = new FighterCpuController(CpuDifficulty.Normal, 4401, null, null, tuning);
+            CpuDecisionObservation opportunity = CastGrabOpportunity();
+            CpuDecisionObservation casting = opportunity;
+            casting.SelfSpecialCastPhase = phase;
+            casting.SelfSpecialCastPhaseFrames = frames;
+            uint tick = 0;
+            PlayerInputFrame previous = default;
+            int castChords = CountCastChords(grabber, casting, ref tick, ref previous, 120, grab: true);
+            if (castChords != 0) failures.Add($"{name}: {castChords} grab chords during the cast");
+            if (grabber.GrabOpportunityID != 0) {
+                failures.Add($"{name}: the cast opened grab opportunity {grabber.GrabOpportunityID}");
+            }
+            int freeChords = CountCastChords(grabber, opportunity, ref tick, ref previous, 60, grab: true);
+            if (freeChords == 0) failures.Add($"{name}: no grab once the cast ended");
+            if (grabber.GrabOpportunityID != 1) {
+                failures.Add($"{name}: the post-cast opportunity is #{grabber.GrabOpportunityID}, not the first");
+            }
+
+            // Echo Step: the recovery of the CPU's own whiffed swing.
+            var stepper = new FighterCpuController(CpuDifficulty.Normal, 4402, null, null, tuning);
+            CpuDecisionObservation whiff = CastWhiffRecovery();
+            CpuDecisionObservation whiffCasting = whiff;
+            whiffCasting.SelfSpecialCastPhase = phase;
+            whiffCasting.SelfSpecialCastPhaseFrames = frames;
+            tick = 0;
+            previous = default;
+            int castSteps = CountCastChords(stepper, whiffCasting, ref tick, ref previous, 120, grab: false);
+            if (castSteps != 0) failures.Add($"{name}: {castSteps} Echo Step chords during the cast");
+            if (CountCastChords(stepper, whiff, ref tick, ref previous, 60, grab: false) == 0) {
+                failures.Add($"{name}: no Echo Step once the cast ended");
+            }
+        }
+        if (failures.Count > 0) AssertThat(string.Join(" | ", failures)).IsEqual("");
+    }
+
+    /// <summary>
+    /// Plan §2.9.3: a full-meter Hard CPU with a viable Ultimate (the opponent
+    /// one unit away, grounded, in hitstun) waits out its own Special cast — here
+    /// Splitting Strike's 14 / 6 / 22, accepted the tick before tick 0, with the
+    /// 30-frame ability lockout it armed — and its Ultimate press arrives only
+    /// once the cast has ended (tick 41 is the first tick the sim reads a press
+    /// again: the cast's last recovery frame ends in that tick's movement pass).
+    /// The same stream without the cast fields presses the Ultimate as soon as
+    /// the lockout allows, inside the recovery, where the sim would discard it.
+    /// </summary>
+    [TestCase]
+    public void AFullMeterHardUltimateWaitsOutItsOwnCastAndArrivesOnlyAfterIt() {
+        CpuBandTuning tuning = CpuBandTuning.Hard with {
+            UltimatePercent = 100,
+            SpecialOneClosePercent = 0,
+            SpecialOneRangedPercent = 0,
+            SpecialTwoPercent = 0,
+            GrabAdmissionPercent = 0,
+            EchoStepAdmissionPercent = 0,
+            EvasiveRollPercent = 0,
+            BlockPercent = 0
+        };
+        const int firstLiveTick = 14 + 6 + 22 - 1;
+        int aware = FirstUltimateEdge(new FighterCpuController(CpuDifficulty.Hard, 4403, null, null, tuning), castAware: true);
+        int blind = FirstUltimateEdge(new FighterCpuController(CpuDifficulty.Hard, 4403, null, null, tuning), castAware: false);
+        AssertThat(blind >= 0 && blind < firstLiveTick)
+            .OverrideFailureMessage($"Harness: without the cast fields the press must land inside the recovery (tick {blind}).")
+            .IsTrue();
+        AssertThat(aware >= firstLiveTick)
+            .OverrideFailureMessage($"The Ultimate press arrived on tick {aware}, inside the CPU's own cast (free from {firstLiveTick}).")
+            .IsTrue();
+        AssertThat(aware <= firstLiveTick + 20)
+            .OverrideFailureMessage($"The Ultimate never followed the cast promptly (tick {aware}).")
+            .IsTrue();
+    }
+
+    /// <summary>The three busy cast phases, each with a representative number of frames left.</summary>
+    private static IEnumerable<(string Name, int Phase, int Frames)> CastPhases() {
+        yield return ("startup", CpuCastPhase.Startup, 10);
+        yield return ("active", CpuCastPhase.Active, 4);
+        yield return ("recovery", CpuCastPhase.Recovery, 12);
+    }
+
+    /// <summary>A blocking, grounded opponent half a unit in front of a grounded CPU with the verb layer present.</summary>
+    private static CpuDecisionObservation CastGrabOpportunity() {
+        CpuDecisionObservation observation = Neutral(selfX: 0, targetX: 0);
+        observation.TargetPositionXRaw = FP64.FromDouble(0.5).RawValue;
+        observation.HasVerbState = 1;
+        observation.SelfFacingRight = 1;
+        observation.HasTargetVerbState = 1;
+        observation.TargetIsGrounded = 1;
+        observation.TargetBlockStance = 1;
+        observation.HasStageBounds = 1;
+        observation.LeftWallRaw = FP64.FromInt(-9).RawValue;
+        observation.RightWallRaw = FP64.FromInt(9).RawValue;
+        observation.CeilingRaw = FP64.FromInt(9).RawValue;
+        observation.BottomBlastZoneRaw = FP64.FromInt(-5).RawValue;
+        return observation;
+    }
+
+    /// <summary>The CPU in the recovery of its own whiffed swing, with the meter, cooldown and destination Echo Step needs.</summary>
+    private static CpuDecisionObservation CastWhiffRecovery() {
+        CpuDecisionObservation observation = CastGrabOpportunity();
+        observation.TargetBlockStance = 0;
+        observation.TargetPositionXRaw = FP64.FromInt(3).RawValue;
+        observation.SelfAttackPhase = FighterBasicAttackRules.PhaseRecovery;
+        observation.InfluenceRaw = FP64.FromInt(60).RawValue;
+        observation.HasEchoStepDestination = 1;
+        observation.EchoStepDestinationXRaw = FP64.FromInt(-2).RawValue;
+        observation.EchoStepDestinationYRaw = FP64.Zero.RawValue;
+        return observation;
+    }
+
+    /// <summary>Grab chords (Block held + BasicAttack pressed) or Echo Step chords (Block + Roll held) over <paramref name="ticks"/> ticks.</summary>
+    private static int CountCastChords(
+        FighterCpuController cpu, CpuDecisionObservation observation,
+        ref uint tick, ref PlayerInputFrame previous, int ticks, bool grab) {
+        int chords = 0;
+        for (uint end = tick + (uint)ticks; tick < end; tick++) {
+            PlayerInputFrame frame = cpu.Sample(tick, in observation, in previous);
+            previous = frame;
+            bool chord = grab
+                ? frame.IsPressed(GameplayButtons.BasicAttack) && frame.IsHeld(GameplayButtons.Block)
+                : frame.IsHeld(GameplayButtons.Block) && frame.IsHeld(GameplayButtons.Roll);
+            if (chord) chords++;
+        }
+        return chords;
+    }
+
+    /// <summary>
+    /// The tick of the first Ultimate edge while the CPU's own Splitting Strike
+    /// runs out (tick 0 is the first tick after its acceptance), the opponent
+    /// held in hitstun one unit away throughout; -1 when none comes in 120 ticks.
+    /// </summary>
+    private static int FirstUltimateEdge(FighterCpuController cpu, bool castAware) {
+        const int startup = 14, active = 6, recovery = 22;
+        CpuDecisionObservation baseline = Neutral(selfX: 0, targetX: 1);
+        baseline.InfluenceRaw = FP64.FromInt(100).RawValue;
+        baseline.TargetHitstunFrames = 30;
+        baseline.HasVerbState = 1;
+        baseline.SelfFacingRight = 1;
+        baseline.HasTargetVerbState = 1;
+        baseline.TargetIsGrounded = 1;
+        baseline.SpecialTwoCooldownFrames = 600;
+        PlayerInputFrame previous = default;
+        for (uint tick = 0; tick < 120; tick++) {
+            int t = (int)tick;
+            CpuDecisionObservation observation = baseline;
+            observation.AbilityLockoutFrames = System.Math.Max(0, 30 - t);
+            observation.SpecialLockoutFrames = observation.AbilityLockoutFrames;
+            if (castAware) {
+                if (t < startup) {
+                    observation.SelfSpecialCastPhase = CpuCastPhase.Startup;
+                    observation.SelfSpecialCastPhaseFrames = startup - t;
+                } else if (t < startup + active) {
+                    observation.SelfSpecialCastPhase = CpuCastPhase.Active;
+                    observation.SelfSpecialCastPhaseFrames = startup + active - t;
+                } else if (t < startup + active + recovery) {
+                    observation.SelfSpecialCastPhase = CpuCastPhase.Recovery;
+                    observation.SelfSpecialCastPhaseFrames = startup + active + recovery - t;
+                }
+            }
+            PlayerInputFrame frame = cpu.Sample(tick, in observation, in previous);
+            previous = frame;
+            if (frame.IsPressed(GameplayButtons.Ultimate)) return t;
+        }
+        return -1;
+    }
+
     // === Helpers ===
 
     private static IEnumerable<CpuDifficulty> Bands() {

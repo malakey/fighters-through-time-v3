@@ -365,6 +365,16 @@ namespace FTT.FighterSim {
                     outputMoveY = delivery.MoveY;
                     _sustainedHeld = delivery.Held & ~EdgeButtons;
                     GameplayButtons edges = delivery.Held & EdgeButtons;
+                    // CM-CANCEL (decision 9.3, plan §2.9.3): a Special or
+                    // Ultimate press is revalidated on self-state too. One
+                    // decided before the CPU's own cast was visible (the press
+                    // that started it was still in the reaction delay) would
+                    // arrive inside that cast, which discards it; it is dropped
+                    // here instead, so it never overwrites a pending edge. No RNG
+                    // draw, no snapshot state.
+                    if (CastHoldsThisTick(in observation)) {
+                        edges &= ~(GameplayButtons.Special1 | GameplayButtons.Special2 | GameplayButtons.Ultimate);
+                    }
                     // A recovery jump planned while jumps remained is dropped
                     // once none do (the same revalidation, on self-state).
                     // Decisions every three ticks each carry the full reaction
@@ -729,6 +739,13 @@ namespace FTT.FighterSim {
                 observation.SelfEchoStepCooldownFrames = selfVerb.EchoStepCooldownFrames;
                 observation.SelfEchoStepWindupFrames = selfVerb.EchoStepWindupFrames;
                 observation.SelfDefyAvailable = selfVerb.DefyHistoryUsed == 0 ? 1 : 0;
+                // CM-CANCEL (decision 9.3): the CPU's own Special cast and the
+                // other self action locks the sim's gates read.
+                observation.SelfSpecialCastPhase = selfVerb.SpecialCastPhase;
+                observation.SelfSpecialCastPhaseFrames = selfVerb.SpecialCastPhaseFrames;
+                observation.SelfTechLockoutFrames = selfVerb.TechLockoutFrames;
+                observation.SelfKnockedDown = selfVerb.KnockedDown;
+                observation.SelfUltimateCasterBusy = selfVerb.UltimateCasterBusy;
                 if (world.TryGetEchoStepDestination(self.PlayerID, out FPVector2 destination)) {
                     observation.HasEchoStepDestination = 1;
                     observation.EchoStepDestinationXRaw = destination.x.RawValue;
@@ -1107,7 +1124,8 @@ namespace FTT.FighterSim {
         /// RNG stream is unchanged.
         /// </summary>
         private bool AbilityLockoutClearAtDelivery(in CpuDecisionObservation observation) =>
-            observation.AbilityLockoutFrames <= GetReactionDelayBounds(out _);
+            observation.AbilityLockoutFrames <= GetReactionDelayBounds(out _)
+            && CastIdleAtDelivery(in observation);
 
         /// <summary>
         /// D1 (2026-10-11): the Specials' gate as it will stand at delivery — the
@@ -1118,7 +1136,37 @@ namespace FTT.FighterSim {
         private bool SpecialLockoutClearAtDelivery(in CpuDecisionObservation observation) =>
             FTT.Combat.BasicComboRules.SpecialGateFrames(
                 observation.AbilityLockoutFrames, observation.SpecialLockoutFrames, observation.SwingLanded != 0)
-                <= GetReactionDelayBounds(out _);
+                <= GetReactionDelayBounds(out _)
+            && CastIdleAtDelivery(in observation);
+
+        /// <summary>
+        /// CM-CANCEL (combat and movement update 2026-10-16, decision 9.3, plan
+        /// §2.9.3): the CPU's own Special cast as it will stand at delivery. Since
+        /// decision 1.2 a cast discards its caster's presses until its recovery
+        /// ends, so a Special or Ultimate press delivered inside it is thrown away,
+        /// and a viable Ultimate the CPU waited for would expire mid-recovery. The
+        /// cast is idle at delivery when there is none, or when it is in recovery
+        /// with no more frames left than the band's minimum reaction delay (a
+        /// press arrives at least that late). Like the lockout predicates it uses
+        /// the band minimum rather than the drawn delay, so it adds no RNG draw; a
+        /// cast stretched by hitstop can still refuse the press, which costs
+        /// nothing. Self-state only, so nothing here waits on the reaction buffer.
+        /// </summary>
+        private bool CastIdleAtDelivery(in CpuDecisionObservation observation) =>
+            observation.SelfSpecialCastPhase == CpuCastPhase.None
+            || (observation.SelfSpecialCastPhase == CpuCastPhase.Recovery
+                && observation.SelfSpecialCastPhaseFrames <= GetReactionDelayBounds(out _));
+
+        /// <summary>
+        /// CM-CANCEL: the CPU's own Special cast will still hold the tick this
+        /// observation is read on — any phase but the last recovery frame, which
+        /// the sim's movement pass ends before it reads the tick's presses. Read
+        /// at delivery, on current self-state.
+        /// </summary>
+        private static bool CastHoldsThisTick(in CpuDecisionObservation observation) =>
+            observation.SelfSpecialCastPhase != CpuCastPhase.None
+            && !(observation.SelfSpecialCastPhase == CpuCastPhase.Recovery
+                && observation.SelfSpecialCastPhaseFrames <= 1);
 
         private bool MobilitySpecialReady(in CpuDecisionObservation observation) =>
             SpecialLockoutClearAtDelivery(in observation)
@@ -1225,6 +1273,11 @@ namespace FTT.FighterSim {
         /// Self-side grab legality, mirroring <c>FighterGrabRules.CanStartGrab</c>
         /// rather than inventing a second rule: grounded, alive, free of
         /// hitstun/daze/shieldstun/roll/swing/hang, and not already in a grab.
+        /// CM-CANCEL (combat and movement update 2026-10-16, decision 9.3): also
+        /// the sim gate's newer terms — no Special cast of its own (1.2), no
+        /// landing-tech lock (1.1(3)), and (fix round A) no M05 knockdown or
+        /// get-up and no Ultimate activation of its own — so the CPU never spends
+        /// a grab opportunity's admission roll on a press the sim refuses.
         /// </summary>
         private static bool CanStartGrab(in CpuDecisionObservation observation) =>
             observation.HasVerbState != 0
@@ -1238,7 +1291,11 @@ namespace FTT.FighterSim {
             && observation.SelfBeingHeld == 0
             && observation.SelfRolling == 0
             && observation.IsLedgeHanging == 0
-            && observation.SelfAttackPhase == FighterBasicAttackRules.PhaseNone;
+            && observation.SelfAttackPhase == FighterBasicAttackRules.PhaseNone
+            && observation.SelfSpecialCastPhase == CpuCastPhase.None
+            && observation.SelfTechLockoutFrames <= 0
+            && observation.SelfKnockedDown == 0
+            && observation.SelfUltimateCasterBusy == 0;
 
         /// <summary>
         /// Self-side Echo Step legality, mirroring the simulation's own
@@ -1247,11 +1304,14 @@ namespace FTT.FighterSim {
         /// none of the canonical forbidden states (hitstun, daze, ledge hang, any
         /// grab state). The destination must also be resolvable — the temporal
         /// contract forbids a nearby substitute, so "no destination" means "do not
-        /// select the action" rather than "teleport somewhere else".
+        /// select the action" rather than "teleport somewhere else". CM-CANCEL
+        /// (decision 9.3): never during its own Special cast, which discards the
+        /// chord (A06: no Echo Step out of a Special).
         /// </summary>
         private static bool CanStartEchoStep(in CpuDecisionObservation observation) =>
             observation.HasVerbState != 0
             && observation.SuppressGameplayInput == 0
+            && observation.SelfSpecialCastPhase == CpuCastPhase.None
             && observation.Stocks > 0
             && observation.HitstunFrames <= 0
             && observation.DazeFrames <= 0
