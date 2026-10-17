@@ -858,8 +858,8 @@ public class FeelPassStoryTests {
 
     [TestCase]
     public void ADoubleTapOfDownDropsThroughAOneWayPlatformFromStandingAndRunning() {
-        // design-godot.md: Story drop-through is a double-tap of Down (the sim's
-        // Down+Jump is untouched). Idle and Running turned the first Down into a
+        // design-godot.md: Story drop-through is a double-tap of Down (since
+        // CM-MOVE, 2026-10-16, Down+Jump too, in both modes). Idle and Running turned the first Down into a
         // crouch BEFORE the tap was recorded, so a double-tap from standing or
         // running never dropped; a single Down must still only crouch.
         foreach (bool running in new[] { false, true }) {
@@ -922,6 +922,92 @@ public class FeelPassStoryTests {
                 player.Free();
                 platform.Free();
             }
+        }
+    }
+
+    /// <summary>
+    /// CM-MOVE (decision 6.3, 2026-10-16; <c>USER-DROP-THROUGH-BOTH-INPUTS</c>):
+    /// Down+Jump drops through a one-way platform in Story too, from Idle,
+    /// Running, Crouching and Blocking, as the double tap of Down does; on solid
+    /// floor the same press is a jump.
+    /// </summary>
+    [TestCase]
+    public void DownJumpDropsThroughAOneWayPlatformFromEveryGroundedStateAndJumpsOnSolidFloor() {
+        foreach (CharacterState from in new[] {
+            CharacterState.Idle, CharacterState.Running, CharacterState.Crouching, CharacterState.Blocking
+        }) {
+            var scene = ResourceLoader.Load<PackedScene>("res://scenes/templates/OneWayPlatformTemplate.tscn");
+            var platform = scene.Instantiate<FTT.Environment.OneWayPlatform>();
+            Vector2 platformAt = Origin + new Vector2(4000f + 1500f * (int)from, -3000f);
+            platform.Position = platformAt;
+            ((SceneTree)Engine.GetMainLoop()).Root.AddChild(platform);
+            float platformTop = platformAt.Y - 10f;
+            PlayerController player = CharacterFactory.CreateCharacter("einstein", 0, applyStoryProgression: false);
+            ((SceneTree)Engine.GetMainLoop()).Root.AddChild(player);
+            player.GlobalPosition = new Vector2(platformAt.X - 90f, platformTop - 4f);
+            try {
+                for (int frame = 0; frame < 120 && !player.IsOnFloor(); frame++) {
+                    player.Velocity = new Vector2(0f, 400f);
+                    SendEdge(player, GameplayButtons.None, GameplayButtons.None);
+                }
+                for (int frame = 0; frame < 20 && player.CurrentState != CharacterState.Idle; frame++) {
+                    SendEdge(player, GameplayButtons.None, GameplayButtons.None);
+                }
+                AssertThat(player.CurrentState).IsEqual(CharacterState.Idle);
+
+                // Into the state the press is made from.
+                float moveX = 0f;
+                GameplayButtons hold = GameplayButtons.None;
+                if (from == CharacterState.Running) {
+                    moveX = 1f;
+                    for (int frame = 0; frame < 3; frame++) SendEdge(player, GameplayButtons.None, GameplayButtons.None, moveX);
+                } else if (from == CharacterState.Crouching) {
+                    hold = GameplayButtons.Down;
+                    SendEdge(player, hold, GameplayButtons.None);
+                    // Past the double-tap window, so only Down+Jump can drop.
+                    for (int frame = 0; frame < 24; frame++) SendEdge(player, hold, hold);
+                } else if (from == CharacterState.Blocking) {
+                    hold = GameplayButtons.Block;
+                    SendEdge(player, hold, GameplayButtons.None);
+                    for (int frame = 0; frame < 3; frame++) SendEdge(player, hold, hold);
+                }
+                AssertThat(player.CurrentState)
+                    .OverrideFailureMessage($"the harness never reached {from}.")
+                    .IsEqual(from);
+
+                GameplayButtons press = hold | GameplayButtons.Down | GameplayButtons.Jump;
+                SendEdge(player, press, hold, moveX);
+                AssertThat(player.CurrentState)
+                    .OverrideFailureMessage($"{from}: Down+Jump must leave the platform.")
+                    .IsEqual(CharacterState.Airborne);
+                AssertThat(player.Velocity.Y >= 0f)
+                    .OverrideFailureMessage($"{from}: Down+Jump on a one-way platform must drop, not jump (vy {player.Velocity.Y}).")
+                    .IsTrue();
+                for (int frame = 0; frame < 20; frame++) SendEdge(player, GameplayButtons.None, GameplayButtons.None);
+                AssertThat(player.GlobalPosition.Y > platformTop + 40f)
+                    .OverrideFailureMessage($"{from}: the body must fall below the platform, feet at {player.GlobalPosition.Y} vs top {platformTop}.")
+                    .IsTrue();
+            } finally {
+                InputManager.Instance?.ClearInputSource(player.PlayerIndex);
+                player.Free();
+                platform.Free();
+            }
+        }
+
+        // Solid floor: the same press is a jump.
+        StaticBody2D floor = CreateFlatFloor();
+        PlayerController grounded = CreateGroundedPlayer();
+        try {
+            AssertThat(grounded.CurrentState).IsEqual(CharacterState.Idle);
+            SendEdge(grounded, GameplayButtons.Down | GameplayButtons.Jump, GameplayButtons.None);
+            AssertThat(grounded.CurrentState).IsEqual(CharacterState.Airborne);
+            AssertThat(grounded.Velocity.Y < 0f)
+                .OverrideFailureMessage("Down+Jump on solid floor must jump.")
+                .IsTrue();
+        } finally {
+            InputManager.Instance?.ClearInputSource(grounded.PlayerIndex);
+            grounded.Free();
+            floor.Free();
         }
     }
 

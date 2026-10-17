@@ -2696,8 +2696,9 @@ namespace FTT.Characters {
 
 			// M04 (Package 12 W3): Crouching → Rolling / Airborne / Blocking /
 			// UsingSpecial / UsingUltimate / UsingMovementAbility with the same
-			// input and eligibility as from Idle (Idle's check order). Drop-
-			// through stays the double-tap Down, so Jump from a crouch is free.
+			// input and eligibility as from Idle (Idle's check order). Since
+			// CM-MOVE (6.3) a Jump from a crouch on a one-way platform is
+			// Down+Jump and drops through it; on solid ground it jumps.
 			// TransitionTo restores the crouched hurtbox on the way out.
 			if (CheckRollInput()) return;
 			if (CheckJumpInput()) return;
@@ -5861,8 +5862,9 @@ namespace FTT.Characters {
 		}
 
 		/// <summary>
-		/// Story drop-through is a double-tap of Down (design-godot.md; the sim's
-		/// Down+Jump is separate and untouched). A press opens the
+		/// Story drop-through is a double-tap of Down (design-godot.md) or, since
+		/// CM-MOVE (decision 6.3, 2026-10-16), Down+Jump (<see cref="CheckJumpInput"/>)
+		/// — both inputs in both modes. A press opens the
 		/// <see cref="FTT.Combat.StoryCombatRules.DownDoubleTapFrames"/> window and
 		/// a second press inside it drops through the one-way platform underfoot.
 		/// Returns true when this tick's press dropped the fighter.
