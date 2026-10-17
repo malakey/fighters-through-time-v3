@@ -2205,6 +2205,11 @@ namespace FTT.Characters {
 			// cosmetic flag.
 			PublishDefySealIfChanged();
 
+			// CM-BLOCK (3.4): the perfect-block window and its lowered age. Hitstop
+			// pauses them (the early return above); since CM-FIXB-STORY (finding
+			// B6) the hero's own Time Freeze does not, because the stance is the
+			// hero's and the sources that reach it in a freeze run in real time.
+			TickPerfectBlock();
 			// V7.6: the freeze suspends ability cooldowns (block-charge regen and
 			// status durations suspend in BlockSystem/StatusController for the
 			// same reason). Movement and the effect clock keep running.
@@ -2214,7 +2219,6 @@ namespace FTT.Characters {
 				// Story cooldown perk's to shorten.
 				_abilityLockoutFrames = FTT.Combat.BasicComboRules.TickAbilityLockout(_abilityLockoutFrames);
 				_specialLockoutFrames = FTT.Combat.BasicComboRules.TickAbilityLockout(_specialLockoutFrames);
-				TickPerfectBlock(); // CM-BLOCK (3.4): hitstop and Time Freeze pause the window
 			}
 			UpdateDropThrough(dt);
 			UpdateHyperArmorPresentation();
@@ -2833,7 +2837,13 @@ namespace FTT.Characters {
 				return;
 			}
 
-			CheckDropThrough();
+			bool doubleTapDropped = CheckDropThrough();
+			// CM-FIXB-STORY (finding B10, decision 6.3): Down+Jump drops wherever
+			// the double tap does. In startup and active frames Jump is no cancel
+			// verb, so the drop keeps the swing, as the double tap does and as the
+			// sim's drop-through does while attacking; in the recovery frames the
+			// cancel set below reads the press (CheckJumpInput's drop branch).
+			if (!doubleTapDropped && !_attackInRecovery) TryDownJumpDropThroughKeepingTheSwing();
 
 			// Directional attacks are single strikes: they never buffer into the
 			// three-hit string (§2.8). F3: a press anywhere in a chain swing —
@@ -5000,9 +5010,10 @@ namespace FTT.Characters {
 		/// (<see cref="JumpedThisAirtime"/>, the sim's discriminator read without
 		/// Story's jump budget), so a walk-off, a drop-through or a ledge drop gets
 		/// none and a ledge or rope jump-off gets it. <paramref name="ignoreShortHop"/>
-		/// (CM-STORY, 2026-10-16) reads Jump as held for the tick, so the ×2.5
-		/// short-hop band never cuts a movement ability's own boost
-		/// (<see cref="ApplyMovementAbilityGravity"/>).
+		/// (CM-STORY, 2026-10-16) keeps the ×2.5 short-hop band off for the tick,
+		/// so it never cuts a movement ability's own boost
+		/// (<see cref="ApplyMovementAbilityGravity"/>); since CM-FIXB-STORY the
+		/// apex hang then reads Jump live (decision 6.1), not as held.
 		/// </summary>
 		private void ApplyGravity(float dt, bool fastFalling = false, bool ignoreShortHop = false) {
 			if (IsOnFloor()) {
@@ -5023,13 +5034,19 @@ namespace FTT.Characters {
 				dt,
 				fastFalling: fastFalling,
 				floatActive: floatActive,
-				// CM-STORY (1.1(1)): a movement ability's rise is read as a held
-				// jump, so its boost is never cut by the short-hop band.
-				jumpHeld: ignoreShortHop || _jumpHeld,
+				// CM-FIXB-STORY (finding B11, decision 6.1): a movement ability's
+				// tick reads Jump live, as the sim's kit phases read the 323 latch,
+				// so the apex hang applies only while Jump is held (the _jumpHeld
+				// latch is not refreshed during a cast). It used to read Jump as
+				// held, which also switched the hang on with Jump released.
+				jumpHeld: ignoreShortHop
+					? CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Jump)
+					: _jumpHeld,
 				jumpedThisAirtime: JumpedThisAirtime,
 				launch: launch,
-				// CM-MOVE (Q5): the short hop cuts only the hero's own jump.
-				riseFromOwnJump: ShortHopReadsOwnJump);
+				// CM-MOVE (Q5): the short hop cuts only the hero's own jump, and
+				// (CM-STORY 1.1(1)) never a movement ability's boost.
+				riseFromOwnJump: !ignoreShortHop && ShortHopReadsOwnJump);
 			Velocity = new Vector2(Velocity.X, vy);
 		}
 
@@ -5111,6 +5128,13 @@ namespace FTT.Characters {
 				&& IsOnFloor()
 				&& TryDropThrough()) {
 				_jumpBufferTimer = 0;
+				// CM-FIXB-STORY (finding B10): out of a swing this branch is reached
+				// only through the recovery cancel (recovery frames or the chain
+				// hold), where Jump cancels the swing, so the drop leaves it for a
+				// free Airborne, as the sim's string cancel does on the same press.
+				// TryDropThrough keeps the swing for the double tap, which is no
+				// cancel verb.
+				if (CurrentState == CharacterState.Attacking) TransitionTo(CharacterState.Airborne);
 				return true;
 			}
 
@@ -5922,6 +5946,24 @@ namespace FTT.Characters {
 			}
 			_downTapFramesRemaining = FTT.Combat.StoryCombatRules.DownDoubleTapFrames;
 			return false;
+		}
+
+		/// <summary>
+		/// CM-FIXB-STORY (finding B10): Down+Jump in a swing's startup or active
+		/// frames, from <see cref="ProcessAttacking"/>, gated as
+		/// <see cref="CheckJumpInput"/>'s drop branch is (Root refuses it). The
+		/// swing runs on through the drop, as the double tap's does.
+		/// </summary>
+		private bool TryDownJumpDropThroughKeepingTheSwing() {
+			if (IsMovementRooted) return false;
+			if (!CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Jump)
+				|| !CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Down)
+				|| !IsOnFloor()
+				|| !TryDropThrough()) {
+				return false;
+			}
+			_jumpBufferTimer = 0;
+			return true;
 		}
 
 		private bool TryDropThrough() {

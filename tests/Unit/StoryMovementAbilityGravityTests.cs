@@ -186,6 +186,75 @@ public class StoryMovementAbilityGravityTests {
     }
 
     /// <summary>
+    /// CM-FIXB-STORY (finding B11; decision 6.1, "hang only while Jump is held,
+    /// both modes"): a movement ability's gravity reads Jump live for the apex
+    /// hang, as the sim's kit phases read the 323 latch (<c>JumpHeldForGravity</c>).
+    /// Tesla's blink and Tubman's leap end at rest; after an air jump (this
+    /// airtime's own jump) their gravity-on recovery ticks never take the ×0.5
+    /// hang with Jump released, and still do with Jump held. A released Jump never
+    /// short-hops the recovery either: it falls at the ordinary rise and fall bands.
+    /// </summary>
+    [TestCase]
+    public async Task AMovementAbilityRecoveryHangsAtItsApexOnlyWhileJumpIsHeld() {
+        var tree = (SceneTree)Engine.GetMainLoop();
+        foreach ((string heroID, bool jumpHeld) in new[] { ("tesla", false), ("tubman", false), ("tesla", true) }) {
+            PlayerController hero = null;
+            string label = $"{heroID}, Jump {(jumpHeld ? "held" : "released")}";
+            try {
+                hero = await SpawnAirborneHero(tree, heroID, new Vector2(0f, -40000f));
+                var ability = hero.GetNode<BaseSpecial>("MovementAbility");
+                BufferedInputSource source = Source(hero);
+                GameplayButtons held = jumpHeld ? GameplayButtons.Jump : None;
+
+                // An air jump, then the cast with Jump held or released.
+                await Frame(tree, source, GameplayButtons.Jump, None);
+                AssertThat(hero.JumpedThisAirtime).OverrideFailureMessage($"{label}: harness, the air jump.").IsTrue();
+                await Frame(tree, source, held, GameplayButtons.Jump);
+                await Frame(tree, source, held | Movement, held);
+                AssertThat(ability.IsExecuting).OverrideFailureMessage($"{label}: the cast did not start.").IsTrue();
+                AssertThat(hero.JumpedThisAirtime).IsTrue();
+
+                float gravityPerTick = StoryAirPhysics.GravityPerFrame(hero.Data.Weight);
+                int gravityTicks = 0;
+                int hangTicks = 0;
+                var multipliers = new List<string>();
+                GameplayButtons previous = held | Movement;
+                for (int frame = 0; frame < 120 && ability.IsExecuting; frame++) {
+                    bool gravityTick = ability.CurrentPhase == AbilityPhase.Recovery && !ability.SuspendsOwnerGravityNow;
+                    float before = hero.Velocity.Y;
+                    await Frame(tree, source, held, previous);
+                    previous = held;
+                    if (!gravityTick || hero.IsOnFloor()) continue;
+                    float multiplier = (hero.Velocity.Y - before) / gravityPerTick;
+                    gravityTicks++;
+                    multipliers.Add($"{multiplier:0.00}");
+                    if (Mathf.Abs(multiplier - UniversalMovementRules.ApexHangGravityMultiplier) < 0.05f) hangTicks++;
+                    if (!jumpHeld) {
+                        AssertThat(multiplier >= 0.95f)
+                            .OverrideFailureMessage(
+                                $"{label}: a recovery gravity tick took x{multiplier:0.00} (vy {before:0.0} -> " +
+                                $"{hero.Velocity.Y:0.0}); with Jump released it must be the plain rise or fall.")
+                            .IsTrue();
+                    }
+                }
+                GD.Print($"[CM-FIXB-STORY] {label}: recovery gravity multipliers {string.Join(" ", multipliers)}");
+                AssertThat(gravityTicks > 0).OverrideFailureMessage($"{label}: no recovery gravity tick was seen.").IsTrue();
+                if (jumpHeld) {
+                    AssertThat(hangTicks > 0)
+                        .OverrideFailureMessage($"{label}: with Jump held the recovery must still hang at its apex.")
+                        .IsTrue();
+                } else {
+                    AssertThat(hangTicks)
+                        .OverrideFailureMessage($"{label}: the apex hang applied with Jump released.")
+                        .IsEqual(0);
+                }
+            } finally {
+                Release(hero, null);
+            }
+        }
+    }
+
+    /// <summary>
     /// Lincoln's Rail Charge writes its horizontal speed only, so a charge that
     /// runs off a ledge falls with Story gravity (as the sim's <c>RailCharge</c>
     /// phase does) instead of flying level, and its travel along the charge is

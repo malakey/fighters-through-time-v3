@@ -1011,7 +1011,216 @@ public class FeelPassStoryTests {
         }
     }
 
+    /// <summary>
+    /// CM-FIXB-STORY (finding B10, decision 6.3): Down+Jump out of a grounded
+    /// swing on a one-way platform. In a swing's recovery frames and its chain
+    /// hold Jump is a cancel verb (design 752/3080), so Down+Jump cancels the swing
+    /// into a free drop, as the sim's string cancel does on the same press: the
+    /// hero is Airborne on the drop tick and an air jump is accepted. It used to
+    /// drop through still in <c>Attacking</c>, unable to jump, dodge or grab a
+    /// ledge, and a drop in the finisher's early recovery re-read the leftover
+    /// frames against hit 1's timeline and re-armed the finisher's box in the air.
+    /// Real physics frames.
+    /// </summary>
+    [TestCase]
+    public async Task DownJumpInASwingsRecoveryOrChainHoldCancelsTheSwingIntoAFreeDrop() {
+        var tree = (SceneTree)Engine.GetMainLoop();
+        string[] scenarios = { "hit 1 recovery", "chain hold", "hit 3 recovery" };
+        for (int index = 0; index < scenarios.Length; index++) {
+            string scenario = scenarios[index];
+            (PlayerController player, FTT.Environment.OneWayPlatform platform, float platformTop, BufferedInputSource source) =
+                await StandOnOneWayPlatform(tree, Origin + new Vector2(16000f + 1500f * index, -3000f));
+            try {
+                Hitbox melee = player.GetNode<Hitbox>("MeleeHitbox");
+                int targetHit = scenario == "hit 3 recovery" ? 3 : 1;
+
+                // The string up to the target hit's first recovery tick: presses
+                // buffer each next hit until the target hit's box has opened.
+                await EdgeFrame(tree, source, GameplayButtons.BasicAttack, GameplayButtons.None);
+                AssertThat(player.CurrentState).IsEqual(CharacterState.Attacking);
+                int opened = 0;
+                int closed = 0;
+                bool wasActive = false;
+                GameplayButtons previous = GameplayButtons.BasicAttack;
+                for (int frame = 0; frame < 240 && closed < targetHit; frame++) {
+                    GameplayButtons held = opened < targetHit && previous == GameplayButtons.None
+                        ? GameplayButtons.BasicAttack
+                        : GameplayButtons.None;
+                    if (targetHit == 1) held = GameplayButtons.None;
+                    await EdgeFrame(tree, source, held, previous);
+                    previous = held;
+                    if (melee.IsActive && !wasActive) opened++;
+                    if (!melee.IsActive && wasActive) closed++;
+                    wasActive = melee.IsActive;
+                }
+                AssertThat(closed)
+                    .OverrideFailureMessage($"{scenario}: harness, the string never reached hit {targetHit}'s recovery.")
+                    .IsEqual(targetHit);
+                if (scenario == "chain hold") {
+                    // Out of hit 1's 15 recovery frames and six frames into the
+                    // 24-frame chain hold.
+                    int idle = BasicComboRules.GroundRecoveryFrames[0] - 1 + 6;
+                    for (int frame = 0; frame < idle; frame++) {
+                        await EdgeFrame(tree, source, GameplayButtons.None, previous);
+                        previous = GameplayButtons.None;
+                    }
+                    AssertThat(player.IsShowingAttackPose)
+                        .OverrideFailureMessage("Harness: the chain hold plays locomotion, not the follow-through pose.")
+                        .IsFalse();
+                }
+                AssertThat(player.CurrentState)
+                    .OverrideFailureMessage($"{scenario}: harness, the swing must still be running.")
+                    .IsEqual(CharacterState.Attacking);
+                AssertThat(player.IsOnFloor()).IsTrue();
+
+                await EdgeFrame(tree, source, GameplayButtons.Down | GameplayButtons.Jump, previous);
+                AssertThat(player.CurrentState)
+                    .OverrideFailureMessage($"{scenario}: Down+Jump must cancel the swing into a free drop.")
+                    .IsEqual(CharacterState.Airborne);
+                AssertThat(player.Velocity.Y >= 0f)
+                    .OverrideFailureMessage($"{scenario}: Down+Jump on a one-way platform drops, never jumps (vy {player.Velocity.Y}).")
+                    .IsTrue();
+
+                if (scenario == "hit 1 recovery") {
+                    await EdgeFrame(tree, source, GameplayButtons.None, GameplayButtons.Down | GameplayButtons.Jump);
+                    await EdgeFrame(tree, source, GameplayButtons.None, GameplayButtons.None);
+                    AssertThat(player.IsOnFloor()).OverrideFailureMessage("The hero must have left the platform.").IsFalse();
+                    await EdgeFrame(tree, source, GameplayButtons.Jump, GameplayButtons.None);
+                    AssertThat(player.Velocity.Y < 0f)
+                        .OverrideFailureMessage($"After the drop the hero is free: an air jump must be accepted (vy {player.Velocity.Y}).")
+                        .IsTrue();
+                    AssertThat(player.CurrentState).IsEqual(CharacterState.Airborne);
+                    continue;
+                }
+
+                previous = GameplayButtons.Down | GameplayButtons.Jump;
+                for (int frame = 0; frame < 24; frame++) {
+                    await EdgeFrame(tree, source, GameplayButtons.None, previous);
+                    previous = GameplayButtons.None;
+                    AssertThat(player.CurrentState)
+                        .OverrideFailureMessage($"{scenario}: the drop must not resume the cancelled swing (frame {frame}).")
+                        .IsNotEqual(CharacterState.Attacking);
+                    AssertThat(melee.IsActive)
+                        .OverrideFailureMessage($"{scenario}: the melee box must stay shut through the drop (frame {frame}).")
+                        .IsFalse();
+                }
+                AssertThat(player.GlobalPosition.Y > platformTop + 40f)
+                    .OverrideFailureMessage($"{scenario}: the body must fall below the platform, feet at {player.GlobalPosition.Y} vs top {platformTop}.")
+                    .IsTrue();
+            } finally {
+                InputManager.Instance?.ClearInputSource(player.PlayerIndex);
+                player.Free();
+                platform.Free();
+            }
+        }
+    }
+
+    /// <summary>
+    /// CM-FIXB-STORY (finding B10, decision 6.3, "both inputs everywhere"): in a
+    /// swing's startup and active frames Jump is no cancel verb, and the double
+    /// tap of Down drops through there with the swing kept; Down+Jump now does the
+    /// same, as the sim does (its drop-through stays allowed while attacking). It
+    /// used to be ignored there. Real physics frames.
+    /// </summary>
+    [TestCase]
+    public async Task DownJumpInASwingsStartupOrActiveFramesDropsThroughKeepingTheSwing() {
+        var tree = (SceneTree)Engine.GetMainLoop();
+        foreach (bool active in new[] { false, true }) {
+            string phase = active ? "active" : "startup";
+            (PlayerController player, FTT.Environment.OneWayPlatform platform, float platformTop, BufferedInputSource source) =
+                await StandOnOneWayPlatform(tree, Origin + new Vector2(22000f + (active ? 1500f : 0f), -3000f));
+            try {
+                Hitbox melee = player.GetNode<Hitbox>("MeleeHitbox");
+                await EdgeFrame(tree, source, GameplayButtons.BasicAttack, GameplayButtons.None);
+                AssertThat(player.CurrentState).IsEqual(CharacterState.Attacking);
+                GameplayButtons previous = GameplayButtons.BasicAttack;
+                if (active) {
+                    for (int frame = 0; frame < 40 && !melee.IsActive; frame++) {
+                        await EdgeFrame(tree, source, GameplayButtons.None, previous);
+                        previous = GameplayButtons.None;
+                    }
+                    AssertThat(melee.IsActive).OverrideFailureMessage("Harness: hit 1's box never opened.").IsTrue();
+                } else {
+                    AssertThat(melee.IsActive).OverrideFailureMessage("Harness: the press tick is in startup.").IsFalse();
+                }
+                AssertThat(player.IsOnFloor()).IsTrue();
+
+                await EdgeFrame(tree, source, GameplayButtons.Down | GameplayButtons.Jump, previous);
+                AssertThat(player.CurrentState)
+                    .OverrideFailureMessage($"{phase}: the drop keeps the swing, as the double tap does.")
+                    .IsEqual(CharacterState.Attacking);
+                if (active) AssertThat(melee.IsActive).OverrideFailureMessage("The active swing runs on.").IsTrue();
+
+                previous = GameplayButtons.Down | GameplayButtons.Jump;
+                bool sawActive = melee.IsActive;
+                for (int frame = 0; frame < 20; frame++) {
+                    await EdgeFrame(tree, source, GameplayButtons.None, previous);
+                    previous = GameplayButtons.None;
+                    sawActive |= melee.IsActive;
+                }
+                AssertThat(player.GlobalPosition.Y > platformTop + 40f)
+                    .OverrideFailureMessage($"{phase}: Down+Jump in a swing must drop through, feet at {player.GlobalPosition.Y} vs top {platformTop}.")
+                    .IsTrue();
+                AssertThat(sawActive)
+                    .OverrideFailureMessage($"{phase}: the kept swing must still strike on its way down.")
+                    .IsTrue();
+            } finally {
+                InputManager.Instance?.ClearInputSource(player.PlayerIndex);
+                player.Free();
+                platform.Free();
+            }
+        }
+    }
+
     // === helpers ==============================================================
+
+    /// <summary>
+    /// A one-way platform with Einstein standing Idle on it, in real physics
+    /// frames; the returned source is the one every later <see cref="EdgeFrame"/>
+    /// feeds, and the call returns at the start of a frame.
+    /// </summary>
+    private static async Task<(PlayerController, FTT.Environment.OneWayPlatform, float, BufferedInputSource)>
+        StandOnOneWayPlatform(SceneTree tree, Vector2 platformAt) {
+        var scene = ResourceLoader.Load<PackedScene>("res://scenes/templates/OneWayPlatformTemplate.tscn");
+        var platform = scene.Instantiate<FTT.Environment.OneWayPlatform>();
+        platform.Position = platformAt;
+        tree.Root.AddChild(platform);
+        float platformTop = platformAt.Y - 10f;
+        PlayerController player = CharacterFactory.CreateCharacter("einstein", 0, applyStoryProgression: false);
+        tree.Root.AddChild(player);
+        player.GlobalPosition = new Vector2(platformAt.X - 90f, platformTop - 4f);
+        player.IsFacingRight = true;
+        var source = new BufferedInputSource();
+        source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, GameplayButtons.None));
+        InputManager.Instance.SetInputSource(player.PlayerIndex, source);
+        try {
+            for (int frame = 0; frame < 120 && !(player.IsOnFloor() && player.CurrentState == CharacterState.Idle); frame++) {
+                await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            }
+            for (int frame = 0; frame < 4; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(player.IsOnFloor() && player.CurrentState == CharacterState.Idle)
+                .OverrideFailureMessage("Harness: the hero must stand idle on the one-way platform.")
+                .IsTrue();
+        } catch {
+            InputManager.Instance?.ClearInputSource(player.PlayerIndex);
+            player.Free();
+            platform.Free();
+            throw;
+        }
+        return (player, platform, platformTop, source);
+    }
+
+    /// <summary>
+    /// One real physics frame on a <see cref="PlayerInputFrame.Create"/>-built
+    /// frame (Down held also reads as the stick down, as <see cref="SendEdge"/>
+    /// does): set at the start of a frame, returning at the start of the next.
+    /// </summary>
+    private static async Task EdgeFrame(SceneTree tree, BufferedInputSource source,
+        GameplayButtons held, GameplayButtons previousHeld) {
+        source.SetNextFrame(PlayerInputFrame.Create(0, 0f,
+            (held & GameplayButtons.Down) != 0 ? 1f : 0f, held, previousHeld));
+        await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+    }
 
     /// <summary>Ticks from an air press until the single air strike (GU-A) has run out, in free fall.</summary>
     private static int TicksUntilTheAirStrikeEnds(string characterID, int injectHitstop) {

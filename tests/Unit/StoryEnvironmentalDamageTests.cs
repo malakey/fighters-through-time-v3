@@ -296,6 +296,59 @@ public class StoryEnvironmentalDamageTests {
         }
     }
 
+    /// <summary>
+    /// CM-FIXB-STORY (findings B7 / B21; D01: hit eligibility and invulnerability
+    /// come before every layer). A hero inside its post-rewind protection is
+    /// immune to a hazard tick, so a raised block must not answer it: no charge,
+    /// no shieldstun and no shatter from a tick the body is immune to — and,
+    /// D01's order again, no Temporal Aegis spent on it either. The sim refuses
+    /// an invulnerable fighter first too (<c>ResolveFighterHit</c>).
+    /// </summary>
+    [TestCase]
+    public void APostRewindProtectedHeroSpendsNoChargeAegisOrGuardOnAHazardTick() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        PlayerController player = NewHero(tree);
+        var hazard = new StoryCyclicHazard { Name = "CmFixbProtectedHazard", Damage = 12 };
+        tree.Root.AddChild(hazard);
+        try {
+            BlockSystem block = RaiseOrdinaryBlock(player, facingRight: true);
+            // One charge left: an ordinary block of this tick would shatter.
+            block.DepleteCharges(block.CurrentCharges - 1);
+            AssertThat(block.CurrentCharges).IsEqual(1);
+            player.ArmRecoveryProtection();
+            AssertThat(player.IsPostRewindInvulnerable).IsTrue();
+            hazard.GlobalPosition = player.GlobalPosition + new Vector2(40f, 0f);
+            hazard.ForcePhase(HazardPhase.Active, 5f);
+            int hp = player.CurrentHP;
+
+            AssertThat(hazard.ApplyToPlayer(player)).IsTrue();
+            AssertThat(player.CurrentHP).IsEqual(hp);
+            AssertThat(block.CurrentCharges)
+                .OverrideFailureMessage("An invulnerable hero's raised block must not spend a charge on a hazard tick.")
+                .IsEqual(1);
+            AssertThat(player.CurrentState)
+                .OverrideFailureMessage("A tick the body is immune to must not shatter the guard.")
+                .IsEqual(CharacterState.Blocking);
+            AssertThat(block.IsInShieldStun).IsFalse();
+            AssertThat(block.LockoutRemainingSeconds).IsEqual(0f);
+
+            // D01's order: the refusal comes before Aegis and the barrier as well.
+            player.GrantTemporalAegis();
+            PlayerController.EnvironmentalHitResult result = player.ApplyEnvironmentalHit(
+                12, player.GlobalPosition + new Vector2(40f, 0f), blockable: true, out int applied);
+            AssertThat((int)result).IsEqual((int)PlayerController.EnvironmentalHitResult.Protected);
+            AssertThat(applied).IsEqual(0);
+            AssertThat(player.HasTemporalAegis)
+                .OverrideFailureMessage("A hazard tick the body is immune to must not spend Temporal Aegis.")
+                .IsTrue();
+            AssertThat(block.CurrentCharges).IsEqual(1);
+        } finally {
+            InputManager.Instance?.ClearInputSource(player.PlayerIndex);
+            player.Free();
+            hazard.Free();
+        }
+    }
+
     [TestCase]
     public void DrowningIsAPenaltyNotAHitAndIgnoresARaisedBlock() {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();

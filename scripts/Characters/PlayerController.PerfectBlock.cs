@@ -23,11 +23,15 @@ namespace FTT.Characters {
 	/// stance held through shieldstun.</para>
 	///
 	/// <para><b>The clock.</b> <see cref="TickPerfectBlock"/> runs once per tick
-	/// inside <c>_PhysicsProcess</c>'s Time Freeze gate, after the hitstop gate,
-	/// so the fighter's own hitstop and a Time Freeze both pause the window and
-	/// the lowered age. It observes the stance as the previous tick left it (the
-	/// state at the start of this tick), so a stance dropped by a hit in the last
-	/// physics flush counts as dropped.</para>
+	/// in <c>_PhysicsProcess</c>, after the hitstop gate, so the fighter's own
+	/// hitstop pauses the window and the lowered age. A Time Freeze does not
+	/// (CM-FIXB-STORY, finding B6; it used to run inside the freeze gate): the
+	/// hero acts on its own clock in its own freeze, and the blockable sources
+	/// that reach it there — the Extractor discharge and the Tremor's debris —
+	/// run in real time, so a window raised in a freeze closes five ticks later,
+	/// a drop ends it and the rearm guard holds. It observes the stance as the
+	/// previous tick left it (the state at the start of this tick), so a stance
+	/// dropped by a hit in the last physics flush counts as dropped.</para>
 	///
 	/// <para><b>Effect.</b> <c>BlockSystem.ResolveHit</c> reads
 	/// <see cref="IsPerfectBlockWindowOpen"/>: inside the window a contact the
@@ -57,8 +61,8 @@ namespace FTT.Characters {
 		public int PerfectBlockCount { get; private set; }
 
 		/// <summary>
-		/// One tick of the perfect-block clock, from the Time Freeze-gated counter
-		/// block of <c>_PhysicsProcess</c>. The window counts down; a stance that
+		/// One tick of the perfect-block clock, from <c>_PhysicsProcess</c> past
+		/// its hitstop gate (Time Freeze included). The window counts down; a stance that
 		/// has dropped clears it and restarts the lowered age, which otherwise
 		/// grows (saturating at 255; 0 stays "never raised").
 		/// </summary>
