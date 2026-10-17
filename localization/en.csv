@@ -1550,7 +1550,7 @@ tooltip_first_use_grab,"A raised shield stops a blade, not a hand — hold Block
 tooltip_first_use_launch,"Hold a direction as the blow lands to steer where you fly, and hold Block as you land to recover on your feet."
 tooltip_first_use_defy,A full meter can also refuse death itself — once.
 tooltip_first_use_ledge,"Move toward the ledge while falling or rising slowly — you will grab and hang automatically. Press Jump to climb up, or Down to drop."
-tooltip_first_use_one_way,Double-tap Down to drop through thin platforms.
+tooltip_first_use_one_way,"Double-tap Down, or press Jump while holding Down, to drop through thin platforms."
 tooltip_first_use_death_rewind,Your own time folds back to catch you. Each rewind spends a charge — and the last one still saves you.
 tooltip_first_use_time_freeze,Press Time Freeze to stop the world for five seconds. Nothing can be hurt while it holds.
 # S07/S48 per-hero acceptance and farewell lines ({HeroAcceptLine} / {HeroFarewellLine}).
