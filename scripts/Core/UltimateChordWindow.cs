@@ -59,13 +59,20 @@ namespace FTT.Core {
         /// is the C01c Ultimate shortcut flag for the gamepad;
         /// <paramref name="affordable"/> is whether the slot's fighter could cast
         /// its Ultimate now (the ability lockout deliberately excluded).
+        /// <paramref name="settleHeld"/> (CM-FIXB-PADUI, 2026-10-16) is set on the
+        /// tick <see cref="InputManager.ConsumeHeldPresses"/> covers: a component
+        /// already down is then emitted at once instead of waiting, so it reaches
+        /// the game as held on that tick, with its press edge consumed, as every
+        /// other button does. Waiting would emit it as a fresh press
+        /// <see cref="LeniencyFrames"/> ticks later, after the consume. A chord
+        /// still masks.
         /// </summary>
-        public Output Step(bool movementRaw, bool special2Raw, bool chordEnabled, bool affordable) {
+        public Output Step(bool movementRaw, bool special2Raw, bool chordEnabled, bool affordable, bool settleHeld = false) {
             bool chord = chordEnabled && movementRaw && special2Raw;
             bool lenient = chordEnabled && affordable;
             bool maskNow = chord && lenient;
-            bool movement = StepComponent(ref _movement, ref _movementWaited, movementRaw, maskNow, lenient);
-            bool special2 = StepComponent(ref _special2, ref _special2Waited, special2Raw, maskNow, lenient);
+            bool movement = StepComponent(ref _movement, ref _movementWaited, movementRaw, maskNow, lenient, settleHeld);
+            bool special2 = StepComponent(ref _special2, ref _special2Waited, special2Raw, maskNow, lenient, settleHeld);
             return new Output(movement, special2, chord);
         }
 
@@ -94,7 +101,7 @@ namespace FTT.Core {
         }
 
         private static bool StepComponent(
-            ref ComponentState state, ref int waited, bool raw, bool maskNow, bool lenient) {
+            ref ComponentState state, ref int waited, bool raw, bool maskNow, bool lenient, bool settleHeld) {
             switch (state) {
                 case ComponentState.Waiting:
                     if (maskNow) {
@@ -108,7 +115,7 @@ namespace FTT.Core {
                         return true;
                     }
                     waited++;
-                    if (!lenient || waited >= LeniencyFrames) {
+                    if (!lenient || settleHeld || waited >= LeniencyFrames) {
                         state = ComponentState.Emitting;
                         return true;
                     }
@@ -132,7 +139,7 @@ namespace FTT.Core {
                         state = ComponentState.Masked;
                         return false;
                     }
-                    if (lenient) {
+                    if (lenient && !settleHeld) {
                         state = ComponentState.Waiting;
                         waited = 0;
                         return false;

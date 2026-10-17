@@ -373,7 +373,9 @@ namespace FTT.UI {
             var story = FTT.Core.StoryManager.Instance;
             var saveManager = FTT.Core.SaveManager.Instance;
             var gameManager = FTT.Core.GameManager.Instance;
-            SetPaused(false);
+            // CM-FIXB-PADUI: the restart leaves the scene, so the tree is released
+            // even under a gameplay-pausing dialogue (the scene load needs it).
+            ClosePauseForSceneExit();
             if (story == null || saveManager == null || gameManager == null) return;
 
             FTT.Core.Difficulty difficulty = gameManager.CurrentSession.Difficulty;
@@ -445,7 +447,8 @@ namespace FTT.UI {
 
         private void QuitToMainMenu() {
             ApplyExitDustPenalty();
-            SetPaused(false);
+            // CM-FIXB-PADUI: leaving the scene releases the tree outright.
+            ClosePauseForSceneExit();
             var story = FTT.Core.StoryManager.Instance;
             if (story != null) story.ExitToMainMenu();
             else FTT.Core.GameManager.Instance?.LoadScene(FTT.Core.StoryManager.MainMenuScenePath);

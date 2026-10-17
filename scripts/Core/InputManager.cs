@@ -285,6 +285,8 @@ namespace FTT.Core {
             PollDeviceActivity(tick);
 
             PlayerInputFrame previous = _frames.GetValueOrDefault(playerIndex);
+            // CM-PADUI: a press a menu just acted on starts held (InputManager.MenuPress.cs).
+            bool consumesMenuPress = ConsumesMenuPress(playerIndex, tick);
             PlayerInputFrame frame;
             if (_overrides.TryGetValue(playerIndex, out IPlayerInputSource source)) {
                 frame = source.Sample(tick, previous);
@@ -294,7 +296,7 @@ namespace FTT.Core {
                 UltimateChordWindow chord = _chordWindows.GetValueOrDefault(playerIndex);
                 frame = SampleGodotDevice(
                     tick, deviceId, previous.Held, ref latch, CurrentBlockMode(), StickProfileFor(deviceId),
-                    ref chord, IsUltimateAffordable(playerIndex, tick));
+                    ref chord, IsUltimateAffordable(playerIndex, tick), settleChordHeld: consumesMenuPress);
                 _blockLatches[playerIndex] = latch;
                 _chordWindows[playerIndex] = chord;
             }
@@ -304,11 +306,14 @@ namespace FTT.Core {
                 frame.Pressed = GameplayButtons.None;
                 frame.Released = GameplayButtons.None;
             }
-            // CM-PADUI: a press a menu just acted on starts held the same way
-            // (InputManager.MenuPress.cs).
-            if (ConsumesMenuPress(playerIndex, tick)) {
+            // CM-PADUI: a press a menu just acted on starts held the same way.
+            // CM-FIXB-PADUI (2026-10-16): only the press edges go. A release
+            // starts no action, and the Fighter sim's short-hop latch
+            // (FighterMovementSystem.UpdateJumpLatch) reads it: a Jump let go of
+            // during a pause must reach the sim as released, or the rest of that
+            // airtime gets the full hop and the held-Jump apex hang.
+            if (consumesMenuPress) {
                 frame.Pressed = GameplayButtons.None;
-                frame.Released = GameplayButtons.None;
             }
 
             frame.Tick = tick;
@@ -523,6 +528,7 @@ namespace FTT.Core {
         /// pad dropped mid-session takes the first free pad when one reconnects.</para>
         /// </summary>
         public void ApplyDeviceTopology() {
+            _droppedSlotScratch.Clear();
             for (int playerIndex = 0; playerIndex < MaxPlayers; playerIndex++) {
                 if (!_playerToDevice.TryGetValue(playerIndex, out int deviceId)) continue;
                 if (deviceId == KeyboardDevice || _connectedJoypads.Contains(deviceId)) continue;
@@ -531,6 +537,13 @@ namespace FTT.Core {
                 _frames.Remove(playerIndex);
                 _chordWindows.Remove(playerIndex);
                 if (_joinMode == LocalJoinMode.Joined) _slotsAwaitingReconnect.Add(playerIndex);
+                _droppedSlotScratch.Add(playerIndex);
+            }
+            // CM-FIXB-PADUI (2026-10-16): a slot whose pad dropped is emptied, so
+            // it says so as UnassignSlot does — the Fighter select's join prompts
+            // read it — before any refill below reassigns it.
+            for (int index = 0; index < _droppedSlotScratch.Count; index++) {
+                DeviceAssigned?.Invoke(_droppedSlotScratch[index], UnassignedDevice);
             }
 
             if (_joinMode == LocalJoinMode.FollowLastUsed) {
@@ -546,6 +559,8 @@ namespace FTT.Core {
                 TryAssignFirstFreeDevice(playerIndex);
             }
         }
+
+        private readonly List<int> _droppedSlotScratch = new();
 
         /// <summary>
         /// Binds the first connected joypad not already claimed by another slot.
@@ -1013,7 +1028,8 @@ namespace FTT.Core {
             BlockMode blockMode,
             StickProfile stickProfile,
             ref UltimateChordWindow chordWindow,
-            bool ultimateAffordable) {
+            bool ultimateAffordable,
+            bool settleChordHeld = false) {
             if (deviceId == UnassignedDevice) return PlayerInputFrame.Create(tick, 0, 0, GameplayButtons.None, previousHeld);
             StickProfile profile = stickProfile ?? StickProfiles.DesignDefault;
             (float stickX, float stickY) = ReadProcessedLeftStick(deviceId, profile);
@@ -1055,11 +1071,16 @@ namespace FTT.Core {
             bool special2Raw = ReadActionPressed(Actions.Special2, deviceId, stickX, stickY);
             bool ultimateHeld = ReadUltimatePressed(deviceId, stickX, stickY);
             if (deviceKind == InputDeviceKind.Joypad) {
+                // CM-FIXB-PADUI (2026-10-16): on a menu-press consume tick a
+                // shoulder already down is emitted held at once, so the consume
+                // spends its edge as it does every other button's; waiting, it
+                // would come out as a fresh press after the consume.
                 UltimateChordWindow.Output chord = chordWindow.Step(
                     movementRaw,
                     special2Raw,
                     ShortcutEnabled(InputShortcuts.UltimateAction, InputDeviceKind.Joypad),
-                    ultimateAffordable);
+                    ultimateAffordable,
+                    settleChordHeld);
                 movementRaw = chord.MovementHeld;
                 special2Raw = chord.Special2Held;
                 ultimateHeld |= chord.UltimateHeld;

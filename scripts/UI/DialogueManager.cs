@@ -73,6 +73,14 @@ namespace FTT.UI {
         /// <summary>True while the active sequence can be fast-forwarded by a hold.</summary>
         public bool CanHoldToSkip => _isActive && _skipEligible && !IsSkipConfirmOpen;
 
+        /// <summary>
+        /// CM-FIXB-PADUI (2026-10-16): true while a gameplay-pausing sequence
+        /// holds <see cref="SceneTree.Paused"/>. A pause menu opened over it hands
+        /// the tree back to it on every resume instead of unpausing the world
+        /// under the box (<see cref="PauseMenuBase"/>).
+        /// </summary>
+        public bool HoldsGameplayPause => _pausedGameplay;
+
         /// <summary>True while the first-viewing skip confirmation is on screen.</summary>
         public bool IsSkipConfirmOpen => _skipConfirm != null && _skipConfirm.IsOpen;
 
@@ -154,7 +162,9 @@ namespace FTT.UI {
             if (!_pausedGameplay) return;
             _pausedGameplay = false;
             SceneTree tree = GetTree();
-            if (tree != null) tree.Paused = false;
+            // CM-FIXB-PADUI (2026-10-16): a pause menu opened over the sequence
+            // still holds the tree; it hands it back when it closes.
+            if (tree != null && !PauseMenuBase.IsAnyOpen) tree.Paused = false;
             // Package 11 A3 (F01): handed back with the tree pause, including
             // on teardown — a leaked scope would strand the level clock.
             FTT.Core.StoryManager.Instance?.SetIntegrityClockPause(
@@ -568,8 +578,19 @@ namespace FTT.UI {
             // the skip confirmation — or the Dialogue Log (G10) — is up.
             if (IsSkipConfirmOpen || IsLogOpen) return;
             if (CanHoldToSkip) {
-                bool held = Input.IsActionPressed(FTT.Core.InputManager.Actions.Interact)
-                    || Input.IsActionPressed("ui_accept");
+                bool acceptHeld = Input.IsActionPressed("ui_accept");
+                // CM-FIXB-PADUI (2026-10-16): while gameplay runs under the box (a
+                // non-pausing sequence such as Level 15's phase-3 bark), a confirm
+                // that is also the hero's Jump — pad A, Space — is the hero's jump,
+                // and a held full hop must never arm the skip or open its
+                // confirmation over the fight. The hold the hint names (Interact)
+                // and a menu-only confirm (Enter) still count, so the send-off and
+                // the Homecoming stay hold-skippable.
+                if (acceptHeld && IsGameplayLiveUnderTheBox()
+                    && Input.IsActionPressed(FTT.Core.InputManager.Actions.Jump)) {
+                    acceptHeld = false;
+                }
+                bool held = Input.IsActionPressed(FTT.Core.InputManager.Actions.Interact) || acceptHeld;
                 // CM-PADUI (2026-10-16): a hold counts only once the confirm has
                 // been let go since the sequence began, so a button already down
                 // when it started — a held full hop on pad A, which is now
@@ -597,6 +618,13 @@ namespace FTT.UI {
                 if (_autoAdvanceTimer <= 0f) AdvanceLine();
             }
         }
+
+        /// <summary>
+        /// CM-FIXB-PADUI (2026-10-16): true while the world keeps running under
+        /// the box — the sequence did not pause gameplay and nothing else holds
+        /// the tree paused.
+        /// </summary>
+        private bool IsGameplayLiveUnderTheBox() => !_pausedGameplay && GetTree()?.Paused != true;
 
         private void CompleteLineReveal() {
             _textLabel.VisibleCharacters = -1;

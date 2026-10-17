@@ -15,9 +15,11 @@ namespace FTT.UI {
     /// press doing one thing:</para>
     /// <list type="bullet">
     /// <item><b>The footer is player 1's.</b> In a local join, once a device holds
-    /// slot 0, a GUI confirm or focus move from any other device that is also one
-    /// of that player's token inputs (pad A, the stick and d-pad, Space, the
-    /// arrow keys) is swallowed before the GUI sees it; the polled flow reads
+    /// slot 0, every directional focus move from any other device (the stick,
+    /// the d-pad, all four arrow keys — CM-FIXB-PADUI: the Up arrow is only
+    /// <c>ui_up</c>, not a token input, and used to slip through), and any GUI
+    /// confirm or focus move that is also one of that player's token inputs
+    /// (pad A, Space), is swallowed before the GUI sees it; the polled flow reads
     /// device state, so that player's own token still moves. Player 2's A is only
     /// ever player 2's token Up, never player 1's Back. A press that is only a
     /// menu key (Enter, Tab) still reaches the GUI, as CM-FIXA-INPUT
@@ -42,6 +44,12 @@ namespace FTT.UI {
             PadMenuInput.AcceptAction, "ui_up", "ui_down", "ui_left", "ui_right", "ui_focus_next", "ui_focus_prev"
         };
 
+        // CM-FIXB-PADUI (2026-10-16): the directional focus moves. Another
+        // player's is swallowed whether or not it is also one of their token
+        // inputs: the keyboard's Up arrow is only ui_up (gameplay_up is W), and it
+        // walked Player 1's focus onto Back.
+        private static readonly string[] DirectionalFocusActions = { "ui_up", "ui_down", "ui_left", "ui_right" };
+
         // The gameplay actions the polled token flow reads, plus Up (the stick and
         // d-pad's fourth direction, never a menu intent from another player).
         private static readonly string[] TokenActions = {
@@ -62,8 +70,9 @@ namespace FTT.UI {
             && !InputManager.Instance.IsSlotJoined(0);
 
         /// <summary>
-        /// True when <paramref name="inputEvent"/> is a GUI confirm or focus move
-        /// that is also a token input, from a key or a pad that is not player 1's,
+        /// True when <paramref name="inputEvent"/> is a directional focus move, or a
+        /// GUI confirm or focus move that is also a token input, from a key or a
+        /// pad that is not player 1's,
         /// during the token flow of a local join whose slot 0 a device holds. Mouse
         /// input is never swallowed (a pointer is unambiguous), nor is anything
         /// while a test or bot input source drives slot 0.
@@ -86,7 +95,8 @@ namespace FTT.UI {
             }
             int playerOneDevice = input.GetDeviceForPlayer(0);
             if (playerOneDevice == InputManager.UnassignedDevice || playerOneDevice == deviceId) return false;
-            return MatchesAny(inputEvent, MenuDriveActions) && MatchesAny(inputEvent, TokenActions);
+            return MatchesAny(inputEvent, DirectionalFocusActions)
+                || (MatchesAny(inputEvent, MenuDriveActions) && MatchesAny(inputEvent, TokenActions));
         }
 
         private static bool MatchesAny(InputEvent inputEvent, string[] actions) {

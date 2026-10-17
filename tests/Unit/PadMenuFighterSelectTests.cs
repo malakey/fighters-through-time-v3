@@ -343,7 +343,123 @@ public class PadMenuFighterSelectTests {
         }
     }
 
+    /// <summary>
+    /// CM-FIXB-PADUI (finding B17): the keyboard's Up arrow is only Godot's
+    /// built-in <c>ui_up</c> — <c>gameplay_up</c> is W — so the swallow, which
+    /// required a token action too, let a joined keyboard Player 2's Up arrow
+    /// walk Player 1's footer focus onto Back, and Player 1's next A (the
+    /// token's Up) pressed it and threw both players out. Every directional
+    /// focus move from another player's device is now swallowed.
+    /// </summary>
+    [TestCase]
+    public async Task AKeyboardPlayerTwosUpArrowNeverMovesPlayerOnesFooterFocus() {
+        InputManager input = InputManager.Instance;
+        if (input == null) return;
+        FakeInputDeviceProbe probe = FakeInputDeviceProbe.Install(input, 0);
+        input.AutoAssignDevices();
+        CharacterSelectScreen screen = Open(out Node host);
+        SceneTree tree = screen.GetTree();
+        int backs = 0;
+        screen.BackOverrideForTesting = () => backs++;
+        Key interact = FakeInputDeviceProbe.KeyFor(InputManager.Actions.Interact);
+        try {
+            await Frames(tree, 2);
+            await JoinWithPadA(tree, probe, 0);
+            probe.SetKey(interact, true);
+            await Frames(tree, 3);
+            probe.SetKey(interact, false);
+            await Frames(tree, 2);
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(0);
+            AssertThat(input.GetDeviceForPlayer(1)).IsEqual(InputManager.KeyboardDevice);
+            AssertThat(FocusName(screen)).IsEqual("RemotePlayNotice");
+
+            await Idle(tree);
+            screen.GetViewport().PushInput(KeyEvent(Godot.Key.Up, pressed: true));
+            screen.GetViewport().PushInput(KeyEvent(Godot.Key.Up, pressed: false));
+            AssertThat(FocusName(screen))
+                .OverrideFailureMessage("A keyboard Player 2's Up arrow moved the footer focus Player 1 holds.")
+                .IsEqual("RemotePlayNotice");
+
+            // Player 1's next A is the token's Up, never a press of Back.
+            await Idle(tree);
+            probe.SetButton(0, JoyButton.A, true);
+            screen.GetViewport().PushInput(Pad(0, JoyButton.A, pressed: true));
+            await Frames(tree, 2);
+            await Idle(tree);
+            probe.SetButton(0, JoyButton.A, false);
+            screen.GetViewport().PushInput(Pad(0, JoyButton.A, pressed: false));
+            await Frames(tree, 1);
+            AssertThat(backs)
+                .OverrideFailureMessage("After a keyboard Player 2's Up arrow, Player 1's A pressed Back.")
+                .IsEqual(0);
+
+            // Control: Player 1's own Up still walks the footer.
+            await Idle(tree);
+            screen.GetViewport().PushInput(Pad(0, JoyButton.DpadUp, pressed: true));
+            screen.GetViewport().PushInput(Pad(0, JoyButton.DpadUp, pressed: false));
+            AssertThat(FocusName(screen))
+                .OverrideFailureMessage("Control: Player 1's d-pad Up no longer walks the footer onto Back.")
+                .IsEqual("BackButton");
+        } finally {
+            probe.ReleaseAll();
+            Teardown(host);
+            FakeInputDeviceProbe.Restore(input);
+        }
+    }
+
+    /// <summary>
+    /// CM-FIXB-PADUI (finding B18): a pad that disconnects in a local join left
+    /// its slot unclaimed without raising <c>DeviceAssigned</c>, so the join
+    /// prompt that "shows exactly while the slot is unclaimed" stayed hidden.
+    /// Each prompt now returns with the drop and hides again on the reconnect.
+    /// </summary>
+    [TestCase]
+    public async Task AJoinPromptReturnsWhenThatPlayersPadDisconnects() {
+        InputManager input = InputManager.Instance;
+        if (input == null) return;
+        FakeInputDeviceProbe probe = FakeInputDeviceProbe.Install(input, 0, 1);
+        input.AutoAssignDevices();
+        CharacterSelectScreen screen = Open(out Node host);
+        SceneTree tree = screen.GetTree();
+        var playerOnePrompt = screen.GetNode<Label>(SelectRoot + "PlayersRow/P1Panel/P1JoinPrompt");
+        var playerTwoPrompt = screen.GetNode<Label>(SelectRoot + "PlayersRow/P2Panel/P2JoinPrompt");
+        try {
+            await Frames(tree, 2);
+            await JoinWithPadA(tree, probe, 0);
+            await JoinWithPadA(tree, probe, 1);
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(0);
+            AssertThat(input.GetDeviceForPlayer(1)).IsEqual(1);
+            AssertThat(playerOnePrompt.Visible).IsFalse();
+            AssertThat(playerTwoPrompt.Visible).IsFalse();
+
+            input.SetConnectedJoypadsForTesting(1);
+            AssertThat(screen.IsPlayerOneJoinPromptShown).IsTrue();
+            AssertThat(playerOnePrompt.Visible)
+                .OverrideFailureMessage("Player 1's pad disconnected, but Player 1's panel does not say how to join again.")
+                .IsTrue();
+
+            input.SetConnectedJoypadsForTesting(0, 1);
+            AssertThat(input.GetDeviceForPlayer(0)).IsEqual(0);
+            AssertThat(playerOnePrompt.Visible)
+                .OverrideFailureMessage("Player 1's pad reconnected, but the join prompt still shows.")
+                .IsFalse();
+
+            input.SetConnectedJoypadsForTesting(0);
+            AssertThat(screen.IsPlayerTwoJoined).IsFalse();
+            AssertThat(playerTwoPrompt.Visible)
+                .OverrideFailureMessage("Player 2's pad disconnected, but Player 2's panel does not say how to join again.")
+                .IsTrue();
+        } finally {
+            probe.ReleaseAll();
+            Teardown(host);
+            FakeInputDeviceProbe.Restore(input);
+        }
+    }
+
     // ---- helpers ------------------------------------------------------------
+
+    private static InputEventKey KeyEvent(Key key, bool pressed) =>
+        new() { Keycode = key, PhysicalKeycode = key, Pressed = pressed };
 
     /// <summary>A pad's A press claims a slot in the local join (the press does nothing else), then is let go.</summary>
     private static async Task JoinWithPadA(SceneTree tree, FakeInputDeviceProbe probe, int device) {
