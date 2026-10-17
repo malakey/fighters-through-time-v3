@@ -396,6 +396,11 @@ namespace FTT.FighterSim {
         public int EchoStepWindupFrames;
         /// <summary>Non-zero once this fighter's once-per-match Defy has been spent.</summary>
         public int DefyHistoryUsed;
+        /// <summary>
+        /// CM-FIXB-CPU: non-zero while F22's Sudden Death bars Defy
+        /// (<c>FighterDefenseComponent.DefyBarred</c>, component 312).
+        /// </summary>
+        public int DefyBarred;
         /// <summary>Non-zero while the fighter holds a functioning block stance.</summary>
         public int BlockStance;
         /// <summary>CM-CANCEL: the fighter's own Special cast phase (<see cref="CpuCastPhase"/>).</summary>
@@ -548,6 +553,9 @@ namespace FTT.FighterSim {
             _simulation.TryGetFighterCounter(playerID, out FighterCounterComponent counter);
             _simulation.TryGetFighterKnockdown(playerID, out FighterKnockdownComponent knockdown);
             _simulation.TryGetFighterUltimateActivation(playerID, out FighterUltimateActivationComponent activation);
+            // CM-FIXB-CPU: the Sudden Death bar on Defy (312). A missing
+            // component reads unbarred.
+            _simulation.TryGetFighterDefense(playerID, out FighterDefenseComponent defense);
             int castPhase = CpuCastPhase.FromSim(in action, in counter, out int castPhaseFrames);
             state = new CpuVerbState {
                 GrabPhase = verb.GrabPhase,
@@ -557,6 +565,7 @@ namespace FTT.FighterSim {
                 EchoStepCooldownFrames = verb.EchoStepCooldownFrames,
                 EchoStepWindupFrames = verb.EchoStepWindupFrames,
                 DefyHistoryUsed = verb.DefyHistoryUsed,
+                DefyBarred = defense.DefyBarred,
                 BlockStance = FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb) ? 1 : 0,
                 SpecialCastPhase = castPhase,
                 SpecialCastPhaseFrames = castPhaseFrames,

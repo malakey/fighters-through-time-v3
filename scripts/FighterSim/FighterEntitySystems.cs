@@ -316,9 +316,16 @@ namespace FTT.FighterSim {
             in FighterStateComponent fighter,
             in FighterVerbComponent verb,
             in FighterDefenseComponent defense) =>
-            verb.DefyHistoryUsed == 0
-            && defense.DefyBarred == 0
+            IsDefyUnspentAndUnbarred(verb.DefyHistoryUsed, defense.DefyBarred)
             && fighter.Influence >= FighterMeterRules.Cap;
+
+        /// <summary>
+        /// <see cref="CanDefy"/> without its meter term: unspent and not barred
+        /// by Sudden Death. The CPU's Defy reserve valuation reads it
+        /// (CM-FIXB-CPU), so it and both damage paths share one rule.
+        /// </summary>
+        public static bool IsDefyUnspentAndUnbarred(int defyHistoryUsed, int defyBarred) =>
+            defyHistoryUsed == 0 && defyBarred == 0;
 
         public static void ClearBarrier(ref FighterDefenseComponent defense) {
             defense.BarrierPoints = 0;
