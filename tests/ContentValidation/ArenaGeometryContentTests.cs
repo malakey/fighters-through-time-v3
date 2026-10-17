@@ -1009,7 +1009,9 @@ public class ArenaGeometryContentTests {
         foreach (string id in CharacterRoster.IDs) {
             best = Mathf.Max(best, JumpBudgetRise(LoadCharacter(id), gravityScale));
         }
-        return best * JumpHeadroom + MovementAllowancePixels;
+        // CM-MOVE (6.2): plus the rising lip pop, which lifts a hero over a
+        // lip up to PlayerController.LipPopPixels (10 px) above its feet.
+        return best * JumpHeadroom + MovementAllowancePixels + FTT.Characters.PlayerController.LipPopPixels;
     }
 
     /// <summary>

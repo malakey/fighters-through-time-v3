@@ -57,6 +57,14 @@ namespace FTT.Characters {
 		public const float LipPopPixels = UniversalMovementRules.LipPopUnits * FTT.Combat.KitMotionRules.StoryPixelsPerUnit;
 
 		/// <summary>
+		/// Provisional (<c>PROVISIONAL-CORNER-FORGIVENESS-RULES</c>): the extra
+		/// fraction of a pixel every lip-pop lift adds, above the body's 0.08 px
+		/// safe margin, so the feet clear a lip's top instead of grazing its corner.
+		/// A lip of 10 px pops; 11 px does not.
+		/// </summary>
+		private const float LipPopClearancePixels = 0.25f;
+
+		/// <summary>
 		/// The one call before <c>MoveAndSlide</c> (every unfrozen tick that gets
 		/// there, whatever the state): the Q5 latch's state clears, then corner
 		/// forgiveness in a normal-control airborne state.
@@ -144,7 +152,10 @@ namespace FTT.Characters {
 			if (Mathf.Abs(hit.GetNormal().X) <= 0.7f) return false;
 			int maxLift = Mathf.FloorToInt(LipPopPixels + 0.001f);
 			for (int lift = 1; lift <= maxLift; lift++) {
-				var up = new Vector2(0f, -lift);
+				// Each whole-pixel lift goes LipPopClearancePixels further, so a
+				// lip exactly `lift` px up is cleared rather than grazed (a
+				// corner within the body's safe margin still collides).
+				var up = new Vector2(0f, -(lift + LipPopClearancePixels));
 				if (TestMove(GlobalTransform, up)) return false; // a ceiling above: nothing to pop into
 				var after = new KinematicCollision2D();
 				Transform2D lifted = GlobalTransform.Translated(up);

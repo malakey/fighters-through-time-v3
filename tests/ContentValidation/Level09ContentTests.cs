@@ -731,9 +731,11 @@ public class Level09ContentTests {
             bestID = id;
         }
         float clearance = deck.Position.Y - wall.Position.Y;
-        AssertThat(clearance > best * jumpMargin)
+        // CM-MOVE (6.2): plus the rising lip pop's 10 px.
+        float lipPop = FTT.Characters.PlayerController.LipPopPixels;
+        AssertThat(clearance > best * jumpMargin + lipPop)
             .OverrideFailureMessage(
-                $"The wall's top is {clearance} px over the deck; '{bestID}' reaches {best:0} px, so the boundary can be jumped.")
+                $"The wall's top is {clearance} px over the deck; '{bestID}' reaches {best:0} px (+{lipPop} px lip pop), so the boundary can be jumped.")
             .IsTrue();
     }
 

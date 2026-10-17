@@ -177,9 +177,13 @@ public class TutorialCalibrationContentTests {
             }
         }
 
-        AssertThat(gatedStep > bestSingle * (1f + margin))
+        // CM-MOVE (6.2): the rising lip pop lifts a hero over a lip up to
+        // PlayerController.LipPopPixels (10 px) above its feet, so the gate must
+        // clear the best single jump by that much more.
+        float lipPop = FTT.Characters.PlayerController.LipPopPixels;
+        AssertThat(gatedStep > bestSingle * (1f + margin) + lipPop)
             .OverrideFailureMessage(
-                $"The gated step is {gatedStep} px; '{bestSingleID}' clears {bestSingle:0.0} px on one jump.")
+                $"The gated step is {gatedStep} px; '{bestSingleID}' clears {bestSingle:0.0} px on one jump (+{lipPop} px lip pop).")
             .IsTrue();
         AssertThat(gatedStep < worstDouble * (1f - margin))
             .OverrideFailureMessage(

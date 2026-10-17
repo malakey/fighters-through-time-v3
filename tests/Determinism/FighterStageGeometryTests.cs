@@ -331,6 +331,61 @@ public class FighterStageGeometryTests {
     }
 
     /// <summary>
+    /// CM-MOVE (decision 6.2 with the Q6 ruling; plan §2.6.2): the sim has no
+    /// head-clip nudge because nothing a rising fighter can meet from below has
+    /// a partial underside. Its only overhead surfaces are the one ceiling, a
+    /// single height wall to wall, and the one-way platforms, which a rising
+    /// fighter passes up through; the floor segments sit on the floor plane,
+    /// where the per-x snap lifts a fighter from any depth. This pins that
+    /// premise structurally — the platform carries no solidity or extent field,
+    /// the geometry no other kind of surface — and on every authored stage, so a
+    /// future solid underside (a partial ceiling, a solid block) breaks this
+    /// guard instead of silently missing the rule.
+    /// </summary>
+    [TestCase]
+    public void NoSimSurfaceARisingFighterCanMeetFromBelowHasAPartialUnderside() {
+        static List<string> InstanceFields(System.Type type) {
+            var names = new List<string>();
+            foreach (System.Reflection.FieldInfo field in type.GetFields(
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public
+                | System.Reflection.BindingFlags.NonPublic)) {
+                names.Add(field.Name);
+            }
+            names.Sort(System.StringComparer.Ordinal);
+            return names;
+        }
+        AssertThat(string.Join(",", InstanceFields(typeof(FighterStagePlatform))))
+            .OverrideFailureMessage("FighterStagePlatform gained a field: is it a solid or partial surface? "
+                + "Then the sim needs the head-clip nudge (UniversalMovementRules.HeadClipNudgeUnits).")
+            .IsEqual("CenterX,HalfWidth,SurfaceY");
+        AssertThat(string.Join(",", InstanceFields(typeof(FighterStageGeometry))))
+            .OverrideFailureMessage("FighterStageGeometry gained a field: if it is a new kind of surface, "
+                + "a rising fighter may meet a partial underside and the sim needs the head-clip nudge.")
+            .IsEqual("BottomBlastZone,Ceiling,FloorSegments,HazardAnchorXs,LeftWall,OrbAnchors,Platforms,"
+                + "RespawnPlatformPosition,RightWall,SpawnDistance,StageID");
+
+        var issues = new List<string>();
+        var geometries = new List<FighterStageGeometry>(FighterStageGeometry.AllAuthored) { FighterStageGeometry.Default };
+        foreach (FighterStageGeometry geometry in geometries) {
+            string id = string.IsNullOrEmpty(geometry.StageID) ? "(legacy arena)" : geometry.StageID;
+            if (!(geometry.LeftWall < geometry.RightWall)) issues.Add($"{id}: the walls are inverted");
+            foreach (FighterStagePlatform platform in geometry.Platforms) {
+                // A one-way platform between the floor and the one ceiling.
+                if (!(platform.SurfaceY > FP64.Zero && platform.SurfaceY < geometry.Ceiling)) {
+                    issues.Add($"{id}: platform at {platform.CenterX} has surface {platform.SurfaceY} outside (0, ceiling)");
+                }
+                if (!(platform.HalfWidth > FP64.Zero)) issues.Add($"{id}: platform at {platform.CenterX} has no width");
+            }
+            foreach (FighterStagePlatform segment in geometry.FloorSegments) {
+                if (segment.SurfaceY.RawValue != FP64.Zero.RawValue) {
+                    issues.Add($"{id}: floor segment at {segment.CenterX} is off the floor plane ({segment.SurfaceY})");
+                }
+            }
+        }
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
+    /// <summary>
     /// I-13: the catalog's Open/Sealed flag is what stage select shows the player.
     /// A stage whose flag disagrees with its authored floor topology would promise
     /// a sealed floor and then drop them through it.
