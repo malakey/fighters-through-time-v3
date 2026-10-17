@@ -48,6 +48,54 @@ public class DefyProtectedRecoveryTests {
             .IsEqual(0L);
     }
 
+    /// <summary>
+    /// CM-FIXB-SIM (B2): "the defied hit contributes no forced motion" holds for
+    /// every impulse form, not only the scalar one above. An airborne survivor
+    /// drifting at a known velocity keeps exactly that velocity and stays
+    /// airborne through a lethal Down-Air slam (the signed spike, which the
+    /// 1-HP missing-HP scale used to double), a lethal upward vector Special, a
+    /// vector non-launcher, a scalar launcher (which used to zero the drift) and
+    /// a hitstop-free zone pulse — as Story's defySuppressed path leaves the
+    /// hero's velocity untouched. No tumble, hitstun, stashed launch or slam
+    /// bounce comes of it.
+    /// </summary>
+    [TestCase]
+    public void ADefiedHitLeavesTheSurvivorsMotionExactlyAsItWas() {
+        var issues = new System.Collections.Generic.List<string>();
+        foreach ((string name, int attackClass, FP64 knockback, bool vector, FP64 vertical, bool launches, bool hitstop) in new[] {
+                     ("a lethal Down-Air slam", FighterDamageRules.BasicAttackClass, FP64.Zero, true, FP64.FromInt(-10), true, true),
+                     ("a lethal upward vector Special", FighterDamageRules.SpecialAttackClass, FP64.FromInt(3), true, FP64.FromInt(9), true, true),
+                     ("a lethal vector non-launcher", FighterDamageRules.SpecialAttackClass, FP64.FromInt(3), true, FP64.FromInt(-4), false, true),
+                     ("a lethal scalar launcher", FighterDamageRules.BasicAttackClass, FP64.FromInt(8), false, FP64.Zero, true, true),
+                     ("a lethal zone pulse", FighterDamageRules.SpecialAttackClass, FP64.FromInt(2), true, FP64.FromInt(5), false, false) }) {
+            Fixture f = Fixture.New();
+            f.Target.CurrentHP = 5;
+            f.Target.Influence = FP64.FromInt(100);
+            f.Target.IsGrounded = 0;
+            f.Target.Position = new FPVector2(FP64.Zero, FP64.FromInt(3));
+            var drift = new FPVector2(FP64.FromDouble(1.5), FP64.FromInt(-2));
+            f.Target.Velocity = drift;
+            FighterKnockdownComponent knockdown = default;
+
+            f.HitWith(attackClass, damage: 40, knockback, hitstunFrames: 30, vector, vertical, launches, hitstop);
+            FighterSlamRules.TryArm(in f.Target, in f.Verb, ref knockdown);
+
+            if (f.Verb.DefyHistoryUsed != 1 || f.Target.CurrentHP != 1) {
+                issues.Add($"{name}: setup, the blow must be defied");
+                continue;
+            }
+            if (f.Target.Velocity.x.RawValue != drift.x.RawValue || f.Target.Velocity.y.RawValue != drift.y.RawValue) {
+                issues.Add($"{name}: the survivor's velocity moved to ({f.Target.Velocity.x}, {f.Target.Velocity.y})");
+            }
+            if (f.Target.IsGrounded != 0) issues.Add($"{name}: the survivor's airborne state changed");
+            if (f.Target.HitstunFrames != 0) issues.Add($"{name}: hitstun {f.Target.HitstunFrames}");
+            if (f.Verb.Tumble != FighterVerbRules.TumbleNone) issues.Add($"{name}: tumble {f.Verb.Tumble}");
+            if (f.Verb.PendingLaunchActive != 0) issues.Add($"{name}: a launch was stashed");
+            if (FighterSlamRules.IsPending(in knockdown)) issues.Add($"{name}: a slam bounce was armed");
+        }
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
     [TestCase]
     public void TheDefiedHitImposesNoAttachedStatus() {
         // "The defied hit does not impose a new attached control/status effect
@@ -403,6 +451,22 @@ public class DefyProtectedRecoveryTests {
                 ref Target, ref Runtime, ref Verb, ref Defense, in Tuning,
                 FighterDamageRules.BasicAttackClass, damage, knockback, hitstunFrames,
                 statusType, statusFrames, FP64.One, Attacker.Position.x);
+        }
+
+        /// <summary>One hit with an explicit class, launch flag, hitstop and (optionally) a D10 signed vector.</summary>
+        public bool HitWith(
+            int attackClass, int damage, FP64 knockback, int hitstunFrames,
+            bool hasKnockbackVector, FP64 knockbackVertical, bool launches, bool appliesHitstop) {
+            Attacker.Position = new FPVector2(Target.Position.x - FP64.One, Target.Position.y);
+            return FighterDamageRules.ApplyFighterHit(
+                ref Attacker, ref AttackerRuntime, ref AttackerVerb,
+                ref Target, ref Runtime, ref Verb, ref Defense, in Tuning,
+                attackClass, damage, knockback, hitstunFrames,
+                (int)StatusType.None, 0, FP64.One, Attacker.Position.x,
+                appliesHitstop: appliesHitstop,
+                launches: launches,
+                hasKnockbackVector: hasKnockbackVector,
+                knockbackVertical: knockbackVertical);
         }
     }
 

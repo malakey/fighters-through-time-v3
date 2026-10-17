@@ -43,11 +43,12 @@ namespace FTT.FighterSim {
         /// <summary>
         /// 3.2, once per unfrozen movement tick before any landing is resolved.
         /// A tumble whose hitstun is over stays a tumble while the fighter is
-        /// airborne (value 2) and ends on the ground; a non-launching hit on a
-        /// post-hitstun tumble (hitstun again, but no launch re-stashed value 1)
-        /// leaves the tumble, as Story's <c>ApplyStun</c> does — the M05 rule
-        /// that a non-launcher on an airborne victim is no tumble. Stateless:
-        /// it reads only the fighter and the 310 value.
+        /// airborne (value 2) and ends on the ground. A non-launching hit ends a
+        /// tumble of either value where it lands
+        /// (<c>FighterDamageRules.ResolveFighterHit</c>, CM-FIXB-SIM B1), as
+        /// Story's <c>OnHurtboxHit</c> does — the M05 rule that a non-launcher on
+        /// an airborne victim is no tumble — so the hitstun branch here only
+        /// backs that up. Stateless: it reads only the fighter and the 310 value.
         /// </summary>
         public static void UpdateTumble(in FighterStateComponent fighter, ref FighterVerbComponent verb) {
             if (fighter.HitstunFrames > 0) {

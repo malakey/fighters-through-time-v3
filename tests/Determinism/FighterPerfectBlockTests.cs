@@ -163,6 +163,89 @@ public class FighterPerfectBlockTests {
             .IsEqual(0);
     }
 
+    /// <summary>
+    /// CM-FIXB-SIM (B5): a freshly raised stance that a hit from behind breaks
+    /// counts as dropped, so the hit-2 Block escape on the very next tick — the
+    /// stance back up with Block still held — raises it on the escape tick,
+    /// which never arms, and the window armed before the hit is gone: a front
+    /// contact right after is an ordinary block (a charge, shieldstun), as in
+    /// Story. The movement system's per-tick clock calls, in its order, around a
+    /// real contact through the production pipeline: a zero-knockback,
+    /// block-cancelable construct bite from behind (hitstun 10, no hitstop),
+    /// which the raised stance does not absorb.
+    /// </summary>
+    [TestCase]
+    public void AStanceAHitFromBehindBreaksKeepsNoWindowThroughTheHitTwoEscape() {
+        FighterStateComponent blocker = Blocker();
+        FighterRuntimeComponent runtime = new() { HeldButtons = (int)GameplayButtons.Block };
+        FighterVerbComponent verb = default;
+        FighterDefenseComponent defense = default;
+        FighterTuningComponent tuning = default;
+        FighterActionStateComponent action = default;
+        FighterStateComponent attacker = new() { PlayerID = 0, Stocks = 3, MaxHP = 100, CurrentHP = 100, IsGrounded = 1 };
+        FighterRuntimeComponent attackerRuntime = default;
+        FighterVerbComponent attackerVerb = default;
+
+        // Tick A: a fresh raise with a Block press arms the window.
+        FighterBlockTimingRules.BeginTick(ref action, in blocker);
+        FighterBlockTimingRules.Observe(ref action, FighterBasicAttackRules.IsBlockStance(in blocker, in runtime, in verb), blockPressed: true);
+        AssertThat(FighterBlockTimingRules.WindowFrames(in action))
+            .OverrideFailureMessage("Harness: the fresh raise must arm the window.")
+            .IsEqual(BasicComboRules.PerfectBlockWindowFrames);
+
+        // Tick A+1: the stance is observed up, then the combat pass lands the
+        // bite from behind (the blocker faces right; the bite is on its left).
+        FighterBlockTimingRules.BeginTick(ref action, in blocker);
+        FighterBlockTimingRules.Observe(ref action, FighterBasicAttackRules.IsBlockStance(in blocker, in runtime, in verb), blockPressed: false);
+        FighterHitOutcome bite = FighterDamageRules.ResolveFighterHit(
+            ref action,
+            ref attacker, ref attackerRuntime, ref attackerVerb,
+            ref blocker, ref runtime, ref verb, ref defense, in tuning,
+            FighterDamageRules.BasicAttackClass, 4, FP64.Zero, 10,
+            (int)StatusType.None, 0, FP64.One,
+            blocker.Position.x - FP64.One,
+            collectsEcho: false, appliesHitstop: false, launches: false);
+        AssertThat((int)bite)
+            .OverrideFailureMessage("Harness: a hit from behind is not absorbed by the stance.")
+            .IsEqual((int)FighterHitOutcome.Landed);
+        AssertThat(blocker.HitstunFrames).IsEqual(10);
+        AssertThat(verb.HitstunBlockCancelBlocked).IsEqual(0);
+
+        // Tick A+2: the first tick after the hit, Block still held — the escape.
+        FighterBlockTimingRules.BeginTick(ref action, in blocker);
+        if (BasicComboRules.CanBlockEscapeHitstun(
+                grounded: blocker.IsGrounded != 0,
+                blockHeld: (runtime.HeldButtons & (int)GameplayButtons.Block) != 0,
+                tumbling: verb.Tumble != 0,
+                stringHitOneGate: verb.HitstunBlockCancelBlocked != 0,
+                stanceCanRise: blocker.BlockCharges > 0 && verb.BlockLockoutFrames <= 0)) {
+            blocker.HitstunFrames = 0;
+        }
+        bool stance = FighterBasicAttackRules.IsBlockStance(in blocker, in runtime, in verb);
+        FighterBlockTimingRules.Observe(ref action, stance, blockPressed: false);
+        AssertThat(stance).OverrideFailureMessage("Harness: the held Block must escape the bite's hitstun.").IsTrue();
+        AssertThat(FighterBlockTimingRules.WindowFrames(in action))
+            .OverrideFailureMessage("The window armed before the hit must not survive the stance the hit broke.")
+            .IsEqual(0);
+
+        // Tick A+3: a front contact is an ordinary block.
+        FighterBlockTimingRules.BeginTick(ref action, in blocker);
+        FighterBlockTimingRules.Observe(ref action, FighterBasicAttackRules.IsBlockStance(in blocker, in runtime, in verb), blockPressed: false);
+        FighterHitOutcome front = FighterDamageRules.ResolveFighterHit(
+            ref action,
+            ref attacker, ref attackerRuntime, ref attackerVerb,
+            ref blocker, ref runtime, ref verb, ref defense, in tuning,
+            FighterDamageRules.BasicAttackClass, ContactDamage, FP64.FromInt(4), 18,
+            (int)StatusType.None, 0, FP64.One,
+            blocker.Position.x + FP64.One);
+        AssertThat((int)front).IsEqual((int)FighterHitOutcome.Blocked);
+        AssertThat(blocker.BlockCharges)
+            .OverrideFailureMessage("A front contact after the escape is an ordinary block: one charge.")
+            .IsEqual(2);
+        AssertThat(verb.ShieldStunFrames).IsEqual(BasicComboRules.ShieldstunFramesFor(ContactDamage));
+        AssertThat(FighterBlockTimingRules.PerfectBlockCount(in action)).IsEqual(0);
+    }
+
     // === 3. The anti-mash rearm ===============================================
 
     [TestCase]

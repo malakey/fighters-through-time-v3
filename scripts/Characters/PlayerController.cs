@@ -3265,7 +3265,12 @@ namespace FTT.Characters {
 			// A06 (Package 13 W1): Echo Step is eligible only from the recovery
 			// of your own basic or directional attack — a Special's recovery no
 			// longer qualifies, so a zoner cannot fire and rewind to safety.
-			if (ability?.CurrentPhase == FTT.Combat.AbilityPhase.Recovery) {
+			// CM-FIXB-SIM (B12): a caught hit's Foresight answer is owed until the
+			// ability node's tick, which runs after this one; neither cancel may
+			// interrupt the cast first, or the answer is dropped. The D3 press
+			// stays buffered and both cancels open on the next tick.
+			bool foresightAnswerOwed = ability is Abilities.TubmanForesight foresight && foresight.IsAnswerPending;
+			if (ability?.CurrentPhase == FTT.Combat.AbilityPhase.Recovery && !foresightAnswerOwed) {
 				// Package 12 W3: Block may cancel a Special's RECOVERY frames,
 				// exactly as it cancels a basic's (design 752/3080: recovery
 				// frames define block-cancel eligibility, M08). Grounded only —

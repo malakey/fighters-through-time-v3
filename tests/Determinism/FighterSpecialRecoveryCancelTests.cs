@@ -520,6 +520,64 @@ public class FighterSpecialRecoveryCancelTests {
         }
     }
 
+    /// <summary>
+    /// CM-FIXB-SIM (B12): a caught projectile owes its answer to the next tick's
+    /// combat pass (projectiles resolve after the combat system), and a Block
+    /// held through the window used to cancel the sidestep in that tick's
+    /// movement pass first, dropping the answer. Point blank (two units, inside
+    /// the 2.5-unit reach), Einstein's E=mc² is caught while Tubman holds Block
+    /// from the tick after her press: the 20-damage answer still lands, and the
+    /// Block cancel then ends the stance on a later tick, the stance rising.
+    /// </summary>
+    [TestCase]
+    public void AHeldBlockWaitsForTheAnswerForesightOwesAPointBlankProjectile() {
+        // The probe: when does the shot reach a Tubman who does nothing?
+        FighterSimulation probe = PointBlankShot();
+        int contact = -1;
+        for (int tick = 0; tick < 90 && contact < 0; tick++) {
+            probe.Advance(Neutral(), tick == 0 ? In(GameplayButtons.Special1) : Neutral());
+            if (Fighter(probe, 0).CurrentHP < Fighter(probe, 0).MaxHP) contact = tick;
+        }
+        AssertThat(contact)
+            .OverrideFailureMessage("Harness: the point-blank shot never reached Tubman.")
+            .IsGreaterEqual(9);
+
+        // Tubman presses Foresight so the shot meets the fourth window tick, and
+        // holds Block from the next tick on.
+        FighterSimulation simulation = PointBlankShot();
+        int press = contact - 8;
+        int caught = -1;
+        int answered = -1;
+        int einsteinHP = Fighter(simulation, 1).CurrentHP;
+        for (int tick = 0; tick < 120; tick++) {
+            PlayerInputFrame tubman = tick == press
+                ? In(GameplayButtons.Special2)
+                : tick > press ? Held(GameplayButtons.Block) : Neutral();
+            simulation.Advance(tubman, tick == 0 ? In(GameplayButtons.Special1) : Neutral());
+            if (caught < 0 && Counter(simulation, 0).CountersLanded > 0) caught = tick;
+            if (answered < 0 && Fighter(simulation, 1).CurrentHP < einsteinHP) answered = tick;
+            if (caught >= 0 && !FighterSpecialCastRules.IsBusy(Cast(simulation, 0))) break;
+        }
+        AssertThat(caught).OverrideFailureMessage("Harness: Foresight never caught the shot.").IsGreaterEqual(0);
+        AssertThat(Fighter(simulation, 0).CurrentHP).OverrideFailureMessage("A caught shot deals nothing.").IsEqual(Fighter(simulation, 0).MaxHP);
+        AssertThat(answered)
+            .OverrideFailureMessage("The held Block must not drop the answer the caught shot owes.")
+            .IsEqual(caught + 1);
+        AssertThat(einsteinHP - Fighter(simulation, 1).CurrentHP)
+            .OverrideFailureMessage("The shooter within 2.5 units takes the 20-damage answer.")
+            .IsEqual(Authored("tubman").SpecialTwoDamage);
+        AssertThat(Counter(simulation, 0).Phase)
+            .OverrideFailureMessage("The held Block cancels the sidestep once the answer has landed.")
+            .IsEqual(FighterForesightRules.PhaseNone);
+        AssertThat(FighterSpecialCastRules.IsBusy(Cast(simulation, 0))).IsFalse();
+        AssertThat(IsBlockStance(simulation, 0)).OverrideFailureMessage("The Block cancel raises the stance.").IsTrue();
+    }
+
+    /// <summary>Tubman (player one) and Einstein (player two) two units apart (spawned at ∓1) on the flat arena, Einstein facing her.</summary>
+    private static FighterSimulation PointBlankShot() => new(
+        Authored("tubman"), Authored("einstein"),
+        seed: 11902, spawnDistance: 1, rules: FighterMatchRules.Disabled);
+
     // === 10. the freeze buffer and D3 never double-fire =====================
 
     /// <summary>

@@ -197,7 +197,87 @@ public class StoryTumbleTests {
         });
     }
 
+    /// <summary>
+    /// CM-FIXB-SIM (B1), the Story pin of the shared rule: a non-launching
+    /// airborne hit ends the hero's tumble whether it lands inside the launch's
+    /// hitstun or after it, and the landing is plain — no tech, no knockdown.
+    /// The sim twin is FighterTumbleTests'
+    /// <c>ANonLaunchingHitEndsTheTumbleInsideOrAfterTheLaunchsHitstunAndTheLandingIsPlain</c>.
+    /// </summary>
+    [TestCase]
+    public void ANonLaunchingHitEndsTheTumbleInsideOrAfterTheLaunchsHitstun() {
+        foreach (bool afterHitstun in new[] { false, true }) {
+            string label = afterHitstun ? "after the launch's hitstun" : "inside the launch's hitstun";
+            Run(player => {
+                if (afterHitstun) {
+                    RideToTumbleAfterHitstun(player);
+                } else {
+                    Launch(player, hitstunSeconds: 1.0f);
+                    // Past the launch's freeze and off the floor, well inside its 60-frame hitstun.
+                    for (int frame = 0; frame < 30 && player.IsOnFloor(); frame++) Step(player, GameplayButtons.None);
+                    for (int frame = 0; frame < 3; frame++) Step(player, GameplayButtons.None);
+                    AssertThat(player.IsInTumble && !player.IsTumblingAfterHitstun && player.CurrentState == CharacterState.Stunned)
+                        .OverrideFailureMessage($"setup ({label}): the hero must still be in the launch's hitstun.")
+                        .IsTrue();
+                }
+                AssertThat(player.IsOnFloor()).OverrideFailureMessage($"setup ({label}): airborne.").IsFalse();
+                player.GetNode<Hurtbox>("Hurtbox").TakeHit(new HitPayload {
+                    AttackerIndex = 1,
+                    TargetIndex = 0,
+                    AttackID = "test.air_strike",
+                    HitboxID = "air_attack",
+                    AttackClass = AttackClass.Basic,
+                    Damage = 5f,
+                    Knockback = new Vector2(2f, 0f),
+                    Launches = false,
+                    HitstunDuration = 0.5f,
+                    HitOrigin = player.GlobalPosition + new Vector2(-30f, 0f),
+                    AttackerFacingRight = true
+                });
+                AssertThat(player.CurrentState)
+                    .OverrideFailureMessage($"setup ({label}): the hit must stun.")
+                    .IsEqual(CharacterState.Stunned);
+                AssertThat(player.IsInTumble || player.IsTumblingAfterHitstun)
+                    .OverrideFailureMessage($"A non-launching hit {label} ends the tumble.")
+                    .IsFalse();
+                bool knockedDown = false;
+                bool teched = false;
+                for (int frame = 0; frame < 240 && !player.IsOnFloor(); frame++) {
+                    Step(player, GameplayButtons.None);
+                    knockedDown |= player.IsKnockedDown;
+                    teched |= player.IsInTechLockout;
+                }
+                AssertThat(player.IsOnFloor()).OverrideFailureMessage($"{label}: the hero must land.").IsTrue();
+                for (int frame = 0; frame < 2; frame++) {
+                    Step(player, GameplayButtons.None);
+                    knockedDown |= player.IsKnockedDown;
+                    teched |= player.IsInTechLockout;
+                }
+                AssertThat(knockedDown).OverrideFailureMessage($"{label}: the landing is plain, not a knockdown.").IsFalse();
+                AssertThat(teched).OverrideFailureMessage($"{label}: the landing is plain, not a tech.").IsFalse();
+            });
+        }
+    }
+
     // === Harness ===
+
+    /// <summary>The strong vertical launcher <see cref="RideToTumbleAfterHitstun"/> uses, with its hitstun.</summary>
+    private static void Launch(PlayerController player, float hitstunSeconds) {
+        player.GetNode<Hurtbox>("Hurtbox").TakeHit(new HitPayload {
+            AttackerIndex = 1,
+            TargetIndex = 0,
+            AttackID = "test.tumble_launch",
+            HitboxID = "combo_3",
+            AttackClass = AttackClass.Basic,
+            Damage = 5f,
+            Knockback = new Vector2(1f, -22f),
+            Launches = true,
+            HitstunDuration = hitstunSeconds,
+            HitOrigin = new Vector2(-20f, 0f),
+            AttackerFacingRight = true
+        });
+        AssertThat(player.IsInTumble).OverrideFailureMessage("setup: the launch must tumble.").IsTrue();
+    }
 
     /// <summary>
     /// Launches the grounded hero with a strong vertical blow and a short

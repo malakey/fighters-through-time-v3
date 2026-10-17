@@ -39,7 +39,13 @@ namespace FTT.FighterSim {
             in FighterKnockdownComponent knockdown) {
             FighterSpecialCancelRules.Feed(ref action, in fighter, in runtime, hitstopTick: false);
             if (!FighterSpecialCastRules.IsBusy(in action)) return;
-            bool inRecovery = FighterSpecialCancelRules.TryGetRecoveryFrame(in action, in counter, out int recoveryFrame);
+            // CM-FIXB-SIM (B12): while Foresight's counter strike is still owed
+            // (a caught projectile, answered by this tick's combat pass) neither
+            // cancel may end the stance — ending it would drop the answer. The
+            // tick's input is discarded as in any locked cast tick; the D3 press
+            // stays buffered and the Block cancel is open from the next tick.
+            bool inRecovery = FighterSpecialCancelRules.TryGetRecoveryFrame(in action, in counter, out int recoveryFrame)
+                && !FighterForesightRules.IsAnswerOwed(in counter);
             if (inRecovery && FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb)) {
                 EndCastForCancel(ref fighter, ref action, ref counter);
                 runtime.PressedButtons &= BlockButton;

@@ -450,6 +450,64 @@ public class StorySpecialRecoveryCancelTests {
         });
     }
 
+    /// <summary>
+    /// CM-FIXB-SIM (B12, the Story half): a caught hit's lantern answer lands on
+    /// the ability node's tick, which runs after the controller's. Block held
+    /// through the window used to Block-cancel the recovery on the controller's
+    /// first sidestep tick, interrupting the cast before the answer, which
+    /// <c>OnInterrupted</c> then dropped. The cancel now waits while the answer
+    /// is owed: the answer lands on that tick, and the held Block cancels the
+    /// recovery once the answer's freeze is over.
+    /// </summary>
+    [TestCase]
+    public void AHeldBlockWaitsForTheAnswerForesightOwes() {
+        Run("tubman", (player, host) => {
+            EnemyController mob = Mob(host, Origin + new Vector2(60f, 0f));
+            int mobHP = mob.CurrentHP;
+            var foresight = player.GetNode<TubmanForesight>("Special2");
+            Tick(player, GameplayButtons.Special2);
+            AssertThat(player.CurrentState).IsEqual(CharacterState.UsingSpecial);
+            for (int tick = 0; tick < 60 && !foresight.IsWindowOpen; tick++) {
+                Tick(player, GameplayButtons.Block, previous: GameplayButtons.Block);
+            }
+            AssertThat(foresight.IsWindowOpen).IsTrue();
+
+            // The mob's swing resolves in the physics flush, before the controller.
+            player.GetNode<Hurtbox>("Hurtbox").TakeHit(new HitPayload {
+                AttackerIndex = 1,
+                TargetIndex = 0,
+                AttackID = "test.strike",
+                HitboxID = "primary",
+                AttackClass = AttackClass.Basic,
+                Damage = 12f,
+                HitOrigin = mob.GlobalPosition,
+                Delivery = HitDelivery.DirectHit,
+                Origin = HitOrigin.Basic
+            });
+            AssertThat(foresight.CountersLanded).IsEqual(1);
+            AssertThat(foresight.IsAnswerPending).IsTrue();
+
+            // The first sidestep tick, Block still held: the answer lands first.
+            Tick(player, GameplayButtons.Block, previous: GameplayButtons.Block);
+            AssertThat(foresight.LandedDirectHitThisExecution)
+                .OverrideFailureMessage("The held Block must not drop the owed lantern answer.")
+                .IsTrue();
+            AssertThat(mob.CurrentHP < mobHP).OverrideFailureMessage("The answer strikes the attacker.").IsTrue();
+            AssertThat(player.CurrentState)
+                .OverrideFailureMessage("The Block cancel waits for the owed answer.")
+                .IsEqual(CharacterState.UsingSpecial);
+
+            bool blocking = false;
+            for (int tick = 0; tick < 30 && !blocking; tick++) {
+                Tick(player, GameplayButtons.Block, previous: GameplayButtons.Block);
+                blocking = player.CurrentState == CharacterState.Blocking;
+            }
+            AssertThat(blocking).OverrideFailureMessage("The held Block cancels the recovery after the answer.").IsTrue();
+            AssertThat(foresight.IsExecuting).IsFalse();
+            AssertThat(foresight.IsSidestepping).IsFalse();
+        });
+    }
+
     // === Chord guards ==========================================================
 
     [TestCase]
