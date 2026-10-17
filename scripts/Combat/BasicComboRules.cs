@@ -925,6 +925,52 @@ namespace FTT.Combat {
         public static bool IsSpecialLocked(int lockoutFrames, int specialLockoutFrames, bool swingLanded) =>
             SpecialGateFrames(lockoutFrames, specialLockoutFrames, swingLanded) > 0;
 
+        // === D3: the on-hit Special recovery cancel, both modes (combat and movement update 2026-10-16, decision 11.1) ===
+        // CM-CANCEL. A Special whose execution LANDED a direct hit (the D1a
+        // predicate: damage applied, or a shield or barrier layer absorbed it;
+        // never a block, an invulnerable target, a whiff, a tick, a construct or
+        // a zero-damage hit) may cancel its recovery into a roll (the air dodge
+        // when airborne) or a jump from recovery frame 0, and into a basic attack
+        // (hit 1, the Up-Attack or the Down-Air by the direction held at the
+        // press) or the movement ability from recovery frame 6. A whiff keeps its
+        // whole recovery (the grounded Block cancel stays its only exit), Echo
+        // Step never comes out of a Special (A06), and Special -> Special stays
+        // lockout-gated (neither a Special nor the Ultimate is read in a
+        // Special's recovery). One cancel press is buffered: the latest, for
+        // SpecialCancelBufferFrames of the fighter's unfrozen ticks (its hitstop
+        // ticks feed the buffer but never age it). Ledger
+        // USER-FIGHTER-SPECIAL-RECOVERY-CANCEL (amending USER-SPECIAL-RECOVERY-CANCEL);
+        // the agent-chosen details are PROVISIONAL-FIGHTER-SPECIAL-RECOVERY-CANCEL
+        // and PROVISIONAL-SPECIAL-RECOVERY-CANCEL-RULES. Story reads these
+        // through its forwarders; the Fighter sim reads them directly
+        // (FighterSpecialCancelRules), so the two modes cannot drift.
+
+        /// <summary>D3 (user direction): the recovery frame a landed Special first allows a roll or a jump on.</summary>
+        public const int SpecialRecoveryEvadeCancelFrame = 0;
+
+        /// <summary>D3 (user direction): the recovery frame a landed Special first allows a basic attack or the movement ability on.</summary>
+        public const int SpecialRecoveryActionCancelFrame = 6;
+
+        /// <summary>
+        /// D3 (provisional): how many of the fighter's unfrozen ticks a cancel
+        /// press stays buffered in a Special (one slot, the latest press wins;
+        /// hitstop ticks feed it but never age it). A press at recovery frame 0 is
+        /// exactly this old at <see cref="SpecialRecoveryActionCancelFrame"/>.
+        /// </summary>
+        public const int SpecialCancelBufferFrames = 6;
+
+        /// <summary>D3: true when a Special's recovery may cancel into a roll (or air dodge) or a jump.</summary>
+        public static bool SpecialRecoveryAllowsEvade(bool landed, int recoveryFrame) =>
+            landed && recoveryFrame >= SpecialRecoveryEvadeCancelFrame;
+
+        /// <summary>D3: true when a Special's recovery may cancel into a basic attack or the movement ability.</summary>
+        public static bool SpecialRecoveryAllowsAction(bool landed, int recoveryFrame) =>
+            landed && recoveryFrame >= SpecialRecoveryActionCancelFrame;
+
+        /// <summary>D3: true while a buffered cancel press of this age may still fire.</summary>
+        public static bool SpecialCancelBufferHolds(int ageFrames) =>
+            ageFrames >= 0 && ageFrames <= SpecialCancelBufferFrames;
+
         // === Rally / Desperation Resonance (V7.1, applied 2026-08-24) ===
         // A fraction of every hit taken becomes a briefly reclaimable "echo":
         // 20% at full health sliding linearly to 50% near death (evaluated
