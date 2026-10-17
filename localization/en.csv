@@ -944,7 +944,9 @@ movelist_style_ranged,Ranged
 movelist_style_hybrid,Hybrid
 systems_card_title,Systems Card
 systems_card_block_title,Block & Shatter
-systems_card_block_body,"Three charges absorb Basic hits (8 frames of shieldstun each); a special costs two charges, and a Shield-Breaker special takes them all. Losing the last charge shatters the stance and locks it out for 5 seconds."
+# CM-BLOCK
+# Combat and movement update 2026-10-16 (decisions 3.4, 4.1 / 11.2): the perfect block and the damage-scaled shieldstun.
+systems_card_block_body,"Three charges absorb Basic hits; the harder the blocked hit, the longer its shieldstun (6 frames plus 1 per 4 damage, up to 16). Raise Block within 5 frames of a hit for a perfect block: no charge spent and no shieldstun. A special costs two charges, and a Shield-Breaker special takes them all, even from a perfect block. Losing the last charge shatters the stance and locks it out for 5 seconds."
 systems_card_triangle_title,The Triangle
 systems_card_triangle_body,"Attacks beat grabs, grabs beat blocks, blocks beat attacks — and a grab whiffs against a target in shieldstun."
 systems_card_di_title,Directional Influence
