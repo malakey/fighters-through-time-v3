@@ -118,13 +118,16 @@ public class FighterMatchFlowContentTests {
 
     [TestCase]
     public void MatchFlowTimingsMatchTheDesignDocument() {
-        // design-godot.md ~1565-1571: 5.0 s platform, 3.0 s invulnerability from
-        // the drop; Section 11: a three-second pre-match countdown.
+        // design-godot.md ~1565-1571: 5.0 s platform; Section 11: a three-second
+        // pre-match countdown. CM-HIT (decision 4.2, 2026-10-16, amending the
+        // design's Spawn Invincibility text): 120 frames of protection from the
+        // drop, shrinking to 60 the longer the fighter waits on the platform.
         AssertThat(FighterMatchFlowRules.CountdownFrames).IsEqual(3 * FighterSimulation.TickRate);
         AssertThat(FighterMatchFlowRules.CountdownFramesPerDigit).IsEqual(FighterSimulation.TickRate);
         AssertThat(FighterMatchFlowRules.GoBannerFrames).IsEqual(30);
         AssertThat(FighterMatchFlowRules.RespawnPlatformFrames).IsEqual(5 * FighterSimulation.TickRate);
-        AssertThat(FighterMatchFlowRules.RespawnInvulnerabilityFrames).IsEqual(3 * FighterSimulation.TickRate);
+        AssertThat(FighterMatchFlowRules.RespawnInvulnerabilityMaxFrames).IsEqual(2 * FighterSimulation.TickRate);
+        AssertThat(FighterMatchFlowRules.RespawnInvulnerabilityMinFrames).IsEqual(FighterSimulation.TickRate);
         AssertThat(FighterMatchFlowRules.RespawnPlatformGraceFrames > 0).IsTrue();
         AssertThat(FighterMatchFlowRules.RespawnPlatformGraceFrames
             < FighterMatchFlowRules.RespawnPlatformFrames).IsTrue();

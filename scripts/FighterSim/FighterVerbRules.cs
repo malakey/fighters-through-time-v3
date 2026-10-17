@@ -22,6 +22,55 @@ namespace FTT.FighterSim {
         private static readonly FP64 FullStepThreshold = FP64.FromDouble(0.5);
         private static readonly FP64 HalfStepThreshold = FP64.FromDouble(0.17);
 
+        // === CM-HIT (combat and movement update 2026-10-16, decision 3.2):
+        // tumble outlives hitstun (the Smash rule). Component 310 Tumble now
+        // reads one of three values (plan §1.5 reserved value 2; no new bytes).
+        /// <summary>Not tumbling.</summary>
+        public const int TumbleNone = 0;
+        /// <summary>Launched and still in the launch's hitstun (a stashed launch sets it).</summary>
+        public const int TumbleInHitstun = 1;
+        /// <summary>
+        /// The launch's hitstun ended while airborne: the fighter has control
+        /// again, and the first action it takes leaves the tumble
+        /// (<see cref="ExitTumbleOnAction"/>); a fighter that does nothing lands
+        /// in it, which is the tech or the knockdown.
+        /// </summary>
+        public const int TumbleAfterHitstun = 2;
+
+        /// <summary>True while a landing resolves as a tumble landing (bounce, tech or knockdown).</summary>
+        public static bool IsTumbling(in FighterVerbComponent verb) => verb.Tumble != TumbleNone;
+
+        /// <summary>
+        /// 3.2, once per unfrozen movement tick before any landing is resolved.
+        /// A tumble whose hitstun is over stays a tumble while the fighter is
+        /// airborne (value 2) and ends on the ground; a non-launching hit on a
+        /// post-hitstun tumble (hitstun again, but no launch re-stashed value 1)
+        /// leaves the tumble, as Story's <c>ApplyStun</c> does — the M05 rule
+        /// that a non-launcher on an airborne victim is no tumble. Stateless:
+        /// it reads only the fighter and the 310 value.
+        /// </summary>
+        public static void UpdateTumble(in FighterStateComponent fighter, ref FighterVerbComponent verb) {
+            if (fighter.HitstunFrames > 0) {
+                if (verb.Tumble == TumbleAfterHitstun) verb.Tumble = TumbleNone;
+                return;
+            }
+            verb.Tumble = verb.Tumble != TumbleNone && fighter.IsGrounded == 0
+                ? TumbleAfterHitstun
+                : TumbleNone;
+        }
+
+        /// <summary>
+        /// 3.2: any accepted action (a jump, an air dodge, a swing, a Special,
+        /// a ledge grab — every <see cref="FighterActionKind"/>) leaves a tumble
+        /// whose hitstun is over. Drift and fast-fall are not actions and keep it.
+        /// The tick hitstun reaches zero inside <c>TickCounters</c> still reads
+        /// value 1 (the conversion runs at the next tick's top), so the rule keys
+        /// on the hitstun, not on the value.
+        /// </summary>
+        public static void ExitTumbleOnAction(in FighterStateComponent fighter, ref FighterVerbComponent verb) {
+            if (fighter.HitstunFrames <= 0) verb.Tumble = TumbleNone;
+        }
+
         /// <summary>
         /// Applies the shared hitstop window to both parties of a connected hit.
         /// Lethal hits skip hitstop entirely — the KO presentation owns that
@@ -90,16 +139,18 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
-        /// Landing tech (ukemi): a victim in launched hitstun who holds Block on
-        /// ground contact ends hitstun and gets an invulnerable in-place
-        /// recovery. Returns true when the tech fired.
+        /// Landing tech (ukemi): a tumbling victim who holds Block on ground
+        /// contact ends hitstun and gets an invulnerable in-place recovery.
+        /// Returns true when the tech fired. CM-HIT (3.2): the tumble, not the
+        /// hitstun, is the key — a tumble whose hitstun ran out in the air
+        /// (<see cref="TumbleAfterHitstun"/>) techs too.
         /// </summary>
         public static bool TryLandingTech(
             ref FighterStateComponent fighter,
             in FighterRuntimeComponent runtime,
             ref FighterVerbComponent verb) {
             const int blockButton = 1 << 6;
-            if (fighter.HitstunFrames <= 0 || verb.Tumble != 1) return false;
+            if (!IsTumbling(in verb)) return false;
             if (fighter.DazeFrames > 0 || fighter.Stocks <= 0) return false;
             if ((runtime.HeldButtons & blockButton) == 0) return false;
 
@@ -165,12 +216,14 @@ namespace FTT.FighterSim {
         /// Ends the tumble's hitstun, stops the body and starts the knockdown.
         /// Returns true when the knockdown began. Call only after
         /// <see cref="FighterVerbRules.TryLandingTech"/> declined the landing.
+        /// CM-HIT (3.2): keyed on the tumble — a passive fighter whose launch
+        /// hitstun ran out in the air still lands in it.
         /// </summary>
         public static bool TryBeginKnockdown(
             ref FighterStateComponent fighter,
             ref FighterVerbComponent verb,
             ref FighterKnockdownComponent knockdown) {
-            if (fighter.HitstunFrames <= 0 || verb.Tumble != 1) return false;
+            if (!FighterVerbRules.IsTumbling(in verb)) return false;
             if (fighter.DazeFrames > 0 || fighter.Stocks <= 0) return false;
             if (fighter.RespawnFramesRemaining > 0) return false;
 
@@ -285,8 +338,11 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
-        /// Drops a bounce whose tumble ended some other way — hitstun ran out,
-        /// a tech or knockdown already resolved it — or whose fighter fell.
+        /// Drops a bounce whose tumble ended some other way — an action left it,
+        /// a tech or knockdown already resolved it, a non-launching hit ended it
+        /// — or whose fighter fell. CM-HIT (3.2): an owed bounce survives the
+        /// end of the slam's hitstun while the fighter is still tumbling
+        /// (<see cref="FighterVerbRules.TumbleAfterHitstun"/>).
         /// </summary>
         public static void ClearIfStale(
             in FighterStateComponent fighter,
@@ -295,8 +351,7 @@ namespace FTT.FighterSim {
             if (knockdown.SlamBouncePending == 0) return;
             if (fighter.Stocks <= 0
                 || fighter.RespawnFramesRemaining > 0
-                || fighter.HitstunFrames <= 0
-                || verb.Tumble != 1) {
+                || !FighterVerbRules.IsTumbling(in verb)) {
                 Clear(ref knockdown);
             }
         }
@@ -314,7 +369,7 @@ namespace FTT.FighterSim {
             if (knockdown.SlamBouncePending == 0) return false;
             FP64 speed = knockdown.SlamBounceSpeed;
             Clear(ref knockdown);
-            if (fighter.Stocks <= 0 || fighter.HitstunFrames <= 0 || verb.Tumble != 1 || speed <= FP64.Zero) {
+            if (fighter.Stocks <= 0 || !FighterVerbRules.IsTumbling(in verb) || speed <= FP64.Zero) {
                 return false;
             }
             fighter.IsGrounded = 0;

@@ -123,6 +123,96 @@ public class FighterAirDodgeTests {
         AssertThat(FighterUniversalMovementRules.IsCombatLocked(in runtime)).IsTrue();
     }
 
+    [TestCase]
+    public void BeingHitRefreshesTheAirDodgeSoItCanDodgeAgainAfterHitstun() {
+        // CM-HIT (decision 5.3, amending A03, both modes): any applied hitstun
+        // refreshes the air dodge. Player one dodges in the air, takes player
+        // two's launching melee Special while still airborne, and dodges again
+        // once the hitstun is over — before it ever lands.
+        var simulation = new FighterSimulation(
+            HitTestLoadout(FighterAbilityLoadout.Default),
+            HitTestLoadout(FighterAbilityLoadout.Default with {
+                SpecialOneExecutionType = 0,
+                SpecialOneHit = new FighterAbilityHitData {
+                    HitstunFrames = 10,
+                    BlockClass = (int)FTT.Combat.BlockClass.Special,
+                    Launches = true,
+                    Delivery = (int)FTT.Combat.HitDelivery.DirectHit,
+                    Origin = (int)FTT.Combat.HitOrigin.Special
+                }
+            }),
+            seed: 1304, spawnDistance: 1, rules: FighterMatchRules.Disabled);
+        int tick = 0;
+        AdvanceBoth(simulation, tick++, GameplayButtons.Jump, GameplayButtons.None);
+        AdvanceBoth(simulation, tick++, GameplayButtons.Roll, GameplayButtons.None);
+        AssertThat(simulation.TryGetFighterKnockdown(0, out FighterKnockdownComponent spent)).IsTrue();
+        AssertThat(spent.AirDodgeUsed).OverrideFailureMessage("setup: the first dodge must start.").IsEqual(1);
+        for (int step = 0; step < UniversalMovementRules.AirDodgeTotalFrames; step++) {
+            AdvanceBoth(simulation, tick++, GameplayButtons.None, GameplayButtons.None);
+        }
+
+        // The hit, while the dodge is spent and the fighter is airborne.
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent beforeHit)).IsTrue();
+        AssertThat(beforeHit.IsGrounded).OverrideFailureMessage("setup: still airborne before the hit.").IsEqual(0);
+        int hpBefore = beforeHit.CurrentHP;
+        AdvanceBoth(simulation, tick++, GameplayButtons.None, GameplayButtons.Special1);
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent struck)).IsTrue();
+        AssertThat(struck.CurrentHP < hpBefore).OverrideFailureMessage("setup: the Special must land.").IsTrue();
+
+        // The first unfrozen tick of the hitstun refreshes it, in the air.
+        bool refreshedInTheAir = false;
+        for (int step = 0; step < 30 && !refreshedInTheAir; step++) {
+            AdvanceBoth(simulation, tick++, GameplayButtons.None, GameplayButtons.None);
+            simulation.TryGetFighter(0, out FighterStateComponent victim);
+            simulation.TryGetFighterKnockdown(0, out FighterKnockdownComponent knockdown);
+            AssertThat(victim.IsGrounded).OverrideFailureMessage("The victim must not land before the refresh.").IsEqual(0);
+            refreshedInTheAir = knockdown.AirDodgeUsed == 0;
+        }
+        AssertThat(refreshedInTheAir)
+            .OverrideFailureMessage("An applied hitstun must refresh the spent air dodge while airborne.")
+            .IsTrue();
+
+        // Ride the hitstun out, then dodge again — still in the air.
+        for (int step = 0; step < 40; step++) {
+            simulation.TryGetFighter(0, out FighterStateComponent riding);
+            simulation.TryGetFighterVerb(0, out FighterVerbComponent ridingVerb);
+            if (riding.HitstunFrames <= 0 && ridingVerb.HitstopFrames <= 0) break;
+            AdvanceBoth(simulation, tick++, GameplayButtons.None, GameplayButtons.None);
+        }
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent free)).IsTrue();
+        AssertThat(free.IsGrounded).OverrideFailureMessage("setup: still airborne after the hitstun.").IsEqual(0);
+        AdvanceBoth(simulation, tick++, GameplayButtons.Roll, GameplayButtons.None);
+        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent again)).IsTrue();
+        AssertThat(again.UniversalMovementState)
+            .OverrideFailureMessage("The refreshed air dodge starts after the hitstun.")
+            .IsEqual((int)UniversalMovementPhase.AirDodgeStartup);
+    }
+
+    private static void AdvanceBoth(
+        FighterSimulation simulation, int tick, GameplayButtons one, GameplayButtons two) =>
+        simulation.Advance(
+            new PlayerInputFrame { Tick = (uint)tick, Held = one, Pressed = one },
+            new PlayerInputFrame { Tick = (uint)tick, Held = two, Pressed = two });
+
+    /// <summary>A hand-built default kit with the given ability modes (FighterKnockdownTests' shape).</summary>
+    private static FighterLoadout HitTestLoadout(FighterAbilityLoadout modes) => new(
+        (int)FighterCharacterID.Einstein,
+        100, 3, 2,
+        10, 14, 12, 20,
+        600, 600,
+        (int)FTT.Core.StatusType.None, 0,
+        (int)FTT.Core.StatusType.None, 0,
+        (int)FTT.Core.StatusType.None, 0,
+        FP64.One,
+        FP64.FromInt(7),
+        FP64.FromDouble(11.5),
+        FP64.FromInt(3),
+        FP64.FromInt(4),
+        FP64.FromInt(4),
+        FP64.FromInt(5),
+        FP64.One, FP64.One, FP64.One,
+        modes);
+
     /// <summary>Jumps and advances until the fighter is airborne and a few ticks up.</summary>
     private static int JumpAndRise(FighterSimulation simulation, int startTick) {
         Advance(simulation, startTick, GameplayButtons.Jump);

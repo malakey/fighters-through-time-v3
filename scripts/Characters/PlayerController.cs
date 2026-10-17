@@ -983,6 +983,9 @@ namespace FTT.Characters {
 		private void ArmAbilityLockout() {
 			_abilityLockoutFrames = FTT.Combat.BasicComboRules.AbilityLockoutFrames;
 			_specialLockoutFrames = FTT.Combat.BasicComboRules.AbilityLockoutFrames;
+			// CM-HIT (decision 4.3, amending D04): a Special or the Ultimate ends
+			// the Defy survivor's protected window (the sim's EndOnOffence).
+			ClearDefyProtection();
 		}
 
 		/// <summary>A basic swing start: arms A and clears the landed latch C.</summary>
@@ -990,6 +993,8 @@ namespace FTT.Characters {
 			_abilityLockoutFrames = FTT.Combat.BasicComboRules.AbilityLockoutFrames;
 			_swingLanded = false;
 			_freezeBufferArmed = false;
+			// CM-HIT (4.3): so does any basic swing.
+			ClearDefyProtection();
 		}
 
 		/// <summary>Death rewind and checkpoint restore: A, S and C (and the freeze buffer) to zero.</summary>
@@ -2729,6 +2734,10 @@ namespace FTT.Characters {
 			UpdateFacing(hAxis);
 
 			if (IsOnFloor()) {
+				// CM-HIT (3.2): a hero still tumbling after its hitstun lands in
+				// the tumble — bounce, tech or knockdown — before any input,
+				// the buffered jump included.
+				if (TryResolveTumbleLanding()) return;
 				if (_jumpBufferTimer > 0) {
 					PerformJump();
 				} else {
@@ -2748,7 +2757,8 @@ namespace FTT.Characters {
 			if (CheckSpecialInput()) return;
 			if (CheckMovementAbilityInput()) return;
 
-			PlayAnimation(Velocity.Y < 0 ? "jump" : "fall");
+			// CM-HIT (3.2): the post-hitstun tumble animates as hitstun (H03).
+			PlayAnimation(_tumbleAfterHitstun ? "hitstun" : Velocity.Y < 0 ? "jump" : "fall");
 		}
 
 		private void ProcessAttacking(float dt) {
@@ -3482,6 +3492,8 @@ namespace FTT.Characters {
 			_grabbedEnemy = null;
 			PlayAnimation("grab");
 			TransitionTo(CharacterState.Grabbing);
+			// CM-HIT (4.3): a grab is an offensive action — it ends Defy protection.
+			ClearDefyProtection();
 			return true;
 		}
 
@@ -3760,21 +3772,11 @@ namespace FTT.Characters {
 				&& CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)) {
 				// V7.3 ruling: the tech reads the raw input, not the stance —
 				// charges, the shatter lockout, and the hit-2 gate are all
-				// irrelevant here.
-				_stunTimer = 0f;
-				_stunTumble = false;
-				_stunLeftTheGround = false;
-				_hitstunBlockCancelBlocked = false;
-				_hasPendingLaunch = false;
-				Velocity = Vector2.Zero;
-				_techInvulnerabilitySeconds =
-					FTT.Combat.BasicComboRules.LandingTechRecoveryFrames / 60f;
-				// V7.3: the recovery is a locked window, not a free Idle — the
-				// _techLockoutSeconds gate in _PhysicsProcess holds the player
-				// in place with no actions, then releases to Idle (mirrors the
-				// sim's TechLockoutFrames branch).
-				_techLockoutSeconds =
-					FTT.Combat.BasicComboRules.LandingTechRecoveryFrames / 60f;
+				// irrelevant here. V7.3: the recovery is a locked window, not a
+				// free Idle (the _techLockoutSeconds gate in _PhysicsProcess).
+				// CM-HIT (3.2): one body, shared with the post-hitstun tumble
+				// landing (PlayerController.Tumble.cs).
+				BeginLandingTech();
 				return;
 			}
 			// M05 (Package 12 W3b): the same ground contact WITHOUT Block is a
@@ -3810,6 +3812,10 @@ namespace FTT.Characters {
 			}
 			_stunTimer -= dt;
 			if (_stunTimer <= 0) {
+				// CM-HIT (3.2, the Smash rule): a launch whose hitstun ends in the
+				// air is still a tumble — the hero gets control back in Airborne,
+				// and landing without acting resolves as a tumble landing.
+				bool tumbleOutlivesHitstun = _stunTumble && !IsOnFloor();
 				_stunTumble = false;
 				_stunLeftTheGround = false;
 				_hitstunBlockCancelBlocked = false;
@@ -3817,6 +3823,7 @@ namespace FTT.Characters {
 				// sim's clear-on-hitstun-end).
 				_hasPendingLaunch = false;
 				TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
+				_tumbleAfterHitstun = tumbleOutlivesHitstun;
 			}
 		}
 
@@ -3941,6 +3948,11 @@ namespace FTT.Characters {
 				_attackStartedCrouched = false;
 			}
 			CurrentState = newState;
+			// CM-HIT (3.2): any state but Airborne (drift, fast-fall) and Stunned
+			// (the tumble landing itself) leaves the post-hitstun tumble — the air
+			// dodge, the air strike, a Special, the Ultimate, the movement ability,
+			// a ledge grab, death.
+			if (newState is not (CharacterState.Airborne or CharacterState.Stunned)) ClearTumbleAfterHitstun();
 			// CM-ULT (decision 2.1): leaving UsingUltimate by any edge ends the A02
 			// activation strike's phase and its wind-up telegraph.
 			if (oldState == CharacterState.UsingUltimate && newState != CharacterState.UsingUltimate) {
@@ -4032,6 +4044,13 @@ namespace FTT.Characters {
 			_stunTumble = false;
 			_stunLeftTheGround = false;
 			_hitstunBlockCancelBlocked = false;
+			// CM-HIT (3.2): a new hit ends a post-hitstun tumble; a launcher
+			// re-tumbles through the hitstun path above.
+			ClearTumbleAfterHitstun();
+			// CM-HIT (5.3, amending A03): any applied hitstun refreshes the air
+			// dodge, a throw's and a status stun's included. Blocked, absorbed,
+			// armoured and Defy-zeroed hits never reach here.
+			_airDodgeUsed = false;
 			// M05: a hit during the (vulnerable) get-up ends it.
 			ClearKnockdown();
 			TransitionTo(thrown ? CharacterState.Thrown : CharacterState.Stunned);
@@ -4398,6 +4417,8 @@ namespace FTT.Characters {
 				_defySuppressHitEffects = true;
 				_hasPendingLaunch = false;
 				_stunTumble = false;
+				// CM-HIT (3.2): a Defy releases the survivor from a post-hitstun tumble too.
+				ClearTumbleAfterHitstun();
 				ReleaseGrabState();
 				if (CurrentState == CharacterState.Stunned || CurrentState == CharacterState.Dazed) {
 					TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
@@ -4745,6 +4766,8 @@ namespace FTT.Characters {
 			ClearAbilityLockout();
 			_hasPendingLaunch = false;
 			_stunTumble = false;
+			// CM-HIT (3.2): the restored timeline never took the launch either.
+			ClearTumbleAfterHitstun();
 			_stunLeftTheGround = false;
 			_techInvulnerabilitySeconds = 0f;
 			_techLockoutSeconds = 0f;
@@ -5066,6 +5089,8 @@ namespace FTT.Characters {
 			RemainingJumps--;
 			JumpedThisAirtime = true;
 			_coyoteTimer = 0;
+			// CM-HIT (3.2): a jump (the air jump out of a tumble included) leaves the tumble.
+			ClearTumbleAfterHitstun();
 			TransitionTo(CharacterState.Airborne);
 		}
 

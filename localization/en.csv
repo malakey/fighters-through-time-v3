@@ -950,7 +950,9 @@ systems_card_triangle_body,"Attacks beat grabs, grabs beat blocks, blocks beat a
 systems_card_di_title,Directional Influence
 systems_card_di_body,"Hold a direction during hitstop to bend a launch by up to 15 degrees."
 systems_card_tech_title,Landing Tech
-systems_card_tech_body,"Hold Block as a launch carries you into the ground for a 12-frame invulnerable recovery."
+# CM-HIT
+# Combat and movement update 2026-10-16 (decision 3.2): a launch's tumble outlives its hitstun, so the card says how to leave it.
+systems_card_tech_body,"Hold Block as a launch carries you into the ground for a 12-frame invulnerable recovery; land doing nothing and you are knocked down. Once the hitstun ends you can jump, dodge or attack out of the tumble instead."
 systems_card_rally_title,Rally & Desperation
 systems_card_rally_body,"20–50% of damage taken lingers as a reclaimable echo; a direct hit reclaims up to 2× its damage before the echo drains."
 systems_card_defy_title,Defy History

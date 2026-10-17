@@ -455,6 +455,49 @@ public class FighterGrabTests {
         AssertThat(false).OverrideFailureMessage("Harness: the grab never resolved.").IsTrue();
     }
 
+    [TestCase]
+    public void TheGrabbersThrowInvulnerabilityEndsWithTheThrow() {
+        // CM-HIT (the fix-round A side note, CM_FIXA_SIM.md §5): the 12-frame
+        // throw-animation grant used to sit frozen in the grab-busy branch and
+        // outlive the throw by about 12 ticks. It now counts down through the
+        // animation (the landing tech's pattern): the grabber is invulnerable on
+        // every throw-animation tick and hittable on the tick the throw resolves.
+        var simulation = NewSimulation(seed: 973);
+        int tick = WalkIntoGrabRange(simulation);
+        simulation.Advance(
+            FrameChord(tick, GameplayButtons.Block | GameplayButtons.BasicAttack, GameplayButtons.BasicAttack),
+            Frame(tick, 0, GameplayButtons.None));
+        tick++;
+        int animationTicks = 0;
+        bool resolved = false;
+        for (int step = 0; step < 120 && !resolved; step++, tick++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+            AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent grabberVerb)).IsTrue();
+            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent grabber)).IsTrue();
+            if (grabberVerb.GrabPhase == FighterGrabRules.PhaseThrowAnimation) {
+                animationTicks++;
+                AssertThat(grabber.InvulnerabilityFrames > 0)
+                    .OverrideFailureMessage($"Throw-animation tick {animationTicks}: the grabber is invulnerable.")
+                    .IsTrue();
+                AssertThat(grabber.InvulnerabilityFrames)
+                    .OverrideFailureMessage("The grant counts down with the animation.")
+                    .IsEqual(BasicComboRules.ThrowAnimationFrames - (animationTicks - 1));
+            } else if (animationTicks > 0) {
+                resolved = true;
+                AssertThat(grabberVerb.GrabPhase).IsEqual(FighterGrabRules.PhaseNone);
+                AssertThat(simulation.TryGetFighter(1, out FighterStateComponent thrown)).IsTrue();
+                AssertThat(thrown.CurrentHP < thrown.MaxHP)
+                    .OverrideFailureMessage("setup: the throw must have resolved and landed.")
+                    .IsTrue();
+                AssertThat(grabber.InvulnerabilityFrames)
+                    .OverrideFailureMessage("The grabber's grant ends with the throw, not 12 ticks after it.")
+                    .IsEqual(0);
+            }
+        }
+        AssertThat(resolved).OverrideFailureMessage("setup: the grab never reached its throw.").IsTrue();
+        AssertThat(animationTicks).IsEqual(BasicComboRules.ThrowAnimationFrames);
+    }
+
     private static int WalkIntoGrabRange(FighterSimulation simulation) {
         int tick = 0;
         for (; tick < 90; tick++) {

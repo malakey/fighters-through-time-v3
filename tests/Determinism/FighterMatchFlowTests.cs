@@ -192,12 +192,12 @@ public class FighterMatchFlowTests {
             AssertThat(simulation.TryGetFighter(1, out FighterStateComponent guarded)).IsTrue();
             AssertThat(guarded.CurrentHP).IsEqual(guarded.MaxHP);
             AssertThat(guarded.InvulnerabilityFrames
-                >= FighterMatchFlowRules.RespawnInvulnerabilityFrames).IsTrue();
+                >= FighterMatchFlowRules.RespawnInvulnerabilityMaxFrames).IsTrue();
         }
     }
 
     [TestCase]
-    public void AnyInputAfterTheGraceWindowDropsTheFighterAndArmsTheThreeSecondWindow() {
+    public void AnyInputAfterTheGraceWindowDropsTheFighterAndArmsTheFullRespawnProtection() {
         var simulation = new FighterSimulation(rules: FighterMatchRules.Disabled);
         DriveOffTheBottom(simulation, 1);
 
@@ -208,18 +208,22 @@ public class FighterMatchFlowTests {
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent stillHeld)).IsTrue();
         AssertThat(FighterMatchFlowRules.IsOnRespawnPlatform(in stillHeld)).IsTrue();
 
-        // One input now drops them, and the 3 s window starts at the drop with
-        // its full length, not the leftover platform time.
+        // One input now drops them, and the protection starts at the drop with
+        // its full length, not the leftover platform time. CM-HIT (4.2): the
+        // first legal drop has waited 31 frames and gets the full 120, recorded
+        // on component 323 as the respawn grant.
         simulation.Advance(Neutral(0), Frame(0, 0, GameplayButtons.Jump));
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent dropped)).IsTrue();
         AssertThat(FighterMatchFlowRules.IsOnRespawnPlatform(in dropped)).IsFalse();
         AssertThat(dropped.IsGrounded).IsEqual(0);
         AssertThat(dropped.InvulnerabilityFrames)
-            .IsEqual(FighterMatchFlowRules.RespawnInvulnerabilityFrames);
+            .IsEqual(FighterMatchFlowRules.RespawnInvulnerabilityMaxFrames);
+        AssertThat(simulation.TryGetFighterActionState(1, out FighterActionStateComponent action)).IsTrue();
+        AssertThat(FighterMatchFlowRules.IsRespawnProtected(in dropped, in action)).IsTrue();
     }
 
     [TestCase]
-    public void AnExpiredPlatformDropsTheFighterAndArmsTheSameThreeSecondWindow() {
+    public void AnExpiredPlatformDropsTheFighterAndArmsTheShortestRespawnProtection() {
         var simulation = new FighterSimulation(rules: FighterMatchRules.Disabled);
         DriveOffTheBottom(simulation, 1);
 
@@ -228,22 +232,28 @@ public class FighterMatchFlowTests {
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent dropped)).IsTrue();
         AssertThat(FighterMatchFlowRules.IsOnRespawnPlatform(in dropped)).IsFalse();
+        // CM-HIT (4.2): the 300-frame auto-drop has waited the longest and gets
+        // exactly the 60-frame floor.
         AssertThat(dropped.InvulnerabilityFrames)
-            .IsEqual(FighterMatchFlowRules.RespawnInvulnerabilityFrames);
+            .IsEqual(FighterMatchFlowRules.RespawnInvulnerabilityMinFrames);
 
-        // And it really does expire: three seconds of invulnerability, then vulnerable.
-        for (int tick = 0; tick < FighterMatchFlowRules.RespawnInvulnerabilityFrames; tick++) {
+        // And it really does expire: one second of protection, then vulnerable,
+        // and the 323 record goes with it.
+        for (int tick = 0; tick < FighterMatchFlowRules.RespawnInvulnerabilityMinFrames; tick++) {
             simulation.Advance(Neutral(tick), Neutral(tick));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent vulnerable)).IsTrue();
         AssertThat(vulnerable.InvulnerabilityFrames).IsEqual(0);
+        simulation.Advance(Neutral(0), Neutral(0));
+        AssertThat(simulation.TryGetFighterActionState(1, out FighterActionStateComponent action)).IsTrue();
+        AssertThat(action.ActionFlags & FighterActionStateComponent.ActionFlagRespawnProtection).IsEqual(0);
     }
 
     [TestCase]
     public void RollInvulnerabilityStaysDistinctFromSpawnInvulnerability() {
         // The roll grant is short and must never overwrite a longer spawn window.
         AssertThat(UniversalMovementRules.RollInvulnerabilityFrames
-            < FighterMatchFlowRules.RespawnInvulnerabilityFrames).IsTrue();
+            < FighterMatchFlowRules.RespawnInvulnerabilityMinFrames).IsTrue();
 
         var simulation = new FighterSimulation(rules: FighterMatchRules.Disabled);
         DriveOffTheBottom(simulation, 1);
@@ -259,6 +269,119 @@ public class FighterMatchFlowTests {
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent rolling)).IsTrue();
         AssertThat(rolling.InvulnerabilityFrames
             > UniversalMovementRules.RollInvulnerabilityFrames).IsTrue();
+    }
+
+    // === CM-HIT (decision 4.2, Fighter only): the shrinking respawn protection ===
+
+    [TestCase]
+    public void TheRespawnProtectionShrinksFromOneTwentyAtTheFirstLegalDropToSixtyAtTheAutoDrop() {
+        // The rule itself: 120 through the grace and at the first legal drop,
+        // a straight integer line to exactly 60 at the 300-frame auto-drop.
+        AssertThat(FighterMatchFlowRules.RespawnInvulnerabilityFor(0)).IsEqual(120);
+        AssertThat(FighterMatchFlowRules.RespawnInvulnerabilityFor(31)).IsEqual(120);
+        AssertThat(FighterMatchFlowRules.RespawnInvulnerabilityFor(165)).IsEqual(90);
+        AssertThat(FighterMatchFlowRules.RespawnInvulnerabilityFor(299)).IsEqual(61);
+        AssertThat(FighterMatchFlowRules.RespawnInvulnerabilityFor(300)).IsEqual(60);
+        AssertThat(FighterMatchFlowRules.RespawnInvulnerabilityFor(10_000)).IsEqual(60);
+        int previous = int.MaxValue;
+        for (int waited = 0; waited <= FighterMatchFlowRules.RespawnPlatformFrames; waited++) {
+            int frames = FighterMatchFlowRules.RespawnInvulnerabilityFor(waited);
+            AssertThat(frames <= previous)
+                .OverrideFailureMessage($"The protection must never grow with the wait (waited {waited}).")
+                .IsTrue();
+            previous = frames;
+        }
+
+        // In the match: an input drop after w frames on the platform grants
+        // RespawnInvulnerabilityFor(w), read after the drop tick's decrement.
+        foreach (int waited in new[] { 31, 165, 299 }) {
+            var simulation = new FighterSimulation(rules: FighterMatchRules.Disabled);
+            DriveOffTheBottom(simulation, 1);
+            for (int tick = 0; tick < waited - 1; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
+            simulation.Advance(Neutral(0), Frame(0, 0, GameplayButtons.BasicAttack));
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent dropped)).IsTrue();
+            AssertThat(FighterMatchFlowRules.IsOnRespawnPlatform(in dropped))
+                .OverrideFailureMessage($"The press after {waited} frames must drop the fighter.")
+                .IsFalse();
+            AssertThat(dropped.InvulnerabilityFrames)
+                .OverrideFailureMessage($"A drop after {waited} frames on the platform.")
+                .IsEqual(FighterMatchFlowRules.RespawnInvulnerabilityFor(waited));
+            AssertThat(simulation.TryGetFighterActionState(1, out FighterActionStateComponent action)).IsTrue();
+            AssertThat(FighterMatchFlowRules.IsRespawnProtected(in dropped, in action)).IsTrue();
+        }
+    }
+
+    [TestCase]
+    public void ASwingOrASpecialEndsTheRespawnProtection() {
+        foreach (GameplayButtons offence in new[] { GameplayButtons.BasicAttack, GameplayButtons.Special1 }) {
+            var simulation = new FighterSimulation(rules: FighterMatchRules.Disabled);
+            DriveOffTheBottom(simulation, 1);
+            for (int tick = 0; tick < FighterMatchFlowRules.RespawnPlatformGraceFrames; tick++) {
+                simulation.Advance(Neutral(tick), Neutral(tick));
+            }
+            simulation.Advance(Neutral(0), Frame(0, 0, GameplayButtons.Jump));
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent dropped)).IsTrue();
+            AssertThat(dropped.InvulnerabilityFrames).IsEqual(FighterMatchFlowRules.RespawnInvulnerabilityMaxFrames);
+            // A few protected ticks of drift, then the first offensive action.
+            for (int tick = 0; tick < 5; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
+            simulation.Advance(Neutral(0), Frame(0, 0, offence));
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent acting)).IsTrue();
+            AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)).IsTrue();
+            bool accepted = offence == GameplayButtons.BasicAttack
+                ? FighterBasicAttackRules.IsSwinging(in runtime)
+                : runtime.SpecialOneCooldownFrames > 0;
+            AssertThat(accepted).OverrideFailureMessage($"{offence} must be accepted off the platform.").IsTrue();
+            AssertThat(acting.InvulnerabilityFrames)
+                .OverrideFailureMessage($"{offence} ends the respawn protection on its acceptance tick.")
+                .IsEqual(0);
+            AssertThat(simulation.TryGetFighterActionState(1, out FighterActionStateComponent action)).IsTrue();
+            AssertThat(action.ActionFlags & FighterActionStateComponent.ActionFlagRespawnProtection).IsEqual(0);
+        }
+    }
+
+    [TestCase]
+    public void AJumpAnAirDodgeOrARollKeepsTheRespawnProtection() {
+        var simulation = new FighterSimulation(rules: FighterMatchRules.Disabled);
+        DriveOffTheBottom(simulation, 1);
+        for (int tick = 0; tick < FighterMatchFlowRules.RespawnPlatformGraceFrames; tick++) {
+            simulation.Advance(Neutral(tick), Neutral(tick));
+        }
+        simulation.Advance(Neutral(0), Frame(0, 0, GameplayButtons.Jump));
+        int expected = FighterMatchFlowRules.RespawnInvulnerabilityMaxFrames;
+
+        // An air jump, then the air dodge: movement, not offence.
+        simulation.Advance(Neutral(0), Frame(0, 0, GameplayButtons.Jump));
+        expected--;
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent jumped)).IsTrue();
+        AssertThat(jumped.Velocity.y > FP64.Zero).OverrideFailureMessage("The air jump must fire.").IsTrue();
+        simulation.Advance(Neutral(0), Frame(0, 0, GameplayButtons.Roll));
+        expected--;
+        AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent dodging)).IsTrue();
+        AssertThat(FighterAirDodgeRules.IsAirDodge(dodging.UniversalMovementState))
+            .OverrideFailureMessage("The air dodge must fire.")
+            .IsTrue();
+        // Land, then roll on the ground.
+        int landed = 0;
+        for (; landed < 80; landed++) {
+            simulation.Advance(Neutral(landed), Neutral(landed));
+            expected--;
+            simulation.TryGetFighter(1, out FighterStateComponent falling);
+            simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent fallingRuntime);
+            if (falling.IsGrounded != 0 && fallingRuntime.UniversalMovementState == 0) break;
+        }
+        simulation.Advance(Neutral(0), Frame(0, 0, GameplayButtons.Roll));
+        expected--;
+        AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent rolling)).IsTrue();
+        AssertThat(rolling.UniversalMovementState).IsEqual((int)UniversalMovementPhase.RollStartup);
+
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent protectedFighter)).IsTrue();
+        AssertThat(simulation.TryGetFighterActionState(1, out FighterActionStateComponent action)).IsTrue();
+        AssertThat(FighterMatchFlowRules.IsRespawnProtected(in protectedFighter, in action))
+            .OverrideFailureMessage("A jump, an air dodge and a roll never end the respawn protection.")
+            .IsTrue();
+        AssertThat(protectedFighter.InvulnerabilityFrames)
+            .OverrideFailureMessage("The protection counts down untouched by the movement verbs.")
+            .IsEqual(expected);
     }
 
     [TestCase]

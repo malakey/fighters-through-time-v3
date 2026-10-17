@@ -97,6 +97,20 @@ public class CalibrationDrillScriptTests {
         AssertThat(progress.Misses).IsEqual(1);
         AssertThat(progress.Outcome).IsEqual(CalibrationDrillOutcome.InProgress);
 
+        // CM-HIT (decision 3.2, combat and movement update 2026-10-16): a tumble
+        // now outlives its hitstun (310 Tumble value 2). One that still lands
+        // untouched is a dropped tech the same way; one the student acts out of
+        // in the air (the tumble ends airborne, then a plain landing) is not.
+        Feed(progress, 1, s => s.StudentTumble = 1);
+        Feed(progress, 1, s => s.StudentTumble = 2);
+        Feed(progress, 1, s => { s.StudentTumble = 0; s.StudentGrounded = true; });
+        AssertThat(progress.Misses).IsEqual(2);
+        Feed(progress, 1, s => s.StudentTumble = 2);
+        Feed(progress, 1, s => s.StudentTumble = 0);
+        Feed(progress, 1, s => s.StudentGrounded = true);
+        AssertThat(progress.Misses).IsEqual(2);
+        AssertThat(progress.Outcome).IsEqual(CalibrationDrillOutcome.InProgress);
+
         // TechLockoutFrames is armed by nothing but a successful landing tech.
         Feed(progress, 1, s => s.StudentTumble = 1);
         Feed(progress, 1, s => { s.StudentTechLockoutFrames = 12; s.StudentGrounded = true; });

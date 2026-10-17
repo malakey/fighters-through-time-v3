@@ -41,9 +41,10 @@ namespace FTT.FighterSim {
     /// committed, with the fighter's components 300 (state), 310 (verb layer),
     /// 312 (defence) and 323 (action state).
     ///
-    /// <para>The body is empty in Phase A — no hash moves through it. Phase B's
-    /// CM-HIT fills it: respawn protection (323 <c>ActionFlags</c> bit 0) and the
-    /// D04 Defy protection (312) end on the first OFFENSIVE action
+    /// <para>The body was empty in Phase A. Phase B's CM-HIT filled it: any
+    /// action leaves a post-hitstun tumble (310 <c>Tumble</c>, decision 3.2),
+    /// and respawn protection (323 <c>ActionFlags</c> bit 0, 4.2) and the D04
+    /// Defy protection (312, 4.3) end on the first OFFENSIVE action
     /// (<see cref="IsOffensive"/>).</para>
     ///
     /// <para><b>Call sites (Phase A0).</b> The swing start (the
@@ -70,8 +71,19 @@ namespace FTT.FighterSim {
                 or FighterActionKind.Grab;
 
         /// <summary>
-        /// Called once per accepted verb, after it is committed. Empty in Phase
-        /// A; see the type summary.
+        /// Called once per accepted verb, after it is committed (CM-HIT, Phase B):
+        /// <list type="bullet">
+        /// <item><b>3.2</b> — every kind leaves a tumble whose hitstun is over
+        /// (<see cref="FighterVerbRules.ExitTumbleOnAction"/>): a launched
+        /// fighter that acts out of tumble lands plainly;</item>
+        /// <item><b>4.2</b> — an offensive kind ends the respawn protection
+        /// (<see cref="FighterMatchFlowRules.EndRespawnProtectionOnOffence"/>);</item>
+        /// <item><b>4.3</b> — an offensive kind ends the D04 Defy protection
+        /// (<see cref="FighterDefenseRules.EndOnOffence"/>).</item>
+        /// </list>
+        /// A site that grants its own invulnerability (a ledge get-up's climb
+        /// frames) calls this BEFORE it max-assigns that grant, so the grant
+        /// survives the respawn protection's zeroing.
         /// </summary>
         public static void OnActionAccepted(
             ref FighterStateComponent fighter,
@@ -79,6 +91,10 @@ namespace FTT.FighterSim {
             ref FighterDefenseComponent defense,
             ref FighterActionStateComponent action,
             FighterActionKind kind) {
+            FighterVerbRules.ExitTumbleOnAction(in fighter, ref verb);
+            if (!IsOffensive(kind)) return;
+            FighterMatchFlowRules.EndRespawnProtectionOnOffence(ref fighter, ref action);
+            FighterDefenseRules.EndOnOffence(ref defense);
         }
     }
 }

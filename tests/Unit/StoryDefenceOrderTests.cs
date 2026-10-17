@@ -249,6 +249,70 @@ public class StoryDefenceOrderTests {
     }
 
     [TestCase]
+    public void AStorySurvivorsFirstSwingEndsTheDefyWindowButARollDoesNot() {
+        // CM-HIT (decision 4.3, both modes; amends D04): the protected window
+        // ends on the survivor's first attack or Special (the sim's
+        // EndOnOffence); a roll, a jump and the block keep it.
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        var floor = new StaticBody2D {
+            Name = "DefyOffenceFloor", CollisionLayer = CollisionLayers.Environment, CollisionMask = 0
+        };
+        floor.AddChild(new CollisionShape2D {
+            Shape = new RectangleShape2D { Size = new Vector2(8000f, 40f) },
+            Position = new Vector2(0f, 20f)
+        });
+        tree.Root.AddChild(floor);
+        PlayerController player = CharacterFactory.CreateCharacter("einstein");
+        tree.Root.AddChild(player);
+        try {
+            player.GlobalPosition = new Vector2(0f, -8f);
+            for (int frame = 0; frame < 120 && !player.IsOnFloor(); frame++) {
+                player.Velocity = new Vector2(player.Velocity.X, 400f);
+                HoldInput(player, GameplayButtons.None, 1);
+            }
+            HoldInput(player, GameplayButtons.None, 10);
+            AssertThat(player.CurrentState).IsEqual(CharacterState.Idle);
+
+            player.CurrentUltimateMeter = UltimateMeter.MaxValue;
+            player.GetNode<UltimateMeter>("UltimateMeter").SetValue(UltimateMeter.MaxValue);
+            player.ApplyDamage(player.CurrentHP - 1);
+            player.ApplyDamage(player.MaximumHP);
+            AssertThat(player.StoryDefyHistoryUsed).IsTrue();
+            AssertThat(player.IsDefyProtected).IsTrue();
+
+            // Control resumes; the window counts.
+            HoldInput(player, GameplayButtons.None, 20);
+            AssertThat(player.DefyProtectionAwaitingControl).IsFalse();
+            AssertThat(player.IsDefyProtected).IsTrue();
+
+            // A roll keeps it.
+            HoldInput(player, GameplayButtons.Roll, 1);
+            AssertThat(player.CurrentState).IsEqual(CharacterState.Rolling);
+            for (int frame = 0; frame < 40 && player.CurrentState == CharacterState.Rolling; frame++) {
+                HoldInput(player, GameplayButtons.None, 1);
+            }
+            AssertThat(player.IsDefyProtected)
+                .OverrideFailureMessage("A roll is not offence: the window keeps running.")
+                .IsTrue();
+
+            // The first swing ends it on its start tick.
+            HoldInput(player, GameplayButtons.BasicAttack, 1);
+            AssertThat(player.CurrentState).IsEqual(CharacterState.Attacking);
+            AssertThat(player.IsDefyProtected)
+                .OverrideFailureMessage("The survivor's first swing ends the Defy window.")
+                .IsFalse();
+            AssertThat(player.DefyProtectionFramesRemaining).IsEqual(0);
+            AssertThat(player.StoryDefyHistoryUsed)
+                .OverrideFailureMessage("Ending the window never hands the spent use back.")
+                .IsTrue();
+        } finally {
+            InputManager.Instance?.ClearInputSource(player.PlayerIndex);
+            player.Free();
+            floor.Free();
+        }
+    }
+
+    [TestCase]
     public void AStoryZoneTickReclaimsNothingWhileADirectHitReclaims() {
         // V7.6 D03g: PlaceholderZone now passes collectsEcho: false. Before
         // this it defaulted to true and EVERY Story zone tick reclaimed.

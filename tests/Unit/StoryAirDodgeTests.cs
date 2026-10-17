@@ -70,6 +70,52 @@ public class StoryAirDodgeTests {
         });
     }
 
+    [TestCase]
+    public void BeingHitRefreshesTheAirDodgeSoItCanDodgeAgainAfterHitstun() {
+        // CM-HIT (decision 5.3, amending A03, both modes): any applied hitstun
+        // refreshes the air dodge. Dodge, take a launching hit in the air, and
+        // dodge again once the hitstun is over — before landing.
+        Run(player => {
+            Step(player, GameplayButtons.Jump);
+            for (int frame = 0; frame < 4; frame++) Step(player, GameplayButtons.None);
+            Step(player, GameplayButtons.Roll);
+            AssertThat(player.AirDodgeUsedThisAirtime).IsTrue();
+            for (int frame = 1; frame <= UniversalMovementRules.AirDodgeTotalFrames; frame++) {
+                Step(player, GameplayButtons.None);
+            }
+            AssertThat(player.IsOnFloor()).OverrideFailureMessage("setup: still airborne before the hit.").IsFalse();
+            AssertThat(player.AirDodgeUsedThisAirtime).IsTrue();
+
+            player.GetNode<FTT.Combat.Hurtbox>("Hurtbox").TakeHit(new FTT.Combat.HitPayload {
+                AttackerIndex = 1,
+                TargetIndex = 0,
+                AttackID = "test.airborne_launch",
+                HitboxID = "combo_3",
+                AttackClass = FTT.Combat.AttackClass.Basic,
+                Damage = 5f,
+                Knockback = new Vector2(0.5f, -4f),
+                Launches = true,
+                HitstunDuration = 0.2f,
+                HitOrigin = new Vector2(-20f, 0f),
+                AttackerFacingRight = true
+            });
+            AssertThat(player.CurrentState).IsEqual(CharacterState.Stunned);
+            AssertThat(player.AirDodgeUsedThisAirtime)
+                .OverrideFailureMessage("An applied hitstun refreshes the spent air dodge.")
+                .IsFalse();
+
+            for (int frame = 0; frame < 60 && player.CurrentState == CharacterState.Stunned; frame++) {
+                Step(player, GameplayButtons.None);
+            }
+            AssertThat(player.CurrentState).IsEqual(CharacterState.Airborne);
+            AssertThat(player.IsOnFloor()).OverrideFailureMessage("setup: still airborne after the hitstun.").IsFalse();
+            Step(player, GameplayButtons.Roll);
+            AssertThat(player.IsAirDodging)
+                .OverrideFailureMessage("The refreshed air dodge starts after the hitstun.")
+                .IsTrue();
+        });
+    }
+
     private static void Run(Action<PlayerController> body) {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
         var floor = new StaticBody2D {
