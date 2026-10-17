@@ -107,6 +107,26 @@ namespace FTT.FighterSim {
         /// observation) reads an opener.
         /// </summary>
         public int SelfNextStringStep;
+        /// <summary>
+        /// CM-CANCEL (combat and movement update 2026-10-16, decision 9.3, plan
+        /// §2.9.3): the CPU's own Special cast phase, mode-neutral —
+        /// <see cref="CpuCastPhase.None"/>, <see cref="CpuCastPhase.Startup"/>,
+        /// <see cref="CpuCastPhase.Active"/> or <see cref="CpuCastPhase.Recovery"/>.
+        /// Since decision 1.2 every Special plays its authored startup, active and
+        /// recovery, and the cast discards the caster's presses, so the decision
+        /// table reads its own cast before scheduling a Special, the Ultimate, a
+        /// grab or Echo Step. The sim fills it through the world observer's verb
+        /// layer from component 323 (Tubman's Delegated Foresight from component
+        /// 322); the Mirror adapter from the clone's executing Special. 0 (a
+        /// hand-built observation) is idle.
+        /// </summary>
+        public int SelfSpecialCastPhase;
+        /// <summary>
+        /// CM-CANCEL: frames left in <see cref="SelfSpecialCastPhase"/> (component
+        /// 323's <c>SpecialPhaseFrames</c>, 322's <c>PhaseFrames</c>, or the
+        /// clone's <c>BaseSpecial.PhaseFramesRemaining</c>); 0 when idle.
+        /// </summary>
+        public int SelfSpecialCastPhaseFrames;
 
         // === Target ===
         public long TargetPositionXRaw;
@@ -234,6 +254,23 @@ namespace FTT.FighterSim {
         public int HasEchoStepDestination;
         public long EchoStepDestinationXRaw;
         public long EchoStepDestinationYRaw;
+        /// <summary>
+        /// CM-CANCEL (fix round A's CPU half): frames left in the CPU's own
+        /// landing-tech action lock (<c>FighterVerbComponent.TechLockoutFrames</c>).
+        /// The sim's grab gate refuses while it runs, so the CPU's mirror does too.
+        /// </summary>
+        public int SelfTechLockoutFrames;
+        /// <summary>
+        /// CM-CANCEL: non-zero while the CPU is in an M05 knockdown or its get-up
+        /// (component 320), which the sim's grab gate refuses (fix round A).
+        /// </summary>
+        public int SelfKnockedDown;
+        /// <summary>
+        /// CM-CANCEL: non-zero while the CPU's own Ultimate activation is busy —
+        /// wind-up, active, whiff recovery or cinematic (A02, component 321) —
+        /// which the sim's grab gate refuses (fix round A).
+        /// </summary>
+        public int SelfUltimateCasterBusy;
 
         // === Target verb layer (absent when HasTargetVerbState == 0) ===
         /// <summary>Presence flag; see <see cref="HasVerbState"/>.</summary>
@@ -361,6 +398,59 @@ namespace FTT.FighterSim {
         public int DefyHistoryUsed;
         /// <summary>Non-zero while the fighter holds a functioning block stance.</summary>
         public int BlockStance;
+        /// <summary>CM-CANCEL: the fighter's own Special cast phase (<see cref="CpuCastPhase"/>).</summary>
+        public int SpecialCastPhase;
+        /// <summary>CM-CANCEL: frames left in <see cref="SpecialCastPhase"/>.</summary>
+        public int SpecialCastPhaseFrames;
+        /// <summary>CM-CANCEL: frames left in the landing-tech action lock.</summary>
+        public int TechLockoutFrames;
+        /// <summary>CM-CANCEL: non-zero during an M05 knockdown or its get-up.</summary>
+        public int KnockedDown;
+        /// <summary>CM-CANCEL: non-zero while the fighter's own Ultimate activation is busy (A02).</summary>
+        public int UltimateCasterBusy;
+    }
+
+    /// <summary>
+    /// CM-CANCEL (combat and movement update 2026-10-16, decision 9.3): the
+    /// mode-neutral Special cast phase the CPU decision table reads
+    /// (<see cref="CpuDecisionObservation.SelfSpecialCastPhase"/>). Its values
+    /// equal <c>FighterSpecialCastRules</c>' clocked phases 0–3; Tubman's
+    /// Delegated Foresight maps its component-322 stance onto them (startup →
+    /// Startup, window → Active, whiff recovery and sidestep → Recovery), and
+    /// the Mirror adapter maps the clone's <c>AbilityPhase</c> the same way.
+    /// </summary>
+    public static class CpuCastPhase {
+        public const int None = 0;
+        public const int Startup = 1;
+        public const int Active = 2;
+        public const int Recovery = 3;
+
+        /// <summary>
+        /// The sim's projection: component 323's clocked phase and its frames
+        /// left, or for a Delegated cast (Foresight) component 322's phase and
+        /// frames. Read-only.
+        /// </summary>
+        public static int FromSim(
+            in FighterActionStateComponent cast, in FighterCounterComponent counter, out int phaseFrames) {
+            if (FighterSpecialCastRules.IsCasting(in cast)) {
+                phaseFrames = cast.SpecialPhaseFrames;
+                return cast.SpecialPhase;
+            }
+            if (FighterSpecialCastRules.IsDelegated(in cast)) {
+                phaseFrames = counter.PhaseFrames;
+                return counter.Phase switch {
+                    FighterForesightRules.PhaseStartup => Startup,
+                    FighterForesightRules.PhaseWindow => Active,
+                    FighterForesightRules.PhaseWhiffRecovery => Recovery,
+                    FighterForesightRules.PhaseSidestep => Recovery,
+                    // A Delegated marker whose stance already ended clears on the
+                    // next movement pass; until then the cast lock still holds.
+                    _ => Recovery
+                };
+            }
+            phaseFrames = 0;
+            return None;
+        }
     }
 
     /// <summary>
@@ -450,6 +540,15 @@ namespace FTT.FighterSim {
             if (!_simulation.TryGetFighter(playerID, out FighterStateComponent fighter)) return false;
             if (!_simulation.TryGetFighterRuntime(playerID, out FighterRuntimeComponent runtime)) return false;
             if (!_simulation.TryGetFighterVerb(playerID, out FighterVerbComponent verb)) return false;
+            // CM-CANCEL (decision 9.3): the fighter's own cast (323, or Foresight's
+            // 322 stance), the tech lock, the knockdown (320) and the Ultimate
+            // activation (321) — the self-state the sim's Special, Ultimate, grab
+            // and Echo Step gates read. A missing component reads idle.
+            _simulation.TryGetFighterActionState(playerID, out FighterActionStateComponent action);
+            _simulation.TryGetFighterCounter(playerID, out FighterCounterComponent counter);
+            _simulation.TryGetFighterKnockdown(playerID, out FighterKnockdownComponent knockdown);
+            _simulation.TryGetFighterUltimateActivation(playerID, out FighterUltimateActivationComponent activation);
+            int castPhase = CpuCastPhase.FromSim(in action, in counter, out int castPhaseFrames);
             state = new CpuVerbState {
                 GrabPhase = verb.GrabPhase,
                 BeingHeld = verb.BeingHeld,
@@ -458,7 +557,12 @@ namespace FTT.FighterSim {
                 EchoStepCooldownFrames = verb.EchoStepCooldownFrames,
                 EchoStepWindupFrames = verb.EchoStepWindupFrames,
                 DefyHistoryUsed = verb.DefyHistoryUsed,
-                BlockStance = FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb) ? 1 : 0
+                BlockStance = FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb) ? 1 : 0,
+                SpecialCastPhase = castPhase,
+                SpecialCastPhaseFrames = castPhaseFrames,
+                TechLockoutFrames = verb.TechLockoutFrames,
+                KnockedDown = FighterKnockdownRules.IsActive(in knockdown) ? 1 : 0,
+                UltimateCasterBusy = FighterUltimateActivationRules.IsCasterBusy(in activation) ? 1 : 0
             };
             return true;
         }

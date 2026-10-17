@@ -709,8 +709,39 @@ namespace FTT.Enemies {
                 // sentinels (Package 11 A9b) are what keep the F19 grab and Echo
                 // Step branches out of a campaign level entirely.
             };
+            // CM-CANCEL (combat and movement update 2026-10-16, decision 9.3):
+            // the clone's own Special cast, which ignores its Special and
+            // Ultimate presses until the recovery ends, so the shared table
+            // stops pressing into it.
+            observation.SelfSpecialCastPhase = ProjectSpecialCastPhase(_self.ExecutingSpecialCast, out int castFrames);
+            observation.SelfSpecialCastPhaseFrames = castFrames;
             ProjectNearestHostileProjectile(ref observation);
             return observation;
+        }
+
+        /// <summary>
+        /// CM-CANCEL: the clone's executing Special's phase on the mode-neutral
+        /// scale (<see cref="CpuCastPhase"/>) and its frames left; none when no
+        /// cast runs. A cast's one-tick Cleanup reads as the end of its recovery.
+        /// </summary>
+        internal static int ProjectSpecialCastPhase(BaseSpecial cast, out int phaseFrames) {
+            phaseFrames = 0;
+            if (cast == null || !GodotObject.IsInstanceValid(cast)) return CpuCastPhase.None;
+            switch (cast.CurrentPhase) {
+                case AbilityPhase.Startup:
+                    phaseFrames = Math.Max(0, cast.PhaseFramesRemaining);
+                    return CpuCastPhase.Startup;
+                case AbilityPhase.Active:
+                    phaseFrames = Math.Max(0, cast.PhaseFramesRemaining);
+                    return CpuCastPhase.Active;
+                case AbilityPhase.Recovery:
+                    phaseFrames = Math.Max(0, cast.PhaseFramesRemaining);
+                    return CpuCastPhase.Recovery;
+                case AbilityPhase.Cleanup:
+                    return CpuCastPhase.Recovery;
+                default:
+                    return CpuCastPhase.None;
+            }
         }
 
         /// <summary>
