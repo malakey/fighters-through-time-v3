@@ -61,7 +61,12 @@ namespace FTT.FighterSim {
         /// <summary>
         /// The D3 cancel buffer (CM-CANCEL, Phase B): bits 0–2 the verb (0 none,
         /// 1 roll, 2 jump, 3 basic, 4 movement), bits 3–6 its age, bit 7 Up held
-        /// at the press, bit 8 Down held at the press. Zero in Phase A.
+        /// at the press, bit 8 Down held at the press. Written and read by
+        /// <c>FighterSpecialCancelRules</c> (fed by the movement system's cast
+        /// region and hitstop branch); zeroed by every cancel and by every feed
+        /// that finds no cast busy — which runs on the movement pass of every
+        /// tick a new cast can be accepted on, so a cast always opens empty.
+        /// <c>Clear</c> leaves it alone.
         /// </summary>
         public int SpecialCancelBuffer;
         /// <summary>

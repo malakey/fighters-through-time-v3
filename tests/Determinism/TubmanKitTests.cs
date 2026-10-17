@@ -105,6 +105,13 @@ public class TubmanKitTests {
             caught = Counter(simulation, 0).CountersLanded > 0;
         }
         AssertThat(caught).OverrideFailureMessage("The swing was never caught by the window.").IsTrue();
+        // CM-CANCEL (decision 11.1, plan §2.11.1): a landed answer is a direct
+        // hit of Foresight's execution, so it arms D3 out of the sidestep.
+        AssertThat(simulation.TryGetFighterActionState(0, out FighterActionStateComponent cast)).IsTrue();
+        AssertThat(Counter(simulation, 0).Phase).IsEqual(FighterForesightRules.PhaseSidestep);
+        AssertThat(FighterSpecialCancelRules.LandedDirectHit(in cast))
+            .OverrideFailureMessage("The landed answer must arm the recovery cancel.")
+            .IsTrue();
         for (int i = 0; i < 6; i++, tick++) {
             simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
         }
@@ -191,6 +198,27 @@ public class TubmanKitTests {
         AssertThat(window).IsEqual(TubmanKitRules.ForesightWindowFrames);
         AssertThat(whiff).IsEqual(TubmanKitRules.ForesightWhiffRecoveryFrames);
         AssertThat(Counter(simulation, 0).CountersLanded).IsEqual(0);
+
+        // CM-CANCEL (decision 11.1, plan §2.11.1; Story's TubmanForesight rule):
+        // the whiff recovery's one exit is the grounded Block cancel. Block held
+        // from T+1 is discarded through the startup and the window, and raises
+        // the stance on the whiff recovery's first tick, which ends the stance.
+        var blocking = new FighterSimulation(
+            tubman, FighterLoadout.Default(FighterCharacterID.Joan),
+            seed: 1405, spawnDistance: 4, rules: FighterMatchRules.Disabled);
+        blocking.Advance(Frame(0, GameplayButtons.Special2), Frame(0, GameplayButtons.None));
+        int raisedOn = -1;
+        for (int tick = 1; tick <= 60 && raisedOn < 0; tick++) {
+            blocking.Advance(Frame(tick, GameplayButtons.Block), Frame(tick, GameplayButtons.None));
+            AssertThat(blocking.TryGetFighter(0, out FighterStateComponent fighter)).IsTrue();
+            AssertThat(blocking.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
+            AssertThat(blocking.TryGetFighterVerb(0, out FighterVerbComponent verb)).IsTrue();
+            if (FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb)) raisedOn = tick;
+        }
+        AssertThat(raisedOn)
+            .OverrideFailureMessage("Block must cancel only the whiff recovery, on its first tick.")
+            .IsEqual(TubmanKitRules.ForesightStartupFrames + TubmanKitRules.ForesightWindowFrames);
+        AssertThat(Counter(blocking, 0).Phase).IsEqual(FighterForesightRules.PhaseNone);
     }
 
     [TestCase]

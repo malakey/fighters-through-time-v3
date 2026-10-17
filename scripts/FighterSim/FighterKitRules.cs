@@ -173,7 +173,7 @@ namespace FTT.FighterSim {
                     ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
                     ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
                     ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
-                    FighterDamageRules.ApplyFighterHit(
+                    FighterHitOutcome burstOutcome = FighterDamageRules.ResolveFighterHit(
                         ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                         projectile.AttackClass, projectile.Damage,
                         contract.HasKnockbackVector ? contract.KnockbackX : projectile.Knockback.x,
@@ -185,6 +185,14 @@ namespace FTT.FighterSim {
                             && contract.ShieldBreaker,
                         hasKnockbackVector: contract.HasKnockbackVector,
                         knockbackVertical: contract.KnockbackY);
+                    // D3 (CM-CANCEL, plan §2.11.1): a landed burst is a direct hit
+                    // of its Special's execution and arms the owner's recovery
+                    // cancel while that slot is being cast (E=mc²'s burst).
+                    if (projectile.UltimateOrigin == 0) {
+                        FighterSpecialCancelRules.NoteLanded(
+                            ref frame.Get<FighterActionStateComponent>(ownerEntity),
+                            projectile.ProjectileTypeID % 10, burstOutcome, projectile.Damage, in contract);
+                    }
                 }
             }
         }
@@ -551,6 +559,8 @@ namespace FTT.FighterSim {
             ref FighterStateComponent attacker,
             ref FighterRuntimeComponent attackerRuntime,
             ref FighterVerbComponent attackerVerb,
+            ref FighterActionStateComponent attackerAction,
+            in FighterAbilityHitData lorentzContract,
             ref FighterStateComponent target,
             ref FighterRuntimeComponent targetRuntime,
             ref FighterVerbComponent targetVerb,
@@ -571,12 +581,17 @@ namespace FTT.FighterSim {
             }
             for (int index = 0; index < count && index < 2; index++) {
                 FPVector2 origin = index == 0 ? first : second;
-                FighterDamageRules.ApplyFighterHit(
+                FighterHitOutcome arcOutcome = FighterDamageRules.ResolveFighterHit(
                     ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     FighterDamageRules.SpecialAttackClass, ArcDamage, FP64.Zero, ArcHitstunFrames,
                     (int)StatusType.None, 0, FP64.One, origin.x,
                     appliesHitstop: false,
                     launches: false);
+                // D3 (CM-CANCEL, plan §2.11.1): an arc is a direct hit of the
+                // Lorentz Pulse's execution (Special 2), so a landed arc arms
+                // the pulse cast's recovery cancel (its landed pulse already has).
+                FighterSpecialCancelRules.NoteLanded(
+                    ref attackerAction, FighterHitContractTable.SlotSpecialTwo, arcOutcome, ArcDamage, in lorentzContract);
             }
         }
     }

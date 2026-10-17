@@ -98,6 +98,27 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
+        /// CM-CANCEL (combat and movement update 2026-10-16, decision 11.1, plan
+        /// §2.11.1): a cancel out of the stance's recovery — the grounded Block
+        /// cancel from the whiff recovery or the sidestep, or D3 after a landed
+        /// answer, matching Story's <c>TubmanForesight</c> — ends the stance and,
+        /// from the sidestep, cuts the sidestep's own remaining invulnerability and
+        /// nothing else. Called by the movement system's cast region, after this
+        /// tick's <see cref="Advance"/> and before its invulnerability decrement,
+        /// where the sidestep's grant (max-assigned to
+        /// <see cref="TubmanKitRules.ForesightSidestepFrames"/> on the trigger,
+        /// and counting down with the stance) is exactly
+        /// <c>PhaseFrames + 1</c>. A larger grant is another source's — a respawn
+        /// or a tech — and stays whole.
+        /// </summary>
+        public static void CancelStance(ref FighterCounterComponent counter, ref FighterStateComponent fighter) {
+            if (counter.Phase == PhaseSidestep && fighter.InvulnerabilityFrames <= counter.PhaseFrames + 1) {
+                fighter.InvulnerabilityFrames = 0;
+            }
+            Clear(ref counter);
+        }
+
+        /// <summary>
         /// One tick of the stance clock, called by <c>FighterMovementSystem</c>
         /// after the hitstop gate. A hit that lands in the startup or the whiff
         /// recovery (hitstun or daze), a grab, an Ultimate capture or a stock
