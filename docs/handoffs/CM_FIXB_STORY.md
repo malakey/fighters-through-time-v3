@@ -7,7 +7,7 @@ The findings are the STORY array of `D:/Projects/genre_review_2026-10-13/fixB_in
 Every new case was written first and run against the unfixed code: **6 of 6 failed**, each on the defect it pins (messages in §2). With the fixes, the six cases and the ten touched suites pass 124/124.
 
 Commits:
-- the fix commit (`CM-FIXB-STORY: ...`): five fixes and six regression cases
+- `10161ca`: five fixes and six regression cases
 - this handoff
 
 ## 1. Findings fixed
