@@ -89,8 +89,18 @@ public class DownAirSlamTests {
             .OverrideFailureMessage("One bounce per slam.")
             .IsFalse();
 
+        // CM-HIT (decision 3.2): an owed bounce is dropped when the TUMBLE ends
+        // (an action, a tech, a knockdown, a non-launching hit), no longer when
+        // its hitstun does — a tumble past its hitstun, airborne, still owes it.
         knockdown = new FighterKnockdownComponent { SlamBouncePending = 1, SlamBounceSpeed = FP64.One };
         fighter.HitstunFrames = 0;
+        fighter.IsGrounded = 0;
+        verb.Tumble = FighterVerbRules.TumbleAfterHitstun;
+        FighterSlamRules.ClearIfStale(in fighter, in verb, ref knockdown);
+        AssertThat(FighterSlamRules.IsPending(in knockdown))
+            .OverrideFailureMessage("A tumble that outlived its hitstun still owes the bounce.")
+            .IsTrue();
+        verb.Tumble = FighterVerbRules.TumbleNone;
         FighterSlamRules.ClearIfStale(in fighter, in verb, ref knockdown);
         AssertThat(FighterSlamRules.IsPending(in knockdown)).IsFalse();
     }

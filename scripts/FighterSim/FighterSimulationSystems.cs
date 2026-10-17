@@ -382,8 +382,13 @@ namespace FTT.FighterSim {
                     }
                     continue;
                 }
+                // CM-HIT (combat and movement update 2026-10-16): the tumble
+                // (3.2: it outlives hitstun while airborne, value 2), the air
+                // dodge refreshed by any applied hitstun (5.3), the respawn-
+                // protection record (4.2) and the throw animation's grabber grant.
+                // FighterMovementSystem.HitReaction.cs.
+                ApplyHitReaction(ref fighter, ref verb, ref knockdown, ref action);
                 if (fighter.HitstunFrames <= 0) {
-                    verb.Tumble = 0;
                     // Hitstun over: the hit-2 block-cancel gate re-opens and any
                     // stashed launch is dead — it must never replay under a
                     // later hit's hitstop (V7.3).
@@ -549,7 +554,7 @@ namespace FTT.FighterSim {
                 // frozen, invulnerable, and consumes no input until it drops.
                 if (FighterMatchFlowRules.IsOnRespawnPlatform(in fighter)) {
                     ProcessRespawnPlatform(
-                        ref fighter, ref runtime, _geometry.RespawnPlatformPosition);
+                        ref fighter, ref runtime, ref action, _geometry.RespawnPlatformPosition);
                     continue;
                 }
 
@@ -960,8 +965,11 @@ namespace FTT.FighterSim {
         /// Chronal Respawn Platform (design-godot.md ~1565-1571). The fighter
         /// stands frozen and invulnerable for up to five seconds. After a short
         /// grace window any gameplay input drops them; otherwise the platform
-        /// dissolves on expiry. Either way the three-second spawn invulnerability
-        /// is (re)armed at the drop, never before it.
+        /// dissolves on expiry. Either way the spawn protection is armed at the
+        /// drop, never before it: CM-HIT (decision 4.2, Fighter only) made it 120
+        /// frames shrinking to 60 the longer the fighter waited
+        /// (<see cref="FighterMatchFlowRules.RespawnInvulnerabilityFor"/>),
+        /// recorded on component 323 so the first offensive action can end it.
         ///
         /// <para>Package 11 A9: the platform sits at the <i>stage's</i> authored
         /// anchor, not the global stage-centre constant — on Paris centre is a pit
@@ -973,6 +981,7 @@ namespace FTT.FighterSim {
         private static void ProcessRespawnPlatform(
             ref FighterStateComponent fighter,
             ref FighterRuntimeComponent runtime,
+            ref FighterActionStateComponent action,
             in FPVector2 respawnPosition) {
             int elapsed = FighterMatchFlowRules.RespawnPlatformFrames - fighter.RespawnFramesRemaining;
             bool graceElapsed = elapsed >= FighterMatchFlowRules.RespawnPlatformGraceFrames;
@@ -999,16 +1008,21 @@ namespace FTT.FighterSim {
 
             if (fighter.RespawnFramesRemaining > 0) fighter.RespawnFramesRemaining--;
             if (inputRequestedDrop || fighter.RespawnFramesRemaining <= 0) {
+                // CM-HIT (4.2): the wait is read AFTER this tick's decrement — 31
+                // at the first legal input drop (120 frames), 300 at the
+                // auto-drop (exactly 60) — and the grant is recorded on 323 bit
+                // 0 (the platform hold zeroed 323 earlier this tick).
+                int waited = FighterMatchFlowRules.RespawnPlatformFrames - fighter.RespawnFramesRemaining;
                 fighter.RespawnFramesRemaining = 0;
                 fighter.IsGrounded = 0;
-                fighter.InvulnerabilityFrames = FighterMatchFlowRules.RespawnInvulnerabilityFrames;
+                FighterMatchFlowRules.GrantRespawnProtection(ref fighter, ref action, waited);
                 return;
             }
 
-            // Invulnerable for the whole dissolve, and the 3 s window still has
-            // its full length left the instant the platform releases them.
+            // Invulnerable for the whole dissolve, with at least the longest
+            // drop grant still left the instant the platform releases them.
             fighter.InvulnerabilityFrames =
-                fighter.RespawnFramesRemaining + FighterMatchFlowRules.RespawnInvulnerabilityFrames;
+                fighter.RespawnFramesRemaining + FighterMatchFlowRules.RespawnInvulnerabilityMaxFrames;
         }
 
         /// <summary>
@@ -1988,7 +2002,9 @@ namespace FTT.FighterSim {
             // V7.6 D04 (Package 11 A1b): the protected second does not start
             // until the survivor's first resumed NORMAL-CONTROL tick, and its
             // countdown pauses during global hitstop and suspended-combat
-            // presentations. Attacking neither cancels nor refreshes it.
+            // presentations. Attacking never refreshes it, and since CM-HIT
+            // (decision 4.3, amending D04) the survivor's first offensive action
+            // ends it (FighterActionRules.OnActionAccepted).
             FighterDefenseRules.Tick(
                 ref defenseOne, verbOne.HitstopFrames > 0, IsDefyActionable(in fighterOne, in verbOne));
             FighterDefenseRules.Tick(
@@ -3804,8 +3820,8 @@ namespace FTT.FighterSim {
             // Chronal Respawn Platform, all match modes: the fighter materialises
             // frozen and invulnerable at the stage's respawn anchor (centre +3.0
             // unless the stage overrides it) rather than teleporting straight back
-            // into play. The 3 s spawn invulnerability is armed when the platform
-            // drops them, not here.
+            // into play. The spawn protection (CM-HIT 4.2: 120 frames shrinking
+            // to 60 with the wait) is armed when the platform drops them, not here.
             fighter.Position =
                 geometry?.RespawnPlatformPosition ?? FighterMatchFlowRules.RespawnPlatformPosition;
             fighter.Velocity = FPVector2.Zero;
@@ -3813,11 +3829,11 @@ namespace FTT.FighterSim {
             if (fighter.Stocks > 0) {
                 fighter.RespawnFramesRemaining = FighterMatchFlowRules.RespawnPlatformFrames;
                 fighter.InvulnerabilityFrames =
-                    FighterMatchFlowRules.RespawnPlatformFrames + FighterMatchFlowRules.RespawnInvulnerabilityFrames;
+                    FighterMatchFlowRules.RespawnPlatformFrames + FighterMatchFlowRules.RespawnInvulnerabilityMaxFrames;
             } else {
                 // Out of stocks: no platform, no respawn. The match resolves this frame.
                 fighter.RespawnFramesRemaining = 0;
-                fighter.InvulnerabilityFrames = FighterMatchFlowRules.RespawnInvulnerabilityFrames;
+                fighter.InvulnerabilityFrames = FighterMatchFlowRules.RespawnInvulnerabilityMaxFrames;
             }
             fighter.HitstunFrames = 0;
             fighter.DazeFrames = 0;

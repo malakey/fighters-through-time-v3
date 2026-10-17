@@ -266,8 +266,10 @@ namespace FTT.FighterSim {
         /// <paramref name="suspended"/> covers global hitstop, menus, Time
         /// Freeze and suspended-combat presentations — the countdown pauses,
         /// it never banks catch-up ticks. <paramref name="actionable"/> is the
-        /// first resumed normal-control tick that starts the countdown;
-        /// attacking neither cancels nor refreshes it.
+        /// first resumed normal-control tick that starts the countdown.
+        /// Attacking never refreshes it, and since the combat and movement
+        /// update (2026-10-16, decision 4.3, amending D04) the survivor's first
+        /// offensive action ends it (<see cref="EndOnOffence"/>).
         /// </summary>
         public static void Tick(ref FighterDefenseComponent defense, bool suspended, bool actionable) {
             if (suspended) return;
@@ -287,6 +289,36 @@ namespace FTT.FighterSim {
                 if (defense.BarrierRemainingFrames <= 0) ClearBarrier(ref defense);
             }
         }
+
+        /// <summary>
+        /// CM-HIT (decision 4.3, both modes; amends D04): the Defy survivor's
+        /// first offensive action — a swing, a Special, the Ultimate or a grab
+        /// (<see cref="FighterActionRules.IsOffensive"/>) — ends the protected
+        /// window, presentation wait included: the await flag, the frames and
+        /// the proc identity all go to zero. Movement, the roll, the air dodge,
+        /// jumps and the block keep it. Called from
+        /// <see cref="FighterActionRules.OnActionAccepted"/>.
+        /// </summary>
+        public static void EndOnOffence(ref FighterDefenseComponent defense) {
+            defense.DefyProtectionAwaitControl = 0;
+            defense.DefyProtectionFrames = 0;
+            defense.DefyProcIdentity = 0;
+        }
+
+        /// <summary>
+        /// The one Defy History eligibility test both damage paths read
+        /// (CM-HIT, decision 1.1(4)): unspent, not barred by the F22 Sudden Death
+        /// phase, and a full meter. The caller tests that the blow was lethal.
+        /// Before this the unattributed path (a Venom tick) skipped the
+        /// <c>DefyBarred</c> term, so a Sudden Death DoT tick could still proc.
+        /// </summary>
+        public static bool CanDefy(
+            in FighterStateComponent fighter,
+            in FighterVerbComponent verb,
+            in FighterDefenseComponent defense) =>
+            verb.DefyHistoryUsed == 0
+            && defense.DefyBarred == 0
+            && fighter.Influence >= FighterMeterRules.Cap;
 
         public static void ClearBarrier(ref FighterDefenseComponent defense) {
             defense.BarrierPoints = 0;
@@ -611,16 +643,15 @@ namespace FTT.FighterSim {
 
             // Defy History (V7.1): a lethal *hit* against a full meter does not
             // KO — the meter shatters to 0 and the fighter survives at 1 HP.
-            // Once per match (Sudden Death pre-marks it used on both fighters).
+            // Once per match. V7.6 F22: "the next actual death decides the
+            // match; there is no Defy survival proc" in Sudden Death — the phase
+            // BARS it (DefyBarred, set by the Sudden Death setup) without
+            // marking it spent, so a fighter who never used Defy still shows
+            // Unavailable rather than Spent (F13). CM-HIT (1.1(4)): the one
+            // eligibility test, shared with the Venom-tick path.
             bool defied = false;
             if (target.CurrentHP <= 0
-                && targetVerb.DefyHistoryUsed == 0
-                // V7.6 F22: "the next actual death decides the match; there is
-                // no Defy survival proc" in Sudden Death. The BAR is a separate
-                // read from the spent flag (F13), so a fighter who never used
-                // Defy still shows Unavailable rather than Spent.
-                && targetDefense.DefyBarred == 0
-                && target.Influence >= MaxInfluence) {
+                && FighterDefenseRules.CanDefy(in target, in targetVerb, in targetDefense)) {
                 defied = true;
                 targetVerb.DefyHistoryUsed = 1;
                 target.Influence = FP64.Zero;
@@ -852,9 +883,10 @@ namespace FTT.FighterSim {
             target.CurrentHP = remainingHP > 0 ? remainingHP : 0;
 
             bool defied = false;
+            // CM-HIT (1.1(4)): F22's bar holds for a lethal damage-over-time tick
+            // too — Sudden Death's DefyBarred is read through the one shared test.
             if (target.CurrentHP <= 0
-                && targetVerb.DefyHistoryUsed == 0
-                && target.Influence >= MaxInfluence) {
+                && FighterDefenseRules.CanDefy(in target, in targetVerb, in targetDefense)) {
                 defied = true;
                 targetVerb.DefyHistoryUsed = 1;
                 target.Influence = FP64.Zero;
@@ -862,6 +894,10 @@ namespace FTT.FighterSim {
                 FighterDefenseRules.BeginDefyProtection(ref targetDefense, target.PlayerID);
                 target.HitstunFrames = 0;
                 targetVerb.BeingHeld = 0;
+                // CM-HIT (3.2): a Defy proc releases its survivor from a tumble
+                // too, as the hit path's proc does (D04) — a tick-saved fighter
+                // falling in a post-hitstun tumble lands plainly.
+                targetVerb.Tumble = FighterVerbRules.TumbleNone;
             }
 
             int actualDamage = previousHP - target.CurrentHP;

@@ -210,8 +210,13 @@ public class FighterHazardBehaviorTests {
     /// 1800-frame hazard boundary, and then sits pinned at (0, 3) — inside the
     /// full-height beam column — through the platform hold and the post-drop
     /// invulnerability window. The beam always crosses stage centre within its
-    /// first 140 active frames (it ignites moving toward the far wall), so the
-    /// overlap the assertion depends on is guaranteed, not seed luck.
+    /// first 140 active frames (it ignites moving toward the far wall, after its
+    /// 90-frame warning), so the overlap the assertion depends on is
+    /// guaranteed, not seed luck. CM-HIT (decision 4.2, 2026-10-16): the
+    /// post-drop window shrank from 180 frames to 60 at the auto-drop, so the
+    /// knockout is now scripted later (idle to tick 1700, not 1560): the
+    /// 300-frame platform hold alone then spans the whole crossing window
+    /// (ticks 1890–2030).
     /// </summary>
     [TestCase]
     public void ParisBeamCannotDrainMeterFromAnInvulnerableRespawningFighter() {
@@ -226,7 +231,7 @@ public class FighterHazardBehaviorTests {
 
         // Idle to just before the hazard boundary, then drop through the legacy
         // floor and ride the fall to a stock loss.
-        while (harness.Tick < 1560) harness.Step();
+        while (harness.Tick < 1700) harness.Step();
         bool onPlatform = false;
         for (int frame = 0; frame < 200 && !onPlatform; frame++) {
             harness.Step(0, frame == 0

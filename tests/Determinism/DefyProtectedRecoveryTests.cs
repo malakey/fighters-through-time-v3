@@ -251,6 +251,130 @@ public class DefyProtectedRecoveryTests {
         AssertThat(defense.BarrierEffectID).IsEqual(0);
     }
 
+    // === CM-HIT (decision 4.3, both modes; amends D04) ===
+
+    [TestCase]
+    public void TheSurvivorsFirstSwingOrSpecialEndsTheProtectedWindow() {
+        // The chokepoint: every offensive kind ends the window, presentation
+        // wait included, and the next hit lands.
+        foreach (FighterActionKind kind in new[] {
+                     FighterActionKind.Swing, FighterActionKind.Special,
+                     FighterActionKind.Ultimate, FighterActionKind.Grab }) {
+            Fixture f = Fixture.New();
+            f.Target.CurrentHP = 5;
+            f.Target.Influence = FP64.FromInt(100);
+            f.Hit(damage: 40);
+            AssertThat(FighterDefenseRules.IsDefyProtected(in f.Defense)).IsTrue();
+            FighterDefenseRules.Tick(ref f.Defense, suspended: false, actionable: true);
+            FighterActionStateComponent action = default;
+            FighterActionRules.OnActionAccepted(ref f.Target, ref f.Verb, ref f.Defense, ref action, kind);
+            AssertThat(FighterDefenseRules.IsDefyProtected(in f.Defense))
+                .OverrideFailureMessage($"{kind} must end the Defy window.")
+                .IsFalse();
+            AssertThat(f.Defense.DefyProcIdentity).IsEqual(0);
+            AssertThat(f.Verb.DefyHistoryUsed)
+                .OverrideFailureMessage("Ending the window never hands the spent use back.")
+                .IsEqual(1);
+            AssertThat(f.Hit(damage: 10)).OverrideFailureMessage($"After {kind} a hit lands.").IsTrue();
+        }
+
+        // In a match: the survivor's own swing ends it on its start tick, and a
+        // Special does the same.
+        foreach (GameplayButtons offence in new[] { GameplayButtons.BasicAttack, GameplayButtons.Special1 }) {
+            FighterSimulation simulation = DefiedSurvivorSimulation(out int tick);
+            simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, offence));
+            AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)).IsTrue();
+            bool accepted = offence == GameplayButtons.BasicAttack
+                ? FighterBasicAttackRules.IsSwinging(in runtime)
+                : runtime.SpecialOneCooldownFrames > 0;
+            AssertThat(accepted).OverrideFailureMessage($"The survivor's {offence} must be accepted.").IsTrue();
+            AssertThat(simulation.TryGetFighterDefense(1, out FighterDefenseComponent defense)).IsTrue();
+            AssertThat(FighterDefenseRules.IsDefyProtected(in defense))
+                .OverrideFailureMessage($"The survivor's {offence} ends the window on its acceptance tick.")
+                .IsFalse();
+        }
+    }
+
+    [TestCase]
+    public void ARollAJumpOrAnyOtherMovementVerbKeepsTheProtectedWindow() {
+        foreach (FighterActionKind kind in new[] {
+                     FighterActionKind.Jump, FighterActionKind.AirJump, FighterActionKind.Roll,
+                     FighterActionKind.AirDodge, FighterActionKind.MovementAbility,
+                     FighterActionKind.EchoStep, FighterActionKind.LedgeGrab, FighterActionKind.LedgeGetUp }) {
+            Fixture f = Fixture.New();
+            f.Target.CurrentHP = 5;
+            f.Target.Influence = FP64.FromInt(100);
+            f.Hit(damage: 40);
+            FighterDefenseRules.Tick(ref f.Defense, suspended: false, actionable: true);
+            FighterActionStateComponent action = default;
+            FighterActionRules.OnActionAccepted(ref f.Target, ref f.Verb, ref f.Defense, ref action, kind);
+            AssertThat(FighterDefenseRules.IsDefyProtected(in f.Defense))
+                .OverrideFailureMessage($"{kind} is not offence and keeps the window.")
+                .IsTrue();
+            AssertThat(f.Defense.DefyProtectionFrames).IsEqual(FighterDefenseRules.DefyProtectionTicks - 1);
+        }
+
+        // In a match: a roll keeps it, ticking down untouched.
+        FighterSimulation simulation = DefiedSurvivorSimulation(out int tick);
+        AssertThat(simulation.TryGetFighterDefense(1, out FighterDefenseComponent before)).IsTrue();
+        simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.Roll));
+        AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)).IsTrue();
+        AssertThat(runtime.UniversalMovementState).IsEqual((int)UniversalMovementPhase.RollStartup);
+        AssertThat(simulation.TryGetFighterDefense(1, out FighterDefenseComponent after)).IsTrue();
+        AssertThat(FighterDefenseRules.IsDefyProtected(in after)).IsTrue();
+        AssertThat(after.DefyProtectionFrames).IsEqual(before.DefyProtectionFrames - 1);
+    }
+
+    /// <summary>
+    /// A real match in which player two (one HP, a full meter) Defies player
+    /// one's first landed basic and is back in normal control with the 60-tick
+    /// window counting. Returns the next tick label.
+    /// </summary>
+    private static FighterSimulation DefiedSurvivorSimulation(out int nextTick) {
+        var simulation = new FighterSimulation(
+            FighterLoadout.Default(FighterCharacterID.Joan),
+            new FighterLoadout(
+                (int)FighterCharacterID.Joan,
+                1, 3, 2, 10, 14, 12, 20, 600, 600,
+                (int)StatusType.None, 0, (int)StatusType.None, 0, (int)StatusType.None, 0,
+                FP64.One, FP64.FromInt(8), FP64.FromInt(13),
+                FP64.FromInt(3), FP64.FromInt(4), FP64.FromInt(4), FP64.FromInt(5),
+                FP64.One, FP64.One, FP64.One,
+                FighterAbilityLoadout.Default),
+            seed: 71, spawnDistance: 1, rules: FighterMatchRules.Disabled);
+        AssertThat(simulation.SeedFighterInfluenceForTest(1, 100)).IsTrue();
+        int tick = 0;
+        bool defied = false;
+        for (; tick < 120 && !defied; tick++) {
+            simulation.Advance(Frame(tick, GameplayButtons.BasicAttack), Frame(tick, GameplayButtons.None));
+            simulation.TryGetFighterVerb(1, out FighterVerbComponent verb);
+            defied = verb.DefyHistoryUsed == 1;
+        }
+        AssertThat(defied).OverrideFailureMessage("Player one's string must trigger player two's Defy.").IsTrue();
+        // Wait out the proc's freeze and the string's hitstun until the window counts.
+        for (int wait = 0; wait < 120; wait++, tick++) {
+            simulation.TryGetFighterDefense(1, out FighterDefenseComponent defense);
+            simulation.TryGetFighter(1, out FighterStateComponent survivor);
+            simulation.TryGetFighterVerb(1, out FighterVerbComponent survivorVerb);
+            if (defense.DefyProtectionAwaitControl == 0 && defense.DefyProtectionFrames > 30
+                && survivor.HitstunFrames <= 0 && survivorVerb.HitstopFrames <= 0 && survivor.IsGrounded != 0) break;
+            simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
+        }
+        AssertThat(simulation.TryGetFighterDefense(1, out FighterDefenseComponent counting)).IsTrue();
+        AssertThat(counting.DefyProtectionAwaitControl).IsEqual(0);
+        AssertThat(FighterDefenseRules.IsDefyProtected(in counting))
+            .OverrideFailureMessage("The survivor must be protected and in control.")
+            .IsTrue();
+        nextTick = tick;
+        return simulation;
+    }
+
+    private static PlayerInputFrame Frame(int tick, GameplayButtons buttons) => new() {
+        Tick = (uint)tick,
+        Held = buttons,
+        Pressed = buttons
+    };
+
     private struct Fixture {
         public FighterStateComponent Attacker;
         public FighterRuntimeComponent AttackerRuntime;
