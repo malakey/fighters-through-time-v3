@@ -75,13 +75,16 @@ public class StoryAirDodgeTests {
         // CM-HIT (decision 5.3, amending A03, both modes): any applied hitstun
         // refreshes the air dodge. Dodge, take a launching hit in the air, and
         // dodge again once the hitstun is over — before landing.
+        // Jump is held through the setup: since CM-MOVE (decisions 5.1 / 6.1) a
+        // released Jump short-hops with no apex hang, and that arc lands before
+        // the dodge ends.
         Run(player => {
             Step(player, GameplayButtons.Jump);
-            for (int frame = 0; frame < 4; frame++) Step(player, GameplayButtons.None);
-            Step(player, GameplayButtons.Roll);
+            for (int frame = 0; frame < 4; frame++) Step(player, GameplayButtons.Jump, GameplayButtons.Jump);
+            Step(player, GameplayButtons.Jump | GameplayButtons.Roll, GameplayButtons.Jump);
             AssertThat(player.AirDodgeUsedThisAirtime).IsTrue();
             for (int frame = 1; frame <= UniversalMovementRules.AirDodgeTotalFrames; frame++) {
-                Step(player, GameplayButtons.None);
+                Step(player, GameplayButtons.Jump, GameplayButtons.Jump);
             }
             AssertThat(player.IsOnFloor()).OverrideFailureMessage("setup: still airborne before the hit.").IsFalse();
             AssertThat(player.AirDodgeUsedThisAirtime).IsTrue();
@@ -146,9 +149,10 @@ public class StoryAirDodgeTests {
         }
     }
 
-    private static void Step(PlayerController player, GameplayButtons buttons) {
+    private static void Step(
+        PlayerController player, GameplayButtons buttons, GameplayButtons previousHeld = GameplayButtons.None) {
         var source = new BufferedInputSource();
-        source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, buttons));
+        source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, buttons, previousHeld));
         InputManager.Instance.SetInputSource(player.PlayerIndex, source);
         player._PhysicsProcess(1.0 / 60.0);
     }
