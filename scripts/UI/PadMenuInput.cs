@@ -8,8 +8,8 @@ namespace FTT.UI {
     /// on <b>release</b> and never mark the press handled, so the same press still
     /// reaches every <c>_UnhandledInput</c> handler and every polled reader. A
     /// screen that also acts on <c>ui_accept</c> (the dialogue box, the Resonance
-    /// grid) asks this first and stands down; the Fighter select's polled token
-    /// flow consumes the press instead.
+    /// grid) asks this first and stands down, and <c>InputManager._Input</c> asks
+    /// it to keep the press from reaching the game as a fresh Jump.
     /// </summary>
     public static class PadMenuInput {
 

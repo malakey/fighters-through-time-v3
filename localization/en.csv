@@ -1409,7 +1409,7 @@ settings_down_threshold,Down Input Threshold
 dialogue_log_title,Dialogue Log
 dialogue_log_empty,No dialogue yet this session.
 dialogue_log_button,Log
-pause_controller_disconnected,"Controller disconnected. Reconnect it and press any face button, or choose Resume to continue."
+pause_controller_disconnected,"Controller disconnected. Reconnect it and press any face button, press any key to carry on with the keyboard, or choose Resume to continue."
 pause_lower_difficulty,Lower Difficulty
 pause_lower_difficulty_confirm,Lower the difficulty from {0} to {1}? It applies from the next level you enter and cannot be raised again.
 save_slot_lowest_difficulty,Lowest difficulty used: {0}
@@ -1663,3 +1663,6 @@ checkpoint_held_by_encounter_lock,The Severed barrier holds this fracture. Clear
 # CM-INPUT
 # Combat and movement update 2026-10-16 (9.1): the Fighter select's press-to-join prompt for Player 2.
 select_press_to_join,Press confirm on any controller or keyboard to join
+# CM-PADUI
+# Combat and movement update 2026-10-16 (9.1 pad-first menus): the Fighter select's press-to-join prompt for Player 1.
+select_press_to_join_player_one,Press confirm on any controller or keyboard to join as Player 1

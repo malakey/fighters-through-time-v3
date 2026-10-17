@@ -100,6 +100,7 @@ namespace FTT.UI {
         private Label _p2Ready;
         private Label _p2Stats;
         private Label _p2JoinPrompt;
+        private Label _p1JoinPrompt;
         private Label _countdownLabel;
         private SpinBox _stockCount;
         private SpinBox _timeLimit;
@@ -164,6 +165,7 @@ namespace FTT.UI {
             _p2Ready = GetNode<Label>(SelectRoot + "PlayersRow/P2Panel/P2Ready");
             _p2Stats = GetNode<Label>(SelectRoot + "PlayersRow/P2Panel/P2Stats");
             _p2JoinPrompt = GetNodeOrNull<Label>(SelectRoot + "PlayersRow/P2Panel/P2JoinPrompt");
+            _p1JoinPrompt = GetNodeOrNull<Label>(SelectRoot + "PlayersRow/P1Panel/P1JoinPrompt");
             _countdownLabel = GetNode<Label>(SelectRoot + "CountdownLabel");
 
             // 9.1 (2026-10-16, CM-INPUT): Local Versus is a press-to-join select.
@@ -227,9 +229,12 @@ namespace FTT.UI {
             if (InputManager.Instance != null) InputManager.Instance.DeviceAssigned -= OnDeviceAssigned;
         }
 
-        /// <summary>A device joined (or a slot was emptied): repaint Player 2's presence.</summary>
+        /// <summary>
+        /// A device joined (or a slot was emptied): repaint Player 2's presence,
+        /// and (CM-PADUI) Player 1's join prompt.
+        /// </summary>
         private void OnDeviceAssigned(int playerIndex, int deviceId) {
-            if (playerIndex != 1 || !IsInsideTree()) return;
+            if (playerIndex is not (0 or 1) || !IsInsideTree()) return;
             RefreshPanels();
             RepaintTiles();
         }
@@ -266,6 +271,8 @@ namespace FTT.UI {
         private void HandleFrame(int playerIndex, in PlayerInputFrame frame) {
             float previousHorizontal = _previousHorizontal[playerIndex];
             _previousHorizontal[playerIndex] = frame.Horizontal;
+            // CM-PADUI: a token input hands player 1's focus back from the footer.
+            if (playerIndex == 0) ReleaseFooterFocusOnTokenInput(frame, previousHorizontal);
 
             if (frame.IsPressed(GameplayButtons.Block) || frame.IsPressed(GameplayButtons.Roll)) {
                 TryCancel(playerIndex);
@@ -451,6 +458,11 @@ namespace FTT.UI {
         /// </summary>
         public void ReturnToSelection() {
             if (_phase != SelectScreenPhase.StageSelect) return;
+            // CM-PADUI (2026-10-16): the press that backed out — pad B (ui_cancel
+            // and the token flow's Interact confirm), or A on Back — is spent: the
+            // polled flow resumes next tick and must not re-lock a token with it
+            // (in Versus CPU that re-opened the configuration panel at once).
+            InputManager.Instance?.ConsumeHeldPresses();
             foreach (SelectionToken token in _tokens) token.LockedIndex = -1;
             _phase = SelectScreenPhase.Selection;
             if (_cpuConfigPanel != null && IsInstanceValid(_cpuConfigPanel)) _cpuConfigPanel.QueueFree();
@@ -771,6 +783,9 @@ namespace FTT.UI {
                 + string.Format(Tr("fighter_player_selection"), 1, TileName(p1Index));
             _p1Ready.Visible = _tokens[0].Ready;
             _p1Stats.Text = TileStats(p1Index);
+            // CM-PADUI (2026-10-16): Local Versus pre-claims no slot (CM-FIXA-INPUT),
+            // so until a device presses, Player 1's panel says how to join too.
+            if (_p1JoinPrompt != null) _p1JoinPrompt.Visible = IsPlayerOneJoinPromptShown;
 
             if (IsVersusCpuFlow) {
                 // The CPU is configured on the next screen, not picked here.
@@ -905,8 +920,10 @@ namespace FTT.UI {
             if (_moveList == null || !IsInstanceValid(_moveList)) {
                 _moveList = new MoveListScreen { Name = "MoveListScreen" };
                 AddChild(_moveList);
-                _moveList.Closed += () =>
+                _moveList.Closed += () => {
+                    OnOverlayClosed();
                     GetNodeOrNull<Button>(SelectRoot + "ButtonRow/MoveListButton")?.GrabFocus();
+                };
             }
             int index = EffectiveIndex(_tokens[0]);
             _moveList.Open(_characterIDs[index == RandomTileIndex ? 0 : index]);
@@ -916,8 +933,10 @@ namespace FTT.UI {
             if (_systemsCard == null || !IsInstanceValid(_systemsCard)) {
                 _systemsCard = new SystemsCardScreen { Name = "SystemsCardScreen" };
                 AddChild(_systemsCard);
-                _systemsCard.Closed += () =>
+                _systemsCard.Closed += () => {
+                    OnOverlayClosed();
                     GetNodeOrNull<Button>(SelectRoot + "ButtonRow/SystemsCardButton")?.GrabFocus();
+                };
             }
             _systemsCard.Open();
         }
@@ -960,7 +979,11 @@ namespace FTT.UI {
         public override void _Input(InputEvent @event) {
             if (InputManager.Instance?.IsJoinPressFromUnclaimedDevice(@event) == true) {
                 GetViewport()?.SetInputAsHandled();
+                return;
             }
+            // CM-PADUI (2026-10-16): the footer is player 1's while the tokens are
+            // picked (CharacterSelectScreen.PadMenu.cs).
+            if (IsAnotherPlayersMenuPress(@event)) GetViewport()?.SetInputAsHandled();
         }
 
         /// <summary>
@@ -990,9 +1013,9 @@ namespace FTT.UI {
         /// <item>A pad button that is also a token confirm belongs to the polled
         /// token flow while it runs, so the same press never both confirms and
         /// cancels; pads cancel a pick with Block or Roll. (Interact is B, which
-        /// Godot documents as a default <c>ui_cancel</c> event. The Godot 4.7.1
-        /// build's <c>ui_cancel</c> is Escape only, so today this guards a
-        /// binding, not a live path.)</item>
+        /// CM-PADUI added to <c>ui_cancel</c> in project.godot, so this is a live
+        /// path since 2026-10-16: B backs out of the stage phase, never out of a
+        /// pick.)</item>
         /// <item>Outside a local join (Versus CPU, the Holodeck) player 1 follows
         /// the device that pressed, so the press is player 1's.</item>
         /// <item>In a local join the device's own slot decides, classified by
