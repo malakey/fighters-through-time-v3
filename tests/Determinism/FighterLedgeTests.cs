@@ -422,10 +422,17 @@ public class FighterLedgeTests {
     /// <summary>
     /// Gravity, movement and the attack phase machine are all short-circuited by
     /// the hang exactly as hitstun short-circuits them, so a hanging fighter
-    /// mashing every button stays exactly where it is.
+    /// mashing every button with Block held and a neutral stick stays exactly
+    /// where it is. CM-MOVE (decision 5.2, 2026-10-16) rewrote it in place: a
+    /// Roll or BasicAttack press now starts the ledge roll or the ledge attack
+    /// and a fresh toward-stage tilt the neutral climb, so the mash holds Block
+    /// (Block+Roll and Block+Attack start nothing) and the stick neutral; the
+    /// Specials, the Ultimate, the movement ability and the stance stay
+    /// suppressed. (It was <c>HangingSuppressesAttacksSpecialsAndBlockAndIgnoresRollAndMovement</c>,
+    /// whose alternating stick now re-arms and climbs.)
     /// </summary>
     [TestCase]
-    public void HangingSuppressesAttacksSpecialsAndBlockAndIgnoresRollAndMovement() {
+    public void HangingSuppressesSpecialsAndBlockAndTheBlockHeldRollAndAttackStartNothing() {
         var simulation = new FighterSimulation(
             seed: 4200, rules: FighterMatchRules.Disabled, stageGeometry: Florence);
         AssertThat(SeekLedge(simulation, playerID: 0, platformIndex: 0, side: 0, maxTicks: 600)).IsTrue();
@@ -440,7 +447,6 @@ public class FighterLedgeTests {
             simulation.Advance(
                 new PlayerInputFrame {
                     Tick = (uint)tick,
-                    MoveX = (sbyte)(offset % 2 == 0 ? 127 : -127),
                     Held = mash,
                     // Re-pressed every other tick so no edge is missed.
                     Pressed = offset % 2 == 0 ? mash : GameplayButtons.None

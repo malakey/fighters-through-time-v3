@@ -1178,8 +1178,19 @@ namespace FTT.Characters {
 		/// read without touching Story's jump budget: Story's ledge grab refills no
 		/// jump and its jump-off spends none, so the count alone could not say it.
 		/// The setter is internal for test seams and the Tempest refresh.
+		/// <para>CM-MOVE (Q5, 2026-10-16): every write also writes the short hop's
+		/// own-jump latch (<see cref="RiseFromOwnJump"/>, set by a jump, cleared by
+		/// floor contact, a grab and the Tempest refresh), so the two share their
+		/// set and clear points.</para>
 		/// </summary>
-		public bool JumpedThisAirtime { get; internal set; }
+		public bool JumpedThisAirtime {
+			get => _jumpedThisAirtime;
+			internal set {
+				_jumpedThisAirtime = value;
+				_riseFromOwnJump = value;
+			}
+		}
+		private bool _jumpedThisAirtime;
 
 		/// <summary>
 		/// The Jump-held latch gravity reads (the short hop): written by the jump
@@ -2282,6 +2293,8 @@ namespace FTT.Characters {
 					break;
 			}
 
+			// CM-MOVE (2026-10-16): the short hop's own-jump latch and corner forgiveness.
+			PrepareMoveAndSlide(dt);
 			if (CurrentState != CharacterState.LedgeHanging &&
 				CurrentState != CharacterState.Dead) {
 				MoveAndSlide();
@@ -2690,8 +2703,9 @@ namespace FTT.Characters {
 
 			// M04 (Package 12 W3): Crouching → Rolling / Airborne / Blocking /
 			// UsingSpecial / UsingUltimate / UsingMovementAbility with the same
-			// input and eligibility as from Idle (Idle's check order). Drop-
-			// through stays the double-tap Down, so Jump from a crouch is free.
+			// input and eligibility as from Idle (Idle's check order). Since
+			// CM-MOVE (6.3) a Jump from a crouch on a one-way platform is
+			// Down+Jump and drops through it; on solid ground it jumps.
 			// TransitionTo restores the crouched hurtbox on the way out.
 			if (CheckRollInput()) return;
 			if (CheckJumpInput()) return;
@@ -5008,7 +5022,9 @@ namespace FTT.Characters {
 				// jump, so its boost is never cut by the short-hop band.
 				jumpHeld: ignoreShortHop || _jumpHeld,
 				jumpedThisAirtime: JumpedThisAirtime,
-				launch: launch);
+				launch: launch,
+				// CM-MOVE (Q5): the short hop cuts only the hero's own jump.
+				riseFromOwnJump: ShortHopReadsOwnJump);
 			Velocity = new Vector2(Velocity.X, vy);
 		}
 
@@ -5080,6 +5096,18 @@ namespace FTT.Characters {
 		private bool CheckJumpInput() {
 			if (IsMovementRooted) return false;
 			_jumpHeld = CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Jump);
+
+			// CM-MOVE (decision 6.3): Down+Jump drops through a one-way platform
+			// underfoot, as the double tap of Down does (both inputs, both modes).
+			// On solid ground it stays a jump; a buffered jump that lands with Down
+			// held still jumps (ProcessAirborne's landing branch).
+			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Jump)
+				&& CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Down)
+				&& IsOnFloor()
+				&& TryDropThrough()) {
+				_jumpBufferTimer = 0;
+				return true;
+			}
 
 			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Jump)) {
 				_jumpBufferTimer = JumpBufferTime;
@@ -5874,8 +5902,9 @@ namespace FTT.Characters {
 		}
 
 		/// <summary>
-		/// Story drop-through is a double-tap of Down (design-godot.md; the sim's
-		/// Down+Jump is separate and untouched). A press opens the
+		/// Story drop-through is a double-tap of Down (design-godot.md) or, since
+		/// CM-MOVE (decision 6.3, 2026-10-16), Down+Jump (<see cref="CheckJumpInput"/>)
+		/// — both inputs in both modes. A press opens the
 		/// <see cref="FTT.Combat.StoryCombatRules.DownDoubleTapFrames"/> window and
 		/// a second press inside it drops through the one-way platform underfoot.
 		/// Returns true when this tick's press dropped the fighter.

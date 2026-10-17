@@ -266,6 +266,74 @@ public class StoryMovementFeelTests {
     }
 
     /// <summary>
+    /// CM-MOVE (decisions 5.1 and 6.1, the Q5 ruling; 2026-10-16): a jump whose
+    /// Jump is released on its second tick rises under the ×2.5 short hop and
+    /// drops through its peak with no hang tick at all; and a rise that outlives
+    /// a stun is not the hero's own jump any more — the stun cleared the latch —
+    /// so the same released rise after it takes plain gravity, not the band.
+    /// </summary>
+    [TestCase]
+    public void AReleasedHopHasNoHangAndARiseAfterAStunIsNotCut() {
+        StaticBody2D floor = null;
+        PlayerController player = null;
+        try {
+            floor = CreateFlatFloor();
+            player = CreateGroundedPlayer("einstein");
+            float g = StoryAirPhysics.GravityPerFrame(player.Data.Weight);
+            float band = StoryAirPhysics.ApexHangSpeedBandPixels;
+            Step(player, 0f, Jump);
+            Step(player, 0f, Jump, Jump);
+            AssertThat(player.RiseFromOwnJump).IsTrue();
+            int hangTicks = 0, shortHopTicks = 0;
+            GameplayButtons previous = Jump;
+            for (int frame = 0; frame < 200; frame++) {
+                float before = player.Velocity.Y;
+                Step(player, 0f, None, previous);
+                previous = None;
+                if (player.IsOnFloor()) break;
+                float delta = player.Velocity.Y - before;
+                if (Math.Abs(before) < band && Math.Abs(delta - g * 0.5f) < 0.001f) hangTicks++;
+                // ProcessAirborne steps gravity before CheckJumpInput refreshes
+                // the Jump latch, so the release takes effect from the tick after.
+                if (before < 0f && frame > 0) {
+                    AssertThat(delta).OverrideFailureMessage($"Released rise tick at vy {before}.")
+                        .IsEqualApprox(g * StoryAirPhysics.ShortHopGravityMultiplier, 0.001f);
+                    shortHopTicks++;
+                }
+            }
+            AssertThat(player.IsOnFloor()).OverrideFailureMessage("The hop never landed.").IsTrue();
+            AssertThat(hangTicks).OverrideFailureMessage("A released hop hung at its apex.").IsEqual(0);
+            AssertThat(shortHopTicks).IsGreater(3);
+
+            // A fresh jump, then a stun mid-rise: once the stun ends, the hero
+            // is put back on a fast rise with Jump released. The stun cleared
+            // the own-jump latch, so the band never cuts it.
+            for (int frame = 0; frame < 10 && player.CurrentState != CharacterState.Idle; frame++) Step(player, 0f, None);
+            Step(player, 0f, Jump);
+            AssertThat(player.RiseFromOwnJump).IsTrue();
+            player.ApplyStun(4f / 60f);
+            for (int frame = 0; frame < 30 && player.CurrentState == CharacterState.Stunned; frame++) {
+                Step(player, 0f, None, frame == 0 ? Jump : None);
+            }
+            AssertThat(player.CurrentState).IsEqual(CharacterState.Airborne);
+            AssertThat(player.RiseFromOwnJump).OverrideFailureMessage("The stun left the own-jump latch set.").IsFalse();
+            player.Velocity = new Vector2(0f, -500f);
+            int freeTicks = 0;
+            for (int frame = 0; frame < 30 && player.Velocity.Y < -band; frame++) {
+                float before = player.Velocity.Y;
+                Step(player, 0f, None);
+                AssertThat(player.Velocity.Y - before)
+                    .OverrideFailureMessage($"Post-stun rise tick at vy {before}: it must not be cut.")
+                    .IsEqualApprox(g, 0.001f);
+                freeTicks++;
+            }
+            AssertThat(freeTicks).IsGreater(5);
+        } finally {
+            Release(player, floor);
+        }
+    }
+
+    /// <summary>
     /// A walk-off has spent no jump, so the same slow speeds fall at 2.2x with no
     /// hang, and every normal-control fall stops at the 720 px/s terminal.
     /// </summary>

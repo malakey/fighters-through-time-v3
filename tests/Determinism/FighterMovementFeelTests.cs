@@ -437,6 +437,148 @@ public class FighterMovementFeelTests {
     }
 
     /// <summary>
+    /// CM-MOVE (decision 5.1, plan §2.5.1): for a <see cref="PlayerInputFrame.Create"/>
+    /// stream the short hop's latch (component 323 <c>JumpReleasedSincePress</c>)
+    /// equals "Jump not held" tick for tick from the first press on — grounded,
+    /// rising, falling, across presses and releases, held and released runs of
+    /// every length — and a hand-built stream with no <c>Released</c> edges
+    /// never sets it.
+    /// </summary>
+    [TestCase]
+    public void TheShortHopLatchEqualsJumpNotHeldForACreateBuiltStream() {
+        var created = new FighterSimulation(seed: 1101, spawnDistance: 8, rules: FighterMatchRules.Disabled);
+        var handBuilt = new FighterSimulation(seed: 1101, spawnDistance: 8, rules: FighterMatchRules.Disabled);
+        GameplayButtons previous = GameplayButtons.None;
+        bool pressedOnce = false;
+        int compared = 0;
+        for (int tick = 0; tick < 240; tick++) {
+            // Runs of 1 to 6 ticks held, then released, so every run length and
+            // both edges land on rising, falling and grounded ticks.
+            int phase = tick % 23;
+            bool hold = phase < 1 + tick / 23 % 6;
+            GameplayButtons held = hold ? GameplayButtons.Jump : GameplayButtons.None;
+            created.Advance(PlayerInputFrame.Create((uint)tick, 0f, 0f, held, previous), Frame(tick, 0));
+            handBuilt.Advance(new PlayerInputFrame {
+                Tick = (uint)tick, Held = held, Pressed = held & ~previous
+            }, Frame(tick, 0));
+            previous = held;
+            pressedOnce |= hold;
+
+            AssertThat(created.TryGetFighterActionState(0, out FighterActionStateComponent action)).IsTrue();
+            AssertThat(handBuilt.TryGetFighterActionState(0, out FighterActionStateComponent handAction)).IsTrue();
+            bool released = (action.ActionFlags & FighterActionStateComponent.ActionFlagJumpReleasedSincePress) != 0;
+            AssertThat((handAction.ActionFlags & FighterActionStateComponent.ActionFlagJumpReleasedSincePress) != 0)
+                .OverrideFailureMessage($"Tick {tick}: a hand-built stream with no Released edge set the latch.")
+                .IsFalse();
+            if (!pressedOnce) continue;
+            AssertThat(released)
+                .OverrideFailureMessage($"Tick {tick}: the latch must read 'released' exactly when Jump is not held.")
+                .IsEqual(!hold);
+            compared++;
+        }
+        AssertThat(compared).IsGreater(200);
+    }
+
+    /// <summary>
+    /// CM-MOVE (decisions 5.1 and 6.1): the latch and the own-jump bit add no
+    /// unsnapshotted state. Player two taps and holds Create-built jumps (1-,
+    /// 2- and 3-tick taps, a released air jump, a held jump); the script replays
+    /// to identical hashes, and a rollback window that mispredicts a release and
+    /// the next press resimulates onto the authoritative hash.
+    /// </summary>
+    [TestCase]
+    public void AShortHopTapAndHoldScriptConvergesUnderRollback() {
+        static GameplayButtons TwoHeld(int tick) => tick switch {
+            >= 5 and < 6 => GameplayButtons.Jump,      // a 1-tick tap
+            >= 40 and < 42 => GameplayButtons.Jump,    // a 2-tick tap
+            >= 46 and < 50 => GameplayButtons.Jump,    // a released air jump, 4 ticks
+            >= 90 and < 140 => GameplayButtons.Jump,   // a held jump
+            >= 160 and < 163 => GameplayButtons.Jump,  // a 3-tick tap
+            _ => GameplayButtons.None
+        };
+        PlayerInputFrame Two(int tick) =>
+            PlayerInputFrame.Create((uint)tick, 0f, 0f, TwoHeld(tick), tick > 0 ? TwoHeld(tick - 1) : GameplayButtons.None);
+
+        var authoritative = new FighterSimulation(seed: 1102, spawnDistance: 6, rules: FighterMatchRules.Disabled);
+        var replay = new FighterSimulation(seed: 1102, spawnDistance: 6, rules: FighterMatchRules.Disabled);
+        var predicted = new FighterSimulation(seed: 1102, spawnDistance: 6, rules: FighterMatchRules.Disabled);
+        // The window straddles the 2-tick tap's release and the air jump's press.
+        const int predictFrom = 41;
+        const int predictTo = predictFrom + 7;
+        bool shortHopped = false;
+        for (int tick = 0; tick < 220; tick++) {
+            long hash = authoritative.Advance(Frame(tick, 0), Two(tick));
+            AssertThat(replay.Advance(Frame(tick, 0), Two(tick))).IsEqual(hash);
+            if (tick >= predictFrom && tick < predictTo) predicted.AdvanceWithPredictedPlayerTwo(Frame(tick, 0));
+            else predicted.Advance(Frame(tick, 0), Two(tick));
+            if (tick == predictTo) {
+                for (int corrected = predictFrom; corrected < predictTo; corrected++) {
+                    AssertThat(predicted.CorrectPlayerTwoInput(corrected, Two(corrected))).IsTrue();
+                }
+                AssertThat(predicted.CurrentHash).IsEqual(authoritative.CurrentHash);
+            }
+            authoritative.TryGetFighterActionState(1, out FighterActionStateComponent action);
+            authoritative.TryGetFighter(1, out FighterStateComponent two);
+            if (two.IsGrounded == 0 && two.Velocity.y > FP64.Zero
+                && (action.ActionFlags & FighterActionStateComponent.ActionFlagRiseFromOwnJump) != 0
+                && (action.ActionFlags & FighterActionStateComponent.ActionFlagJumpReleasedSincePress) != 0) {
+                shortHopped = true;
+            }
+        }
+        AssertThat(shortHopped).OverrideFailureMessage("The script never short-hopped.").IsTrue();
+        AssertThat(predicted.CurrentHash).IsEqual(authoritative.CurrentHash);
+    }
+
+    /// <summary>
+    /// CM-MOVE (plan §2.5.1 / §2.6.1): the band order of the six-argument step,
+    /// first match wins — fast-fall, the float glide, the short hop (a released
+    /// rise from the fighter's own jump), the apex hang (only while Jump is
+    /// held), the fall, base gravity — with each step size rebuilt from the
+    /// <see cref="UniversalMovementRules"/> constants; and with Jump held it is
+    /// exactly the four-argument step every planner and harness calls.
+    /// </summary>
+    [TestCase]
+    public void TheShortHopAndHangBandOrderHoldsAndAHeldJumpIsTheLegacyStep() {
+        FP64 shortHopStep = BaseStep * FP64.FromDouble(UniversalMovementRules.ShortHopGravityMultiplier);
+        FP64 rising = FP64.FromInt(5);
+        FP64 inBandUp = FP64.FromDouble(1.5);
+        FP64 inBandDown = FP64.FromDouble(-1.5);
+        static FP64 Step(FP64 vy, bool ff = false, bool floating = false, bool jumped = true, bool held = false, bool own = true) =>
+            FighterAirPhysics.StepMovement(vy, ff, floating, jumped, jumpHeld: held, riseFromOwnJump: own);
+
+        // Fast-fall beats the float, the short hop and the hang.
+        AssertThat(Step(rising, ff: true, floating: true).RawValue).IsEqual((rising + FastFallStep).RawValue);
+        // The float beats the short hop.
+        AssertThat(Step(rising, floating: true).RawValue)
+            .IsEqual(FighterAirPhysics.StepMovement(rising, false, true, true).RawValue);
+        // A released rise from the fighter's own jump is the short hop, inside
+        // the hang band too, where it beats the hang.
+        AssertThat(Step(rising).RawValue).IsEqual((rising + shortHopStep).RawValue);
+        AssertThat(Step(inBandUp).RawValue).IsEqual((inBandUp + shortHopStep).RawValue);
+        // A released rise that is not its own jump is never cut and never hangs.
+        AssertThat(Step(rising, own: false).RawValue).IsEqual((rising + BaseStep).RawValue);
+        AssertThat(Step(inBandUp, own: false).RawValue).IsEqual((inBandUp + BaseStep).RawValue);
+        // Released, past the apex: no hang, the heavier fall.
+        AssertThat(Step(inBandDown).RawValue).IsEqual((inBandDown + FallStep).RawValue);
+        AssertThat(Step(FP64.Zero).RawValue).IsEqual(BaseStep.RawValue);
+        // Held: the hang either side of the apex, after a jump only.
+        AssertThat(Step(inBandUp, held: true).RawValue).IsEqual((inBandUp + HangStep).RawValue);
+        AssertThat(Step(inBandDown, held: true).RawValue).IsEqual((inBandDown + HangStep).RawValue);
+        AssertThat(Step(inBandDown, held: true, jumped: false).RawValue).IsEqual((inBandDown + FallStep).RawValue);
+        // Held is the legacy four-argument step at every speed.
+        for (int tenths = -200; tenths <= 200; tenths += 5) {
+            FP64 vy = FP64.FromInt(tenths) / FP64.FromInt(10);
+            foreach (bool jumped in new[] { false, true }) {
+                foreach (bool own in new[] { false, true }) {
+                    AssertThat(Step(vy, jumped: jumped, held: true, own: own).RawValue)
+                        .OverrideFailureMessage($"vy {vy}, jumped {jumped}, own {own}: held must be the legacy step.")
+                        .IsEqual(FighterAirPhysics.StepMovement(vy, false, false, jumped).RawValue);
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// Player two jumps, double-jumps at the apex, holds Down from mid-rise of
     /// the second jump and lets go before landing; player one runs and hops.
     /// </summary>

@@ -5,7 +5,12 @@ namespace FTT.Combat {
     public static class StoryCombatRules {
         public const int ComboBufferFrames = BasicComboRules.ChainHoldFrames;
         public const int DropThroughFrames = 15;
-        public const int DownDoubleTapFrames = 18;
+        /// <summary>
+        /// The double-tap Down window. Since CM-MOVE (decision 6.3, 2026-10-16) both
+        /// modes read <see cref="FTT.Core.UniversalMovementRules.DropThroughDoubleTapFrames"/>;
+        /// this forwards to it.
+        /// </summary>
+        public const int DownDoubleTapFrames = FTT.Core.UniversalMovementRules.DropThroughDoubleTapFrames;
         public const float CrouchHurtboxScale = 0.7f;
 
         /// <summary>

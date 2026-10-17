@@ -102,6 +102,58 @@ namespace FTT.Core {
         /// <summary>Gravity scale while fast-falling, toward <see cref="FastFallSpeed"/>.</summary>
         public const float FastFallGravityMultiplier = 3f;
 
+        // === CM-MOVE (combat and movement update 2026-10-16, decisions 5.1, 6.1,
+        // 6.2 and 6.3; plan §2.5.1, §2.6.1–§2.6.3; every number provisional
+        // unless the user stated it) ===
+
+        /// <summary>
+        /// Decision 5.1 (user number): the short hop — gravity scale while a fighter
+        /// rises from its own Jump press with Jump released. One value for both
+        /// modes: Story's <c>StoryAirPhysics.ShortHopGravityMultiplier</c> forwards
+        /// to it (it was Story-only until 2026-10-16) and the Fighter sim reads it
+        /// through <c>FighterAirPhysics</c>. The Q5 ruling ("own jump only, both
+        /// modes") limits it to a rise that began with this airtime's own Jump
+        /// press — a ground jump, an air jump or a ledge climb jump (Story's ledge
+        /// and rope jump-offs) — so a post-hitstun rise, a kit lift and an airborne
+        /// non-launching hit are never cut. Decision 6.1: the apex hang applies
+        /// only while Jump is held, so a released hop drops through its peak.
+        /// </summary>
+        public const float ShortHopGravityMultiplier = 2.5f;
+
+        /// <summary>
+        /// Decision 6.3 (design value, 0.3 s): the double-tap Down window that
+        /// drops through a one-way platform, in both modes (Down+Jump drops too).
+        /// Story's <c>StoryCombatRules.DownDoubleTapFrames</c> forwards to it; each
+        /// mode keeps its own drop-through duration.
+        /// </summary>
+        public const int DropThroughDoubleTapFrames = 18;
+
+        /// <summary>
+        /// Decision 6.2 (Provisional, <c>PROVISIONAL-CORNER-FORGIVENESS-RULES</c>):
+        /// the Story head-clip nudge — a rising hero whose head meets a ceiling
+        /// corner slides sideways by up to this much (0.2 u = 12 px) and keeps
+        /// rising. The Fighter sim has no partial ceiling to nudge around (a
+        /// geometry guard pins that premise), so the sim half is a no-op.
+        /// </summary>
+        public const float HeadClipNudgeUnits = 0.2f;
+
+        /// <summary>
+        /// Decision 6.2 (Provisional): the Story lip pop — a hero rising into a
+        /// wall whose top is at most this far above the feet (10 px) is lifted over
+        /// the lip. Stateless, current frame only.
+        /// </summary>
+        public const float LipPopUnits = 10f / 60f;
+
+        /// <summary>
+        /// Decision 6.2 with the Q6 ruling (Provisional, <c>PROVISIONAL-SIM-LIP-POP</c>):
+        /// the Fighter sim's one-way lip pop — a normal-control airborne fighter at
+        /// its apex or falling, with its feet at most this far below a one-way
+        /// platform's top and over the platform, is placed on the top and lands.
+        /// It resolves before the ledge capture, so a near-edge capture inside the
+        /// band becomes a landing. Converted once to FP64 by <c>FighterAirPhysics</c>.
+        /// </summary>
+        public const double SimOneWayLipPopUnits = 0.2;
+
         public const int RollStartupFrames = 4;
         public const int RollTravelFrames = 12;
         public const int RollInvulnerabilityFrames = 8;
@@ -157,6 +209,16 @@ namespace FTT.Core {
         /// <summary>A03: the eight invulnerable, pushbox-free frames carrying the held shift.</summary>
         AirDodgeInvulnerable = 6,
         /// <summary>A03: recovery (10 f); a landing does not cancel it.</summary>
-        AirDodgeRecovery = 7
+        AirDodgeRecovery = 7,
+        /// <summary>
+        /// CM-MOVE (decision 5.2, 2026-10-16): the Fighter neutral ledge climb —
+        /// a fresh toward-stage or Up tilt from the hang. Values 8–15 were free
+        /// (plan §1.5); the anchor is packed in the slot's direction field.
+        /// </summary>
+        LedgeClimb = 8,
+        /// <summary>CM-MOVE: the ledge roll's intangible climb (then the ordinary grounded roll).</summary>
+        LedgeRoll = 9,
+        /// <summary>CM-MOVE: the ledge attack's intangible climb (then the ledge strike).</summary>
+        LedgeAttackClimb = 10
     }
 }

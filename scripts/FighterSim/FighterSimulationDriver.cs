@@ -1113,6 +1113,10 @@ namespace FTT.FighterSim {
             // for all nine characters (Story's LedgeHanging state uses it), so the
             // Fighter hang reuses it rather than borrowing crouch or hitstun.
             if (FighterLedgeRules.IsHanging(in runtime)) return "ledge_hang";
+            // CM-MOVE (5.2): the three ledge climbs play the contract's
+            // ledge_pull_up; the ledge roll then plays roll and the ledge strike
+            // basic_attack_1 through the branches below.
+            if (FighterLedgeRules.IsGetUpClimb(in runtime)) return "ledge_pull_up";
 
             string abilityAnimation = ResolveAbilityPresentation(playerID, in state, in runtime);
             if (!string.IsNullOrEmpty(abilityAnimation)) {

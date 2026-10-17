@@ -230,6 +230,20 @@ namespace FTT.UI {
             AddRow("Jumps", string.Format(Tr("movelist_jumps"), data?.MaxJumpCount ?? 2));
             AddRow("FastFall", string.Format(
                 Tr("movelist_fast_fall"), UniversalMovementRules.FastFallSpeed));
+            // CM-MOVE (decision 5.2, 2026-10-16): the Fighter ledge get-ups, every
+            // number read live from BasicComboRules' ledge section. Fighter only:
+            // Story's LedgeGrabPoint keeps its climb jump and drop.
+            if (Mode == MoveListMode.Fighter) {
+                AddRow("LedgeOptions", string.Format(
+                    Tr("movelist_ledge_options"),
+                    BasicComboRules.LedgeNeutralClimbFrames,
+                    BasicComboRules.LedgeNeutralClimbIntangibleFrames,
+                    BasicComboRules.LedgeActionClimbFrames,
+                    BasicComboRules.LedgeAttackStartupFrames,
+                    BasicComboRules.LedgeAttackActiveFrames,
+                    BasicComboRules.LedgeAttackRecoveryFrames,
+                    BasicComboRules.LedgeFirstGrabIntangibleFrames));
+            }
         }
 
         private static string StyleKey(CombatStyle style) => style switch {

@@ -331,6 +331,96 @@ public class FighterStageGeometryTests {
     }
 
     /// <summary>
+    /// CM-MOVE (decision 6.2 with the Q6 ruling; plan §2.6.2): the sim has no
+    /// head-clip nudge because nothing a rising fighter can meet from below has
+    /// a partial underside. Its only overhead surfaces are the one ceiling, a
+    /// single height wall to wall, and the one-way platforms, which a rising
+    /// fighter passes up through; the floor segments sit on the floor plane,
+    /// where the per-x snap lifts a fighter from any depth. This pins that
+    /// premise structurally — the platform carries no solidity or extent field,
+    /// the geometry no other kind of surface — and on every authored stage, so a
+    /// future solid underside (a partial ceiling, a solid block) breaks this
+    /// guard instead of silently missing the rule.
+    /// </summary>
+    [TestCase]
+    public void NoSimSurfaceARisingFighterCanMeetFromBelowHasAPartialUnderside() {
+        static List<string> InstanceFields(System.Type type) {
+            var names = new List<string>();
+            foreach (System.Reflection.FieldInfo field in type.GetFields(
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public
+                | System.Reflection.BindingFlags.NonPublic)) {
+                names.Add(field.Name);
+            }
+            names.Sort(System.StringComparer.Ordinal);
+            return names;
+        }
+        AssertThat(string.Join(",", InstanceFields(typeof(FighterStagePlatform))))
+            .OverrideFailureMessage("FighterStagePlatform gained a field: is it a solid or partial surface? "
+                + "Then the sim needs the head-clip nudge (UniversalMovementRules.HeadClipNudgeUnits).")
+            .IsEqual("CenterX,HalfWidth,SurfaceY");
+        AssertThat(string.Join(",", InstanceFields(typeof(FighterStageGeometry))))
+            .OverrideFailureMessage("FighterStageGeometry gained a field: if it is a new kind of surface, "
+                + "a rising fighter may meet a partial underside and the sim needs the head-clip nudge.")
+            .IsEqual("BottomBlastZone,Ceiling,FloorSegments,HazardAnchorXs,LeftWall,OrbAnchors,Platforms,"
+                + "RespawnPlatformPosition,RightWall,SpawnDistance,StageID");
+
+        var issues = new List<string>();
+        var geometries = new List<FighterStageGeometry>(FighterStageGeometry.AllAuthored) { FighterStageGeometry.Default };
+        foreach (FighterStageGeometry geometry in geometries) {
+            string id = string.IsNullOrEmpty(geometry.StageID) ? "(legacy arena)" : geometry.StageID;
+            if (!(geometry.LeftWall < geometry.RightWall)) issues.Add($"{id}: the walls are inverted");
+            foreach (FighterStagePlatform platform in geometry.Platforms) {
+                // A one-way platform between the floor and the one ceiling.
+                if (!(platform.SurfaceY > FP64.Zero && platform.SurfaceY < geometry.Ceiling)) {
+                    issues.Add($"{id}: platform at {platform.CenterX} has surface {platform.SurfaceY} outside (0, ceiling)");
+                }
+                if (!(platform.HalfWidth > FP64.Zero)) issues.Add($"{id}: platform at {platform.CenterX} has no width");
+            }
+            foreach (FighterStagePlatform segment in geometry.FloorSegments) {
+                if (segment.SurfaceY.RawValue != FP64.Zero.RawValue) {
+                    issues.Add($"{id}: floor segment at {segment.CenterX} is off the floor plane ({segment.SurfaceY})");
+                }
+            }
+        }
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
+    /// <summary>
+    /// CM-MOVE (decisions 5.1 and 5.2; plan §2.5.1): with real input — Create-built
+    /// frames whose Jump edges the short hop's latch reads — every hero still
+    /// escapes every authored pit on Paris, Vesuvius and Nassau on held jumps, and
+    /// a hanging fighter's neutral climb (a centred stick, then a tilt toward the
+    /// floor) ends standing on the floor 0.5 u inside the edge after 20 frames on
+    /// each Open stage.
+    /// </summary>
+    [TestCase]
+    public void HeldJumpsEscapeEveryOpenStagePitAndTheNeutralClimbStandsOnTheFloor() {
+        IReadOnlyList<string> roster = FTT.Core.CharacterRoster.IDs;
+        var issues = new List<string>();
+        int seed = 7300;
+        int drills = 0;
+        foreach (FighterStageGeometry geometry in FighterStageGeometry.AllAuthored) {
+            List<(int SegmentIndex, int Side)> ledges = PitFacingLedges(geometry);
+            if (ledges.Count == 0) continue;
+            foreach (string characterID in roster) {
+                FighterLoadout loadout = FighterLoadoutFactory.FromCharacterData(
+                    AuthoredResources.Load<CharacterData>($"res://resources/Characters/{characterID}_data.tres"));
+                foreach ((int segmentIndex, int side) in ledges) {
+                    drills++;
+                    if (!EscapesTheGapWithRealInput(geometry, loadout, segmentIndex, side, seed++, false, out string trace)) {
+                        issues.Add($"{geometry.StageID} segment {segmentIndex} side {side} / {characterID} held jumps: {trace}");
+                    }
+                    if (!EscapesTheGapWithRealInput(geometry, loadout, segmentIndex, side, seed++, true, out trace)) {
+                        issues.Add($"{geometry.StageID} segment {segmentIndex} side {side} / {characterID} neutral climb: {trace}");
+                    }
+                }
+            }
+        }
+        AssertThat(drills).IsEqual(36);
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
+    /// <summary>
     /// I-13: the catalog's Open/Sealed flag is what stage select shows the player.
     /// A stage whose flag disagrees with its authored floor topology would promise
     /// a sealed floor and then drop them through it.
@@ -730,6 +820,97 @@ public class FighterStageGeometryTests {
         }
 
         trace = $"never returned to solid ground (phase {phase})";
+        return false;
+    }
+
+    /// <summary>
+    /// CM-MOVE: <see cref="EscapesTheGapAtLedge"/> with real input — every frame
+    /// <see cref="PlayerInputFrame.Create"/>-built, so the short hop's latch sees
+    /// the true Jump edges. With <paramref name="neutralClimb"/> false the fighter
+    /// drops from the hang and recovers on held jumps (each held while rising,
+    /// released for one tick before the next press, a climb jump off any regrab);
+    /// with it true the fighter centres its stick for a tick on the hang and then
+    /// tilts toward the floor, and must stand on the floor segment 0.5 u inside
+    /// the edge when the 20-frame climb ends.
+    /// </summary>
+    private static bool EscapesTheGapWithRealInput(
+        FighterStageGeometry geometry,
+        FighterLoadout loadout,
+        int segmentIndex,
+        int side,
+        int seed,
+        bool neutralClimb,
+        out string trace) {
+        FP64 edge = geometry.FloorSegments[segmentIndex].EdgeX(side);
+        int playerID = edge > FP64.Zero ? 1 : 0;
+        int expectedAnchor = (geometry.Platforms.Length + segmentIndex) * 2 + side;
+        var simulation = new FighterSimulation(
+            playerID == 0 ? loadout : FighterLoadout.Default(FighterCharacterID.Joan),
+            playerID == 0 ? FighterLoadout.Default(FighterCharacterID.Joan) : loadout,
+            stocks: 3, seed: seed, rules: FighterMatchRules.Disabled, stageGeometry: geometry);
+
+        const int Approaching = 0, Dropping = 1, Falling = 2, Recovering = 3, Rearming = 4, Climbing = 5;
+        int phase = Approaching;
+        float towardTheGap = side == 1 ? 1f : -1f;
+        float towardTheFloor = -towardTheGap;
+        FP64 clearOfTheCaptureBox = FP64.Zero - FighterLedgeRules.CaptureDepth - FP64.FromDouble(0.1);
+        GameplayButtons previous = GameplayButtons.None;
+        int climbTicks = 0;
+        for (int tick = 0; tick < 700; tick++) {
+            simulation.TryGetFighter(playerID, out FighterStateComponent fighter);
+            simulation.TryGetFighterRuntime(playerID, out FighterRuntimeComponent runtime);
+            if (fighter.Stocks < 3) { trace = $"fell to the blast zone at tick {tick} (phase {phase})"; return false; }
+            bool hanging = FighterLedgeRules.IsHanging(in runtime);
+
+            if (phase == Approaching && hanging) {
+                if (runtime.LedgeAnchor != expectedAnchor) { trace = $"caught anchor {runtime.LedgeAnchor}"; return false; }
+                phase = neutralClimb ? Rearming : Dropping;
+            } else if (phase == Dropping) {
+                phase = Falling;
+            } else if (phase == Falling && fighter.Position.y < clearOfTheCaptureBox) {
+                phase = Recovering;
+            } else if (phase == Recovering && fighter.IsGrounded != 0) {
+                trace = "";
+                return true;
+            } else if (phase == Rearming && runtime.LedgeStateFrames >= FTT.Combat.BasicComboRules.LedgeGetUpMinHangFrames) {
+                phase = Climbing;
+            }
+            if (phase == Climbing && !hanging) {
+                climbTicks++;
+                if (!FighterLedgeRules.IsGetUpClimb(in runtime)) {
+                    bool standing = fighter.IsGrounded != 0 && fighter.Position.y.RawValue == FP64.Zero.RawValue
+                        && geometry.TryGetStandPosition(expectedAnchor, out FPVector2 stand)
+                        && fighter.Position.x.RawValue == stand.x.RawValue;
+                    trace = standing ? "" : $"the climb ended at ({fighter.Position.x}, {fighter.Position.y}) after {climbTicks} ticks";
+                    return standing && climbTicks == FTT.Combat.BasicComboRules.LedgeNeutralClimbFrames + 1;
+                }
+            }
+
+            float moveX = 0f;
+            GameplayButtons held = GameplayButtons.None;
+            if (phase == Approaching) {
+                moveX = towardTheGap;
+            } else if (phase == Dropping) {
+                held = GameplayButtons.Down;
+            } else if (phase == Recovering) {
+                moveX = towardTheFloor;
+                bool wantsJump = hanging
+                    || fighter.Velocity.y > FP64.Zero && (previous & GameplayButtons.Jump) != 0
+                    || fighter.Velocity.y <= FP64.Zero && fighter.RemainingJumps > 0;
+                // A new press needs a released tick first.
+                bool fresh = (previous & GameplayButtons.Jump) == 0;
+                if (wantsJump && (fighter.Velocity.y > FP64.Zero && !hanging || fresh)) held = GameplayButtons.Jump;
+            } else if (phase == Climbing && hanging) {
+                // The fresh tilt; the stick is centred again from the climb's
+                // first tick, so the free tick after it stands still.
+                moveX = towardTheFloor;
+            }
+            var input = PlayerInputFrame.Create((uint)tick, moveX, held == GameplayButtons.Down ? 1f : 0f, held, previous);
+            previous = held;
+            var neutral = new PlayerInputFrame { Tick = (uint)tick };
+            simulation.Advance(playerID == 0 ? input : neutral, playerID == 0 ? neutral : input);
+        }
+        trace = $"never finished (phase {phase})";
         return false;
     }
 

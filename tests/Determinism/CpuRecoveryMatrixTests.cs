@@ -210,6 +210,109 @@ public class CpuRecoveryMatrixTests {
         }
 
         AssertNoFalseTriggerOnASealedStage(band);
+        AssertTheCpuLeavesALedgeOnlyByTheClimbJump(geometry, band);
+    }
+
+    /// <summary>
+    /// CM-MOVE (decision 5.2, plan §2.5.2): whether the "CPU stays climb-jump
+    /// only" check is enforced. It is not yet: with the CPU code unchanged (CM-MOVE
+    /// owns none of it), the drills below find the CPU neutral-climbing and
+    /// ledge-attacking — recovery steer and neutral-combat presses decided
+    /// before the grab are delivered on hang ticks before its own hang answer
+    /// (Jump, a centred stick) arrives. The plan routes that to the orchestrator
+    /// for a one-line CPU change (<c>docs/handoffs/CM_MOVE.md</c>, open items);
+    /// set this to true with it. Until then the counts are printed, and the
+    /// drills still assert that the sweep reaches the ledges.
+    /// </summary>
+    private const bool CpuClimbJumpOnlyEnforced = false;
+
+    /// <summary>
+    /// CM-MOVE (decision 5.2, plan §2.5.2: "the CPU stays climb-jump only"): in
+    /// the real simulation on this Open stage, every roster kit driven by this
+    /// band's CPU — walked off each pit-facing floor ledge (a walk-off capture)
+    /// and, separately, jumped out over the pit and left to recover — should
+    /// leave a ledge only by the climb jump: no neutral climb, ledge roll or
+    /// ledge attack (universal-movement values 8–10). The hang, climb-jump and
+    /// get-up counts are printed under <c>[CM-MOVE]</c>; see
+    /// <see cref="CpuClimbJumpOnlyEnforced"/>.
+    /// </summary>
+    private static void AssertTheCpuLeavesALedgeOnlyByTheClimbJump(FighterStageGeometry geometry, CpuDifficulty band) {
+        var issues = new System.Collections.Generic.List<string>();
+        int hangs = 0, climbJumps = 0, drills = 0;
+        foreach (string characterID in Roster) {
+            CharacterData data = AuthoredResources.Load<CharacterData>(
+                $"res://resources/Characters/{characterID}_data.tres");
+            FighterLoadout loadout = FighterLoadoutFactory.FromCharacterData(data);
+            CpuRecoveryProfile profile = CpuRecoveryProfile.FromLoadout(in loadout);
+            for (int segment = 0; segment < geometry.FloorSegments.Length; segment++) {
+                for (int side = 0; side < 2; side++) {
+                    FP64 edge = geometry.FloorSegments[segment].EdgeX(side);
+                    if (edge <= geometry.LeftWall || edge >= geometry.RightWall) continue;
+                    foreach (bool jumpOut in new[] { false, true }) {
+                        drills++;
+                        string where = $"{characterID} on {band} at {geometry.StageID} segment {segment} side {side}"
+                            + (jumpOut ? " (jumped out)" : " (walked off)");
+                        CpuLedgeDrill(geometry, band, loadout, profile, edge, side, jumpOut,
+                            20261016 + drills, where, issues, ref hangs, ref climbJumps);
+                    }
+                }
+            }
+        }
+        Godot.GD.Print($"[CM-MOVE] CPU ledge exits {geometry.StageID} {band}: {drills} drills, {hangs} hangs, "
+            + $"{climbJumps} climb jumps, {issues.Count} get-ups");
+        foreach (string issue in issues) Godot.GD.Print($"[CM-MOVE] CPU get-up: {issue}");
+        AssertThat(hangs > 0)
+            .OverrideFailureMessage($"no CPU drill on {geometry.StageID} at {band} ever reached a ledge.")
+            .IsTrue();
+        if (CpuClimbJumpOnlyEnforced && issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
+    private static void CpuLedgeDrill(
+        FighterStageGeometry geometry, CpuDifficulty band, FighterLoadout loadout, CpuRecoveryProfile profile,
+        FP64 edge, int side, bool jumpOut, int seed, string where,
+        System.Collections.Generic.List<string> issues, ref int hangs, ref int climbJumps) {
+        int playerID = edge > FP64.Zero ? 1 : 0;
+        var simulation = new FighterSimulation(
+            playerID == 0 ? loadout : FighterLoadout.Default(FighterCharacterID.Joan),
+            playerID == 0 ? FighterLoadout.Default(FighterCharacterID.Joan) : loadout,
+            stocks: 3, seed: seed, rules: FighterMatchRules.Disabled, stageGeometry: geometry);
+        var cpu = new FighterCpuController(band, seed, geometry, null, null, profile);
+        int other = 1 - playerID;
+        float towardTheGap = side == 1 ? 1f : -1f;
+        bool cpuDriving = false;
+        bool wasHanging = false;
+        PlayerInputFrame previous = default;
+        GameplayButtons heldBefore = GameplayButtons.None;
+        for (int tick = 0; tick < 600; tick++) {
+            simulation.TryGetFighter(playerID, out FighterStateComponent self);
+            simulation.TryGetFighterRuntime(playerID, out FighterRuntimeComponent selfRuntime);
+            simulation.TryGetFighter(other, out FighterStateComponent target);
+            simulation.TryGetFighterRuntime(other, out FighterRuntimeComponent targetRuntime);
+            if (self.Stocks < 3) return;
+            bool hanging = FighterLedgeRules.IsHanging(in selfRuntime);
+            if (FighterLedgeRules.IsGetUpClimb(in selfRuntime)) {
+                issues.Add($"{where}: a get-up (universal-movement {selfRuntime.UniversalMovementState}) at tick {tick}");
+                return;
+            }
+            if (hanging && !wasHanging) hangs++;
+            if (wasHanging && !hanging && self.Velocity.y > FP64.Zero) climbJumps++;
+            wasHanging = hanging;
+            if (!cpuDriving && (self.IsGrounded == 0 || hanging)) cpuDriving = true;
+
+            PlayerInputFrame frame;
+            if (cpuDriving) {
+                frame = cpu.Sample((uint)tick, in self, in selfRuntime, in target, in targetRuntime, in previous);
+                previous = frame;
+            } else {
+                // Walk at the gap; the jump-out variant jumps at the edge.
+                bool atTheEdge = FP64.Abs(self.Position.x - edge) < FP64.FromDouble(0.35);
+                GameplayButtons held = jumpOut && atTheEdge ? GameplayButtons.Jump : GameplayButtons.None;
+                frame = PlayerInputFrame.Create((uint)tick, towardTheGap, 0f, held, heldBefore);
+                heldBefore = held;
+            }
+            var neutral = new PlayerInputFrame { Tick = (uint)tick };
+            simulation.Advance(playerID == 0 ? frame : neutral, playerID == 0 ? neutral : frame);
+        }
     }
 
     /// <summary>

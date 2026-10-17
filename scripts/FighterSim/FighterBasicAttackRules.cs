@@ -38,8 +38,17 @@ namespace FTT.FighterSim {
         /// state, no protocol change).
         /// </summary>
         public const int FlagAirAttack = 128;
+        /// <summary>
+        /// CM-MOVE (decision 5.2, 2026-10-16): the ledge attack's variant latch,
+        /// the bit plan §1.5 reserved in the existing <c>AttackFlags</c> word (no
+        /// new component state). A single strike outside the chain: string hit
+        /// 1's box and knockback at one basic, never a launch
+        /// (<c>FighterCombatSystem.ApplyLedgeAttackSwing</c>), started only by
+        /// the ledge attack's climb (<see cref="StartLedgeAttack"/>).
+        /// </summary>
+        public const int FlagLedgeAttack = 512;
         /// <summary>Any variant bit — a single strike outside the three-hit chain.</summary>
-        public const int VariantMask = FlagUpAttack | FlagDownAir | FlagAirAttack;
+        public const int VariantMask = FlagUpAttack | FlagDownAir | FlagAirAttack | FlagLedgeAttack;
         /// <summary>One construct sweep per swing (2026-08-11: basics damage enemy constructs).</summary>
         public const int FlagConstructHitResolved = 32;
         /// <summary>
@@ -144,6 +153,7 @@ namespace FTT.FighterSim {
                 : FTT.Combat.BasicComboRules.TemplateStringProfile;
 
         public static int StartupFramesFor(int characterID, int attackFlags, int comboStep) {
+            if ((attackFlags & FlagLedgeAttack) != 0) return FTT.Combat.BasicComboRules.LedgeAttackStartupFrames;
             if ((attackFlags & FlagUpAttack) != 0) return FTT.Combat.BasicComboRules.UpAttackStartupFrames;
             if ((attackFlags & FlagDownAir) != 0) return FTT.Combat.BasicComboRules.DownAirStartupFrames;
             // GU-A: the air strike's startup is the profile's air axis.
@@ -155,6 +165,7 @@ namespace FTT.FighterSim {
         }
 
         public static int ActiveFramesFor(int attackFlags, int comboStep) {
+            if ((attackFlags & FlagLedgeAttack) != 0) return FTT.Combat.BasicComboRules.LedgeAttackActiveFrames;
             if ((attackFlags & FlagUpAttack) != 0) return FTT.Combat.BasicComboRules.UpAttackActiveFrames;
             if ((attackFlags & FlagDownAir) != 0) return FTT.Combat.BasicComboRules.DownAirActiveFrames;
             if ((attackFlags & FlagAirAttack) != 0) return FTT.Combat.BasicComboRules.AirAttackActiveFrames;
@@ -162,6 +173,7 @@ namespace FTT.FighterSim {
         }
 
         public static int RecoveryFramesFor(int attackFlags, int comboStep) {
+            if ((attackFlags & FlagLedgeAttack) != 0) return FTT.Combat.BasicComboRules.LedgeAttackRecoveryFrames;
             if ((attackFlags & FlagUpAttack) != 0) return FTT.Combat.BasicComboRules.UpAttackRecoveryFrames;
             if ((attackFlags & FlagDownAir) != 0) return FTT.Combat.BasicComboRules.DownAirRecoveryFrames;
             if ((attackFlags & FlagAirAttack) != 0) return FTT.Combat.BasicComboRules.AirAttackRecoveryFrames;
@@ -240,6 +252,23 @@ namespace FTT.FighterSim {
             // the swing, as it does in Story (CheckAttackInput from neutral,
             // ChainSwingStartsThisTick inside a string). D1 (2026-10-11): it also
             // clears the landed latch, so Specials wait for THIS swing to land.
+            FighterAbilityLockoutRules.ArmSwing(ref runtime);
+        }
+
+        /// <summary>
+        /// CM-MOVE (decision 5.2): starts the ledge strike on the tick the ledge
+        /// attack's climb completes — a grounded single strike outside the chain
+        /// (<see cref="FlagLedgeAttack"/>), 8 / 4 / 14 frames from
+        /// <c>BasicComboRules</c>, arming the ability lockout like every swing
+        /// start. Its chokepoint call (<c>FighterActionKind.Swing</c>) was made on
+        /// the press tick, at the start of the climb.
+        /// </summary>
+        public static void StartLedgeAttack(ref FighterStateComponent fighter, ref FighterRuntimeComponent runtime) {
+            runtime.ComboIndex = 0;
+            runtime.AttackPhase = PhaseStartup;
+            runtime.AttackFlags = fighter.IsGrounded == 0 ? FlagAerial | FlagLedgeAttack : FlagLedgeAttack;
+            runtime.AttackPhaseFrames = StartupFramesFor(fighter.CharacterID, runtime.AttackFlags, 0);
+            FighterUniversalMovementRules.Cancel(ref runtime);
             FighterAbilityLockoutRules.ArmSwing(ref runtime);
         }
     }

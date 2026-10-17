@@ -647,9 +647,11 @@ public class Level10ContentTests {
             bestID = id;
         }
         float bridgeRise = Level10Controller.GroundY - bridge.Position.Y;
-        AssertThat(bridgeRise > best * jumpMargin)
+        // CM-MOVE (6.2): plus the rising lip pop's 10 px.
+        float lipPop = FTT.Characters.PlayerController.LipPopPixels;
+        AssertThat(bridgeRise > best * jumpMargin + lipPop)
             .OverrideFailureMessage(
-                $"The span stands {bridgeRise} px over the yard; '{bestID}' reaches {best:0} px, so the climb can be jumped.")
+                $"The span stands {bridgeRise} px over the yard; '{bestID}' reaches {best:0} px (+{lipPop} px lip pop), so the climb can be jumped.")
             .IsTrue();
     }
 

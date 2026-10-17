@@ -52,6 +52,21 @@ public class MoveListScreenTests {
                         .OverrideFailureMessage($"{id}: missing ability row for {slot}.")
                         .IsNotNull();
                 }
+                // CM-MOVE (decision 5.2, 2026-10-16): the Fighter ledge-options row,
+                // filled from BasicComboRules' ledge section; never in Story mode.
+                var ledge = sections.GetNodeOrNull<Label>("LedgeOptions");
+                AssertObject(ledge).OverrideFailureMessage($"{id}: missing the ledge-options row.").IsNotNull();
+                AssertThat(ledge.Text).IsEqual(string.Format(
+                    TranslationServer.Translate("movelist_ledge_options").ToString(),
+                    BasicComboRules.LedgeNeutralClimbFrames, BasicComboRules.LedgeNeutralClimbIntangibleFrames,
+                    BasicComboRules.LedgeActionClimbFrames, BasicComboRules.LedgeAttackStartupFrames,
+                    BasicComboRules.LedgeAttackActiveFrames, BasicComboRules.LedgeAttackRecoveryFrames,
+                    BasicComboRules.LedgeFirstGrabIntangibleFrames));
+                screen.Populate(id, MoveListScreen.MoveListMode.Story);
+                AssertObject(screen.Root.GetNode<VBoxContainer>("Center/Panel/Layout/Scroll/Sections")
+                    .GetNodeOrNull<Label>("LedgeOptions"))
+                    .OverrideFailureMessage($"{id}: the Story move list must not show the Fighter ledge row.")
+                    .IsNull();
             }
         } finally {
             screen.Free();

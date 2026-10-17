@@ -181,6 +181,110 @@ public class StoryAirPhysicsTests {
     }
 
     /// <summary>
+    /// CM-MOVE (decision 6.1, 2026-10-16; <c>USER-APEX-HANG-HELD</c>): the apex
+    /// hang applies only while Jump is held. A released jump inside the band
+    /// falls at the heavier fall gravity past the apex and takes base gravity at
+    /// it; a held one still hangs on both sides.
+    /// </summary>
+    [TestCase]
+    public void TheApexHangNeedsJumpHeld() {
+        AssertThat(Band(60f, jumpHeld: false, jumped: true)).IsEqual(StoryGravityBand.Fall);
+        AssertThat(Band(119f, jumpHeld: false, jumped: true)).IsEqual(StoryGravityBand.Fall);
+        // At the apex itself (vy 0) a released jump takes base gravity, not the hang.
+        AssertThat(Band(0f, jumpHeld: false, jumped: true)).IsEqual(StoryGravityBand.Rise);
+        // A released rise inside the band is the short hop, never the hang.
+        AssertThat(Band(-60f, jumpHeld: false, jumped: true)).IsEqual(StoryGravityBand.ShortHop);
+        // Held, the hang is unchanged either side of the apex.
+        AssertThat(Band(60f, jumpHeld: true, jumped: true)).IsEqual(StoryGravityBand.ApexHang);
+        AssertThat(Band(-60f, jumpHeld: true, jumped: true)).IsEqual(StoryGravityBand.ApexHang);
+        AssertThat(Band(0f, jumpHeld: true, jumped: true)).IsEqual(StoryGravityBand.ApexHang);
+    }
+
+    /// <summary>
+    /// CM-MOVE (the Q5 ruling, "own jump only, both modes";
+    /// <c>USER-SHORT-HOP-OWN-JUMP-ONLY</c>): the ×2.5 band cuts only a rise that
+    /// began with the hero's own Jump press this airtime. A released rise that
+    /// is not one — a post-hitstun rise, a kit lift — takes base gravity, and
+    /// the step equals a held-jump step's rise exactly; the launch branch's own
+    /// short-hop clause (the launch half of <c>DEFER-H7-STORY-TERMINAL</c>) is
+    /// untouched.
+    /// </summary>
+    [TestCase]
+    public void TheShortHopCutsOnlyTheHerosOwnJump() {
+        AssertThat(Band(-50f, jumpHeld: false, jumped: true, own: true)).IsEqual(StoryGravityBand.ShortHop);
+        AssertThat(Band(-500f, jumpHeld: false, jumped: false, own: true)).IsEqual(StoryGravityBand.ShortHop);
+        AssertThat(Band(-500f, jumpHeld: false, jumped: true, own: false)).IsEqual(StoryGravityBand.Rise);
+        AssertThat(Band(-50f, jumpHeld: false, jumped: true, own: false)).IsEqual(StoryGravityBand.Rise);
+        AssertThat(Band(-50f, jumpHeld: false, jumped: false, own: false)).IsEqual(StoryGravityBand.Rise);
+        // Fast-fall and the float still win over everything.
+        AssertThat(Band(-50f, fastFalling: true, jumpHeld: false, own: false)).IsEqual(StoryGravityBand.FastFall);
+        AssertThat(Band(-50f, floatActive: true, jumpHeld: false, own: true)).IsEqual(StoryGravityBand.Float);
+        // The launch branch is unchanged by the gate.
+        AssertThat(Band(-50f, jumpHeld: false, launch: true, own: false)).IsEqual(StoryGravityBand.ShortHop);
+        AssertThat(Band(-50f, jumpHeld: false, launch: true, own: true)).IsEqual(StoryGravityBand.ShortHop);
+
+        foreach (float weight in new[] { 0.7f, 1f, 1.6f }) {
+            float g = StoryAirPhysics.GravityPerFrame(weight);
+            float cut = StoryAirPhysics.StepVertical(-500f, weight, 1f, Dt, false, false,
+                jumpHeld: false, jumpedThisAirtime: true, launch: false, riseFromOwnJump: true);
+            float uncut = StoryAirPhysics.StepVertical(-500f, weight, 1f, Dt, false, false,
+                jumpHeld: false, jumpedThisAirtime: true, launch: false, riseFromOwnJump: false);
+            float held = StoryAirPhysics.StepVertical(-500f, weight, 1f, Dt, false, false,
+                jumpHeld: true, jumpedThisAirtime: true, launch: false, riseFromOwnJump: true);
+            AssertThat(cut).IsEqualApprox(-500f + g * StoryAirPhysics.ShortHopGravityMultiplier, 0.0001f);
+            AssertThat(uncut).IsEqualApprox(-500f + g, 0.0001f);
+            AssertThat(uncut).IsEqualApprox(held, 0.0001f);
+            // The omitted parameter keeps the pre-2026-10-16 short hop.
+            AssertThat(StoryAirPhysics.StepVertical(-500f, weight, 1f, Dt, false, false,
+                jumpHeld: false, jumpedThisAirtime: true, launch: false)).IsEqualApprox(cut, 0.0001f);
+        }
+        // One value in both modes: the Story constant forwards to the shared one.
+        AssertThat(StoryAirPhysics.ShortHopGravityMultiplier).IsEqual(UniversalMovementRules.ShortHopGravityMultiplier);
+        AssertThat(StoryAirPhysics.ShortHopGravityMultiplier).IsEqual(2.5f);
+    }
+
+    /// <summary>
+    /// Decisions 5.1 and 6.1 together, integrated: a jump released on its second
+    /// tick spends no tick in the hang (it drops through its peak at the fall
+    /// gravity) and peaks lower than the held arc, which keeps its full hang.
+    /// </summary>
+    [TestCase]
+    public void AReleasedHopDropsThroughItsPeakWithNoHangAndAHeldJumpKeepsIt() {
+        foreach (float weight in new[] { 0.7f, 1f, 1.6f }) {
+            float launch = StoryAirPhysics.JumpLaunchSpeed(12f);
+            (float releasedPeak, int releasedHang) = TapArc(launch, weight, heldTicks: 2);
+            (float heldPeak, int heldHang) = TapArc(launch, weight, heldTicks: int.MaxValue);
+            AssertThat(releasedHang).OverrideFailureMessage($"weight {weight}: a released hop hung.").IsEqual(0);
+            AssertThat(heldHang).OverrideFailureMessage($"weight {weight}: a held jump lost its hang.").IsGreater(10);
+            AssertThat(releasedPeak).IsLess(heldPeak * 0.6f);
+        }
+    }
+
+    /// <summary>
+    /// A ground jump from launch speed <paramref name="launch"/>, Jump held on
+    /// its first <paramref name="heldTicks"/> ticks (the launch tick counted),
+    /// integrated through <see cref="StoryAirPhysics.StepVertical"/> as the
+    /// controller does (the launch tick moves at full speed, then gravity, then
+    /// the move). Returns the peak and the number of hang-band ticks.
+    /// </summary>
+    private static (float Peak, int HangTicks) TapArc(float launch, float weight, int heldTicks) {
+        float vy = -launch;
+        float height = launch * Dt;
+        float peak = height;
+        int hang = 0;
+        for (int frame = 2; frame < 3600; frame++) {
+            bool held = frame <= heldTicks;
+            if (StoryAirPhysics.SelectBand(vy, false, false, held, true, false, true) == StoryGravityBand.ApexHang) hang++;
+            vy = StoryAirPhysics.StepVertical(vy, weight, 1f, Dt, fastFalling: false, floatActive: false,
+                jumpHeld: held, jumpedThisAirtime: true, launch: false, riseFromOwnJump: true);
+            height -= vy * Dt;
+            peak = Math.Max(peak, height);
+            if (vy > 0f && height <= 0f) break;
+        }
+        return (peak, hang);
+    }
+
+    /// <summary>
     /// <see cref="StoryAirPhysics.SimulateJump"/>'s single held jump, integrated the
     /// same way (the launch tick at full speed, then gravity then the move) but
     /// with the apex hang off: what the rise would be without it.
@@ -200,8 +304,8 @@ public class StoryAirPhysicsTests {
     }
 
     private static StoryGravityBand Band(float vy, bool fastFalling = false, bool floatActive = false,
-        bool jumpHeld = true, bool jumped = false, bool launch = false) =>
-        StoryAirPhysics.SelectBand(vy, fastFalling, floatActive, jumpHeld, jumped, launch);
+        bool jumpHeld = true, bool jumped = false, bool launch = false, bool own = true) =>
+        StoryAirPhysics.SelectBand(vy, fastFalling, floatActive, jumpHeld, jumped, launch, own);
 
     private static float Step(float vy, bool fastFalling = false) =>
         StoryAirPhysics.StepVertical(vy, 1f, 1f, Dt, fastFalling, floatActive: false, jumpHeld: true,

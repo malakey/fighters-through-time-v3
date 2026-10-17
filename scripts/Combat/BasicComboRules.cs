@@ -1110,6 +1110,43 @@ namespace FTT.Combat {
         /// </summary>
         public const int LedgeRegrabsPerAirtime = 3;
 
+        // === CM-MOVE: Fighter ledge get-ups (decision 5.2, 2026-10-16; plan
+        // §2.5.2; ledger PROVISIONAL-LEDGE-GETUP-FRAMES, every number
+        // provisional). Fighter Mode only for now — Story's LedgeGrabPoint keeps
+        // its climb jump and drop until a later pass. The sim reads these through
+        // FighterLedgeRules; nothing here is a second copy anywhere. ===
+
+        /// <summary>Intangible frames a fighter gets on its FIRST ledge grab of an airtime (anti-planking: the budget resets only on grounding or a stock loss).</summary>
+        public const int LedgeFirstGrabIntangibleFrames = 30;
+
+        /// <summary>Hang frames before a fresh tilt can neutral-climb, so a fighter still steering in from its recovery never climbs on its first hang tick.</summary>
+        public const int LedgeGetUpMinHangFrames = 6;
+
+        /// <summary>The neutral climb's whole length: the fighter is action-locked through it and acts on the next tick.</summary>
+        public const int LedgeNeutralClimbFrames = 20;
+
+        /// <summary>The neutral climb's intangible frames, counted from its first (frames 1–12 of 20).</summary>
+        public const int LedgeNeutralClimbIntangibleFrames = 12;
+
+        /// <summary>The ledge roll's and the ledge attack's climb: intangible throughout, then the follow-up.</summary>
+        public const int LedgeActionClimbFrames = 8;
+
+        /// <summary>The ledge attack's strike: startup frames, after its climb.</summary>
+        public const int LedgeAttackStartupFrames = 8;
+        /// <summary>The ledge attack's active frames.</summary>
+        public const int LedgeAttackActiveFrames = 4;
+        /// <summary>The ledge attack's recovery frames.</summary>
+        public const int LedgeAttackRecoveryFrames = 14;
+        /// <summary>The ledge attack's damage, in BasicAttackDamage (string hit 1's box and knockback).</summary>
+        public const float LedgeAttackDamageMultiplier = 1.0f;
+        /// <summary>The ledge attack's hitstun.</summary>
+        public const int LedgeAttackHitstunFrames = 30;
+        /// <summary>The ledge attack never launches.</summary>
+        public const bool LedgeAttackLaunches = false;
+
+        /// <summary>How far inside the edge every get-up stands the fighter, in world units.</summary>
+        public const double LedgeStandInsetUnits = 0.5;
+
         // === Directional attacks (gameplay feel batch §2.8) ===
         // Up-attack and down-air are SINGLE strikes outside the three-hit chain:
         // no chain-hold, no buffering into the string, and the combo index
