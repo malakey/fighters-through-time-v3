@@ -602,7 +602,15 @@ namespace FTT.UI {
                 return;
             }
             InputBindingEvent captured = TryCapture(@event);
-            if (captured == null) return;
+            if (captured == null) {
+                // CM-PADUI (2026-10-16): pad B (ui_cancel) while a keyboard slot
+                // listens cancels the listen, as Escape does for a pad slot. A pad
+                // slot captures B as a binding above, so B stays bindable.
+                if (!@event.IsActionPressed(PadMenuInput.CancelAction)) return;
+                CancelListening();
+                GetViewport()?.SetInputAsHandled();
+                return;
+            }
             GetViewport()?.SetInputAsHandled();
             CommitCapture(captured);
         }
@@ -721,7 +729,11 @@ namespace FTT.UI {
 
         public override void _UnhandledInput(InputEvent @event) {
             if (!Visible || @event == null) return;
-            if (!@event.IsActionPressed(InputManager.Actions.Pause)) return;
+            // CM-PADUI (2026-10-16): ui_cancel (pad B, Escape) closes Settings as
+            // the pause key does, so a pad backs out with B and the press never
+            // falls through to the pause menu underneath.
+            if (!@event.IsActionPressed(InputManager.Actions.Pause)
+                && !@event.IsActionPressed(PadMenuInput.CancelAction)) return;
             Close();
             GetViewport()?.SetInputAsHandled();
         }

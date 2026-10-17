@@ -90,6 +90,20 @@ namespace FTT.UI {
 
         private void OnFullRestartPressed() => _fullRestartConfirmation?.Open();
 
+        /// <summary>
+        /// CM-PADUI (2026-10-16): ui_cancel (pad B) backs out, as the Back button
+        /// does. Escape is also the pause key and keeps opening the hub's pause,
+        /// as before. The full-restart confirmation is a child and answers its own
+        /// cancel first.
+        /// </summary>
+        public override void _UnhandledInput(InputEvent @event) {
+            if (@event == null || !@event.IsActionPressed(PadMenuInput.CancelAction)) return;
+            if (@event.IsActionPressed(FTT.Core.InputManager.Actions.Pause)) return;
+            if (_fullRestartConfirmation?.IsOpen == true) return;
+            GetViewport()?.SetInputAsHandled();
+            Cancelled?.Invoke();
+        }
+
         private static Button MakeButton(string name, string text) => new() {
             Name = name,
             Text = text,

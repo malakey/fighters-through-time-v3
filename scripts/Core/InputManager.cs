@@ -304,6 +304,12 @@ namespace FTT.Core {
                 frame.Pressed = GameplayButtons.None;
                 frame.Released = GameplayButtons.None;
             }
+            // CM-PADUI: a press a menu just acted on starts held the same way
+            // (InputManager.MenuPress.cs).
+            if (ConsumesMenuPress(playerIndex, tick)) {
+                frame.Pressed = GameplayButtons.None;
+                frame.Released = GameplayButtons.None;
+            }
 
             frame.Tick = tick;
             _frames[playerIndex] = frame;

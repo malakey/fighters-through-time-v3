@@ -82,6 +82,8 @@ namespace FTT.UI {
 
         private bool _skipEligible;
         private float _skipHoldSeconds;
+        // CM-PADUI: true until the confirm held as the sequence began is let go.
+        private bool _skipHoldAwaitsRelease;
         private Control _skipHintRow;
         private Label _skipHintLabel;
         private ProgressBar _skipProgressBar;
@@ -344,6 +346,9 @@ namespace FTT.UI {
             // a never-seen sequence opens one confirmation instead.
             _skipHoldSeconds = 0f;
             _skipEligible = true;
+            // CM-PADUI: a confirm already held as the sequence starts is not a hold.
+            _skipHoldAwaitsRelease = Input.IsActionPressed(FTT.Core.InputManager.Actions.Interact)
+                || Input.IsActionPressed("ui_accept");
             // Package 12 W6 (G10): the player's Text Speed, read at sequence start
             // so a change in Settings reaches the next scene.
             Reveal.SetSpeed(FTT.Core.SaveManager.Instance?.GlobalData?.DialogueTextSpeed
@@ -565,7 +570,15 @@ namespace FTT.UI {
             if (CanHoldToSkip) {
                 bool held = Input.IsActionPressed(FTT.Core.InputManager.Actions.Interact)
                     || Input.IsActionPressed("ui_accept");
-                if (held) AdvanceSkipHold((float)delta);
+                // CM-PADUI (2026-10-16): a hold counts only once the confirm has
+                // been let go since the sequence began, so a button already down
+                // when it started — a held full hop on pad A, which is now
+                // ui_accept, or a held Interact channel on B — cannot skip a scene
+                // the player never chose to skip. An open pause menu owns the
+                // presses too.
+                if (!held) _skipHoldAwaitsRelease = false;
+                if (PauseMenuBase.IsAnyOpen) held = false;
+                if (held && !_skipHoldAwaitsRelease) AdvanceSkipHold((float)delta);
                 else if (_skipHoldSeconds > 0f) ResetSkipHold();
                 // The hold may have fast-forwarded the whole sequence.
                 if (!_isActive) return;
@@ -615,6 +628,10 @@ namespace FTT.UI {
             if (_skipHintRow != null) _skipHintRow.Visible = false;
             CloseSkipConfirm();
             BeginBoxAnimation(opening: false);
+            // CM-PADUI (2026-10-16): the confirm that ended a gameplay-pausing
+            // sequence is spent. Pad A (Jump), pad X and keyboard Space or J (an
+            // attack) must not also reach the hero on the first live tick.
+            if (_pausedGameplay) FTT.Core.InputManager.Instance?.ConsumeHeldPresses();
             ReleaseGameplayPause();
             RecordLastViewedDialogue(completedID);
             // Package 11 A5 (plan §2.10 item 5): effect resolution is no longer
@@ -872,6 +889,10 @@ namespace FTT.UI {
             if (IsSkipConfirmOpen) return;
             // G10: the log owns input while it is open (it closes itself).
             if (IsLogOpen) return;
+            // CM-PADUI (2026-10-16): a pause menu opened over the box owns every
+            // press — pad A on its Resume button, pad B backing out of it — and a
+            // line must not advance underneath it.
+            if (PauseMenuBase.IsAnyOpen) return;
             if (@event.IsActionPressed(FTT.Core.InputManager.Actions.DialogueLog)) {
                 OpenLog();
                 GetViewport().SetInputAsHandled();
@@ -881,6 +902,10 @@ namespace FTT.UI {
                 || @event.IsActionPressed(FTT.Core.InputManager.Actions.BasicAttack)
                 || @event.IsActionPressed("ui_accept");
             if (!confirm) return;
+            // CM-PADUI: a focused button outside the box already takes this
+            // ui_accept (Godot's buttons never mark it handled), so the line
+            // must not advance on the same press.
+            if (PadMenuInput.FocusedButtonTakesAccept(GetViewport(), @event)) return;
             if (IsTyping) {
                 Reveal.CompleteImmediately();
                 _textLabel.VisibleCharacters = -1;
