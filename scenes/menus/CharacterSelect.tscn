@@ -86,6 +86,16 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.75, 0.85, 1)
 autowrap_mode = 3
 
+[node name="P1JoinPrompt" type="Label" parent="SelectPhase/Root/PlayersRow/P1Panel"]
+visible = false
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_type_variation = &"EmphasisLabel"
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+text = "select_press_to_join_player_one"
+horizontal_alignment = 1
+autowrap_mode = 3
+
 [node name="Grid" type="GridContainer" parent="SelectPhase/Root/PlayersRow"]
 layout_mode = 2
 theme_override_constants/h_separation = 12

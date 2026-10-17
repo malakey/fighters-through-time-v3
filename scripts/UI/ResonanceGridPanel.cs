@@ -174,6 +174,10 @@ namespace FTT.UI {
                 return;
             }
             if (@event.IsActionPressed("ui_accept")) {
+                // CM-PADUI (2026-10-16): when Close or Respec holds GUI focus (a
+                // mouse click gives it), that button takes this press on release;
+                // the highlighted node must not be bought on the same press.
+                if (PadMenuInput.FocusedButtonTakesAccept(GetViewport(), @event)) return;
                 GetViewport().SetInputAsHandled();
                 ActivateNode(_nodes[_focusedIndex]);
             }

@@ -81,6 +81,12 @@ namespace FTT.UI {
             ResolveOrBuildUI();
             if (_skipHint != null) _skipHint.Text = Tr("credits_skip_hint");
             PopulateLines();
+            // CM-PADUI (2026-10-16): the roll owns the screen. A menu button left
+            // focused underneath (the main menu's Credits replay button) would
+            // otherwise take the same ui_accept press that skips the roll — pad
+            // A now — and open the credits again on its release. The opener
+            // re-applies its focus chain when the roll finishes.
+            GetViewport()?.GuiReleaseFocus();
 
             float viewportHeight = GetViewportHeight();
             _startY = viewportHeight;

@@ -721,6 +721,7 @@ namespace FTT.Environment {
                 if (_services?.Dialogue != null && _services.Dialogue.IsSequenceActive) return;
                 if (_playerInHolodeck) {
                     OpenHolodeckConsole();
+                    ConsumeInteractPress();
                     return;
                 }
                 if (GoHomeSequence != null && IsInstanceValid(GoHomeSequence)) return;
@@ -728,15 +729,18 @@ namespace FTT.Environment {
                     StorySaveData ledger = ActiveCampaignSave();
                     _services?.Dialogue?.StartSequence(HubDialogueSelector.SarahTalkSequenceFor(
                         CurrentPeriod(), id => ledger?.ViewedDialogueIDs?.Contains(id) == true));
+                    ConsumeInteractPress();
                     return;
                 }
                 if (_playerInWren) {
                     _services?.Dialogue?.StartSequence(HubDialogueSelector.WrenSequenceFor(CurrentPeriod()));
+                    ConsumeInteractPress();
                     return;
                 }
                 if (_playerInOkafor) {
                     string okafor = HubDialogueSelector.OkaforSequenceFor(CurrentPeriod());
                     if (!string.IsNullOrEmpty(okafor)) _services?.Dialogue?.StartSequence(okafor);
+                    ConsumeInteractPress();
                     return;
                 }
                 if (_playerInRepository) {
@@ -751,6 +755,7 @@ namespace FTT.Environment {
                     };
                     _player.ProcessMode = ProcessModeEnum.Disabled;
                     GetNode<CanvasLayer>("HubHUD").AddChild(_resonancePanel);
+                    ConsumeInteractPress();
                     return;
                 }
                 if (_playerInPortal && _portalReady) {
@@ -767,9 +772,20 @@ namespace FTT.Environment {
                             StoryManager.Instance?.LoadCurrentLevel();
                             break;
                     }
+                    ConsumeInteractPress();
                 }
             }
         }
+
+        /// <summary>
+        /// CM-PADUI (2026-10-16): an Interact press that opened or started something
+        /// is spent. The panel or dialogue box it opened is already in the tree when
+        /// the same event reaches <c>_UnhandledInput</c>, and pad B is Interact and
+        /// (since CM-PADUI) <c>ui_cancel</c>: unhandled, the press opened the Repository
+        /// or the Holodeck console and closed it again at once, and a crew dialogue
+        /// lost its first line's reveal to the opening press.
+        /// </summary>
+        private void ConsumeInteractPress() => GetViewport()?.SetInputAsHandled();
 
         /// <summary>Reuses the deposit toast slot for short localized hub notices.</summary>
         public void ShowPortalMessage(string translationKey) {

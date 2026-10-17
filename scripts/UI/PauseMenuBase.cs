@@ -27,12 +27,33 @@ namespace FTT.UI {
         /// <summary>True while this menu holds the scene tree paused.</summary>
         public bool IsPaused => _isPaused;
 
+        // CM-PADUI (2026-10-16): how many pause menus in the tree are open right
+        // now, so a surface underneath (the dialogue box) can stand down while a
+        // pause owns the player's presses. Each menu counts itself at most once
+        // and always uncounts in _ExitTree, so a freed menu can never leave it set.
+        private static int s_openPauseMenus;
+        private bool _countedOpen;
+
+        /// <summary>
+        /// CM-PADUI (2026-10-16): true while any pause menu in the tree is open. A
+        /// dialogue sequence under the pause must not take the presses the pause
+        /// menu is answering (pad A on Resume, pad B backing out).
+        /// </summary>
+        public static bool IsAnyOpen => s_openPauseMenus > 0;
+
+        private void SetCountedOpen(bool open) {
+            if (open == _countedOpen) return;
+            _countedOpen = open;
+            s_openPauseMenus = System.Math.Max(0, s_openPauseMenus + (open ? 1 : -1));
+        }
+
         /// <summary>
         /// Releases a held pause on teardown. Subclasses that override this must
         /// call <c>base._ExitTree()</c>.
         /// </summary>
         public override void _ExitTree() {
             FTT.Core.PlatformOverlay.OverlayActivated -= OnPlatformOverlayActivated;
+            SetCountedOpen(false);
             if (!_isPaused) return;
             _isPaused = false;
             SceneTree tree = GetTree();
@@ -53,12 +74,19 @@ namespace FTT.UI {
         public virtual void SetPaused(bool paused) {
             if (_isPaused == paused) return;
             _isPaused = paused;
+            SetCountedOpen(paused && IsInsideTree());
 
             SceneTree tree = GetTree();
             if (tree != null) tree.Paused = paused;
             // Package 11 A3 (F01): reading the map costs no Timeline Integrity.
             FTT.Core.StoryManager.Instance?.SetIntegrityClockPause(
                 FTT.Core.IntegrityClockPause.PauseMenu, paused);
+
+            // CM-PADUI (2026-10-16): the press that closed the pause — pad B
+            // backing out, a controller-lost face button, a key — is spent. It
+            // must not reach the hero or the fighter as a fresh press on the
+            // first unpaused tick (B is Interact, A Jump).
+            if (!paused) FTT.Core.InputManager.Instance?.ConsumeHeldPresses();
 
             OnPauseStateChanged(paused);
         }
@@ -79,8 +107,20 @@ namespace FTT.UI {
         /// gameplay underneath a menu that is deliberately holding the player.
         /// </summary>
         public override void _UnhandledInput(InputEvent @event) {
-            if (@event == null || !@event.IsActionPressed(FTT.Core.InputManager.Actions.Pause)) return;
-            if (CanTogglePause()) TogglePause();
+            if (@event == null) return;
+            if (@event.IsActionPressed(FTT.Core.InputManager.Actions.Pause)) {
+                if (CanTogglePause()) TogglePause();
+                GetViewport()?.SetInputAsHandled();
+                return;
+            }
+            // CM-PADUI (2026-10-16): ui_cancel (pad B, Escape) backs out of an open
+            // pause, as Resume does. An overlay inside the pause (Settings, the
+            // Move List, the Dialogue Log, a confirmation) is a child and answers
+            // its own cancel first; a pause that is holding the player (a
+            // controller-disconnect modal) swallows it. Escape is also the pause
+            // key, so it took the branch above and never reaches this one.
+            if (!_isPaused || !@event.IsActionPressed("ui_cancel")) return;
+            if (CanTogglePause()) SetPaused(false);
             GetViewport()?.SetInputAsHandled();
         }
 

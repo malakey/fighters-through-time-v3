@@ -1413,7 +1413,7 @@ settings_down_threshold,Down Input Threshold
 dialogue_log_title,Dialogue Log
 dialogue_log_empty,No dialogue yet this session.
 dialogue_log_button,Log
-pause_controller_disconnected,"Controller disconnected. Reconnect it and press any face button, or choose Resume to continue."
+pause_controller_disconnected,"Controller disconnected. Reconnect it and press any face button, press any key to carry on with the keyboard, or choose Resume to continue."
 pause_lower_difficulty,Lower Difficulty
 pause_lower_difficulty_confirm,Lower the difficulty from {0} to {1}? It applies from the next level you enter and cannot be raised again.
 save_slot_lowest_difficulty,Lowest difficulty used: {0}
@@ -1670,3 +1670,6 @@ select_press_to_join,Press confirm on any controller or keyboard to join
 # CM-MOVE
 # Combat and movement update 2026-10-16 (5.2): the Fighter Move List's ledge-options row.
 movelist_ledge_options,"Ledge (Fighter): Jump climb-jumps; a fresh tilt toward the stage climbs up ({0} frames, the first {1} intangible); Roll rolls up onto the stage ({2} intangible frames, then a roll); Attack climbs and strikes ({2} intangible frames, then {3}/{4}/{5}); Down lets go. Your first grab of an airtime is intangible for {6} frames."
+# CM-PADUI
+# Combat and movement update 2026-10-16 (9.1 pad-first menus): the Fighter select's press-to-join prompt for Player 1.
+select_press_to_join_player_one,Press confirm on any controller or keyboard to join as Player 1
