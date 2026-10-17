@@ -226,7 +226,387 @@ public class FighterCpuHitstunDefenseTests {
             .IsFalse();
     }
 
+    // === CM-FIXB-CPU: the hold once hitstun is over (decision 3.2, 5.2's climb jump) ===
+
+    /// <summary>
+    /// CM-FIXB-CPU (finding B0/B20): a 100 %-defense Hard CPU launched off
+    /// Nassau's stern ledge, whose 30-frame hitstun ends while it is still in the
+    /// air over the 3.0-wide gap, must recover. The Block hold used to stay
+    /// exclusive until the fighter was grounded, so every recovery jump and
+    /// movement-ability press the planner sent was eaten and the CPU fell into
+    /// the blast zone. Real simulation frames; DI is off so the launch, not the
+    /// DI read, decides where hitstun ends.
+    /// </summary>
+    [TestCase]
+    public void AHundredPercentDefenseCpuLaunchedOverAnOpenStagePitRecoversOnceItsHitstunEnds() {
+        var failures = new System.Collections.Generic.List<string>();
+        foreach ((double kx, double ky) in new[] { (13.0, 11.0), (14.0, 12.0), (12.0, 10.0) }) {
+            foreach (int seed in new[] { 1, 2, 3 }) {
+                string run = $"launch ({kx}, {ky}) seed {seed}";
+                PitLaunchResult result = RunPitLaunch(kx, ky, seed);
+                if (!result.HitstunEndedOverTheGap) {
+                    failures.Add($"{run}: harness, hitstun did not end airborne over the gap");
+                    continue;
+                }
+                if (result.RecoveryPresses == 0) failures.Add($"{run}: no Jump or movement-ability press after hitstun");
+                if (result.StockLost) failures.Add($"{run}: the CPU fell into the blast zone");
+                else if (!result.Landed) failures.Add($"{run}: the CPU never got back onto the stage");
+            }
+        }
+        if (failures.Count > 0) AssertThat(string.Join(" | ", failures)).IsEqual("");
+    }
+
+    /// <summary>
+    /// CM-FIXB-CPU (finding B0/B20): the same CPU caught on Nassau's pit-facing
+    /// stern ledge after its hitstun ended, with the defense hold still active,
+    /// leaves by the climb jump (5.2: "the CPU stays climb-jump only") within its
+    /// reaction window — not by the 300-frame auto-release it used to wait out
+    /// holding Block alone — and never by a get-up.
+    /// </summary>
+    [TestCase]
+    public void AHundredPercentDefenseCpuCaughtOnAPitFacingLedgeAfterHitstunClimbJumps() {
+        var failures = new System.Collections.Generic.List<string>();
+        foreach (int seed in new[] { 1, 2, 3 }) {
+            PitLaunchResult result = RunPitLaunch(9.0, 14.0, seed);
+            string run = $"seed {seed}";
+            if (result.HangTick < 0) {
+                failures.Add($"{run}: harness, the ledge never caught the CPU");
+                continue;
+            }
+            if (result.HitstunAtHang > 0) failures.Add($"{run}: harness, the hang began inside hitstun");
+            if (result.GetUp) failures.Add($"{run}: the CPU left the ledge by a get-up");
+            if (result.HangEndTick < 0) {
+                failures.Add($"{run}: the CPU never left the ledge");
+            } else {
+                int hangFrames = result.HangEndTick - result.HangTick;
+                if (!result.LeftByClimbJump) failures.Add($"{run}: left the ledge after {hangFrames} frames without a climb jump");
+                else if (hangFrames > 30) failures.Add($"{run}: climb-jumped only after {hangFrames} frames");
+            }
+            if (result.StockLost) failures.Add($"{run}: the CPU lost the stock");
+        }
+        if (failures.Count > 0) AssertThat(string.Join(" | ", failures)).IsEqual("");
+    }
+
+    /// <summary>
+    /// CM-FIXB-CPU (finding B9): a hit on a hanging CPU leaves the hang set
+    /// through the whole hitstop, so the CPU's frame reads <c>IsLedgeHanging</c>
+    /// on every frozen tick — the thaw tick included, whose stick
+    /// <c>FighterVerbRules.ResolvePendingLaunch</c> reads. The climb-jump-only
+    /// override (fa18442) zeroed that stick, so the launch resolved with no DI.
+    /// A 100 %-DI CPU hanging on Nassau's stern ledge (its first-grab
+    /// intangibility run out) and launched by a Special must hold toward the
+    /// stage through the thaw, and its velocity must leave the stashed launch
+    /// rotated. Real simulation frames, inputs pinned with
+    /// <see cref="PlayerInputFrame.Create"/>.
+    /// </summary>
+    [TestCase]
+    public void AHangingCpuStruckByALauncherKeepsItsDiHoldThroughTheThaw() {
+        FighterStageGeometry nassau = FighterStageGeometry.ForStage("nassau_flagship");
+        FighterLoadout victim = FighterLoadout.Default(FighterCharacterID.Joan);
+        var simulation = new FighterSimulation(
+            PitLauncher(8.0, 8.0), victim, stocks: 3, seed: 7, rules: FighterMatchRules.Disabled, stageGeometry: nassau);
+        var cpu = new FighterCpuController(
+            CpuDifficulty.Hard, 7, nassau, new FighterSimulationWorldObserver(simulation),
+            CpuBandTuning.Hard with { HitstunDefensePercent = 100, DiPercent = 100 },
+            CpuRecoveryProfile.FromLoadout(in victim));
+        PlayerInputFrame previousCpu = default;
+        GameplayButtons attackerHeld = GameplayButtons.None;
+        int hangTick = -1;
+        bool pressed = false;
+        bool cpuLive = false;
+        FP64 launchX = FP64.Zero;
+        FP64 launchY = FP64.Zero;
+        bool thawed = false;
+        sbyte thawStick = 0;
+        FPVector2 resolved = FPVector2.Zero;
+        var frozenSticks = new System.Collections.Generic.List<sbyte>();
+
+        for (int tick = 0; tick < 400 && !thawed; tick++) {
+            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent attacker)).IsTrue();
+            AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent attackerRuntime)).IsTrue();
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent self)).IsTrue();
+            AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent selfRuntime)).IsTrue();
+            AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent selfVerb)).IsTrue();
+            bool hanging = FighterLedgeRules.IsHanging(in selfRuntime);
+            if (hanging && hangTick < 0) hangTick = tick;
+            if (!cpuLive && self.HitstunFrames > 0) {
+                cpuLive = true;
+                AssertThat(hanging)
+                    .OverrideFailureMessage("Harness: the CPU must still read as hanging on the hit's frozen ticks.")
+                    .IsTrue();
+                AssertThat(selfVerb.PendingLaunchActive)
+                    .OverrideFailureMessage("Harness: the hit must stash a launch for the thaw.")
+                    .IsEqual(1);
+                launchX = selfVerb.PendingLaunchX;
+                launchY = selfVerb.PendingLaunchY;
+            }
+
+            // The attacker walks to the stern and presses the launcher once the
+            // hanging CPU's first-grab intangibility has run out.
+            GameplayButtons attackerButtons = GameplayButtons.None;
+            float attackerX = 0f;
+            if (!pressed) {
+                if (attacker.Position.x < FP64.FromDouble(5.6)) attackerX = 1f;
+                else if (hangTick >= 0 && tick > hangTick + 40 && self.InvulnerabilityFrames <= 0) {
+                    attackerButtons = GameplayButtons.Special1;
+                    pressed = true;
+                }
+            }
+            PlayerInputFrame attackerFrame = PlayerInputFrame.Create(
+                (uint)tick, attackerX, 0f, attackerButtons, attackerHeld);
+            attackerHeld = attackerButtons;
+
+            PlayerInputFrame selfFrame;
+            int hitstopBefore = selfVerb.HitstopFrames;
+            if (cpuLive) {
+                selfFrame = cpu.Sample((uint)tick, in self, in selfRuntime, in attacker, in attackerRuntime, in previousCpu);
+                previousCpu = selfFrame;
+                if (hitstopBefore > 0) frozenSticks.Add(selfFrame.MoveX);
+            } else {
+                // Walk off the stern into the ledge capture, then hang on a neutral stick.
+                float walk = hangTick < 0 && self.IsGrounded != 0 ? 0.6f : 0f;
+                selfFrame = PlayerInputFrame.Create((uint)tick, walk, 0f, GameplayButtons.None, GameplayButtons.None);
+            }
+            simulation.Advance(attackerFrame, selfFrame);
+            if (cpuLive && hitstopBefore == 1) {
+                AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
+                thawed = true;
+                thawStick = selfFrame.MoveX;
+                resolved = after.Velocity;
+            }
+        }
+        AssertThat(hangTick >= 0).OverrideFailureMessage("Harness: the CPU never reached the stern ledge.").IsTrue();
+        AssertThat(thawed).OverrideFailureMessage("Harness: the launch never thawed.").IsTrue();
+        AssertThat(launchX > FP64.Zero)
+            .OverrideFailureMessage("Harness: the launch must carry the hanging CPU out over the gap.")
+            .IsTrue();
+        // Pit-aware DI: the only floor edge is the stern ledge itself, to the left.
+        AssertThat(thawStick < 0)
+            .OverrideFailureMessage($"The thaw tick's stick was {thawStick}: the DI hold toward the stage was zeroed.")
+            .IsTrue();
+        foreach (sbyte stick in frozenSticks) {
+            AssertThat(stick < 0)
+                .OverrideFailureMessage($"A frozen tick sent stick {stick}; the DI hold must survive the whole hitstop.")
+                .IsTrue();
+        }
+        AssertThat(resolved.x < launchX)
+            .OverrideFailureMessage(
+                $"The launch resolved at ({resolved.x}, {resolved.y}) against the stashed ({launchX}, {launchY}): it was not bent toward the stage.")
+            .IsTrue();
+    }
+
+    /// <summary>
+    /// CM-FIXB-CPU (finding B0's charge): a recovery movement-ability press the
+    /// defense hold masks — it arrives on the first frame of a hit's hitstun —
+    /// never reached the simulation, so it must not spend Medium's one
+    /// activation per offstage episode. It used to be charged at delivery,
+    /// leaving the CPU no movement ability once its hitstun ended. A control
+    /// CPU on the same seed and observations finds the press's tick; the CPU
+    /// under test is hit on exactly that tick.
+    /// </summary>
+    [TestCase]
+    public void AMovementActivationTheDefenseHoldMasksIsNotChargedToTheEpisode() {
+        CpuBandTuning tuning = CpuBandTuning.Normal with {
+            HitstunDefensePercent = 100,
+            DiPercent = 0,
+            RecoveryMovementPercent = 100
+        };
+        CpuDecisionObservation offStage = new() {
+            SelfPositionXRaw = FP64.FromInt(-8).RawValue,
+            SelfPositionYRaw = FP64.FromInt(-1).RawValue,
+            SelfVelocityYRaw = FP64.FromInt(-6).RawValue,
+            Stocks = 3,
+            IsGrounded = 0,
+            RemainingJumps = 0,
+            SelfCurrentHP = 100,
+            SelfMaxHP = 100,
+            HasStageBounds = 1,
+            LeftWallRaw = FP64.FromInt(-9).RawValue,
+            RightWallRaw = FP64.FromInt(9).RawValue,
+            CeilingRaw = FP64.FromInt(9).RawValue,
+            BottomBlastZoneRaw = FP64.FromInt(-5).RawValue,
+            PlatformCount = 2
+        };
+        const int seed = 4711;
+        const int hitstunFrames = 30;
+
+        var control = new FighterCpuController(CpuDifficulty.Normal, seed, null, null, tuning);
+        PlayerInputFrame previous = default;
+        int pressTick = -1;
+        for (uint tick = 0; tick < 120 && pressTick < 0; tick++) {
+            PlayerInputFrame frame = control.Sample(tick, in offStage, in previous);
+            previous = frame;
+            if (frame.IsPressed(GameplayButtons.MovementAbility)) pressTick = (int)tick;
+        }
+        AssertThat(pressTick > 0)
+            .OverrideFailureMessage("Harness: the control CPU never pressed its movement ability.")
+            .IsTrue();
+
+        var cpu = new FighterCpuController(CpuDifficulty.Normal, seed, null, null, tuning);
+        previous = default;
+        int pressesInHitstun = 0;
+        int pressesAfter = 0;
+        int chargedAtHitstunEnd = -1;
+        int hitstunEnd = pressTick + hitstunFrames;
+        for (int tick = 0; tick < hitstunEnd + 120; tick++) {
+            CpuDecisionObservation observation = offStage;
+            if (tick >= pressTick && tick < hitstunEnd) observation.HitstunFrames = hitstunEnd - tick;
+            PlayerInputFrame frame = cpu.Sample((uint)tick, in observation, in previous);
+            previous = frame;
+            if (tick == hitstunEnd - 1) chargedAtHitstunEnd = cpu.EpisodeMovementActivations;
+            if (!frame.IsPressed(GameplayButtons.MovementAbility)) continue;
+            if (tick < hitstunEnd) pressesInHitstun++;
+            else pressesAfter++;
+        }
+        AssertThat(chargedAtHitstunEnd)
+            .OverrideFailureMessage("The masked press was charged to the episode while hitstun still ran.")
+            .IsEqual(0);
+        AssertThat(pressesInHitstun)
+            .OverrideFailureMessage("Harness: the defense hold must mask the press that arrives with the hit.")
+            .IsEqual(0);
+        AssertThat(pressesAfter > 0)
+            .OverrideFailureMessage(
+                "The masked press was charged: no movement-ability press went out once hitstun ended.")
+            .IsTrue();
+        AssertThat(cpu.EpisodeMovementActivations)
+            .OverrideFailureMessage("Exactly the press that went out is charged to the episode.")
+            .IsEqual(1);
+    }
+
     // === Harness ===
+
+    private struct PitLaunchResult {
+        public bool HitstunEndedOverTheGap;
+        public int RecoveryPresses;
+        public bool StockLost;
+        public bool Landed;
+        public int HangTick;
+        public int HitstunAtHang;
+        public int HangEndTick;
+        public bool LeftByClimbJump;
+        public bool GetUp;
+    }
+
+    /// <summary>
+    /// A Special 1 melee launcher with an authored knockback vector (D10) and a
+    /// 30-frame hitstun, on the Default kit's numbers.
+    /// </summary>
+    private static FighterLoadout PitLauncher(double knockbackX, double knockbackY) {
+        FighterAbilityLoadout modes = FighterAbilityLoadout.Default with {
+            SpecialOneExecutionType = 0,
+            SpecialOneHit = new FighterAbilityHitData {
+                HitstunFrames = 30,
+                BlockClass = (int)BlockClass.Special,
+                Launches = true,
+                Delivery = (int)HitDelivery.DirectHit,
+                Origin = (int)HitOrigin.Special,
+                HasKnockbackVector = true,
+                KnockbackX = FP64.FromDouble(knockbackX),
+                KnockbackY = FP64.FromDouble(knockbackY)
+            }
+        };
+        return new FighterLoadout(
+            (int)FighterCharacterID.Einstein,
+            100, 3, 2,
+            10, 4, 4, 20,
+            600, 600,
+            (int)StatusType.None, 0,
+            (int)StatusType.None, 0,
+            (int)StatusType.None, 0,
+            FP64.One,
+            FP64.FromInt(7),
+            FP64.FromDouble(11.5),
+            FP64.FromInt(3),
+            FP64.FromDouble(System.Math.Max(knockbackX, knockbackY)),
+            FP64.FromInt(4),
+            FP64.FromInt(5),
+            FP64.One, FP64.One, FP64.One,
+            modes);
+    }
+
+    /// <summary>
+    /// Nassau Flagship (Open: the floor ends at the stern ledge, x = 6, over a
+    /// 3.0-wide gap). Player one walks up to a default Joan standing at her
+    /// spawn (x = 4) and launches her toward the stern; from the first frame of
+    /// her hitstun a Hard CPU with a 100 % defense roll (and no DI) drives her,
+    /// through the real world observer and her own recovery profile.
+    /// </summary>
+    private static PitLaunchResult RunPitLaunch(double knockbackX, double knockbackY, int seed) {
+        FighterStageGeometry nassau = FighterStageGeometry.ForStage("nassau_flagship");
+        FighterLoadout victim = FighterLoadout.Default(FighterCharacterID.Joan);
+        var simulation = new FighterSimulation(
+            PitLauncher(knockbackX, knockbackY), victim,
+            stocks: 3, seed: seed, rules: FighterMatchRules.Disabled, stageGeometry: nassau);
+        var cpu = new FighterCpuController(
+            CpuDifficulty.Hard, seed, nassau, new FighterSimulationWorldObserver(simulation),
+            CpuBandTuning.Hard with { HitstunDefensePercent = 100, DiPercent = 0 },
+            CpuRecoveryProfile.FromLoadout(in victim));
+        var result = new PitLaunchResult { HangTick = -1, HangEndTick = -1 };
+        PlayerInputFrame previousCpu = default;
+        GameplayButtons attackerHeld = GameplayButtons.None;
+        bool pressed = false;
+        bool cpuLive = false;
+        bool hitstunEnded = false;
+        int lastHitstun = 0;
+        bool wasHanging = false;
+
+        for (int tick = 0; tick < 600; tick++) {
+            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent attacker)).IsTrue();
+            AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent attackerRuntime)).IsTrue();
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent self)).IsTrue();
+            AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent selfRuntime)).IsTrue();
+            if (self.Stocks < 3) {
+                result.StockLost = true;
+                return result;
+            }
+            bool hanging = FighterLedgeRules.IsHanging(in selfRuntime);
+            if (FighterLedgeRules.IsGetUpClimb(in selfRuntime)) result.GetUp = true;
+            if (hanging && !wasHanging && result.HangTick < 0) {
+                result.HangTick = tick;
+                result.HitstunAtHang = self.HitstunFrames;
+            }
+            if (!hanging && wasHanging && result.HangEndTick < 0) {
+                result.HangEndTick = tick;
+                result.LeftByClimbJump = self.Velocity.y > FP64.Zero;
+            }
+            wasHanging = hanging;
+            if (lastHitstun > 0 && self.HitstunFrames <= 0 && !hitstunEnded) {
+                hitstunEnded = true;
+                result.HitstunEndedOverTheGap = self.IsGrounded == 0 && !nassau.HasFloorSupport(self.Position.x);
+            }
+            lastHitstun = self.HitstunFrames;
+            if (self.HitstunFrames > 0) cpuLive = true;
+            if (hitstunEnded && !hanging && self.IsGrounded != 0 && self.HitstunFrames <= 0) {
+                result.Landed = true;
+                return result;
+            }
+
+            GameplayButtons attackerButtons = GameplayButtons.None;
+            float attackerX = 0f;
+            if (!pressed) {
+                if (self.Position.x - attacker.Position.x > FP64.FromDouble(0.9)) attackerX = 1f;
+                else if (attackerRuntime.AttackPhase == FighterBasicAttackRules.PhaseNone) {
+                    attackerButtons = GameplayButtons.Special1;
+                    pressed = true;
+                }
+            }
+            PlayerInputFrame attackerFrame = PlayerInputFrame.Create(
+                (uint)tick, attackerX, 0f, attackerButtons, attackerHeld);
+            attackerHeld = attackerButtons;
+
+            PlayerInputFrame selfFrame = default;
+            if (cpuLive) {
+                selfFrame = cpu.Sample((uint)tick, in self, in selfRuntime, in attacker, in attackerRuntime, in previousCpu);
+                previousCpu = selfFrame;
+                if (hitstunEnded
+                    && (selfFrame.IsPressed(GameplayButtons.Jump) || selfFrame.IsPressed(GameplayButtons.MovementAbility))) {
+                    result.RecoveryPresses++;
+                }
+            }
+            simulation.Advance(attackerFrame, selfFrame);
+        }
+        return result;
+    }
 
     /// <summary>
     /// Lands player one's chained basics on a CPU-driven player two and counts

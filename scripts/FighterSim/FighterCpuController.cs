@@ -44,6 +44,15 @@ namespace FTT.FighterSim {
         private const int EdgeReleaseGapFrames = 1;
 
         /// <summary>
+        /// CM-FIXB-CPU: what the hitstun-defense Block hold lets through once
+        /// hitstun is over and the fighter is still airborne or hanging — the
+        /// planner's recovery and climb presses and the held hop. BasicAttack and
+        /// Roll never pass (with Block they are the grab and Echo Step chords).
+        /// </summary>
+        private const GameplayButtons PostHitstunAirborneButtons =
+            GameplayButtons.Jump | GameplayButtons.MovementAbility;
+
+        /// <summary>
         /// The sustained Jump hold ends once the fighter falls faster than this
         /// (2 u/s): just past the apex-hang band (|vy| &lt; 2 u/s), so a held
         /// hop keeps its hang. Raw FP64, +Y up.
@@ -193,6 +202,13 @@ namespace FTT.FighterSim {
         /// passed unconsumed is released rather than charged.
         /// </summary>
         private int _movementActivationDeliveryTick = -1;
+        /// <summary>
+        /// CM-FIXB-CPU: a delivered movement activation waiting in the edge
+        /// pulse. It is charged when the press goes out and released uncharged
+        /// if the press is masked or overwritten first; until then it counts
+        /// against the per-episode limit, like the planned marker above.
+        /// </summary>
+        private bool _movementActivationAwaitingEmission;
         private int _episodeMobilitySpecialActivations;
         private int _episodeFrames;
         private int _episodeStocksAtStart;
@@ -357,10 +373,6 @@ namespace FTT.FighterSim {
                 // retroactive cancel, reroll or refund.
                 if (delivery.Verb == CpuVerbAction.None
                     || VerbStillLegalForSelf(delivery.Verb, in observation)) {
-                    if (delivery.SpendsMovementActivation) {
-                        _episodeMovementActivations++;
-                        _movementActivationDeliveryTick = -1;
-                    }
                     outputMoveX = delivery.MoveX;
                     outputMoveY = delivery.MoveY;
                     _sustainedHeld = delivery.Held & ~EdgeButtons;
@@ -374,6 +386,15 @@ namespace FTT.FighterSim {
                     // draw, no snapshot state.
                     if (CastHoldsThisTick(in observation)) {
                         edges &= ~(GameplayButtons.Special1 | GameplayButtons.Special2 | GameplayButtons.Ultimate);
+                        // CM-FIXB-CPU: so are the planned recovery presses. The
+                        // cast would discard them too, and a movement-ability
+                        // press it ate used to be charged to Easy's and
+                        // Medium's one activation per episode, leaving only a
+                        // jump once the cast ended. Dropped rather than kept for
+                        // a D3 cancel (deliberate D3 is outside 9.3), uncharged,
+                        // and the planner may plan it again once the cast ends.
+                        if (delivery.SpendsMovementActivation) edges &= ~GameplayButtons.MovementAbility;
+                        if (delivery.RecoveryJump) edges &= ~GameplayButtons.Jump;
                     }
                     // A recovery jump planned while jumps remained is dropped
                     // once none do (the same revalidation, on self-state).
@@ -402,6 +423,16 @@ namespace FTT.FighterSim {
                         edges &= ~GameplayButtons.BasicAttack;
                         outputMoveX = delivery.BasicAttackDeltaRaw >= 0 ? (sbyte)110 : (sbyte)-110;
                     }
+                    if (delivery.SpendsMovementActivation) {
+                        // CM-FIXB-CPU: the activation is charged when the press
+                        // actually goes out (AccountMovementActivationEmission),
+                        // not here. Until then it stays reserved, so the
+                        // per-episode limit still holds while it waits.
+                        _movementActivationDeliveryTick = -1;
+                        if ((edges & GameplayButtons.MovementAbility) != 0) {
+                            _movementActivationAwaitingEmission = true;
+                        }
+                    }
                     if (edges != GameplayButtons.None) _pendingEdges = edges;
                 }
             }
@@ -416,15 +447,43 @@ namespace FTT.FighterSim {
             // only. Steer and neutral presses decided before the grab arrive on
             // hang ticks ahead of its own hang answer and would neutral-climb,
             // ledge-roll or ledge-attack, so a hanging CPU sends no stick, Roll or
-            // BasicAttack and its Jump climbs.
-            if (observation.IsLedgeHanging != 0) {
+            // BasicAttack and its Jump climbs. CM-FIXB-CPU: only while the hang
+            // is actionable. A hit on a hanging fighter leaves the hang set
+            // through its whole hitstop (the movement system clears it on the
+            // first unfrozen tick), and the thaw tick's stick is the launch's
+            // DI read, so a struck CPU keeps the DI hold ApplyHitstunDefense
+            // wrote. A fighter in hitstun or daze never reaches the hang branch,
+            // so nothing it holds can start a get-up.
+            if (observation.IsLedgeHanging != 0
+                && observation.HitstunFrames <= 0
+                && observation.DazeFrames <= 0) {
                 outputMoveX = 0;
                 outputMoveY = 0;
                 held &= ~(GameplayButtons.Roll | GameplayButtons.BasicAttack);
             }
+            AccountMovementActivationEmission(held, in previousFrame);
             return PlayerInputFrame.Create(
                 tick, outputMoveX / 127f, outputMoveY / 127f,
                 held, previousFrame.Held);
+        }
+
+        /// <summary>
+        /// CM-FIXB-CPU: charges a delivered recovery movement-ability press to the
+        /// episode when it actually leaves the controller as a pressed edge. A
+        /// press the hitstun-defense hold masked, or that a later delivery
+        /// overwrote before its pulse, never reached the simulation and is
+        /// released uncharged, so Easy and Medium keep their one activation.
+        /// Input-side only, no RNG draw.
+        /// </summary>
+        private void AccountMovementActivationEmission(GameplayButtons held, in PlayerInputFrame previousFrame) {
+            if (!_movementActivationAwaitingEmission) return;
+            if ((held & GameplayButtons.MovementAbility) != 0
+                && (previousFrame.Held & GameplayButtons.MovementAbility) == 0) {
+                _episodeMovementActivations++;
+                _movementActivationAwaitingEmission = false;
+            } else if (((_activeEdges | _pendingEdges) & GameplayButtons.MovementAbility) == 0) {
+                _movementActivationAwaitingEmission = false;
+            }
         }
 
         /// <summary>
@@ -488,6 +547,19 @@ namespace FTT.FighterSim {
                 || observation.DazeFrames > 0
                 || observation.Stocks <= 0) {
                 return held;
+            }
+            // CM-FIXB-CPU (decision 3.2: a launched fighter may act once its
+            // hitstun ends): hitstun over but still in the air or on a ledge,
+            // Block stays held for the landing tech, and the planner's Jump and
+            // movement-ability presses and the held hop go out beside it — the
+            // recovery jump or ability over a pit, the hang's climb jump. Before
+            // this the exclusive hold ate them until the fighter was grounded,
+            // so a defended CPU whose hitstun ended over a pit fell in, and one
+            // the ledge caught hung passively until the auto-release. Every
+            // other button stays masked: BasicAttack or Roll beside Block would
+            // be the grab or Echo Step chord.
+            if (hitstun <= 0 && observation.IsGrounded == 0) {
+                return GameplayButtons.Block | (held & PostHitstunAirborneButtons);
             }
             // The hold is EXCLUSIVE, not additive: a scheduled BasicAttack edge
             // landing while Block is held would read as the grab chord, and a
@@ -748,7 +820,12 @@ namespace FTT.FighterSim {
                 observation.SelfShieldStunFrames = selfVerb.ShieldStunFrames;
                 observation.SelfEchoStepCooldownFrames = selfVerb.EchoStepCooldownFrames;
                 observation.SelfEchoStepWindupFrames = selfVerb.EchoStepWindupFrames;
-                observation.SelfDefyAvailable = selfVerb.DefyHistoryUsed == 0 ? 1 : 0;
+                // CM-FIXB-CPU: the one Defy eligibility rule the damage paths read
+                // (FighterDefenseRules.CanDefy, decision 1.1(4)) without its
+                // meter term, which TryDecideEchoStep tests on its own — so a
+                // Defy that F22's Sudden Death bars holds no reserve value.
+                observation.SelfDefyAvailable =
+                    FighterDefenseRules.IsDefyUnspentAndUnbarred(selfVerb.DefyHistoryUsed, selfVerb.DefyBarred) ? 1 : 0;
                 // CM-CANCEL (decision 9.3): the CPU's own Special cast and the
                 // other self action locks the sim's gates read.
                 observation.SelfSpecialCastPhase = selfVerb.SpecialCastPhase;
@@ -1010,6 +1087,7 @@ namespace FTT.FighterSim {
                 _episodeMovementActivations = 0;
                 _episodeMobilitySpecialActivations = 0;
                 _movementActivationDeliveryTick = -1;
+                _movementActivationAwaitingEmission = false;
                 _episodeFrames = 0;
                 _episodeStocksAtStart = observation.Stocks;
                 return;
@@ -1025,6 +1103,7 @@ namespace FTT.FighterSim {
                 _episodeMovementActivations = 0;
                 _episodeMobilitySpecialActivations = 0;
                 _movementActivationDeliveryTick = -1;
+                _movementActivationAwaitingEmission = false;
                 _episodeFrames = 0;
             }
         }
@@ -1063,8 +1142,11 @@ namespace FTT.FighterSim {
             bool falling = observation.SelfVelocityYRaw <= 0;
             bool desperate = _episodeFrames >= OffstageStallLimitFrames;
 
+            // CM-FIXB-CPU: and the CPU's own Special cast will not discard the
+            // press — the predicate the Special branches already read (9.3).
             bool movementReady = observation.MovementCooldownFrames <= 0
-                && MovementActivationsAllowed();
+                && MovementActivationsAllowed()
+                && CastIdleAtDelivery(in observation);
             bool jumpsLeft = observation.RemainingJumps > 0;
             // Route comparison, Hard only: when the jumps in hand cannot cover the
             // remaining horizontal distance but the movement ability can, opening
@@ -1114,7 +1196,9 @@ namespace FTT.FighterSim {
         /// </summary>
         private bool MovementActivationsAllowed() =>
             _tuning.RecoveryMovementActivationsPerEpisode <= 0
-            || _episodeMovementActivations + (_movementActivationDeliveryTick >= 0 ? 1 : 0)
+            || _episodeMovementActivations
+                + (_movementActivationDeliveryTick >= 0 ? 1 : 0)
+                + (_movementActivationAwaitingEmission ? 1 : 0)
                 < _tuning.RecoveryMovementActivationsPerEpisode;
 
         private bool MobilitySpecialActivationsAllowed() =>

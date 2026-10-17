@@ -248,6 +248,106 @@ public class CpuSelfActionStateTests {
             .IsTrue();
     }
 
+    /// <summary>
+    /// CM-FIXB-CPU (finding B13): a Medium CPU over Nassau's stern gap during its
+    /// own aerial Special (a 10 / 4 / 30 cast) plans no movement-ability press
+    /// the cast would discard, and is charged nothing for one. Its recovery
+    /// planner did not read the cast, so the press arrived inside it, the sim
+    /// threw it away, and the one activation Medium gets per offstage episode
+    /// was already spent, leaving it only its jumps once the cast ended. Real
+    /// simulation frames through the real world observer: the fighter's walk,
+    /// jumps and Special press are pinned with <see cref="PlayerInputFrame.Create"/>
+    /// and the CPU drives from the tick after the press.
+    /// </summary>
+    [TestCase]
+    public void ARecoveryMovementAbilityIsNeverSpentInsideTheCpusOwnCast() {
+        FighterStageGeometry nassau = FighterStageGeometry.ForStage("nassau_flagship");
+        FighterLoadout fighter = Loadout(FighterAbilityLoadout.Default with {
+            SpecialOneExecutionType = 0,
+            SpecialOneHit = FighterAbilityHitData.DefaultSpecial with {
+                StartupFrames = 10, ActiveFrames = 4, RecoveryFrames = 30, TotalFrames = 44
+            }
+        });
+        var simulation = new FighterSimulation(
+            FighterLoadout.Default(FighterCharacterID.Joan), fighter,
+            stocks: 3, seed: 11, rules: FighterMatchRules.Disabled, stageGeometry: nassau);
+        var cpu = new FighterCpuController(
+            CpuDifficulty.Normal, 11, nassau, new FighterSimulationWorldObserver(simulation), null,
+            CpuRecoveryProfile.FromLoadout(in fighter));
+        AssertThat(cpu.Tuning.RecoveryMovementActivationsPerEpisode).IsEqual(1);
+
+        PlayerInputFrame previous = default;
+        int step = 0;
+        int stepTick = 0;
+        int castTicks = 0;
+        int castTicksOverTheGap = 0;
+        var pressesInCast = new List<int>();
+        int chargedInCast = 0;
+        int pressesAfterCast = 0;
+        bool resolved = false;
+        for (int tick = 0; tick < 400 && !resolved; tick++) {
+            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent target)).IsTrue();
+            AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent targetRuntime)).IsTrue();
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent self)).IsTrue();
+            AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent selfRuntime)).IsTrue();
+            AssertThat(simulation.TryGetFighterActionState(1, out FighterActionStateComponent cast)).IsTrue();
+            if (self.Stocks < 3) break;
+            PlayerInputFrame frame;
+            if (step < 3) {
+                // Walk to the stern, jump out with a short drift, double-jump at
+                // +14 and press Special 1 six ticks later.
+                GameplayButtons held = GameplayButtons.None;
+                float stick = 0f;
+                if (step == 0) {
+                    stick = 1f;
+                    if (self.Position.x >= FP64.FromDouble(5.6)) { held = GameplayButtons.Jump; step = 1; stepTick = tick; }
+                } else if (step == 1) {
+                    stick = tick - stepTick < 3 ? 1f : 0f;
+                    held = tick - stepTick < 8 ? GameplayButtons.Jump : GameplayButtons.None;
+                    if (tick - stepTick >= 14) { held = GameplayButtons.Jump; step = 2; stepTick = tick; }
+                } else {
+                    held = GameplayButtons.Jump;
+                    if (tick - stepTick >= 6) { held = GameplayButtons.Special1; step = 3; }
+                }
+                frame = PlayerInputFrame.Create((uint)tick, stick, 0f, held, previous.Held);
+            } else {
+                frame = cpu.Sample((uint)tick, in self, in selfRuntime, in target, in targetRuntime, in previous);
+                bool castHolds = FighterSpecialCastRules.IsBusy(in cast)
+                    && !(cast.SpecialPhase == FighterSpecialCastRules.PhaseRecovery && cast.SpecialPhaseFrames <= 1);
+                if (castHolds) {
+                    castTicks++;
+                    if (!nassau.HasFloorSupport(self.Position.x)) castTicksOverTheGap++;
+                    if (frame.IsPressed(GameplayButtons.MovementAbility)) pressesInCast.Add(tick);
+                    chargedInCast = System.Math.Max(chargedInCast, cpu.EpisodeMovementActivations);
+                } else if (castTicks > 0 && frame.IsPressed(GameplayButtons.MovementAbility)) {
+                    pressesAfterCast++;
+                }
+                if (castTicks > 0 && !castHolds
+                    && (self.IsGrounded != 0 || FighterLedgeRules.IsHanging(in selfRuntime)) && pressesAfterCast > 0) {
+                    resolved = true;
+                }
+            }
+            previous = frame;
+            simulation.Advance(new PlayerInputFrame { Tick = (uint)tick }, frame);
+        }
+        AssertThat(castTicks > 20)
+            .OverrideFailureMessage($"Harness: the aerial Special must hold the CPU's ticks (held {castTicks}).")
+            .IsTrue();
+        AssertThat(castTicksOverTheGap > 0)
+            .OverrideFailureMessage("Harness: the cast must carry the CPU out over the gap.")
+            .IsTrue();
+        if (pressesInCast.Count > 0) {
+            AssertThat($"movement ability pressed inside the CPU's own cast on ticks {string.Join(",", pressesInCast)}")
+                .IsEqual("");
+        }
+        AssertThat(chargedInCast)
+            .OverrideFailureMessage("A movement activation was charged to the episode while the cast held the CPU.")
+            .IsEqual(0);
+        AssertThat(pressesAfterCast > 0)
+            .OverrideFailureMessage("The CPU never sent its movement ability once the cast ended.")
+            .IsTrue();
+    }
+
     // === harnesses ===============================================================
 
     private static FighterCpuController NewGrabber() => new(

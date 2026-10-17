@@ -122,6 +122,97 @@ public class CpuVerbPolicyTests {
             .IsTrue();
     }
 
+    /// <summary>
+    /// CM-FIXB-CPU (finding B3; <c>CPU_COMBAT_POLICY.md</c>: "spent or
+    /// mode-disabled Defy has no reserve value", and its check of "disabled
+    /// Defy valuation"). F22's Sudden Death bars Defy without spending it, and
+    /// the CPU's observation read only the spent flag, so a Hard CPU that never
+    /// used its Defy kept declining Echo Step to save a full meter for a Defy
+    /// that could never fire. The observation now reads the shared rule through
+    /// the real world observer: a real match tied at its one-second buzzer
+    /// enters Sudden Death, and the same Hard whiff that holds its meter in
+    /// regulation Echo Steps there, exactly as with a spent Defy.
+    /// </summary>
+    [TestCase]
+    public void HardHoldsNoMeterForADefyThatSuddenDeathBars() {
+        var simulation = new FighterSimulation(matchSeconds: 1, rules: new FighterMatchRules(
+            (int)MatchMode.Stock, false, 0, false, 0));
+        var observer = new FighterSimulationWorldObserver(simulation);
+        CpuDecisionObservation regulation = ObservedWhiff(simulation, observer);
+        AssertThat(regulation.HasVerbState)
+            .OverrideFailureMessage("Harness: the world observer must fill the verb block.")
+            .IsEqual(1);
+        AssertThat(regulation.SelfDefyAvailable)
+            .OverrideFailureMessage("An unspent Defy in regulation is available.")
+            .IsEqual(1);
+
+        for (int tick = 0; tick < 60; tick++) {
+            var neutral = new PlayerInputFrame { Tick = (uint)tick };
+            simulation.Advance(neutral, neutral);
+        }
+        AssertThat(simulation.GetMatchState().SuddenDeathActive)
+            .OverrideFailureMessage("Harness: the tied one-second match must enter Sudden Death.")
+            .IsEqual(1);
+        AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent verb)).IsTrue();
+        AssertThat(verb.DefyHistoryUsed).OverrideFailureMessage("Harness: Sudden Death must not spend Defy.").IsEqual(0);
+        CpuDecisionObservation suddenDeath = ObservedWhiff(simulation, observer);
+        AssertThat(suddenDeath.SelfDefyAvailable)
+            .OverrideFailureMessage("A Defy Sudden Death bars has no reserve value, but the observation read it as available.")
+            .IsEqual(0);
+
+        CpuBandTuning hard = CpuBandTuning.Hard with { EchoStepAdmissionPercent = 100 };
+        AssertThat(CountEchoStepChords(new FighterCpuController(CpuDifficulty.Hard, 1234, null, null, hard), regulation, Ticks))
+            .OverrideFailureMessage("Control: in regulation Hard keeps its full meter behind the unspent Defy.")
+            .IsEqual(0);
+        AssertThat(CountEchoStepChords(new FighterCpuController(CpuDifficulty.Hard, 1234, null, null, hard), suddenDeath, Ticks) > 0)
+            .OverrideFailureMessage("In Sudden Death the barred Defy must not stop Hard spending the meter on an Echo Step.")
+            .IsTrue();
+    }
+
+    /// <summary>
+    /// Player one's observation built by the real world observer (the verb
+    /// block, Defy included), with its meter seeded full and the swing state of
+    /// <see cref="WhiffRecovery"/> written over it — a far, idle opponent, so
+    /// there is no punish worth the 30 meter.
+    /// </summary>
+    private static CpuDecisionObservation ObservedWhiff(
+        FighterSimulation simulation, FighterSimulationWorldObserver observer) {
+        AssertThat(simulation.SeedFighterInfluenceForTest(0, 100)).IsTrue();
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent self)).IsTrue();
+        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent selfRuntime)).IsTrue();
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
+        AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent targetRuntime)).IsTrue();
+        CpuDecisionObservation observation = FighterCpuController.Observe(
+            in self, in selfRuntime, in target, in targetRuntime, null, observer);
+        CpuDecisionObservation whiff = WhiffRecovery();
+        observation.SuppressGameplayInput = 0;
+        observation.IsGrounded = 1;
+        observation.SelfPositionXRaw = whiff.SelfPositionXRaw;
+        observation.SelfFacingRight = 1;
+        observation.TargetPositionXRaw = FP64.FromInt(7).RawValue;
+        observation.TargetPressedButtons = 0;
+        observation.SelfAttackPhase = whiff.SelfAttackPhase;
+        observation.SelfAttackMadeContact = 0;
+        observation.SelfEchoStepCooldownFrames = 0;
+        observation.SelfEchoStepWindupFrames = 0;
+        observation.SelfSpecialCastPhase = CpuCastPhase.None;
+        observation.HasEchoStepDestination = 1;
+        observation.EchoStepDestinationXRaw = whiff.EchoStepDestinationXRaw;
+        observation.EchoStepDestinationYRaw = whiff.EchoStepDestinationYRaw;
+        observation.HasStageBounds = whiff.HasStageBounds;
+        observation.LeftWallRaw = whiff.LeftWallRaw;
+        observation.RightWallRaw = whiff.RightWallRaw;
+        observation.CeilingRaw = whiff.CeilingRaw;
+        observation.BottomBlastZoneRaw = whiff.BottomBlastZoneRaw;
+        observation.HasHazard = 0;
+        observation.HasOrb = 0;
+        observation.HasHostileProjectile = 0;
+        AssertThat(observation.InfluenceRaw)
+            .OverrideFailureMessage("Harness: the seeded meter must be full.")
+            .IsEqual(FP64.FromInt(100).RawValue);
+        return observation;
+    }
+
     [TestCase]
     public void TheGrabNeverTargetsAVictimTheSharedRulesWouldWhiffOn() {
         // "Do not intentionally target victims known to be airborne, rolling,
