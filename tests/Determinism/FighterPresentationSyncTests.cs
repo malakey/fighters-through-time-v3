@@ -572,6 +572,140 @@ public class FighterPresentationSyncTests {
         }
     }
 
+    // === CM-HIT (combat and movement update 2026-10-16) ===
+
+    /// <summary>
+    /// Decision 4.2: the spawn glow and the "Respawning" label are the respawn
+    /// grant's (component 323 bit 0, or the platform), not any invulnerability
+    /// — the shared counter also carries the roll, air dodge, tech, knockdown,
+    /// throw and Foresight grants, which used to light the spawn aura and read
+    /// "Respawning".
+    /// </summary>
+    [TestCase]
+    public void TheSpawnGlowAndTheRespawningLabelShowOnlyForTheRespawnGrant() {
+        // The pure rule.
+        var invulnerable = new FighterStateComponent { Stocks = 3, InvulnerabilityFrames = 20 };
+        var flagged = new FighterActionStateComponent {
+            ActionFlags = FighterActionStateComponent.ActionFlagRespawnProtection
+        };
+        AssertThat(FighterSimulationDriver.ShowsSpawnProtection(in invulnerable, default))
+            .OverrideFailureMessage("A roll's, tech's or throw's invulnerability is not a respawn.")
+            .IsFalse();
+        AssertThat(FighterSimulationDriver.ShowsSpawnProtection(in invulnerable, in flagged)).IsTrue();
+        var spent = new FighterStateComponent { Stocks = 3, InvulnerabilityFrames = 0 };
+        AssertThat(FighterSimulationDriver.ShowsSpawnProtection(in spent, in flagged))
+            .OverrideFailureMessage("A record whose counter ran out shows nothing.")
+            .IsFalse();
+        var onPlatform = new FighterStateComponent { Stocks = 3, RespawnFramesRemaining = 120, InvulnerabilityFrames = 240 };
+        AssertThat(FighterSimulationDriver.ShowsSpawnProtection(in onPlatform, default)).IsTrue();
+
+        // Through a live driver past the countdown.
+        if (InputManager.Instance == null || GameManager.Instance == null) return;
+        GameManager manager = GameManager.Instance;
+        SessionData savedSession = manager.CurrentSession;
+        Node host = null;
+        try {
+            SessionData localVersus = savedSession;
+            localVersus.FighterOpponentType = FighterOpponentType.LocalHuman;
+            manager.CurrentSession = localVersus;
+            (FighterSimulationDriver driver, Node created, PlayerController one, PlayerController _) =
+                CreateTelegraphDriver("SpawnGrantHost", attachGlow: true);
+            host = created;
+            for (int frame = 0; frame < FighterMatchFlowRules.CountdownFrames + 2; frame++) driver._PhysicsProcess(Step);
+
+            // Invulnerable without the respawn record: no aura, no "Respawning".
+            AssertThat(driver.Simulation.SeedFighterInvulnerabilityForTest(0, 30)).IsTrue();
+            driver._PhysicsProcess(Step);
+            AssertThat(driver.TryGetFighter(0, out FighterStateComponent rolling)).IsTrue();
+            AssertThat(rolling.InvulnerabilityFrames > 0).IsTrue();
+            AssertThat(driver.GetStateLabel(0)).IsNotEqual("Respawning");
+            AssertThat(one.Glow.IsLayerActive(GlowLayer.SpawnInvulnerability))
+                .OverrideFailureMessage("Only the respawn grant lights the spawn aura.")
+                .IsFalse();
+
+            // The respawn record on the same counter: both show.
+            AssertThat(driver.Simulation.SeedFighterActionStateForTest(0, flagged)).IsTrue();
+            AssertThat(driver.Simulation.SeedFighterInvulnerabilityForTest(0, 30)).IsTrue();
+            driver._PhysicsProcess(Step);
+            AssertThat(driver.GetStateLabel(0)).IsEqual("Respawning");
+            AssertThat(one.Glow.IsLayerActive(GlowLayer.SpawnInvulnerability)).IsTrue();
+        } finally {
+            host?.Free();
+            manager.CurrentSession = savedSession;
+        }
+    }
+
+    /// <summary>
+    /// The CM-FIXA-PRES side note: a fighter knocked out inside its armoured
+    /// Ultimate wind-up wore the gold hyper-armour outline on the knockout tick
+    /// and through the stock-loss freeze, because the stock loss leaves
+    /// <c>HyperArmorFrames</c> set. A fallen fighter shows none.
+    /// </summary>
+    [TestCase]
+    public void AFighterKnockedOutInItsArmouredWindupShowsNoGoldOutline() {
+        if (InputManager.Instance == null || GameManager.Instance == null) return;
+        GameManager manager = GameManager.Instance;
+        SessionData savedSession = manager.CurrentSession;
+        Node host = null;
+        var playerOneInput = new BufferedInputSource();
+        var playerTwoInput = new BufferedInputSource();
+        try {
+            SessionData localVersus = savedSession;
+            localVersus.FighterOpponentType = FighterOpponentType.LocalHuman;
+            manager.CurrentSession = localVersus;
+            (FighterSimulationDriver driver, Node created, PlayerController one, PlayerController _) =
+                CreateFragileCasterDriver("ArmourKoHost", attachGlow: true);
+            host = created;
+            InputManager.Instance.SetInputSource(0, playerOneInput);
+            InputManager.Instance.SetInputSource(1, playerTwoInput);
+            var drivers = new[] { driver };
+            StepTelegraphDrivers(drivers, playerOneInput, playerTwoInput,
+                FighterMatchFlowRules.CountdownFrames + 2, GameplayButtons.None);
+            for (int guard = 0; guard < 240 && PlayerGap(driver) > 0.9f; guard++) {
+                StepFragileDrivers(drivers, playerOneInput, playerTwoInput, GameplayButtons.None, GameplayButtons.None,
+                    TowardPlayerOne(driver), GameplayButtons.None, GameplayButtons.None);
+            }
+            StepTelegraphDrivers(drivers, playerOneInput, playerTwoInput, 4, GameplayButtons.None);
+            AssertThat(driver.Simulation.SeedFighterInfluenceForTest(0, FighterMeterRules.CapPoints)).IsTrue();
+            StepTelegraphDrivers(drivers, playerOneInput, playerTwoInput, 1, GameplayButtons.None);
+            PressUltimateUntilWindup(drivers, playerOneInput, playerTwoInput);
+            AssertThat(one.Glow.IsLayerActive(GlowLayer.HyperArmor))
+                .OverrideFailureMessage("setup: the wind-up's armour shows gold.")
+                .IsTrue();
+            AssertThat(driver.Simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent before)).IsTrue();
+            int knockoutsBefore = before.KnockoutsSuffered;
+
+            GameplayButtons previousTwo = GameplayButtons.None;
+            bool knockedOut = false;
+            for (int guard = 0; guard < 30 && !knockedOut; guard++) {
+                StepFragileDrivers(drivers, playerOneInput, playerTwoInput, GameplayButtons.None, GameplayButtons.None,
+                    0f, GameplayButtons.BasicAttack, previousTwo);
+                previousTwo = GameplayButtons.BasicAttack;
+                driver.Simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime);
+                knockedOut = runtime.KnockoutsSuffered > knockoutsBefore;
+            }
+            AssertThat(knockedOut).OverrideFailureMessage("setup: P2's hit must knock the caster out.").IsTrue();
+            AssertThat(driver.Simulation.TryGetFighter(0, out FighterStateComponent fallen)).IsTrue();
+            AssertThat(fallen.HyperArmorFrames > 0)
+                .OverrideFailureMessage("setup: the stock loss leaves the armour frames set (the lag this pins).")
+                .IsTrue();
+            AssertThat(one.Glow.IsLayerActive(GlowLayer.HyperArmor))
+                .OverrideFailureMessage("A knocked-out fighter shows no gold outline on the knockout tick.")
+                .IsFalse();
+            for (int frame = 0; frame < 20; frame++) {
+                StepTelegraphDrivers(drivers, playerOneInput, playerTwoInput, 1, GameplayButtons.None);
+                AssertThat(one.Glow.IsLayerActive(GlowLayer.HyperArmor))
+                    .OverrideFailureMessage($"No gold outline {frame + 1} frames after the knockout.")
+                    .IsFalse();
+            }
+        } finally {
+            InputManager.Instance.ClearInputSource(0);
+            InputManager.Instance.ClearInputSource(1);
+            host?.Free();
+            manager.CurrentSession = savedSession;
+        }
+    }
+
     /// <summary>
     /// The A02 telegraph harness: the suite's driver with stage hazards off, so
     /// no hazard cue or hazard hit lands inside the measured wind-up.

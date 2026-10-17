@@ -390,13 +390,29 @@ namespace FTT.FighterSim {
                 && FighterKnockdownRules.IsActive(in knockdown)) {
                 return FighterKnockdownRules.IsDown(in knockdown) ? "Knocked Down" : "Getting Up";
             }
-            if (state.InvulnerabilityFrames > 0) return "Respawning";
+            // CM-HIT (4.2): "Respawning" means the respawn grant (323 bit 0), not
+            // any invulnerability — a roll, tech or throw grant is not a respawn.
+            if (Simulation.TryGetFighterActionState(playerID, out FighterActionStateComponent action)
+                && ShowsSpawnProtection(in state, in action)) return "Respawning";
             if (state.DazeFrames > 0) return "Dazed";
             if (state.HitstunFrames > 0) return "Stunned";
             if (FighterBasicAttackRules.IsSwinging(in runtime)) return "Attacking";
             if (FighterBasicAttackRules.IsBlockStance(in state, in runtime, in verb)) return "Blocking";
             return state.IsGrounded != 0 ? "Grounded" : "Airborne";
         }
+
+        /// <summary>
+        /// CM-HIT (decision 4.2): whether the spawn glow and the "Respawning"
+        /// label show — on the respawn platform, or while the post-drop respawn
+        /// protection recorded on component 323 still runs. The shared
+        /// <c>InvulnerabilityFrames</c> counter also carries the roll, air dodge,
+        /// tech, knockdown, throw and Foresight grants, so it alone is not a
+        /// respawn. Pure; read-only over sim state.
+        /// </summary>
+        public static bool ShowsSpawnProtection(
+            in FighterStateComponent state, in FighterActionStateComponent action) =>
+            FighterMatchFlowRules.IsOnRespawnPlatform(in state)
+            || FighterMatchFlowRules.IsRespawnProtected(in state, in action);
 
         private void SyncPresentation() {
             PushSlotIndicators();
@@ -754,12 +770,18 @@ namespace FTT.FighterSim {
                     _presentedDamageStatus[playerID] = runtime.DamageStatusType;
                     glow.SetStatusSlots((StatusType)runtime.StatusType, (StatusType)runtime.DamageStatusType);
                 }
-                bool hyperArmor = state.HyperArmorFrames > 0;
+                // CM-HIT (the CM-FIXA-PRES side note): a knocked-out fighter shows
+                // no gold outline — ApplyStockLoss leaves HyperArmorFrames set,
+                // so the KO tick and the platform used to wear it.
+                bool hyperArmor = state.HyperArmorFrames > 0 && !FighterStockLossRules.IsFallen(in state);
                 if (_presentedHyperArmor[playerID] != hyperArmor) {
                     _presentedHyperArmor[playerID] = hyperArmor;
                     glow.SetHyperArmor(hyperArmor);
                 }
-                bool invulnerable = state.InvulnerabilityFrames > 0;
+                // CM-HIT (4.2): the spawn glow is the respawn grant, not any
+                // invulnerability (ShowsSpawnProtection).
+                Simulation.TryGetFighterActionState(playerID, out FighterActionStateComponent actionState);
+                bool invulnerable = ShowsSpawnProtection(in state, in actionState);
                 if (_presentedInvulnerable[playerID] != invulnerable) {
                     _presentedInvulnerable[playerID] = invulnerable;
                     glow.SetSpawnInvulnerability(invulnerable);
@@ -1046,6 +1068,9 @@ namespace FTT.FighterSim {
             // reach and hold and the single shared throw for every direction.
             if (verb.BeingHeld != 0) return "hitstun";
             if (state.HitstunFrames > 0) return "hitstun";
+            // CM-HIT (3.2): a tumble that outlived its hitstun still reads as
+            // hitstun until the fighter acts or lands (Story's latch plays it too).
+            if (FighterVerbRules.IsTumbling(in verb) && state.IsGrounded == 0) return "hitstun";
             if (state.DazeFrames > 0) return "dazed";
             // M05 (Package 12 W3b), H03 reuse rules: the knockdown plays
             // hitstun, the roll get-up plays roll_recovery, and the neutral
