@@ -902,7 +902,13 @@ namespace FTT.FighterSim {
                 FighterUniversalMovementRules.Cancel(ref targetRuntime);
             }
 
-			if (carriesImpulse && (target.HyperArmorFrames <= 0 || attackClass == UltimateAttackClass)) {
+            // CM-FIXB-SIM (B2, D04): a defied hit writes no velocity at all — not
+            // the authored signed vertical (doubled by the 1-HP missing-HP scale)
+            // and not the zeroed scalar — so the survivor's motion stands as it
+            // was, exactly as Story's defySuppressed path leaves it. The Defy
+            // branch above already released the hitstun, the launch and the
+            // tumble.
+            if (carriesImpulse && !defied && (target.HyperArmorFrames <= 0 || attackClass == UltimateAttackClass)) {
                 if (hasImpulse) {
                     // Gameplay-feel plan §2.5 — low-health knockback scaling. The
                     // impulse is multiplied by 1 + the victim's missing-HP fraction
@@ -958,6 +964,14 @@ namespace FTT.FighterSim {
                     // (only after hit two connects may Block escape hitstun).
                     targetVerb.ShieldStunFrames = 0;
                     targetVerb.HitstunBlockCancelBlocked = blockCancelableHitstun ? 0 : 1;
+                    // CM-FIXB-SIM (B1, M05 / 3.2): a stunning hit that is not itself
+                    // a launch (a non-launcher on an airborne victim, a zero-knockback
+                    // construct or arc stun) ends any tumble — value 1 inside the
+                    // launch's hitstun as well as value 2 after it — as Story's
+                    // OnHurtboxHit rewrites _stunTumble on every stunning hit. A
+                    // launch re-stashed it above (value 1). An owed slam bounce is
+                    // dropped on the next tick by FighterSlamRules.ClearIfStale.
+                    if (!(launches && hasImpulse)) targetVerb.Tumble = FighterVerbRules.TumbleNone;
                 }
             }
 

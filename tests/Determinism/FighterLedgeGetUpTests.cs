@@ -317,6 +317,207 @@ public class FighterLedgeGetUpTests {
     }
 
     /// <summary>
+    /// CM-FIXB-SIM (B8 / B19; plan §2.4.2: "the hang's remaining first-grab
+    /// frames do not [survive], because the hang has ended"): the first grab's
+    /// 30 intangible frames end with the hang, whatever ends it, so every exit
+    /// taken early in a first hang keeps only its own frames. A climb jump or a
+    /// Down release on hang tick 1 is hittable at once; the ledge attack and the
+    /// ledge roll pressed on hang tick 1 are intangible for their 8 climb frames
+    /// only, so the strike's startup and the roll's 4 startup ticks can be hit;
+    /// the neutral climb at its earliest legal tick (hang tick 7) is vulnerable
+    /// on frames 13–20; and a hanger trumped off a first grab falls without the
+    /// remainder.
+    /// </summary>
+    [TestCase]
+    public void EveryExitFromAFirstGrabEndsItsIntangibilityAndKeepsOnlyItsOwnFrames() {
+        foreach ((string name, GameplayButtons press) in new[] {
+                     ("the climb jump", GameplayButtons.Jump), ("the Down release", GameplayButtons.Down) }) {
+            FighterSimulation leave = Hanging(out int tick);
+            AssertThat(Fighter(leave).InvulnerabilityFrames).IsEqual(BasicComboRules.LedgeFirstGrabIntangibleFrames);
+            tick = Step(leave, tick, PlayerInputFrame.Create((uint)tick, 0f, 0f, press));
+            AssertThat(FighterLedgeRules.IsHanging(Runtime(leave))).OverrideFailureMessage($"{name}: never left.").IsFalse();
+            AssertThat(Fighter(leave).InvulnerabilityFrames)
+                .OverrideFailureMessage($"{name} on hang tick 1 must leave without the first grab's remainder.")
+                .IsEqual(0);
+            AssertThat(ProbeHitLands(leave)).OverrideFailureMessage($"{name}: hittable from its own tick.").IsTrue();
+        }
+
+        FighterSimulation attack = Hanging(out int attackTick);
+        attackTick = Step(attack, attackTick, PlayerInputFrame.Create((uint)attackTick, 0f, 0f, GameplayButtons.BasicAttack));
+        AssertThat(Fighter(attack).InvulnerabilityFrames)
+            .OverrideFailureMessage("the ledge attack from hang tick 1 keeps exactly its 8 climb frames.")
+            .IsEqual(BasicComboRules.LedgeActionClimbFrames);
+        for (int frame = 1; frame <= BasicComboRules.LedgeActionClimbFrames; frame++) {
+            AssertThat(ProbeHitLands(attack)).OverrideFailureMessage($"ledge attack climb frame {frame}: intangible.").IsFalse();
+            attackTick = Step(attack, attackTick, Neutral(attackTick));
+        }
+        AssertThat(Runtime(attack).AttackPhase).IsEqual(FighterBasicAttackRules.PhaseStartup);
+        AssertThat(ProbeHitLands(attack))
+            .OverrideFailureMessage("the ledge strike's startup must be hittable after an early first-grab press.")
+            .IsTrue();
+
+        FighterSimulation roll = Hanging(out int rollTick);
+        rollTick = Step(roll, rollTick, PlayerInputFrame.Create((uint)rollTick, 0f, 0f, GameplayButtons.Roll));
+        for (int frame = 1; frame <= BasicComboRules.LedgeActionClimbFrames; frame++) {
+            AssertThat(ProbeHitLands(roll)).OverrideFailureMessage($"ledge roll climb frame {frame}: intangible.").IsFalse();
+            rollTick = Step(roll, rollTick, Neutral(rollTick));
+        }
+        int startupTicks = 0;
+        while (Runtime(roll).UniversalMovementState == (int)UniversalMovementPhase.RollStartup && startupTicks < 10) {
+            startupTicks++;
+            AssertThat(ProbeHitLands(roll))
+                .OverrideFailureMessage($"the ledge roll's startup tick {startupTicks} must be hittable after an early first-grab press.")
+                .IsTrue();
+            rollTick = Step(roll, rollTick, Neutral(rollTick));
+        }
+        AssertThat(startupTicks > 0).OverrideFailureMessage("Harness: the ledge roll never reached its roll's startup.").IsTrue();
+
+        // The neutral climb's earliest legal tick: six neutral hang ticks re-arm
+        // the stick and age the hang to 6, and the seventh tilts.
+        FighterSimulation climb = Hanging(out int climbTick);
+        for (int step = 0; step < BasicComboRules.LedgeGetUpMinHangFrames; step++) {
+            climbTick = Step(climb, climbTick, Neutral(climbTick));
+        }
+        AssertThat(Fighter(climb).InvulnerabilityFrames > BasicComboRules.LedgeNeutralClimbFrames)
+            .OverrideFailureMessage("Harness: the first grab's remainder must outlast the whole climb if it carried.")
+            .IsTrue();
+        climbTick = Tilt(climb, climbTick, TowardStage);
+        AssertThat(Runtime(climb).UniversalMovementState).IsEqual((int)UniversalMovementPhase.LedgeClimb);
+        for (int frame = 1; frame <= BasicComboRules.LedgeNeutralClimbFrames; frame++) {
+            bool intangible = frame <= BasicComboRules.LedgeNeutralClimbIntangibleFrames;
+            AssertThat(ProbeHitLands(climb))
+                .OverrideFailureMessage($"neutral climb (hang tick 7) frame {frame}: intangible {intangible}.")
+                .IsEqual(!intangible);
+            climbTick = Step(climb, climbTick, Neutral(climbTick));
+        }
+
+        // A trump: player two grabs the anchor player one has hung from for under
+        // 30 frames; player one is released without the remainder.
+        AssertThat(TrumpOffAFirstGrab(out int hangAge, out int releasedInvulnerability))
+            .OverrideFailureMessage("Harness: player two never trumped player one inside its first 30 hang frames.")
+            .IsTrue();
+        AssertThat(hangAge < BasicComboRules.LedgeFirstGrabIntangibleFrames - 1)
+            .OverrideFailureMessage($"Harness: the trump came too late to matter (hang age {hangAge}).")
+            .IsTrue();
+        AssertThat(releasedInvulnerability)
+            .OverrideFailureMessage($"a hanger trumped at hang age {hangAge} must fall without the first grab's remainder.")
+            .IsEqual(0);
+    }
+
+    /// <summary>
+    /// CM-FIXB-SIM (B23; plan §2.5.2 case 3 meets 4.2 / 4.3), through the hang
+    /// path rather than the chokepoint alone: a respawn-protected fighter (323's
+    /// record set, 100 frames on the counter) inside a live Defy window presses
+    /// the ledge attack. The press ends both — the record and the Defy window
+    /// clear on the press tick — and the climb's own 8 intangible frames
+    /// survive, so the get-up calls its chokepoint before it max-assigns them
+    /// (swapped, the counter would read 0); the climb refuses a probe on frames
+    /// 1–8 and the strike takes one. The control: a ledge roll and a climb jump
+    /// from the same seeded hang keep the respawn grant and the Defy window.
+    /// </summary>
+    [TestCase]
+    public void TheLedgeAttackEndsRespawnAndDefyProtectionAndKeepsOnlyItsOwnClimbFrames() {
+        FighterSimulation attack = ProtectedHang(out int tick);
+        tick = Step(attack, tick, PlayerInputFrame.Create((uint)tick, 0f, 0f, GameplayButtons.BasicAttack));
+        AssertThat(Runtime(attack).UniversalMovementState).IsEqual((int)UniversalMovementPhase.LedgeAttackClimb);
+        AssertThat(attack.TryGetFighterActionState(0, out FighterActionStateComponent attackAction)).IsTrue();
+        AssertThat(attackAction.ActionFlags & FighterActionStateComponent.ActionFlagRespawnProtection)
+            .OverrideFailureMessage("the ledge attack is offence: it ends the respawn protection's record.")
+            .IsEqual(0);
+        AssertThat(attack.TryGetFighterDefense(0, out FighterDefenseComponent attackDefense)).IsTrue();
+        AssertThat(FighterDefenseRules.IsDefyProtected(in attackDefense))
+            .OverrideFailureMessage("the ledge attack is offence: it ends the Defy window.")
+            .IsFalse();
+        AssertThat(Fighter(attack).InvulnerabilityFrames)
+            .OverrideFailureMessage("the respawn grant ends and the climb's own 8 frames survive it.")
+            .IsEqual(BasicComboRules.LedgeActionClimbFrames);
+        for (int frame = 1; frame <= BasicComboRules.LedgeActionClimbFrames; frame++) {
+            AssertThat(ProbeHitLands(attack)).OverrideFailureMessage($"ledge attack climb frame {frame}: intangible.").IsFalse();
+            tick = Step(attack, tick, Neutral(tick));
+        }
+        AssertThat(Runtime(attack).AttackPhase).IsEqual(FighterBasicAttackRules.PhaseStartup);
+        AssertThat(ProbeHitLands(attack)).OverrideFailureMessage("the protection ended: the strike is hittable.").IsTrue();
+
+        foreach ((string name, GameplayButtons press) in new[] {
+                     ("the ledge roll", GameplayButtons.Roll), ("the climb jump", GameplayButtons.Jump) }) {
+            FighterSimulation keep = ProtectedHang(out int keepTick);
+            int before = Fighter(keep).InvulnerabilityFrames;
+            Step(keep, keepTick, PlayerInputFrame.Create((uint)keepTick, 0f, 0f, press));
+            AssertThat(FighterLedgeRules.IsHanging(Runtime(keep))).OverrideFailureMessage($"{name}: never left.").IsFalse();
+            AssertThat(keep.TryGetFighterActionState(0, out FighterActionStateComponent keepAction)).IsTrue();
+            AssertThat(keepAction.ActionFlags & FighterActionStateComponent.ActionFlagRespawnProtection)
+                .OverrideFailureMessage($"{name} is not offence: the respawn record stays.")
+                .IsEqual(FighterActionStateComponent.ActionFlagRespawnProtection);
+            AssertThat(Fighter(keep).InvulnerabilityFrames)
+                .OverrideFailureMessage($"{name}: the respawn grant runs on, one tick shorter.")
+                .IsEqual(before - 1);
+            AssertThat(keep.TryGetFighterDefense(0, out FighterDefenseComponent keepDefense)).IsTrue();
+            AssertThat(FighterDefenseRules.IsDefyProtected(in keepDefense))
+                .OverrideFailureMessage($"{name} is not offence: the Defy window stays.")
+                .IsTrue();
+        }
+    }
+
+    /// <summary>
+    /// <see cref="HangingReady"/> with player two at the edge, then player one's
+    /// 323 respawn record set over a 100-frame grant and a fresh Defy window
+    /// opened — the state a fighter dropping off the respawn platform and
+    /// grabbing a ledge inside a Defy survival would be in.
+    /// </summary>
+    private static FighterSimulation ProtectedHang(out int tick) {
+        FighterSimulation simulation = HangingReady(out tick, opponentX: FP64.FromDouble(-1.6));
+        AssertThat(simulation.TryGetFighterActionState(0, out FighterActionStateComponent action)).IsTrue();
+        action.ActionFlags |= FighterActionStateComponent.ActionFlagRespawnProtection;
+        AssertThat(simulation.SeedFighterActionStateForTest(0, in action)).IsTrue();
+        AssertThat(simulation.SeedFighterInvulnerabilityForTest(0, 100)).IsTrue();
+        AssertThat(simulation.SeedFighterDefyProtectionForTest(0)).IsTrue();
+        return simulation;
+    }
+
+    /// <summary>
+    /// Both fighters on the platform walk off its left end, player two from the
+    /// start and from farther away, player one after a delay searched until player two
+    /// grabs anchor 0 while player one has hung there for under 30 frames on a
+    /// first grab — the trump releases player one. Reports player one's hang age
+    /// on the tick before the trump and its counter on the trump tick.
+    /// </summary>
+    private static bool TrumpOffAFirstGrab(out int hangAge, out int releasedInvulnerability) {
+        for (int lead = 0; lead <= 60; lead++) {
+            var simulation = new FighterSimulation(seed: 5200, rules: FighterMatchRules.Disabled, stageGeometry: Stage);
+            int tick = 0;
+            for (int step = 0; step < 120 && !(tick > 2 && OnTop(simulation, 0) && OnTop(simulation, 1)); step++, tick++) {
+                simulation.Advance(HeldJump(tick), HeldJump(tick));
+            }
+            if (!(OnTop(simulation, 0) && OnTop(simulation, 1))) continue;
+            int start = tick;
+            int ageBefore = -1;
+            bool wasHanging = false;
+            for (int step = 0; step < 240; step++, tick++) {
+                float moveOne = tick - start >= lead ? -1f : 0f;
+                simulation.Advance(
+                    PlayerInputFrame.Create((uint)tick, moveOne, 0f, GameplayButtons.None),
+                    PlayerInputFrame.Create((uint)tick, -1f, 0f, GameplayButtons.None));
+                FighterRuntimeComponent one = Runtime(simulation, 0);
+                FighterRuntimeComponent two = Runtime(simulation, 1);
+                bool hanging = FighterLedgeRules.IsHanging(in one);
+                if (wasHanging && !hanging && FighterLedgeRules.IsHanging(in two) && two.LedgeAnchor == 0
+                    && Verb(simulation, 0).LedgeGrabsThisAirtime == 1) {
+                    hangAge = ageBefore;
+                    releasedInvulnerability = Fighter(simulation, 0).InvulnerabilityFrames;
+                    if (hangAge < BasicComboRules.LedgeFirstGrabIntangibleFrames - 1) return true;
+                    break;
+                }
+                wasHanging = hanging;
+                ageBefore = hanging ? one.LedgeStateFrames : -1;
+                if (Fighter(simulation, 0).IsGrounded != 0 && tick - start > lead + 60) break;
+            }
+        }
+        hangAge = -1;
+        releasedInvulnerability = -1;
+        return false;
+    }
+
+    /// <summary>
     /// Block+Roll (the Echo Step chord) and Block+Attack (the grab chord) start
     /// nothing from the hang, and neither do the logical Echo Step and Grab bits
     /// on their own; the fighter keeps hanging, untouched.

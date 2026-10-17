@@ -170,6 +170,123 @@ public class FighterTumbleTests {
         AssertThat(FighterSlamRules.IsPending(in owed)).IsFalse();
     }
 
+    /// <summary>
+    /// CM-FIXB-SIM (B1; M05 meets 3.2): a stunning hit that is not itself a
+    /// launch ends the tumble whatever frame it lands on — inside the launch's
+    /// hitstun (value 1) as well as after it (value 2) — and the landing is
+    /// plain, neither tech nor knockdown, as Story's <c>OnHurtboxHit</c> rewrites
+    /// <c>_stunTumble</c> on every stunning hit (StoryTumbleTests'
+    /// <c>ANonLaunchingHitEndsTheTumbleInsideOrAfterTheLaunchsHitstun</c>). The
+    /// non-launcher is the air strike (impulse, no launch) or a zero-knockback
+    /// construct bite (hitstun only, no hitstop); an owed slam bounce goes with
+    /// the tumble. The hits run through the production pipeline and the landing
+    /// through the movement system's own rules, in its order.
+    /// </summary>
+    [TestCase]
+    public void ANonLaunchingHitEndsTheTumbleInsideOrAfterTheLaunchsHitstunAndTheLandingIsPlain() {
+        var issues = new List<string>();
+        foreach (bool afterHitstun in new[] { false, true }) {
+            foreach ((string name, FP64 knockback, int hitstun, bool hitstop) in new[] {
+                         ("the air strike", FP64.FromInt(4), BasicComboRules.AirAttackHitstunFrames, true),
+                         ("a construct bite", FP64.Zero, 10, false) }) {
+                string label = $"{name} {(afterHitstun ? "after" : "inside")} the launch's hitstun";
+                var juggle = JuggleFixture.Launched();
+                if (juggle.Verb.Tumble != FighterVerbRules.TumbleInHitstun) {
+                    issues.Add($"{label}: setup, the launch must tumble (read {juggle.Verb.Tumble})");
+                    continue;
+                }
+                if (afterHitstun) {
+                    juggle.Target.HitstunFrames = 0;
+                    FighterVerbRules.UpdateTumble(in juggle.Target, ref juggle.Verb);
+                    if (juggle.Verb.Tumble != FighterVerbRules.TumbleAfterHitstun) {
+                        issues.Add($"{label}: setup, the tumble must read 2 past its hitstun (read {juggle.Verb.Tumble})");
+                        continue;
+                    }
+                }
+                // An owed Down-Air bounce rides the tumble (A12).
+                juggle.Knockdown.SlamBouncePending = 1;
+                juggle.Knockdown.SlamBounceSpeed = FP64.FromInt(6);
+                juggle.Hit(knockback, hitstun, launches: false, appliesHitstop: hitstop);
+                if (juggle.Target.HitstunFrames != hitstun) issues.Add($"{label}: setup, the hit must stun");
+                if (juggle.Verb.Tumble != FighterVerbRules.TumbleNone) {
+                    issues.Add($"{label} must end the tumble where it lands (read {juggle.Verb.Tumble})");
+                }
+                // The next movement tick: the tumble stays over and the bounce goes.
+                FighterVerbRules.UpdateTumble(in juggle.Target, ref juggle.Verb);
+                FighterSlamRules.ClearIfStale(in juggle.Target, in juggle.Verb, ref juggle.Knockdown);
+                if (FighterSlamRules.IsPending(in juggle.Knockdown)) issues.Add($"{label}: the owed slam bounce survived");
+                // The landing, passive: no bounce, no tech, no knockdown.
+                juggle.Target.IsGrounded = 1;
+                if (FighterSlamRules.TryBounce(ref juggle.Target, in juggle.Runtime, ref juggle.Verb, ref juggle.Knockdown)) {
+                    issues.Add($"{label}: the landing bounced");
+                }
+                if (FighterVerbRules.TryLandingTech(ref juggle.Target, in juggle.Runtime, ref juggle.Verb)) {
+                    issues.Add($"{label}: the landing teched");
+                }
+                if (FighterKnockdownRules.TryBeginKnockdown(ref juggle.Target, ref juggle.Verb, ref juggle.Knockdown)) {
+                    issues.Add($"{label}: the landing knocked down");
+                }
+            }
+        }
+        // A launch on a tumbling fighter is a fresh tumble (value 1) — the
+        // juggle's own launcher keeps the rule it always had.
+        var relaunch = JuggleFixture.Launched();
+        relaunch.Target.HitstunFrames = 0;
+        FighterVerbRules.UpdateTumble(in relaunch.Target, ref relaunch.Verb);
+        relaunch.Hit(FP64.FromInt(8), 30, launches: true, appliesHitstop: true);
+        if (relaunch.Verb.Tumble != FighterVerbRules.TumbleInHitstun) {
+            issues.Add($"a second launch must re-tumble (read {relaunch.Verb.Tumble})");
+        }
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
+    /// <summary>
+    /// Component copies around one airborne victim, hit by player one from its
+    /// left through <see cref="FighterDamageRules.ApplyFighterHit"/>.
+    /// </summary>
+    private struct JuggleFixture {
+        public FighterStateComponent Attacker;
+        public FighterRuntimeComponent AttackerRuntime;
+        public FighterVerbComponent AttackerVerb;
+        public FighterStateComponent Target;
+        public FighterRuntimeComponent Runtime;
+        public FighterVerbComponent Verb;
+        public FighterDefenseComponent Defense;
+        public FighterKnockdownComponent Knockdown;
+        public FighterTuningComponent Tuning;
+
+        /// <summary>The victim, already airborne, takes a 30-frame launcher: tumble value 1.</summary>
+        public static JuggleFixture Launched() {
+            var fixture = new JuggleFixture {
+                Attacker = new FighterStateComponent {
+                    PlayerID = 0, Stocks = 3, MaxHP = 100, CurrentHP = 100, BlockCharges = 3,
+                    IsGrounded = 1, FacingRight = 1, Weight = FP64.One
+                },
+                Target = new FighterStateComponent {
+                    PlayerID = 1, Stocks = 3, MaxHP = 100, CurrentHP = 100, BlockCharges = 3,
+                    IsGrounded = 0, FacingRight = 0, Weight = FP64.One,
+                    Position = new FPVector2(FP64.One, FP64.FromInt(2))
+                },
+                Tuning = new FighterTuningComponent { MaxBlockCharges = 3, MaxJumpCount = 2 }
+            };
+            fixture.Hit(FP64.FromInt(8), 30, launches: true, appliesHitstop: true);
+            // Its hitstop resolved the launch's DI; the juggle lands later.
+            fixture.Verb.HitstopFrames = 0;
+            fixture.AttackerVerb.HitstopFrames = 0;
+            FighterVerbRules.ResolvePendingLaunch(ref fixture.Target, in fixture.Runtime, ref fixture.Verb);
+            return fixture;
+        }
+
+        public void Hit(FP64 knockback, int hitstunFrames, bool launches, bool appliesHitstop) {
+            FighterDamageRules.ApplyFighterHit(
+                ref Attacker, ref AttackerRuntime, ref AttackerVerb,
+                ref Target, ref Runtime, ref Verb, ref Defense, in Tuning,
+                FighterDamageRules.BasicAttackClass, 5, knockback, hitstunFrames,
+                (int)StatusType.None, 0, FP64.One, Target.Position.x - FP64.One,
+                appliesHitstop: appliesHitstop, launches: launches);
+        }
+    }
+
     [TestCase]
     public void ADepthSevenRollbackReplaysThePostHitstunTumbleAndItsExit() {
         // Player two's air jump out of the tumble arrives late: the predicted

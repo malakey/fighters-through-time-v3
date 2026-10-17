@@ -83,6 +83,16 @@ namespace FTT.FighterSim {
 
         public static bool IsWindowOpen(in FighterCounterComponent counter) => counter.Phase == PhaseWindow;
 
+        /// <summary>
+        /// CM-FIXB-SIM (B12): a trigger's counter strike is still owed. A caught
+        /// strike is answered on its own tick, so only a caught projectile (the
+        /// projectile system runs after the combat system) carries the debt into
+        /// the next tick, whose cast region must not cancel the stance before the
+        /// combat pass resolves it.
+        /// </summary>
+        public static bool IsAnswerOwed(in FighterCounterComponent counter) =>
+            counter.Phase == PhaseSidestep && counter.AnswerPending != 0;
+
         /// <summary>Accepted Special 2 press: the 4-frame startup begins.</summary>
         public static void Begin(ref FighterCounterComponent counter) {
             counter.Phase = PhaseStartup;

@@ -84,11 +84,20 @@ namespace FTT.FighterSim {
         /// lowered age grows), the window counts down, and the escape-tick bit
         /// is set when hitstun outlives this tick's decrement. Nothing happens
         /// while the respawn platform holds the fighter (323 is held at zero).
+        /// CM-FIXB-SIM (B5): a tick that starts in hitstun or daze is a lowered
+        /// tick too, even when the last tick was observed stance-up — the hit (or
+        /// the shatter) resolved after that observation, in the same tick's combat
+        /// pass. So the stance a hit broke counts as dropped before this tick's
+        /// hit-2 Block escape can raise it, and the escape is a rising edge on
+        /// the escape tick, which never arms (Story's <c>TickPerfectBlock</c> sees
+        /// <c>Stunned</c> the same way).
         /// </summary>
         public static void BeginTick(ref FighterActionStateComponent action, in FighterStateComponent fighter) {
             if (FighterMatchFlowRules.IsOnRespawnPlatform(in fighter)) return;
             int timing = action.BlockTiming;
-            if ((timing & ObservedBit) == 0) timing = LowerOneTick(timing);
+            if ((timing & ObservedBit) == 0 || fighter.HitstunFrames > 0 || fighter.DazeFrames > 0) {
+                timing = LowerOneTick(timing);
+            }
             if ((timing & WindowMask) > 0) timing--;
             timing &= ~(ObservedBit | EscapeTickBit);
             if (fighter.HitstunFrames > 1) timing |= EscapeTickBit;

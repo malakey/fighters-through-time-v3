@@ -354,6 +354,25 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
+        /// CM-FIXB-SIM test seam (B23): opens a fighter's D04 Defy protection
+        /// window directly (<see cref="FighterDefenseRules.BeginDefyProtection"/>:
+        /// awaiting control, 60 ticks), so the ledge suite can prove the ledge
+        /// attack ends it without staging a lethal hit beside a ledge. It spends
+        /// no Defy use and touches no meter. Writes deterministic state (it moves
+        /// the hash).
+        /// </summary>
+        internal bool SeedFighterDefyProtectionForTest(int playerID) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterDefenseComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref readonly FighterStateComponent fighter = ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
+                if (fighter.PlayerID != playerID) continue;
+                FighterDefenseRules.BeginDefyProtection(ref _simulation.Frame.Get<FighterDefenseComponent>(entity), playerID);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// 2026-10-11 test seam (D1a, ledger PROVISIONAL-HIT-CONFIRM-RULES (10)):
         /// grants a fighter invulnerability frames directly, so the hit-confirm
         /// suite can prove a swing refused by invulnerability neither confirms

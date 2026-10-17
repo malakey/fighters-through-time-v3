@@ -247,6 +247,7 @@ namespace FTT.FighterSim {
             // same budget a jump off the floor would have left. CM-MOVE (Q5): the
             // climb jump is the fighter's own jump, so a released Jump short-hops it.
             if ((pressed & JumpButton) != 0) {
+                EndFirstGrabIntangibility(ref fighter, in verb, ref action, runtime.LedgeStateFrames + 1);
                 ClearHang(ref runtime);
                 fighter.Velocity.y = tuning.JumpSpeed * ClimbJumpMultiplier;
                 fighter.RemainingJumps = tuning.MaxJumpCount - 1;
@@ -273,6 +274,7 @@ namespace FTT.FighterSim {
             // because Down is still held the fighter fast-falls immediately after,
             // which is the intended "drop fast off the ledge" input.
             if ((runtime.HeldButtons & DownButton) != 0) {
+                EndFirstGrabIntangibility(ref fighter, in verb, ref action, runtime.LedgeStateFrames + 1);
                 Release(ref fighter, ref runtime);
                 return HangTick.Released;
             }
@@ -290,6 +292,8 @@ namespace FTT.FighterSim {
 
             runtime.LedgeStateFrames++;
             if (runtime.LedgeStateFrames >= AutoReleaseFrames) {
+                // Long past the first grab's 30 frames: a no-op kept for the rule's sake.
+                EndFirstGrabIntangibility(ref fighter, in verb, ref action, runtime.LedgeStateFrames);
                 Release(ref fighter, ref runtime);
                 return HangTick.Released;
             }
@@ -315,6 +319,9 @@ namespace FTT.FighterSim {
             in FPVector2 hangPosition,
             in FPVector2 standPosition) {
             int anchor = runtime.LedgeAnchor;
+            // CM-FIXB-SIM (B8): the first grab's intangibility ends with the hang,
+            // before the chokepoint and the climb's own grant.
+            EndFirstGrabIntangibility(ref fighter, in verb, ref action, runtime.LedgeStateFrames + 1);
             // The hang ends now, so the ledge trump, the regrab budget and the hit
             // pipeline see an ordinary fighter; the anchor rides in the slot.
             ClearHang(ref runtime);
@@ -398,6 +405,41 @@ namespace FTT.FighterSim {
                 return GetUpTick.StrikeStarted;
             }
             return GetUpTick.Finished;
+        }
+
+        /// <summary>
+        /// CM-FIXB-SIM (B8 / B19; decision 5.2, plan §2.4.2 "the hang's remaining
+        /// first-grab frames do not [survive], because the hang has ended"): ends
+        /// what is left of the first grab's 30 intangible frames when the hang
+        /// ends by any route — the climb jump, a get-up (before its chokepoint
+        /// call and its own climb grant), a Down release, the auto-release or a
+        /// trump — so the climb jump, the falls and every get-up keep exactly
+        /// their own frames (the neutral climb's 13–20, the roll's startup and
+        /// the ledge strike are vulnerable again).
+        ///
+        /// <para>Stateless. <paramref name="hangTicks"/> is the hang ticks whose
+        /// invulnerability decrement has run since the grab (the hang's
+        /// <c>LedgeStateFrames + 1</c> inside <see cref="Process(ref FighterStateComponent, ref FighterRuntimeComponent, ref FighterVerbComponent, ref FighterDefenseComponent, ref FighterActionStateComponent, in FighterTuningComponent, in FPVector2, in FPVector2)"/>
+        /// before its increment, <c>LedgeStateFrames</c> after it). The shared
+        /// counter is then exactly the grant's remainder,
+        /// <c>LedgeFirstGrabIntangibleFrames − hangTicks</c>, when the grab raised
+        /// it, and is cut to zero. A larger counter is a longer grant the grab
+        /// did not raise — respawn protection that still had more than 30 frames
+        /// — and stays whole with its 323 record. A respawn grant shorter than 30
+        /// at the grab was merged into the ledge grant by the max-assign, so it
+        /// ends with it, and its 323 bit is cleared so the record never claims a
+        /// later climb's frames. A regrab granted nothing and is never cut.</para>
+        /// </summary>
+        public static void EndFirstGrabIntangibility(
+            ref FighterStateComponent fighter,
+            in FighterVerbComponent verb,
+            ref FighterActionStateComponent action,
+            int hangTicks) {
+            if (verb.LedgeGrabsThisAirtime != 1) return;
+            int remainder = FTT.Combat.BasicComboRules.LedgeFirstGrabIntangibleFrames - hangTicks;
+            if (fighter.InvulnerabilityFrames <= 0 || fighter.InvulnerabilityFrames > remainder) return;
+            fighter.InvulnerabilityFrames = 0;
+            action.ActionFlags &= ~FighterActionStateComponent.ActionFlagRespawnProtection;
         }
 
         /// <summary>Drops off into a fall and arms the regrab lockout.</summary>

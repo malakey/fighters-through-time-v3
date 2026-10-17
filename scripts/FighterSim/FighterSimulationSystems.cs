@@ -951,9 +951,18 @@ namespace FTT.FighterSim {
             bool releaseFirst = firstRuntime.LedgeStateFrames != secondRuntime.LedgeStateFrames
                 ? firstRuntime.LedgeStateFrames > secondRuntime.LedgeStateFrames
                 : first.PlayerID > second.PlayerID;
+            // CM-FIXB-SIM (B8): the trumped hang ends, so does its first-grab
+            // intangibility. The hanger's tick has already counted this tick's
+            // hang frame, so LedgeStateFrames is the elapsed hang ticks.
             if (releaseFirst) {
+                FighterLedgeRules.EndFirstGrabIntangibility(
+                    ref first, in frame.GetReadOnly<FighterVerbComponent>(firstEntity),
+                    ref frame.Get<FighterActionStateComponent>(firstEntity), firstRuntime.LedgeStateFrames);
                 FighterLedgeRules.Release(ref first, ref firstRuntime);
             } else {
+                FighterLedgeRules.EndFirstGrabIntangibility(
+                    ref second, in frame.GetReadOnly<FighterVerbComponent>(secondEntity),
+                    ref frame.Get<FighterActionStateComponent>(secondEntity), secondRuntime.LedgeStateFrames);
                 FighterLedgeRules.Release(ref second, ref secondRuntime);
             }
         }

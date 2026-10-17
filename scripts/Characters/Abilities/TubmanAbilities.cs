@@ -241,6 +241,13 @@ namespace FTT.Characters.Abilities {
         public bool IsWindowOpen => CurrentPhase == AbilityPhase.Active && !_triggered;
         /// <summary>True through the post-trigger sidestep: Tubman cannot be hit.</summary>
         public bool IsSidestepping => _sidestepFrames > 0;
+        /// <summary>
+        /// CM-FIXB-SIM (B12, both modes): a caught hit's lantern answer is still
+        /// owed (it lands on this node's next tick). The owner's recovery cancels
+        /// (the Block cancel and D3) wait while it is, because interrupting the
+        /// cast first would drop the answer.
+        /// </summary>
+        public bool IsAnswerPending => _answerDelayFrames > 0;
         /// <summary>Counters landed by this node (test and presentation read-out).</summary>
         public int CountersLanded { get; private set; }
         /// <summary>The resolved window length for the current cast, frames. Test seam.</summary>
