@@ -4986,7 +4986,7 @@ namespace FTT.Characters {
 				jumpedThisAirtime: JumpedThisAirtime,
 				launch: launch,
 				// CM-MOVE (Q5): the short hop cuts only the hero's own jump.
-				riseFromOwnJump: _riseFromOwnJump);
+				riseFromOwnJump: ShortHopReadsOwnJump);
 			Velocity = new Vector2(Velocity.X, vy);
 		}
 

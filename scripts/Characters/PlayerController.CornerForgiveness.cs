@@ -19,13 +19,30 @@ namespace FTT.Characters {
 		/// rope grab and the Tempest Apex refresh clear it too) and cleared by
 		/// <see cref="PrepareMoveAndSlide"/> once the hero is launched, stunned,
 		/// dazed, thrown, grabbing, in a movement ability or an Ultimate, hanging,
-		/// dead or respawning — so a post-hitstun rise or a movement ability's
-		/// boost is never cut by the ×2.5 band. Never persisted.
+		/// dead or respawning, or lifted by the Tempest — so a post-hitstun rise, a
+		/// kit lift or a movement ability's boost is never cut by the ×2.5 band.
+		/// Never persisted.
 		/// </summary>
 		private bool _riseFromOwnJump;
 
 		/// <summary>The Q5 latch (read-only test and diagnostics seam).</summary>
 		public bool RiseFromOwnJump => _riseFromOwnJump;
+
+		/// <summary>
+		/// The latch as the gravity step reads it: false while a cast writes the
+		/// hero's vertical velocity itself — Shakespeare's Tempest lift, the one
+		/// Story Special that does (it rewrites the rise on every active tick, so
+		/// the controller's gravity step before each write must not be the ×2.5
+		/// band). The Fighter sim's counterpart is
+		/// <c>FighterMovementSystem.CastLiftedTheCaster</c>.
+		/// </summary>
+		private bool ShortHopReadsOwnJump => _riseFromOwnJump && !SpecialCastLiftsOwner();
+
+		/// <summary>The running Special is a kit lift: the Tempest in its active frames.</summary>
+		private bool SpecialCastLiftsOwner() =>
+			CurrentState == CharacterState.UsingSpecial
+			&& (_pendingSpecialSlot == 2 ? _special2 : _special1)
+				is Abilities.ShakespeareTheTempest { CurrentPhase: FTT.Combat.AbilityPhase.Active };
 
 		/// <summary>Corner forgiveness corrections made this session (diagnostics seam): head-clip nudges.</summary>
 		public int HeadClipNudges { get; private set; }
@@ -47,7 +64,8 @@ namespace FTT.Characters {
 		private void PrepareMoveAndSlide(float dt) {
 			if (CurrentState is CharacterState.Stunned or CharacterState.Thrown or CharacterState.Dazed
 				or CharacterState.Grabbing or CharacterState.UsingMovementAbility or CharacterState.UsingUltimate
-				or CharacterState.LedgeHanging or CharacterState.Dead or CharacterState.Respawning) {
+				or CharacterState.LedgeHanging or CharacterState.Dead or CharacterState.Respawning
+				|| SpecialCastLiftsOwner()) {
 				_riseFromOwnJump = false;
 			}
 			if (CurrentState is CharacterState.LedgeHanging or CharacterState.Dead) return;

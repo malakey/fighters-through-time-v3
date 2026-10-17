@@ -152,7 +152,7 @@ namespace FTT.Core {
         /// It resolves before the ledge capture, so a near-edge capture inside the
         /// band becomes a landing. Converted once to FP64 by <c>FighterAirPhysics</c>.
         /// </summary>
-        public const float SimOneWayLipPopUnits = 0.2f;
+        public const double SimOneWayLipPopUnits = 0.2;
 
         public const int RollStartupFrames = 4;
         public const int RollTravelFrames = 12;
