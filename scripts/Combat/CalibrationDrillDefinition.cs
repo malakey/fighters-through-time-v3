@@ -28,6 +28,12 @@ namespace FTT.Combat {
         public int StudentHP;
         public int StudentBlockCharges;
         public int StudentShieldStunFrames;
+        /// <summary>
+        /// CM-BLOCK (decision 3.4): the student's perfect-block count (component
+        /// 323, cycling 1..15, 0 = none this stock). A perfect block sets no
+        /// shieldstun, so drill 1 counts it through this count's change.
+        /// </summary>
+        public int StudentPerfectBlockCount;
         public int StudentTumble;
         public int StudentTechLockoutFrames;
         public int StudentPendingLaunchActive;
@@ -288,9 +294,14 @@ namespace FTT.Combat {
         /// blocker's shieldstun lock arms (V7.3 block model), so the rise of
         /// <c>ShieldStunFrames</c> counts one blocked hit exactly once. Two blocked
         /// hits pass; eating the whole three-hit string without blocking fails.
+        /// CM-BLOCK (3.4): a perfect block is a block too — it arms no
+        /// shieldstun, so a change of the perfect-block count (never to 0, which
+        /// is a stock reset) counts one.
         /// </summary>
         private void ObserveBlockString(in CalibrationDrillSample sample) {
             if (_previous.StudentShieldStunFrames == 0 && sample.StudentShieldStunFrames > 0) _blocksMade++;
+            if (sample.StudentPerfectBlockCount != 0
+                && sample.StudentPerfectBlockCount != _previous.StudentPerfectBlockCount) _blocksMade++;
             if (sample.StudentHP < _previous.StudentHP) _hitsTaken++;
             if (_blocksMade >= 2) {
                 _outcome = CalibrationDrillOutcome.Passed;

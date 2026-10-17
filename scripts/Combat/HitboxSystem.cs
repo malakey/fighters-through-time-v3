@@ -98,7 +98,7 @@ namespace FTT.Combat {
 
         /// <summary>The explicit per-hit charge cost a block class implies (0 = the AttackClass default).</summary>
         public static int BlockChargeCostFor(BlockClass blockClass) =>
-            blockClass == BlockClass.GuardCrush ? 2 : 0;
+            blockClass == BlockClass.GuardCrush ? BasicComboRules.GuardCrushBlockChargeCost : 0;
 
         /// <summary>
         /// Allocates a fresh per-contact identity for Story hits. Monotonic for

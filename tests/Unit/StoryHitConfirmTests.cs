@@ -266,6 +266,10 @@ public class StoryHitConfirmTests {
             Tick(hero, GameplayButtons.Block);
             Tick(hero, GameplayButtons.Block);
             AssertThat(hero.CurrentState).IsEqual(CharacterState.Blocking);
+            // CM-BLOCK (decision 3.4): hold the stance past its 5-frame
+            // perfect-block window, so the swing meets an ordinary block.
+            for (int tick = 0; tick < BasicComboRules.PerfectBlockWindowFrames; tick++) Tick(hero, GameplayButtons.Block);
+            AssertThat(hero.IsPerfectBlockWindowOpen).IsFalse();
             int hp = hero.CurrentHP;
             bool contactLanded = SwingAtHero(attacker, hero, out float oneBefore, out float twoBefore);
             AssertThat(hero.CurrentHP).OverrideFailureMessage("Harness: the swing must be blocked.").IsEqual(hp);

@@ -538,9 +538,24 @@ public class FighterHazardBehaviorTests {
         bool approachFromLeft = harness.Fighter(0).Position.x < anchorX;
         FP64 holdLine = approachFromLeft ? anchorX - FP64.One : anchorX + FP64.One;
 
+        // CM-BLOCK (decision 3.4): the blocking run raises its guard as soon as
+        // it reaches the hold line in the telegraph and keeps it up, so the
+        // first active tick meets an ORDINARY block. A guard first raised on the
+        // active phase's opening tick is inside the 5-frame perfect-block window
+        // and would spend no charge.
+        bool guardUp = false;
+        int guardTicksBeforeActive = 0;
         for (int guard = 0; guard < 200; guard++) {
             if (!harness.HasHazard() || harness.Hazard().Phase != FighterHazardSystem.WarningPhase) break;
-            harness.Step(ApproachAxis(harness, holdLine, approachFromLeft));
+            sbyte axis = ApproachAxis(harness, holdLine, approachFromLeft);
+            guardUp |= blocking && axis == 0;
+            harness.Step(guardUp ? (sbyte)0 : axis, guardUp ? GameplayButtons.Block : GameplayButtons.None);
+            if (guardUp) guardTicksBeforeActive++;
+        }
+        if (blocking) {
+            AssertThat(guardTicksBeforeActive)
+                .OverrideFailureMessage("Harness: the guard must be up longer than the perfect-block window before the hazard goes active.")
+                .IsGreater(FTT.Combat.BasicComboRules.PerfectBlockWindowFrames);
         }
         for (int frame = 0; frame < 35; frame++) {
             harness.Step(

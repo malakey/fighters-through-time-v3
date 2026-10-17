@@ -42,7 +42,6 @@ namespace FTT.Combat {
         private float _regenTimer;
         private const float RegenInterval = BasicComboRules.BlockChargeRegenFrames / 60f;
         private const float LockoutSeconds = BasicComboRules.BlockShatterLockoutFrames / 60f;
-        private const float ShieldStunSeconds = BasicComboRules.ShieldstunFrames / 60f;
         private bool _isBlocking;
         private float _lockoutTimer;
         private float _shieldStunTimer;
@@ -104,7 +103,22 @@ namespace FTT.Combat {
             _isBlocking = false;
         }
 
+        /// <summary>
+        /// CM-BLOCK (decision 3.4): whether the last <see cref="ResolveHit"/>
+        /// that returned <see cref="BlockResult.Blocked"/> was a perfect block —
+        /// no charge spent, no shieldstun. Every <c>== Blocked</c> reader stays
+        /// as it is; the few that treat a perfect block differently (Shield of
+        /// Orléans, which needs a consumed charge) read this.
+        /// </summary>
+        public bool LastBlockWasPerfect { get; private set; }
+
+        /// <summary>CM-BLOCK: the placeholder perfect-block flash, shared by Story and the Fighter driver.</summary>
+        public static readonly Color PerfectBlockFlashColor = new(0.85f, 1f, 1f);
+        /// <summary>CM-BLOCK: how long the perfect-block flash holds, in seconds.</summary>
+        public const float PerfectBlockFlashSeconds = 0.12f;
+
         public BlockResult ResolveHit(in HitPayload hit) {
+            LastBlockWasPerfect = false;
             if (!_isBlocking || CurrentCharges <= 0 || _owner == null) return BlockResult.NotBlocked;
             // V7.2: boss-only red-telegraph attacks pierce the stance outright.
             if (hit.Unblockable || BlockRules.BypassesBlock(hit.AttackClass)) return BlockResult.NotBlocked;
@@ -122,13 +136,30 @@ namespace FTT.Combat {
                 : BlockRules.ChargeCost(hit.AttackClass, CurrentCharges, hit.ShieldBreaker);
             if (cost <= 0) return BlockResult.NotBlocked;
 
+            // CM-BLOCK (decision 3.4, Q3): inside the owner's perfect-block window
+            // the block spends no charge, sets no shieldstun and leaves the regen
+            // timer alone; a Shield-Breaker still shatters and a Guard-Crush (an
+            // authored cost of two) keeps its cost, below. It is still a block:
+            // Henry's Bastion grants and the absorb event fires.
+            if (BasicComboRules.PerfectBlockApplies(
+                    _owner.IsPerfectBlockWindowOpen, hit.ShieldBreaker, hit.BlockChargeCost)) {
+                LastBlockWasPerfect = true;
+                _owner.NotePerfectBlock();
+                GrantHenrysBastion(++_blockGrantEventId);
+                FTT.Core.EventBus.Instance?.RaiseBlockAbsorbed(_owner.PlayerIndex, CurrentCharges);
+                return BlockResult.Blocked;
+            }
+
             CurrentCharges = Mathf.Max(0, CurrentCharges - cost);
             _regenTimer = 0f;
             RaiseChargesChanged();
             if (CurrentCharges > 0) {
                 // V7.3 shieldstun: every non-shatter blocked hit locks the
-                // stance up for the shared window (the sim mirrors this).
-                _shieldStunTimer = ShieldStunSeconds;
+                // stance up (the sim mirrors this). CM-BLOCK (decisions 4.1 /
+                // 11.2): for the window the delivered damage scales — the hit's
+                // damage after any partial absorption, difficulty included.
+                _shieldStunTimer = BasicComboRules.ShieldstunFramesFor(
+                    Mathf.Max(0, Mathf.RoundToInt(hit.Damage))) / 60f;
                 GrantHenrysBastion(++_blockGrantEventId);
                 FTT.Core.EventBus.Instance?.RaiseBlockAbsorbed(_owner.PlayerIndex, CurrentCharges);
                 return BlockResult.Blocked;

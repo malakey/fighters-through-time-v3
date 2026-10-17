@@ -106,8 +106,9 @@ public class StoryBlockModelTests {
                 .OverrideFailureMessage("A non-shatter blocked hit must arm the shieldstun window.")
                 .IsTrue();
 
-            // The window is the shared ShieldstunFrames (8f), then it releases.
-            for (int frame = 0; frame < BasicComboRules.ShieldstunFrames - 1; frame++) {
+            // The window is the shared ShieldstunFramesFor(10) (8f — CM-BLOCK
+            // 4.1 scales it by the blocked damage), then it releases.
+            for (int frame = 0; frame < BasicComboRules.ShieldstunFramesFor(10) - 1; frame++) {
                 block._PhysicsProcess(1.0 / 60.0);
                 AssertThat(block.IsInShieldStun)
                     .OverrideFailureMessage($"Shieldstun must run its whole window (frame {frame}).")
@@ -115,6 +116,42 @@ public class StoryBlockModelTests {
             }
             for (int frame = 0; frame < 3; frame++) block._PhysicsProcess(1.0 / 60.0);
             AssertThat(block.IsInShieldStun).IsFalse();
+        } finally {
+            player.Free();
+        }
+    }
+
+    [TestCase]
+    public void AMobHitsShieldstunScalesWithTheDamageTheBlockTookAfterAbsorption() {
+        // CM-BLOCK (decisions 4.1 / 11.2): a 20-damage mob strike locks the
+        // stance for clamp(6 + 20 / 4, 6, 16) = 11 frames, and the basis is the
+        // DELIVERED damage — what is left after a barrier's partial absorption.
+        AssertThat(BasicComboRules.ShieldstunFramesFor(20)).IsEqual(11);
+        PlayerController player = NewPlayer(out BlockSystem block);
+        try {
+            player.IsFacingRight = true;
+            block.StartBlock();
+            player.TransitionTo(CharacterState.Blocking);
+            AssertThat(player.IsPerfectBlockWindowOpen).IsFalse();
+            Hurtbox hurtbox = player.GetNode<Hurtbox>("Hurtbox");
+
+            hurtbox.TakeHit(MobStrike(player, damage: 20f));
+            AssertThat(player.CurrentState).IsEqual(CharacterState.Blocking);
+            AssertShieldstunLasts(block, BasicComboRules.ShieldstunFramesFor(20));
+
+            // A Resonance Barrier absorbs its capacity first; the remainder (22,
+            // whose 11 frames a rounding of the capacity by one cannot move)
+            // reaches the block and earns the shieldstun. The whole hit would
+            // have earned the 16-frame cap.
+            AssertThat(player.GrantResonanceBarrier(StoryShieldEffect.HenrysBastion, 9301)).IsTrue();
+            int capacity = Mathf.RoundToInt(player.StoryShieldPoints);
+            AssertThat(capacity).IsGreater(0);
+            AssertThat(BasicComboRules.ShieldstunFramesFor(22 + capacity)).IsGreater(BasicComboRules.ShieldstunFramesFor(22));
+            hurtbox.TakeHit(MobStrike(player, damage: 22f + capacity));
+            AssertThat(player.StoryShieldPoints <= 0.001f)
+                .OverrideFailureMessage("Harness: the barrier must absorb its whole capacity.")
+                .IsTrue();
+            AssertShieldstunLasts(block, BasicComboRules.ShieldstunFramesFor(22));
         } finally {
             player.Free();
         }
@@ -155,6 +192,40 @@ public class StoryBlockModelTests {
         } finally {
             player.Free();
         }
+    }
+
+    /// <summary>A mob strike in front of a right-facing hero.</summary>
+    private static HitPayload MobStrike(PlayerController player, float damage) => new() {
+        AttackerIndex = -1,
+        TargetIndex = 0,
+        AttackID = "test.mob_strike",
+        HitboxID = "primary",
+        AttackClass = AttackClass.Basic,
+        Damage = damage,
+        Knockback = Vector2.Zero,
+        HitstunDuration = 0.2f,
+        HitOrigin = player.GlobalPosition + new Vector2(40f, 0f),
+        AttackerFacingRight = false,
+        SourceIsStandardMob = true,
+        // No freeze: BlockSystem's timers pause in the owner's hitstop, which
+        // only the hero's own tick would run down.
+        ExemptFromHitstop = true,
+        ContactId = HitClassification.NextContactId()
+    };
+
+    /// <summary>The stance stays locked for <paramref name="frames"/> block ticks, then releases (float timers: one tick of slack).</summary>
+    private static void AssertShieldstunLasts(BlockSystem block, int frames) {
+        AssertThat(block.IsInShieldStun).OverrideFailureMessage("The block must arm shieldstun.").IsTrue();
+        for (int frame = 0; frame < frames - 1; frame++) {
+            block._PhysicsProcess(1.0 / 60.0);
+            AssertThat(block.IsInShieldStun)
+                .OverrideFailureMessage($"Shieldstun must run its {frames}-frame window (frame {frame}).")
+                .IsTrue();
+        }
+        for (int frame = 0; frame < 2; frame++) block._PhysicsProcess(1.0 / 60.0);
+        AssertThat(block.IsInShieldStun)
+            .OverrideFailureMessage($"Shieldstun must release after its {frames}-frame window.")
+            .IsFalse();
     }
 
     private static PlayerController NewPlayer(out BlockSystem block) {

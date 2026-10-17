@@ -104,7 +104,7 @@ public class BlockShatterLockoutTests {
         FighterRuntimeComponent runtime = default;
         FighterVerbComponent verb = default;
         verb.BlockLockoutFrames = BasicComboRules.BlockShatterLockoutFrames;
-        verb.ShieldStunFrames = BasicComboRules.ShieldstunFrames;
+        verb.ShieldStunFrames = BasicComboRules.ShieldstunMaxFrames;
         verb.HitstunBlockCancelBlocked = 1;
         verb.LedgeGrabsThisAirtime = 2;
         FighterTuningComponent tuning = default;

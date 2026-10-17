@@ -257,6 +257,10 @@ namespace FTT.Combat {
             if (_driver.TryGetFighter(1, out FighterStateComponent dummy)) {
                 sample.DummyHP = dummy.CurrentHP;
             }
+            // CM-BLOCK (3.4): a perfect block counts as a block (component 323).
+            if (_driver.Simulation != null && _driver.Simulation.TryGetFighterActionState(0, out FighterActionStateComponent action)) {
+                sample.StudentPerfectBlockCount = FighterBlockTimingRules.PerfectBlockCount(in action);
+            }
             PlayerInputFrame studentInput = InputManager.Instance?.GetFrame(0) ?? default;
             sample.StudentDirectionHeld = Math.Abs(studentInput.MoveX) > 30 || Math.Abs(studentInput.MoveY) > 30;
             return sample;

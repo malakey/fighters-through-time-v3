@@ -849,6 +849,31 @@ namespace FTT.FighterSim {
 
             // CM-ULT (decision 2.1): the A02 wind-up telegraph, from component 321.
             SyncUltimateTelegraph(player, playerID, glow);
+            // CM-BLOCK (decision 3.4): the perfect-block flash, from component 323.
+            SyncPerfectBlockFlash(playerID, glow);
+        }
+
+        // CM-BLOCK (decision 3.4): the last presented perfect-block count per
+        // player, -1 before the first read. Cosmetic cache only.
+        private readonly int[] _presentedPerfectBlockCount = { -1, -1 };
+
+        /// <summary>
+        /// CM-BLOCK (decision 3.4): a perfect block spends no charge, so the
+        /// charge-drop feedback above never sees it. Read-only over component
+        /// 323's wrapping perfect-block count: each rise plays the placeholder
+        /// flash through the glow arbiter (<c>BlockSystem.PerfectBlockFlashColor</c>,
+        /// shared with Story) with the ordinary block's shake and Guard Impact
+        /// buzz. Writes nothing into the simulation.
+        /// </summary>
+        private void SyncPerfectBlockFlash(int playerID, FTT.Combat.GlowPresentationController glow) {
+            if (Simulation == null || !Simulation.TryGetFighterActionState(playerID, out FighterActionStateComponent action)) return;
+            int count = FighterBlockTimingRules.PerfectBlockCount(in action);
+            int previous = _presentedPerfectBlockCount[playerID];
+            _presentedPerfectBlockCount[playerID] = count;
+            if (previous < 0 || count == 0 || count == previous) return;
+            glow?.FlashHit(FTT.Combat.BlockSystem.PerfectBlockFlashColor, FTT.Combat.BlockSystem.PerfectBlockFlashSeconds);
+            CameraShake.Instance?.Shake(3f, 0.08f);
+            HapticFeedbackManager.Instance?.OnGuardImpact(playerID);
         }
 
         /// <summary>

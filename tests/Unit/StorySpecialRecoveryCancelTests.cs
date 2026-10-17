@@ -259,6 +259,12 @@ public class StorySpecialRecoveryCancelTests {
             Tick(target, GameplayButtons.Block);
             Tick(target, GameplayButtons.Block, previous: GameplayButtons.Block);
             AssertThat(target.CurrentState).IsEqual(CharacterState.Blocking);
+            // CM-BLOCK (decision 3.4): hold the stance past its 5-frame
+            // perfect-block window, so the strike meets an ordinary block.
+            for (int tick = 0; tick < FTT.Combat.BasicComboRules.PerfectBlockWindowFrames; tick++) {
+                Tick(target, GameplayButtons.Block, previous: GameplayButtons.Block);
+            }
+            AssertThat(target.IsPerfectBlockWindowOpen).IsFalse();
             target.IsFacingRight = true;
             AssertThat(target.GlobalPosition.X < player.GlobalPosition.X).IsTrue();
             smite.StrikeWithWave(targetHurtbox, player.GlobalPosition);
