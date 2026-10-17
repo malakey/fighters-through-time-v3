@@ -209,6 +209,40 @@ public class StoryKitMotionTravelTests {
         }
     }
 
+    /// <summary>
+    /// CM-MOVE (the fix-round extra, CM-FIXA-STORY §5.1): a running Cleopatra's
+    /// Desert Mirage startup holds her horizontally, as Lincoln's Rail Charge
+    /// startup does, so the cast covers its authored 240 px from the press — the
+    /// sim's <c>SandRush</c> starts at the press. Before, she slid about 70 px
+    /// (12 × 5.8) through the 12-frame startup at her entry speed.
+    /// </summary>
+    [TestCase]
+    public async Task CleopatrasRunningRushTravelsItsAuthoredDistanceFromThePress() {
+        var tree = (SceneTree)Engine.GetMainLoop();
+        StaticBody2D floor = CreateFloor(new Vector2(0f, 0f), 4000f);
+        PlayerController hero = null;
+        try {
+            hero = await SpawnGroundedHero(tree, "cleopatra", new Vector2(-1500f, -2f));
+            var mirage = hero.GetNode<CleopatraDesertMirage>("MovementAbility");
+            float authored = ((MovementAbilityData)mirage.Data).DistanceMoved;
+            AssertThat(authored).IsEqualApprox(240f, 0.001f);
+
+            await RunRight(tree, hero, 24);
+            AssertThat(hero.CurrentState).IsEqual(CharacterState.Running);
+            AssertThat(hero.Velocity.X > 200f)
+                .OverrideFailureMessage($"Harness: Cleopatra must be running at speed; vx {hero.Velocity.X:0.0}.")
+                .IsTrue();
+            Travel running = await Cast(tree, hero, mirage, GameplayButtons.MovementAbility, 1f, 0f);
+            Report("cleopatra desert mirage (running, from the press)", running);
+            AssertThat(Mathf.Abs(running.Startup.X) < 0.01f)
+                .OverrideFailureMessage($"The startup must hold her; she slid {running.Startup.X:0.00} px.")
+                .IsTrue();
+            AssertWholeCast("Desert Mirage (running)", running, authored);
+        } finally {
+            Release(hero, floor);
+        }
+    }
+
     [TestCase]
     public async Task MozartsGlissandoTravelsItsAuthoredDistanceSidewaysAndStraightUp() {
         var tree = (SceneTree)Engine.GetMainLoop();
