@@ -2149,7 +2149,7 @@ After each merge:
 | 5 | 10.2 Sudden Death | Force a timeout tie | Stalling in Sudden Death | Either player can stall it out | F22 |
 | 6 | 10.3 Air game | Short hops plus the air strike | Whether short-hop air strikes give an air game, and whether a late air strike is plus on block under 4.1 | The air game is still thin | `USER-AERIAL-SINGLE-STRIKE` |
 | 7 | 10.4 Comeback | A player down two stocks | Orb heals, Rally, Defy (now ending on attack), missing-HP knockback | A losing player wins too often, or never | — |
-| 8 | 1.2 Special timing | Each of the nine kits | Whiff punishability; the Conductor's Call's 60-frame lock; Divine Piercing's 13-frame startup; a running cast **sliding at its entry speed**, matching Story (Q1) | A Special feels unusable, still safe on whiff, or the slide reads wrong | `PROVISIONAL-SIM-SPECIAL-PHASE-RULES` |
+| 8 | 1.2 Special timing | Each of the nine kits | Whiff punishability; the Conductor's Call's 60-frame lock; Divine Piercing's 13-frame startup; a running grounded cast **braking to a stop over the 4-frame run-stop ramp** in both modes, while an aerial cast keeps its drift (Q1, `USER-SPECIAL-CAST-BRAKE`) | A Special feels unusable, still safe on whiff, or the brake reads wrong | `PROVISIONAL-SIM-SPECIAL-PHASE-RULES` |
 | 9 | 1.3 Shield-Breakers | Block a Shield-Breaker at full shield, and perfect-block one | Whether shatter → Ultimate is still guaranteed (the recon estimates by 0–12 frames; see CM-SIM's logged gap); whether a perfect-blocked Shield-Breaker should still shatter (Q3) | A guaranteed 70–80 from one block | `USER-SHIELD-BREAKER-STARTUP` |
 | 10 | 11.1 D3 in Fighter | Landed Specials, especially the Emancipator at 5 u | Whether landed ranged Specials are now safe; Special → basic → Special routes | A route is too strong (no scaling, 1.4) | `USER-FIGHTER-SPECIAL-RECOVERY-CANCEL` |
 | 11 | 3.4 Perfect block | Both players and a Hard CPU | Whether the 5-frame window is learnable; whether the anti-mash rearm holds; how often the Hard CPU perfect-blocks (compare the smoke's counts); whether the flash is readable | It is trivially easy, never possible, or the CPU walls it | `PROVISIONAL-PERFECT-BLOCK-RULES` |
@@ -2616,7 +2616,7 @@ The dossiers above keep their planned wording. These sentences are superseded:
 - **§2.3.2 line 913**, "hitstop's early return (:2135) and Time Freeze both pause it". Only hitstop does (CM-FIXB-STORY B6). CM_BLOCK.md line 44 says the same and is superseded too.
 - **§2.5.2 line 1178**, "The CPU's delivered hang decision (Jump, with a neutral stick) therefore always climb-jumps … **The CPU stays climb-jump only (9.3).**" The first sentence was false in the code CM-MOVE found; the second has been true since `fa18442`.
 - **§2.7.4's "Order" list.** It now begins with the invulnerability refusal (CM-FIXB-STORY B7 / B21).
-- **§5 row 8**, "a running cast **sliding at its entry speed**, matching Story (Q1)". This predates the Q1 ruling: a grounded cast brakes over 4 frames in both modes.
+- **§5 row 8**, "a running cast **sliding at its entry speed**, matching Story (Q1)". This predated the Q1 ruling: a grounded cast brakes over 4 frames in both modes. Corrected in place at the closeout (2026-10-17), because the pad session reads that row.
 - **§3.2's and §4.2's Phase B running totals** start from 3332. The real Phase B base was 3367.
 
 ## 10. Closeout report
