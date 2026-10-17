@@ -65,10 +65,11 @@ namespace FTT.Core {
     ///
     /// <para><b>Normal control</b> (every airborne state except the launch
     /// states) picks one gravity band per tick from the velocity before the
-    /// step: fast-fall, then the float window, then the short hop, then the apex
-    /// hang (only once the hero has jumped this airtime — a walk-off, a
-    /// drop-through or a ledge drop gets none; a ledge or rope jump-off gets
-    /// it), then the fall, else 1.0. The fall is then capped at
+    /// step: fast-fall, then the float window, then the short hop (since
+    /// 2026-10-16 only on a rise from the hero's own jump), then the apex hang
+    /// (only once the hero has jumped this airtime — a walk-off, a drop-through
+    /// or a ledge drop gets none; a ledge or rope jump-off gets it — and since
+    /// 2026-10-16 only while Jump is held), then the fall, else 1.0. The fall is then capped at
     /// <see cref="TerminalFallSpeedPixels"/> (<see cref="FastFallSpeedPixels"/>
     /// while fast-falling); a descent already above the cap eases down by one
     /// base-gravity step per tick instead of snapping. <b>Launch states</b>
@@ -91,8 +92,13 @@ namespace FTT.Core {
         /// <summary>The weight coupling's per-Weight term.</summary>
         public const float WeightCouplingPerWeight = 0.4f;
 
-        /// <summary>Gravity scale while rising with Jump released (the short hop). Story only; the sim has none.</summary>
-        public const float ShortHopGravityMultiplier = 2.5f;
+        /// <summary>
+        /// Gravity scale while rising from the hero's own jump with Jump released
+        /// (the short hop). Since 2026-10-16 (CM-MOVE, decision 5.1) the one value
+        /// lives in <see cref="UniversalMovementRules.ShortHopGravityMultiplier"/>,
+        /// which the Fighter sim reads too; this forwards to it.
+        /// </summary>
+        public const float ShortHopGravityMultiplier = UniversalMovementRules.ShortHopGravityMultiplier;
 
         /// <summary>Gravity scale while a launch state falls (the pre-2026-10-08 Story fall multiplier, kept for launches).</summary>
         public const float LaunchFallGravityMultiplier = 1.8f;
@@ -154,9 +160,21 @@ namespace FTT.Core {
         /// (screen space: positive is down). First match wins; see the class
         /// summary. A launch ignores fast-fall, the apex hang and the
         /// normal-control fall, exactly as before 2026-10-08.
+        ///
+        /// <para>CM-MOVE (combat and movement update 2026-10-16). Under normal
+        /// control the short hop cuts only a rise that began with the hero's own
+        /// Jump press this airtime (<paramref name="riseFromOwnJump"/>, the Q5
+        /// ruling "own jump only, both modes": <c>PlayerController</c>'s latch,
+        /// the Fighter sim's 323 <c>RiseFromOwnJump</c> bit), so a post-hitstun
+        /// rise or a kit lift is never cut; and the apex hang applies only while
+        /// Jump is held (decision 6.1), so a released hop drops through its peak.
+        /// <paramref name="riseFromOwnJump"/> defaults to true, which is the
+        /// pre-2026-10-16 short hop for a caller that does not track it. The
+        /// launch branch's own short-hop clause is untouched (the launch half of
+        /// <c>DEFER-H7-STORY-TERMINAL</c>).</para>
         /// </summary>
         public static StoryGravityBand SelectBand(float vy, bool fastFalling, bool floatActive,
-            bool jumpHeld, bool jumpedThisAirtime, bool launch) {
+            bool jumpHeld, bool jumpedThisAirtime, bool launch, bool riseFromOwnJump = true) {
             if (launch) {
                 if (floatActive) return StoryGravityBand.Float;
                 if (vy > 0f) return StoryGravityBand.LaunchFall;
@@ -165,8 +183,8 @@ namespace FTT.Core {
             }
             if (fastFalling) return StoryGravityBand.FastFall;
             if (floatActive) return StoryGravityBand.Float;
-            if (vy < 0f && !jumpHeld) return StoryGravityBand.ShortHop;
-            if (jumpedThisAirtime && Math.Abs(vy) < ApexHangSpeedBandPixels) return StoryGravityBand.ApexHang;
+            if (vy < 0f && !jumpHeld && riseFromOwnJump) return StoryGravityBand.ShortHop;
+            if (jumpHeld && jumpedThisAirtime && Math.Abs(vy) < ApexHangSpeedBandPixels) return StoryGravityBand.ApexHang;
             if (vy > 0f) return StoryGravityBand.Fall;
             return StoryGravityBand.Rise;
         }
@@ -193,10 +211,14 @@ namespace FTT.Core {
         /// or rope jump-off counts), which is what the sim's
         /// <c>RemainingJumps &lt; MaxJumpCount</c> reads.
         /// <paramref name="launch"/> selects the unchanged launch-state gravity.
+        /// <paramref name="riseFromOwnJump"/> is the Q5 gate (see
+        /// <see cref="SelectBand"/>); true when omitted.
         /// </summary>
         public static float StepVertical(float vy, float weight, float environmentScale, float dt,
-            bool fastFalling, bool floatActive, bool jumpHeld, bool jumpedThisAirtime, bool launch) {
-            StoryGravityBand band = SelectBand(vy, fastFalling, floatActive, jumpHeld, jumpedThisAirtime, launch);
+            bool fastFalling, bool floatActive, bool jumpHeld, bool jumpedThisAirtime, bool launch,
+            bool riseFromOwnJump = true) {
+            StoryGravityBand band = SelectBand(vy, fastFalling, floatActive, jumpHeld, jumpedThisAirtime, launch,
+                riseFromOwnJump);
             if (band == StoryGravityBand.Float && vy > 0f) vy = Math.Min(vy, FloatMaxDescentPixels);
             float gravityStep = GravityPerFrame(weight) * environmentScale;
             float next = vy + gravityStep * Multiplier(band) * dt * 60f;

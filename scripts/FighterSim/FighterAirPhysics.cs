@@ -16,7 +16,9 @@ namespace FTT.FighterSim {
     /// under normal control (jumps, walk-offs, drops, aerial swings, the air
     /// dodge, the kit phases that keep gravity): one gravity multiplier per tick
     /// chosen from the velocity before the step — fast-fall, then the float
-    /// glide, then the apex hang (only after a jump this airtime), then the fall
+    /// glide, then (CM-MOVE, 2026-10-16) the short hop on a released rise from
+    /// the fighter's own jump, then the apex hang (only after a jump this
+    /// airtime, and since 2026-10-16 only while Jump is held), then the fall
     /// multiplier — and a fall cap that a faster fall eases down to by one
     /// base-gravity step per tick instead of snapping. <see cref="StepLaunch"/> is
     /// hitstun and daze: the sim's flat −30 u/s² with the
@@ -74,19 +76,55 @@ namespace FTT.FighterSim {
             remainingJumps < maxJumpCount;
 
         /// <summary>
+        /// CM-MOVE (decision 5.1, 2026-10-16): the short hop, gravity ×
+        /// <see cref="UniversalMovementRules.ShortHopGravityMultiplier"/> (2.5, the
+        /// one value Story's band forwards to), converted once.
+        /// </summary>
+        private static readonly FP64 ShortHopGravityStep =
+            GravityStep * FP64.FromDouble(UniversalMovementRules.ShortHopGravityMultiplier);
+
+        /// <summary>
+        /// CM-MOVE (decision 6.2, the Q6 ruling): the one-way lip pop band,
+        /// <see cref="UniversalMovementRules.SimOneWayLipPopUnits"/> (0.2 u),
+        /// converted once (plan §1.3).
+        /// </summary>
+        public static readonly FP64 OneWayLipPopBand = FP64.FromDouble(UniversalMovementRules.SimOneWayLipPopUnits);
+
+        /// <summary>
         /// One airborne tick under normal control. Returns the new Y-up vertical
         /// velocity. <paramref name="fastFalling"/> is Down held (the caller has
         /// already zeroed the float window for it); <paramref name="floating"/> is
-        /// a live float window.
+        /// a live float window. This signature reads Jump as held — no short hop,
+        /// and the apex hang after any jump this airtime — which is what the
+        /// CPU's arc predictions, <see cref="CpuRecoveryProfile"/> and the test
+        /// harnesses plan with: since 1.1(5) a full hop is what the CPU does.
         /// </summary>
         public static FP64 StepMovement(
-            FP64 velocityY, bool fastFalling, bool floating, bool jumpedThisAirtime) {
+            FP64 velocityY, bool fastFalling, bool floating, bool jumpedThisAirtime) =>
+            StepMovement(velocityY, fastFalling, floating, jumpedThisAirtime, jumpHeld: true, riseFromOwnJump: false);
+
+        /// <summary>
+        /// One airborne tick under normal control with the Jump input (CM-MOVE,
+        /// combat and movement update 2026-10-16; plan §2.5.1 and §2.6.1). Band
+        /// order, first match wins: fast-fall; the float glide; the <b>short
+        /// hop</b> — rising with <paramref name="jumpHeld"/> false on a rise that
+        /// began with this airtime's own Jump press
+        /// (<paramref name="riseFromOwnJump"/>, the Q5 ruling) — at ×2.5; the apex
+        /// hang, now only while Jump is held (decision 6.1); the fall; else base
+        /// gravity. With <paramref name="jumpHeld"/> true this is exactly the
+        /// four-argument step. Launch states keep <see cref="StepLaunch"/>.
+        /// </summary>
+        public static FP64 StepMovement(
+            FP64 velocityY, bool fastFalling, bool floating, bool jumpedThisAirtime,
+            bool jumpHeld, bool riseFromOwnJump) {
             FP64 step;
             if (fastFalling) {
                 step = FastFallGravityStep;
             } else if (floating) {
                 step = FloatGravityStep;
-            } else if (jumpedThisAirtime && FP64.Abs(velocityY) < ApexHangBand) {
+            } else if (!jumpHeld && riseFromOwnJump && velocityY > FP64.Zero) {
+                step = ShortHopGravityStep;
+            } else if (jumpHeld && jumpedThisAirtime && FP64.Abs(velocityY) < ApexHangBand) {
                 step = ApexHangGravityStep;
             } else if (velocityY < FP64.Zero) {
                 step = FallGravityStep;

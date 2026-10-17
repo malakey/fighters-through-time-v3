@@ -1109,9 +1109,14 @@ namespace FTT.Diagnostics {
             f.Vel.X = Mathf.MoveToward(f.Vel.X, desired, maxSpeed / ramp * Hero.AirControl);
 
             // The bot decides from the velocity before the tick (NavAgent.Drive).
+            // CM-MOVE (6.1, 2026-10-16): the apex hang now needs Jump held, so the
+            // flight's final jump is held through the whole hang band (to
+            // ApexHangSpeedBandPixels falling), keeping the reach it had; the
+            // release right before a planned air jump stays at the apex.
             bool heldBefore = f.Holding;
             bool pressJump = false;
-            if (f.Holding && f.Vel.Y >= 0f) f.Holding = false;
+            float releaseVy = f.UseAirJumps && f.AirJumps > 0 ? 0f : StoryAirPhysics.ApexHangSpeedBandPixels;
+            if (f.Holding && f.Vel.Y >= releaseVy) f.Holding = false;
             else if (!f.Holding && f.UseAirJumps && f.AirJumps > 0 && f.Vel.Y > -40f) {
                 f.Holding = true;
                 pressJump = true;
@@ -1124,8 +1129,11 @@ namespace FTT.Diagnostics {
                     gravityHeld = f.LaunchLatch;
                     f.HasLaunchLatch = false;
                 }
+                // CM-MOVE (Q5): only the hero's own jump is short-hopped; every
+                // jump flight (ground, air, ledge or rope jump-off) is one.
                 f.Vel.Y = StoryAirPhysics.StepVertical(f.Vel.Y, Hero.Weight, GravityScaleAt(f.Pos.X, f.Pos.Y - 30f), 1f / 60f,
-                    fastFalling: false, floatActive: false, jumpHeld: gravityHeld, jumpedThisAirtime: f.Jumped, launch: false);
+                    fastFalling: false, floatActive: false, jumpHeld: gravityHeld, jumpedThisAirtime: f.Jumped, launch: false,
+                    riseFromOwnJump: f.Jumped);
             }
             if (pressJump) {
                 f.Vel.Y = -Hero.JumpSpeed;
@@ -1142,19 +1150,31 @@ namespace FTT.Diagnostics {
                     return FlightStep.Landed;
                 }
             }
-            var box = new Rect2(next.X - HeroPhysics.BodyHalfWidth + 1f, next.Y - HeroPhysics.BodyHeight + 1f,
-                HeroPhysics.BodyHalfWidth * 2f - 2f, HeroPhysics.BodyHeight - 2f);
+            Rect2 box = HeroBox(next);
             foreach (NavRect o in obstacles) {
                 if (!o.Overlaps(box)) continue;
                 // Rising into the underside of something: the head bumps, the
                 // rise ends, the flight goes on (the engine slides).
                 float headBefore = f.Pos.Y - HeroPhysics.BodyHeight;
                 if (f.Vel.Y < 0f && o.AxisAligned && o.Aabb.End.Y <= headBefore + 2f) {
+                    // CM-MOVE (6.2): the controller's head-clip nudge first — a
+                    // corner overlapping the head by at most HeadClipNudgePixels
+                    // slides the flight sideways and the rise goes on.
+                    if (TryNudgeFlight(ref next, o, obstacles)) {
+                        box = HeroBox(next);
+                        continue;
+                    }
                     next.Y = o.Aabb.End.Y + HeroPhysics.BodyHeight + 0.5f;
                     f.Vel.Y = 0f;
                     f.Holding = false;
-                    box = new Rect2(next.X - HeroPhysics.BodyHalfWidth + 1f, next.Y - HeroPhysics.BodyHeight + 1f,
-                        HeroPhysics.BodyHalfWidth * 2f - 2f, HeroPhysics.BodyHeight - 2f);
+                    box = HeroBox(next);
+                    continue;
+                }
+                // CM-MOVE (6.2): the controller's rising lip pop — a wall whose
+                // top is at most LipPopPixels above the feet lifts the flight onto
+                // it instead of crashing.
+                if (f.Vel.Y < 0f && o.AxisAligned && TryPopFlight(ref next, o, obstacles)) {
+                    box = HeroBox(next);
                     continue;
                 }
                 return FlightStep.Crashed;
@@ -1165,6 +1185,49 @@ namespace FTT.Diagnostics {
             if (f.IgnoreOneWay != null && next.Y > f.DropStartY + 40f) f.IgnoreOneWay = null;
             f.Pos = next;
             return FlightStep.Flying;
+        }
+
+        /// <summary>The flight model's body box at <paramref name="feet"/> (inset a pixel on every side).</summary>
+        private static Rect2 HeroBox(Vector2 feet) => new(
+            feet.X - HeroPhysics.BodyHalfWidth + 1f, feet.Y - HeroPhysics.BodyHeight + 1f,
+            HeroPhysics.BodyHalfWidth * 2f - 2f, HeroPhysics.BodyHeight - 2f);
+
+        /// <summary>
+        /// CM-MOVE (6.2): <c>PlayerController</c>'s head-clip nudge in the flight
+        /// model — the smaller sideways shift that clears <paramref name="ceiling"/>
+        /// (the side away from the overlap), taken when it is at most
+        /// <see cref="PlayerController.HeadClipNudgePixels"/> (rounded up to whole
+        /// pixels, as the controller shifts) and the shifted body meets nothing.
+        /// </summary>
+        private static bool TryNudgeFlight(ref Vector2 next, NavRect ceiling, List<NavRect> obstacles) {
+            float shiftRight = ceiling.Aabb.End.X - (next.X - HeroPhysics.BodyHalfWidth);
+            float shiftLeft = next.X + HeroPhysics.BodyHalfWidth - ceiling.Aabb.Position.X;
+            float shift = shiftRight <= shiftLeft ? Mathf.Ceil(shiftRight) : -Mathf.Ceil(shiftLeft);
+            if (Mathf.Abs(shift) > PlayerController.HeadClipNudgePixels + 0.001f) return false;
+            var moved = new Vector2(next.X + shift, next.Y);
+            Rect2 movedBox = HeroBox(moved);
+            foreach (NavRect o in obstacles) {
+                if (o.Overlaps(movedBox)) return false;
+            }
+            next = moved;
+            return true;
+        }
+
+        /// <summary>
+        /// CM-MOVE (6.2): <c>PlayerController</c>'s rising lip pop in the flight
+        /// model — a wall whose top is at most <see cref="PlayerController.LipPopPixels"/>
+        /// above the feet lifts them onto it, when the lifted body meets nothing.
+        /// </summary>
+        private static bool TryPopFlight(ref Vector2 next, NavRect wall, List<NavRect> obstacles) {
+            float lip = next.Y - wall.Aabb.Position.Y;
+            if (lip <= 0f || lip > PlayerController.LipPopPixels + 0.001f) return false;
+            var lifted = new Vector2(next.X, wall.Aabb.Position.Y - 0.5f);
+            Rect2 liftedBox = HeroBox(lifted);
+            foreach (NavRect o in obstacles) {
+                if (o.Overlaps(liftedBox)) return false;
+            }
+            next = lifted;
+            return true;
         }
 
         /// <summary>Solid rectangles around a horizontal span (a copy, safe to keep).</summary>
@@ -1720,7 +1783,10 @@ namespace FTT.Diagnostics {
                     intent.MoveX = _airFrames <= _air.SteerDelay ? 0f : SteerInput(player, AirTargetX(_air));
                     // Jump hold to the apex, then the second jump.
                     if (_air.Kind is NavEdgeKind.Jump or NavEdgeKind.Catch or NavEdgeKind.Release) {
-                        if (_jumpHeld && player.Velocity.Y >= 0f) _jumpHeld = false;
+                        // CM-MOVE (6.1): the final jump is held through the hang
+                        // band (StepFlight's rule), the others released at the apex.
+                        float releaseVy = _jumpsPressed < _flightJumps ? 0f : StoryAirPhysics.ApexHangSpeedBandPixels;
+                        if (_jumpHeld && player.Velocity.Y >= releaseVy) _jumpHeld = false;
                         else if (!_jumpHeld && _jumpsPressed < _flightJumps && player.Velocity.Y > -40f && _airFrames > 2) {
                             _jumpHeld = true;
                             _jumpsPressed++;

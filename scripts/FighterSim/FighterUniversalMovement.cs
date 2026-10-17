@@ -16,7 +16,10 @@ namespace FTT.FighterSim {
                 or UniversalMovementPhase.AirDodgeInvulnerable
                 or UniversalMovementPhase.AirDodgeRecovery
                 // Package 12 W4 / 13 W5: a blink or a North Star Leap in flight is an action.
-                || FighterKitMotion.IsKitPhase(runtime.UniversalMovementState);
+                || FighterKitMotion.IsKitPhase(runtime.UniversalMovementState)
+                // CM-MOVE (decision 5.2): a ledge climb (values 8–10) is an action
+                // too — no swing, Special, Ultimate or movement ability starts in it.
+                || FighterLedgeRules.IsGetUpClimb(runtime.UniversalMovementState);
         }
 
         public static void Cancel(ref FighterRuntimeComponent runtime) {

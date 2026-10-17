@@ -381,8 +381,8 @@ namespace FTT.Characters.Abilities {
 
         /// <summary>
         /// CM-STORY (1.1(1)): only the sand rush flies on its own velocity (the
-        /// sim's <c>SandRush</c>). The startup carries her entry velocity under
-        /// gravity, and the recovery falls.
+        /// sim's <c>SandRush</c>). The startup runs under gravity with its
+        /// horizontal velocity zeroed at the press (CM-MOVE), and the recovery falls.
         /// </summary>
         public override bool SuspendsOwnerGravityNow => CurrentPhase == AbilityPhase.Active;
 
@@ -445,6 +445,13 @@ namespace FTT.Characters.Abilities {
             _vortexStepApplied = Owner.HasStoryPerk(CleopatraSandstormVortex.VortexStepPerkKey)
                 && FindOwnVortex()?.TryConsumeVortexStep(Owner.GlobalPosition) == true;
             ApplyCastPerks();
+            // CM-MOVE (the fix-round extra, CM-FIXA-STORY §5.1): the sim's SandRush
+            // starts at the press, so nothing she was doing carries into the rush.
+            // Story's 12-frame startup holds her horizontally (the movement-ability
+            // state applies no friction, so a running Cleopatra used to slide about
+            // 70 px before rushing), as Lincoln's Rail Charge startup does; the
+            // vertical is left to Story gravity.
+            Owner.Velocity = new Vector2(0f, Owner.Velocity.Y);
         }
 
         protected override void OnActive() {

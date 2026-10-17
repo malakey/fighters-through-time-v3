@@ -325,6 +325,8 @@ namespace FTT.FighterSim {
                 // advancing hitstop tick records the same position, as specified.
                 FighterEchoStepHistory.Sample(
                     ref frame, entity, in fighter.Position, runtime.KnockoutsSuffered);
+                // CM-MOVE (5.1): the short hop's Jump latch, from this tick's raw edges.
+                UpdateJumpLatch(ref action, in runtime);
 
                 // V7 universal hitstop: both parties of a hit are fully suspended
                 // — velocity, position, phases, and every per-fighter timer. The
@@ -395,6 +397,9 @@ namespace FTT.FighterSim {
                 // is held at zero while the respawn platform holds the fighter
                 // (respawn protection is set at the drop, after this hold).
                 if (FighterMatchFlowRules.IsOnRespawnPlatform(in fighter)) action = default;
+                // CM-MOVE (5.1 Q5, 5.2, 6.3): the own-jump rise, the ledge stick
+                // re-arm and the double-tap Down window.
+                TickMovementLatches(ref action, in fighter, in runtime, in verb, in ultimateActivation);
 
                 // A02 (Package 13 W6, component 321): a fighter held by an
                 // opponent's Ultimate cinematic takes no input and does not move
@@ -569,7 +574,8 @@ namespace FTT.FighterSim {
                         FighterLedgeRules.ClearHang(ref runtime);
                         runtime.LedgeRegrabLockoutFrames = FighterLedgeRules.RegrabLockoutFrames;
                     } else if (_geometry.TryGetHangPosition(runtime.LedgeAnchor, out FPVector2 hangPosition)) {
-                        FighterLedgeRules.Process(ref fighter, ref runtime, in tuning, in hangPosition);
+                        // CM-MOVE (5.2): the hang now also reads the get-ups.
+                        ProcessHang(ref fighter, ref runtime, ref verb, ref defense, ref action, in tuning, in hangPosition);
                         continue;
                     } else {
                         // Defensive: an anchor that no longer resolves (a stage
@@ -579,6 +585,10 @@ namespace FTT.FighterSim {
                         continue;
                     }
                 }
+                // CM-MOVE (5.2): a ledge climb (universal-movement values 8–10) is
+                // pinned like the hang until it hands the tick back.
+                if (FighterLedgeRules.IsGetUpClimb(in runtime)
+                    && AdvanceLedgeGetUp(ref fighter, ref runtime, in tuning)) continue;
 
                 // Gameplay-feel plan §2.4 — Block cancels hitstun. A *grounded*
                 // victim holding Block leaves hitstun immediately and flows into
@@ -765,11 +775,16 @@ namespace FTT.FighterSim {
                                 floating: runtime.FloatFrames > 0,
                                 jumpedThisAirtime,
                                 FighterAirPhysics.AerialSpecialGravityScale)
+                            // CM-MOVE (5.1, 6.1): the short hop on a released
+                            // rise from the fighter's own jump, and the hang
+                            // only while Jump is held.
                             : FighterAirPhysics.StepMovement(
                                 fighter.Velocity.y,
                                 fastFalling,
                                 floating: runtime.FloatFrames > 0,
-                                jumpedThisAirtime: jumpedThisAirtime);
+                                jumpedThisAirtime: jumpedThisAirtime,
+                                jumpHeld: JumpHeldForGravity(in action),
+                                riseFromOwnJump: RiseFromOwnJump(in action));
                     }
                 }
 
@@ -804,6 +819,8 @@ namespace FTT.FighterSim {
                         int staffOwner = FighterReachKitRules.TryLandOnStaff(ref frame, ref fighter, in tuning, previousY);
                         landedOnOwnStaff = wasAirborne && staffOwner == fighter.PlayerID;
                     }
+                    // CM-MOVE (6.2, Q6): the one-way lip pop, before the ledge capture.
+                    TryLipPop(ref fighter, in runtime, in action, in ultimateActivation, in tuning, previousY);
                 }
 
                 // The blast zone is resolved before the ground snap. With the old
@@ -1202,18 +1219,24 @@ namespace FTT.FighterSim {
             // Drop-through stays available while attacking or blocking, matching
             // Story's IsDropThroughAllowed states; plain jumps do not.
             // Shieldstun (V7.3) locks it with everything else.
-            if (allowDropThrough && jumpPressed && downHeld && fighter.IsGrounded != 0 && !rooted && !onSolidBaseFloor) {
-                fighter.DropThroughFrames = 30;
-                fighter.IsGrounded = 0;
-                fighter.Velocity.y = FP64.FromInt(-2);
+            // CM-MOVE (6.3): the double tap of Down drops too (both inputs, both
+            // modes); TryDoubleTapDropThrough also opens the window on a first tap.
+            if (allowDropThrough && fighter.IsGrounded != 0 && !rooted
+                && TryDoubleTapDropThrough(ref fighter, ref action, in runtime, onSolidBaseFloor)) {
+                // Dropped by the double tap.
+            } else if (allowDropThrough && jumpPressed && downHeld && fighter.IsGrounded != 0 && !rooted && !onSolidBaseFloor) {
+                BeginDropThrough(ref fighter);
             } else if (allowJump && jumpPressed && fighter.IsGrounded != 0 && !rooted) {
                 fighter.Velocity.y = tuning.JumpSpeed * statusMoveMultiplier * jumpBuffMultiplier;
                 fighter.IsGrounded = 0;
                 fighter.RemainingJumps = tuning.MaxJumpCount - 1;
+                // CM-MOVE (Q5): the fighter's own jump — a released Jump short-hops it.
+                MarkOwnJump(ref action);
                 FighterActionRules.OnActionAccepted(ref fighter, ref verb, ref defense, ref action, FighterActionKind.Jump);
             } else if (allowJump && jumpPressed && fighter.IsGrounded == 0 && fighter.RemainingJumps > 0 && !rooted) {
                 fighter.Velocity.y = tuning.JumpSpeed * statusMoveMultiplier * jumpBuffMultiplier;
                 fighter.RemainingJumps--;
+                MarkOwnJump(ref action);
                 FighterActionRules.OnActionAccepted(ref fighter, ref verb, ref defense, ref action, FighterActionKind.AirJump);
             }
         }
@@ -2399,6 +2422,19 @@ namespace FTT.FighterSim {
             if (attackerRuntime.AttackPhase != FighterBasicAttackRules.PhaseActive) return;
             if ((attackerRuntime.AttackFlags & FighterBasicAttackRules.FlagHitResolved) != 0) return;
             if (attacker.Stocks <= 0) return;
+
+            // CM-MOVE (decision 5.2): the ledge attack's strike, a single strike
+            // with the air strike's hit model (FighterCombatSystem.LedgeAttack.cs).
+            if ((attackerRuntime.AttackFlags & FighterBasicAttackRules.FlagLedgeAttack) != 0) {
+                FighterHitOutcome ledgeOutcome = ApplyLedgeAttackSwing(
+                    ref attacker, ref attackerRuntime, ref attackerVerb, in attackerTuning,
+                    ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
+                    ref targetCounter, out int ledgeDamage);
+                OnSwingResolved(
+                    ref attackerRuntime, ref attackerVerb, ledgeOutcome, ledgeDamage,
+                    FTT.Combat.BasicComboRules.MomentumRefundFramesFor(FTT.Combat.BasicComboRules.VariantChain, 0));
+                return;
+            }
 
             // GU-A (2026-10-12): the single air strike — string hit 1's box and
             // knockback at one basic, never a launch. Routed before the

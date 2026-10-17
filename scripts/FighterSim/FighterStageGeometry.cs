@@ -34,6 +34,21 @@ namespace FTT.FighterSim {
             SurfaceY - FighterLedgeRules.HangDepth);
 
         /// <summary>
+        /// CM-MOVE (decision 5.2, 2026-10-16): where every Fighter ledge get-up
+        /// stands the fighter — on the surface,
+        /// <see cref="FTT.Combat.BasicComboRules.LedgeStandInsetUnits"/> (0.5 u)
+        /// inside the <paramref name="side"/> end, or at the centre of a platform
+        /// narrower than that.
+        /// </summary>
+        public FPVector2 StandPosition(int side) {
+            FP64 inset = FP64.Min(LedgeStandInset, HalfWidth);
+            return new FPVector2(side == 0 ? EdgeX(0) + inset : EdgeX(1) - inset, SurfaceY);
+        }
+
+        private static readonly FP64 LedgeStandInset =
+            FP64.FromDouble(FTT.Combat.BasicComboRules.LedgeStandInsetUnits);
+
+        /// <summary>
         /// True when a fighter at <paramref name="position"/> is inside the capture
         /// box of <paramref name="side"/>: within
         /// <see cref="FighterLedgeRules.CaptureHalfWidth"/> horizontally of the edge
@@ -186,6 +201,29 @@ namespace FTT.FighterSim {
             FP64 edge = FloorSegments[segmentIndex].EdgeX(side);
             return edge > LeftWall && edge < RightWall;
         }
+
+        /// <summary>
+        /// CM-MOVE test seam (2026-10-16): a geometry with the legacy arena's
+        /// walls, ceiling and blast zone and the caller's platforms (and optional
+        /// floor segments), so a suite can put a one-way top at an exact height —
+        /// the lip pop's 0.2 u band and the double-tap drop-through are pinned this
+        /// way. Never a production stage: no catalog entry resolves to it.
+        /// </summary>
+        internal static FighterStageGeometry ForTest(
+            string stageID,
+            FighterStagePlatform[] platforms,
+            int spawnDistance = 4,
+            FighterStagePlatform[] floorSegments = null) => new(
+            stageID: stageID,
+            leftWall: FP64.FromInt(-10),
+            rightWall: FP64.FromInt(10),
+            ceiling: FP64.FromInt(9),
+            bottomBlastZone: FP64.FromInt(-5),
+            spawnDistance: spawnDistance,
+            platforms: platforms ?? NoPlatforms,
+            hazardAnchorXs: NoHazardAnchors,
+            orbAnchors: NoOrbAnchors,
+            floorSegments: floorSegments);
 
         /// <summary>Legacy flat arena identical to the original hardcoded bounds.</summary>
         public static FighterStageGeometry Default { get; } = new(
@@ -558,6 +596,29 @@ namespace FTT.FighterSim {
             if (segmentIndex >= FloorSegments.Length) return false;
             if (!IsFloorLedge(segmentIndex, side)) return false;
             position = FloorSegments[segmentIndex].HangPosition(side);
+            return true;
+        }
+
+        /// <summary>
+        /// CM-MOVE (decision 5.2): the get-up stand position for a snapshotted
+        /// anchor — <see cref="FighterStagePlatform.StandPosition"/> of the
+        /// platform or floor segment the anchor names, with exactly
+        /// <see cref="TryGetHangPosition"/>'s anchor rules, so the two can never
+        /// disagree about an anchor.
+        /// </summary>
+        public bool TryGetStandPosition(int anchor, out FPVector2 position) {
+            position = FPVector2.Zero;
+            if (anchor < 0) return false;
+            int index = anchor / 2;
+            int side = anchor % 2;
+            if (index < Platforms.Length) {
+                position = Platforms[index].StandPosition(side);
+                return true;
+            }
+            int segmentIndex = index - Platforms.Length;
+            if (segmentIndex >= FloorSegments.Length) return false;
+            if (!IsFloorLedge(segmentIndex, side)) return false;
+            position = FloorSegments[segmentIndex].StandPosition(side);
             return true;
         }
     }
