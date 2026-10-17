@@ -16,8 +16,10 @@ namespace FTT.Characters {
 	/// <para>Now gravity runs every tick of the cast unless the ability says it
 	/// holds its owner off it (<see cref="FTT.Combat.BaseSpecial.SuspendsOwnerGravityNow"/>,
 	/// true exactly where the Fighter sim suspends gravity, or where the kit
-	/// rewrites the owner's velocity every tick of a phase), read as a held jump so
-	/// a boost is never cut by the short-hop band, then capped by the ability's
+	/// rewrites the owner's velocity every tick of a phase), with the short-hop
+	/// band off so a boost is never cut by it, and the apex hang reading Jump live
+	/// (CM-FIXB-STORY, finding B11, decision 6.1: it used to read Jump as held,
+	/// which hung a recovery with Jump released), then capped by the ability's
 	/// <see cref="FTT.Combat.BaseSpecial.OwnerFallSpeedCapNow"/> (Leonardo's glide
 	/// sink). Story only: nothing in the Fighter sim reads either member.</para>
 	/// </summary>

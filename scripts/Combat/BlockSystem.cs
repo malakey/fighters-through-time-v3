@@ -386,15 +386,21 @@ namespace FTT.Combat {
 
         public override void _PhysicsProcess(double delta) {
             // Shieldstun and the lockout share the owner's hitstop suspension:
-            // a frozen fighter's timers do not tick (mirrors the sim, where
-            // TickCounters is skipped during hitstop).
+            // a fighter frozen in hitstop does not tick them (mirrors the sim,
+            // where TickCounters is skipped during hitstop).
             if (_owner != null && _owner.IsInHitstop) return;
+            // CM-FIXB-STORY (finding B4): shieldstun is the hero's own stance
+            // lock, not passive recovery, so it runs on the hero's clock through
+            // their own Time Freeze. The Chronal Extractor's discharge and the
+            // Collapse Tremor's debris keep running in a freeze and are blockable
+            // since 7.4; frozen with the world, the shieldstun of such a block held
+            // the hero in the stance until the thaw.
+            if (_shieldStunTimer > 0f) _shieldStunTimer -= (float)delta;
             // V7.6 Time Freeze suspends passive combat recovery: the design is
             // explicit that "these rules override ordinary live-play
             // regeneration", so a five-second freeze may not hand the player a
-            // free shield charge.
+            // free shield charge. The shatter lockout holds with it.
             if (_owner != null && _owner.TimeFrozen) return;
-            if (_shieldStunTimer > 0f) _shieldStunTimer -= (float)delta;
             // V7.3 shatter lockout: regen is held (interval re-armed) while it
             // runs, so the first charge lands one interval after it expires.
             if (_lockoutTimer > 0f) {

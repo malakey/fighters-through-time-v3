@@ -1,7 +1,9 @@
+using System.Threading.Tasks;
 using FTT.Characters;
 using FTT.Combat;
 using FTT.Core;
 using FTT.Enemies;
+using FTT.Environment;
 using GdUnit4;
 using Godot;
 using static GdUnit4.Assertions;
@@ -296,7 +298,208 @@ public class StoryPerfectBlockTests {
         }
     }
 
+    // === 5. The hero's own Time Freeze (CM-FIXB-STORY, findings B4 and B6) =======
+    // During the hero's own Time Freeze the world is frozen but the hero acts on
+    // its own clock, and two blockable sources keep running: the Chronal
+    // Extractor's discharge (extractors are deliberately left unfrozen) and the
+    // Collapse Tremor's debris, both blockable since decision 7.4. The stance
+    // clocks — shieldstun, the perfect-block window and its lowered age — run on
+    // the hero's clock through the freeze; only passive recovery (charge regen and
+    // the shatter lockout) holds. Real physics frames, so the hero and its
+    // BlockSystem tick in the engine's own order.
+
+    [TestCase]
+    public async Task AStanceHeldIntoATimeFreezeBlocksADischargeAndItsShieldstunRunsOutOnTheHerosClock() {
+        var tree = (SceneTree)Engine.GetMainLoop();
+        Node host = Host("PerfectBlockFreezeShieldstunHost");
+        TimeFreezeController freeze = null;
+        try {
+            PlayerController hero = SpawnGroundedHero(host, "einstein");
+            BlockSystem block = hero.GetNode<BlockSystem>("BlockSystem");
+            ChronalExtractor extractor = CreateExtractor(host, hero.GlobalPosition + new Vector2(60f, 0f));
+            BufferedInputSource source = InstallSource(hero);
+            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+
+            // An ordinary stance: pressed, then held past the window, into the freeze.
+            await RealFrame(tree, source, GameplayButtons.Block, GameplayButtons.None);
+            for (int tick = 0; tick < BasicComboRules.PerfectBlockWindowFrames + 2; tick++) {
+                await RealFrame(tree, source, GameplayButtons.Block, GameplayButtons.Block);
+            }
+            AssertThat(hero.CurrentState).IsEqual(CharacterState.Blocking);
+            AssertThat(hero.IsPerfectBlockWindowOpen).IsFalse();
+            freeze = BeginTimeFreeze(host);
+            AssertThat(hero.TimeFrozen).IsTrue();
+
+            int charges = block.CurrentCharges;
+            extractor.ApplyDischargeToPlayer(hero);
+            AssertThat(block.LastBlockWasPerfect).IsFalse();
+            AssertThat(block.CurrentCharges)
+                .OverrideFailureMessage("Harness: the held stance blocks the discharge ordinarily.")
+                .IsEqual(charges - 1);
+            AssertThat(block.IsInShieldStun).IsTrue();
+
+            // Block released at once: the stance is held exactly through the
+            // shieldstun the discharge earned, then drops — mid-freeze.
+            int shieldstun = BasicComboRules.ShieldstunFramesFor(extractor.HazardDamage);
+            int heldTicks = 0;
+            for (int tick = 0; tick < shieldstun + 60 && hero.CurrentState == CharacterState.Blocking; tick++) {
+                await RealFrame(tree, source, GameplayButtons.None,
+                    tick == 0 ? GameplayButtons.Block : GameplayButtons.None);
+                heldTicks++;
+            }
+            AssertThat(hero.CurrentState)
+                .OverrideFailureMessage(
+                    "A block made during the hero's own Time Freeze must not hold the hero in the stance " +
+                    $"until the thaw: still {hero.CurrentState} after {heldTicks} ticks (shieldstun {shieldstun}).")
+                .IsEqual(CharacterState.Idle);
+            AssertThat(heldTicks > shieldstun && heldTicks <= shieldstun + 2)
+                .OverrideFailureMessage($"The stance released after {heldTicks} ticks; its shieldstun is {shieldstun}.")
+                .IsTrue();
+            AssertThat(freeze.IsFrozen).OverrideFailureMessage("Harness: the freeze must still be running.").IsTrue();
+            AssertThat(hero.TimeFrozen).IsTrue();
+
+            // Still frozen, the hero rolls away: the escape verb is not wasted.
+            await RealFrame(tree, source, GameplayButtons.Roll, GameplayButtons.None);
+            AssertThat(hero.CurrentState).IsEqual(CharacterState.Rolling);
+            AssertThat(block.CurrentCharges)
+                .OverrideFailureMessage("Charge regen still holds through the freeze.")
+                .IsEqual(charges - 1);
+        } finally {
+            EndTimeFreeze(freeze);
+            Teardown(host);
+        }
+    }
+
+    [TestCase]
+    public async Task APerfectWindowRaisedInATimeFreezeClosesOnTheHerosClockAndADropEndsItInsideTheRearmGuard() {
+        var tree = (SceneTree)Engine.GetMainLoop();
+
+        // A fresh raise in a freeze opens the window, which closes five live
+        // stance ticks later: a discharge after that is an ordinary block.
+        Node host = Host("PerfectBlockFreezeWindowHost");
+        TimeFreezeController freeze = null;
+        try {
+            PlayerController hero = SpawnGroundedHero(host, "einstein");
+            BlockSystem block = hero.GetNode<BlockSystem>("BlockSystem");
+            ChronalExtractor extractor = CreateExtractor(host, hero.GlobalPosition + new Vector2(60f, 0f));
+            BufferedInputSource source = InstallSource(hero);
+            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            freeze = BeginTimeFreeze(host);
+            AssertThat(hero.TimeFrozen).IsTrue();
+
+            await RealFrame(tree, source, GameplayButtons.Block, GameplayButtons.None);
+            await RealFrame(tree, source, GameplayButtons.Block, GameplayButtons.Block);
+            AssertThat(hero.CurrentState).IsEqual(CharacterState.Blocking);
+            AssertThat(hero.PerfectBlockFramesRemaining)
+                .OverrideFailureMessage("A fresh press in a freeze still arms the window.")
+                .IsEqual(BasicComboRules.PerfectBlockWindowFrames);
+            for (int tick = 0; tick < BasicComboRules.PerfectBlockWindowFrames; tick++) {
+                await RealFrame(tree, source, GameplayButtons.Block, GameplayButtons.Block);
+            }
+            AssertThat(hero.IsPerfectBlockWindowOpen)
+                .OverrideFailureMessage(
+                    $"The window must close {BasicComboRules.PerfectBlockWindowFrames} live ticks after the raise, " +
+                    $"freeze or not; {hero.PerfectBlockFramesRemaining} frame(s) remain.")
+                .IsFalse();
+            int charges = block.CurrentCharges;
+            extractor.ApplyDischargeToPlayer(hero);
+            AssertThat(block.LastBlockWasPerfect)
+                .OverrideFailureMessage("A discharge long after the raise is not a perfect block, freeze or not.")
+                .IsFalse();
+            AssertThat(block.CurrentCharges).IsEqual(charges - 1);
+            AssertThat(block.IsInShieldStun).IsTrue();
+        } finally {
+            EndTimeFreeze(freeze);
+            Teardown(host);
+        }
+
+        // A raise dropped in a freeze ends its window, and a re-press inside the
+        // 20-tick rearm guard neither re-arms nor inherits the old window.
+        Node mash = Host("PerfectBlockFreezeRearmHost");
+        TimeFreezeController mashFreeze = null;
+        try {
+            PlayerController hero = SpawnGroundedHero(mash, "einstein");
+            BlockSystem block = hero.GetNode<BlockSystem>("BlockSystem");
+            ChronalExtractor extractor = CreateExtractor(mash, hero.GlobalPosition + new Vector2(60f, 0f));
+            BufferedInputSource source = InstallSource(hero);
+            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            mashFreeze = BeginTimeFreeze(mash);
+
+            await RealFrame(tree, source, GameplayButtons.Block, GameplayButtons.None);
+            await RealFrame(tree, source, GameplayButtons.Block, GameplayButtons.Block);
+            AssertThat(hero.IsPerfectBlockWindowOpen).IsTrue();
+            await RealFrame(tree, source, GameplayButtons.None, GameplayButtons.Block);
+            AssertThat(hero.CurrentState).IsEqual(CharacterState.Idle);
+            for (int tick = 0; tick < 3; tick++) await RealFrame(tree, source, GameplayButtons.None, GameplayButtons.None);
+            await RealFrame(tree, source, GameplayButtons.Block, GameplayButtons.None);
+            await RealFrame(tree, source, GameplayButtons.Block, GameplayButtons.Block);
+            AssertThat(hero.CurrentState).IsEqual(CharacterState.Blocking);
+            AssertThat(hero.IsPerfectBlockWindowOpen)
+                .OverrideFailureMessage(
+                    "A re-press a few ticks after a drop, inside the 20-tick rearm guard, must not open a window " +
+                    $"during a freeze ({hero.PerfectBlockFramesRemaining} frame(s) open).")
+                .IsFalse();
+            int charges = block.CurrentCharges;
+            extractor.ApplyDischargeToPlayer(hero);
+            AssertThat(block.LastBlockWasPerfect).IsFalse();
+            AssertThat(block.CurrentCharges)
+                .OverrideFailureMessage("The mashed re-raise blocks the discharge ordinarily.")
+                .IsEqual(charges - 1);
+        } finally {
+            EndTimeFreeze(mashFreeze);
+            Teardown(mash);
+        }
+    }
+
     // === Harness =================================================================
+
+    /// <summary>The scripted source a real-frames case feeds, installed once for the whole case.</summary>
+    private static BufferedInputSource InstallSource(PlayerController hero) {
+        var source = new BufferedInputSource();
+        source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, GameplayButtons.None));
+        InputManager.Instance.SetInputSource(hero.PlayerIndex, source);
+        return source;
+    }
+
+    /// <summary>
+    /// One real physics frame on a <see cref="PlayerInputFrame.Create"/>-built
+    /// frame: the input is set at the start of a frame, before its nodes process,
+    /// and the call returns at the start of the next one (the case aligns once
+    /// with a bare <c>PhysicsFrame</c> wait first).
+    /// </summary>
+    private static async Task RealFrame(SceneTree tree, BufferedInputSource source,
+        GameplayButtons held, GameplayButtons previousHeld) {
+        source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, held, previousHeld));
+        await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+    }
+
+    /// <summary>
+    /// The real Time Freeze controller, its own clock stopped (the case decides
+    /// when the freeze ends), begun on the host's hero.
+    /// </summary>
+    private static TimeFreezeController BeginTimeFreeze(Node host) {
+        StoryManager.Instance?.SetTimeFreezeCooldown(0f);
+        var freeze = new TimeFreezeController { Name = "PerfectBlockTimeFreeze" };
+        host.AddChild(freeze);
+        freeze.SetPhysicsProcess(false);
+        AssertThat(freeze.TryBeginTimeFreeze()).OverrideFailureMessage("Harness: the freeze must begin.").IsTrue();
+        return freeze;
+    }
+
+    private static void EndTimeFreeze(TimeFreezeController freeze) {
+        if (freeze != null && GodotObject.IsInstanceValid(freeze) && freeze.IsFrozen) freeze.EndFreeze(early: true);
+        StoryManager.Instance?.SetTimeFreezeCooldown(0f);
+    }
+
+    /// <summary>A Chronal Extractor whose own cycle is stopped: only the case's calls discharge it.</summary>
+    private static ChronalExtractor CreateExtractor(Node host, Vector2 position) {
+        PackedScene scene = ResourceLoader.Load<PackedScene>("res://scenes/templates/ChronalExtractorTemplate.tscn");
+        var extractor = scene.Instantiate<ChronalExtractor>();
+        host.AddChild(extractor);
+        extractor.GlobalPosition = position;
+        extractor.SetPhysicsProcess(false);
+        return extractor;
+    }
 
     /// <summary>One hero tick on a <see cref="PlayerInputFrame.Create"/>-built frame, so the press edge is explicit.</summary>
     private static void Send(PlayerController hero, GameplayButtons held, GameplayButtons previousHeld) {

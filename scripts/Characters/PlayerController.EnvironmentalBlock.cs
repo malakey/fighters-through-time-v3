@@ -8,7 +8,9 @@ namespace FTT.Characters {
 	/// <c>PROVISIONAL-STORY-HAZARD-BLOCK-SOURCES</c>): a raised, front-facing block
 	/// absorbs a Story hazard tick for one charge, as the sim's D03c already does.
 	///
-	/// <para><b>Order</b> (D01/D02b): the D04 Defy window, then Temporal Aegis and
+	/// <para><b>Order</b> (D01/D02b): hit eligibility and invulnerability (since
+	/// CM-FIXB-STORY: dead or respawning, post-rewind protection, the roll, the
+	/// landing tech, the knockdown), then the D04 Defy window, then Temporal Aegis and
 	/// the HP barrier, then — for a blockable source, with the hero in Blocking,
 	/// the origin in front and a charge left — the ordinary block through
 	/// <c>BlockSystem.ResolveHit</c> as a Hazard-class hit (one charge, shieldstun
@@ -34,7 +36,7 @@ namespace FTT.Characters {
 			Applied = 0,
 			/// <summary>A raised front-facing block absorbed it (a shatter included).</summary>
 			Blocked = 1,
-			/// <summary>The D04 Defy window, Temporal Aegis or the barrier prevented it.</summary>
+			/// <summary>An invulnerable body refused it, or the D04 Defy window, Temporal Aegis or the barrier prevented it.</summary>
 			Protected = 2
 		}
 
@@ -52,6 +54,14 @@ namespace FTT.Characters {
 		public EnvironmentalHitResult ApplyEnvironmentalHit(
 			int damage, Vector2 hitOrigin, bool blockable, out int damageApplied, bool appliesHitstop = false) {
 			damageApplied = 0;
+			// CM-FIXB-STORY (findings B7 / B21; D01: hit eligibility and
+			// invulnerability first): a body the HP pipeline would refuse is
+			// refused here, above every layer, so a post-rewind-protected,
+			// tech-locked, downed or rolling hero spends no Aegis, barrier or block
+			// charge, takes no shieldstun and cannot shatter on a tick it is immune
+			// to (the sim's ResolveFighterHit refuses an invulnerable fighter
+			// first). Callers treat it like any unblocked result.
+			if (RefusesEnvironmentalHit) return EnvironmentalHitResult.Protected;
 			// D04: the protected window covers damaging stage hazards too.
 			if (IsDefyProtected) return EnvironmentalHitResult.Protected;
 			// D02b: Aegis and the barrier come before the block.
@@ -63,6 +73,16 @@ namespace FTT.Characters {
 			damageApplied = ApplyEnvironmentalRemainder(remaining, appliesHitstop, periodicTick: false);
 			return EnvironmentalHitResult.Applied;
 		}
+
+		/// <summary>
+		/// The refusals <see cref="ApplyDamage(int)"/> makes below the layers —
+		/// dead or respawning, post-rewind protection, roll invulnerability, the
+		/// landing tech and the knockdown — read once, before them.
+		/// </summary>
+		private bool RefusesEnvironmentalHit =>
+			CurrentState is CharacterState.Dead or CharacterState.Respawning
+			|| _rollInvulnerable
+			|| IsConfirmInvulnerable;
 
 		/// <summary>
 		/// The block layer: the ordinary Story block, fed a Hazard-class payload
