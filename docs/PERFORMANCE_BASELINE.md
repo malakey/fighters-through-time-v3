@@ -35,7 +35,9 @@ This is the Package 0 comparison baseline, not a release-performance certificati
 is met — worst-case depth-7 resimulation costs **0.058 ms median / 0.104 ms p95** against an 8.000 ms
 budget, with zero budget breaches over 3,000 measured corrections and a largest full-state snapshot
 of 2,699 bytes. Recorded 2026-08-08 by C1 across the ten production stage geometries; the A4 numbers
-this section originally carried were Florence-only.
+this section originally carried were Florence-only. The gate still passed when re-measured on
+2026-10-16, after the combat and movement update: 0.084 ms median / 0.168 ms p95, zero breaches, a
+largest snapshot of 4,473 bytes (the re-measure section below).
 
 Captured 2026-08-08 on the same Windows development machine, Godot 4.7.1 .NET / .NET 10 Debug build.
 
@@ -96,6 +98,55 @@ A worst-case correction therefore costs roughly **0.7 % of the 8 ms budget** and
 p95 exceeds twice the budget or that stage records any budget breach, so ordinary CI variance cannot
 flap the gate; the recorded medians are the number that matters. The spread across stages is under
 0.012 ms of median — hazard identity is not a meaningful cost driver at this entity scale.
+
+### Re-measure, 2026-10-16 (the combat and movement update closeout)
+
+**Gate verdict: PASS across all ten stages, zero breaches.** Re-measured on 2026-10-16 at the
+closeout of the combat and movement update (`docs/COMBAT_MOVEMENT_UPDATE_2026-10-16_PLAN.md` §4.3,
+`main` at `14374d7`, the GdUnit lock held), with the same `RollbackReadinessTests` method and command
+as above: Tesla vs Mozart, the 1,900-tick warm-up, 300 depth-7 corrections per stage, the 8.0 ms
+budget. This is the first re-measure since 2026-08-08, so it carries Packages 11–13 and the update
+together: the update added Klotho component **323** (`FighterActionStateComponent`, nine ints,
+36 B per fighter, 72 B per snapshot by its layout) and runs every Special through its authored
+startup, active and recovery, so each tick now clocks casts, the perfect-block window, the
+short-hop latch and the other new rules.
+
+| Stage | Median | Mean | p95 | Max | Snapshot | Peak entities |
+|---|---:|---:|---:|---:|---:|---:|
+| `florence_workshop` | 0.075 ms | 0.084 ms | 0.123 ms | 0.280 ms | 4,300 B | 8 |
+| `orleans_vanguard` | 0.080 ms | 0.092 ms | 0.135 ms | 0.704 ms | 4,237 B | 8 |
+| `chicago_exposition` | 0.082 ms | 0.099 ms | **0.168 ms** | 0.542 ms | 4,353 B | 10 |
+| `paris_bastille` | 0.074 ms | 0.079 ms | 0.096 ms | 0.319 ms | 4,300 B | 8 |
+| `vesuvius_caldera` | 0.071 ms | 0.080 ms | 0.144 ms | 0.243 ms | 4,344 B | 8 |
+| `nassau_flagship` | 0.077 ms | 0.078 ms | 0.090 ms | 0.190 ms | 4,374 B | 10 |
+| `alexandria_chambers` | **0.084 ms** | 0.087 ms | 0.109 ms | 0.187 ms | 4,180 B | 8 |
+| `berlin_wall` | 0.079 ms | 0.080 ms | 0.092 ms | 0.148 ms | 4,193 B | 10 |
+| `globe_theatre` | 0.078 ms | 0.084 ms | 0.120 ms | 0.259 ms | **4,473 B** | 10 |
+| `gettysburg_ridge` | 0.078 ms | 0.090 ms | 0.140 ms | 0.313 ms | 4,245 B | 9 |
+
+| Metric | 2026-08-08 | 2026-10-16 |
+|---|---:|---:|
+| Worst median across ten stages | 0.058 ms (`globe_theatre`) | 0.084 ms (`alexandria_chambers`) |
+| Worst p95 across ten stages | 0.104 ms (`orleans_vanguard`) | 0.168 ms (`chicago_exposition`) |
+| Worst max across ten stages | 0.357 ms (`nassau_flagship`) | 0.704 ms (`orleans_vanguard`) |
+| Budget breaches over 3,000 measured corrections | 0 | 0 |
+| Largest full-state snapshot | 2,699 bytes (`globe_theatre`) | 4,473 bytes (`globe_theatre`) |
+| Peak concurrent simulated entities | 12 (`globe_theatre`) | 10 (four stages) |
+
+A worst-case correction still costs about **1 % of the 8 ms budget** and about **0.5 % of a
+16.67 ms frame**. The largest snapshot grew 1,774 bytes since 2026-08-08; component 323 accounts for
+72 of them by its layout, and the rest accrued over Packages 11–13 (which added components 312–322
+and grew 303, 309 and 320) and through any change in the entity mix. No snapshot was measured between
+the two dates, so the growth cannot be split further, and the change in peak entities was not
+investigated. Raw log:
+`D:/Projects/genre_review_2026-10-13/closeout/rollback_readiness.log`.
+
+**A shared machine can fail the gate on one correction.** The case fails on any budget breach, and the
+depth-7 cost is wall-clock: during the update two workstream full runs on a machine shared with other
+checkouts' builds failed it on isolated over-budget corrections beside normal medians (two on
+`alexandria_chambers`, max 10.942 ms, in CM-BOT's run; one of 17.4 ms on `paris_bastille` in
+CM-SIM's), and both passed when re-run alone under the lock.
+Re-run the class alone before reading a breach as a cost.
 
 ### Convergence and history bounds
 

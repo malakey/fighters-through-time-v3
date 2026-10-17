@@ -2274,114 +2274,593 @@ Each workstream's handoff (`docs/handoffs/CM_<id>.md`) is the full record. The e
 
 Every agent choice has a ledger row in the section named in §7.4.
 
+Filled at the closeout (2026-10-17) from the eighteen handoffs and the orchestrator's merge record. Each heading gives the branch tip (the handoff commit) and the merge commit on `main`. Every total below is the `[TestCase]` attribute count at that merge commit, which equals the full run's `Total:` there. Where a later fix round changed what a workstream shipped, its entry says so. The handoffs were not edited afterwards, so where two disagree the later handoff wins.
+
 ### Questions (§0.1)
 
-- Q1 … Q8: *(ruling, or "default used", with the date)*
+All eight were ruled by the user on 2026-10-16, before Phase A (`D:/Projects/genre_review_2026-10-13/DECISIONS_combat_movement.md`, "Plan questions"). Q1, Q5, Q6 and Q7 went against the drafted default.
+
+- **Q1** — "**Brake to a stop, both modes**: grounded casts brake over the 4-frame run-stop ramp, aerial casts keep their drift; Story changes too." Not the default. Built by CM-SIM in both modes (Story: `PlayerController.ApplySpecialCastBrake`). `USER-SPECIAL-CAST-BRAKE`.
+- **Q2** — "**Startup only** (a Story rule; `.tres` flags stay false)." The default. Built by CM-STORY. `USER-STORY-ULTIMATE-ARMOR-STARTUP-ONLY`.
+- **Q3** — "**Still shatters.**" The default. Built by CM-BLOCK. `USER-SHIELD-BREAKER-BEATS-PERFECT-BLOCK`.
+- **Q4** — "**Keep ×2.5, measure every hero, ledger any below 45 %.**" The default. CM-MOVE measured every hero's 1-tick tap at 41.6–41.9 % of the held apex, all below 45 % (2- and 3-tick taps 46.2–51.7 %). Nothing was retuned. `USER-SHORT-HOP-MULTIPLIER-KEPT`, `PROVISIONAL-SIM-SHORT-HOP-HEIGHT`.
+- **Q5** — "**Own jump only, both modes** (Story's band gains the same gate)." Not the default. Built by CM-MOVE (323 `ActionFlags` bit 3 `RiseFromOwnJump`; Story's `StoryAirPhysics.SelectBand`). `USER-SHORT-HOP-OWN-JUMP-ONLY`.
+- **Q6** — "**Add the Fighter lip pop**: a fighter within 0.2 u below a one-way top at its apex or falling lands on it, resolving before ledge capture; the sim head-clip nudge stays a no-op." Not the default. Built by CM-MOVE. `USER-SIM-LIP-POP`, `PROVISIONAL-SIM-LIP-POP`.
+- **Q7** — "**Stop it like the sim** (zero horizontal velocity at recovery start)." Not the default, so `VERIFY-RAIL-CHARGE-RECOVERY-CARRY` was never opened. Built by CM-STORY; CM-FIXA-STORY added the startup hold, so a running Lincoln travels 300 px from the press. `USER-RAIL-CHARGE-STOPS-LIKE-THE-SIM`, `FIX-STORY-RAIL-CHARGE-RECOVERY-CARRY`.
+- **Q8** — "**Fighter only, both levers** (settled by the round-4 option text)." The default. Built by CM-HIT. `USER-RESPAWN-PROTECTION-FIGHTER-ONLY`.
 
 ### Phase A
 
-*(merge order CM-BOT → CM-STORY → CM-ULT → CM-INPUT → `cm-sim-a0` → CM-SIM)*
+*Merge order as planned: CM-BOT → CM-STORY → CM-ULT → CM-INPUT → `cm-sim-a0` → CM-SIM. All five branched from the plan commit `735296f`.*
 
-#### CM-BOT — the re-hit counter (`<sha>`, merged `<sha>`)
+**One departure from the order of work (§3, step 4).** CM-SIM did not rebase onto the merged CM-BOT..CM-INPUT before its final full run. Its branch base is still `735296f`, and its last run (3273) was in its own worktree. The orchestrator merged `cm-sim-a0` and then the rest onto `da08d70`, and the merged Phase A was green at 3332, the base every Phase A fix agent reports.
 
-- …
-- Test delta: **+?** (declared +7). Handoff: [CM_BOT.md](handoffs/CM_BOT.md).
+#### CM-BOT — the re-hit counter (`c12144c`, merged `cfba295`)
 
-#### CM-STORY — Story combat feel (`<sha>`, merged `<sha>`)
+- The observation (`PlayerController.DamageTaken`, in `PlayerController.DamageObservation.cs`) also carries `HitboxID`, the only way to tell a pooled shot from a melee hit at the chokepoint. The report gains keys beyond the brief: `xsrc_damage_30`, `xsrc_pct`, `xsrc_gap_histogram`, the log's `xgap` / `xk`, the `unobserved_hits` self-check and the CSV's `hits_taken`.
+- The engine cases deliver real mob and boss attack payloads through `PlayerController.TakeDamage`, instead of driving two mob AIs into swinging on cue.
+- Its one full run read `Failed: 1` of 3235: a `RollbackReadinessTests` wall-clock breach on `alexandria_chambers` (max 10.942 ms against the 8.0 ms budget), on a machine shared with other worktrees. The class passed 22/22 alone, and the branch changed nothing under `scripts/FighterSim/`, `scripts/Networking/` or `tests/Determinism/`.
+- Superseded by CM-FIXA-PRES: periodic ticks (status, zone pulses, drowning, stage-hazard DPS) are neither hits nor predecessors, and the combat-only figure `xsrc_30_combat` leaves hazard contacts out on both sides. CM-BOT's Decisions 2 and 6 are corrected in `PROVISIONAL-REHIT-COUNTER-RULES`.
+- Test delta: **+7** (declared +7). Handoff: [CM_BOT.md](handoffs/CM_BOT.md).
 
-- …
-- Test delta: **+?** (declared +20). Handoff: [CM_STORY.md](handoffs/CM_STORY.md).
+#### CM-STORY — Story combat feel (`144bd15`, merged `7051f53`)
 
-#### CM-ULT — the Ultimate telegraph (`<sha>`, merged `<sha>`)
+- Leonardo's glide caps its descent through a new `BaseSpecial.OwnerFallSpeedCapNow`, applied between gravity and the move. The plan said he needs no override, but kits write velocity after `MoveAndSlide`, so the old post-move clamp would have let him fall at about 87 px/s. The Daedalus dive suspends gravity (`PROVISIONAL-MOVEMENT-ABILITY-GRAVITY-SCOPE`).
+- Lincoln's Rail Charge wrote its whole velocity vector, zeroing Y every tick, not X only as the plan assumed. It now writes X only (`DriveCharge`), and `OnActive` drives the charge, so it travels exactly 300.0 px. With Q7 alone it would have travelled 290 px.
+- Mozart settles onto his staff, whose top is flush with his feet, instead of hovering 6 px above it as the plan said.
+- Leonardo's first glide frame still rises 0.07 px; the plan's "descends from his first glide frame" holds from frame 2. Nothing was forced.
+- The reworded `systems_card_echo_body` row stays at `en.csv` :959 under a `# CM-STORY` comment, clear of CM-INPUT's end-of-file block.
+- Its open items 1 and 2 (the other kit motions losing their first active tick; the Rail Charge's running startup slide) were fixed by CM-FIXA-STORY.
+- Test delta: **+21** (declared +21; the skeleton's "+20" predated Q7). Handoff: [CM_STORY.md](handoffs/CM_STORY.md).
 
-- …
-- Test delta: **+?** (declared +7). Handoff: [CM_ULT.md](handoffs/CM_ULT.md).
+#### CM-ULT — the Ultimate telegraph (`5186474`, merged `d4d0043`)
 
-#### CM-INPUT — devices, chord, CPU jump hold (`<sha>`, merged `<sha>`)
+- The red tint rides a dedicated glow-arbiter flag (`SetUltimateTelegraph`) instead of being re-asserted on the tint-override channel each frame. The ownership row allowed this; the dossier's primary text did not use it. A hit flash now rides on top of the red, and the red returns as the flash ends.
+- The tint is steady. The ruling says "red flash"; the dossier said steady, which keeps it C01a-safe. Left for the user (`USER-ULT-TELEGRAPH`, `PROVISIONAL-ULT-TELEGRAPH-LOOK`).
+- A `TransitionTo` exit block resets a stunned or killed Mirror clone's activation phase. The dossier named that defect but gave it no row (`FIX-MIRROR-ULT-PHASE-EXIT`).
+- `EnemyAbilityExecutorTests` needed no in-place change. `EnemyAbilityExecutor.cs` gained one `using FTT.Combat;` line beyond "colour reads only".
+- Amended by CM-FIXA-PRES: the Fighter telegraph is derived from a live, free caster, so it drops on the KO tick; and the tint is never warmed by the hero aura, the Hard Mirror clone's included.
+- Test delta: **+7** (declared +7). Handoff: [CM_ULT.md](handoffs/CM_ULT.md).
 
-- …
-- Test delta: **+?** (declared +24). Handoff: [CM_INPUT.md](handoffs/CM_INPUT.md).
+#### CM-INPUT — devices, chord, CPU jump hold (`6fc1aff`, merged `da08d70`)
 
-#### CM-SIM A0 — the sim foundation (`cm-sim-a0` = `<sha>`, merged `<sha>`)
+- `DeviceActivityProbeForTesting` also replaces the per-device sample reads, so a test can show the switching press arriving as a fresh edge.
+- The Story readiness report sits at the top of `_PhysicsProcess`, not the end. Hitstop and the tech lock return early, so a report at the end would go stale mid-freeze.
+- `LocalFighterPause` gained a FollowLastUsed resolution path, so a pad-only Versus CPU or Holodeck player whose pad drops can resume from the keyboard.
+- `GamepadOverrideRepairTests` needed three more in-place edits than the plan listed (a stale Ultimate's pad half is now dropped, not repaired onto LB + RB), and two `LocalFighterPauseTests` topology cases changed.
+- The build no longer shows `CS0649`, because the test probe now assigns `BlockModeOverrideForTesting`.
+- Superseded by CM-FIXA-INPUT:
+  - `BeginLocalJoin` pre-claims no slot. CM-INPUT kept player 1 on whatever device drove the menus, so after keyboard-driven menus two pads could not both join.
+  - The join press is consumed, and `ui_cancel` follows the device that pressed it.
+  - Bound pad axes (the triggers) count as activity.
+  - A pause forgets chord waits but keeps masks.
+  - A saved pad chord switched off with no pad route is restored.
+  - The Mirror full-hop case, whose measured arc included a queued air jump, now measures one ground jump: 186.4 px, a held single jump's height.
+- Test delta: **+24** (declared +24). Handoff: [CM_INPUT.md](handoffs/CM_INPUT.md).
 
-- …
-- Test delta: **+?** (declared +12).
+#### CM-SIM A0 — the sim foundation (`cm-sim-a0` = `b62bf1a`, merged `a6d9bf2`)
 
-#### CM-SIM — the Special phase machine (`<sha>`, merged `<sha>`)
+- Commits 1–5, in §3.3's order: `9ca55ea` (the split), `d45a637` (the empty chokepoint), `a4545af` (component 323, inert), `f9be945` (the one named sim hurtbox), `b62bf1a` (1.1(3), 2.3, 10.1, the inert cast plumbing).
+- The replay-hash contract held, on a probe of 24 seeded matches:
+  - commits 1, 2 and 4 left all 24 hashes identical to their predecessor;
+  - commit 3 moved all 24 (323's storage is hashed), and two runs agreed;
+  - commit 5 moved 10 of 24.
+- Commit 5's full run read `Failed: 2` of 3241. One was a harness bug in the new `NoNotYetRefusalIsClassifiedInsideTheTechLock`, fixed before tagging. The other was a wall-clock `RollbackReadinessTests` breach (17.4 ms on `paris_bastille`), green on an isolated rerun.
+- Test delta: **+12** (declared +12).
 
-- …
-- Test delta: **+?** (declared +31; +43 with A0). Handoff: [CM_SIM.md](handoffs/CM_SIM.md).
+#### CM-SIM — the Special phase machine (`4ca78e7`, merged `5434151`)
 
-**Phase A merged: ? = 3228 + ?** (`<sha>`).
+- Commits 6–10: `aaf6e6d` (`StorySpecialTimingProbeTests`), `366bfa2` (the phase machine), `c130fa6` (the Q1 brake, Story half), `36b1ee7` (the three new Fighter suites), `4ca78e7` (the handoff). The probe agreed with §2.1.6's reading (Story slid at 324 px/s and fired on T+S−1), so commit 6 did not stop the work.
+- Divine Piercing's lunge starts in the movement system's `AdvanceSpecialCast` on the active-entry tick, not in the fire pass, so its 12 moving ticks are exactly its 12 active ones. `FighterKitMotion.Reach.cs` is untouched.
+- `FighterCounter.cs` is untouched: the Delegated marker is written at acceptance and cleared when Foresight's stance ends.
+- Two new partial files (`FighterMovementSystem.SpecialCast.cs`, `PlayerController.SpecialCastMotion.cs`) instead of growing the system file or touching more `PlayerController` lines.
+- There were no cast or impact VFX to retime: the driver emits no Fighter ability VFX.
+- `FighterSpecialTimingTests` case 5 pins the Q1 brake, not §2.1.6's pre-ruling case 5 ("holds its entry horizontal velocity").
+- The driver's "not yet" classifier still passes no 323 state. The cast discard zeroes `PressedButtons`, so nothing flashes during a cast.
+- `TeslaBlinkSimTests`' hand-built shooter gained `StartupFrames = 0`, and `RollbackReadinessTests.RunConvergence` gained a `Func<FighterSimulation>` overload.
+- Measured:
+  - The hand-built default replay hash did not move across commit 7, so the 0 / 1 / 0 fallback reproduces press-tick timing.
+  - Story fires a Special's effect on T+S−1, one tick before the sim's T+S (`VERIFY-SAME-TICK-VERB-PARITY` (8)).
+  - The sim still accepts an Ultimate on the tick Block is released (`VERIFY-SAME-TICK-VERB-PARITY` (9)).
+  - A blocked Shield-Breaker still lets the attacker's first Ultimate press come 39 / 45 / 32 frames (Divine Piercing / the Emancipator / Splitting Strike) before the dazed blocker can act (`USER-SHIELD-BREAKER-STARTUP`).
+- The knockdown landing-tick and A02 thaw-tick checks (§3.3) both leaked:
+  - Special 1, Special 2, the movement ability, the direct grab and a paid Ultimate all started on a missed tech's landing tick;
+  - a grab and the movement ability started on the hitstop thaw tick of an armoured wind-up.
 
-### Phase A review fixes (rounds A1 and A2)
+  Both were recorded per §8, and CM-FIXA-SIM fixed both (`VERIFY-SIM-KNOCKDOWN-LANDING-TICK`, `VERIFY-SIM-A02-THAW-TICK`).
+- Test delta: **+33**; **+45** with A0 (declared +33 / +45 after Q1; the skeleton's "+31; +43" predated Q1's two Story cases). Handoff: [CM_SIM.md](handoffs/CM_SIM.md), with its Phase B guide. Its §6 sentence "the knockdown branch's own discard covers L+1 on" and its §9 "The two checks" are superseded by CM_FIXA_SIM.md.
 
-- …
+**Phase A merged: 3332 = 3228 + 104** (`5434151`), exactly as declared.
+
+### Phase A review fixes (one round, not A1 and A2)
+
+**The review.** CM-SIM finished inside Phase A, so the plan's split (A1 on CM-BOT..CM-INPUT + A0, A2 on the phase machine) was not needed. One adversarial review ran over the whole merged Phase A at `5434151`: six areas, two refuting verifiers per finding.
+- **29 findings.** 15 were confirmed by both verifiers (2 high, 3 medium, 10 low). 14 were dropped: 7 refuted by both, 7 split.
+- **22 went to the fix round,** under the orchestrator's rulings:
+  - the 15 confirmed;
+  - five split ones: a Special cast accepted on the knockdown landing tick, the A02 thaw tick, the trigger axes, the Local Versus pre-claim, and the tech test's dead BasicAttack row;
+  - two refuted by both: the running Rail Charge's startup slide, and the Hard Mirror's aura-warmed tint.
+- **Seven were not taken:** the 8.4 Rift owner-speed overlap reading the hurtbox; the 8.1 floor reading post-buff damage; two on the 7.1 player-side shake gate; the CPU jump sustain ending before a buffered Story jump; the steady telegraph against "red flash" (left to the user); and a punished, prorated hit showing the gold Punish number rather than a dimmed one (the built rule: Punish wins).
+- Record: `D:/Projects/genre_review_2026-10-13/phaseA_review.json`; fix inputs `fixA_inputs.json`.
+
+The four fix agents' worktrees were created at the stale `d2e52e0` (the 2026-10-07 baseline), and each agent moved its branch to `5434151` before any edit. The Phase B fix round's worktrees started the same way, and were moved to `740d712`.
+
+#### CM-FIXA-SIM — the sim half (`6f668f0`, merged `891b954`)
+
+- Nine findings, under the orchestrator's rulings (a)–(d):
+  - **(a)** A missed-tech knockdown and its get-up lock every action from the landing tick through the get-up, hitstop thaw ticks included, and a running Special cast is interrupted by the knockdown.
+  - **(b)** The tech's invulnerability lasts as long as its action lock: 13 ticks counting the landing tick. It used to last about 24.
+  - **(c)** No action starts on the hitstop thaw tick of an Ultimate caster in its wind-up or whiff recovery, and the DI read is kept.
+  - **(d)** The recovery Block-cancel tick keeps only the Block stance (`PressedButtons` masked to Block). This supersedes CM-SIM decision 13.
+- Also fixed:
+  - Divine Piercing's Block cancel opens on its recovery frame 0.
+  - An aerial Foresight gets the half gravity and a planted stance.
+  - A stock-loss tick takes no Special press and resolves no melee contact from the respawn platform.
+  - The tech test's dead BasicAttack row is skipped.
+- Recorded, not fixed:
+  - the grabber's throw-animation invulnerability outliving the throw (fixed later by CM-HIT, `FIX-SIM-THROW-GRANT-OUTLIVES-THROW`);
+  - the CPU grab mirror's missing knockdown and A02 terms (added later by CM-CANCEL).
+- Test delta: **+10** (declared +10). Handoff: [CM_FIXA_SIM.md](handoffs/CM_FIXA_SIM.md).
+
+#### CM-FIXA-STORY — Story kit motion and armour (`e902be9`, merged `33e1a86`)
+
+- Four findings.
+- Every kit motion drives its travel from `OnActive`, so its first active tick moves (`VERIFY-STORY-KIT-MOTION-FIRST-TICK`, closed):
+  - Divine Piercing 165 → 180 px;
+  - Lightning Blink 165 → 180;
+  - North Star Leap 226.67 → 240;
+  - Desert Mirage 224 → 240;
+  - Sonata Drift 170 → 180;
+  - and, for consistency, the Grand Crusade 795 → 810.
+- Rail Charge's startup holds X, so a running Lincoln travels 300.0 px from the press (it was 345.6). This joins `FIX-STORY-RAIL-CHARGE-RECOVERY-CARRY`.
+- Einstein's Rift Collapse launch no longer stuns a caught hero through the Ultimate's startup armour. The pull still moves an armoured body (`PROVISIONAL-STORY-ULTIMATE-ARMOR`).
+- Left: a running Cleopatra's 69.6 px Desert Mirage startup slide, fixed later by CM-MOVE (`FIX-STORY-DESERT-MIRAGE-STARTUP-CARRY`).
+- Test delta: **+8**. Handoff: [CM_FIXA_STORY.md](handoffs/CM_FIXA_STORY.md).
+
+#### CM-FIXA-INPUT — the input half (`48fe346`, merged `98e5e4a`)
+
+- Six findings, under the orchestrator's rulings (a)–(e).
+- **The pad-B half of the first finding did not hold on Godot 4.7.1.** The built-in `ui_cancel` is Escape only, and no pad button reaches `ui_accept` or `ui_cancel`. So a pad's B never cancelled the select, and no pad could press any GUI button anywhere. That gap had no owner, and the orchestrator added CM-PADUI for it (`FIX-PAD-MENU-ACCEPT-CANCEL`).
+- Fixed:
+  - `BeginLocalJoin` pre-claims no slot: the first device to make a join press is player 1.
+  - The join press is consumed before the GUI sees it, and `ui_cancel` is routed to the pressing device's slot.
+  - Bound pad axes count as activity, so LT (Block) and RT (Roll) move player 1.
+  - A pause or focus loss forgets chord waits but keeps masks.
+  - `InputBindingSet.RestoreUnreachableUltimateChord` restores a saved pad chord switched off that left the Ultimate no pad route.
+  - The Mirror case measures one ground jump (186.4 px). Under a mutation it fails where the old case passed.
+- Test delta: **+12**. Handoff: [CM_FIXA_INPUT.md](handoffs/CM_FIXA_INPUT.md).
+
+#### CM-FIXA-PRES — presentation and telemetry (`974ccd2`, merged `2d44fa9`)
+
+- Three findings:
+  - The Fighter wind-up telegraph is derived from a live, free caster, so it drops on the KO tick and stays off through the stock-loss freeze.
+  - The telegraph tint is never warmed by the hero aura: the Hard Mirror clone's wind-up is the canonical Unblockable red. The smother still applies.
+  - Periodic ticks are neither hits nor predecessors. That covers status ticks, zone pulses, and drowning and stage-hazard DPS, which the environmental chokepoint's observation-only `periodicTick` marks. The new `xsrc_30_combat` figure leaves hazard contacts out on both sides.
+- Left:
+  - the gold hyper-armour outline on a KO'd armoured caster (gated later by CM-HIT, `VERIFY-FIGHTER-KO-HYPERARMOR-GLOW-TICK`);
+  - the Hard clone's gold hero aura, a presentation ruling (`VERIFY-MIRROR-CLONE-HERO-AURA`).
+- A harness caveat for later driver tests: `GameManager`'s boot session has `FighterOpponentType = Cpu`, so a `FighterSimulationDriver` harness that does not set the session runs P2 as the Normal CPU.
+- Test delta: **+5**. Handoff: [CM_FIXA_PRES.md](handoffs/CM_FIXA_PRES.md).
+
+**After the Phase A fixes: 3367 = 3332 + 35** (`2d44fa9`).
 
 ### Phase B
 
-*(merge order CM-HIT → CM-BLOCK → CM-MOVE → CM-CANCEL; early start from `cm-sim-a0`: yes/no)*
+*Merge order: CM-HIT → CM-BLOCK → CM-MOVE → CM-CANCEL → CM-PADUI (the last added by the orchestrator; below). Early start from `cm-sim-a0`: no. All five branched together from `2d44fa9` (Phase A plus its review fixes, 3367 tests), not from the plan's 3332.*
 
-#### CM-HIT — hit reaction and protection (`<sha>`, merged `<sha>`)
+**The usage-limit interruption.** All five Phase B agents were stopped by a usage limit mid-work.
+- The orchestrator committed each uncommitted tree as a WIP checkpoint on its branch: CM-HIT `1b2586f`, CM-BLOCK `0be0b69`, CM-CANCEL `955450c`, CM-PADUI `a1aa580`, and one for CM-MOVE.
+- A fresh agent resumed each in place. It audited the checkpoint against the dossiers, kept what was sound, fixed what was broken, built what was missing, and recommitted in logical pieces.
+- Four branches did that with `git reset --soft 2d44fa9`, so their WIP commits are gone. CM-MOVE kept the checkpoint's tree as its first commit, `4d3c69d`, with a rewritten message (`git commit-tree`, tree unchanged).
 
-- …
-- Test delta: **+?** (declared +20). Handoff: [CM_HIT.md](handoffs/CM_HIT.md).
+**The merges.**
+- **`85ce072`, after CM-MOVE's merge.** The first full run after `23fcd22` failed one case: CM-HIT's `StoryAirDodgeTests.BeingHitRefreshesTheAirDodgeSoItCanDodgeAgainAfterHitstun` tapped Jump. Since 6.1 a released Jump short-hops with no hang, so the hero landed before the dodge ended. The orchestrator's fix-up holds Jump through the fixture's setup. The assertions are unchanged, and so is the count.
+- **CM-CANCEL's merge (`8647fd4`)** resolved conflicts in `FighterEntitySystems.cs`, `FighterKitRules.cs` and `FighterSimulationSystems.cs` (10 hunks). Every hit site CM-CANCEL moved to `ResolveFighterHit` keeps CM-BLOCK's victim-323 argument, and `ApplyIntent` and `ResolveForesightAnswer` take both branches' parameters.
+- **`fa18442` (+1), the orchestrator's Phase B fix-up.**
+  - CM-MOVE's ledge-attack hit site, built beside CM-BLOCK, passed no victim 323, so a ledge attack could never be perfect-blocked. It now does, pinned by `FighterLedgeGetUpTests.TheLedgeAttackCanBePerfectBlocked` (red without the fix).
+  - CM-MOVE's measured one-line CPU change went in (a hanging CPU sends no stick, Roll or BasicAttack), with `CpuRecoveryMatrixTests.CpuClimbJumpOnlyEnforced = true`. CPU-driven Fighter hashes moved.
+  - The Phase B review then found that this override zeroed a struck hanging CPU's DI; CM-FIXB-CPU gated it (`FIX-CPU-HANG-DI-ZEROED`).
 
-#### CM-BLOCK — block (`<sha>`, merged `<sha>`)
+#### CM-HIT — hit reaction and protection (`41806b0`, merged `bb5ba58`)
 
-- …
-- Test delta: **+?** (declared +22). Handoff: [CM_BLOCK.md](handoffs/CM_BLOCK.md).
+- One `ApplyHitReaction` call at the hitstun-end block carries the tumble change, the air-dodge refresh, the respawn-record expiry and the throw-grant decrement. It runs before the platform hold and before every branch that runs `TickCounters`. The plan placed the refresh separately, before `TickCounters`; the effect is the same on every branch.
+- `SyncPresentationFeedback` was touched for the spawn glow and the hyper-armour gate. `CalibrationDrillRunner.Sample` and `FighterCpuController` were not: the drill rule is pinned by an in-place extension instead.
+- Three cases beyond the declared:
+  - the grabber's throw grant now ends with the throw (CM-FIXA-SIM's recorded item, `FIX-SIM-THROW-GRANT-OUTLIVES-THROW`);
+  - no gold hyper-armour outline on a fallen fighter (`VERIFY-FIGHTER-KO-HYPERARMOR-GLOW-TICK`);
+  - a Story owed-bounce case.
+- A presentation limit: a roll or air dodge started in the protection's last 8 frames keeps the respawn record, so the spawn glow and "Respawning" outlast the respawn grant (`PROVISIONAL-RESPAWN-PROTECTION-CURVE`).
+- Amended by CM-FIXB-SIM: a non-launching hit also ends a sim tumble during the launch's hitstun (value 1), as Story already did; and a defied hit writes no velocity.
+- Test delta: **+23** (declared +20). Handoff: [CM_HIT.md](handoffs/CM_HIT.md).
 
-#### CM-MOVE — movement (`<sha>`, merged `<sha>`)
+#### CM-BLOCK — block (`bf61769`, merged `629a816`)
 
-- …
-- Test delta: **+?** (declared +32). Handoff: [CM_MOVE.md](handoffs/CM_MOVE.md).
+- The window decrement is one `FighterBlockTimingRules.BeginTick` per unfrozen tick, right after the Special cast clock. It is not in `TickCounters`, which five branches run and which takes no 323. The same call finalizes ticks the normal path never observes.
+- Component 323 is threaded to every blockable hit site (one argument each), beyond the declared block-branch region, because the block branch cannot reach the victim's 323 otherwise.
+- `BlockTiming` uses bits 17 and 18 (bookkeeping) and 20–23 (a perfect-block count read only by the flash and the Calibration Drill), inside CM-BLOCK's own field. §1.5 reserved bits 0–16.
+- `ApplyEnvironmentalHit` has an `out int damageApplied` overload. Three Guard-Crush literals outside ownership became `GuardCrushBlockChargeCost`. `StoryBlockClassificationTests` gained the one-charge assertion its name promised.
+- The perfect-block audit (one instrumented full run) found four fixtures that reached a perfect block. They were re-timed to test an ordinary block. The rollback convergence cases were left alone, so they now cover the new state.
+- Amended later:
+  - by `fa18442` (the ledge-attack site);
+  - by CM-FIXB-SIM: a tick that starts in hitstun or daze finalizes the stance as dropped, so a hit-2 escape keeps no window;
+  - by CM-FIXB-STORY: Story shieldstun runs through the hero's own Time Freeze; Time Freeze no longer pauses the Story window or lowered age (reversing §2.3.2 and CM_BLOCK.md line 44); and the invulnerability refusal runs before the hazard block.
+- Test delta: **+22** (declared +22). Handoff: [CM_BLOCK.md](handoffs/CM_BLOCK.md).
 
-#### CM-CANCEL — D3 in Fighter, CPU and Mirror (`<sha>`, merged `<sha>`)
+#### CM-MOVE — movement (`ff42c31`, merged `23fcd22`)
 
-- …
-- Test delta: **+?** (declared +18). Handoff: [CM_CANCEL.md](handoffs/CM_CANCEL.md).
+- **The CPU did not stay climb-jump only**, against §2.5.2's premise (line 1178).
+  - Recovery steer and neutral-combat presses decided before the grab reached the hang, re-armed the climb and climbed: over the three Open stages, Easy 38 get-ups in 170 hangs, Normal 15 in 135, Hard 6 in 173.
+  - CM-MOVE owns no CPU code, so it held the drill's assertion behind `CpuClimbJumpOnlyEnforced = false` and measured a one-line fix: 0 get-ups on every stage and band.
+  - The orchestrator applied that fix in `fa18442` (`VERIFY-CPU-LEDGE-GETUPS`, closed).
+- `StoryAirPhysicsTests` pins `Band(0, false, true)` as `Rise` at exactly vy 0 (base gravity), not `Fall` as §2.6.1 wrote.
+- `FighterLedgeGetUpTests` case 3 could not see protection end, because the chokepoint body was still empty on this base (CM-HIT fills it). CM-FIXB-SIM added the merged-seam test. CM-HIT's tumble suites were not run on this branch.
+- `CpuRecoveryMatrixTests`' own drills model no ledge or platform pop, so the lip pop shows only in the real-simulation CPU ledge drill: one capture became a landing (Vesuvius Hard, 19 → 18 hangs).
+- The extra case: a running Cleopatra's Desert Mirage startup holds X, so she covers 240 px from the press (`FIX-STORY-DESERT-MIRAGE-STARTUP-CARRY`).
+- Amended later:
+  - by CM-FIXB-SIM: the first-grab intangibility ends at every hang exit, so the climb jump and every get-up keep their vulnerable frames;
+  - by CM-FIXB-STORY: Story Down+Jump in a swing, and a movement ability's hang reading Jump live;
+  - by CM-FIXB-PADUI: the menu consume no longer drops Jump's release edge from the sim's short-hop latch.
+- Test delta: **+37** (declared +36, plus the Cleopatra case). Handoff: [CM_MOVE.md](handoffs/CM_MOVE.md).
 
-**Phase B merged: ? = ? + ?** (`<sha>`).
+#### CM-CANCEL — D3 in Fighter, CPU and Mirror (`de1bb93`, merged `8647fd4`)
+
+- The rules live in new files (`FighterSpecialCancel.cs`, `FighterMovementSystem.SpecialCancel.cs`), and CM-SIM's inline cast-region block became one call line.
+- The hitstop-branch D3 feed sits after `ClearIfInterrupted`; CM-SIM's guide put it before. That way an interrupted cast's buffer empties at once. Both still come before the discard, as the plan requires.
+- Lincoln's Splitting Strike is not reach-checked before the CPU presses it. The brief summarised 9.3 as including that check; the plan and the ruling ("**Leave for now** — only adapt it to the new Special timing (1.2) so it stays functional") do not. It is left for the user (`VERIFY-CPU-SPLITTING-STRIKE-REACH`).
+- Additions, all input-side or tests:
+  - the delivery-time drop (`CastHoldsThisTick`), which cut the CPU's presses into its own cast from 39 to 1 across the ten-stage smoke;
+  - the CPU grab mirror's knockdown, tech-lock and A02 terms (CM-FIXA-SIM's recorded item);
+  - D3 case 13, with `PlayerInputFrame.Create`-built input;
+  - `CpuSelfActionStateTests` (3).
+- Its smoke's perfect-block counts read 0, because CM-BLOCK was not on its branch.
+- Amended later:
+  - by CM-FIXB-SIM: neither recovery cancel ends Foresight while its counter strike is owed, in both modes;
+  - by CM-FIXB-CPU: the recovery planner reads its own cast, and the hitstun hold lets recovery presses through.
+- Test delta: **+22** (declared +18). Handoff: [CM_CANCEL.md](handoffs/CM_CANCEL.md).
+
+#### CM-PADUI — pad menus, orchestrator-added (`2dfe5b8`, merged `740d712`)
+
+- **Not in the plan.** CM-FIXA-INPUT found that on Godot 4.7.1 no pad button reaches `ui_accept` or `ui_cancel`, so a pad could press no GUI button. Decision 9.1 makes pad-only play first-class, and §5's pad session depends on it, so the orchestrator added this workstream. It shipped:
+  - pad A on `ui_accept` and pad B on `ui_cancel` in `project.godot`, with the keyboard defaults kept and neither action remappable;
+  - `InputManager.ConsumeHeldPresses`, so one press does one thing;
+  - an audit of every `scripts/UI` menu reader;
+  - player 1's ownership of the Fighter select's footer, a player 1 join prompt, and the controller-lost copy.
+
+  Rows: `USER-PAD-MENUS`, `PROVISIONAL-PAD-MENU-RULES`, `FIX-PAD-MENU-ACCEPT-CANCEL`.
+- It went beyond the brief's "what the audit requires" on `InputManager`: a new `InputManager.MenuPress.cs` holds `ConsumeHeldPresses`, `ConsumesMenuPress` and an `_Input` override that spends a confirm a focused button takes. `HubWorldController` gained six `ConsumeInteractPress()` call lines, in place of the checkpoint's 116-line restructure.
+- The checkpoint's polled-input tests could not fail: they pressed after `await physics_frame`, which reaches that same tick's capture. The cases now press in idle time, and each was mutation-checked.
+- A keyboard player 1's Down, Left and Right arrows now step the token and no longer leave focus in the footer.
+- Amended by CM-FIXB-PADUI:
+  - the consume spends press edges only;
+  - a held chord shoulder is settled on the consume tick;
+  - a Jump-shared confirm never counts toward hold-to-skip while gameplay runs;
+  - the tree pause is shared with a gameplay-pausing dialogue;
+  - another player's directional focus move is swallowed;
+  - a disconnect raises `DeviceAssigned`.
+- Test delta: **+18** (none declared; outside the plan's Phase B arithmetic). Handoff: [CM_PADUI.md](handoffs/CM_PADUI.md).
+
+**Phase B merged: 3490 = 3367 + 123** (`740d712`). That is the five branches' 122 (the plan's four: declared +96, delivered +104; CM-PADUI 18) plus `fa18442`'s 1. The plan's declared target was 3428 = 3228 + 200 before any review fix. The difference of 62 is the Phase A fix round's 35, Phase B's 8 extra cases, CM-PADUI's 18 and `fa18442`'s 1.
 
 ### Phase B review fixes
 
-- …
+**The review.** One adversarial review ran over the Phase B diff at `740d712`: six area reviewers (hit reaction, block, movement, cancel and CPU, pad UI, seams and test fidelity), two refuting checkers per finding.
+- **28 findings.** 24 were confirmed by both checkers (2 high, 13 medium, 9 low). They are 20 distinct defects, because B0 / B20, B7 / B21, B8 / B19 and B14 / B22 (a) were each found twice.
+- **4 were refuted** (one by both checkers, three by one of the two):
+  - a damaging Rail Charge under respawn and Defy protection does not end it;
+  - a first-grab grant inside the respawn window is read as respawn protection;
+  - the Mirror adapter's last-recovery-frame exemption;
+  - player 1's first Up wrapping onto Back.
+- **All 24 went to four fix agents,** based on `740d712`.
+- Record: `D:/Projects/genre_review_2026-10-13/phaseB_review.json`; fix inputs `fixB_inputs.json`.
+
+#### CM-FIXB-SIM — the sim half (`5c3ff7d`, merged `33fc9b5`)
+
+- **B1.** A non-launching hit ends a sim tumble inside the launch's hitstun (value 1) as well as after it, as in Story, and an owed slam bounce then drops. Recorded for F09: a juggled victim hit by a non-launcher lands in that hit's ordinary hitstun, with no tech or knockdown protection.
+- **B2.** A defied hit writes no velocity, in any impulse form.
+- **B5.** A tick that starts in hitstun or daze finalizes the block stance as dropped, so a hit-2 escape keeps no perfect-block window.
+- **B8 / B19.** `FighterLedgeRules.EndFirstGrabIntangibility` ends the first-grab intangibility at every hang exit. A respawn grant shorter than 30 frames that merged into it ends with it.
+- **B12.** Neither recovery cancel ends Foresight while its counter strike is owed, in both modes. The cancel comes one tick later; in the sim, only after a projectile catch.
+- **B23.** A merged-seam test that the ledge attack ends respawn and Defy protection and keeps its own 8 climb frames.
+- Left:
+  - a defied blow still cancels the survivor's own roll or air dodge in the sim (`VERIFY-DEFY-CANCELS-OWN-ROLL`);
+  - a merged respawn grant keeps 323 bit 0 through the hang, so the spawn glow and "Respawning" show for the ledge frames (`PROVISIONAL-RESPAWN-PROTECTION-CURVE`).
+- Test delta: **+8** (declared +8). Handoff: [CM_FIXB_SIM.md](handoffs/CM_FIXB_SIM.md).
+
+#### CM-FIXB-CPU — the CPU half (`703cf32`, merged `2fbfa6b`)
+
+- **B0 / B20.** Once hitstun is over and the CPU is airborne or hanging, the hitstun-defense hold lets the planner's Jump and movement-ability presses through. Block stays held, and BasicAttack and Roll stay masked. The movement activation is charged at emission, so a press the hold masks is not charged (`FIX-CPU-HITSTUN-HOLD-EATS-RECOVERY`, `PROVISIONAL-CPU-HITSTUN-HOLD-PASS-THROUGH`).
+- **B3.** `SelfDefyAvailable` reads `FighterDefenseRules.IsDefyUnspentAndUnbarred`, so Hard no longer keeps meter for a Defy that Sudden Death bars (`FIX-CPU-DEFY-RESERVE-IN-SUDDEN-DEATH`).
+- **B9.** `fa18442`'s hang override runs only out of hitstun and daze, so a struck hanging CPU keeps its DI (`FIX-CPU-HANG-DI-ZEROED`).
+- **B13.** The recovery planner waits out its own cast, and a planned recovery press delivered while the cast holds is dropped uncharged (`FIX-CPU-RECOVERY-PRESS-IN-CAST`).
+- Left (`VERIFY-CPU-DELIVERY-RESIDUALS`):
+  - a non-defending CPU's recovery press delivered into hitstun is still charged;
+  - a combat movement press can still arrive inside its own cast (uncharged);
+  - a hang-tick charge goes to an episode the grab has already closed.
+- Test delta: **+6**. Handoff: [CM_FIXB_CPU.md](handoffs/CM_FIXB_CPU.md).
+
+#### CM-FIXB-STORY — the Story half (`1472217`, merged `2ede072`)
+
+- **B4.** Story shieldstun counts down through the hero's own Time Freeze; regen and the shatter lockout still hold. A blocked Extractor discharge no longer locks the hero in the stance until the thaw.
+- **B6.** `TickPerfectBlock` runs every tick after the hitstop gate, so a Time Freeze no longer pauses the Story window or the lowered age. Hitstop still pauses both. This reverses an agent choice in §2.3.2 (line 913) and CM_BLOCK.md line 44.
+- **B7 / B21.** `ApplyEnvironmentalHit` refuses an invulnerable hero (post-rewind, roll, tech, knockdown) before Defy, Aegis, the barrier and the block.
+- **B10.** Story Down+Jump out of a swing's recovery or chain hold cancels the swing into a free `Airborne` drop. In startup and active frames it drops and keeps the swing, as the double tap does.
+- **B11.** A movement ability's gravity reads Jump live for the apex hang (it read Jump as always held), matching the sim.
+- Left:
+  - the rest of `VERIFY-STORY-INVULN-LAYER-ORDER`: the hurtbox path still spends a block charge on a post-rewind-protected blocking hero, and `ApplyEnvironmentalDamage`'s unblockable penalties still spend Aegis or the barrier on an invulnerable one;
+  - Story's double tap of Down is not read in the chain hold (`VERIFY-STORY-DOUBLE-TAP-CHAIN-HOLD`);
+  - an aerial Special's gravity still reads the stale `_jumpHeld` (`VERIFY-AERIAL-SPECIAL-HANG-PARITY`).
+- Test delta: **+6**. Handoff: [CM_FIXB_STORY.md](handoffs/CM_FIXB_STORY.md).
+
+#### CM-FIXB-PADUI — the pad-menu half (`1570bee`, merged `14374d7`)
+
+- **B14 / B22 (a).** The menu-press consume spends press edges only, so a Jump let go of during a pause reaches the sim as released.
+- **B22 (b).** On the consume tick a held chord shoulder is emitted held at once (`UltimateChordWindow.Step(settleHeld)`), never as a late fresh press.
+- **B15.** While gameplay runs under a non-pausing sequence, a confirm that is also Jump never counts toward hold-to-skip. Interact (the hint's button) and Enter still do.
+- **B16.** The tree pause is shared by the pause menu and a gameplay-pausing dialogue (`DialogueManager.HoldsGameplayPause`). Each hands it back only once the other no longer holds it. Restart Level and Quit to Main Menu release it through `PauseMenuBase.ClosePauseForSceneExit`, so the scene load can run.
+- **B17.** Another player's directional focus moves on the Fighter select are swallowed.
+- **B18.** A pad disconnect raises `DeviceAssigned(slot, UnassignedDevice)`, so the join prompt returns.
+- Left:
+  - a Jump pressed in a pause and held through the resume keeps the sim's ×2.5 cut for that airtime, and `AssignDevice` drops a held Jump's release edge on a mid-air device switch (`VERIFY-SIM-JUMP-LATCH-EDGE-LOSS`);
+  - Level 9's `NearCaptureBeat` is a third tree-pause owner (`VERIFY-NEAR-CAPTURE-PAUSE-OWNER`);
+  - an Interact hold still arms hold-to-skip in a non-pausing bark (`VERIFY-BARK-INPUT-RULES`).
+- Test delta: **+8** (declared +8). Handoff: [CM_FIXB_PADUI.md](handoffs/CM_FIXB_PADUI.md).
+
+**After the Phase B fixes: 3518 = 3490 + 28** (`14374d7`). The four branches merged with no conflicts, and one full run read `Failed: 0, Passed: 3518, Total: 3518` (1 m 38 s) before the three confirming runs.
+
+### Plan text the build no longer matches
+
+The dossiers above keep their planned wording. These sentences are superseded:
+- **§2.1.1 line 337**, "That matches the sim, where every kit step runs as a held jump". The sim reads the real latch, and Story's movement-ability hang now reads Jump live (CM-FIXB-STORY B11).
+- **§2.1.6's test list, case 5**, "The cast holds its entry horizontal velocity, grounded and airborne". This predates Q1; a grounded cast brakes.
+- **§2.3.1's *CPU* paragraph**, "its hitstun-defense Block hold already lasts until grounded, so it techs". This is true but incomplete: once hitstun ends, the hold lets the planner's Jump and movement presses through (CM-FIXB-CPU B0 / B20).
+- **§2.3.2 line 913**, "hitstop's early return (:2135) and Time Freeze both pause it". Only hitstop does (CM-FIXB-STORY B6). CM_BLOCK.md line 44 says the same and is superseded too.
+- **§2.5.2 line 1178**, "The CPU's delivered hang decision (Jump, with a neutral stick) therefore always climb-jumps … **The CPU stays climb-jump only (9.3).**" The first sentence was false in the code CM-MOVE found; the second has been true since `fa18442`.
+- **§2.7.4's "Order" list.** It now begins with the invulnerability refusal (CM-FIXB-STORY B7 / B21).
+- **§5 row 8**, "a running cast **sliding at its entry speed**, matching Story (Q1)". This predates the Q1 ruling: a grounded cast brakes over 4 frames in both modes.
+- **§3.2's and §4.2's Phase B running totals** start from 3332. The real Phase B base was 3367.
 
 ## 10. Closeout report
 
-**Delivered.** *(one line per decision, with its ledger row)*
+Built on 2026-10-16 on worktree branches merged into `main` from `cfba295` to `14374d7`; the closeout gates ran on 2026-10-16 and 2026-10-17. §9 is the per-workstream record, and the ledger section "Confirmed open deviations — combat and movement update, 2026-10-16" (with its index) holds every row named here. **Nobody has played or looked at any of it.**
 
-**Questions.** *(each of Q1–Q8: the ruling, or the default and its row)*
+**Delivered.** Every decision is built, or recorded as ruled.
+- **State and compatibility:**
+  - One Klotho component was allocated: `FighterActionStateComponent` (**323**; nine ints, 36 B per fighter, 72 B per snapshot). No other ID was allocated.
+  - No save-schema change (still v8).
+  - Protocol still v4, with unchanged packet sizes. LAN is de-scoped to Package 7, so builds from before and after this update would desync there.
+  - Every Fighter hash moved; no suite pins one.
+- **1.1(1)** Story movement abilities fall under gravity except in kit-owned phases. Leonardo's boost peaks at 60.9 px and his glide sinks at exactly 40 px/s, Joan's Wings rise is unchanged, and every kit motion travels on its first active tick. `FIX-STORY-MOVEMENT-ABILITY-GRAVITY`, `PROVISIONAL-MOVEMENT-ABILITY-GRAVITY-SCOPE`, `VERIFY-STORY-KIT-MOTION-FIRST-TICK`, `FIX-STORY-DESERT-MIRAGE-STARTUP-CARRY`.
+- **1.1(1), Q7** Story's Rail Charge travels exactly 300 px from the press, standing or running, and stops at its recovery. `USER-RAIL-CHARGE-STOPS-LIKE-THE-SIM`, `FIX-STORY-RAIL-CHARGE-RECOVERY-CARRY`.
+- **1.1(2)** Every accepted sim Special spends its cost at the press. An out-of-reach Splitting Strike plays its whole whiff, and it takes the tick from a same-tick movement press. `FIX-SPLITTING-STRIKE-FREE-WHIFF`.
+- **1.1(3)** The sim landing tech locks every action from its landing tick, and its invulnerability ends with the lock (13 ticks counting the landing tick). `FIX-SIM-TECH-LOCK-ACTIONS`.
+- **1.1(4)** A lethal Venom tick in Sudden Death respects `DefyBarred`. `FIX-SIM-VENOM-DEFY-BARRED`.
+- **1.1(5)** The CPU sustains Jump for full hops. The Level 13 Mirror's ground jump peaks at 186.4 px, a held single jump's height; its whole two-press approach arc used to peak at 131.4 px. `FIX-CPU-JUMP-HOLD`.
+- **1.2** Fighter Specials run their authored startup, active and recovery on component 323:
+  - the effect fires on T+S;
+  - the cast lock covers T through T+S+A+R−1;
+  - the interrupt set (a hit, a grab, a knockdown, a KO) clears a cast;
+  - a hand-built contract with no active frames runs 0 / 1 / 0.
 
-**Tests.** 3228 → **?** (+?):
-- Phase A ?, of which A0 ?;
-- its review fixes ?;
-- Phase B ?;
-- its review fixes ?;
-- closeout fixes ?.
+  `USER-SIM-SPECIAL-TIMING`, `PROVISIONAL-SIM-SPECIAL-PHASE-RULES`. This closes `DEFER-SIM-SPECIAL-PHASES` and `SIM-SPECIAL-POSE-THIRDS` (with a residual: the thirds path stays for the fallback and the press-tick Ultimate edge). The two leaks it found are closed: `VERIFY-SIM-KNOCKDOWN-LANDING-TICK`, `VERIFY-SIM-A02-THAW-TICK`.
+- **1.2, Q1** A grounded Special cast brakes over the 4-frame run-stop ramp in both modes, and an aerial cast keeps its drift. Story Specials no longer slide (they slid at 324 px/s). `USER-SPECIAL-CAST-BRAKE`.
+- **1.3** Fighter Shield-Breakers keep the full shatter and gain their startup. A blocked one still leaves the attacker's first Ultimate press 32–45 frames before the dazed blocker can act. `USER-SHIELD-BREAKER-STARTUP`.
+- **1.4** No combo scaling in Fighter (a record). `USER-FIGHTER-NO-COMBO-SCALING`.
+- **2.1** The A02 wind-up shows a steady Unblockable-red tint and the X glyph at (0, −120) px for exactly its length, in Fighter and on the Mirror clone. It also plays the silent Critical cue `ultimate_activation_windup`. `USER-ULT-TELEGRAPH`, `PROVISIONAL-ULT-TELEGRAPH-LOOK`, `FIX-MIRROR-ULT-PHASE-EXIT`, `VERIFY-FIGHTER-KO-HYPERARMOR-GLOW-TICK`; closes `DEFER-ULT-TELEGRAPH`.
+- **2.2** The D15 Ultimate totals are unchanged; the pad session decides. `USER-COMBAT-MOVEMENT-JUDGE-BY-HAND`, `VERIFY-ULT-ACTIVATION-TUNING`.
+- **2.3** The sim refuses the Ultimate in the block stance, shieldstun, the tech lock, a Special cast, a knockdown and a busy A02 caster. `USER-NO-ULT-FROM-BLOCK`; closes `VERIFY-SAME-TICK-VERB-PARITY` (1).
+- **2.4, Q2** A Story Ultimate is armoured for its own Startup by a Story rule; the `.tres` flags stay false. A StaticCharge hit no longer stuns through any armour, and the Rift Collapse launch respects it. `USER-STORY-ULTIMATE-ARMOR`, `USER-STORY-ULTIMATE-ARMOR-STARTUP-ONLY`, `PROVISIONAL-STORY-ULTIMATE-ARMOR`.
+- **3.1** The held-Block landing tech is kept; 1.1(3) locks its frames. `USER-COMBAT-MOVEMENT-JUDGE-BY-HAND`.
+- **3.2** Tumble outlives hitstun until an action or the landing, in both modes and for the Story hero. A non-launching hit ends it. Story mobs stay out. `USER-TUMBLE-AFTER-HITSTUN`, `PROVISIONAL-TUMBLE-EXIT-ACTIONS`.
+- **3.3** Walls kept; the pad session looks for loops. `VERIFY-WALL-PIN`.
+- **3.4, Q3** The perfect block, in both modes:
+  - a Block raised 0–4 ticks before contact (a 5-frame window, `BasicComboRules.PerfectBlockWindowFrames`) costs no charge and sets no shieldstun;
+  - a re-raise needs 20 lowered frames;
+  - Shield-Breakers still shatter, and a Story Guard-Crush keeps its cost.
 
-The three consecutive full runs on `<date>` (orphans drained, lock held): `Failed: 0, Passed: ?, Total: ?`, ? s each.
+  `USER-PERFECT-BLOCK`, `USER-SHIELD-BREAKER-BEATS-PERFECT-BLOCK`, `PROVISIONAL-PERFECT-BLOCK-RULES`.
+- **4.1 / 11.2** Shieldstun is `BasicComboRules.ShieldstunFramesFor(damage)` = 6 + damage / 4 (integer), clamped 6–16, in both modes. The flat 8 is deleted. `USER-SCALED-SHIELDSTUN`, `PROVISIONAL-SHIELDSTUN-CURVE`.
+- **4.2, Q8** Fighter respawn protection is 120 frames at the first legal drop, shrinking linearly to 60 at the auto-drop. The first swing, Special, Ultimate or grab ends it, and 323 `ActionFlags` bit 0 records it. Story's post-rewind protection is untouched. `USER-RESPAWN-PROTECTION`, `USER-RESPAWN-PROTECTION-FIGHTER-ONLY`, `PROVISIONAL-RESPAWN-PROTECTION-CURVE`.
+- **4.3** Defy protection ends on the survivor's first attack, Special, Ultimate or grab, in both modes, and a defied hit writes no velocity. `USER-DEFY-ENDS-ON-OFFENCE`.
+- **4.4** No counter-hit reward in Fighter (a record). `USER-FIGHTER-NO-COUNTER-HIT`.
+- **5.1, Q4, Q5** The sim gains Story's ×2.5 short hop through one constant (`UniversalMovementRules.ShortHopGravityMultiplier`). In both modes it cuts only a rise from the fighter's own Jump press this airtime. `USER-SIM-SHORT-HOP`, `USER-SHORT-HOP-MULTIPLIER-KEPT`, `USER-SHORT-HOP-OWN-JUMP-ONLY`, `PROVISIONAL-SIM-SHORT-HOP-LATCH`, `PROVISIONAL-SIM-SHORT-HOP-HEIGHT`. This closes the short-hop half of `DEFER-H7-STORY-TERMINAL`, which stays open, narrowed.
+- **5.2** Fighter ledge get-ups exist (a neutral climb on a fresh tilt, a ledge roll, a ledge attack). A first grab is intangible for 30 frames, which end at every hang exit. The CPU stays climb-jump only. `USER-FIGHTER-LEDGE-GETUPS`, `PROVISIONAL-LEDGE-GETUP-FRAMES`, `VERIFY-CPU-LEDGE-GETUPS` (closed).
+- **5.3** Any applied hitstun refreshes the air dodge, in both modes. `USER-AIR-DODGE-REFRESH-ON-HIT`.
+- **5.4** The −20 % speed cut is kept; the pad session judges it. `USER-COMBAT-MOVEMENT-JUDGE-BY-HAND`, `USER-MOVEMENT-SPEED-CUT`.
+- **6.1** The apex hang applies only while Jump is held, in both modes, movement-ability gravity included. `USER-APEX-HANG-HELD`.
+- **6.2, Q6** Corner forgiveness:
+  - in Story, a head-clip nudge of up to 12 px and a rising lip pop of up to 10 px;
+  - in the sim, a 0.2 u one-way lip pop that resolves before the ledge capture;
+  - the sim head-clip nudge stays a no-op, pinned by a geometry guard.
 
-**Rollback re-measure.** Worst-case depth-7 median ? ms, p95 ? ms, breaches ?. Largest snapshot ? B (it was 2,699 B on 2026-08-08, before Packages 11–13).
+  `USER-CORNER-FORGIVENESS`, `USER-SIM-LIP-POP`, `PROVISIONAL-CORNER-FORGIVENESS-RULES`, `PROVISIONAL-SIM-LIP-POP`.
+- **6.3** A double tap of Down (inside 18 ticks) and Down+Jump both drop through, in both modes. This closes M-18. `USER-DROP-THROUGH-BOTH-INPUTS`.
+- **6.4** Both builds' jump spreads are kept (a record). `USER-COMBAT-MOVEMENT-JUDGE-BY-HAND`.
+- **7.1** A non-Ultimate Special shakes the Story camera by the larger of its authored shake and the damage curve: the Emancipator shakes 8 px at accessibility scale 1. `USER-STORY-ABILITY-SHAKE`.
+- **7.2** The re-hit counter is built and measured (below); the mercy ruling itself is pending. `USER-STORY-MERCY-MEASURE-FIRST`, `PROVISIONAL-REHIT-COUNTER-RULES`.
+- **7.3** The campaign hero's Echo Step costs 30 × 0.35 = 10.5 (`StoryCombatRules.StoryEchoStepMeterCost`); every other build pays 30. `USER-STORY-ECHO-STEP-COST`.
+- **7.4** A raised, front-facing block absorbs a Story hazard tick for one charge, through `PlayerController.ApplyEnvironmentalHit`, after the invulnerability refusal, Defy, Aegis and the barrier. `USER-STORY-HAZARD-BLOCK`, `PROVISIONAL-STORY-HAZARD-BLOCK-SOURCES`; closes `VERIFY-STORY-HAZARD-BLOCK`.
+- **8.1** Story basics deal at least 6 to a standard mob (`StoryEnemyCombatRules.StandardBasicDamageFloor`), so every hero kills a Normal Chrono-Slasher in 5 or 6 hits. `USER-STORY-BASIC-FLOOR`, `PROVISIONAL-STORY-BASIC-FLOOR-ORDER`.
+- **8.2** A prorated damage number floats dimmed (`UIPalette.DamageNumberReduced`, (0.66, 0.68, 0.74)) at ×0.8; Punish wins. `USER-DIM-REDUCED-NUMBERS`.
+- **8.3** Hitstop 4–11 is kept; the pad session judges it. `USER-COMBAT-MOVEMENT-JUDGE-BY-HAND`, `PROVISIONAL-HITSTOP-WEIGHT`.
+- **8.4** One named hurtbox value per mode, raw-identical: `FighterHurtbox.HalfExtents` (with the alias `FighterBodyOverlap.HalfExtents`) replaces ten sim copies, and Story derives its string-box anchor from `StoryCombatRules.HeroHurtboxHeightPixels` and names its body box (`CharacterFactory.HeroBodyBoxWidthPixels` / `HeroBodyBoxHeightPixels`). The target size stays open. `USER-HURTBOX-ONE-VALUE`.
+- **9.1** Player 1 follows the last-used device, and the Local Versus select is press-to-join with no pre-claimed slot. Pads confirm with A and back out with B in every menu (the orchestrator-added CM-PADUI). `USER-LAST-USED-DEVICE`, `PROVISIONAL-DEVICE-FOLLOW-RULES`, `USER-PAD-MENUS`, `PROVISIONAL-PAD-MENU-RULES`, `FIX-PAD-MENU-ACCEPT-CANCEL`.
+- **9.2** While the Ultimate is affordable, a lone LB or RB waits 3 frames for its partner (`UltimateChordWindow.LeniencyFrames`). The pad Ultimate is the live recipe chord, the Controls toggle is wired, and the pad direct slot is empty by default. `USER-PAD-ULTIMATE-CHORD-LENIENCY`, `PROVISIONAL-ULTIMATE-CHORD-LENIENCY`; closes `VERIFY-GAMEPAD-ULTIMATE-CHORD`.
+- **9.3** The CPU and the Mirror read their own Special cast:
+  - Special and Ultimate presses wait it out, and are dropped at delivery while it holds the tick;
+  - no grab or Echo Step is scheduled during it;
+  - the grab mirror also refuses during the tech lock, a knockdown and the CPU's own Ultimate.
 
-**Reviews.** *(findings confirmed and refuted, per round)*
+  `USER-CPU-SPECIAL-TIMING-ONLY`, `PROVISIONAL-CPU-SPECIAL-TIMING`. The Phase B review's four CPU delivery fixes: `FIX-CPU-HITSTUN-HOLD-EATS-RECOVERY` (with `PROVISIONAL-CPU-HITSTUN-HOLD-PASS-THROUGH`), `FIX-CPU-DEFY-RESERVE-IN-SUDDEN-DEATH`, `FIX-CPU-HANG-DI-ZEROED`, `FIX-CPU-RECOVERY-PRESS-IN-CAST`.
+- **9.4** Pad session only: no frame tables, combo enumerator or CPU-vs-CPU batch. §5 is the checklist. `USER-COMBAT-MOVEMENT-JUDGE-BY-HAND`.
+- **10.1** The sim latches a swing's box facing at active start (305 `AttackFlags` 256). `USER-SIM-BOX-FACING-LATCH`; closes `VERIFY-SIM-STRING-FACING-PER-TICK`.
+- **10.2–10.4** Sudden Death, the single air strike and the comeback stack are kept for the pad session. `USER-COMBAT-MOVEMENT-JUDGE-BY-HAND`, `USER-AERIAL-SINGLE-STRIKE`.
+- **11.1** D3 is one table in `BasicComboRules` for both modes. The sim arms it on a landed direct hit (323 `SpecialFlags` 8 and `SpecialCancelBuffer`), and Foresight's owed counter strike holds it a tick. `USER-FIGHTER-SPECIAL-RECOVERY-CANCEL`, `PROVISIONAL-FIGHTER-SPECIAL-RECOVERY-CANCEL`.
+- **11.2** is folded into 4.1; **11.3** is this plan and its phased workstreams.
+- **The bots** model the held-Jump hang and both corner nudges: `PROVISIONAL-BOT-FLIGHT-MODEL`.
 
-**CPU smoke.** *(the ten-stage Hard-vs-Hard smoke and its recorded counts; the Open-stage recovery matrix)*
+**Questions.** All eight were ruled on 2026-10-16, before Phase A; §9 quotes each ruling.
+- **Q1** Brake to a stop, both modes. Not the default. `USER-SPECIAL-CAST-BRAKE`.
+- **Q2** Startup only. The default. `USER-STORY-ULTIMATE-ARMOR-STARTUP-ONLY`.
+- **Q3** Still shatters. The default. `USER-SHIELD-BREAKER-BEATS-PERFECT-BLOCK`.
+- **Q4** Keep ×2.5 and measure every hero. The default. Every 1-tick tap is below 45 % (41.6–41.9 %): `USER-SHORT-HOP-MULTIPLIER-KEPT`, `PROVISIONAL-SIM-SHORT-HOP-HEIGHT`.
+- **Q5** Own jump only, both modes. Not the default. `USER-SHORT-HOP-OWN-JUMP-ONLY`.
+- **Q6** Add the Fighter lip pop. Not the default. `USER-SIM-LIP-POP`.
+- **Q7** Stop it like the sim. Not the default. `USER-RAIL-CHARGE-STOPS-LIKE-THE-SIM`.
+- **Q8** Fighter only, both levers. The default. `USER-RESPAWN-PROTECTION-FIGHTER-ONLY`.
 
-**Bots** (`cmbefore*` against `cmafter*`, both in the clean `cm-bots` worktree; Levels 2, 6, 7, 12, 13; Joan and Lincoln; `play`; Easy and Normal; seeds 0–1):
+**Tests.** 3228 → **3518** (+290):
+- Phase A 104, of which A0 12 (CM-BOT 7, CM-STORY 21, CM-ULT 7, CM-INPUT 24, CM-SIM 45);
+- its review fixes 35 (CM-FIXA-SIM 10, CM-FIXA-STORY 8, CM-FIXA-INPUT 12, CM-FIXA-PRES 5);
+- Phase B 123 (CM-HIT 23, CM-BLOCK 22, CM-MOVE 37, CM-CANCEL 22, the orchestrator-added CM-PADUI 18, and the merge fix-up `fa18442` 1; `85ce072` changed no count);
+- its review fixes 28 (CM-FIXB-SIM 8, CM-FIXB-CPU 6, CM-FIXB-STORY 6, CM-FIXB-PADUI 8);
+- closeout fixes 0.
 
-| | before | after |
+The `[TestCase]` attribute count under `tests/` equals the full-run total at every merge commit. The per-suite deltas are in each handoff's Tests section.
+
+The three consecutive full runs on 2026-10-17 at `14374d7` (orphans drained before each, lock held): `Failed: 0, Passed: 3518, Total: 3518`, in 1 m 40 s, 1 m 34 s and 1 m 35 s.
+
+**Rollback re-measure** (2026-10-16, `RollbackReadinessTests`; 300 depth-7 corrections per stage; 8.0 ms budget; lock held). The per-stage table belongs in `docs/PERFORMANCE_BASELINE.md`.
+- **Worst case:** median 0.084 ms (`alexandria_chambers`) and p95 0.168 ms (`chicago_exposition`). The largest single correction was 0.704 ms (`orleans_vanguard`). **0 breaches** on all ten stages.
+- **Largest snapshot:** 4,473 B (`globe_theatre`). It was 2,699 B on 2026-08-08, with 0.058 ms median and 0.104 ms p95, before Packages 11–13. `docs/PERFORMANCE_BASELINE.md` records no re-measure in between, so the growth cannot be split by package; component 323's own data is 72 B of it per snapshot.
+- **CM-SIM's in-worktree reading,** after the phase machine and before Phase B: median 0.115 ms, p95 0.240 ms, 0 breaches, largest snapshot 4,429 B (`paris_bastille`).
+- **Raw log:** `D:/Projects/genre_review_2026-10-13/closeout/rollback_readiness.log`.
+
+**Reviews.** Each phase had one adversarial review with two refuting verifiers per finding, and each fix agent ran its new cases red against the unfixed code first. The exceptions (guard and coverage cases) are named in each handoff.
+- **Phase A:** one round over the merged Phase A at `5434151`, not the plan's A1 and A2.
+  - 29 findings: 15 confirmed by both verifiers, and 14 dropped (7 refuted by both, 7 split).
+  - 22 were fixed by CM-FIXA-SIM, CM-FIXA-STORY, CM-FIXA-INPUT and CM-FIXA-PRES (+35 tests): the 15 confirmed, five split ones and two the orchestrator took although both verifiers refuted them.
+- **Phase B:** one round over `740d712`.
+  - 28 findings: 24 confirmed by both checkers (20 distinct defects), and 4 refuted.
+  - All 24 were fixed by CM-FIXB-SIM, CM-FIXB-CPU, CM-FIXB-STORY and CM-FIXB-PADUI (+28 tests).
+- §9 lists every finding taken or not.
+
+**CPU smoke.** `FighterCpuSpecialTimingSmokeTests`, `CpuRecoveryMatrixTests` (Paris, Vesuvius, Nassau) and `FighterCpuBehaviorTests` are green in every full run since the merges, the three confirming runs included.
+- **The Special timing smoke:** Hard vs Hard on all ten stages, production loadouts, items and hazards on, 1,800 ticks per stage (20 fighter slots), every replay tick-identical.
+- **The merged build's counts** (`14374d7`, summed from the `[CM-CANCEL smoke]` lines in the third confirming run's Godot log; the other two runs' lines are identical):
+  - 115 casts, 93 of which reached Active;
+  - Specials answered in their startup: 4 by a block, 0 by an evade;
+  - 52 blocks, of which 2 were perfect blocks (Lincoln on Paris, Leonardo on Berlin);
+  - Lincoln's Splitting Strike: 4 casts, 2 whiffs, 0 interrupted;
+  - presses into the CPU's own cast: 0.
+- **CM-CANCEL's counts, from its branch before CM-BLOCK merged** (CM_CANCEL.md §6), are history: 109 casts, 98 of which reached Active (the other 11 ended in startup through the interrupt set); 4 answered by a block and 1 by an evade; Splitting Strike 4 casts, 1 whiff, 1 interrupted; 1 press into its own cast, against 39 before the delivery drop. Its perfect-block counts read 0, because CM-BLOCK was not on that branch.
+- **Plan §5 row 11's CPU number** is 2 perfect blocks in 20 fighter slots (against 52 blocks); row 25's are the 4 startup blocks and 0 evades, and Lincoln's 2 whiffs in 4 Splitting Strikes.
+- **The Open-stage ledge drill:** `CpuClimbJumpOnlyEnforced = true` since `fa18442`.
+  - With CM-MOVE's one-line CPU change, 0 get-ups on every stage and band (CM-MOVE's measurement: Easy 266 hangs / 258 climb jumps, Normal 158 / 158, Hard 190 / 187).
+  - Without it: 38, 15 and 6 get-ups.
+  - CPU recovery numbers from before and after CM-FIXB-SIM's ledge fix are not comparable: a first-grab recovery now leaves by an ordinary, vulnerable climb jump.
+
+**Bots** (`cmbefore*` against `cmafter*`, both in the clean `cm-bots` worktree; Levels 2, 6, 7, 12, 13; Joan and Lincoln; `play`; Easy and Normal; seeds 0–1). Before ran at the plan commit `735296f` and after at `14374d7`, 40 runs each, with the lock held, `-MaxSeconds 0` and `-ExtraArgs "--seed=N"`.
+- Script: `D:/Projects/genre_review_2026-10-13/scripts/cm_bots_after.ps1`. Comparison: `scripts/cm_bots_compare.py`, output `closeout/bots_compare.json`.
+- Damage by source is the report's `player.damage_by_source`. `env` and `level_NN.*` keys count as hazard, and `extractor:*` keys as Extractor discharge.
+
+| | Easy before | Easy after | Normal before | Normal after |
+|---|---|---|---|---|
+| Completed (of 20) | 17 | 19 | 9 | 12 |
+| … per seed (s0, s1) | 8, 9 | 10, 9 | 4, 5 | 7, 5 |
+| Boss down | 17 | 19 | 9 | 12 |
+| Deaths per run (per seed) | 1.55 (1.5, 1.6) | 1.20 (1.2, 1.2) | 4.05 (4.2, 3.9) | 3.00 (2.9, 3.1) |
+| Damage taken per run (per seed) | 251.8 (236.8, 266.9) | 229.5 (233.8, 225.2) | 450.4 (465.5, 435.4) | 377.6 (368.0, 387.2) |
+| Hazard damage, total (per run) | 3110 (155.5) | 2716 (135.8) | 3646 (182.3) | 2499 (125.0) |
+| Hazard share of damage taken | 61.7 % | 59.2 % | 40.5 % | 33.1 % |
+| Extractor discharge damage, total | 407 | 276 | 473 | 91 |
+| Enemy damage, total | 1520 | 1598 | 4890 | 4962 |
+| `stuck_lock` endings | 2 | 0 | 1 | 2 |
+| Median seconds of a completed run | 154.6 | 150.1 | 170.2 | 178.6 |
+| Endings | 17 complete, 2 `stuck_lock`, 1 collapse | 19 complete, 1 collapse | 9 complete, 10 collapse, 1 `stuck_lock` | 12 complete, 6 collapse, 2 `stuck_lock` |
+
+Completions by level moved only here:
+- Easy Level 7: 1/2 (Joan) and 0/2 (Lincoln) before, 2/2 and 2/2 after.
+- Easy Level 12, Joan: 2/2 before, 1/2 after (seed 1 collapsed after 6 deaths).
+- Normal Level 2, Lincoln: 1/2 before, 2/2 after.
+- Normal Level 13, Lincoln: 0/2 before (both seeds Smothered at 14 deaths against the Mirror), 2/2 after.
+
+Knockdown and tech counts (§4.3 item 5, "if the telemetry shows them") were not tabulated.
+
+*The reading,* by CLAUDE.md's comparability rule (a change is real only when the per-batch ranges do not overlap; two batches per side is thin evidence):
+- **Completions:** the ranges overlap on both difficulties (Easy 8–9 → 9–10, Normal 4–5 → 5–7), so the +2 and +3 are not shown to be real.
+- **Deaths and damage taken per run** fall on both difficulties with **no overlap**. This is the one clear change.
+  - Easy: deaths 1.5–1.6 → 1.2; damage 236.8–266.9 → 225.2–233.8.
+  - Normal: deaths 3.9–4.2 → 2.9–3.1; damage 435.4–465.5 → 368.0–387.2.
+  - Most of it is hazard and Extractor damage, while enemy damage is flat. On Normal, hazard damage per run falls 182.3 → 125.0 and Extractor discharge 473 → 91 in total, against enemy damage 4890 → 4962. On Easy, hazard damage falls 155.5 → 135.8 per run.
+  - That is consistent with 7.4 (Story hazards blockable), because the `play` bot already blocks telegraphed swings and braces hazards with Block. Nobody has checked it beyond these numbers.
+- **Not comparable by construction:** run time, and the short-hop and hang flights (6.1, 6.2). Only the after batch carries the `rehits` block.
+
+*The `stuck_lock` endings.*
+- **Before:** all three are Level 7's boarding lock (Easy Joan s0, Easy Lincoln s0, Normal Lincoln s1), the known skiff-channel bot gap from the 2026-10-12 update.
+- **After:** two, both **Level 7's quay lock, Lincoln, Normal, seeds 0 and 1, with 0 deaths**. This is a new pattern. A fine-trace probe of the same build (`--trace-every=3`, tag `cmprobe`) reproduced the loop frame for frame:
+  - The last quay member on Normal is a `laser_pistol_deckhand` at the launch yard's west end (3330, 672; `Level07Controller.LaunchYardY` 672, yard 3300–3600). Easy's per-row prefix drops it.
+  - The before bot reached it with one planned double jump from the 2950/820 step (812 → 672, take-off 3028). The after planner never plans that edge, on either seed.
+  - The likely reason: CM-MOVE's flight model now releases the first jump at its apex before a planned air jump, and since 6.1 the hang needs Jump held, so the modelled double jump is shorter. That is inferred from the plan strings, not traced in the planner.
+  - Instead the bot loops two flights that fail in execution. (a) The 812 → 752 single hop onto the 3200/760 step: it takes off about 90 px early (2935 against 3028), bonks its head under the 2900/640 ratline and falls short to the deck. (b) A deck → 752 double jump planned from under the launch yard (take-off 3360, heading west): it arrives eastbound and starts from a standstill, so it lags the plan, and its air jump at x 3320 bonks on the yard's underside.
+  - **This is not a content block.** The human route (deck → 2950/820 → 3200/760 → yard) needs at most 80 px of rise per step, well inside Lincoln's single jump (about 133 px), and Joan clears the quay lock on Normal in every run.
+  - It is a bot gap exposed by 6.1, owner Unassigned, recorded in `PROVISIONAL-BOT-FLIGHT-MODEL`. Level 7 is the only level where it appeared.
+
+*Re-hits* (CM-BOT's telemetry, after batch only, 20 reports per difficulty; no before baseline exists, because the telemetry arrived after `735296f`):
+
+| | Easy after | Normal after |
 |---|---|---|
-| Completions (E / N) | | |
-| Deaths per run (E / N) | | |
-| Hazard damage share (E / N) | | |
-| `stuck_lock` endings | | |
-| Cross-source re-hits within 30 frames (after only) | — | |
+| Hits taken | 400 (4590 damage) | 542 (7552 damage) |
+| Combat hits | 232 | 437 |
+| Cross-source within 30 frames (`xsrc_30`) | 11 (2.8 % of hits; 160 damage) | 31 (5.7 %; 366 damage) |
+| … of which combat (`xsrc_30_combat`) | 1 (4 damage) | 25 (254 damage) |
+| Same-source within 30 frames (`same_30`) | 35 | 55 |
+| Same-frame cross-source | 0 | 0 |
+| By kind (hits / damage / `xsrc_30`) | boss 118 / 1318 / 0; hazard 168 / 2662 / 9; projectile 50 / 195 / 2; standard 5 / 25 / 0; mirror 59 / 390 / 0 | boss 136 / 2671 / 0; hazard 105 / 1625 / 5; projectile 126 / 1300 / 14; standard 38 / 454 / 4; elite 34 / 521 / 8; mirror 103 / 981 / 0 |
 
-**Smoke runs.** *(each scene, its exit code, and noise compared against a control)*
+Most `same_30` hits are the Mirror clone's own strings (Easy 30 of 35, Normal 51 of 55). These are the numbers the 7.2 ruling waits on (`USER-STORY-MERCY-MEASURE-FIRST`).
+
+**Smoke runs** (2026-10-16, closeout code `14374d7`, main checkout, lock held). All exit 0 with no `SCRIPT ERROR`:
+- `MainMenu.tscn` (`--quit-after 300`);
+- `HubWorld.tscn` (300);
+- `Level_00_Tutorial.tscn` (300);
+- `Level_07_Nassau.tscn` (300);
+- `Level_13_ChronalVoid.tscn` (300);
+- `TestArena.tscn` (1800);
+- `FighterStage_Paris.tscn` (300).
+
+Levels 0, 7 and 13 print `6 ObjectDB instances were leaked` / `3 resources still in use at exit`, CLAUDE.md's nondeterministic exit noise. **Control:** `Level_07_Nassau.tscn --quit-after 300` at the plan commit `735296f`, in the clean `cm-bots` worktree before its checkout to `14374d7`, exits 0 and prints the identical pair. The noise predates this package. The main checkout still holds the user's uncommitted edits (the plan's pre-flight list), so these smokes ran with them; the bot batches ran in the clean worktree and do not.
 
 **Not delivered, and the honest list.**
 
-- **Nobody has played or looked at any of it.** Every acceptance claim is a headless suite, a smoke run or a bot run. §5 is the checklist the first pad session owes.
-- …
+- **Nobody has played or looked at any of it.** Every acceptance claim is a headless suite, a smoke run or a bot run. Nobody has seen any of these:
+  - a Fighter Special's startup or whiff, the cast brake, the half-gravity float;
+  - the telegraph, the perfect-block flash, the join prompts;
+  - a tumble exit, a ledge get-up, a short hop, a released hop's peak;
+  - a corner nudge or either lip pop;
+  - a pad menu press;
+  - a Story Echo Step at 10.5, a blocked hazard tick, a dimmed number.
+
+  §5's 25 rows are the checklist the first pad session owes.
+- **Open questions for the user** (none blocks the merge):
+  - Should the CPU reach-check Lincoln's Splitting Strike, or any melee Special, before pressing it? 9.3 left kit awareness out. `VERIFY-CPU-SPLITTING-STRIKE-REACH`.
+  - Pad A (Jump) now pages non-pausing dialogue lines, as keyboard Space and attacking always did. Should jumping or attacking page barks at all, and should an Interact hold arm hold-to-skip in one? `VERIFY-BARK-INPUT-RULES`.
+  - A defied hit still cancels the survivor's own roll or air dodge in the sim; Story does not. `VERIFY-DEFY-CANCELS-OWN-ROLL`.
+  - Every 1-tick short-hop tap measures 41.6–41.9 % of the held apex, below the decided "about 45–55 %". Q4 said record it, do not tune. `PROVISIONAL-SIM-SHORT-HOP-HEIGHT`.
+  - The Hard Mirror clone wears the gold hero aura. `VERIFY-MIRROR-CLONE-HERO-AURA`.
+  - The telegraph is built steady, where the ruling said "red flash". `USER-ULT-TELEGRAPH`, `PROVISIONAL-ULT-TELEGRAPH-LOOK`.
+  - The 7.2 mercy window itself, on the re-hit numbers above. `USER-STORY-MERCY-MEASURE-FIRST`.
+- **Still open in the build, each with its row:**
+  - **Same-tick and layer order.** Story fires a Special's effect on T+S−1 and the sim on T+S, and the sim accepts an Ultimate on the tick Block is released (`VERIFY-SAME-TICK-VERB-PARITY` (8), (9)). The rest of `VERIFY-STORY-INVULN-LAYER-ORDER`: the hurtbox path spends a block charge on a post-rewind-protected blocking hero, and `ApplyEnvironmentalDamage`'s unblockable penalties spend Aegis or the barrier on an invulnerable one.
+  - **Jump and hang.** The sim's aerial cast step keeps the old hang, and Story's aerial Special reads a frozen `_jumpHeld` (`VERIFY-AERIAL-SPECIAL-HANG-PARITY`). A Jump pressed in a pause and held through the resume keeps the sim's ×2.5 cut for that airtime, and `AssignDevice` drops a held Jump's release edge on a mid-air device switch (`VERIFY-SIM-JUMP-LATCH-EDGE-LOSS`). Story's double tap of Down is not read in the chain hold (`VERIFY-STORY-DOUBLE-TAP-CHAIN-HOLD`).
+  - **CPU.** Four wasted or wrongly charged presses remain (`VERIFY-CPU-DELIVERY-RESIDUALS`): a recovery press into hitstun, still charged, for a non-defending CPU; a combat movement press inside its own cast; a press on a frozen last recovery frame; and a hang-tick charge to a closed episode.
+  - **Pause ownership.** Level 9's `NearCaptureBeat` pauses the tree itself, so a Story pause over it still unpauses the world on Resume (`VERIFY-NEAR-CAPTURE-PAUSE-OWNER`).
+  - **Respawn presentation.** A merged respawn grant shorter than 30 frames keeps 323 bit 0 through a hang, and a late roll or air dodge keeps the record, so the spawn glow and "Respawning" can outlast the grant (`PROVISIONAL-RESPAWN-PROTECTION-CURVE`).
+  - **Physics and geometry.** The sim snaps a fighter onto a floor segment from any depth (`VERIFY-SIM-PIT-FLOOR-SNAP`; `VERIFY-PARIS-DEEP-PIT-RECOVERY` is still held). Walls are judged on pads (`VERIFY-WALL-PIN`). `DEFER-H7-STORY-TERMINAL` keeps the launch terminal, the launch gravity and Story's launch-band short-hop clause. The hurtbox sizes stay open (`VERIFY-SIM-HURTBOX-WIDTH`, `VERIFY-STORY-HURTBOX-UNIVERSAL`), and Story mobs still have no tumble or knockdown (`VERIFY-M05-KNOCKDOWN-SCOPE`).
+  - **Story armour edges** (`PROVISIONAL-STORY-ULTIMATE-ARMOR`). A hitless StaticCharge can still stun through armour, and the Rift Collapse still pulls an armoured body.
+  - **Bots.** Level 7's quay lock stalls the Lincoln `play` bot on Normal (`PROVISIONAL-BOT-FLIGHT-MODEL`). Bot batches from before and after this package are not comparable for run time or flight.
+- **Presentation left as placeholder or unbuilt:**
+  - The telegraph's cue is silence until Package 10, and under a LAN rollback across the wind-up's first tick it could play twice or not at all (LAN is de-scoped).
+  - No off-screen indicator for a caster outside the view.
+  - The perfect-block flash is a placeholder tint on the hit-flash channel.
+  - The join prompts are text only, with no device glyphs.
+  - D3 in Fighter has no pose, flash or HUD cue of its own.
+  - The Story HUD and Move List show no Echo Step cost.
+- **Pad-menu limits** (`PROVISIONAL-PAD-MENU-RULES`):
+  - pad B on an open `OptionButton` popup could not be verified headless;
+  - a pad-only player cannot cancel a pad-slot listen in Settings;
+  - a joined keyboard player 2's Enter still presses player 1's focused footer button;
+  - the consumed tick drops a press the other player makes on that exact tick.
+- **Measurement gaps:**
+  - The rollback gate fails on any single correction over budget (`budgetBreaches.Count == 0`), so a preemption on a shared machine can fail it. Two workstream full runs (CM-BOT; CM-SIM commit 5) saw single breaches that passed alone; the closeout run had none.
+- **Out of scope, as §8 decided:** Story's `LedgeGrabPoint` get-ups; Story mob tumble and knockdown; CPU kit awareness and its use of D3, the ledge get-ups and the perfect block; device glyphs; per-character hurtboxes; a protocol or save-schema change; Ultimate retunes; the docs-3 copy of the ledger.
+- **Other closeout steps.** The design master and mirror, the contract pairs, `AGENTS.md`, `CLAUDE.md` and `docs/PERFORMANCE_BASELINE.md` are §7's separate steps 5–6. The ledger index lists every design and contract line each ruling requires, including the `DOC-MASTER-UNBOUND-BINDING` line `:2286`, which is edited by hand in each copy.

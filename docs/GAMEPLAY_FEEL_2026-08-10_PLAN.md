@@ -236,6 +236,33 @@ recorded in §2.13. Do not re-litigate; do record any *further* deviation in §9
 - Story: existing marker-based `LedgeGrabPoint` system stays; one change — allow capture
   while rising slowly (`Velocity.Y ≥ −150` px/s instead of `≥ 0`) to match "jumping up to
   it". Story ledge authoring coverage is NOT expanded in this batch.
+- **Superseded in part 2026-10-16 (the combat and movement update; user decision 5.2, "Add
+  get-up options: neutral climb, ledge roll, ledge attack, plus brief intangibility on the first
+  grab of an airtime. Fighter now; Story's `LedgeGrabPoint` later.", and ruling Q6; ledger
+  `USER-FIGHTER-LEDGE-GETUPS`, `PROVISIONAL-LEDGE-GETUP-FRAMES`, `USER-SIM-LIP-POP`,
+  `PROVISIONAL-SIM-LIP-POP`; record retained, do not rewrite):** Jump and Down are no longer the
+  hang's only actions. One action a tick, the climb jump winning its tick: a **neutral climb** on a
+  fresh toward-stage or Up tilt (|stick| > 30) once the hang is 6 frames old and the stick has
+  re-armed (neutral, away or down on any hang tick), 20 frames, intangible for 12; a **ledge roll**
+  (Roll without Block or the Echo Step bit), 8 intangible climb frames, then the ordinary roll
+  toward the stage; a **ledge attack** (BasicAttack without Block or the Grab bit), 8 intangible
+  climb frames, then an 8 / 4 / 14 strike with string hit 1's box and knockback, 1.0 × damage,
+  30-frame hitstun and no launch. Each climb ends at the stand position 0.5 u inside the edge
+  (`FighterStageGeometry.TryGetStandPosition`), and a hit ends it. **The first grab of an airtime is
+  intangible for 30 frames** (`BasicComboRules.LedgeFirstGrabIntangibleFrames`; a regrab gets none),
+  ended at every hang exit, so the climb jump and every get-up keep their own vulnerable frames.
+  The numbers live in `BasicComboRules`' ledge section and are provisional. The new state is not in
+  the three `FighterRuntimeComponent` ints this section locked, which are unchanged: the climbs use
+  305's universal-movement values 8–10 (`LedgeClimb`, `LedgeRoll`, `LedgeAttackClimb`), the strike
+  `AttackFlags` 512 (`FlagLedgeAttack`), and the stick re-arm component 323's `ActionFlags` bit 2.
+  **The CPU escape above stays the climb jump** (`fa18442`: `FighterCpuController.Sample` sends a
+  hanging CPU no stick, Roll or BasicAttack unless it is in hitstun or daze). **Q6, the sim lip
+  pop:** a normal-control fighter at its apex or falling, whose feet came from below a one-way
+  platform's top and are now at most 0.2 u under it, is placed on the platform and lands — resolved
+  before the ledge capture, so a few near-edge captures became landings (one in the CPU drills:
+  Vesuvius Hard 19 → 18 hangs); floor segments never pop, and the drop-through window is exempt.
+  Story's `LedgeGrabPoint` still has no get-ups. The §2.10 double tap of Down in the sim also
+  landed on 2026-10-16, on component 323 (`USER-DROP-THROUGH-BOTH-INPUTS`).
 
 ### 2.12 Facing follows movement during attacks
 
