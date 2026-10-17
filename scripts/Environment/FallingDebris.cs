@@ -131,24 +131,12 @@ namespace FTT.Environment {
         internal int ApplyTo(PlayerController player) {
             if (player == null || !GodotObject.IsInstanceValid(player)) return 0;
             int damage = CollapseTremorRules.DebrisDamage(player.MaximumHP);
-            // Blockable as a Basic-class hit: one shield charge, no HP. The
-            // block system is reached by the same node path PlayerController
-            // itself uses, so no new PlayerController surface is introduced
-            // (A7a owns the shared non-damaging block entry point in Wave 2 —
-            // this call site moves onto it then).
-            if (player.GetNodeOrNull<FTT.Combat.BlockSystem>("BlockSystem") is FTT.Combat.BlockSystem block
-                && block.ResolveHit(new FTT.Combat.HitPayload {
-                    AttackerIndex = -1,
-                    TargetIndex = player.PlayerIndex,
-                    AttackID = "collapse_tremor_debris",
-                    AttackClass = FTT.Combat.AttackClass.Basic,
-                    Damage = damage,
-                    HitOrigin = GlobalPosition,
-                    ExemptFromHitstop = true
-                }) != FTT.Combat.BlockResult.NotBlocked) {
-                return 0;
-            }
-            int applied = player.ApplyEnvironmentalDamage(damage, appliesHitstop: false);
+            // CM-BLOCK (7.4): the one environmental entry point, in the D01/D02b
+            // order — the D04 window, Aegis and the barrier first, then a raised
+            // front-facing block as a Hazard-class hit (one shield charge, no
+            // HP), then HP. Before, debris reached the block system directly,
+            // ahead of Defy and Aegis.
+            player.ApplyEnvironmentalHit(damage, GlobalPosition, blockable: true, out int applied);
             if (applied > 0) {
                 float direction = player.GlobalPosition.X >= GlobalPosition.X ? 1f : -1f;
                 player.Velocity += new Vector2(Knockback.X * direction, Knockback.Y);

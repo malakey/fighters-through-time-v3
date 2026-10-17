@@ -59,8 +59,12 @@ namespace FTT.Environment {
             if (IsSheltered(player.GlobalPosition)) return false;
             if (!_hitThisCycle.Add(player.GetInstanceId())) return false;
             // V7.3: environmental chokepoint — Defy flag consumption, Rally
-            // echo, victim meter (never raw ApplyDamage).
-            player.ApplyEnvironmentalDamage(Damage);
+            // echo, victim meter (never raw ApplyDamage). CM-BLOCK (7.4): a
+            // raised front-facing block absorbs the tick for one charge, and a
+            // blocked tick carries no knockback.
+            PlayerController.EnvironmentalHitResult result =
+                player.ApplyEnvironmentalHit(Damage, GlobalPosition, blockable: true);
+            if (result == PlayerController.EnvironmentalHitResult.Blocked) return true;
             float direction = player.GlobalPosition.X >= GlobalPosition.X ? 1f : -1f;
             player.Velocity += new Vector2(Knockback.X * direction, Knockback.Y);
             return true;

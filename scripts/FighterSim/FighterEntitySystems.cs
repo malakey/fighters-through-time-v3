@@ -473,6 +473,71 @@ namespace FTT.FighterSim {
                 knockbackVertical) == FighterHitOutcome.Landed;
 
         /// <summary>
+        /// CM-BLOCK (decision 3.4): <see cref="ApplyFighterHit"/> with the
+        /// victim's component 323, which carries its perfect-block window. Every
+        /// blockable production hit site passes it; the overload without it (hand-
+        /// built test calls, unblockable sites) resolves an ordinary block.
+        /// </summary>
+        public static bool ApplyFighterHit(
+            ref FighterActionStateComponent targetAction,
+            ref FighterStateComponent attacker,
+            ref FighterRuntimeComponent attackerRuntime,
+            ref FighterVerbComponent attackerVerb,
+            ref FighterStateComponent target,
+            ref FighterRuntimeComponent targetRuntime,
+            ref FighterVerbComponent targetVerb,
+            ref FighterDefenseComponent targetDefense,
+            in FighterTuningComponent targetTuning,
+            int attackClass,
+            int damage,
+            FP64 knockback,
+            int hitstunFrames,
+            int statusType,
+            int statusFrames,
+            FP64 statusIntensity,
+            FP64 hitOriginX,
+            bool creditInfluence = true,
+            int blockChargeCost = 0,
+            FP64 verticalKnockbackScale = default,
+            bool collectsEcho = true,
+            bool appliesHitstop = true,
+            bool blockCancelableHitstun = true,
+            bool bypassesFiniteShields = false,
+            bool launches = true,
+            bool shieldBreaker = false,
+            bool hasKnockbackVector = false,
+            FP64 knockbackVertical = default) =>
+            ResolveFighterHit(
+                ref targetAction,
+                ref attacker,
+                ref attackerRuntime,
+                ref attackerVerb,
+                ref target,
+                ref targetRuntime,
+                ref targetVerb,
+                ref targetDefense,
+                in targetTuning,
+                attackClass,
+                damage,
+                knockback,
+                hitstunFrames,
+                statusType,
+                statusFrames,
+                statusIntensity,
+                hitOriginX,
+                creditInfluence,
+                blockChargeCost,
+                verticalKnockbackScale,
+                collectsEcho,
+                appliesHitstop,
+                blockCancelableHitstun,
+                bypassesFiniteShields,
+                launches,
+                shieldBreaker,
+                hasKnockbackVector,
+                knockbackVertical) == FighterHitOutcome.Landed;
+
+        /// <summary>
         /// The one fighter-hit pipeline, returning how the contact resolved
         /// (2026-10-11, D1a): <see cref="FighterHitOutcome.Refused"/> for
         /// invulnerability frames, an out-of-stocks target or the D04 Defy
@@ -485,6 +550,74 @@ namespace FTT.FighterSim {
         /// per-hit Momentum read.
         /// </summary>
         internal static FighterHitOutcome ResolveFighterHit(
+            ref FighterStateComponent attacker,
+            ref FighterRuntimeComponent attackerRuntime,
+            ref FighterVerbComponent attackerVerb,
+            ref FighterStateComponent target,
+            ref FighterRuntimeComponent targetRuntime,
+            ref FighterVerbComponent targetVerb,
+            ref FighterDefenseComponent targetDefense,
+            in FighterTuningComponent targetTuning,
+            int attackClass,
+            int damage,
+            FP64 knockback,
+            int hitstunFrames,
+            int statusType,
+            int statusFrames,
+            FP64 statusIntensity,
+            FP64 hitOriginX,
+            bool creditInfluence = true,
+            int blockChargeCost = 0,
+            FP64 verticalKnockbackScale = default,
+            bool collectsEcho = true,
+            bool appliesHitstop = true,
+            bool blockCancelableHitstun = true,
+            bool bypassesFiniteShields = false,
+            bool launches = true,
+            bool shieldBreaker = false,
+            bool hasKnockbackVector = false,
+            FP64 knockbackVertical = default) {
+            FighterActionStateComponent noBlockTiming = default;
+            return ResolveFighterHit(
+                ref noBlockTiming,
+                ref attacker,
+                ref attackerRuntime,
+                ref attackerVerb,
+                ref target,
+                ref targetRuntime,
+                ref targetVerb,
+                ref targetDefense,
+                in targetTuning,
+                attackClass,
+                damage,
+                knockback,
+                hitstunFrames,
+                statusType,
+                statusFrames,
+                statusIntensity,
+                hitOriginX,
+                creditInfluence,
+                blockChargeCost,
+                verticalKnockbackScale,
+                collectsEcho,
+                appliesHitstop,
+                blockCancelableHitstun,
+                bypassesFiniteShields,
+                launches,
+                shieldBreaker,
+                hasKnockbackVector,
+                knockbackVertical);
+        }
+
+        /// <summary>
+        /// CM-BLOCK (decision 3.4): the pipeline itself, with the victim's
+        /// component 323. Its block branch reads the perfect-block window
+        /// (<see cref="FighterBlockTimingRules.IsPerfectBlockOpen"/>) and counts a
+        /// perfect block there (<see cref="FighterBlockTimingRules.NotePerfectBlock"/>);
+        /// nothing else in the pipeline reads or writes it.
+        /// </summary>
+        internal static FighterHitOutcome ResolveFighterHit(
+            ref FighterActionStateComponent targetAction,
             ref FighterStateComponent attacker,
             ref FighterRuntimeComponent attackerRuntime,
             ref FighterVerbComponent attackerVerb,
@@ -578,6 +711,20 @@ namespace FTT.FighterSim {
                 ? hitOriginX >= target.Position.x
                 : hitOriginX <= target.Position.x;
             if (targetBlocking && hitInFront && attackClass != UltimateAttackClass && target.BlockCharges > 0) {
+                // CM-BLOCK (decision 3.4, Q3): inside the perfect-block window a
+                // contact this branch would absorb spends no charge, sets no
+                // shieldstun and leaves the regen interval alone; it keeps the
+                // 2-frame blocked hitstop as feedback and stays Blocked (no D1a
+                // confirm, no Momentum). A Shield-Breaker still shatters, below.
+                if (FTT.Combat.BasicComboRules.PerfectBlockApplies(
+                        FighterBlockTimingRules.IsPerfectBlockOpen(in targetAction), shieldBreaker, blockChargeCost)) {
+                    FighterBlockTimingRules.NotePerfectBlock(ref targetAction);
+                    if (appliesHitstop) {
+                        FighterVerbRules.ApplyHitstop(
+                            ref attackerVerb, ref targetVerb, FTT.Combat.BasicComboRules.BlockedHitstopFrames);
+                    }
+                    return FighterHitOutcome.Blocked;
+                }
                 // blockChargeCost > 0 overrides the class default (a Story
                 // Guard-Crush costs 2). A01 (Package 13 W1): an ordinary
                 // Special spends min(2, charges) — a full shield keeps one —
@@ -621,7 +768,9 @@ namespace FTT.FighterSim {
                 }
                 // V7.3 shieldstun: a non-shatter blocked hit locks the blocker
                 // into the stance — no grab, roll, jump, drop-through, or release.
-                targetVerb.ShieldStunFrames = FTT.Combat.BasicComboRules.ShieldstunFrames;
+                // CM-BLOCK (decisions 4.1 / 11.2): for a window scaled by the
+                // blocked damage (the post-barrier remainder, before Radiant Burn).
+                targetVerb.ShieldStunFrames = FTT.Combat.BasicComboRules.ShieldstunFramesFor(damage);
                 // V7 hitstop: blocked hits freeze both parties for a flat window.
                 if (appliesHitstop) {
                     FighterVerbRules.ApplyHitstop(
@@ -984,10 +1133,50 @@ namespace FTT.FighterSim {
             int statusFrames,
             FP64 statusIntensity,
             FP64 verticalKnockbackScale = default) {
+            FighterActionStateComponent noBlockTiming = default;
+            return ApplyEnvironmentHit(
+                ref noBlockTiming,
+                ref target,
+                ref targetRuntime,
+                ref targetVerb,
+                ref targetDefense,
+                in targetTuning,
+                damage,
+                knockback,
+                hitstunFrames,
+                hitOriginX,
+                statusType,
+                statusFrames,
+                statusIntensity,
+                verticalKnockbackScale);
+        }
+
+        /// <summary>
+        /// CM-BLOCK (decision 3.4): <see cref="ApplyEnvironmentHit(ref FighterStateComponent, ref FighterRuntimeComponent, ref FighterVerbComponent, ref FighterDefenseComponent, in FighterTuningComponent, int, FP64, int, FP64, int, int, FP64, FP64)"/>
+        /// with the victim's component 323, so a hazard tick inside the
+        /// perfect-block window is perfect-blocked (no charge, no shieldstun).
+        /// Every production hazard site passes it.
+        /// </summary>
+        public static bool ApplyEnvironmentHit(
+            ref FighterActionStateComponent targetAction,
+            ref FighterStateComponent target,
+            ref FighterRuntimeComponent targetRuntime,
+            ref FighterVerbComponent targetVerb,
+            ref FighterDefenseComponent targetDefense,
+            in FighterTuningComponent targetTuning,
+            int damage,
+            FP64 knockback,
+            int hitstunFrames,
+            FP64 hitOriginX,
+            int statusType,
+            int statusFrames,
+            FP64 statusIntensity,
+            FP64 verticalKnockbackScale = default) {
             FighterStateComponent environment = default;
             FighterRuntimeComponent environmentRuntime = default;
             FighterVerbComponent environmentVerb = default;
             return ApplyFighterHit(
+                ref targetAction,
                 ref environment,
                 ref environmentRuntime,
                 ref environmentVerb,
@@ -1436,6 +1625,7 @@ namespace FTT.FighterSim {
                         ? contract.Damage
                         : attackerTuning.SpecialTwoDamage / (contract.HitCount > 0 ? contract.HitCount : 1);
                     FighterDamageRules.ApplyFighterHit(
+                        ref frame.Get<FighterActionStateComponent>(targetEntity),
                         ref attacker, ref runtime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                         FighterDamageRules.SpecialAttackClass,
                         thrustDamage,
@@ -1451,6 +1641,7 @@ namespace FTT.FighterSim {
                         knockbackVertical: finalThrust ? contract.KnockbackY : FP64.Zero);
                 } else {
                     FighterDamageRules.ApplyFighterHit(
+                        ref frame.Get<FighterActionStateComponent>(targetEntity),
                         ref attacker, ref runtime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                         FighterDamageRules.SpecialAttackClass,
                         contract.Damage,
@@ -2116,6 +2307,7 @@ namespace FTT.FighterSim {
                 // burst's pulses land; the last pulse carries the authored knockback.
                 if (requiem) projectileVector = false;
                 bool projectileLanded = FighterDamageRules.ApplyFighterHit(
+                    ref frame.Get<FighterActionStateComponent>(targetEntity),
                     ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     projectile.AttackClass,
                     bursting ? projectileContract.ContactDamage : projectile.Damage,
@@ -2218,6 +2410,7 @@ namespace FTT.FighterSim {
                 // direct hits collect), and never apply hitstop (V7.3: only
                 // direct player-authored hits carry the freeze).
                 FighterDamageRules.ApplyFighterHit(
+                    ref frame.Get<FighterActionStateComponent>(targetEntity),
                     ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     FighterDamageRules.BasicAttackClass, persistent.Damage, persistent.Knockback,
                     persistent.ObjectTypeID == NestObjectTypeID ? NestBiteHitstunFrames : 10,
@@ -2295,6 +2488,7 @@ namespace FTT.FighterSim {
                 // Fence ticks are construct damage — no Rally echo reclaim,
                 // no hitstop (V7.3).
                 bool fenceLanded = FighterDamageRules.ApplyFighterHit(
+                    ref frame.Get<FighterActionStateComponent>(targetEntity),
                     ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     FighterDamageRules.BasicAttackClass, FenceDamage, FP64.Zero, FenceHitstunFrames,
                     (int)StatusType.StaticCharge, FenceStaticChargeFrames, FP64.FromDouble(0.5),
@@ -2611,6 +2805,7 @@ namespace FTT.FighterSim {
                 FP64 knockback = rockPool ? FP64.Zero : hazard.Knockback.x;
                 int hitstun = rockPool ? 0 : HitstunFrames;
                 FighterDamageRules.ApplyEnvironmentHit(
+                    ref frame.Get<FighterActionStateComponent>(fighterEntity),
                     ref fighter, ref runtime, ref verb, ref defense, in tuning,
                     damage, knockback, hitstun, hazard.Position.x,
                     statusType, statusFrames, statusIntensity);
@@ -2672,6 +2867,7 @@ namespace FTT.FighterSim {
                 ref FighterDefenseComponent defense = ref frame.Get<FighterDefenseComponent>(fighterEntity);
                 ref readonly FighterTuningComponent tuning = ref frame.GetReadOnly<FighterTuningComponent>(fighterEntity);
                 FighterDamageRules.ApplyEnvironmentHit(
+                    ref frame.Get<FighterActionStateComponent>(fighterEntity),
                     ref fighter, ref runtime, ref verb, ref defense, in tuning,
                     hazard.Damage, hazard.Knockback.x, HitstunFrames, hazard.Position.x,
                     (int)StatusType.None, 0, FP64.One, verticalKnockbackScale);
@@ -2706,6 +2902,7 @@ namespace FTT.FighterSim {
                 ref FighterDefenseComponent defense = ref frame.Get<FighterDefenseComponent>(fighterEntity);
                 ref readonly FighterTuningComponent tuning = ref frame.GetReadOnly<FighterTuningComponent>(fighterEntity);
                 FighterDamageRules.ApplyEnvironmentHit(
+                    ref frame.Get<FighterActionStateComponent>(fighterEntity),
                     ref fighter, ref runtime, ref verb, ref defense, in tuning,
                     hazard.Damage, hazard.Knockback.x, HitstunFrames, hazard.Position.x,
                     (int)StatusType.None, 0, FP64.One);
@@ -2738,6 +2935,7 @@ namespace FTT.FighterSim {
                 ref FighterDefenseComponent defense = ref frame.Get<FighterDefenseComponent>(fighterEntity);
                 ref readonly FighterTuningComponent tuning = ref frame.GetReadOnly<FighterTuningComponent>(fighterEntity);
                 FighterDamageRules.ApplyEnvironmentHit(
+                    ref frame.Get<FighterActionStateComponent>(fighterEntity),
                     ref fighter, ref runtime, ref verb, ref defense, in tuning,
                     hazard.Damage, hazard.Knockback.x, HitstunFrames,
                     NearestGalleryAnchorX(fighter.Position.x),
@@ -3237,6 +3435,7 @@ namespace FTT.FighterSim {
                 // damage-dealt meter; ZoneTypeID's slot digit is the origin.
                 bool pulseVector = !ultimateZone && pulseContract.HasKnockbackVector;
                 bool pulseLanded = FighterDamageRules.ApplyFighterHit(
+                    ref frame.Get<FighterActionStateComponent>(targetEntity),
                     ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     pulseAttackClass, pulseDamage,
                     pulseVector ? pulseContract.KnockbackX : pulseKnockback,
@@ -3312,6 +3511,7 @@ namespace FTT.FighterSim {
             // never recursive.
             FighterLorentzChainRules.FireArcs(
                 ref frame, zone.OwnerPlayerID,
+                ref frame.Get<FighterActionStateComponent>(targetEntity),
                 ref attacker, ref attackerRuntime, ref attackerVerb,
                 ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning);
         }
@@ -3366,6 +3566,7 @@ namespace FTT.FighterSim {
             ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
             ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
             FighterDamageRules.ApplyFighterHit(
+                ref frame.Get<FighterActionStateComponent>(targetEntity),
                 ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                 FighterDamageRules.SpecialAttackClass, 0, SpiralExpiryKnockback, SpiralExpiryHitstunFrames,
                 (int)StatusType.None, 0, FP64.One, zone.Position.x,

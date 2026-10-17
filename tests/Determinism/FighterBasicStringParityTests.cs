@@ -488,8 +488,10 @@ public class FighterBasicStringParityTests {
         AssertThat(waiting.BlockCharges).IsEqual(before.BlockCharges - 1);
         // V7.3: the blocked hit's shared hitstop and shieldstun hold the victim
         // in the stance (regen re-armed) before the interval starts counting.
+        // CM-BLOCK (4.1): the shieldstun scales with the blocked damage; the
+        // longest one bounds it.
         int fullInterval = tick + BasicComboRules.BlockChargeRegenFrames / 2 + 4
-            + BasicComboRules.BlockedHitstopFrames + BasicComboRules.ShieldstunFrames;
+            + BasicComboRules.BlockedHitstopFrames + BasicComboRules.ShieldstunMaxFrames;
         for (; tick < fullInterval; tick++) {
             Advance(simulation, tick);
         }
@@ -516,14 +518,16 @@ public class FighterBasicStringParityTests {
             .OverrideFailureMessage("The opener must have been blocked.")
             .IsTrue();
         AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent stunned)).IsTrue();
+        // CM-BLOCK (4.1): the window the opener's damage earns.
+        int shieldstun = BasicComboRules.ShieldstunFramesFor(OpenerDamageOnAnOpenTarget(seed: 123));
         AssertThat(stunned.ShieldStunFrames)
-            .OverrideFailureMessage("A blocked hit must arm the shared shieldstun window.")
-            .IsEqual(BasicComboRules.ShieldstunFrames);
+            .OverrideFailureMessage("A blocked hit must arm the shieldstun window its damage earns.")
+            .IsEqual(shieldstun);
 
         // Through hitstop + shieldstun the victim RELEASES Block and mashes
         // attack/roll/jump: the stance holds and no action comes out. The last
         // locked tick is excluded — shieldstun expires inside it.
-        int lockedTicks = BasicComboRules.BlockedHitstopFrames + BasicComboRules.ShieldstunFrames - 1;
+        int lockedTicks = BasicComboRules.BlockedHitstopFrames + shieldstun - 1;
         for (int step = 1; step <= lockedTicks; step++) {
             Advance(simulation, blockTick + step,
                 p2Buttons: GameplayButtons.BasicAttack | GameplayButtons.Roll | GameplayButtons.Jump);
@@ -542,6 +546,78 @@ public class FighterBasicStringParityTests {
             AssertThat(locked.IsGrounded)
                 .OverrideFailureMessage($"No jump may leave the ground during shieldstun (step {step}).")
                 .IsEqual(1);
+        }
+    }
+
+    /// <summary>
+    /// CM-BLOCK (decisions 4.1 / 11.2): the shieldstun of a non-shatter block
+    /// scales with the blocked damage through the one shared function, and both
+    /// modes lock the blocker for equal frames on equal damage — basics (4),
+    /// Lincoln's finisher (13), Smite (28) and the Emancipator's 40 at the cap.
+    /// </summary>
+    [TestCase]
+    public void ShieldstunScalesWithTheBlockedDamageAndBothModesLockEqualFramesForEqualDamage() {
+        int[] damages = { 4, 13, 28, 40 };
+        int[] frames = { 7, 9, 13, 16 };
+        PlayerController story = CharacterFactory.CreateCharacter(
+            "einstein", 0, applyStoryProgression: false, applyLegacyUnlockLocks: false);
+        ((Godot.SceneTree)Godot.Engine.GetMainLoop()).Root.AddChild(story);
+        try {
+            BlockSystem block = story.GetNode<BlockSystem>("BlockSystem");
+            for (int index = 0; index < damages.Length; index++) {
+                int damage = damages[index];
+                AssertThat(BasicComboRules.ShieldstunFramesFor(damage)).IsEqual(frames[index]);
+
+                // The sim: a grounded, right-facing blocker on three charges.
+                FighterStateComponent attacker = new() { PlayerID = 0, Stocks = 3, MaxHP = 100, CurrentHP = 100, IsGrounded = 1 };
+                FighterRuntimeComponent attackerRuntime = default;
+                FighterVerbComponent attackerVerb = default;
+                FighterStateComponent target = new() {
+                    PlayerID = 1, Stocks = 3, MaxHP = 100, CurrentHP = 100, BlockCharges = 3, IsGrounded = 1, FacingRight = 1
+                };
+                FighterRuntimeComponent targetRuntime = new() { HeldButtons = (int)GameplayButtons.Block };
+                FighterVerbComponent targetVerb = default;
+                FighterDefenseComponent defense = default;
+                FighterTuningComponent tuning = default;
+                bool landed = FighterDamageRules.ApplyFighterHit(
+                    ref attacker, ref attackerRuntime, ref attackerVerb,
+                    ref target, ref targetRuntime, ref targetVerb, ref defense, in tuning,
+                    FighterDamageRules.BasicAttackClass, damage, FP64.FromInt(4), 18,
+                    (int)StatusType.None, 0, FP64.One, target.Position.x + FP64.One);
+                AssertThat(landed).IsFalse();
+                AssertThat(target.BlockCharges).IsEqual(2);
+                AssertThat(targetVerb.ShieldStunFrames)
+                    .OverrideFailureMessage($"The sim must lock {frames[index]} frames for {damage} blocked damage.")
+                    .IsEqual(frames[index]);
+
+                // Story: the same damage through the BlockSystem.
+                block.RestoreAllCharges();
+                story.IsFacingRight = true;
+                block.StartBlock();
+                BlockResult result = block.ResolveHit(new HitPayload {
+                    AttackerIndex = 1,
+                    TargetIndex = 0,
+                    AttackID = "test.parity.blocked",
+                    HitboxID = "combo_1",
+                    AttackClass = AttackClass.Basic,
+                    Damage = damage,
+                    HitOrigin = story.GlobalPosition + new Godot.Vector2(40f, 0f),
+                    AttackerFacingRight = false
+                });
+                AssertThat(result).IsEqual(BlockResult.Blocked);
+                AssertThat(block.LastBlockWasPerfect).IsFalse();
+                int stunTicks = 0;
+                while (block.IsInShieldStun && stunTicks < 40) {
+                    block._PhysicsProcess(1.0 / 60.0);
+                    stunTicks++;
+                }
+                // Story's timer is seconds: allow the one tick a float can drift.
+                if (stunTicks < frames[index] || stunTicks > frames[index] + 1) {
+                    AssertThat($"{damage} damage: Story held the stance {stunTicks} ticks, the sim {frames[index]}").IsEqual("");
+                }
+            }
+        } finally {
+            story.Free();
         }
     }
 
@@ -648,6 +724,23 @@ public class FighterBasicStringParityTests {
     private static int Idle(FighterSimulation simulation, int tick, int frames, sbyte p2MoveX = 0) {
         for (int step = 0; step < frames; step++) Advance(simulation, tick++, p2MoveX: p2MoveX);
         return tick;
+    }
+
+    /// <summary>
+    /// CM-BLOCK (4.1): the HP the Tesla opener takes from a Joan who does not
+    /// block — the damage the same opener carries into a block.
+    /// </summary>
+    private static int OpenerDamageOnAnOpenTarget(int seed) {
+        var open = NewAdjacentSimulation(seed);
+        AssertThat(open.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
+        Advance(open, 0, p1Buttons: GameplayButtons.BasicAttack);
+        for (int tick = 1; tick <= 12; tick++) {
+            Advance(open, tick);
+            AssertThat(open.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
+            if (after.CurrentHP < before.CurrentHP) return before.CurrentHP - after.CurrentHP;
+        }
+        AssertThat(false).OverrideFailureMessage("Harness: the opener never landed on the open target.").IsTrue();
+        return 0;
     }
 
     private static FighterSimulation NewAdjacentSimulation(int seed, int spawnDistance = 1) => new(

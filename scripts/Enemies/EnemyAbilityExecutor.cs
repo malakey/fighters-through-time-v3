@@ -486,7 +486,7 @@ namespace FTT.Enemies {
             // beyond that is explicit: Guard-Crush costs 2, and boss-only
             // unblockables pierce the stance entirely.
             _hitbox.AttackClass = FTT.Combat.AttackClass.Basic;
-            _hitbox.BlockChargeCost = ActiveGuardCrush ? 2 : 0;
+            _hitbox.BlockChargeCost = ActiveGuardCrush ? BasicComboRules.GuardCrushBlockChargeCost : 0;
             _hitbox.Unblockable = ActiveUnblockable;
             _hitbox.Damage = Mathf.Max(0f, ability.Damage) * Mathf.Max(0f, DamageMultiplier);
             _hitbox.KnockbackForce = new Vector2(

@@ -127,9 +127,10 @@ public class DefenceOrderingTests {
         AssertThat(f.Target.BlockCharges)
             .OverrideFailureMessage("A Basic remainder costs exactly one charge.")
             .IsEqual(2);
+        // CM-BLOCK (4.1): the shieldstun is the one the 20-damage REMAINDER earns.
         AssertThat(f.Verb.ShieldStunFrames)
-            .OverrideFailureMessage("A real blocked remainder DOES produce the ordinary shieldstun.")
-            .IsEqual(BasicComboRules.ShieldstunFrames);
+            .OverrideFailureMessage("A real blocked remainder DOES produce the shieldstun its remainder earns.")
+            .IsEqual(BasicComboRules.ShieldstunFramesFor(20));
         AssertThat(f.Target.CurrentHP).IsEqual(100);
     }
 
@@ -169,7 +170,7 @@ public class DefenceOrderingTests {
 
         AssertThat(f.Target.BlockCharges).IsEqual(1);
         AssertThat(f.Target.DazeFrames).IsEqual(0);
-        AssertThat(f.Verb.ShieldStunFrames).IsEqual(BasicComboRules.ShieldstunFrames);
+        AssertThat(f.Verb.ShieldStunFrames).IsEqual(BasicComboRules.ShieldstunFramesFor(20));
     }
 
     [TestCase]

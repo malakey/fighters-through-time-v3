@@ -418,6 +418,8 @@ namespace FTT.FighterSim {
                 AdvanceSpecialCast(ref frame, entity, ref fighter, ref runtime, in verb, ref action,
                     in counter, FighterUltimateActivationRules.IsCaptured(in ultimateActivation),
                     FighterKnockdownRules.IsActive(in knockdown));
+                // CM-BLOCK (decision 3.4): the perfect-block clock's once-per-unfrozen-tick step.
+                FighterBlockTimingRules.BeginTick(ref action, in fighter);
                 if (FighterUltimateActivationRules.IsCaptured(in ultimateActivation)) {
                     ref FighterDefenseComponent capturedDefense = ref frame.Get<FighterDefenseComponent>(entity);
                     TickCounters(ref fighter, ref runtime, ref verb, ref capturedDefense, in tuning);
@@ -653,6 +655,8 @@ namespace FTT.FighterSim {
                     }
                     bool attacking = runtime.AttackPhase != FighterBasicAttackRules.PhaseNone;
                     bool blockStance = FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb);
+                    // CM-BLOCK (decision 3.4): a fresh raise with a Block press arms the perfect block.
+                    FighterBlockTimingRules.Observe(ref action, blockStance, (runtime.PressedButtons & BlockButton) != 0);
                     // V7.3 shieldstun: the stunned blocker is locked into the
                     // stance — no roll, no jump, no drop-through out of it.
                     bool shieldStunned = verb.ShieldStunFrames > 0;
@@ -1986,8 +1990,8 @@ namespace FTT.FighterSim {
             // Special intent or a basic swing on the victim's side.
             ref FighterCounterComponent counterOne = ref frame.Get<FighterCounterComponent>(first);
             ref FighterCounterComponent counterTwo = ref frame.Get<FighterCounterComponent>(second);
-            ApplyIntent(ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, ref actionOne, ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo, in firstIntent, ref counterTwo);
-            ApplyIntent(ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, ref actionTwo, ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne, in secondIntent, ref counterOne);
+            ApplyIntent(ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, ref actionOne, ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo, in firstIntent, ref counterTwo, ref actionTwo);
+            ApplyIntent(ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, ref actionTwo, ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne, in secondIntent, ref counterOne, ref actionOne);
             // F07 marks are written onto the VICTIM's component 318.
             ref FighterConductiveComponent conductiveOne = ref frame.Get<FighterConductiveComponent>(first);
             ref FighterConductiveComponent conductiveTwo = ref frame.Get<FighterConductiveComponent>(second);
@@ -2014,11 +2018,11 @@ namespace FTT.FighterSim {
             ref FighterKnockdownComponent knockdownOne = ref frame.Get<FighterKnockdownComponent>(first);
             ref FighterKnockdownComponent knockdownTwo = ref frame.Get<FighterKnockdownComponent>(second);
             if (oneActing) {
-                ApplyBasicSwing(ref fighterOne, ref runtimeOne, ref verbOne, in tuningOne, ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo, ref conductiveTwo, ref knockdownTwo, ref counterTwo);
+                ApplyBasicSwing(ref fighterOne, ref runtimeOne, ref verbOne, in tuningOne, ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo, ref conductiveTwo, ref knockdownTwo, ref counterTwo, ref actionTwo);
                 ApplyConstructSwing(ref frame, ref fighterOne, ref runtimeOne, in tuningOne);
             }
             if (twoActing) {
-                ApplyBasicSwing(ref fighterTwo, ref runtimeTwo, ref verbTwo, in tuningTwo, ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne, ref conductiveOne, ref knockdownOne, ref counterOne);
+                ApplyBasicSwing(ref fighterTwo, ref runtimeTwo, ref verbTwo, in tuningTwo, ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne, ref conductiveOne, ref knockdownOne, ref counterOne, ref actionOne);
                 ApplyConstructSwing(ref frame, ref fighterTwo, ref runtimeTwo, in tuningTwo);
             }
             // Package 13 W5: a Foresight trigger owes its counter strike. Both
@@ -2027,10 +2031,10 @@ namespace FTT.FighterSim {
             // resolve after this system).
             ResolveForesightAnswer(
                 ref fighterOne, ref runtimeOne, ref verbOne, ref counterOne, in tuningOne,
-                ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo);
+                ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo, ref actionTwo);
             ResolveForesightAnswer(
                 ref fighterTwo, ref runtimeTwo, ref verbTwo, ref counterTwo, in tuningTwo,
-                ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne);
+                ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne, ref actionOne);
         }
 
         /// <summary>
@@ -2411,7 +2415,8 @@ namespace FTT.FighterSim {
             in FighterTuningComponent targetTuning,
             ref FighterConductiveComponent targetConductive,
             ref FighterKnockdownComponent targetKnockdown,
-            ref FighterCounterComponent targetCounter) {
+            ref FighterCounterComponent targetCounter,
+            ref FighterActionStateComponent targetAction) {
             if (attackerRuntime.AttackPhase != FighterBasicAttackRules.PhaseActive) return;
             if ((attackerRuntime.AttackFlags & FighterBasicAttackRules.FlagHitResolved) != 0) return;
             if (attacker.Stocks <= 0) return;
@@ -2423,7 +2428,7 @@ namespace FTT.FighterSim {
                 FighterHitOutcome airOutcome = ApplyAirAttackSwing(
                     ref attacker, ref attackerRuntime, ref attackerVerb, in attackerTuning,
                     ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
-                    ref targetCounter, out int airDamage);
+                    ref targetCounter, ref targetAction, out int airDamage);
                 OnSwingResolved(
                     ref attackerRuntime, ref attackerVerb, airOutcome, airDamage,
                     FTT.Combat.BasicComboRules.MomentumRefundFramesFor(
@@ -2437,7 +2442,7 @@ namespace FTT.FighterSim {
                 FighterHitOutcome variantOutcome = ApplyDirectionalSwing(
                     ref attacker, ref attackerRuntime, ref attackerVerb, in attackerTuning,
                     ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
-                    ref targetKnockdown, ref targetCounter, out int variantDamage);
+                    ref targetKnockdown, ref targetCounter, ref targetAction, out int variantDamage);
                 OnSwingResolved(
                     ref attackerRuntime, ref attackerVerb, variantOutcome, variantDamage,
                     FTT.Combat.BasicComboRules.MomentumRefundFramesFor(
@@ -2486,6 +2491,7 @@ namespace FTT.FighterSim {
             // Package 13 W5: a string swing is a strike Foresight can catch.
             if (FighterForesightRules.TryCounter(ref targetCounter, ref target)) return;
             FighterHitOutcome outcome = FighterDamageRules.ResolveFighterHit(
+                ref targetAction,
                 ref attacker,
                 ref attackerRuntime,
                 ref attackerVerb,
@@ -2594,6 +2600,7 @@ namespace FTT.FighterSim {
             ref FighterDefenseComponent targetDefense,
             in FighterTuningComponent targetTuning,
             ref FighterCounterComponent targetCounter,
+            ref FighterActionStateComponent targetAction,
             out int damage) {
             damage = 0;
             const int step = FTT.Combat.BasicComboRules.AirAttackStringStep;
@@ -2611,6 +2618,7 @@ namespace FTT.FighterSim {
             attackerRuntime.AttackFlags |= FighterBasicAttackRules.FlagHitResolved;
             if (FighterForesightRules.TryCounter(ref targetCounter, ref target)) return FighterHitOutcome.Refused;
             return FighterDamageRules.ResolveFighterHit(
+                ref targetAction,
                 ref attacker,
                 ref attackerRuntime,
                 ref attackerVerb,
@@ -2655,6 +2663,7 @@ namespace FTT.FighterSim {
             in FighterTuningComponent targetTuning,
             ref FighterKnockdownComponent targetKnockdown,
             ref FighterCounterComponent targetCounter,
+            ref FighterActionStateComponent targetAction,
             out int damage) {
             // 2026-10-11 (D1a): the outcome feeds the hit-confirm cancel and
             // per-hit Momentum; a box miss and a Foresight counter are Refused.
@@ -2679,13 +2688,14 @@ namespace FTT.FighterSim {
                 return ApplyDownAirSlam(
                     ref attacker, ref attackerRuntime, ref attackerVerb, in attackerTuning,
                     ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
-                    ref targetKnockdown, damage);
+                    ref targetKnockdown, ref targetAction, damage);
             }
             // ApplyFighterHit derives both impulse axes from one magnitude, so the
             // small horizontal factor is folded into the magnitude and the
             // vertical scale carries the ratio back up to the authored 2.5x.
             FP64 knockback = attackerTuning.BasicKnockback * DirectionalHorizontalKnockback;
             return FighterDamageRules.ResolveFighterHit(
+                ref targetAction,
                 ref attacker,
                 ref attackerRuntime,
                 ref attackerVerb,
@@ -2733,8 +2743,10 @@ namespace FTT.FighterSim {
             ref FighterDefenseComponent targetDefense,
             in FighterTuningComponent targetTuning,
             ref FighterKnockdownComponent targetKnockdown,
+            ref FighterActionStateComponent targetAction,
             int damage) {
             FighterHitOutcome outcome = FighterDamageRules.ResolveFighterHit(
+                ref targetAction,
                 ref attacker,
                 ref attackerRuntime,
                 ref attackerVerb,
@@ -3087,7 +3099,8 @@ namespace FTT.FighterSim {
             ref FighterRuntimeComponent opponentRuntime,
             ref FighterVerbComponent opponentVerb,
             ref FighterDefenseComponent opponentDefense,
-            in FighterTuningComponent opponentTuning) {
+            in FighterTuningComponent opponentTuning,
+            ref FighterActionStateComponent opponentAction) {
             if (counter.AnswerPending == 0) return;
             counter.AnswerPending = 0;
             if (tubman.Stocks <= 0 || !FighterForesightRules.AnswerReaches(in tubman, in opponent)) return;
@@ -3096,6 +3109,7 @@ namespace FTT.FighterSim {
             // The answer faces the attacker it read.
             tubman.FacingRight = opponent.Position.x >= tubman.Position.x ? 1 : 0;
             FighterDamageRules.ApplyFighterHit(
+                ref opponentAction,
                 ref tubman,
                 ref tubmanRuntime,
                 ref tubmanVerb,
@@ -3241,7 +3255,8 @@ namespace FTT.FighterSim {
             ref FighterDefenseComponent targetDefense,
             in FighterTuningComponent targetTuning,
             in AttackIntent intent,
-            ref FighterCounterComponent targetCounter) {
+            ref FighterCounterComponent targetCounter,
+            ref FighterActionStateComponent targetAction) {
             if (intent.Kind == 0) return;
 
             // Decision 1.2 (plan §2.1.6): the Special was accepted on its press —
@@ -3261,6 +3276,7 @@ namespace FTT.FighterSim {
                     ? FighterDamageRules.UltimateAttackClass
                     : FighterDamageRules.SpecialAttackClass;
             FighterDamageRules.ApplyFighterHit(
+                ref targetAction,
                 ref attacker,
                 ref attackerRuntime,
                 ref attackerVerb,

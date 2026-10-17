@@ -94,7 +94,11 @@ public class CollapseTremorTests {
     }
 
     [TestCase]
-    public void DebrisIsBlockableAsABasicClassHitAndSpendsOneShieldCharge() {
+    public void DebrisIsBlockableAsAHazardClassHitAndSpendsOneShieldCharge() {
+        // CM-BLOCK (decision 7.4): debris goes through the hero's environmental
+        // entry point, so the block layer sits after D04 and Aegis and needs the
+        // real Blocking state, as every other Story hit does; it is a
+        // Hazard-class hit (one charge, as Basic was).
         PlayerController player = NewPlayer();
         var debris = NewDebris();
         try {
@@ -102,6 +106,7 @@ public class CollapseTremorTests {
             int chargesBefore = block.CurrentCharges;
             AssertThat(chargesBefore).IsGreater(1);
             block.StartBlock();
+            player.TransitionTo(CharacterState.Blocking);
             AssertThat(block.IsBlocking).IsTrue();
 
             // In front of the blocker, so the front-facing rule is satisfied.
@@ -110,11 +115,11 @@ public class CollapseTremorTests {
             int before = player.CurrentHP;
 
             AssertThat(debris.ApplyTo(player))
-                .OverrideFailureMessage("A blocked Basic-class hit deals no HP.")
+                .OverrideFailureMessage("A blocked Hazard-class hit deals no HP.")
                 .IsEqual(0);
             AssertThat(player.CurrentHP).IsEqual(before);
             AssertThat(block.CurrentCharges)
-                .OverrideFailureMessage("Debris is Basic class: exactly one charge, never a shatter.")
+                .OverrideFailureMessage("Debris is Hazard class: exactly one charge, never a shatter.")
                 .IsEqual(chargesBefore - 1);
         } finally {
             Cleanup(debris);

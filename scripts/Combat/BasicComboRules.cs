@@ -536,8 +536,78 @@ namespace FTT.Combat {
         // hitstun block-cancel only opens after string hit two connects; and an
         // empty shield can never raise the stance. Both modes read these.
 
-        /// <summary>Frames a non-shatter blocked hit locks the blocker into the stance.</summary>
-        public const int ShieldstunFrames = 8;
+        // === CM-BLOCK (combat and movement update 2026-10-16): scaled shieldstun
+        // and the perfect block. Decisions 4.1 / 11.2 and 3.4 (Q3), both modes;
+        // every number below is provisional (ledger PROVISIONAL-SHIELDSTUN-CURVE,
+        // PROVISIONAL-PERFECT-BLOCK-RULES). The flat 8-frame ShieldstunFrames is
+        // deleted: both modes read ShieldstunFramesFor. ===
+
+        /// <summary>The shieldstun of a blocked hit that dealt nothing (a zero-damage cast).</summary>
+        public const int ShieldstunBaseFrames = 6;
+        /// <summary>Each this many points of blocked damage add one frame of shieldstun.</summary>
+        public const int ShieldstunDamageDivisor = 4;
+        /// <summary>
+        /// The longest shieldstun: the shatter freeze, so a non-shatter block
+        /// never locks the blocker longer than a shatter freezes it.
+        /// </summary>
+        public const int ShieldstunMaxFrames = ShatterFreezeFrames;
+
+        /// <summary>
+        /// Decisions 4.1 / 11.2: frames a non-shatter blocked hit locks the
+        /// blocker into the stance, scaled by the damage the block took —
+        /// <c>clamp(6 + damage / 4, 6, 16)</c>, integer division. Basics (4–7)
+        /// give 7, a 28-damage Smite 13, the Emancipator's 40 the 16 cap. The
+        /// sim passes the post-barrier remainder before Radiant Burn; Story the
+        /// delivered damage after partial absorption (so the difficulty
+        /// multiplier counts). A perfect block sets none.
+        /// </summary>
+        public static int ShieldstunFramesFor(int blockedDamage) {
+            int frames = ShieldstunBaseFrames + (blockedDamage > 0 ? blockedDamage : 0) / ShieldstunDamageDivisor;
+            return frames < ShieldstunBaseFrames
+                ? ShieldstunBaseFrames
+                : frames > ShieldstunMaxFrames ? ShieldstunMaxFrames : frames;
+        }
+
+        /// <summary>
+        /// Decision 3.4: a block raised this many frames or fewer before a hit
+        /// is perfect — contact ages 0–4 counted from the first live stance
+        /// tick. It spends no charge, sets no shieldstun and keeps the 2-frame
+        /// blocked hitstop; there is no reflect and no attacker stun.
+        /// </summary>
+        public const int PerfectBlockWindowFrames = 5;
+        /// <summary>
+        /// Anti-mash guard: the window arms only on a raise after the stance
+        /// was down at least this long (or never raised this stock / life).
+        /// </summary>
+        public const int PerfectBlockRearmFrames = 20;
+        /// <summary>
+        /// The per-hit charge cost of a Story Guard-Crush (the V7.2 enemy
+        /// classification): the one statement of the value, which
+        /// <c>HitClassification.BlockChargeCostFor</c>, the enemy ability
+        /// executor and the enemy projectile stamp (CM-BLOCK replaced their three
+        /// literal 2s), and the threshold the perfect block reads.
+        /// </summary>
+        public const int GuardCrushBlockChargeCost = 2;
+
+        /// <summary>
+        /// Whether a raise arms the perfect-block window: the stance came up
+        /// this tick, Block was pressed this tick (a Toggle Block toggle-on is
+        /// a press), and the stance had been down at least
+        /// <see cref="PerfectBlockRearmFrames"/> frames or never raised
+        /// (<paramref name="loweredFrames"/> 0).
+        /// </summary>
+        public static bool PerfectBlockArms(bool stanceRose, bool blockPressed, int loweredFrames) =>
+            stanceRose && blockPressed && (loweredFrames == 0 || loweredFrames >= PerfectBlockRearmFrames);
+
+        /// <summary>
+        /// Whether a contact the ordinary block would absorb is perfect-blocked:
+        /// the window is open, and the hit is neither a Shield-Breaker (Q3: it
+        /// still shatters) nor a Story Guard-Crush (an authored cost of two or
+        /// more keeps its effect). The Ultimate activation never reaches a block.
+        /// </summary>
+        public static bool PerfectBlockApplies(bool windowOpen, bool shieldBreaker, int authoredBlockChargeCost) =>
+            windowOpen && !shieldBreaker && authoredBlockChargeCost < GuardCrushBlockChargeCost;
+
         /// <summary>
         /// A01 (Package 13 W1, 2026-09-29): charges an ordinary blocked player
         /// Special spends — <c>min(2, charges)</c>, leaving one from a full

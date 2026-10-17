@@ -68,7 +68,8 @@ namespace FTT.FighterSim {
         /// The perfect-block clock (CM-BLOCK, Phase B): bits 0–7 perfect-block
         /// frames left; bits 8–15 frames since the stance last dropped (0 = never
         /// raised this stock, otherwise 1..255 saturating); bit 16 the stance was
-        /// up last tick. Zero in Phase A.
+        /// up last tick; bits 17–18 per-tick bookkeeping and 20–23 the perfect
+        /// blocks resolved (CM-BLOCK: see <c>FighterBlockTimingRules</c>).
         /// </summary>
         public int BlockTiming;
         /// <summary>The double-tap Down window, 0..18 (CM-MOVE, Phase B). Zero in Phase A.</summary>

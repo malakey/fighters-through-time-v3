@@ -1083,7 +1083,7 @@ namespace FTT.Environment {
                 // guard break; mark the physics callback so those systems
                 // defer the engine-blocked writes.
                 using var scope = PhysicsCallbackGuard.Enter();
-                ApplySpikeDamage(player, damage);
+                ApplySpikeDamage(player, damage, hazard.GlobalPosition);
             };
 
             AddChild(hazard);
@@ -1096,9 +1096,17 @@ namespace FTT.Environment {
         /// consumption, Rally echo, victim meter — never raw ApplyDamage).
         /// Static and internal so the pin test can exercise the exact path
         /// the BodyEntered lambda takes.
+        /// <para>CM-BLOCK (7.4): spikes are a blockable source — a raised
+        /// block facing <paramref name="hitOrigin"/> (the strip's centre; the
+        /// hero's own position when omitted) absorbs the contact for one
+        /// charge.</para>
         /// </summary>
-        internal static int ApplySpikeDamage(PlayerController player, int damage) =>
-            player?.ApplyEnvironmentalDamage(damage) ?? 0;
+        internal static int ApplySpikeDamage(PlayerController player, int damage, Vector2? hitOrigin = null) {
+            if (player == null) return 0;
+            player.ApplyEnvironmentalHit(
+                damage, hitOrigin ?? player.GlobalPosition, blockable: true, out int applied);
+            return applied;
+        }
 
         /// <summary>
         /// Places one authored Chronal Fracture.

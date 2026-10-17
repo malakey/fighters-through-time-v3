@@ -88,6 +88,40 @@ public class CalibrationDrillScriptTests {
     }
 
     [TestCase]
+    public void HoldTheLineCountsAPerfectBlockAsABlock() {
+        // CM-BLOCK (decision 3.4): a perfect block spends no charge and arms no
+        // shieldstun, so drill 1 counts it through the student's perfect-block
+        // count (component 323) instead: each change counts one block, a hold
+        // counts nothing, and a reset to 0 (a stock loss) is never a block.
+        CalibrationDrillProgress perfect = ProgressFor("drill_block_string");
+        Feed(perfect, 1, s => { });
+        Feed(perfect, 3, s => s.StudentPerfectBlockCount = 1);
+        AssertThat(perfect.BlocksMade).IsEqual(1);
+        AssertThat(perfect.Outcome).IsEqual(CalibrationDrillOutcome.InProgress);
+        Feed(perfect, 1, s => s.StudentPerfectBlockCount = 0);
+        AssertThat(perfect.BlocksMade)
+            .OverrideFailureMessage("A count reset to 0 is a stock reset, never a block.")
+            .IsEqual(1);
+        Feed(perfect, 1, s => s.StudentPerfectBlockCount = 1);
+        AssertThat(perfect.BlocksMade).IsEqual(2);
+        AssertThat(perfect.Outcome).IsEqual(CalibrationDrillOutcome.Passed);
+
+        // One ordinary block (the shieldstun edge) and one perfect block pass too,
+        // and the count wrapping 15 -> 1 still counts.
+        CalibrationDrillProgress mixed = ProgressFor("drill_block_string");
+        Feed(mixed, 1, s => { });
+        Feed(mixed, 1, s => s.StudentPerfectBlockCount = 15);
+        Feed(mixed, 1, s => { s.StudentPerfectBlockCount = 15; s.StudentShieldStunFrames = 7; });
+        AssertThat(mixed.BlocksMade).IsEqual(2);
+        AssertThat(mixed.Outcome).IsEqual(CalibrationDrillOutcome.Passed);
+        CalibrationDrillProgress wrap = ProgressFor("drill_block_string");
+        Feed(wrap, 1, s => { });
+        Feed(wrap, 1, s => s.StudentPerfectBlockCount = 15);
+        Feed(wrap, 1, s => s.StudentPerfectBlockCount = 1);
+        AssertThat(wrap.BlocksMade).IsEqual(2);
+    }
+
+    [TestCase]
     public void CatchTheGroundPassesOnATechAndCountsADroppedTumbleAsAMiss() {
         CalibrationDrillProgress progress = ProgressFor("drill_landing_tech");
         Feed(progress, 1, s => { });
@@ -351,6 +385,7 @@ public class CalibrationDrillScriptTests {
         public CalibrationDrillSample Sample;
         public int StudentHP { set => Sample.StudentHP = value; }
         public int StudentShieldStunFrames { set => Sample.StudentShieldStunFrames = value; }
+        public int StudentPerfectBlockCount { set => Sample.StudentPerfectBlockCount = value; }
         public int StudentTumble { set => Sample.StudentTumble = value; }
         public int StudentTechLockoutFrames { set => Sample.StudentTechLockoutFrames = value; }
         public int StudentPendingLaunchActive { set => Sample.StudentPendingLaunchActive = value; }

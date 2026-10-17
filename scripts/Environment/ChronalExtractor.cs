@@ -162,10 +162,16 @@ namespace FTT.Environment {
             if (player == null || IsDestroyed) return;
             // V7.3: environmental damage routes through the chokepoint so the
             // victim-side pipeline (Defy flag consumption, Rally echo, meter)
-            // runs — never raw ApplyDamage.
-            player.ApplyEnvironmentalDamage(HazardDamage);
-            float direction = player.GlobalPosition.X >= GlobalPosition.X ? 1f : -1f;
-            player.Velocity += new Vector2(HazardKnockback.X * direction, HazardKnockback.Y);
+            // runs — never raw ApplyDamage. CM-BLOCK (7.4): a raised
+            // front-facing block absorbs the discharge for one charge and skips
+            // the knockback; the meter drain still applies (D03c: a non-HP drain
+            // is not prevented by a block or a shield).
+            PlayerController.EnvironmentalHitResult result =
+                player.ApplyEnvironmentalHit(HazardDamage, GlobalPosition, blockable: true);
+            if (result != PlayerController.EnvironmentalHitResult.Blocked) {
+                float direction = player.GlobalPosition.X >= GlobalPosition.X ? 1f : -1f;
+                player.Velocity += new Vector2(HazardKnockback.X * direction, HazardKnockback.Y);
+            }
             player.DrainUltimateMeter(UltimateDrain);
         }
 

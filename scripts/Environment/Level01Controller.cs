@@ -712,8 +712,9 @@ namespace FTT.Environment {
                     // the physics callback so those systems defer the
                     // engine-blocked writes.
                     using var scope = PhysicsCallbackGuard.Enter();
-                    // V7.3: environmental chokepoint — Defy/echo/meter.
-                    pc.ApplyEnvironmentalDamage(15);
+                    // V7.3: environmental chokepoint — Defy/echo/meter. CM-BLOCK
+                    // (7.4): blockable, facing the strip's centre.
+                    pc.ApplyEnvironmentalHit(15, hazard.GlobalPosition, blockable: true);
                 }
             };
 

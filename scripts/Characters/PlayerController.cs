@@ -1675,7 +1675,8 @@ namespace FTT.Characters {
 					// NotBlocked above and never reach here. A multi-hit
 					// ability, volley, zone or piercing projectile grants at
 					// most one, via the execution dedup below.
-					if (HasStoryPerk(ShieldOfOrleansPerkKey)) {
+					// CM-BLOCK (3.4): a perfect block consumed no charge, so it never pays.
+					if (HasStoryPerk(ShieldOfOrleansPerkKey) && !_blockSystem.LastBlockWasPerfect) {
 						ApplyShieldOfOrleans(hit, blockResult);
 					}
 					FTT.Core.CameraShake.Instance?.Shake(3f, 0.08f);
@@ -2202,6 +2203,7 @@ namespace FTT.Characters {
 				// Story cooldown perk's to shorten.
 				_abilityLockoutFrames = FTT.Combat.BasicComboRules.TickAbilityLockout(_abilityLockoutFrames);
 				_specialLockoutFrames = FTT.Combat.BasicComboRules.TickAbilityLockout(_specialLockoutFrames);
+				TickPerfectBlock(); // CM-BLOCK (3.4): hitstop and Time Freeze pause the window
 			}
 			UpdateDropThrough(dt);
 			UpdateHyperArmorPresentation();
@@ -3685,6 +3687,7 @@ namespace FTT.Characters {
 			Velocity = blockVel;
 
 			_blockSystem?.StartBlock();
+			OpenOwedPerfectBlockWindow(); // CM-BLOCK (3.4): the first live stance tick opens the window
 			// V7.3 shieldstun: a blocked hit locks the blocker into the stance —
 			// no grab, roll, drop-through, or release until it expires.
 			bool shieldStunned = _blockSystem?.IsInShieldStun == true;
@@ -4311,6 +4314,17 @@ namespace FTT.Characters {
 			// the D02b order; only the remainder reaches HP.
 			int remaining = ResolveProtectionLayers(damage);
 			if (damage > 0 && remaining <= 0) return 0;
+			return ApplyEnvironmentalRemainder(remaining, appliesHitstop, periodicTick);
+		}
+
+		/// <summary>
+		/// CM-BLOCK (7.4): the environmental pipeline below the D04 window and the
+		/// Aegis / barrier layers — HP, Defy, Rally echo, victim meter and the
+		/// optional hitstop — shared by <see cref="ApplyEnvironmentalDamage"/> and
+		/// <see cref="ApplyEnvironmentalHit(int, Vector2, bool, out int, bool)"/>,
+		/// whose block layer sits between the two.
+		/// </summary>
+		private int ApplyEnvironmentalRemainder(int remaining, bool appliesHitstop, bool periodicTick) {
 			int damageApplied = ApplyDamage(remaining);
 			// Consume the Defy flag whether or not damage landed — the flag
 			// belongs to this hit's accounting alone.
@@ -5797,6 +5811,7 @@ namespace FTT.Characters {
 			if (CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)
 				&& (_blockSystem == null || _blockSystem.CanRaiseStance)) {
 				TransitionTo(CharacterState.Blocking);
+				NoteBlockStanceRaised(); // CM-BLOCK (3.4): a fresh, pressed raise owes the perfect-block window
 				return true;
 			}
 			return false;
@@ -6511,7 +6526,10 @@ namespace FTT.Characters {
 			FTT.Combat.BlockResult result = _blockSystem.ResolveHit(cast);
 			CurrentBlockCharges = _blockSystem.CurrentCharges;
 			if (result == FTT.Combat.BlockResult.NotBlocked) return result;
-			if (HasStoryPerk(ShieldOfOrleansPerkKey)) ApplyShieldOfOrleans(cast, result);
+			// CM-BLOCK (3.4): a perfect block consumed no charge, so it never pays.
+			if (HasStoryPerk(ShieldOfOrleansPerkKey) && !_blockSystem.LastBlockWasPerfect) {
+				ApplyShieldOfOrleans(cast, result);
+			}
 			if (result == FTT.Combat.BlockResult.Blocked) {
 				FTT.Core.HapticFeedbackManager.Instance?.OnGuardImpact(PlayerIndex);
 			}

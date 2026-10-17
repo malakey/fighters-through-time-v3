@@ -53,11 +53,14 @@ public class StoryBlockClassificationTests {
         try {
             EnterBlockStance(player);
             int hpBefore = player.CurrentHP;
+            int chargesBefore = player.GetNode<BlockSystem>("BlockSystem").CurrentCharges;
 
             // Basic-class mob fire (the V7.2 standard rule): 1 charge, chip-priced.
             player.GetNode<Hurtbox>("Hurtbox").TakeHit(EnemyHit(damage: 9f, chargeCost: 0));
             AssertThat(player.CurrentHP).IsEqual(hpBefore);
             AssertThat(player.CurrentState).IsEqual(CharacterState.Blocking);
+            // CM-BLOCK: the charge the name promises (an ordinary block, not a perfect one).
+            AssertThat(player.GetNode<BlockSystem>("BlockSystem").CurrentCharges).IsEqual(chargesBefore - 1);
 
             // A red-telegraph unblockable pierces the stance outright.
             HitPayload unblockable = EnemyHit(damage: 15f, chargeCost: 0);
@@ -112,8 +115,20 @@ public class StoryBlockClassificationTests {
         var source = new BufferedInputSource();
         source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, GameplayButtons.Block));
         InputManager.Instance.SetInputSource(player.PlayerIndex, source);
-        for (int frame = 0; frame < 6; frame++) player._PhysicsProcess(1.0 / 60.0);
+        // CM-BLOCK (decision 3.4): the hero settles onto the floor, enters
+        // Blocking on the press and goes live on the next tick; a raise is
+        // perfect for its first five live ticks, so the stance is held that
+        // long more and the hits below meet an ORDINARY block (six fixed ticks
+        // used to leave the window open).
+        BlockSystem block = player.GetNode<BlockSystem>("BlockSystem");
+        for (int frame = 0; frame < 30 && !(player.CurrentState == CharacterState.Blocking && block.IsBlocking); frame++) {
+            player._PhysicsProcess(1.0 / 60.0);
+        }
+        for (int frame = 0; frame < BasicComboRules.PerfectBlockWindowFrames; frame++) player._PhysicsProcess(1.0 / 60.0);
         AssertThat(player.CurrentState).IsEqual(CharacterState.Blocking);
+        AssertThat(player.IsPerfectBlockWindowOpen)
+            .OverrideFailureMessage("Harness: the perfect-block window must have closed.")
+            .IsFalse();
     }
 
     /// <summary>An enemy hit as the V7.2 executor now builds them: Basic-class,

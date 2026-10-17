@@ -174,6 +174,7 @@ namespace FTT.FighterSim {
                     ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
                     ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
                     FighterDamageRules.ApplyFighterHit(
+                        ref frame.Get<FighterActionStateComponent>(targetEntity),
                         ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                         projectile.AttackClass, projectile.Damage,
                         contract.HasKnockbackVector ? contract.KnockbackX : projectile.Knockback.x,
@@ -548,6 +549,7 @@ namespace FTT.FighterSim {
         public static void FireArcs(
             ref Frame frame,
             int ownerID,
+            ref FighterActionStateComponent targetAction,
             ref FighterStateComponent attacker,
             ref FighterRuntimeComponent attackerRuntime,
             ref FighterVerbComponent attackerVerb,
@@ -572,6 +574,7 @@ namespace FTT.FighterSim {
             for (int index = 0; index < count && index < 2; index++) {
                 FPVector2 origin = index == 0 ? first : second;
                 FighterDamageRules.ApplyFighterHit(
+                    ref targetAction,
                     ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     FighterDamageRules.SpecialAttackClass, ArcDamage, FP64.Zero, ArcHitstunFrames,
                     (int)StatusType.None, 0, FP64.One, origin.x,

@@ -111,7 +111,7 @@ namespace FTT.Enemies {
             // against the block (1 charge, never a shatter). Guard-Crush and
             // boss-only unblockables are explicit flags.
             _hitbox.AttackClass = FTT.Combat.AttackClass.Basic;
-            _hitbox.BlockChargeCost = guardCrush ? 2 : 0;
+            _hitbox.BlockChargeCost = guardCrush ? BasicComboRules.GuardCrushBlockChargeCost : 0;
             _hitbox.Unblockable = unblockable;
             _hitbox.Damage = Mathf.Max(0f, scaledDamage);
             _hitbox.KnockbackForce = new Vector2(

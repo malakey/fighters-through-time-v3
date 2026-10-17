@@ -10,8 +10,8 @@ namespace FTT.Tests.Determinism;
 
 /// <summary>
 /// Package 13 W1 — A01 (Fighter half) and D10. An ordinary blocked player
-/// Special spends <c>min(2, charges)</c> with the ordinary 8-frame shieldstun
-/// when it does not shatter; only an authored <see cref="BlockClass.ShieldBreaker"/>
+/// Special spends <c>min(2, charges)</c> with the ordinary shieldstun (scaled by
+/// its damage since CM-BLOCK, decision 4.1) when it does not shatter; only an authored <see cref="BlockClass.ShieldBreaker"/>
 /// spends every charge. The loadout projects the three authored Shield-Breakers
 /// and the signed knockback vector (D10) instead of the retired
 /// <c>max(|x|, |y|)</c> flattening. The Story half is
@@ -32,9 +32,10 @@ public class SpecialBlockChargeCostTests {
             .IsEqual(1);
         AssertThat(target.DazeFrames).IsEqual(0);
         AssertThat(verb.BlockLockoutFrames).IsEqual(0);
+        // CM-BLOCK (4.1): the 20-damage Special's scaled shieldstun (11).
         AssertThat(verb.ShieldStunFrames)
-            .OverrideFailureMessage("A non-shattering Special block applies the ordinary shieldstun.")
-            .IsEqual(BasicComboRules.ShieldstunFrames);
+            .OverrideFailureMessage("A non-shattering Special block applies the shieldstun its damage earns.")
+            .IsEqual(BasicComboRules.ShieldstunFramesFor(20));
         AssertThat(target.CurrentHP).IsEqual(100);
     }
 
