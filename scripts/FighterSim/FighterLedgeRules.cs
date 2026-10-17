@@ -105,6 +105,15 @@ namespace FTT.FighterSim {
                 ? FTT.Combat.BasicComboRules.LedgeNeutralClimbIntangibleFrames
                 : FTT.Combat.BasicComboRules.LedgeActionClimbFrames;
 
+        /// <summary>
+        /// The action-chokepoint kind a get-up reports at its press (plan
+        /// §2.5.2): the ledge attack is a <see cref="FighterActionKind.Swing"/> —
+        /// offensive, so it ends respawn and Defy protection — and the neutral
+        /// climb and the ledge roll are <see cref="FighterActionKind.LedgeGetUp"/>.
+        /// </summary>
+        public static FighterActionKind GetUpActionKind(int phase) =>
+            phase == (int)UniversalMovementPhase.LedgeAttackClimb ? FighterActionKind.Swing : FighterActionKind.LedgeGetUp;
+
         /// <summary>Intangible frames a get-up grants from its first tick.</summary>
         public static int ClimbIntangibleFramesFor(int phase) =>
             phase == (int)UniversalMovementPhase.LedgeClimb
@@ -249,14 +258,14 @@ namespace FTT.FighterSim {
 
             if ((pressed & RollButton) != 0 && !blockHeld && (pressed & EchoStepButton) == 0) {
                 StartGetUp(ref fighter, ref runtime, ref verb, ref defense, ref action,
-                    (int)UniversalMovementPhase.LedgeRoll, FighterActionKind.LedgeGetUp, in hangPosition, in standPosition);
+                    (int)UniversalMovementPhase.LedgeRoll, in hangPosition, in standPosition);
                 return HangTick.GotUp;
             }
             if ((pressed & BasicButton) != 0 && !blockHeld && (pressed & GrabButton) == 0) {
                 // The ledge attack is an offensive action from its press: it ends
                 // respawn and Defy protection (CM-HIT's chokepoint body).
                 StartGetUp(ref fighter, ref runtime, ref verb, ref defense, ref action,
-                    (int)UniversalMovementPhase.LedgeAttackClimb, FighterActionKind.Swing, in hangPosition, in standPosition);
+                    (int)UniversalMovementPhase.LedgeAttackClimb, in hangPosition, in standPosition);
                 return HangTick.GotUp;
             }
 
@@ -272,7 +281,7 @@ namespace FTT.FighterSim {
                 if (runtime.LedgeStateFrames >= FTT.Combat.BasicComboRules.LedgeGetUpMinHangFrames
                     && (action.ActionFlags & FighterActionStateComponent.ActionFlagLedgeStickRearmed) != 0) {
                     StartGetUp(ref fighter, ref runtime, ref verb, ref defense, ref action,
-                        (int)UniversalMovementPhase.LedgeClimb, FighterActionKind.LedgeGetUp, in hangPosition, in standPosition);
+                        (int)UniversalMovementPhase.LedgeClimb, in hangPosition, in standPosition);
                     return HangTick.GotUp;
                 }
             } else {
@@ -303,7 +312,6 @@ namespace FTT.FighterSim {
             ref FighterDefenseComponent defense,
             ref FighterActionStateComponent action,
             int phase,
-            FighterActionKind kind,
             in FPVector2 hangPosition,
             in FPVector2 standPosition) {
             int anchor = runtime.LedgeAnchor;
@@ -314,7 +322,7 @@ namespace FTT.FighterSim {
             runtime.UniversalMovementState = phase;
             runtime.UniversalMovementFramesRemaining = ClimbFramesFor(phase);
             runtime.UniversalMovementDirection = anchor;
-            FighterActionRules.OnActionAccepted(ref fighter, ref verb, ref defense, ref action, kind);
+            FighterActionRules.OnActionAccepted(ref fighter, ref verb, ref defense, ref action, GetUpActionKind(phase));
             int intangible = ClimbIntangibleFramesFor(phase);
             if (fighter.InvulnerabilityFrames < intangible) fighter.InvulnerabilityFrames = intangible;
             StepClimb(ref fighter, ref runtime, in hangPosition, in standPosition);
