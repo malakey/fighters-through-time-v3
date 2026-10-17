@@ -19,9 +19,13 @@ namespace FTT.Core {
         /// CM-PADUI (2026-10-16): the press a menu has just acted on must not also
         /// act in the game or in a polled UI underneath. Every slot's sample on the
         /// <b>next</b> physics tick starts from what is held at that moment: a
-        /// button already down reaches the game as held, never as a fresh press or
-        /// release edge, so it acts again only after it is released and pressed
-        /// anew. Held state, sticks and the Toggle Block latch are untouched, and a
+        /// button already down reaches the game as held, never as a fresh press,
+        /// so it acts again only after it is released and pressed anew — a
+        /// shoulder the Ultimate chord window would have held back included
+        /// (CM-FIXB-PADUI, 2026-10-16). Release edges pass (CM-FIXB-PADUI): a
+        /// release starts no action, and the Fighter sim's short-hop latch needs
+        /// the release of a Jump let go of during a pause. Held state, sticks and
+        /// the Toggle Block latch are untouched, and a
         /// slot driven by an input source (the CPU, a bot, a test) is never
         /// touched. Called when a pause or a gameplay-pausing dialogue hands
         /// control back, when a Fighter-select overlay or stage phase closes, and

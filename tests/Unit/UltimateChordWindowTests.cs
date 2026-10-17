@@ -31,8 +31,8 @@ public class UltimateChordWindowTests {
         public bool ChordEnabled = true;
         public bool Affordable = true;
 
-        public PlayerInputFrame Step(bool lb, bool rb) {
-            UltimateChordWindow.Output output = _window.Step(lb, rb, ChordEnabled, Affordable);
+        public PlayerInputFrame Step(bool lb, bool rb, bool settle = false) {
+            UltimateChordWindow.Output output = _window.Step(lb, rb, ChordEnabled, Affordable, settle);
             GameplayButtons held = GameplayButtons.None;
             if (output.MovementHeld) held |= GameplayButtons.MovementAbility;
             if (output.Special2Held) held |= GameplayButtons.Special2;
@@ -115,6 +115,48 @@ public class UltimateChordWindowTests {
             if (heldOn.Step(lb: true, rb: false).IsPressed(GameplayButtons.MovementAbility)) presses++;
         }
         AssertThat(presses).IsEqual(1);
+    }
+
+    /// <summary>
+    /// CM-FIXB-PADUI (finding B22 (b)): on the tick a menu-press consume covers
+    /// (<c>settleHeld</c>) a shoulder already down is emitted held at once,
+    /// from Up (pressed during a pause, held through the resume) or from a
+    /// running wait, so the consume turns its edge into a plain held bit and it
+    /// never makes a late press. A chord still masks on that tick, and once let
+    /// go the shoulder waits the window again as usual.
+    /// </summary>
+    [TestCase]
+    public void OnAConsumeTickAShoulderAlreadyDownIsEmittedHeldAtOnceAndAChordStillMasks() {
+        var fromUp = new Pad();
+        AssertThat(fromUp.Step(lb: false, rb: true, settle: true).IsHeld(GameplayButtons.Special2))
+            .OverrideFailureMessage("A shoulder already down on the consume tick was held back.")
+            .IsTrue();
+        AssertThat(fromUp.Waiting).IsFalse();
+        for (int frame = 0; frame < 2 * Window; frame++) {
+            PlayerInputFrame heldOn = fromUp.Step(lb: false, rb: true);
+            AssertThat(heldOn.IsHeld(GameplayButtons.Special2)).IsTrue();
+            AssertThat(heldOn.Pressed)
+                .OverrideFailureMessage($"Frame {frame} after the consume tick: the settled shoulder made a late edge.")
+                .IsEqual(GameplayButtons.None);
+        }
+
+        var fromWait = new Pad();
+        AssertThat(fromWait.Step(lb: true, rb: false).Held).IsEqual(GameplayButtons.None);
+        AssertThat(fromWait.Waiting).IsTrue();
+        AssertThat(fromWait.Step(lb: true, rb: false, settle: true).IsHeld(GameplayButtons.MovementAbility))
+            .OverrideFailureMessage("A waiting shoulder was still held back on the consume tick.")
+            .IsTrue();
+        AssertThat(fromWait.Step(lb: true, rb: false).IsPressed(GameplayButtons.MovementAbility)).IsFalse();
+
+        var chord = new Pad();
+        AssertThat(chord.Step(lb: true, rb: true, settle: true).Held)
+            .OverrideFailureMessage("The consume tick broke the chord's mask.")
+            .IsEqual(GameplayButtons.Ultimate);
+
+        // Let go, a fresh press waits the window for its partner as before.
+        fromUp.Step(lb: false, rb: false);
+        AssertThat(fromUp.Step(lb: false, rb: true).Held).IsEqual(GameplayButtons.None);
+        AssertThat(fromUp.Waiting).IsTrue();
     }
 
     [TestCase]

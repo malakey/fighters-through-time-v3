@@ -57,7 +57,8 @@ namespace FTT.UI {
             if (!_isPaused) return;
             _isPaused = false;
             SceneTree tree = GetTree();
-            if (tree != null) tree.Paused = false;
+            // CM-FIXB-PADUI: handed back to a gameplay-pausing dialogue that still holds it.
+            if (tree != null) tree.Paused = DialogueHoldsGameplayPause();
             // Package 11 A3 (F01): the Integrity clock scope is handed back
             // with the tree pause, on teardown as well as on the normal path.
             FTT.Core.StoryManager.Instance?.SetIntegrityClockPause(
@@ -77,7 +78,11 @@ namespace FTT.UI {
             SetCountedOpen(paused && IsInsideTree());
 
             SceneTree tree = GetTree();
-            if (tree != null) tree.Paused = paused;
+            // CM-FIXB-PADUI (2026-10-16): a pause opened over a gameplay-pausing
+            // dialogue (Start, a focus loss) hands the tree back to it on every
+            // resume — Resume, pad B, a controller-lost resolution — rather than
+            // running the world under the still-open box.
+            if (tree != null) tree.Paused = paused || DialogueHoldsGameplayPause();
             // Package 11 A3 (F01): reading the map costs no Timeline Integrity.
             FTT.Core.StoryManager.Instance?.SetIntegrityClockPause(
                 FTT.Core.IntegrityClockPause.PauseMenu, paused);
@@ -89,6 +94,30 @@ namespace FTT.UI {
             if (!paused) FTT.Core.InputManager.Instance?.ConsumeHeldPresses();
 
             OnPauseStateChanged(paused);
+        }
+
+        /// <summary>
+        /// CM-FIXB-PADUI (2026-10-16): closes the pause for a flow that leaves the
+        /// scene (Restart Level, Quit to Main Menu). Unlike a resume, the tree is
+        /// released outright, even under a gameplay-pausing dialogue the pause
+        /// was opened over: the scene load runs on <c>GameManager._Process</c>,
+        /// which a paused tree stops, and the dialogue box leaves with the scene
+        /// (its own <c>_ExitTree</c> hands back its share).
+        /// </summary>
+        protected internal void ClosePauseForSceneExit() {
+            SetPaused(false);
+            SceneTree tree = GetTree();
+            if (tree != null) tree.Paused = false;
+        }
+
+        /// <summary>
+        /// CM-FIXB-PADUI (2026-10-16): whether the scene's dialogue box is in a
+        /// gameplay-pausing sequence that took <see cref="SceneTree.Paused"/>,
+        /// which then stays set when this pause closes.
+        /// </summary>
+        private static bool DialogueHoldsGameplayPause() {
+            DialogueManager dialogue = DialogueManager.Instance;
+            return dialogue != null && IsInstanceValid(dialogue) && dialogue.IsInsideTree() && dialogue.HoldsGameplayPause;
         }
 
         /// <summary>Presentation hook: show or hide the menu, move focus, close modals.</summary>
