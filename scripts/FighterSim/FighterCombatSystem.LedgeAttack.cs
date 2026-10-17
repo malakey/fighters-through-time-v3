@@ -30,6 +30,7 @@ namespace FTT.FighterSim {
             ref FighterDefenseComponent targetDefense,
             in FighterTuningComponent targetTuning,
             ref FighterCounterComponent targetCounter,
+            ref FighterActionStateComponent targetAction,
             out int damage) {
             damage = 0;
             const int step = 0;
@@ -47,6 +48,7 @@ namespace FTT.FighterSim {
             attackerRuntime.AttackFlags |= FighterBasicAttackRules.FlagHitResolved;
             if (FighterForesightRules.TryCounter(ref targetCounter, ref target)) return FighterHitOutcome.Refused;
             return FighterDamageRules.ResolveFighterHit(
+                ref targetAction,
                 ref attacker,
                 ref attackerRuntime,
                 ref attackerVerb,

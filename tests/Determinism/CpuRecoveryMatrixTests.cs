@@ -215,16 +215,14 @@ public class CpuRecoveryMatrixTests {
 
     /// <summary>
     /// CM-MOVE (decision 5.2, plan §2.5.2): whether the "CPU stays climb-jump
-    /// only" check is enforced. It is not yet: with the CPU code unchanged (CM-MOVE
-    /// owns none of it), the drills below find the CPU neutral-climbing and
-    /// ledge-attacking — recovery steer and neutral-combat presses decided
-    /// before the grab are delivered on hang ticks before its own hang answer
-    /// (Jump, a centred stick) arrives. The plan routes that to the orchestrator
-    /// for a one-line CPU change (<c>docs/handoffs/CM_MOVE.md</c>, open items);
-    /// set this to true with it. Until then the counts are printed, and the
-    /// drills still assert that the sweep reaches the ledges.
+    /// only" check is enforced. It is, since the Phase B merge: recovery steer
+    /// and neutral-combat presses decided before the grab used to arrive on hang
+    /// ticks ahead of the CPU's own hang answer (Jump, a centred stick) and
+    /// neutral-climb or ledge-attack (<c>docs/handoffs/CM_MOVE.md</c>, deviation
+    /// 1), and <c>FighterCpuController.Sample</c> now sends a hanging CPU no
+    /// stick, Roll or BasicAttack.
     /// </summary>
-    private const bool CpuClimbJumpOnlyEnforced = false;
+    private const bool CpuClimbJumpOnlyEnforced = true;
 
     /// <summary>
     /// CM-MOVE (decision 5.2, plan §2.5.2: "the CPU stays climb-jump only"): in

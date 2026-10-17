@@ -212,6 +212,78 @@ public class FighterLedgeGetUpTests {
     }
 
     /// <summary>
+    /// Phase B merge fix-up (CM-MOVE x CM-BLOCK, decision 3.4): the ledge attack
+    /// is a blockable basic, so its hit site passes the victim's component 323
+    /// like every other one. A raise long before contact is an ordinary block
+    /// (one charge, shieldstun); a raise two ticks before contact is perfect (no
+    /// charge, no shieldstun).
+    /// </summary>
+    [TestCase]
+    public void TheLedgeAttackCanBePerfectBlocked() {
+        int contact = LedgeAttackBlockedStep(raiseStep: 0,
+            out FighterStateComponent ordinaryStart, out FighterStateComponent ordinary,
+            out FighterVerbComponent ordinaryVerb, out int ordinaryPerfect);
+        AssertThat(contact)
+            .OverrideFailureMessage("Harness: the ledge attack must take at least four ticks to reach player two.")
+            .IsGreaterEqual(4);
+        AssertThat(ordinary.CurrentHP).IsEqual(ordinaryStart.CurrentHP);
+        AssertThat(ordinary.BlockCharges)
+            .OverrideFailureMessage("Harness: a raise long before contact is an ordinary block of the ledge attack.")
+            .IsEqual(ordinaryStart.BlockCharges - 1);
+        AssertThat(ordinaryVerb.ShieldStunFrames > 0).IsTrue();
+        AssertThat(ordinaryPerfect).IsEqual(0);
+
+        int perfectContact = LedgeAttackBlockedStep(raiseStep: contact - 2,
+            out FighterStateComponent start, out FighterStateComponent blocker,
+            out FighterVerbComponent verb, out int perfect);
+        AssertThat(perfectContact).IsEqual(contact);
+        AssertThat(blocker.CurrentHP).IsEqual(start.CurrentHP);
+        AssertThat(blocker.BlockCharges)
+            .OverrideFailureMessage("A raise two ticks before the ledge attack's contact is perfect: no charge.")
+            .IsEqual(start.BlockCharges);
+        AssertThat(verb.ShieldStunFrames)
+            .OverrideFailureMessage("A perfect block of the ledge attack sets no shieldstun.")
+            .IsEqual(0);
+        AssertThat(perfect).IsEqual(1);
+    }
+
+    /// <summary>
+    /// Player one ledge-attacks from the hang at step 0; player two, standing at
+    /// the edge facing it, holds Block from <paramref name="raiseStep"/> on
+    /// (a real press edge). Returns the step the blocked contact shows on.
+    /// </summary>
+    private static int LedgeAttackBlockedStep(
+        int raiseStep,
+        out FighterStateComponent start,
+        out FighterStateComponent blocker,
+        out FighterVerbComponent verb,
+        out int perfectBlocks) {
+        FighterSimulation simulation = HangingReady(out int tick, opponentX: FP64.FromDouble(-1.6));
+        start = Fighter(simulation, 1);
+        GameplayButtons previousTwo = GameplayButtons.None;
+        for (int step = 0; step < 40; step++, tick++) {
+            GameplayButtons two = step >= raiseStep ? GameplayButtons.Block : GameplayButtons.None;
+            simulation.Advance(
+                PlayerInputFrame.Create((uint)tick, 0f, 0f, step == 0 ? GameplayButtons.BasicAttack : GameplayButtons.None),
+                PlayerInputFrame.Create((uint)tick, 0f, 0f, two, previousTwo));
+            previousTwo = two;
+            blocker = Fighter(simulation, 1);
+            verb = Verb(simulation, 1);
+            AssertThat(simulation.TryGetFighterActionState(1, out FighterActionStateComponent action)).IsTrue();
+            perfectBlocks = FighterBlockTimingRules.PerfectBlockCount(in action);
+            if (blocker.BlockCharges < start.BlockCharges || verb.ShieldStunFrames > 0
+                || blocker.CurrentHP < start.CurrentHP || perfectBlocks > 0) {
+                return step;
+            }
+        }
+        AssertThat(false).OverrideFailureMessage("Harness: the ledge attack never reached player two.").IsTrue();
+        blocker = default;
+        verb = default;
+        perfectBlocks = 0;
+        return -1;
+    }
+
+    /// <summary>
     /// The first grab of an airtime is intangible for 30 frames; a regrab in the
     /// same airtime (the climb jump falling back into the box) gets nothing.
     /// </summary>

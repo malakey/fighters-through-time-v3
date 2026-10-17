@@ -412,6 +412,16 @@ namespace FTT.FighterSim {
                 in observation,
                 _sustainedHeld | _activeEdges | (_jumpSustained ? GameplayButtons.Jump : GameplayButtons.None),
                 ref outputMoveX);
+            // CM-MOVE (decision 5.2, plan section 2.5.2): the CPU stays climb-jump
+            // only. Steer and neutral presses decided before the grab arrive on
+            // hang ticks ahead of its own hang answer and would neutral-climb,
+            // ledge-roll or ledge-attack, so a hanging CPU sends no stick, Roll or
+            // BasicAttack and its Jump climbs.
+            if (observation.IsLedgeHanging != 0) {
+                outputMoveX = 0;
+                outputMoveY = 0;
+                held &= ~(GameplayButtons.Roll | GameplayButtons.BasicAttack);
+            }
             return PlayerInputFrame.Create(
                 tick, outputMoveX / 127f, outputMoveY / 127f,
                 held, previousFrame.Held);

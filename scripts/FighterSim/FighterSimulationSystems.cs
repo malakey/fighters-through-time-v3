@@ -2450,7 +2450,7 @@ namespace FTT.FighterSim {
                 FighterHitOutcome ledgeOutcome = ApplyLedgeAttackSwing(
                     ref attacker, ref attackerRuntime, ref attackerVerb, in attackerTuning,
                     ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
-                    ref targetCounter, out int ledgeDamage);
+                    ref targetCounter, ref targetAction, out int ledgeDamage);
                 OnSwingResolved(
                     ref attackerRuntime, ref attackerVerb, ledgeOutcome, ledgeDamage,
                     FTT.Combat.BasicComboRules.MomentumRefundFramesFor(FTT.Combat.BasicComboRules.VariantChain, 0));
