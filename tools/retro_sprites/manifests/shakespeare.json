@@ -1,0 +1,1004 @@
+{
+ "character": "shakespeare",
+ "texel_scale": 2.0,
+ "animations": {
+  "idle": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     0,
+     320,
+     232,
+     256
+    ],
+    [
+     232,
+     320,
+     232,
+     256
+    ],
+    [
+     464,
+     320,
+     232,
+     256
+    ],
+    [
+     696,
+     320,
+     232,
+     256
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 6.0,
+   "loop": true,
+   "sources": [
+    "shakespeare__idle#2",
+    "shakespeare__idle#3",
+    "shakespeare__idle#5",
+    "shakespeare__idle#2"
+   ]
+  },
+  "run": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     928,
+     320,
+     256,
+     248
+    ],
+    [
+     1184,
+     320,
+     256,
+     248
+    ],
+    [
+     1440,
+     320,
+     256,
+     248
+    ],
+    [
+     0,
+     576,
+     256,
+     248
+    ],
+    [
+     256,
+     576,
+     256,
+     248
+    ],
+    [
+     512,
+     576,
+     256,
+     248
+    ],
+    [
+     768,
+     576,
+     256,
+     248
+    ],
+    [
+     1024,
+     576,
+     256,
+     248
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 14.0,
+   "loop": true,
+   "sources": [
+    "shakespeare__run#2",
+    "shakespeare__run#3",
+    "shakespeare__run#4",
+    "shakespeare__run#5",
+    "shakespeare__run#7",
+    "shakespeare__run#8",
+    "shakespeare__run#9",
+    "shakespeare__run#10"
+   ]
+  },
+  "jump": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     0,
+     0,
+     216,
+     320
+    ],
+    [
+     216,
+     0,
+     216,
+     320
+    ],
+    [
+     432,
+     0,
+     216,
+     320
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "shakespeare__p01#2",
+    "shakespeare__p01#3",
+    "shakespeare__p01#4"
+   ]
+  },
+  "fall": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     648,
+     0,
+     288,
+     280
+    ],
+    [
+     936,
+     0,
+     288,
+     280
+    ],
+    [
+     1224,
+     0,
+     288,
+     280
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "shakespeare__p01#7",
+    "shakespeare__p01#5",
+    "shakespeare__p01#6"
+   ]
+  },
+  "skid": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     1280,
+     576,
+     416,
+     224
+    ],
+    [
+     0,
+     824,
+     416,
+     224
+    ],
+    [
+     416,
+     824,
+     416,
+     224
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 12.0,
+   "loop": false,
+   "sources": [
+    "shakespeare__p01#8",
+    "shakespeare__p01#9",
+    "shakespeare__p01#10"
+   ]
+  },
+  "crouch": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     832,
+     824,
+     240,
+     200
+    ],
+    [
+     1072,
+     824,
+     240,
+     200
+    ],
+    [
+     1312,
+     824,
+     240,
+     200
+    ]
+   ],
+   "feet_gap": 12,
+   "speed": 4.0,
+   "loop": true,
+   "sources": [
+    "shakespeare__p02#2",
+    "shakespeare__p02#2",
+    "shakespeare__p02#2"
+   ]
+  },
+  "roll_startup": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     256,
+     944,
+     248,
+     192
+    ],
+    [
+     504,
+     944,
+     248,
+     192
+    ],
+    [
+     752,
+     944,
+     248,
+     192
+    ]
+   ],
+   "feet_gap": 20,
+   "speed": 12.0,
+   "loop": false,
+   "sources": [
+    "shakespeare__p02#3",
+    "shakespeare__p02#4",
+    "shakespeare__p02#5"
+   ]
+  },
+  "roll": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     648,
+     688,
+     256,
+     216
+    ],
+    [
+     904,
+     688,
+     256,
+     216
+    ],
+    [
+     0,
+     944,
+     256,
+     216
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 12.0,
+   "loop": false,
+   "sources": [
+    "shakespeare__p02#6",
+    "shakespeare__p02#7",
+    "shakespeare__p02#8"
+   ]
+  },
+  "roll_recovery": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     352,
+     408,
+     256,
+     264
+    ],
+    [
+     608,
+     408,
+     256,
+     264
+    ],
+    [
+     864,
+     408,
+     256,
+     264
+    ]
+   ],
+   "feet_gap": 16,
+   "speed": 12.0,
+   "loop": false,
+   "sources": [
+    "shakespeare__p02#9",
+    "shakespeare__p02#10",
+    "shakespeare__idle#2"
+   ]
+  },
+  "ledge_hang": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     840,
+     0,
+     176,
+     280
+    ],
+    [
+     0,
+     408,
+     176,
+     280
+    ],
+    [
+     176,
+     408,
+     176,
+     280
+    ]
+   ],
+   "feet_gap": 142,
+   "speed": 3.0,
+   "loop": true,
+   "sources": [
+    "shakespeare__p03#2",
+    "shakespeare__p03#2",
+    "shakespeare__p03#2"
+   ]
+  },
+  "ledge_pull_up": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     0,
+     688,
+     216,
+     256
+    ],
+    [
+     216,
+     688,
+     216,
+     256
+    ],
+    [
+     432,
+     688,
+     216,
+     256
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "shakespeare__p03#3",
+    "shakespeare__p03#4",
+    "shakespeare__p03#5"
+   ]
+  },
+  "ledge_drop": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     0,
+     0,
+     280,
+     408
+    ],
+    [
+     280,
+     0,
+     280,
+     408
+    ],
+    [
+     560,
+     0,
+     280,
+     408
+    ]
+   ],
+   "feet_gap": 141,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "shakespeare__p03#2",
+    "shakespeare__p01#5",
+    "shakespeare__p01#7"
+   ]
+  },
+  "basic_attack_1": {
+   "sheet": "combat",
+   "regions": [
+    [
+     1088,
+     280,
+     472,
+     272
+    ],
+    [
+     1560,
+     280,
+     472,
+     272
+    ],
+    [
+     2032,
+     280,
+     472,
+     272
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "shakespeare__p04#9",
+    "shakespeare__p05#2",
+    "shakespeare__p05#3"
+   ]
+  },
+  "basic_attack_2": {
+   "sheet": "combat",
+   "regions": [
+    [
+     1824,
+     0,
+     544,
+     272
+    ],
+    [
+     0,
+     280,
+     544,
+     272
+    ],
+    [
+     544,
+     280,
+     544,
+     272
+    ]
+   ],
+   "feet_gap": 17,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "shakespeare__p05#4",
+    "shakespeare__p05#5",
+    "shakespeare__p05#6"
+   ]
+  },
+  "basic_attack_3": {
+   "sheet": "combat",
+   "regions": [
+    [
+     1368,
+     552,
+     544,
+     256
+    ],
+    [
+     1912,
+     552,
+     544,
+     256
+    ],
+    [
+     0,
+     824,
+     544,
+     256
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 7.0,
+   "loop": false,
+   "sources": [
+    "shakespeare__p05#7",
+    "shakespeare__p05#8",
+    "shakespeare__p05#9"
+   ]
+  },
+  "block": {
+   "sheet": "combat",
+   "regions": [
+    [
+     544,
+     824,
+     272,
+     232
+    ],
+    [
+     816,
+     824,
+     272,
+     232
+    ],
+    [
+     1088,
+     824,
+     272,
+     232
+    ]
+   ],
+   "feet_gap": 12,
+   "speed": 3.0,
+   "loop": true,
+   "sources": [
+    "shakespeare__p03#6",
+    "shakespeare__p03#6",
+    "shakespeare__p03#6"
+   ]
+  },
+  "hitstun": {
+   "sheet": "combat",
+   "regions": [
+    [
+     1360,
+     824,
+     232,
+     224
+    ],
+    [
+     1592,
+     824,
+     232,
+     224
+    ],
+    [
+     1824,
+     824,
+     232,
+     224
+    ]
+   ],
+   "feet_gap": 17,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "shakespeare__p03#7",
+    "shakespeare__p03#8",
+    "shakespeare__p03#9"
+   ]
+  },
+  "grab": {
+   "sheet": "combat",
+   "regions": [
+    [
+     0,
+     552,
+     456,
+     272
+    ],
+    [
+     456,
+     552,
+     456,
+     272
+    ],
+    [
+     912,
+     552,
+     456,
+     272
+    ]
+   ],
+   "feet_gap": 17,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "shakespeare__p06#8",
+    "shakespeare__p06#9",
+    "shakespeare__p07#2"
+   ]
+  },
+  "throw": {
+   "sheet": "combat",
+   "regions": [
+    [
+     0,
+     0,
+     608,
+     280
+    ],
+    [
+     608,
+     0,
+     608,
+     280
+    ],
+    [
+     1216,
+     0,
+     608,
+     280
+    ]
+   ],
+   "feet_gap": 16,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "shakespeare__p07#3",
+    "shakespeare__p07#4",
+    "shakespeare__p07#5"
+   ]
+  },
+  "up_attack": {
+   "sheet": "directional_attacks",
+   "regions": [
+    [
+     984,
+     0,
+     464,
+     296
+    ],
+    [
+     1448,
+     0,
+     464,
+     296
+    ],
+    [
+     1912,
+     0,
+     464,
+     296
+    ]
+   ],
+   "feet_gap": 16,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "shakespeare__p06#2",
+    "shakespeare__p06#3",
+    "shakespeare__p06#4"
+   ]
+  },
+  "down_air": {
+   "sheet": "directional_attacks",
+   "regions": [
+    [
+     0,
+     0,
+     328,
+     368
+    ],
+    [
+     328,
+     0,
+     328,
+     368
+    ],
+    [
+     656,
+     0,
+     328,
+     368
+    ]
+   ],
+   "feet_gap": 109,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "shakespeare__p06#5",
+    "shakespeare__p06#6",
+    "shakespeare__p06#7"
+   ]
+  },
+  "dazed": {
+   "sheet": "states",
+   "regions": [
+    [
+     960,
+     304,
+     200,
+     240
+    ],
+    [
+     1160,
+     304,
+     200,
+     240
+    ],
+    [
+     1360,
+     304,
+     200,
+     240
+    ]
+   ],
+   "feet_gap": 19,
+   "speed": 4.0,
+   "loop": true,
+   "sources": [
+    "shakespeare__p03#10",
+    "shakespeare__p03#10",
+    "shakespeare__p03#10"
+   ]
+  },
+  "death": {
+   "sheet": "states",
+   "regions": [
+    [
+     2088,
+     0,
+     480,
+     240
+    ],
+    [
+     0,
+     304,
+     480,
+     240
+    ],
+    [
+     480,
+     304,
+     480,
+     240
+    ]
+   ],
+   "feet_gap": 21,
+   "speed": 6.0,
+   "loop": false,
+   "sources": [
+    "shakespeare__p04#2",
+    "shakespeare__p04#3",
+    "shakespeare__p04#4"
+   ]
+  },
+  "respawn": {
+   "sheet": "states",
+   "regions": [
+    [
+     1392,
+     0,
+     232,
+     256
+    ],
+    [
+     1624,
+     0,
+     232,
+     256
+    ],
+    [
+     1856,
+     0,
+     232,
+     256
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "shakespeare__idle#2",
+    "shakespeare__idle#2",
+    "shakespeare__idle#2"
+   ]
+  },
+  "victory": {
+   "sheet": "states",
+   "regions": [
+    [
+     0,
+     0,
+     464,
+     304
+    ],
+    [
+     464,
+     0,
+     464,
+     304
+    ],
+    [
+     928,
+     0,
+     464,
+     304
+    ]
+   ],
+   "feet_gap": 17,
+   "speed": 6.0,
+   "loop": true,
+   "sources": [
+    "shakespeare__p04#5",
+    "shakespeare__p04#6",
+    "shakespeare__p04#7"
+   ]
+  },
+  "defeat": {
+   "sheet": "states",
+   "regions": [
+    [
+     1560,
+     304,
+     288,
+     208
+    ],
+    [
+     1848,
+     304,
+     288,
+     208
+    ],
+    [
+     2136,
+     304,
+     288,
+     208
+    ]
+   ],
+   "feet_gap": 12,
+   "speed": 4.0,
+   "loop": true,
+   "sources": [
+    "shakespeare__p04#8",
+    "shakespeare__p04#8",
+    "shakespeare__p04#8"
+   ]
+  },
+  "special_1": {
+   "sheet": "abilities",
+   "regions": [
+    [
+     0,
+     304,
+     648,
+     272
+    ],
+    [
+     648,
+     304,
+     648,
+     272
+    ],
+    [
+     1296,
+     304,
+     648,
+     272
+    ]
+   ],
+   "feet_gap": 23,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "shakespeare__p07#6",
+    "shakespeare__p07#7",
+    "shakespeare__p07#8"
+   ]
+  },
+  "special_2": {
+   "sheet": "abilities",
+   "regions": [
+    [
+     1944,
+     304,
+     560,
+     272
+    ],
+    [
+     2504,
+     304,
+     560,
+     272
+    ],
+    [
+     3064,
+     304,
+     560,
+     272
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "shakespeare__p07#9",
+    "shakespeare__p08#2",
+    "shakespeare__p08#3"
+   ]
+  },
+  "movement_ability": {
+   "sheet": "abilities",
+   "regions": [
+    [
+     2424,
+     0,
+     424,
+     280
+    ],
+    [
+     2848,
+     0,
+     424,
+     280
+    ],
+    [
+     3272,
+     0,
+     424,
+     280
+    ]
+   ],
+   "feet_gap": 73,
+   "speed": 10.0,
+   "loop": false,
+   "sources": [
+    "shakespeare__p08#4",
+    "shakespeare__p08#5",
+    "shakespeare__p08#6"
+   ]
+  },
+  "ultimate": {
+   "sheet": "abilities",
+   "regions": [
+    [
+     0,
+     0,
+     808,
+     304
+    ],
+    [
+     808,
+     0,
+     808,
+     304
+    ],
+    [
+     1616,
+     0,
+     808,
+     304
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "shakespeare__p08#7",
+    "shakespeare__p08#8",
+    "shakespeare__p08#9"
+   ]
+  }
+ },
+ "sheets": {
+  "locomotion": [
+   1696,
+   1048
+  ],
+  "traversal": [
+   1160,
+   1160
+  ],
+  "combat": [
+   2504,
+   1080
+  ],
+  "directional_attacks": [
+   2376,
+   368
+  ],
+  "states": [
+   2568,
+   544
+  ],
+  "abilities": [
+   3696,
+   576
+  ]
+ }
+}

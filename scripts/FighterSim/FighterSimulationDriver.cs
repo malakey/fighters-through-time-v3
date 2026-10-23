@@ -446,7 +446,8 @@ namespace FTT.FighterSim {
                     new Color(1f, 0.72f, 0.16f, 0.9f));
                 ConfigureAbilityProxy(proxy,
                     AbilityForEncodedSlot(projectile.OwnerPlayerID, projectile.ProjectileTypeID),
-                    0.38f, projectile.Velocity.x < xpTURN.Klotho.Deterministic.Math.FP64.Zero);
+                    0.38f, projectile.Velocity.x < xpTURN.Klotho.Deterministic.Math.FP64.Zero,
+                    holdTravelFrame: true);
                 _seenProxyIDs.Add(projectile.EntityID);
             }
             ReleaseMissing(_projectileProxies);
@@ -583,20 +584,34 @@ namespace FTT.FighterSim {
             proxy.Size = size;
             proxy.Position = center - size / 2f;
             proxy.Color = color;
-            AnimatedSprite2D authored = proxy.GetNodeOrNull<AnimatedSprite2D>("AuthoredVisual");
-            if (authored != null) {
-                authored.Stop();
-                authored.Visible = false;
-            }
+            // The authored visual is owned by ConfigureAbilityProxy (idempotent per
+            // sync) and hidden by ReleaseMissing / HideAuthoredVisual.
             // Package 8 B6 silhouette identity. Rotation is about the rect's centre,
             // so the proxy still occupies the position the simulation reported.
             proxy.PivotOffset = size / 2f;
             proxy.Rotation = rotationRadians;
         }
 
-        private static void ConfigureAbilityProxy(ColorRect proxy, AbilityData ability,
-            float scale, bool flipH = false) {
-            if (proxy == null || ability == null) return;
+        /// <summary>Stops and hides a proxy's authored ability sprite (no stale effect on reuse).</summary>
+        internal static void HideAuthoredVisual(ColorRect proxy) {
+            AnimatedSprite2D authored = proxy?.GetNodeOrNull<AnimatedSprite2D>("AuthoredVisual");
+            if (authored == null) return;
+            authored.Stop();
+            authored.Visible = false;
+        }
+
+        /// <summary>
+        /// Presentation-only and idempotent: re-applies the ability animation only
+        /// when the proxy is not already showing it, so it keeps advancing across
+        /// syncs. <paramref name="holdTravelFrame"/> pins projectiles to the body frame.
+        /// </summary>
+        internal static void ConfigureAbilityProxy(ColorRect proxy, AbilityData ability,
+            float scale, bool flipH = false, bool holdTravelFrame = false) {
+            if (proxy == null) return;
+            if (ability == null) {
+                HideAuthoredVisual(proxy);
+                return;
+            }
             AnimatedSprite2D authored = proxy.GetNodeOrNull<AnimatedSprite2D>("AuthoredVisual");
             if (authored == null) {
                 authored = new AnimatedSprite2D {
@@ -607,7 +622,14 @@ namespace FTT.FighterSim {
                 };
                 proxy.AddChild(authored);
             }
-            if (!AbilityVisualLibrary.Apply(authored, ability.AbilityID, scale, flipH)) return;
+            if (authored.Visible && AbilityVisualLibrary.IsShowing(authored, ability.AbilityID)) {
+                authored.FlipH = flipH;
+                AbilityVisualLibrary.Rescale(authored, scale);
+            } else if (!AbilityVisualLibrary.Apply(authored, ability.AbilityID, scale, flipH,
+                    holdTravelFrame ? AbilityVisualLibrary.TravelFrame : -1)) {
+                HideAuthoredVisual(proxy);
+                return;
+            }
             authored.Position = proxy.Size / 2f;
             proxy.Color = new Color(0f, 0f, 0f, 0f);
         }
@@ -648,6 +670,7 @@ namespace FTT.FighterSim {
             foreach (int entityID in _releaseProxyIDs) {
                 ColorRect proxy = active[entityID];
                 active.Remove(entityID);
+                HideAuthoredVisual(proxy);
                 proxy.Visible = false;
                 proxy.Size = Vector2.Zero;
                 // A recycled proxy must not inherit the previous entity's silhouette.

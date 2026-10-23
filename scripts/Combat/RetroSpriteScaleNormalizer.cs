@@ -17,7 +17,9 @@ namespace FTT.Combat {
     ///
     /// A pose table per figure kind keeps legitimately compressed poses
     /// (crouch, rolls, lying death frames) from being inflated to standing
-    /// height. Facing must use FlipH, never a negative Scale.X — this node
+    /// height. "Retro v2" sheets (2x texels) carry SpriteFrames metadata
+    /// (<see cref="RetroSpriteMetadata"/>): a baked-scale sheet gets factor 1
+    /// everywhere, and each animation may state its own feet gap. Facing must use FlipH, never a negative Scale.X — this node
     /// owns Scale while attached.
     /// </summary>
     public partial class RetroSpriteScaleNormalizer : Node {
@@ -127,13 +129,14 @@ namespace FTT.Combat {
             ulong framesId = frames.GetInstanceId();
             if (framesId == _appliedFramesId && animation == _appliedAnimation) return;
 
-            float factor = ResolveFactor(frames, animation);
+            float factor = RetroSpriteMetadata.IsBakedScale(frames) ? 1f : ResolveFactor(frames, animation);
             Vector2 scale = _baseScale * factor;
             float cellH = CellHeight(frames, animation);
+            float gap = RetroSpriteMetadata.FeetGap(frames, animation);
             _sprite.Scale = scale;
             _sprite.Position = new Vector2(
                 _sprite.Position.X,
-                -(cellH * 0.5f - FeetGapPixels) * scale.Y);
+                -(cellH * 0.5f - gap) * scale.Y);
             _appliedFramesId = framesId;
             _appliedAnimation = animation;
         }

@@ -1,0 +1,22 @@
+{
+ "skid": {
+  "source": {
+   "1": "lincoln__p01#8"
+  }
+ },
+ "reject": [
+  "lincoln__p03#2"
+ ],
+ "down_air": {
+  "feet_at": {
+   "1": {
+    "source": "lincoln__p07#6",
+    "y": 163
+   },
+   "2": {
+    "source": "lincoln__p07#7",
+    "y": 172
+   }
+  }
+ }
+}

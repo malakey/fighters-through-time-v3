@@ -343,19 +343,29 @@ namespace FTT.Characters {
 			}
 		}
 
+		/// <summary>
+		/// On-screen size of a character sprite per legacy pixel; a retro v2 sheet
+		/// divides it by its texel scale. (0.845 is the second 2026-08-11 +30% size
+		/// pass: 0.5 -> 0.65 -> 0.845.)
+		/// </summary>
+		public const float CharacterSpriteWorldScale = 0.845f;
+
 		private static void BuildVisual(PlayerController player, CharacterVisual visual, CharacterData data,
 			bool heroAura) {
 			SpriteFrames frames = data.SpriteFramesResource
 				?? GD.Load<SpriteFrames>("res://resources/SpriteFrames/placeholder_character_frames.tres");
+			float texelScale = FTT.Combat.RetroSpriteMetadata.TexelScale(frames);
+			float baseScale = CharacterSpriteWorldScale / texelScale;
 			var sprite = new AnimatedSprite2D {
 				Name = "AnimatedSprite2D",
 				SpriteFrames = frames,
 				// 128 px frame at 0.845 scale spans 108.2 px; -54.08 keeps the drawn feet
 				// on the body origin, which is what rests on the floor in both modes.
-				// (0.845 is the second 2026-08-11 +30% size pass: 0.5 -> 0.65 -> 0.845.)
 				Position = new Vector2(0, -54.08f),
-				Scale = new Vector2(0.845f, 0.845f)
+				Scale = new Vector2(baseScale, baseScale)
 			};
+			// 2x art is minified on screen; mipmaps keep it from shimmering.
+			if (texelScale > 1f) sprite.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
 			player.AddChild(sprite);
 			if (frames != null && frames.HasAnimation("idle")) sprite.Play("idle");
 			// Per-animation figure-scale correction for the generated sheets;

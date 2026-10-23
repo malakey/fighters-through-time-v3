@@ -1,0 +1,1004 @@
+{
+ "character": "joan",
+ "texel_scale": 2.0,
+ "animations": {
+  "idle": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     0,
+     320,
+     184,
+     248
+    ],
+    [
+     184,
+     320,
+     184,
+     248
+    ],
+    [
+     368,
+     320,
+     184,
+     248
+    ],
+    [
+     552,
+     320,
+     184,
+     248
+    ]
+   ],
+   "feet_gap": 13,
+   "speed": 6.0,
+   "loop": true,
+   "sources": [
+    "joan__idle#2",
+    "joan__idle#3",
+    "joan__idle#5",
+    "joan__idle#2"
+   ]
+  },
+  "run": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     376,
+     568,
+     248,
+     240
+    ],
+    [
+     624,
+     568,
+     248,
+     240
+    ],
+    [
+     872,
+     568,
+     248,
+     240
+    ],
+    [
+     1120,
+     568,
+     248,
+     240
+    ],
+    [
+     1368,
+     568,
+     248,
+     240
+    ],
+    [
+     0,
+     808,
+     248,
+     240
+    ],
+    [
+     248,
+     808,
+     248,
+     240
+    ],
+    [
+     496,
+     808,
+     248,
+     240
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 16.0,
+   "loop": true,
+   "sources": [
+    "joan__run#2",
+    "joan__run#3",
+    "joan__run#4",
+    "joan__run#5",
+    "joan__run#7",
+    "joan__run#8",
+    "joan__run#9",
+    "joan__run#10"
+   ]
+  },
+  "jump": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     0,
+     0,
+     288,
+     320
+    ],
+    [
+     288,
+     0,
+     288,
+     320
+    ],
+    [
+     576,
+     0,
+     288,
+     320
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "joan__p01#2",
+    "joan__p01#3",
+    "joan__p01#4"
+   ]
+  },
+  "fall": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     864,
+     0,
+     248,
+     312
+    ],
+    [
+     1112,
+     0,
+     248,
+     312
+    ],
+    [
+     1360,
+     0,
+     248,
+     312
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "joan__p01#7",
+    "joan__p01#5",
+    "joan__p01#6"
+   ]
+  },
+  "skid": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     736,
+     320,
+     376,
+     240
+    ],
+    [
+     1112,
+     320,
+     376,
+     240
+    ],
+    [
+     0,
+     568,
+     376,
+     240
+    ]
+   ],
+   "feet_gap": 24,
+   "speed": 12.0,
+   "loop": false,
+   "sources": [
+    "joan__p01#8",
+    "joan__p01#8",
+    "joan__p01#10"
+   ]
+  },
+  "crouch": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     744,
+     808,
+     224,
+     200
+    ],
+    [
+     968,
+     808,
+     224,
+     200
+    ],
+    [
+     1192,
+     808,
+     224,
+     200
+    ]
+   ],
+   "feet_gap": 13,
+   "speed": 4.0,
+   "loop": true,
+   "sources": [
+    "joan__p01#11",
+    "joan__p01#11",
+    "joan__p01#11"
+   ]
+  },
+  "roll_startup": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     232,
+     968,
+     288,
+     168
+    ],
+    [
+     520,
+     968,
+     288,
+     168
+    ],
+    [
+     808,
+     968,
+     288,
+     168
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 12.0,
+   "loop": false,
+   "sources": [
+    "joan__p02#2",
+    "joan__p02#3",
+    "joan__p02#4"
+   ]
+  },
+  "roll": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     608,
+     720,
+     232,
+     176
+    ],
+    [
+     840,
+     720,
+     232,
+     176
+    ],
+    [
+     0,
+     968,
+     232,
+     176
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 12.0,
+   "loop": false,
+   "sources": [
+    "joan__p02#5",
+    "joan__p02#6",
+    "joan__p02#7"
+   ]
+  },
+  "roll_recovery": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     824,
+     432,
+     304,
+     248
+    ],
+    [
+     0,
+     720,
+     304,
+     248
+    ],
+    [
+     304,
+     720,
+     304,
+     248
+    ]
+   ],
+   "feet_gap": 17,
+   "speed": 12.0,
+   "loop": false,
+   "sources": [
+    "joan__p02#8",
+    "joan__p02#9",
+    "joan__idle#2"
+   ]
+  },
+  "ledge_hang": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     744,
+     0,
+     200,
+     288
+    ],
+    [
+     944,
+     0,
+     200,
+     288
+    ],
+    [
+     0,
+     432,
+     200,
+     288
+    ]
+   ],
+   "feet_gap": 143,
+   "speed": 3.0,
+   "loop": true,
+   "sources": [
+    "joan__p02#10",
+    "joan__p02#10",
+    "joan__p02#10"
+   ]
+  },
+  "ledge_pull_up": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     200,
+     432,
+     208,
+     272
+    ],
+    [
+     408,
+     432,
+     208,
+     272
+    ],
+    [
+     616,
+     432,
+     208,
+     272
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "joan__p03#2",
+    "joan__p03#3",
+    "joan__p03#4"
+   ]
+  },
+  "ledge_drop": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     0,
+     0,
+     248,
+     432
+    ],
+    [
+     248,
+     0,
+     248,
+     432
+    ],
+    [
+     496,
+     0,
+     248,
+     432
+    ]
+   ],
+   "feet_gap": 142,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "joan__p02#10",
+    "joan__p01#5",
+    "joan__p01#7"
+   ]
+  },
+  "basic_attack_1": {
+   "sheet": "combat",
+   "regions": [
+    [
+     0,
+     1088,
+     528,
+     240
+    ],
+    [
+     528,
+     1088,
+     528,
+     240
+    ],
+    [
+     1056,
+     1088,
+     528,
+     240
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "joan__p04#4",
+    "joan__p04#5",
+    "joan__p04#6"
+   ]
+  },
+  "basic_attack_2": {
+   "sheet": "combat",
+   "regions": [
+    [
+     816,
+     584,
+     392,
+     248
+    ],
+    [
+     1208,
+     584,
+     392,
+     248
+    ],
+    [
+     0,
+     840,
+     392,
+     248
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "joan__p04#7",
+    "joan__p04#8",
+    "joan__p04#9"
+   ]
+  },
+  "basic_attack_3": {
+   "sheet": "combat",
+   "regions": [
+    [
+     0,
+     0,
+     480,
+     296
+    ],
+    [
+     480,
+     0,
+     480,
+     296
+    ],
+    [
+     960,
+     0,
+     480,
+     296
+    ]
+   ],
+   "feet_gap": 22,
+   "speed": 7.0,
+   "loop": false,
+   "sources": [
+    "joan__basic_attack_3#2",
+    "joan__basic_attack_3#3",
+    "joan__basic_attack_3#4"
+   ]
+  },
+  "block": {
+   "sheet": "combat",
+   "regions": [
+    [
+     0,
+     296,
+     184,
+     288
+    ],
+    [
+     184,
+     296,
+     184,
+     288
+    ],
+    [
+     368,
+     296,
+     184,
+     288
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 3.0,
+   "loop": true,
+   "sources": [
+    "joan__block_hitstun#2",
+    "joan__block_hitstun#2",
+    "joan__block_hitstun#2"
+   ]
+  },
+  "hitstun": {
+   "sheet": "combat",
+   "regions": [
+    [
+     0,
+     584,
+     272,
+     256
+    ],
+    [
+     272,
+     584,
+     272,
+     256
+    ],
+    [
+     544,
+     584,
+     272,
+     256
+    ]
+   ],
+   "feet_gap": 12,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "joan__block_hitstun#6",
+    "joan__block_hitstun#7",
+    "joan__block_hitstun#8"
+   ]
+  },
+  "grab": {
+   "sheet": "combat",
+   "regions": [
+    [
+     392,
+     840,
+     392,
+     248
+    ],
+    [
+     784,
+     840,
+     392,
+     248
+    ],
+    [
+     1176,
+     840,
+     392,
+     248
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "joan__p05#8",
+    "joan__p05#9",
+    "joan__p06#2"
+   ]
+  },
+  "throw": {
+   "sheet": "combat",
+   "regions": [
+    [
+     552,
+     296,
+     320,
+     272
+    ],
+    [
+     872,
+     296,
+     320,
+     272
+    ],
+    [
+     1192,
+     296,
+     320,
+     272
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "joan__p06#3",
+    "joan__p06#4",
+    "joan__p06#5"
+   ]
+  },
+  "up_attack": {
+   "sheet": "directional_attacks",
+   "regions": [
+    [
+     792,
+     0,
+     400,
+     344
+    ],
+    [
+     1192,
+     0,
+     400,
+     344
+    ],
+    [
+     1592,
+     0,
+     400,
+     344
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "joan__p05#2",
+    "joan__p05#3",
+    "joan__p05#4"
+   ]
+  },
+  "down_air": {
+   "sheet": "directional_attacks",
+   "regions": [
+    [
+     0,
+     0,
+     264,
+     352
+    ],
+    [
+     264,
+     0,
+     264,
+     352
+    ],
+    [
+     528,
+     0,
+     264,
+     352
+    ]
+   ],
+   "feet_gap": 139,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "joan__p05#5",
+    "joan__p05#6",
+    "joan__p05#7"
+   ]
+  },
+  "dazed": {
+   "sheet": "states",
+   "regions": [
+    [
+     0,
+     360,
+     176,
+     264
+    ],
+    [
+     176,
+     360,
+     176,
+     264
+    ],
+    [
+     352,
+     360,
+     176,
+     264
+    ]
+   ],
+   "feet_gap": 18,
+   "speed": 4.0,
+   "loop": true,
+   "sources": [
+    "joan__p03#5",
+    "joan__p03#5",
+    "joan__p03#5"
+   ]
+  },
+  "death": {
+   "sheet": "states",
+   "regions": [
+    [
+     368,
+     624,
+     376,
+     232
+    ],
+    [
+     0,
+     872,
+     376,
+     232
+    ],
+    [
+     376,
+     872,
+     376,
+     232
+    ]
+   ],
+   "feet_gap": 19,
+   "speed": 6.0,
+   "loop": false,
+   "sources": [
+    "joan__p03#6",
+    "joan__p03#7",
+    "joan__p03#8"
+   ]
+  },
+  "respawn": {
+   "sheet": "states",
+   "regions": [
+    [
+     528,
+     360,
+     184,
+     248
+    ],
+    [
+     0,
+     624,
+     184,
+     248
+    ],
+    [
+     184,
+     624,
+     184,
+     248
+    ]
+   ],
+   "feet_gap": 13,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "joan__idle#2",
+    "joan__idle#2",
+    "joan__idle#2"
+   ]
+  },
+  "victory": {
+   "sheet": "states",
+   "regions": [
+    [
+     0,
+     0,
+     208,
+     360
+    ],
+    [
+     208,
+     0,
+     208,
+     360
+    ],
+    [
+     416,
+     0,
+     208,
+     360
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 6.0,
+   "loop": true,
+   "sources": [
+    "joan__p08#2",
+    "joan__p08#3",
+    "joan__p04#2"
+   ]
+  },
+  "defeat": {
+   "sheet": "states",
+   "regions": [
+    [
+     0,
+     1104,
+     248,
+     176
+    ],
+    [
+     248,
+     1104,
+     248,
+     176
+    ],
+    [
+     496,
+     1104,
+     248,
+     176
+    ]
+   ],
+   "feet_gap": 18,
+   "speed": 4.0,
+   "loop": true,
+   "sources": [
+    "joan__p04#3",
+    "joan__p04#3",
+    "joan__p04#3"
+   ]
+  },
+  "special_1": {
+   "sheet": "abilities",
+   "regions": [
+    [
+     1368,
+     0,
+     616,
+     296
+    ],
+    [
+     0,
+     320,
+     616,
+     296
+    ],
+    [
+     616,
+     320,
+     616,
+     296
+    ]
+   ],
+   "feet_gap": 35,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "joan__p06#6",
+    "joan__p06#7",
+    "joan__p06#8"
+   ]
+  },
+  "special_2": {
+   "sheet": "abilities",
+   "regions": [
+    [
+     392,
+     616,
+     480,
+     216
+    ],
+    [
+     872,
+     616,
+     480,
+     216
+    ],
+    [
+     1352,
+     616,
+     480,
+     216
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "joan__p06#9",
+    "joan__p07#2",
+    "joan__p07#3"
+   ]
+  },
+  "movement_ability": {
+   "sheet": "abilities",
+   "regions": [
+    [
+     1232,
+     320,
+     392,
+     288
+    ],
+    [
+     1624,
+     320,
+     392,
+     288
+    ],
+    [
+     0,
+     616,
+     392,
+     288
+    ]
+   ],
+   "feet_gap": 17,
+   "speed": 10.0,
+   "loop": false,
+   "sources": [
+    "joan__p07#4",
+    "joan__p07#5",
+    "joan__p07#6"
+   ]
+  },
+  "ultimate": {
+   "sheet": "abilities",
+   "regions": [
+    [
+     0,
+     0,
+     456,
+     320
+    ],
+    [
+     456,
+     0,
+     456,
+     320
+    ],
+    [
+     912,
+     0,
+     456,
+     320
+    ]
+   ],
+   "feet_gap": 16,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "joan__p07#7",
+    "joan__p07#8",
+    "joan__p07#9"
+   ]
+  }
+ },
+ "sheets": {
+  "locomotion": [
+   1616,
+   1048
+  ],
+  "traversal": [
+   1144,
+   1144
+  ],
+  "combat": [
+   1600,
+   1328
+  ],
+  "directional_attacks": [
+   1992,
+   352
+  ],
+  "states": [
+   752,
+   1280
+  ],
+  "abilities": [
+   2016,
+   904
+  ]
+ }
+}

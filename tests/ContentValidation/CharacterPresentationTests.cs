@@ -40,6 +40,17 @@ public class CharacterPresentationTests {
         ["tubman"] = new[] { "tubman_conductors_call", "tubman_foresight", "tubman_north_star_leap", "tubman_freedom_line" }
     };
 
+    /// <summary>
+    /// 2026-10-18 user ruling "expand loops: run 6, idle 4; everything else 3",
+    /// with the run raised to an 8-frame cycle on 2026-10-20 (the user found 6
+    /// jerky and incomplete).
+    /// </summary>
+    private static int ExpectedFrameCount(string animationName) => animationName switch {
+        "idle" => 4,
+        "run" => 8,
+        _ => 3
+    };
+
     [After]
     public void DrainPendingFinalizers() {
         System.GC.Collect();
@@ -63,15 +74,24 @@ public class CharacterPresentationTests {
             foreach (string animationName in contract.RequiredAnimationNames) {
                 AssertThat(frames.HasAnimation(animationName)).IsTrue();
                 AssertThat(frames.GetFrameCount(animationName))
-                    .OverrideFailureMessage($"{characterID}:{animationName} is not a three-frame retro animation")
-                    .IsEqual(3);
+                    .OverrideFailureMessage($"{characterID}:{animationName} has the wrong retro frame count")
+                    .IsEqual(ExpectedFrameCount(animationName));
             }
             foreach (string animationName in RuntimeOnlyAnimationNames) {
                 AssertThat(frames.HasAnimation(animationName)).IsTrue();
                 AssertThat(frames.GetFrameCount(animationName))
-                    .OverrideFailureMessage($"{characterID}:{animationName} is not a three-frame retro animation")
-                    .IsEqual(3);
+                    .OverrideFailureMessage($"{characterID}:{animationName} has the wrong retro frame count")
+                    .IsEqual(ExpectedFrameCount(animationName));
             }
+            // 2026-10-20 (user): the fall plays once and holds its pose until
+            // landing; looping it pumped the legs. The idle and the run loop.
+            AssertThat(frames.GetAnimationLoopMode("fall") == SpriteFrames.LoopMode.None)
+                .OverrideFailureMessage($"{characterID}:fall must hold its last pose, not loop")
+                .IsTrue();
+            AssertThat(frames.GetAnimationLoopMode("idle") == SpriteFrames.LoopMode.Linear
+                       && frames.GetAnimationLoopMode("run") == SpriteFrames.LoopMode.Linear)
+                .OverrideFailureMessage($"{characterID}: idle and run must loop")
+                .IsTrue();
         }
     }
 
@@ -135,10 +155,43 @@ public class CharacterPresentationTests {
                 AssertThat(frames.GetFrameCount(animationName)).IsEqual(3);
                 Texture2D frame = frames.GetFrameTexture(animationName, 0);
                 AssertObject(frame).IsNotNull();
-                AssertThat(frame.GetWidth()).IsEqual(192);
-                AssertThat(frame.GetHeight()).IsEqual(192);
+                // 192 legacy pixels; retro v2 sheets draw the same cell at 2x texels.
+                int expectedCell = Mathf.RoundToInt(192f * RetroSpriteMetadata.TexelScale(frames));
+                AssertThat(frame.GetWidth()).IsEqual(expectedCell);
+                AssertThat(frame.GetHeight()).IsEqual(expectedCell);
             }
         }
+    }
+
+    /// <summary>
+    /// 2026-10-18 user ruling "2x plus wide attack cells": every roster sprite
+    /// set and ability-VFX set is retro v2 art at 2x texels with its figure
+    /// scale baked in, so a stale 96 x 128 set cannot slip back in through the
+    /// builder's legacy path, and every animation carries its own feet line.
+    /// </summary>
+    [TestCase]
+    public void EveryRosterSpriteSetIsRetroV2AtTwoTimesTexels() {
+        var contract = FTT.Core.AuthoredResources.Load<ContentSceneContract>(
+            "res://resources/Contracts/player_presentation_contract.tres");
+        var problems = new List<string>();
+        foreach (string characterID in InitialRoster) {
+            SpriteFrames frames = ResourceLoader.Load<SpriteFrames>(
+                $"res://resources/SpriteFrames/{characterID}_frames.tres");
+            if (RetroSpriteMetadata.TexelScale(frames) != 2f) problems.Add($"{characterID}: texel scale");
+            if (!RetroSpriteMetadata.IsBakedScale(frames)) problems.Add($"{characterID}: figure scale not baked");
+            if (!frames.HasMeta(RetroSpriteMetadata.FeetGapsKey)) {
+                problems.Add($"{characterID}: no feet lines");
+            } else {
+                using Godot.Collections.Dictionary gaps = frames.GetMeta(RetroSpriteMetadata.FeetGapsKey).AsGodotDictionary();
+                foreach (string name in contract.RequiredAnimationNames) {
+                    if (!gaps.ContainsKey(name)) problems.Add($"{characterID}: no feet line for {name}");
+                }
+            }
+            SpriteFrames vfx = ResourceLoader.Load<SpriteFrames>(
+                $"res://resources/SpriteFrames/{characterID}_ability_vfx_frames.tres");
+            if (RetroSpriteMetadata.TexelScale(vfx) != 2f) problems.Add($"{characterID}: VFX texel scale");
+        }
+        if (problems.Count > 0) AssertThat("not retro v2: " + string.Join("; ", problems)).IsEqual("");
     }
 
     [TestCase]

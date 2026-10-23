@@ -1,0 +1,63 @@
+{
+ "sheets": {
+  "einstein__p04": {
+   "counts": [
+    3,
+    3,
+    2
+   ],
+   "figures": [
+    {
+     "anim": "death",
+     "index": 0
+    },
+    {
+     "anim": "death",
+     "index": 1
+    },
+    {
+     "anim": "death",
+     "index": 2
+    },
+    {
+     "anim": "victory",
+     "index": 0
+    },
+    {
+     "anim": "victory",
+     "index": 1
+    },
+    {
+     "anim": "victory",
+     "index": 2
+    },
+    {
+     "anim": "defeat",
+     "index": 0
+    },
+    {
+     "anim": "basic_attack_1",
+     "index": 0
+    }
+   ],
+   "scale_ref": 4
+  }
+ },
+ "skid": {
+  "source": {
+   "1": "einstein__p01#8"
+  }
+ },
+ "down_air": {
+  "feet_at": {
+   "1": {
+    "source": "einstein__p06#6",
+    "y": 176
+   },
+   "2": {
+    "source": "einstein__p06#7",
+    "y": 158
+   }
+  }
+ }
+}

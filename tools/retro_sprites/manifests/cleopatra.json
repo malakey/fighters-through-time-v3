@@ -1,0 +1,1004 @@
+{
+ "character": "cleopatra",
+ "texel_scale": 2.0,
+ "animations": {
+  "idle": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     480,
+     1408,
+     192,
+     240
+    ],
+    [
+     0,
+     1648,
+     192,
+     240
+    ],
+    [
+     192,
+     1648,
+     192,
+     240
+    ],
+    [
+     384,
+     1648,
+     192,
+     240
+    ]
+   ],
+   "feet_gap": 13,
+   "speed": 6.0,
+   "loop": true,
+   "sources": [
+    "cleopatra__idle#2",
+    "cleopatra__idle#3",
+    "cleopatra__idle#5",
+    "cleopatra__idle#2"
+   ]
+  },
+  "run": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     0,
+     616,
+     232,
+     264
+    ],
+    [
+     232,
+     616,
+     232,
+     264
+    ],
+    [
+     464,
+     616,
+     232,
+     264
+    ],
+    [
+     0,
+     880,
+     232,
+     264
+    ],
+    [
+     232,
+     880,
+     232,
+     264
+    ],
+    [
+     464,
+     880,
+     232,
+     264
+    ],
+    [
+     0,
+     1144,
+     232,
+     264
+    ],
+    [
+     232,
+     1144,
+     232,
+     264
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 15.0,
+   "loop": true,
+   "sources": [
+    "cleopatra__run#2",
+    "cleopatra__run#3",
+    "cleopatra__run#4",
+    "cleopatra__run#5",
+    "cleopatra__run#7",
+    "cleopatra__run#8",
+    "cleopatra__run#9",
+    "cleopatra__run#10"
+   ]
+  },
+  "jump": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     0,
+     0,
+     232,
+     344
+    ],
+    [
+     232,
+     0,
+     232,
+     344
+    ],
+    [
+     464,
+     0,
+     232,
+     344
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "cleopatra__p01#2",
+    "cleopatra__p01#3",
+    "cleopatra__p01#4"
+   ]
+  },
+  "fall": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     0,
+     344,
+     208,
+     272
+    ],
+    [
+     208,
+     344,
+     208,
+     272
+    ],
+    [
+     416,
+     344,
+     208,
+     272
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "cleopatra__p01#7",
+    "cleopatra__p01#5",
+    "cleopatra__p01#6"
+   ]
+  },
+  "skid": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     464,
+     1144,
+     240,
+     240
+    ],
+    [
+     0,
+     1408,
+     240,
+     240
+    ],
+    [
+     240,
+     1408,
+     240,
+     240
+    ]
+   ],
+   "feet_gap": 13,
+   "speed": 12.0,
+   "loop": false,
+   "sources": [
+    "cleopatra__p01#8",
+    "cleopatra__p01#9",
+    "cleopatra__p01#10"
+   ]
+  },
+  "crouch": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     0,
+     1888,
+     200,
+     216
+    ],
+    [
+     200,
+     1888,
+     200,
+     216
+    ],
+    [
+     400,
+     1888,
+     200,
+     216
+    ]
+   ],
+   "feet_gap": 12,
+   "speed": 4.0,
+   "loop": true,
+   "sources": [
+    "cleopatra__p02#2",
+    "cleopatra__p02#2",
+    "cleopatra__p02#2"
+   ]
+  },
+  "roll_startup": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     0,
+     1112,
+     248,
+     200
+    ],
+    [
+     248,
+     1112,
+     248,
+     200
+    ],
+    [
+     496,
+     1112,
+     248,
+     200
+    ]
+   ],
+   "feet_gap": 13,
+   "speed": 12.0,
+   "loop": false,
+   "sources": [
+    "cleopatra__p02#3",
+    "cleopatra__p02#4",
+    "cleopatra__p02#5"
+   ]
+  },
+  "roll": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     0,
+     904,
+     192,
+     208
+    ],
+    [
+     192,
+     904,
+     192,
+     208
+    ],
+    [
+     384,
+     904,
+     192,
+     208
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 12.0,
+   "loop": false,
+   "sources": [
+    "cleopatra__p02#6",
+    "cleopatra__p02#7",
+    "cleopatra__p02#8"
+   ]
+  },
+  "roll_recovery": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     0,
+     656,
+     256,
+     248
+    ],
+    [
+     256,
+     656,
+     256,
+     248
+    ],
+    [
+     512,
+     656,
+     256,
+     248
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 12.0,
+   "loop": false,
+   "sources": [
+    "cleopatra__p02#9",
+    "cleopatra__p02#10",
+    "cleopatra__idle#2"
+   ]
+  },
+  "ledge_hang": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     368,
+     376,
+     120,
+     264
+    ],
+    [
+     488,
+     376,
+     120,
+     264
+    ],
+    [
+     608,
+     376,
+     120,
+     264
+    ]
+   ],
+   "feet_gap": 123,
+   "speed": 3.0,
+   "loop": true,
+   "sources": [
+    "cleopatra__p03#2",
+    "cleopatra__p03#2",
+    "cleopatra__p03#2"
+   ]
+  },
+  "ledge_pull_up": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     576,
+     0,
+     184,
+     280
+    ],
+    [
+     0,
+     376,
+     184,
+     280
+    ],
+    [
+     184,
+     376,
+     184,
+     280
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "cleopatra__p03#3",
+    "cleopatra__p03#4",
+    "cleopatra__p03#5"
+   ]
+  },
+  "ledge_drop": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     0,
+     0,
+     192,
+     376
+    ],
+    [
+     192,
+     0,
+     192,
+     376
+    ],
+    [
+     384,
+     0,
+     192,
+     376
+    ]
+   ],
+   "feet_gap": 122,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "cleopatra__p03#2",
+    "cleopatra__p01#5",
+    "cleopatra__p01#7"
+   ]
+  },
+  "basic_attack_1": {
+   "sheet": "combat",
+   "regions": [
+    [
+     960,
+     840,
+     560,
+     256
+    ],
+    [
+     0,
+     1104,
+     560,
+     256
+    ],
+    [
+     560,
+     1104,
+     560,
+     256
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "cleopatra__p04#9",
+    "cleopatra__p05#2",
+    "cleopatra__p05#3"
+   ]
+  },
+  "basic_attack_2": {
+   "sheet": "combat",
+   "regions": [
+    [
+     0,
+     0,
+     488,
+     296
+    ],
+    [
+     488,
+     0,
+     488,
+     296
+    ],
+    [
+     976,
+     0,
+     488,
+     296
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "cleopatra__p05#4",
+    "cleopatra__p05#5",
+    "cleopatra__p05#6"
+   ]
+  },
+  "basic_attack_3": {
+   "sheet": "combat",
+   "regions": [
+    [
+     0,
+     296,
+     504,
+     272
+    ],
+    [
+     504,
+     296,
+     504,
+     272
+    ],
+    [
+     1008,
+     296,
+     504,
+     272
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 7.0,
+   "loop": false,
+   "sources": [
+    "cleopatra__p05#7",
+    "cleopatra__p05#8",
+    "cleopatra__p05#9"
+   ]
+  },
+  "block": {
+   "sheet": "combat",
+   "regions": [
+    [
+     1120,
+     1104,
+     304,
+     240
+    ],
+    [
+     0,
+     1360,
+     304,
+     240
+    ],
+    [
+     304,
+     1360,
+     304,
+     240
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 3.0,
+   "loop": true,
+   "sources": [
+    "cleopatra__p03#6",
+    "cleopatra__p03#6",
+    "cleopatra__p03#6"
+   ]
+  },
+  "hitstun": {
+   "sheet": "combat",
+   "regions": [
+    [
+     608,
+     1360,
+     256,
+     216
+    ],
+    [
+     864,
+     1360,
+     256,
+     216
+    ],
+    [
+     1120,
+     1360,
+     256,
+     216
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "cleopatra__p03#7",
+    "cleopatra__p03#8",
+    "cleopatra__p03#9"
+   ]
+  },
+  "grab": {
+   "sheet": "combat",
+   "regions": [
+    [
+     0,
+     568,
+     296,
+     272
+    ],
+    [
+     296,
+     568,
+     296,
+     272
+    ],
+    [
+     592,
+     568,
+     296,
+     272
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "cleopatra__p06#8",
+    "cleopatra__p06#9",
+    "cleopatra__p07#2"
+   ]
+  },
+  "throw": {
+   "sheet": "combat",
+   "regions": [
+    [
+     888,
+     568,
+     480,
+     264
+    ],
+    [
+     0,
+     840,
+     480,
+     264
+    ],
+    [
+     480,
+     840,
+     480,
+     264
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "cleopatra__p07#3",
+    "cleopatra__p07#4",
+    "cleopatra__p07#5"
+   ]
+  },
+  "up_attack": {
+   "sheet": "directional_attacks",
+   "regions": [
+    [
+     0,
+     328,
+     320,
+     296
+    ],
+    [
+     320,
+     328,
+     320,
+     296
+    ],
+    [
+     640,
+     328,
+     320,
+     296
+    ]
+   ],
+   "feet_gap": 16,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "cleopatra__p06#2",
+    "cleopatra__p06#3",
+    "cleopatra__p06#4"
+   ]
+  },
+  "down_air": {
+   "sheet": "directional_attacks",
+   "regions": [
+    [
+     0,
+     0,
+     272,
+     328
+    ],
+    [
+     272,
+     0,
+     272,
+     328
+    ],
+    [
+     544,
+     0,
+     272,
+     328
+    ]
+   ],
+   "feet_gap": 101,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "cleopatra__p06#5",
+    "cleopatra__p06#6",
+    "cleopatra__p06#7"
+   ]
+  },
+  "dazed": {
+   "sheet": "states",
+   "regions": [
+    [
+     1584,
+     0,
+     160,
+     232
+    ],
+    [
+     1744,
+     0,
+     160,
+     232
+    ],
+    [
+     1904,
+     0,
+     160,
+     232
+    ]
+   ],
+   "feet_gap": 17,
+   "speed": 4.0,
+   "loop": true,
+   "sources": [
+    "cleopatra__p03#10",
+    "cleopatra__p03#10",
+    "cleopatra__p03#10"
+   ]
+  },
+  "death": {
+   "sheet": "states",
+   "regions": [
+    [
+     0,
+     312,
+     448,
+     224
+    ],
+    [
+     448,
+     312,
+     448,
+     224
+    ],
+    [
+     896,
+     312,
+     448,
+     224
+    ]
+   ],
+   "feet_gap": 12,
+   "speed": 6.0,
+   "loop": false,
+   "sources": [
+    "cleopatra__p04#2",
+    "cleopatra__p04#3",
+    "cleopatra__p04#4"
+   ]
+  },
+  "respawn": {
+   "sheet": "states",
+   "regions": [
+    [
+     1008,
+     0,
+     192,
+     240
+    ],
+    [
+     1200,
+     0,
+     192,
+     240
+    ],
+    [
+     1392,
+     0,
+     192,
+     240
+    ]
+   ],
+   "feet_gap": 13,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "cleopatra__idle#2",
+    "cleopatra__idle#2",
+    "cleopatra__idle#2"
+   ]
+  },
+  "victory": {
+   "sheet": "states",
+   "regions": [
+    [
+     0,
+     0,
+     336,
+     312
+    ],
+    [
+     336,
+     0,
+     336,
+     312
+    ],
+    [
+     672,
+     0,
+     336,
+     312
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 6.0,
+   "loop": true,
+   "sources": [
+    "cleopatra__p04#5",
+    "cleopatra__p04#6",
+    "cleopatra__p04#7"
+   ]
+  },
+  "defeat": {
+   "sheet": "states",
+   "regions": [
+    [
+     1344,
+     312,
+     240,
+     208
+    ],
+    [
+     1584,
+     312,
+     240,
+     208
+    ],
+    [
+     1824,
+     312,
+     240,
+     208
+    ]
+   ],
+   "feet_gap": 12,
+   "speed": 4.0,
+   "loop": true,
+   "sources": [
+    "cleopatra__p04#8",
+    "cleopatra__p04#8",
+    "cleopatra__p04#8"
+   ]
+  },
+  "special_1": {
+   "sheet": "abilities",
+   "regions": [
+    [
+     2400,
+     0,
+     440,
+     312
+    ],
+    [
+     2840,
+     0,
+     440,
+     312
+    ],
+    [
+     3280,
+     0,
+     440,
+     312
+    ]
+   ],
+   "feet_gap": 18,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "cleopatra__p07#6",
+    "cleopatra__p07#7",
+    "cleopatra__p07#8"
+   ]
+  },
+  "special_2": {
+   "sheet": "abilities",
+   "regions": [
+    [
+     0,
+     312,
+     680,
+     288
+    ],
+    [
+     680,
+     312,
+     680,
+     288
+    ],
+    [
+     1360,
+     312,
+     680,
+     288
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "cleopatra__p07#9",
+    "cleopatra__p08#2",
+    "cleopatra__p08#3"
+   ]
+  },
+  "movement_ability": {
+   "sheet": "abilities",
+   "regions": [
+    [
+     2040,
+     312,
+     544,
+     224
+    ],
+    [
+     2584,
+     312,
+     544,
+     224
+    ],
+    [
+     3128,
+     312,
+     544,
+     224
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 10.0,
+   "loop": false,
+   "sources": [
+    "cleopatra__p08#4",
+    "cleopatra__p08#5",
+    "cleopatra__p08#6"
+   ]
+  },
+  "ultimate": {
+   "sheet": "abilities",
+   "regions": [
+    [
+     0,
+     0,
+     800,
+     312
+    ],
+    [
+     800,
+     0,
+     800,
+     312
+    ],
+    [
+     1600,
+     0,
+     800,
+     312
+    ]
+   ],
+   "feet_gap": 16,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "cleopatra__p08#7",
+    "cleopatra__p08#8",
+    "cleopatra__p08#9"
+   ]
+  }
+ },
+ "sheets": {
+  "locomotion": [
+   704,
+   2104
+  ],
+  "traversal": [
+   768,
+   1312
+  ],
+  "combat": [
+   1520,
+   1600
+  ],
+  "directional_attacks": [
+   960,
+   624
+  ],
+  "states": [
+   2064,
+   536
+  ],
+  "abilities": [
+   3720,
+   600
+  ]
+ }
+}

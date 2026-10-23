@@ -65,7 +65,7 @@ public class OutlineGlowShaderTests {
         AssertThat(shader.GetMode()).IsEqual(Shader.Mode.CanvasItem);
 
         string code = shader.Code;
-        AssertThat(code.Contains("hint_range(0.0, 5.0)")).IsTrue();
+        AssertThat(code.Contains("hint_range(0.0, 10.0)")).IsTrue();
         AssertThat(code.Contains("hint_range(0.5, 3.0)")).IsTrue();
         AssertThat(code.Contains("source_color")).IsTrue();
         // gl_compatibility rejects TEXTURE as a sampler2D function argument, so

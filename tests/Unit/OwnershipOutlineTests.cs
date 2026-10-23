@@ -132,6 +132,42 @@ public class OwnershipOutlineTests {
         }
     }
 
+    /// <summary>
+    /// Retro v2 sheets carry 2x texels and the shader measures widths in texels,
+    /// so both the effect outline and the ownership edge scale by the sheet's
+    /// retro_texel_scale; legacy 1x sheets are untouched.
+    /// </summary>
+    [TestCase]
+    public void OutlineThicknessScalesWithTheSheetsTexelScale() {
+        float oneX = 0f, oneXOwner = 0f, twoX = 0f, twoXOwner = 0f;
+        foreach (float texelScale in new[] { 1f, 2f }) {
+            var frames = new SpriteFrames();
+            if (texelScale > 1f) frames.SetMeta(RetroSpriteMetadata.TexelScaleKey, texelScale);
+            var owner = new Node2D { Name = "TexelScaleSubject" };
+            var sprite = new AnimatedSprite2D { Name = "Body", SpriteFrames = frames };
+            owner.AddChild(sprite);
+            ((SceneTree)Engine.GetMainLoop()).Root.AddChild(owner);
+            try {
+                GlowPresentationController glow = GlowPresentationController.AttachTo(
+                    owner, sprite, ownerPlayerIndex: -1, subscribeToStoryEvents: false);
+                glow.SetSlotIndicator(0);
+                glow.SetStatus(FTT.Core.StatusType.Venom);
+                float effect = glow.GlowMaterial
+                    .GetShaderParameter(GlowPresentationController.OutlineThicknessUniform).AsSingle();
+                float edge = glow.GlowMaterial
+                    .GetShaderParameter(GlowPresentationController.OwnerOutlineThicknessUniform).AsSingle();
+                if (texelScale > 1f) { twoX = effect; twoXOwner = edge; }
+                else { oneX = effect; oneXOwner = edge; }
+            } finally {
+                owner.Free();
+            }
+        }
+        AssertThat(oneX > 0f).IsTrue();
+        AssertFloat(oneXOwner).IsEqual(GlowPresentationController.OwnerOutlineThickness);
+        AssertFloat(twoX).IsEqualApprox(oneX * 2f, 0.0001f);
+        AssertFloat(twoXOwner).IsEqualApprox(oneXOwner * 2f, 0.0001f);
+    }
+
     private static void AssertOwnerUniforms(GlowPresentationController glow, Color expected) {
         AssertThat(glow.GlowMaterial
             .GetShaderParameter(GlowPresentationController.OwnerOutlineEnabledUniform).AsBool()).IsTrue();

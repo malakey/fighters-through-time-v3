@@ -1,5 +1,6 @@
 using FTT.Characters;
 using FTT.Combat;
+using FTT.Core;
 using GdUnit4;
 using Godot;
 using static GdUnit4.Assertions;
@@ -113,9 +114,79 @@ public class RetroSpriteScaleNormalizerTests {
         try {
             var sprite = player.GetNodeOrNull<AnimatedSprite2D>("AnimatedSprite2D");
             AssertObject(sprite).IsNotNull();
-            AssertFloat(sprite.Scale.X).IsEqualApprox(0.845f, 0.001f);
+            SpriteFrames einstein = AuthoredResources.Load<CharacterData>(
+                "res://resources/Characters/einstein_data.tres").SpriteFramesResource;
+            float texelScale = RetroSpriteMetadata.TexelScale(einstein);
+            AssertFloat(sprite.Scale.X).IsEqualApprox(0.845f / texelScale, 0.001f);
             AssertObject(sprite.GetNodeOrNull<RetroSpriteScaleNormalizer>("ScaleNormalizer"))
                 .IsNotNull();
+        } finally {
+            player.Free();
+        }
+    }
+    [TestCase]
+    public void MetadataHelperDefaultsAndReads() {
+        var frames = BuildFrames(("idle", 122));
+        AssertFloat(RetroSpriteMetadata.TexelScale(frames)).IsEqual(1f);
+        AssertThat(RetroSpriteMetadata.IsBakedScale(frames)).IsFalse();
+        AssertThat(RetroSpriteMetadata.FeetGap(frames, "idle")).IsEqual(3);
+        AssertFloat(RetroSpriteMetadata.TexelScale(null)).IsEqual(1f);
+        AssertThat(RetroSpriteMetadata.IsBakedScale(null)).IsFalse();
+        AssertThat(RetroSpriteMetadata.FeetGap(null, "idle")).IsEqual(3);
+
+        frames.SetMeta(RetroSpriteMetadata.TexelScaleKey, 2.0);
+        frames.SetMeta(RetroSpriteMetadata.BakedScaleKey, true);
+        var gaps = new Godot.Collections.Dictionary();
+        gaps["down_air"] = 41;
+        gaps[new StringName("idle")] = 5.0;
+        frames.SetMeta(RetroSpriteMetadata.FeetGapsKey, gaps);
+        AssertFloat(RetroSpriteMetadata.TexelScale(frames)).IsEqual(2f);
+        AssertThat(RetroSpriteMetadata.IsBakedScale(frames)).IsTrue();
+        AssertThat(RetroSpriteMetadata.FeetGap(frames, "down_air")).IsEqual(41);
+        AssertThat(RetroSpriteMetadata.FeetGap(frames, "idle")).IsEqual(5);
+        AssertThat(RetroSpriteMetadata.FeetGap(frames, "run")).IsEqual(3);
+    }
+
+    [TestCase]
+    public void ABakedSheetIsNeverBoostedEvenWhenAnAnimationIsHalfTheIdleHeight() {
+        SpriteFrames frames = BuildFrames(("idle", 122), ("attack", 61));
+        frames.SetMeta(RetroSpriteMetadata.BakedScaleKey, true);
+        (AnimatedSprite2D sprite, Node host) = BuildSprite(
+            frames, RetroSpriteScaleNormalizer.FigureKind.Enemy, 0.65f);
+        try {
+            sprite.Animation = "attack";
+            AssertFloat(sprite.Scale.X).IsEqualApprox(0.65f, 0.001f);
+        } finally {
+            host.Free();
+        }
+    }
+
+    [TestCase]
+    public void APerAnimationFeetGapMovesTheFeetAnchor() {
+        SpriteFrames frames = BuildFrames(("idle", 122), ("down_air", 122));
+        var gaps = new Godot.Collections.Dictionary();
+        gaps["down_air"] = 41;
+        frames.SetMeta(RetroSpriteMetadata.FeetGapsKey, gaps);
+        (AnimatedSprite2D sprite, Node host) = BuildSprite(
+            frames, RetroSpriteScaleNormalizer.FigureKind.Character, 0.65f);
+        try {
+            AssertFloat(sprite.Position.Y).IsEqualApprox(-(CellHeight * 0.5f - FeetGap) * 0.65f, 0.01f);
+            sprite.Animation = "down_air";
+            float factor = sprite.Scale.X / 0.65f;
+            AssertFloat(sprite.Position.Y).IsEqualApprox(-(CellHeight * 0.5f - 41f) * 0.65f * factor, 0.01f);
+        } finally {
+            host.Free();
+        }
+    }
+
+    [TestCase]
+    public void TheFactoryUsesMipmapsOnlyForSheetsWithMoreThanOneTexelPerPixel() {
+        PlayerController player = CharacterFactory.CreateCharacter("einstein", applyStoryProgression: false);
+        try {
+            var sprite = player.GetNode<AnimatedSprite2D>("AnimatedSprite2D");
+            bool highRes = RetroSpriteMetadata.TexelScale(sprite.SpriteFrames) > 1f;
+            AssertThat(sprite.TextureFilter == CanvasItem.TextureFilterEnum.LinearWithMipmaps)
+                .IsEqual(highRes);
         } finally {
             player.Free();
         }

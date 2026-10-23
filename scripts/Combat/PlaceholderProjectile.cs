@@ -261,7 +261,7 @@ namespace FTT.Combat {
             _authoredVisual.Visible = false;
             _authoredVisual.Stop();
             return AbilityVisualLibrary.Apply(_authoredVisual, data?.AbilityID, 0.38f,
-                flipH: !movingRight);
+                flipH: !movingRight, holdFrame: AbilityVisualLibrary.TravelFrame);
         }
 
         private void OnHitConfirmed(HitPayload payload, float damageApplied) {

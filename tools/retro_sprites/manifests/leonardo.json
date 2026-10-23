@@ -1,0 +1,1004 @@
+{
+ "character": "leonardo",
+ "texel_scale": 2.0,
+ "animations": {
+  "idle": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     496,
+     560,
+     168,
+     256
+    ],
+    [
+     664,
+     560,
+     168,
+     256
+    ],
+    [
+     832,
+     560,
+     168,
+     256
+    ],
+    [
+     1000,
+     560,
+     168,
+     256
+    ]
+   ],
+   "feet_gap": 13,
+   "speed": 6.0,
+   "loop": true,
+   "sources": [
+    "leonardo__idle#2",
+    "leonardo__idle#3",
+    "leonardo__idle#5",
+    "leonardo__idle#2"
+   ]
+  },
+  "run": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     0,
+     296,
+     248,
+     264
+    ],
+    [
+     248,
+     296,
+     248,
+     264
+    ],
+    [
+     496,
+     296,
+     248,
+     264
+    ],
+    [
+     744,
+     296,
+     248,
+     264
+    ],
+    [
+     992,
+     296,
+     248,
+     264
+    ],
+    [
+     1240,
+     296,
+     248,
+     264
+    ],
+    [
+     0,
+     560,
+     248,
+     264
+    ],
+    [
+     248,
+     560,
+     248,
+     264
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 14.0,
+   "loop": true,
+   "sources": [
+    "leonardo__run#2",
+    "leonardo__run#3",
+    "leonardo__run#4",
+    "leonardo__run#5",
+    "leonardo__run#7",
+    "leonardo__run#8",
+    "leonardo__run#9",
+    "leonardo__run#10"
+   ]
+  },
+  "jump": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     0,
+     0,
+     288,
+     296
+    ],
+    [
+     288,
+     0,
+     288,
+     296
+    ],
+    [
+     576,
+     0,
+     288,
+     296
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "leonardo__p01#2",
+    "leonardo__p01#3",
+    "leonardo__p01#4"
+   ]
+  },
+  "fall": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     864,
+     0,
+     256,
+     288
+    ],
+    [
+     1120,
+     0,
+     256,
+     288
+    ],
+    [
+     1376,
+     0,
+     256,
+     288
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "leonardo__p01#7",
+    "leonardo__p01#5",
+    "leonardo__p01#6"
+   ]
+  },
+  "skid": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     1168,
+     560,
+     336,
+     224
+    ],
+    [
+     0,
+     824,
+     336,
+     224
+    ],
+    [
+     336,
+     824,
+     336,
+     224
+    ]
+   ],
+   "feet_gap": 18,
+   "speed": 12.0,
+   "loop": false,
+   "sources": [
+    "leonardo__p01#8",
+    "leonardo__p01#8",
+    "leonardo__p01#10"
+   ]
+  },
+  "crouch": {
+   "sheet": "locomotion",
+   "regions": [
+    [
+     672,
+     824,
+     304,
+     200
+    ],
+    [
+     976,
+     824,
+     304,
+     200
+    ],
+    [
+     1280,
+     824,
+     304,
+     200
+    ]
+   ],
+   "feet_gap": 13,
+   "speed": 4.0,
+   "loop": true,
+   "sources": [
+    "leonardo__p02#2",
+    "leonardo__p02#2",
+    "leonardo__p02#2"
+   ]
+  },
+  "roll_startup": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     0,
+     1440,
+     304,
+     192
+    ],
+    [
+     304,
+     1440,
+     304,
+     192
+    ],
+    [
+     608,
+     1440,
+     304,
+     192
+    ]
+   ],
+   "feet_gap": 27,
+   "speed": 12.0,
+   "loop": false,
+   "sources": [
+    "leonardo__p02#3",
+    "leonardo__p02#4",
+    "leonardo__p02#5"
+   ]
+  },
+  "roll": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     0,
+     1240,
+     256,
+     200
+    ],
+    [
+     256,
+     1240,
+     256,
+     200
+    ],
+    [
+     512,
+     1240,
+     256,
+     200
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 12.0,
+   "loop": false,
+   "sources": [
+    "leonardo__p02#6",
+    "leonardo__p02#7",
+    "leonardo__p02#8"
+   ]
+  },
+  "roll_recovery": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     0,
+     984,
+     304,
+     256
+    ],
+    [
+     304,
+     984,
+     304,
+     256
+    ],
+    [
+     608,
+     984,
+     304,
+     256
+    ]
+   ],
+   "feet_gap": 16,
+   "speed": 12.0,
+   "loop": false,
+   "sources": [
+    "leonardo__p02#9",
+    "leonardo__p02#10",
+    "leonardo__idle#2"
+   ]
+  },
+  "ledge_hang": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     0,
+     704,
+     240,
+     280
+    ],
+    [
+     240,
+     704,
+     240,
+     280
+    ],
+    [
+     480,
+     704,
+     240,
+     280
+    ]
+   ],
+   "feet_gap": 140,
+   "speed": 3.0,
+   "loop": true,
+   "sources": [
+    "leonardo__p03#2",
+    "leonardo__p03#2",
+    "leonardo__p03#2"
+   ]
+  },
+  "ledge_pull_up": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     0,
+     416,
+     272,
+     288
+    ],
+    [
+     272,
+     416,
+     272,
+     288
+    ],
+    [
+     544,
+     416,
+     272,
+     288
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "leonardo__p03#3",
+    "leonardo__p03#4",
+    "leonardo__p03#5"
+   ]
+  },
+  "ledge_drop": {
+   "sheet": "traversal",
+   "regions": [
+    [
+     0,
+     0,
+     264,
+     416
+    ],
+    [
+     264,
+     0,
+     264,
+     416
+    ],
+    [
+     528,
+     0,
+     264,
+     416
+    ]
+   ],
+   "feet_gap": 139,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "leonardo__p03#2",
+    "leonardo__p01#5",
+    "leonardo__p01#7"
+   ]
+  },
+  "basic_attack_1": {
+   "sheet": "combat",
+   "regions": [
+    [
+     1104,
+     592,
+     504,
+     264
+    ],
+    [
+     1608,
+     592,
+     504,
+     264
+    ],
+    [
+     0,
+     864,
+     504,
+     264
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "leonardo__p04#9",
+    "leonardo__p05#2",
+    "leonardo__p05#3"
+   ]
+  },
+  "basic_attack_2": {
+   "sheet": "combat",
+   "regions": [
+    [
+     0,
+     0,
+     408,
+     304
+    ],
+    [
+     408,
+     0,
+     408,
+     304
+    ],
+    [
+     816,
+     0,
+     408,
+     304
+    ]
+   ],
+   "feet_gap": 25,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "leonardo__p05#4",
+    "leonardo__p05#5",
+    "leonardo__p05#6"
+   ]
+  },
+  "basic_attack_3": {
+   "sheet": "combat",
+   "regions": [
+    [
+     1224,
+     0,
+     496,
+     288
+    ],
+    [
+     1720,
+     0,
+     496,
+     288
+    ],
+    [
+     0,
+     304,
+     496,
+     288
+    ]
+   ],
+   "feet_gap": 28,
+   "speed": 7.0,
+   "loop": false,
+   "sources": [
+    "leonardo__p05#7",
+    "leonardo__p05#8",
+    "leonardo__p05#9"
+   ]
+  },
+  "block": {
+   "sheet": "combat",
+   "regions": [
+    [
+     1344,
+     864,
+     256,
+     256
+    ],
+    [
+     1600,
+     864,
+     256,
+     256
+    ],
+    [
+     1856,
+     864,
+     256,
+     256
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 3.0,
+   "loop": true,
+   "sources": [
+    "leonardo__p03#6",
+    "leonardo__p03#6",
+    "leonardo__p03#6"
+   ]
+  },
+  "hitstun": {
+   "sheet": "combat",
+   "regions": [
+    [
+     504,
+     864,
+     280,
+     256
+    ],
+    [
+     784,
+     864,
+     280,
+     256
+    ],
+    [
+     1064,
+     864,
+     280,
+     256
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "leonardo__p03#7",
+    "leonardo__p03#8",
+    "leonardo__p03#9"
+   ]
+  },
+  "grab": {
+   "sheet": "combat",
+   "regions": [
+    [
+     0,
+     592,
+     368,
+     272
+    ],
+    [
+     368,
+     592,
+     368,
+     272
+    ],
+    [
+     736,
+     592,
+     368,
+     272
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "leonardo__p06#8",
+    "leonardo__p06#9",
+    "leonardo__p07#2"
+   ]
+  },
+  "throw": {
+   "sheet": "combat",
+   "regions": [
+    [
+     496,
+     304,
+     488,
+     272
+    ],
+    [
+     984,
+     304,
+     488,
+     272
+    ],
+    [
+     1472,
+     304,
+     488,
+     272
+    ]
+   ],
+   "feet_gap": 17,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "leonardo__p07#3",
+    "leonardo__p07#4",
+    "leonardo__p07#5"
+   ]
+  },
+  "up_attack": {
+   "sheet": "directional_attacks",
+   "regions": [
+    [
+     0,
+     352,
+     296,
+     288
+    ],
+    [
+     296,
+     352,
+     296,
+     288
+    ],
+    [
+     592,
+     352,
+     296,
+     288
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "leonardo__p06#2",
+    "leonardo__p06#3",
+    "leonardo__p06#4"
+   ]
+  },
+  "down_air": {
+   "sheet": "directional_attacks",
+   "regions": [
+    [
+     0,
+     0,
+     312,
+     352
+    ],
+    [
+     312,
+     0,
+     312,
+     352
+    ],
+    [
+     624,
+     0,
+     312,
+     352
+    ]
+   ],
+   "feet_gap": 115,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "leonardo__p06#5",
+    "leonardo__p06#6",
+    "leonardo__p06#7"
+   ]
+  },
+  "dazed": {
+   "sheet": "states",
+   "regions": [
+    [
+     1176,
+     0,
+     224,
+     272
+    ],
+    [
+     1400,
+     0,
+     224,
+     272
+    ],
+    [
+     1624,
+     0,
+     224,
+     272
+    ]
+   ],
+   "feet_gap": 17,
+   "speed": 4.0,
+   "loop": true,
+   "sources": [
+    "leonardo__p03#10",
+    "leonardo__p03#10",
+    "leonardo__p03#10"
+   ]
+  },
+  "death": {
+   "sheet": "states",
+   "regions": [
+    [
+     0,
+     272,
+     488,
+     240
+    ],
+    [
+     488,
+     272,
+     488,
+     240
+    ],
+    [
+     976,
+     272,
+     488,
+     240
+    ]
+   ],
+   "feet_gap": 16,
+   "speed": 6.0,
+   "loop": false,
+   "sources": [
+    "leonardo__p04#2",
+    "leonardo__p04#3",
+    "leonardo__p04#4"
+   ]
+  },
+  "respawn": {
+   "sheet": "states",
+   "regions": [
+    [
+     1848,
+     0,
+     160,
+     256
+    ],
+    [
+     2008,
+     0,
+     160,
+     256
+    ],
+    [
+     2168,
+     0,
+     160,
+     256
+    ]
+   ],
+   "feet_gap": 13,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "leonardo__idle#2",
+    "leonardo__idle#2",
+    "leonardo__idle#2"
+   ]
+  },
+  "victory": {
+   "sheet": "states",
+   "regions": [
+    [
+     0,
+     0,
+     392,
+     272
+    ],
+    [
+     392,
+     0,
+     392,
+     272
+    ],
+    [
+     784,
+     0,
+     392,
+     272
+    ]
+   ],
+   "feet_gap": 18,
+   "speed": 6.0,
+   "loop": true,
+   "sources": [
+    "leonardo__p04#5",
+    "leonardo__p04#6",
+    "leonardo__p04#7"
+   ]
+  },
+  "defeat": {
+   "sheet": "states",
+   "regions": [
+    [
+     1464,
+     272,
+     248,
+     192
+    ],
+    [
+     1712,
+     272,
+     248,
+     192
+    ],
+    [
+     1960,
+     272,
+     248,
+     192
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 4.0,
+   "loop": true,
+   "sources": [
+    "leonardo__p04#8",
+    "leonardo__p04#8",
+    "leonardo__p04#8"
+   ]
+  },
+  "special_1": {
+   "sheet": "abilities",
+   "regions": [
+    [
+     0,
+     312,
+     424,
+     304
+    ],
+    [
+     424,
+     312,
+     424,
+     304
+    ],
+    [
+     848,
+     312,
+     424,
+     304
+    ]
+   ],
+   "feet_gap": 14,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "leonardo__p07#6",
+    "leonardo__p07#7",
+    "leonardo__p07#8"
+   ]
+  },
+  "special_2": {
+   "sheet": "abilities",
+   "regions": [
+    [
+     880,
+     616,
+     296,
+     280
+    ],
+    [
+     1176,
+     616,
+     296,
+     280
+    ],
+    [
+     1472,
+     616,
+     296,
+     280
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "leonardo__p07#9",
+    "leonardo__p08#2",
+    "leonardo__p08#3"
+   ]
+  },
+  "movement_ability": {
+   "sheet": "abilities",
+   "regions": [
+    [
+     1272,
+     312,
+     440,
+     280
+    ],
+    [
+     0,
+     616,
+     440,
+     280
+    ],
+    [
+     440,
+     616,
+     440,
+     280
+    ]
+   ],
+   "feet_gap": 15,
+   "speed": 10.0,
+   "loop": false,
+   "sources": [
+    "leonardo__p08#4",
+    "leonardo__p08#5",
+    "leonardo__p08#6"
+   ]
+  },
+  "ultimate": {
+   "sheet": "abilities",
+   "regions": [
+    [
+     0,
+     0,
+     544,
+     312
+    ],
+    [
+     544,
+     0,
+     544,
+     312
+    ],
+    [
+     1088,
+     0,
+     544,
+     312
+    ]
+   ],
+   "feet_gap": 20,
+   "speed": 8.0,
+   "loop": false,
+   "sources": [
+    "leonardo__p08#7",
+    "leonardo__p08#8",
+    "leonardo__p08#9"
+   ]
+  }
+ },
+ "sheets": {
+  "locomotion": [
+   1632,
+   1048
+  ],
+  "traversal": [
+   912,
+   1632
+  ],
+  "combat": [
+   2216,
+   1128
+  ],
+  "directional_attacks": [
+   936,
+   640
+  ],
+  "states": [
+   2328,
+   512
+  ],
+  "abilities": [
+   1768,
+   896
+  ]
+ }
+}

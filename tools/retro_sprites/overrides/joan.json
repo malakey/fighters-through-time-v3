@@ -1,0 +1,23 @@
+{
+ "reject": [
+  "joan__p03#9",
+  "joan__p03#10"
+ ],
+ "skid": {
+  "source": {
+   "1": "joan__p01#8"
+  }
+ },
+ "down_air": {
+  "feet_at": {
+   "1": {
+    "source": "joan__p05#6",
+    "y": 162
+   },
+   "2": {
+    "source": "joan__p05#7",
+    "y": 166
+   }
+  }
+ }
+}

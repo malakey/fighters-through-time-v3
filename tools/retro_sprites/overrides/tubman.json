@@ -1,0 +1,88 @@
+{
+ "sheets": {
+  "tubman__p04": {
+   "counts": [
+    3,
+    3,
+    3
+   ],
+   "figures": [
+    {
+     "anim": "death",
+     "index": 0
+    },
+    {
+     "anim": "death",
+     "index": 1
+    },
+    {
+     "anim": "death",
+     "index": 2
+    },
+    {
+     "anim": "discard"
+    },
+    {
+     "anim": "victory",
+     "index": 0
+    },
+    {
+     "anim": "victory",
+     "index": 1
+    },
+    {
+     "anim": "victory",
+     "index": 2
+    },
+    {
+     "anim": "defeat",
+     "index": 0
+    },
+    {
+     "anim": "basic_attack_1",
+     "index": 0
+    }
+   ],
+   "scale_ref": 7,
+   "cuts": [
+    {
+     "y": 309,
+     "x0": 690,
+     "x1": 760
+    },
+    {
+     "x": 757,
+     "y0": 300,
+     "y1": 332
+    },
+    {
+     "y": 323,
+     "x0": 1150,
+     "x1": 1520
+    },
+    {
+     "y": 688,
+     "x0": 180,
+     "x1": 420
+    },
+    {
+     "y": 697,
+     "x0": 1090,
+     "x1": 1440
+    }
+   ]
+  }
+ },
+ "down_air": {
+  "feet_at": {
+   "1": {
+    "source": "tubman__p06#6",
+    "y": 135
+   },
+   "2": {
+    "source": "tubman__p06#7",
+    "y": 165
+   }
+  }
+ }
+}

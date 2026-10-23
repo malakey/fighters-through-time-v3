@@ -1,0 +1,18 @@
+{
+ "down_air": {
+  "feet_at": {
+   "1": {
+    "source": "mozart__p06#6",
+    "y": 112
+   }
+  }
+ },
+ "movement_ability": {
+  "feet_at": {
+   "0": {
+    "source": "mozart__p08#4",
+    "y": 174
+   }
+  }
+ }
+}

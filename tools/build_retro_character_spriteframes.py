@@ -1,5 +1,6 @@
 """Build every roster character's SpriteFrames resources from fixed-size retro atlases."""
 
+import json
 from pathlib import Path
 
 
@@ -108,7 +109,65 @@ def animation_block(name: str, frame_ids: list[str], speed: float, loop: bool) -
     )
 
 
+MANIFESTS = ROOT / "tools" / "retro_sprites" / "manifests"
+
+
+def gd_dict(values: dict) -> str:
+    return "{" + ", ".join(f'"{key}": {value}' for key, value in values.items()) + "}"
+
+
+def write_manifest_character_resource(character_id: str, manifest: dict) -> None:
+    """Retro v2 (2026-10-18): variable per-animation cells at 2x texels, read
+    from the packer's manifest (tools/retro_sprites/pack.py). The metadata tells
+    the runtime the texel scale, that figure scale is baked (no per-animation
+    normalizer boost) and where each animation's feet line sits."""
+    animations = manifest["animations"]
+    sheets = list(dict.fromkeys(spec["sheet"] for spec in animations.values()))
+    sheet_ids = {sheet: f"{index + 1}_{sheet}" for index, sheet in enumerate(sheets)}
+    frame_total = sum(len(spec["regions"]) for spec in animations.values())
+    lines = [
+        f'[gd_resource type="SpriteFrames" load_steps={len(sheets) + frame_total + 1} format=3]',
+        "",
+    ]
+    for sheet in sheets:
+        path = f"res://assets/sprites/characters/{character_id}/retro/{character_id}_{sheet}_atlas.png"
+        lines.append(f'[ext_resource type="Texture2D" path="{path}" id="{sheet_ids[sheet]}"]')
+    lines.append("")
+    order = [name for name, *_ in CHARACTER_ANIMATIONS + DIRECTIONAL_AND_GRAB_ANIMATIONS]
+    frame_ids: dict[str, list[str]] = {}
+    for name in order:
+        spec = animations[name]
+        frame_ids[name] = []
+        for column, (x, y, w, h) in enumerate(spec["regions"]):
+            frame_id = f"{name}_{column}"
+            frame_ids[name].append(frame_id)
+            lines.extend([
+                f'[sub_resource type="AtlasTexture" id="{frame_id}"]',
+                f'atlas = ExtResource("{sheet_ids[spec["sheet"]]}")',
+                f"region = Rect2({x}, {y}, {w}, {h})",
+                "",
+            ])
+    lines.extend(["[resource]", "animations = ["])
+    lines.append(", ".join(
+        animation_block(name, frame_ids[name], animations[name]["speed"], animations[name]["loop"])
+        for name in order
+    ))
+    lines.append("]")
+    lines.append(f"metadata/retro_texel_scale = {float(manifest['texel_scale']):.1f}")
+    lines.append("metadata/retro_baked_scale = true")
+    lines.append("metadata/retro_feet_gaps = " + gd_dict(
+        {name: int(animations[name]["feet_gap"]) for name in order}))
+    (SPRITE_FRAMES / f"{character_id}_frames.tres").write_text(
+        "\n".join(lines) + "\n", encoding="utf-8"
+    )
+
+
 def write_character_resource(character_id: str) -> None:
+    manifest_path = MANIFESTS / f"{character_id}.json"
+    if manifest_path.exists():
+        write_manifest_character_resource(
+            character_id, json.loads(manifest_path.read_text(encoding="utf-8")))
+        return
     sheets = {
         sheet: f"res://assets/sprites/characters/{character_id}/retro/{character_id}_{sheet}_atlas.png"
         for sheet in ("locomotion", "traversal", "combat", "states", "abilities")
@@ -155,6 +214,39 @@ def write_character_resource(character_id: str) -> None:
 
 def write_vfx_resource(character_id: str, animations: tuple[str, ...]) -> None:
     sheet_path = f"res://assets/sprites/vfx/{character_id}/{character_id}_ability_vfx_atlas.png"
+    vfx_manifest = MANIFESTS / f"{character_id}_vfx.json"
+    if vfx_manifest.exists():
+        # Retro v2: square cells at 2x texels; the runtime divides every
+        # call-site scale by the texel scale (FTT.Combat.RetroSpriteMetadata).
+        manifest = json.loads(vfx_manifest.read_text(encoding="utf-8"))
+        cell = int(manifest["cell"])
+        lines = [
+            '[gd_resource type="SpriteFrames" load_steps=14 format=3]', "",
+            f'[ext_resource type="Texture2D" path="{sheet_path}" id="1_vfx"]', "",
+        ]
+        frame_ids: dict[str, list[str]] = {}
+        for row, animation in enumerate(animations):
+            frame_ids[animation] = []
+            for column in range(3):
+                frame_id = f"ability_{row}_{column}"
+                frame_ids[animation].append(frame_id)
+                lines.extend([
+                    f'[sub_resource type="AtlasTexture" id="{frame_id}"]',
+                    'atlas = ExtResource("1_vfx")',
+                    f"region = Rect2({column * cell}, {row * cell}, {cell}, {cell})",
+                    "",
+                ])
+        lines.extend(["[resource]", "animations = ["])
+        lines.append(", ".join(
+            animation_block(animation, frame_ids[animation], 10.0, row in (1, 3))
+            for row, animation in enumerate(animations)
+        ))
+        lines.append("]")
+        lines.append(f"metadata/retro_texel_scale = {float(manifest['texel_scale']):.1f}")
+        (SPRITE_FRAMES / f"{character_id}_ability_vfx_frames.tres").write_text(
+            "\n".join(lines) + "\n", encoding="utf-8"
+        )
+        return
     lines = [
         '[gd_resource type="SpriteFrames" load_steps=14 format=3]', "",
         f'[ext_resource type="Texture2D" path="{sheet_path}" id="1_vfx"]', "",

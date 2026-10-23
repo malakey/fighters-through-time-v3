@@ -1,0 +1,46 @@
+{
+ "sheets": {
+  "shakespeare__p04": {
+   "cuts": [
+    {
+     "y": 704,
+     "x0": 1100,
+     "x1": 1304
+    },
+    {
+     "x": 1306,
+     "y0": 660,
+     "y1": 704
+    }
+   ]
+  }
+ },
+ "down_air": {
+  "feet_at": {
+   "1": {
+    "source": "shakespeare__p06#6",
+    "y": 176
+   },
+   "2": {
+    "source": "shakespeare__p06#7",
+    "y": 188
+   }
+  }
+ },
+ "movement_ability": {
+  "feet_at": {
+   "0": {
+    "source": "shakespeare__p08#4",
+    "y": 143
+   },
+   "1": {
+    "source": "shakespeare__p08#5",
+    "y": 188
+   },
+   "2": {
+    "source": "shakespeare__p08#6",
+    "y": 158
+   }
+  }
+ }
+}

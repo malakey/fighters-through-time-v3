@@ -4,7 +4,7 @@
 [ext_resource type="Script" path="res://scripts/Environment/EnvironmentHurtboxAdapter.cs" id="2_hurtbox"]
 [ext_resource type="Script" path="res://scripts/Core/ContentTemplateMarker.cs" id="3_marker"]
 [ext_resource type="Resource" path="res://resources/Contracts/persistent_construct_contract.tres" id="4_contract"]
-[ext_resource type="Texture2D" path="res://assets/placeholders/graybox_tile.svg" id="5_visual"]
+[ext_resource type="Texture2D" path="res://assets/sprites/constructs/sonata_platform.png" id="5_visual"]
 [ext_resource type="Script" path="res://scripts/Environment/OneWayPlatform.cs" id="6_oneway"]
 
 [sub_resource type="RectangleShape2D" id="Collision"]
@@ -14,9 +14,10 @@ size = Vector2(120, 12)
 script = ExtResource("1_platform")
 
 [node name="Visual" type="Sprite2D" parent="."]
+texture_filter = 4
 texture = ExtResource("5_visual")
-scale = Vector2(2, 0.2)
-modulate = Color(0.85, 0.72, 0.35, 0.9)
+position = Vector2(0, 0)
+scale = Vector2(0.5, 0.5)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("Collision")

@@ -181,6 +181,15 @@ namespace FTT.Combat {
         /// Binds the arbiter to a sprite and installs a per-entity duplicate of the
         /// shared outline material. Safe to call again with the same target.
         /// </summary>
+        /// <summary>
+        /// Texels per legacy pixel of the bound sprite's sheet (1 for legacy art).
+        /// The shader measures outline widths in texels, so 2x retro v2 art needs
+        /// twice the thickness to read the same on screen. Re-read on every push,
+        /// because the sprite's SpriteFrames can change after attach (pooled owners).
+        /// </summary>
+        public float TexelScale =>
+            RetroSpriteMetadata.TexelScale((_target as AnimatedSprite2D)?.SpriteFrames);
+
         public void Attach(CanvasItem target) {
             _target = target;
             if (_target == null) return;
@@ -596,7 +605,7 @@ namespace FTT.Combat {
         private void PushOwnershipToMaterial() {
             if (_material == null) return;
             _material.SetShaderParameter(OwnerOutlineColorUniform, _ownerOutlineColor);
-            _material.SetShaderParameter(OwnerOutlineThicknessUniform, OwnerOutlineThickness);
+            _material.SetShaderParameter(OwnerOutlineThicknessUniform, OwnerOutlineThickness * TexelScale);
             _material.SetShaderParameter(OwnerOutlineEnabledUniform, _ownerOutlineEnabled);
         }
 
@@ -612,7 +621,7 @@ namespace FTT.Combat {
             float pulse = _resolvedVisible && !_auraSmothered ? _resolved.PulseSpeed : 0f;
             if (_material != null) {
                 _material.SetShaderParameter(OutlineColorUniform, outlineColor);
-                _material.SetShaderParameter(OutlineThicknessUniform, thickness);
+                _material.SetShaderParameter(OutlineThicknessUniform, thickness * TexelScale);
                 _material.SetShaderParameter(GlowIntensityUniform, intensity);
                 _material.SetShaderParameter(PulseSpeedUniform, FTT.Core.ComfortSettings.ResolvePulseSpeed(pulse));
             }

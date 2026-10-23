@@ -1,0 +1,14 @@
+{
+ "down_air": {
+  "feet_at": {
+   "1": {
+    "source": "cleopatra__p06#6",
+    "y": 166
+   },
+   "2": {
+    "source": "cleopatra__p06#7",
+    "y": 160
+   }
+  }
+ }
+}

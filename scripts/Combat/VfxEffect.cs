@@ -88,6 +88,8 @@ namespace FTT.Combat {
             }
 
             if (_particles != null) _particles.Visible = false;
+            // 2x texel sheets draw at half scale so the in-world size is unchanged.
+            visualScale /= RetroSpriteMetadata.TexelScale(frames);
             BaseVisualScale = new Vector2(visualScale, visualScale);
             animated.SpriteFrames = frames;
             animated.Animation = animation;

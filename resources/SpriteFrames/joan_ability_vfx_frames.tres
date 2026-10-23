@@ -4,51 +4,51 @@
 
 [sub_resource type="AtlasTexture" id="ability_0_0"]
 atlas = ExtResource("1_vfx")
-region = Rect2(0, 0, 192, 192)
+region = Rect2(0, 0, 384, 384)
 
 [sub_resource type="AtlasTexture" id="ability_0_1"]
 atlas = ExtResource("1_vfx")
-region = Rect2(192, 0, 192, 192)
+region = Rect2(384, 0, 384, 384)
 
 [sub_resource type="AtlasTexture" id="ability_0_2"]
 atlas = ExtResource("1_vfx")
-region = Rect2(384, 0, 192, 192)
+region = Rect2(768, 0, 384, 384)
 
 [sub_resource type="AtlasTexture" id="ability_1_0"]
 atlas = ExtResource("1_vfx")
-region = Rect2(0, 192, 192, 192)
+region = Rect2(0, 384, 384, 384)
 
 [sub_resource type="AtlasTexture" id="ability_1_1"]
 atlas = ExtResource("1_vfx")
-region = Rect2(192, 192, 192, 192)
+region = Rect2(384, 384, 384, 384)
 
 [sub_resource type="AtlasTexture" id="ability_1_2"]
 atlas = ExtResource("1_vfx")
-region = Rect2(384, 192, 192, 192)
+region = Rect2(768, 384, 384, 384)
 
 [sub_resource type="AtlasTexture" id="ability_2_0"]
 atlas = ExtResource("1_vfx")
-region = Rect2(0, 384, 192, 192)
+region = Rect2(0, 768, 384, 384)
 
 [sub_resource type="AtlasTexture" id="ability_2_1"]
 atlas = ExtResource("1_vfx")
-region = Rect2(192, 384, 192, 192)
+region = Rect2(384, 768, 384, 384)
 
 [sub_resource type="AtlasTexture" id="ability_2_2"]
 atlas = ExtResource("1_vfx")
-region = Rect2(384, 384, 192, 192)
+region = Rect2(768, 768, 384, 384)
 
 [sub_resource type="AtlasTexture" id="ability_3_0"]
 atlas = ExtResource("1_vfx")
-region = Rect2(0, 576, 192, 192)
+region = Rect2(0, 1152, 384, 384)
 
 [sub_resource type="AtlasTexture" id="ability_3_1"]
 atlas = ExtResource("1_vfx")
-region = Rect2(192, 576, 192, 192)
+region = Rect2(384, 1152, 384, 384)
 
 [sub_resource type="AtlasTexture" id="ability_3_2"]
 atlas = ExtResource("1_vfx")
-region = Rect2(384, 576, 192, 192)
+region = Rect2(768, 1152, 384, 384)
 
 [resource]
 animations = [
@@ -74,3 +74,4 @@ animations = [
 "speed": 10.0
 }
 ]
+metadata/retro_texel_scale = 2.0

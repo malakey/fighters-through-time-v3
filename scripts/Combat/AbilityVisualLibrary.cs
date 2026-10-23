@@ -35,18 +35,49 @@ namespace FTT.Combat {
             return frames != null && frames.HasAnimation(animation);
         }
 
+        /// <summary>
+        /// The sustained "body" frame of an ability animation (frame 0 is the
+        /// onset, frame 2 the burst), shown by things that travel.
+        /// </summary>
+        public const int TravelFrame = 1;
+
+        /// <param name="holdFrame">When >= 0 the sprite shows that frame
+        /// (clamped) statically instead of playing the animation.</param>
         public static bool Apply(AnimatedSprite2D sprite, string abilityID, float scale,
-            bool flipH = false) {
+            bool flipH = false, int holdFrame = -1) {
             if (sprite == null || !TryResolve(abilityID, out SpriteFrames frames,
                     out StringName animation)) return false;
             sprite.SpriteFrames = frames;
             sprite.Animation = animation;
-            sprite.Frame = 0;
             sprite.FlipH = flipH;
-            sprite.Scale = new Vector2(scale, scale);
+            Rescale(sprite, scale);
             sprite.Visible = true;
-            sprite.Play();
+            if (holdFrame >= 0) {
+                sprite.Stop();
+                int count = frames.GetFrameCount(animation);
+                sprite.Frame = Math.Clamp(holdFrame, 0, Math.Max(0, count - 1));
+            } else {
+                sprite.Frame = 0;
+                sprite.Play();
+            }
             return true;
+        }
+
+        /// <summary>Re-applies the scale rule to a sprite already carrying its frames.</summary>
+        public static void Rescale(AnimatedSprite2D sprite, float scale) {
+            if (sprite?.SpriteFrames == null) return;
+            float texelScale = scale / RetroSpriteMetadata.TexelScale(sprite.SpriteFrames);
+            sprite.Scale = new Vector2(texelScale, texelScale);
+        }
+
+        /// <summary>
+        /// True when the sprite already carries this ability's resolved frames and
+        /// animation, so a per-tick caller can skip Apply and keep it advancing.
+        /// </summary>
+        public static bool IsShowing(AnimatedSprite2D sprite, string abilityID) {
+            if (sprite == null || !TryResolve(abilityID, out SpriteFrames frames,
+                    out StringName animation)) return false;
+            return sprite.SpriteFrames == frames && sprite.Animation == animation;
         }
 
         private static StringName ResolveAnimationName(string abilityID) => abilityID switch {

@@ -45,7 +45,7 @@ render_mode blend_mix;
 // RGB + base opacity of the aura. Alpha 0 disables the effect entirely.
 uniform vec4 outline_color : source_color = vec4(0.0, 0.0, 0.0, 0.0);
 // Aura width in texels. 0 disables the effect entirely.
-uniform float outline_thickness : hint_range(0.0, 5.0) = 0.0;
+uniform float outline_thickness : hint_range(0.0, 10.0) = 0.0;
 // Brightness multiplier applied to outline_color.
 uniform float glow_intensity : hint_range(0.5, 3.0) = 1.0;
 // Sinusoidal oscillation speed. 0 = static; the pulse modulates the effective
@@ -56,7 +56,7 @@ uniform float pulse_speed : hint_range(0.0, 8.0) = 0.0;
 // Slot-derived colour. Never written by a status/armor/spawn source.
 uniform vec4 owner_outline_color : source_color = vec4(0.0, 0.0, 0.0, 0.0);
 // Edge width in texels, independent of outline_thickness and of any pulse.
-uniform float owner_outline_thickness : hint_range(0.0, 4.0) = 1.0;
+uniform float owner_outline_thickness : hint_range(0.0, 8.0) = 1.0;
 // Mode/actor-derived. An effect expiring must never clear this.
 uniform bool owner_outline_enabled = false;
 
