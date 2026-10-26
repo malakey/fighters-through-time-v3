@@ -161,4 +161,19 @@ public class PulpButtonDecorTests {
             button.Free();
         }
     }
+
+    [TestCase]
+    public void ApplyLeftAlignsTheLabelUnlessAskedNotTo() {
+        Button left = BuildButton();
+        Button centred = BuildButton();
+        try {
+            PulpButtonDecor.Apply(left);
+            PulpButtonDecor.Apply(centred, compact: false, alignLeft: false);
+            AssertThat(left.Alignment).IsEqual(HorizontalAlignment.Left);
+            AssertThat(centred.Alignment).IsEqual(HorizontalAlignment.Center);
+        } finally {
+            left.Free();
+            centred.Free();
+        }
+    }
 }
