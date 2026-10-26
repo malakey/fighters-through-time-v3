@@ -303,6 +303,11 @@ namespace FTT.Combat {
             if (_listButton != null) _listButton.Pressed += ReturnToDrillList;
             if (_exitButton != null) _exitButton.Pressed += ExitCalibration;
             if (_resultCard != null) _resultCard.Visible = false;
+            // UR-SCREENS: the result card's buttons are banner buttons and its panel wears the halftone.
+            foreach (Button button in new[] { _retryButton, _nextButton, _listButton, _exitButton }) {
+                if (button != null) FTT.UI.Pulp.PulpButtonDecor.Apply(button, compact: true);
+            }
+            if (_resultCard is PanelContainer cardPanel) FTT.UI.PulpScreenKit.DressPanel(cardPanel, buttonInset: true);
         }
 
         private void RefreshObjective() {
@@ -327,7 +332,7 @@ namespace FTT.Combat {
             if (_resultTitle != null) _resultTitle.Text = Tr(passed ? "drill_result_pass" : "drill_result_fail");
             if (_resultTitle != null) {
                 _resultTitle.AddThemeColorOverride(
-                    "font_color", passed ? FTT.UI.UIPalette.Cyan : FTT.UI.UIPalette.Warning);
+                    "font_color", passed ? FTT.UI.UIPalette.Accent : FTT.UI.UIPalette.Warning);
             }
             if (_resultCoaching != null) {
                 _resultCoaching.Text = Tr(passed ? _definition.PassCoachKey : _definition.FailCoachKey);

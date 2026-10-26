@@ -1669,3 +1669,8 @@ ui_toggle_off,Off
 menu_cover_title_word,Fighters
 menu_cover_title_banner,Through Time
 menu_continue_chapter,Chapter {0}
+# UR SCREENS
+fighter_results_player,Player {0}
+loading_player_one,Player 1
+loading_player_two,Player 2
+resonance_grid_tag,Constellation

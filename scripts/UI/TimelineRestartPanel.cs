@@ -48,6 +48,7 @@ namespace FTT.UI {
             AddChild(shade);
 
             var panel = new PanelContainer { Name = "Panel", CustomMinimumSize = new Vector2(620f, 300f) };
+            panel.ThemeTypeVariation = UIPalette.Variations.InkPanel;
             var center = new CenterContainer { Name = "Center", MouseFilter = MouseFilterEnum.Ignore };
             center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
             AddChild(center);
@@ -64,7 +65,7 @@ namespace FTT.UI {
                 HorizontalAlignment = HorizontalAlignment.Center,
                 ThemeTypeVariation = UIPalette.TitleLabelVariation
             };
-            title.AddThemeColorOverride("font_color", UIPalette.TextAccent);
+            title.Uppercase = true;
             layout.AddChild(title);
 
             var anchor = MakeButton("AnchorButton", Tr("timeline_restart_anchor"));
@@ -88,6 +89,11 @@ namespace FTT.UI {
             AddChild(_fullRestartConfirmation);
 
             FocusChainBuilder.Apply(layout);
+
+            // UR-SCREENS: pulp dressing (halftone corner, banner buttons, prompt bar).
+            PulpScreenKit.DressPanel(panel, buttonInset: true);
+            PulpScreenKit.DecorateButtons(layout);
+            PulpScreenKit.AddPromptBar(shade, ("ui_accept", "ui_prompt_select"), ("ui_cancel", "common_back"));
         }
 
         private void OnFullRestartPressed() => _fullRestartConfirmation?.Open();
@@ -109,7 +115,8 @@ namespace FTT.UI {
         private static Button MakeButton(string name, string text) => new() {
             Name = name,
             Text = text,
-            CustomMinimumSize = new Vector2(500f, UIPalette.ButtonMinHeight)
+            ThemeTypeVariation = UIPalette.Variations.PulpButton,
+            CustomMinimumSize = new Vector2(500f, 80f)
         };
     }
 }

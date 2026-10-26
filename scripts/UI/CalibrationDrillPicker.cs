@@ -69,6 +69,17 @@ namespace FTT.UI {
                 AddPortraitLayer(tile, PortraitFor(_roster[index]), NameFor(_roster[index]));
                 // Unlike the Fighter select's cursor-driven tiles, these are plain
                 // focusable buttons: one player, one token, so focus *is* the cursor.
+                // The focused tile is a gold plate: its name reads dark on it, ink otherwise.
+                Label tileName = tile.GetNodeOrNull<Label>("CharacterName");
+                void Tint() {
+                    bool lit = tile.HasFocus() || tile.IsHovered();
+                    tileName?.AddThemeColorOverride("font_color", lit ? UIPalette.LabelDark : UIPalette.Ink);
+                }
+                tile.FocusEntered += Tint;
+                tile.FocusExited += Tint;
+                tile.MouseEntered += Tint;
+                tile.MouseExited += Tint;
+                Tint();
                 tile.FocusEntered += () => Highlight(captured);
                 tile.MouseEntered += () => Highlight(captured);
                 tile.Pressed += () => Choose(captured);
@@ -78,6 +89,9 @@ namespace FTT.UI {
             GetNode<Button>(Root + "ButtonRow/SystemsCardButton").Pressed += OpenSystemsCard;
             GetNode<Button>(Root + "ButtonRow/BackButton").Pressed += Back;
 
+            // UR-SCREENS: banner decor on the footer row, the prompt bar bottom-right.
+            PulpScreenKit.DecorateButtons(GetNode<Control>(Root + "ButtonRow"), compact: true);
+            PulpScreenKit.AddPromptBar(this, ("ui_accept", "ui_prompt_select"), ("ui_cancel", "common_back"));
             Highlight(StartingIndex());
             FocusChainBuilder.Apply(GetNode<Control>("Select"));
             if (_tiles.Length > 0) _tiles[_highlighted].GrabFocus();
@@ -228,7 +242,7 @@ namespace FTT.UI {
                 AnchorRight = 1f,
                 AnchorTop = 1f,
                 AnchorBottom = 1f,
-                OffsetTop = -40f
+                OffsetTop = -52f
             };
             nameLabel.ThemeTypeVariation = UIPalette.SmallLabelVariation;
             button.AddChild(nameLabel);

@@ -28,6 +28,8 @@ namespace FTT.UI {
         private static readonly Color DormantColor = new(0.32f, 0.36f, 0.46f, 0.75f);
         private static readonly Color SatisfiedColor = new(0.30f, 0.95f, 0.92f, 0.95f);
 
+        private static readonly Color InkColor = new(0f, 0f, 0f, 0.8f);
+
         private readonly List<Edge> _edges = new();
 
         public override void _Ready() {
@@ -45,6 +47,13 @@ namespace FTT.UI {
         }
 
         public override void _Draw() {
+            // UR-SCREENS: a black ink stroke under every edge (the pulp line work); the edge colours and
+            // the solid / dotted / glowing grammar are unchanged and semantic.
+            foreach (Edge edge in _edges) {
+                float ink = (edge.Satisfied ? SatisfiedWidth : SolidWidth) + 3f;
+                if (edge.AnyOf) DrawDashed(edge.From, edge.To, InkColor, ink);
+                else DrawLine(edge.From, edge.To, InkColor, ink, true);
+            }
             foreach (Edge edge in _edges) {
                 Color color = edge.Satisfied ? SatisfiedColor : DormantColor;
                 float width = edge.Satisfied ? SatisfiedWidth : SolidWidth;

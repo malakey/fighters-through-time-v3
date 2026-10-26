@@ -64,6 +64,12 @@ namespace FTT.UI {
             // which is a fallback and not a design.
             Control layout = root.GetNodeOrNull<Control>("Center/Panel/Layout");
             if (layout != null) _focusChain = FocusChainBuilder.Apply(layout);
+
+            // UR-SCREENS: the pulp dressing (banner buttons, halftone corner, prompt bar).
+            if (root.GetNodeOrNull<PanelContainer>("Center/Panel") is { } panel) PulpScreenKit.DressPanel(panel, buttonInset: true);
+            if (RestartButton != null) FTT.UI.Pulp.PulpButtonDecor.Apply(RestartButton);
+            if (QuitButton != null) FTT.UI.Pulp.PulpButtonDecor.Apply(QuitButton);
+            PulpScreenKit.AddPromptBar(root, ("ui_accept", "ui_prompt_select"));
         }
 
         public override void _ExitTree() {
