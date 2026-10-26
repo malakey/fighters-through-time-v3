@@ -283,12 +283,13 @@ public class UIThemeTests {
             UIPalette.Variations.PanelTagPlate, UIPalette.Variations.BossNameplate,
             UIPalette.Variations.BossPhaseTab, UIPalette.Variations.SlotPlate,
             UIPalette.Variations.SlotPlateReady, UIPalette.Variations.KeyTagPlate,
-            UIPalette.Variations.CardPlate, UIPalette.Variations.CardPlateP1,
-            UIPalette.Variations.CardPlateP2, UIPalette.Variations.BubblePlate,
-            UIPalette.Variations.StampPlate, UIPalette.Variations.ScrimPanel }) {
+            UIPalette.Variations.CardPlate, UIPalette.Variations.CardPlatePick,
+            UIPalette.Variations.BubblePlate,
+            UIPalette.Variations.StampPlate, UIPalette.Variations.ScrimPanel,
+            UIPalette.Variations.CoverBannerPanel }) {
             Require(name, "PanelContainer", "panel");
         }
-        foreach (string name in new[] { UIPalette.Variations.PulpBar, UIPalette.Variations.PulpBossBar }) {
+        foreach (string name in new[] { UIPalette.Variations.PulpBar, UIPalette.Variations.PulpBarH44, UIPalette.Variations.PulpBarH16, UIPalette.Variations.PulpBarH14, UIPalette.Variations.PulpBossBar }) {
             Require(name, "ProgressBar", "background");
             Require(name, "ProgressBar", "fill");
             // FighterHUD.TintFill recolours the fill by reading it as a StyleBoxFlat.
@@ -299,13 +300,40 @@ public class UIThemeTests {
     }
 
     /// <summary>
+    /// The closeout folded the Phase B kit gaps into the generator: the three bar tracks, the cover banner, the
+    /// dialogue line's RichTextLabel variation (UI_SPEC T49, 33 px) and the text-on-ink-plate role.
+    /// </summary>
+    [TestCase]
+    public void TheFoldedKitGapsCarryTheirSpecSizesAndPlates() {
+        Theme theme = LoadTheme();
+        var drift = new List<string>();
+        if (theme.GetTypeVariationBase(UIPalette.Variations.DialogueBodyRich) != "RichTextLabel") drift.Add("DialogueBodyRich must be a RichTextLabel variation");
+        if (theme.GetFontSize("normal_font_size", UIPalette.Variations.DialogueBodyRich) != 33) drift.Add("DialogueBodyRich must be 33 px");
+        if (theme.GetStylebox("normal", UIPalette.LabelRoles.HintLinePlate) is not StyleBoxFlat) drift.Add("HintLinePlate must carry its own ink plate");
+        foreach (var (name, stem) in new[] { (UIPalette.Variations.PulpBarH44, "bar_track_h44"), (UIPalette.Variations.PulpBarH16, "bar_track_h16"), (UIPalette.Variations.PulpBarH14, "bar_track_h14") }) {
+            if (theme.GetStylebox("background", name) is not StyleBoxTexture track || !track.Texture.ResourcePath.EndsWith(stem + ".png")) drift.Add($"{name} background must be {stem}");
+        }
+        if (theme.GetStylebox("panel", UIPalette.Variations.CoverBannerPanel) is not StyleBoxTexture banner || !banner.Texture.ResourcePath.EndsWith("banner_cover.png")) drift.Add("CoverBannerPanel must wear banner_cover");
+        if (drift.Count > 0) AssertThat(string.Join(" | ", drift)).IsEqual("");
+    }
+
+    /// <summary>
     /// Player ownership colours are read from the combat slot palette, never copied.
     /// Cyan is player one's and the Severed's, no longer the chrome accent.
     /// </summary>
     [TestCase]
     public void OwnershipColoursReadTheCombatSlotPaletteAndChromeIsGold() {
-        AssertThat(UIPalette.P1.IsEqualApprox(FTT.Combat.GlowPalette.SlotColor(0))).IsTrue();
-        AssertThat(UIPalette.P2.IsEqualApprox(FTT.Combat.GlowPalette.SlotColor(1))).IsTrue();
+        // Select the default palette explicitly: the developer's own loaded settings may pick Blue / Orange or High Contrast.
+        FTT.Core.GlobalSaveData data = FTT.Core.SaveManager.Instance?.GlobalData;
+        if (data == null) AssertThat("GlobalData is missing").IsEqual("");
+        int savedPalette = data.PlayerSlotPalette;
+        try {
+            data.PlayerSlotPalette = 0;
+            AssertThat(UIPalette.P1.IsEqualApprox(FTT.Combat.GlowPalette.SlotColor(0))).IsTrue();
+            AssertThat(UIPalette.P2.IsEqualApprox(FTT.Combat.GlowPalette.SlotColor(1))).IsTrue();
+        } finally {
+            data.PlayerSlotPalette = savedPalette;
+        }
         AssertThat(UIPalette.Accent.IsEqualApprox(UIPalette.Cyan)).IsFalse();
         AssertThat(UIPalette.TextAccent.IsEqualApprox(UIPalette.Accent)).IsTrue();
         // The grammar is untouched by the redesign.

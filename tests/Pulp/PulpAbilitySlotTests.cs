@@ -51,6 +51,29 @@ public class PulpAbilitySlotTests {
     }
 
     [TestCase]
+    public void TheCountdownTextDoesNotDependOnWhichValueFilledTheCacheFirst() {
+        // Adjacent values either side of a tenth, in both call orders: each must read the same whatever came before.
+        float[][] orders = {
+            new[] { 1.000001f, 1f, 0.999999f, 1.05f, 1.1f },
+            new[] { 1.1f, 1.05f, 0.999999f, 1f, 1.000001f }
+        };
+        foreach (float[] order in orders) {
+            foreach (float v in order) {
+                string expected = v switch {
+                    <= 1.0001f => "1.0",
+                    <= 1.1001f => "1.1",
+                    _ => "1.2"
+                };
+                AssertThat(PulpAbilitySlot.FormatSeconds(v)).OverrideFailureMessage($"FormatSeconds({v}) after order starting {order[0]}").IsEqual(expected);
+            }
+        }
+        // And a 10-second boundary pair.
+        AssertThat(PulpAbilitySlot.FormatSeconds(10f)).IsEqual("10");
+        AssertThat(PulpAbilitySlot.FormatSeconds(10.2f)).IsEqual("11");
+        AssertThat(PulpAbilitySlot.FormatSeconds(9.999f)).IsEqual("10.0");
+    }
+
+    [TestCase]
     public void TheCentreNumberAndTheArtInsetFollowTheSpec() {
         AssertThat(PulpAbilitySlot.FormatSeconds(0f)).IsEqual("");
         AssertThat(PulpAbilitySlot.FormatSeconds(23.2f)).IsEqual("24");

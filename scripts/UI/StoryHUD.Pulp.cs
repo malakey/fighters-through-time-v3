@@ -292,6 +292,17 @@ namespace FTT.UI {
 
         // === Refresh helpers ==================================================
 
+        private static readonly System.Collections.Generic.Dictionary<(string, string), string> TimeText = new();
+
+        /// <summary>The "2.0s" chip text, formatted once per (format, seconds) pair: chips refresh every frame.</summary>
+        private static string SecondsTime(string format, string seconds) {
+            if (!TimeText.TryGetValue((format, seconds), out string text)) {
+                text = string.Format(format, seconds);
+                TimeText[(format, seconds)] = text;
+            }
+            return text;
+        }
+
         /// <summary>Writes a chip only when its look changed (every setter relayouts).</summary>
         private static void ApplyChip(PulpStatusChip chip, StatusType status, float remaining, float ring) {
             if (chip == null || !GodotObject.IsInstanceValid(chip)) return;
@@ -303,7 +314,7 @@ namespace FTT.UI {
                 }
                 return;
             }
-            string time = string.Format(chip.Tr("hud_seconds_short"), PulpAbilitySlot.FormatSeconds(remaining));
+            string time = SecondsTime(chip.Tr("hud_seconds_short"), PulpAbilitySlot.FormatSeconds(remaining));
             string nameKey = HudAbilityIndicatorModel.StatusLabelKey(status);
             if (chip.Empty || chip.GlyphName != HudAbilityIndicatorModel.StatusIconName(status)) {
                 chip.Empty = false;
@@ -329,11 +340,20 @@ namespace FTT.UI {
             if (!Mathf.IsEqualApprox(slot.SecondsRemaining, tenths)) slot.SecondsRemaining = tenths;
         }
 
+        private int _shownBossPhase = -1, _shownBossHp = int.MinValue, _shownBossMax = int.MinValue;
+
         private void RefreshBossTexts() {
-            if (_bossPhaseTab != null) _bossPhaseTab.Text = string.Format(Tr("hud_boss_phase"), _bossPhase);
+            if (_bossPhaseTab != null && _shownBossPhase != _bossPhase) {
+                _shownBossPhase = _bossPhase;
+                _bossPhaseTab.Text = string.Format(Tr("hud_boss_phase"), _bossPhase);
+            }
             if (_bossHpValue != null && _bossBar != null) {
-                string value = $"{Mathf.RoundToInt((float)_bossBar.Value)}/{Mathf.RoundToInt((float)_bossBar.MaxValue)}";
-                if (_bossHpValue.Text != value) _bossHpValue.Text = value;
+                // Format only when a number moved: this runs on every boss HP update.
+                int current = Mathf.RoundToInt((float)_bossBar.Value), maximum = Mathf.RoundToInt((float)_bossBar.MaxValue);
+                if (current != _shownBossHp || maximum != _shownBossMax) {
+                    _shownBossHp = current; _shownBossMax = maximum;
+                    _bossHpValue.Text = $"{current}/{maximum}";
+                }
             }
         }
 

@@ -155,9 +155,9 @@ def select():
         frame = "card_frame"
         dy = 0
         if cid == "joan":
-            frame, dy = "card_frame_p1", -10
+            frame, dy = "card_frame_pick", -10
         if cid == "tesla":
-            frame = "card_frame_p2"
+            frame = "card_frame_pick"
         tile = Image.new("RGBA", (260, 340), (0, 0, 0, 0))
         nine(tile, frame, 30, 30, 196, 276)
         if cid:

@@ -3320,7 +3320,7 @@ On application launch, the game executes the following initialization pipeline:
 *   **Target Boot Time:** Under 5 seconds on SSD hardware from splash to Main Menu interactable.
 
 #### **1. Main Menu Screen**
-*   **Visuals:** Dynamic, thematic background (e.g., shifting timeline or dusty museum archive).
+*   **Visuals (MENU-B pulp cover, 2026-10-26):** a posterized period scene under rays, a halftone and a gold burst; the title set as live outlined text ("FIGHTERS" over a "THROUGH TIME" banner; no text is baked into art); three inked hero poses standing on the floor line; the options as a left-aligned column of banner buttons (a marker, a tilted gold focus pose with the A / Enter prompt badge, labels drawn upper-case); a Continue sticker that resumes the most recent save and is hidden with no save; the build version string bottom-left and a device-aware prompt bar bottom-right. The sub-screens (save slots, character, difficulty, Extras, licences) are ink panels with a gold tag over the cover art under a scrim.
 *   **Options:** Story Mode, Fighter Mode, **Calibration Drills**, Settings (Audio/Display/Controls/Gameplay — M27), **Extras** (G15: Credits replay and Third-Party Licenses — Godot, Klotho and every bundled addon/font/library notice), Quit Game. The build version string (e.g. `v1.0.3 (build 1234)`) shows in a menu corner and is written to every log and crash report. Calibration Drills opens its own single-player character picker and the shared drill session, with no Story save required; Exit Calibration returns here (F18, Fighter Onboarding below).
 *   **Quit Game Behavior:** Selecting "Quit Game" displays a confirmation modal: *"Are you sure you want to quit?"* with **Confirm** and **Cancel** buttons. Selecting Cancel returns to the Main Menu. Selecting Confirm immediately terminates the application process (`GetTree().Quit()`).
 
@@ -3336,7 +3336,7 @@ On application launch, the game executes the following initialization pipeline:
     *   **Versus CPU (H05, 2026-09-26):** a third Fighter Play Option, always available and independent of any Story save. It opens a single-player character select (P1 only), then the CPU configuration panel described under Holodeck Arena Lobby Configuration, presented as a front-end screen, and launches the match. Pause Exit and the post-match Change Fighters / New Stage options stay inside this flow; quitting it returns to the Fighter Mode menu. No campaign rewards, fees or Story state are involved.
     *   **Post-launch Package 7 only:** native online/LAN routes and their lobby UI for matchmaking, invitations and ping/latency appear when released; Remote Play Together does not enter those systems.
 2.  **Character Select Screen (CSS):**
-    *   **Grid of character portraits:** For the initial build, all 9 characters are unlocked and display high-quality active portraits. Locked states, padlocks, and progressive unlock tooltips are deferred to a post-development balance phase. Confirming on a portrait selects it.
+    *   **Grid of character cards (CARD-B trading cards, 2026-10-26):** five columns, with the rows growing with the roster; each card is a portrait on a halftone field with the hero's name and life dates, a P1 or P2 pick tilts and lifts it under a cyan or red frame with a star badge, and a locked card wears a READY stamp; each player has a speech-bubble READY and a paper stat card (HP, speed and weight bars against the roster's real maxima, the combat style as the card's tag, and the four ability icons). For the initial build, all 9 characters are unlocked and display high-quality active portraits. Locked states, padlocks, and progressive unlock tooltips are deferred to a post-development balance phase. Confirming on a portrait selects it.
     *   **Random tile (G15):** a Random tile picks from the full roster using the seeded match PRNG. The pick is hidden behind a silhouette until the countdown reveal, and mirror matches remain allowed.
     *   **Mirror Matches Allowed (V7.3 — duplicate prevention removed):** both players may select the **same character**. The old "Reserved/Occupied" duplicate-selection block is retired — it contradicted the mirror-match tint spec (Section 6: player-slot outline tints disambiguate mirrors) and the Mirror Paradox boss, and platform fighters allow mirrors as a rule. Slot-color tints carry the disambiguation.
     *   **Selection States & Visual Previews:** 
@@ -3368,28 +3368,28 @@ Before V7.3 every mechanic tutorial lived in Story Level 0, and a player booting
 
 #### **Story Mode HUD**
 *   **Design Goal:** Unobtrusive, allowing focus on environment and platforming.
-*   **Placement:** Top-left corner.
+*   **Placement (HUD-S1 corner cluster, 2026-10-26):** top-left, as three tagged ink panels (Vitals, Abilities, time tools) under the level title and objective; the dust plate and the Integrity dial at the top-right; the boss bar top-centre. Sizes below are the pulp sizes (the user's "bigger" ruling); the shared [HUD contract](docs/HUD_CONTRACT.md) holds the full list.
 *   **Elements:**
     *   Character Portrait
     *   HP Bar (traditional horizontal bar)
-    *   Ultimate Meter (circular or smaller bar beneath HP)
-    *   Rewind Counter — Small chronal hourglass icon (`32 × 32 px`) with a numeric count (`×3`) displaying the remaining Chronal Rewinds in the current pool (refreshed per the difficulty's checkpoint rule; Hard never refreshes). Pulses red when only 1 rewind remains; 0 is a valid living state. A separate Time Freeze icon shows readiness, active duration, and cooldown.
-    *   Beacon Anchors (M15, 2026-09-26; Act III only, hidden in Levels 0–12) — a `24 × 24 px` Beacon icon immediately right of the rewind hourglass, followed by up to three `8 × 8 px` gold diamond pips, one per remaining anchor charge (Easy 3 / Normal 2 / Hard 1). An Anchor Snap cracks and fades one pip. At zero charges the icon shows a hollow outline with a steady "last stand" tint, because the next collapse is Smothered. Pips use a diamond shape distinct from the round rewind glyph, so the count reads without color; the localized accessible label reads "Anchor charges: N". Bind to the authoritative Beacon charge count, updating on fresh entry, full Restart Level, Snap, load and completion.
-    *   Block Charges — Three small shield charge icons (`20 × 20 px` each) displayed horizontally below the HP bar. Filled icons represent available charges; empty/dimmed icons represent consumed charges. Icons refill with a brief glow animation as charges regenerate.
-    *   Status Effect Indicators — Two `28 × 28 px` icons with independent radial timers, below the block charges; damage slot left, control slot right. Show both occupied slots; hide empty contents without shifting the other slot. See the [shared HUD contract](docs/HUD_CONTRACT.md) (F24).
+    *   Ultimate Meter (a ringed circular slot in the Abilities panel; the Fighter's is a bar)
+    *   Rewind Counter — Chronal hourglass badge (`46 × 46 px`) with a numeric count (`×3`) displaying the remaining Chronal Rewinds in the current pool (refreshed per the difficulty's checkpoint rule; Hard never refreshes). Pulses red when only 1 rewind remains; 0 is a valid living state. A separate Time Freeze icon shows readiness, active duration, and cooldown.
+    *   Beacon Anchors (M15, 2026-09-26; Act III only, hidden in Levels 0–12) — a `46 × 46 px` Beacon icon immediately right of the rewind badge, followed by up to three `18 × 18 px` gold diamond pips, one per remaining anchor charge (Easy 3 / Normal 2 / Hard 1). An Anchor Snap cracks and fades one pip. At zero charges the icon shows a hollow outline with a steady "last stand" tint, because the next collapse is Smothered. Pips use a diamond shape distinct from the round rewind glyph, so the count reads without color; the localized accessible label reads "Anchor charges: N". Bind to the authoritative Beacon charge count, updating on fresh entry, full Restart Level, Snap, load and completion.
+    *   Block Charges — Three shield charge icons (`30 × 30 px` each) displayed horizontally below the HP bar. Filled icons represent available charges; empty/dimmed icons represent consumed charges. Icons refill with a brief glow animation as charges regenerate.
+    *   Status Effect Indicators — Two `44 × 44 px` chips (a badge, a duration ring and a name and time column), below the block charges; damage slot left, control slot right. Show both occupied slots; hide empty contents without shifting the other slot. See the [shared HUD contract](docs/HUD_CONTRACT.md) (F24).
     *   Chronal Dust counter — Persistent at top-right during Story-level HUD display, including zero and boss fights; shows `levelChronalDust`. Only the pooled `+N` pickup float fades after 1.0 s. Deposited spendable dust is shown separately in the Repository/Beacon (F24).
 
 #### **Fighter Mode HUD**
 *   **Design Goal:** Centralized information so players can track both their health and their opponent's without looking away from the action.
-*   **Placement:** Bottom of screen, evenly spaced (P1 left, P2 right).
+*   **Placement (HUD-F2 top versus bars, 2026-10-26; replaces "bottom of screen"):** top of screen, one cluster per top corner (P1 left, P2 right), the match timer plate at the top centre and a slot row under each cluster; the bottom of the screen stays free for Open-stage pits.
 *   **Elements:**
     *   Character Portrait & Player Tag (P1, P2; online usernames arrive with post-launch Package 7)
     *   HP Bar — Prominent, chunky bars that deplete **toward the center** of the screen
     *   Stock Display — Stock mode shows icons for remaining lives; Time mode shows **Stocks lost: N**, starting at 0 (F21).
     *   Block Charges — Three small shield charge icons (`20 × 20 px` each) displayed below the HP bar for each player. Filled icons represent available charges; empty/dimmed icons represent consumed charges.
-    *   Status Effect Indicators — Two `24 × 24 px` icons with independent radial timers, beside each player's HP bar; damage slot left, control slot right. Show both occupied slots; hide empty contents without shifting the other slot. See the [shared HUD contract](docs/HUD_CONTRACT.md) (F24).
-    *   Ultimate Meter — Flashes brilliantly when full, signaling to all players
-    *   Ability Cooldowns (M25, 2026-09-26) — three `20 × 20 px` icons per player (Special 1, Special 2, Movement Ability; a fourth, Echo Step, was removed 2026-10-25) in a row beside that player's block charges, each with a radial timer and a brief ready flash, visible for **both** players so each can read the other's cooldowns. Bind to authoritative cooldowns, including Resonance Momentum refunds and rollback corrections.
+    *   Status Effect Indicators — Two `40 × 40 px` chips (a badge, a ring and a name and time column), in the slot row under each player's cluster; damage slot left, control slot right. Show both occupied slots; hide empty contents without shifting the other slot. See the [shared HUD contract](docs/HUD_CONTRACT.md) (F24).
+    *   Ultimate Meter — a bar (`390 × 16 px`, 2026-10-26; it was a circular indicator) directly under each HP bar; a full meter shows a gold gradient and no number, signaling to all players
+    *   Ability Cooldowns (M25, 2026-09-26) — three `54 × 54 px` square slots per player (Special 1, Special 2, Movement Ability; a fourth, Echo Step, was removed 2026-10-25; pulp sizes 2026-10-26) in a row under that player's cluster, each with a key tag, a clockwise pie sweep with the remaining seconds, and a brief ready flash, visible for **both** players so each can read the other's cooldowns. Bind to authoritative cooldowns, including Resonance Momentum refunds and rollback corrections.
     *   Match Timer — Top-center of screen
 
 #### **Floating Damage Numbers & Health Bars**
@@ -3510,35 +3510,37 @@ The HUD is structured with explicit Control node hierarchies (with anchors) to e
 #### **UI Layout Dimensions & Typography**
 *   **Reference Resolution:** `1920 × 1080` (project stretch mode settings: `canvas_items` stretch mode with match value `0.5` for balanced width/height scaling).
 *   **Typography:**
-    *   *HUD & Menus:* **Label** / **RichTextLabel** with custom fonts — a clean sans-serif font (e.g., "Outfit" or "Rajdhani" from Google Fonts).
-    *   *Dialogue Speaker Names:* A serif or blackletter display font for historical gravitas.
-    *   *Dialogue Body Text:* Same sans-serif as HUD, ensuring readability.
-*   **Story Mode HUD Sizing:**
-    *   Character Portrait: `64 × 64 px`, top-left corner, `16 px` margin from edges.
-    *   HP Bar: `200 × 20 px`, immediately right of portrait.
-    *   Ultimate Meter: `40 × 40 px` circular indicator beneath the HP bar.
-    *   Cooldown Slots (Special 1, Special 2, & Movement Ability): `36 × 36 px` each, right of Ultimate meter, with radial clock overlays.
-    *   Rewind Counter: `32 × 32 px` hourglass icon with numeric count text (`×3`), below cooldown slots. Pulses red at 1 remaining; at 0, shows an empty hourglass without a collapse alarm. A separate `32 × 32 px` **Time Freeze icon** and remaining-time label show Ready, the active five-second countdown, or its 45-second cooldown. Its readiness is independent of the death-rewind count.
-    *   Beacon Anchors (M15, Act III only): `24 × 24 px` Beacon icon right of the rewind hourglass plus up to three `8 × 8 px` gold diamond pips; a pip cracks and fades on Anchor Snap; at zero, a hollow icon with a steady last-stand tint. See the HUD contract.
+    *   *HUD & Menus (TYPE-A, 2026-10-26):* **Label** / **RichTextLabel** in **Outfit** (body, buttons and HUD numerals; SIL Open Font License, shipped under `assets/fonts/`), authored as theme Label variations (the UI_SPEC roles T01–T50), none smaller than 18 px at 1080p.
+    *   *Dialogue Speaker Names and titles:* **Cinzel** (SIL Open Font License), a serif display face for historical gravitas, on titles, headings and speaker names.
+    *   *Dialogue Body Text:* Outfit 500 at `33 px` (the `DialogueBodyRich` theme variation), ensuring readability.
+*   **Palette (PAL-B Resonance Gold, 2026-10-26):** the interface wears the Wardens' gold (chrome accent `#F3C95B`, focus fill, tags, banners; `#FFE39A` pressed; `#FFF0B0` ready and objective) on dark ink plates (`#090C1E` at 0.80) with paper (`#F3F0E6`) borders and text. Cold cyan is reserved for player 1's ownership colour and the Severed's cold light, so no menu or HUD chrome is cyan; HP is `#8CF0B8`, damage and warnings `#FF5A5A`. Contrast is at least 4.5:1 for text (3:1 for large display text).
+*   **Motion (MOT-B pulp pop, 2026-10-26):** a button's focus pose tilts and nudges it; panels pop in; HUD numbers step ("thunk") to their new value; the HP damage tracker holds and then drops in steps; the hit flash is limited to once per second per bar; a diagonal gold wipe covers each scene change. Every effect falls back to a stable fade under Reduced Temporal Effects.
+*   **Story Mode HUD Sizing (pulp sizes, 2026-10-26; the shared HUD contract is the authority):**
+    *   Character Portrait: a `112 px` roundel inside the Vitals panel (the panels start `32 px` from the left edge, below the level title).
+    *   HP Bar: `380 × 30 px` (a skewed plate with hatch, ticks and a damage tracker), right of the portrait.
+    *   Ultimate Meter: a `92 px` frame inside a `116 px` ring in the Abilities panel (charging = the meter percent; ready = a full gold ring plus a READY tag).
+    *   Cooldown Slots (Special 1, Special 2, & Movement Ability): `74 × 74 px` square slots each, `30 px` apart in the Abilities panel, with S1 / S2 / MOV key tags and a pie sweep with the remaining seconds.
+    *   Rewind Counter: `46 × 46 px` hourglass badge with numeric count text (`×3`), in the time-tools panel below the Abilities panel. Pulses red at 1 remaining; at 0, shows an empty hourglass without a collapse alarm. A separate `46 × 46 px` **Time Freeze badge** and remaining-time label show Ready, the active five-second countdown, or its 45-second cooldown. Its readiness is independent of the death-rewind count.
+    *   Beacon Anchors (M15, Act III only): `46 × 46 px` Beacon icon right of the rewind badge plus up to three `18 × 18 px` gold diamond pips; a pip cracks and fades on Anchor Snap; at zero, a hollow icon with a steady last-stand tint. See the HUD contract.
     *   Rally Echo Band **(V7.6)**: a bright inner band on the HP bar from the current-HP edge to the echo-pool edge, draining toward current HP over the 2.5 s window and flashing once on reclaim — visually distinct from enemy bars' lagging red underfill. Hidden when the pool is empty.
-    *   Block Charges: `20 × 20 px` shield icons below the HP bar. Filled = available, dimmed = consumed. Icons render dynamically based on `maxBlockCharges` (default 3). If modified by Resonance Grid upgrades, additional shield icons are appended to the panel (maximum supported display: 5 icons).
-    *   Status Effect Indicators **(V7.6 — two slots)**: two `28 × 28 px` status icons with radial duration timers, below block charges — the damage slot on the left, the control slot on the right. Hide empty contents without collapsing either fixed slot position; display both occupied slots. The [HUD contract](docs/HUD_CONTRACT.md) governs binding and refresh (F24).
+    *   Block Charges: `30 × 30 px` shield icons below the HP bar. Filled = available, dimmed = consumed. Icons render dynamically based on `maxBlockCharges` (default 3). If modified by Resonance Grid upgrades, additional shield icons are appended to the panel (maximum supported display: 5 icons).
+    *   Status Effect Indicators **(V7.6 — two slots)**: two `44 × 44 px` status chips with duration rings and a name and time column, below block charges — the damage slot on the left, the control slot on the right. Hide empty contents without collapsing either fixed slot position; display both occupied slots. The [HUD contract](docs/HUD_CONTRACT.md) governs binding and refresh (F24).
     *   Ability Slot Lock States **(V7.6)**: each cooldown slot and the ultimate ring shows **Dormant** (not yet unlocked — a dim "dormant resonance" star that ignites on its Resonance Restored beat), **Suppressed** (an Eraser's Null Lance — cold cross-out for the status duration), or Clear. Locked slots are shown, never hidden.
     *   Currency Counter **(F24 — persistent)**: top-right, always visible while the Story-level HUD is displayed, including at zero and after the pre-boss Integrity seal. Shows current undeposited `levelChronalDust`; the separate Repository/Beacon balance shows deposited spendable dust. Only a pooled `+N` pickup float rises and fades after 1.0 s; no inactivity fade. See [HUD contract](docs/HUD_CONTRACT.md).
-    *   Timeline Integrity (V7.6 — the level timer): an **era clock face** (`48 × 48 px`), top-right, visible in Levels 2–15 until the pre-boss checkpoint. A radial wedge drains counter-clockwise from full as the gauge falls, with the `%` beneath the face; the face cracks and desaturates as it crosses the tier thresholds (50% / 20%), and below 20% the tick becomes audible and the face pulses red. One thin, cold siphon stream feeds into the face per living Extractor, and snaps off when that Extractor is destroyed. The face dims while the clock is paused. At the pre-boss checkpoint the face **seals** — a brief lock-in flourish showing the final %, then it fades out for the boss fight.
+    *   Timeline Integrity (V7.6 — the level timer): an **era clock face** (a `112 px` stopwatch dial since 2026-10-26), top-right, visible in Levels 2–15 until the pre-boss checkpoint. A radial wedge drains counter-clockwise from full as the gauge falls, with the `%` beneath the face (the wedge is gold, turning red below 20%); the face cracks and desaturates as it crosses the tier thresholds (50% / 20%), and below 20% the tick becomes audible and the face pulses red. One thin, cold siphon stream feeds into the face per living Extractor, and snaps off when that Extractor is destroyed. The face dims while the clock is paused. At the pre-boss checkpoint the face **seals** — a brief lock-in flourish showing the final %, then it fades out for the boss fight.
 *   **Fighter Mode HUD Sizing:**
-    *   HP Bars: `400 × 28 px` each, anchored to bottom corners, depleting toward center.
-    *   Block Charges: `20 × 20 px` shield icons below each player's HP bar. Filled = available, dimmed = consumed. Default 3 icons; renders dynamically if `maxBlockCharges` differs.
-    *   Status Effect Indicators (F24): two `24 × 24 px` icons with separate radial timers beside each player's HP bar, damage left / control right. Empty contents hide without collapsing the fixed slot positions; see [HUD contract](docs/HUD_CONTRACT.md).
-    *   Stock Display: below each player's HP bar; Stock uses `24 × 24 px` remaining-life icons, Time uses the localized **Stocks lost: N** label with no finite-life icons. Derive the label from authoritative match state, including rollback and final results (F21).
-    *   Ultimate Meter: `48 × 48 px` circular indicator, adjacent to HP bar.
-    *   Ability Cooldowns (M25): three `20 × 20 px` icons per player (S1, S2, Movement) beside the block charges, radial timers, shown for both players.
-    *   Match Timer: `48 px` font size, `MM:SS` format (e.g. `08:00`), top-center of screen. At `00:10` remaining, text pulses red with a 10s audio warning chime. At `00:00`, apply the mode's tie rule: Stock compares remaining stocks then HP percentage; Time compares stocks lost only. A tie displays **Sudden Death — next death loses** instead of a running timer (F21/F22).
+    *   HP Bars: `510 × 44 px` each (the track `502` wide; 2026-10-26, was `400 × 28 px`), hung from the top corners (`36 px` side margin, `22 px` top) and depleting toward the centre timer plate.
+    *   Block Charges: `24 × 24 px` shield icons below each player's HP bar. Filled = available, dimmed = consumed. Default 3 icons; renders dynamically if `maxBlockCharges` differs.
+    *   Status Effect Indicators (F24): two `40 × 40 px` chips with separate duration rings in the slot row under each player's cluster, damage left / control right. Empty contents hide without collapsing the fixed slot positions; see [HUD contract](docs/HUD_CONTRACT.md).
+    *   Stock Display: below each player's HP bar; Stock uses `28 × 28 px` remaining-life stars in the slot colour, Time uses the localized **Stocks lost: N** label with no finite-life icons. Derive the label from authoritative match state, including rollback and final results (F21).
+    *   Ultimate Meter: a `390 × 16 px` bar directly under the HP bar, filling from the outer edge (it was a `48 × 48 px` circular indicator); a full meter shows a gold gradient and no number.
+    *   Ability Cooldowns (M25): three `54 × 54 px` square slots per player (S1, S2, Movement) in a row under the cluster, each with a key tag, a pie sweep and the remaining seconds, shown for both players.
+    *   Match Timer: `60 px` tabular digits on a `240 × 118` ink plate with the Stock or Time mode line beneath it, `MM:SS` format (e.g. `08:00`), top-center of screen. At `00:10` remaining, text pulses red with a 10s audio warning chime. At `00:00`, apply the mode's tie rule: Stock compares remaining stocks then HP percentage; Time compares stocks lost only. A tie displays **Sudden Death — next death loses** instead of a running timer (F21/F22).
 *   **Dialogue Box:**
-    *   Full-width (`1720 px`), `200 px` tall, bottom-anchored with `100 px` horizontal margin.
-    *   Character Portrait: `160 × 160 px`, left-aligned within the box.
-    *   Text Area: Remaining width, `28 px` font size, typewriter reveal at the Text Speed setting (default **30 characters/second**; G10).
-    *   Speaker Name Label: `22 px` bold, displayed above the text area.
+    *   `1500 px` wide and centred (pulp redesign 2026-10-26; it was full-width `1720 px`), `270 px` tall (it was `200 px`; the 33 px body line needs the room), bottom-anchored.
+    *   Character Portrait: a `150 px` roundel inside the emotion ring, left-aligned within the box.
+    *   Text Area: Remaining width, `33 px` font size, typewriter reveal at the Text Speed setting (default **30 characters/second**; G10).
+    *   Speaker Name Label: `30 px` Cinzel 900 in the accent colour, displayed above the text area.
 *   **HUD Micro-Behaviours (V7 — committed for initial release, no longer "open"):** these small motions are what make a HUD *read*, and they are cheap; the set is scheduled as one presentation work item: the rewind counter's red pulse at 1 remaining and its empty-at-zero state; the separate Time Freeze active/cooldown countdown and ready blink; the dust counter's `+N` pickup float (V7.6 — the counter itself is persistent); the `00:10` match-timer pulse and warning chime; radial cooldown clocks with a completion blink on ready; an **ultimate-ready flash** (meter rim flare plus a one-shot chime when the meter first reaches 100; an independent F13 resonance seal shows Defy readiness/spent/unavailable state); the **Rally echo segment** (a bright inner band on the HP bar draining toward the current-HP edge over 2.5 s, flashing once on reclaim — visually distinct from enemy bars' lagging red underfill); and shield pips dimming with a crack flash on the charge that shatters. All respect the HUD-opacity setting live.
 
 ### **Cutscenes & Narrative Delivery**
@@ -4103,6 +4105,7 @@ Since pausing is disabled in native Online Fighter Mode (Package 7, excluding M0
 *   **Restrictions:** Forfeit is unavailable during the first 15 seconds of the match to prevent accidental activation during countdown.
 
 #### **Story Mode Pause Menu**
+*   **Presentation (PAUSE-A centred panel, 2026-10-26):** the pause is a centred ink panel over a scrim, tagged with the level name, with a `PAUSED` title, a status line (difficulty, level clock, Integrity) and a column of decorated banner buttons, and a prompt bar along the bottom; Settings, the Move List, the Systems Card, the confirm modal, the dialogue log, the first-use tooltip and the boot overlay wear the same language. Behaviour and ownership of `SceneTree.Paused` are unchanged.
 *   **Resume:** Returns immediately to gameplay, restoring `GetTree().Paused = false` (or `Engine.TimeScale = 1`).
 *   **Settings:** Opens the Settings overlay (see Section 12).
 *   **Save (F10):** flush the active Story slot's latest durable attempt/resources without moving the player or creating a new checkpoint. This is not an exact-position suspend; a later load uses the checkpoint and preserves spent state. During active Time Freeze, explicit Save ends it and stores its full cooldown.
@@ -4113,7 +4116,7 @@ Since pausing is disabled in native Online Fighter Mode (Package 7, excluding M0
 > **Design Rationale (V7.2 — the priced recovery ladder):** the V6 graduated exit structure taught players to prefer a crash over the quit button, and the V7 "free checkpoint restart" taught them to prefer the pause menu over playing. V7.2 prices every recovery route so persistence is always cheapest: **a rewind costs a charge** (and heals only partially), **Timeline Collapse costs 20% of undeposited dust** and resumes at the checkpoint, **Restart Level costs the whole level's undeposited dust** and starts over, and **Exit costs 20% and leaves**. Deposited dust is always safe. F10 ordinary loading grants no HP/resource refill; the existing free crash-recovery exception remains and can lose uncommitted continuous progress.
 
 #### **Local Fighter Mode Pause Menu**
-Any local player can trigger pause. The following options are displayed:
+Any local player can trigger pause. The pause is a centred panel in the same pulp language as the Story pause (2026-10-26). The following options are displayed:
 *   **Resume:** Returns immediately to gameplay, restoring `GetTree().Paused = false` (or `Engine.TimeScale = 1`).
 *   **Move List (V7.3):** opens the Move List overlay for either active fighter (see Fighter Onboarding, Section 7) without leaving the pause state.
 *   **Settings:** Opens the Settings overlay (see Section 12).
@@ -4938,21 +4941,21 @@ Each era's Standard and Elite mob variations require:
 
     | Asset | Size (px) | States / variants | Source |
     |---|---|---|---|
-    | Story portrait frame | 64 × 64 | — | Story HUD sizing |
-    | Story HP bar (border, fill, Rally echo band) | 200 × 20 | fill, echo band, reclaim flash | Story HUD sizing |
-    | Fighter HP bar (border, fill, Rally echo band) | 400 × 28 | fill toward center, echo band; P1/P2 mirrored | Fighter HUD sizing |
-    | Ultimate meter ring | 40 × 40 (Story) / 48 × 48 (Fighter) | filling, full flash | HUD sizing |
-    | Defy resonance seal | 20 × 20 | intact outline, intact filled, broken, barred | F13 |
-    | Story cooldown slot icons (S1, S2, Movement) | 36 × 36 | ready, radial cooldown, Dormant star, Suppressed cross-out | Story HUD sizing; V7.6 lock states |
-    | Fighter cooldown icons (S1, S2, Movement) | 20 × 20 | ready flash, radial cooldown | M25 |
-    | Block charge shield | 20 × 20 | filled, dimmed; up to 5 in Story | HUD sizing |
-    | Status glyphs (damage and control slots) | 28 × 28 (Story) / 24 × 24 (Fighter) | one glyph per status type plus radial overlay | F24 / HUD contract |
-    | Rewind hourglass | 32 × 32 | count, red pulse at 1, empty at 0 | Story HUD sizing |
-    | Time Freeze icon | 32 × 32 | Ready, active countdown, cooldown, thaw warning | Story HUD sizing |
-    | Beacon icon and anchor pips | 24 × 24 icon; 8 × 8 pips | pips filled, cracking, spent; hollow last-stand icon | M15 |
-    | Era Integrity clock face | 48 × 48 | radial wedge, tier cracks/desaturation, per-era faces, Act III resonance face | Story HUD sizing |
+    | Story portrait roundel | 112 | — | Story HUD sizing |
+    | Story HP bar (border, fill, Rally echo band) | 380 × 30 | fill, echo band, reclaim flash | Story HUD sizing |
+    | Fighter HP bar (border, fill, Rally echo band) | 510 × 44 | fill toward center, echo band; P1/P2 mirrored | Fighter HUD sizing |
+    | Ultimate meter (Story ring / Fighter bar) | 92 in a 116 ring (Story) / 390 × 16 bar (Fighter) | filling, full gold ring plus READY (Story), full gold gradient (Fighter) | HUD sizing |
+    | Defy resonance seal | 34 (Story) / 32 (Fighter) | intact outline, intact filled, broken, barred | F13 |
+    | Story cooldown slot icons (S1, S2, Movement) | 74 × 74 | ready, radial cooldown, Dormant star, Suppressed cross-out | Story HUD sizing; V7.6 lock states |
+    | Fighter cooldown icons (S1, S2, Movement) | 54 × 54 | ready flash, radial cooldown | M25 |
+    | Block charge shield | 30 × 30 (Story) / 24 × 24 (Fighter) | filled, dimmed; up to 5 in Story | HUD sizing |
+    | Status glyphs (damage and control slots) | 44 × 44 (Story) / 40 × 40 (Fighter) | one glyph per status type plus radial overlay | F24 / HUD contract |
+    | Rewind hourglass | 46 × 46 | count, red pulse at 1, empty at 0 | Story HUD sizing |
+    | Time Freeze icon | 46 × 46 | Ready, active countdown, cooldown, thaw warning | Story HUD sizing |
+    | Beacon icon and anchor pips | 46 × 46 icon; 18 × 18 pips | pips filled, cracking, spent; hollow last-stand icon | M15 |
+    | Era Integrity clock face | 112 | radial wedge, tier cracks/desaturation, per-era faces, Act III resonance face | Story HUD sizing |
     | Chronal Dust counter icon | Matches the counter's text height (no separate size specified) | static, +N float | F24 |
-    | Stock icons | 24 × 24 | remaining, lost | Fighter HUD sizing |
+    | Stock icons | 28 × 28 | remaining, lost | Fighter HUD sizing |
 
 ### **Audio & Music Assets**
 *   **Background Music (BGM Stems):**

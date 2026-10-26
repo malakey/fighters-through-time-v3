@@ -80,12 +80,6 @@ namespace FTT.UI {
             ProcessMode = ProcessModeEnum.Always;
             ResolveOrBuildUI();
             if (_skipHint != null) _skipHint.Text = Tr("credits_skip_hint");
-            if (_skipHint != null) {
-                // UR-SCREENS: the hint sits on its own ink plate so the roll never reads through it.
-                var plate = new StyleBoxFlat { BgColor = new Color(UIPalette.Backdrop, 0.92f) };
-                plate.SetContentMarginAll(6f);
-                _skipHint.AddThemeStyleboxOverride("normal", plate);
-            }
             PopulateLines();
             // CM-PADUI (2026-10-16): the roll owns the screen. A menu button left
             // focused underneath (the main menu's Credits replay button) would
@@ -182,8 +176,25 @@ namespace FTT.UI {
             if (_shade != null) {
                 UIPalette.ApplyTheme(_shade);
                 _shade.Color = BackdropColor;
+                AddHintBand();
             }
         }
+
+        /// <summary>
+        /// UR-POLISH. The skip hint sat over the scrolling text. It now has its own opaque band along the bottom edge,
+        /// above the roll and under the hint, so the roll ends at the band and the hint is always legible.
+        /// </summary>
+        private void AddHintBand() {
+            if (_shade.GetNodeOrNull("HintBand") != null) return;
+            var band = new ColorRect { Name = "HintBand", Color = BackdropColor, MouseFilter = Control.MouseFilterEnum.Ignore };
+            band.SetAnchorsPreset(Control.LayoutPreset.BottomWide);
+            band.OffsetTop = -HintBandHeight;
+            band.OffsetBottom = 0f;
+            _shade.AddChild(band);
+            if (_skipHint != null && _skipHint.GetParent() == _shade) _shade.MoveChild(band, _skipHint.GetIndex());
+        }
+
+        private const float HintBandHeight = 96f;
 
         private void BuildFallbackUI() {
             _shade = new ColorRect { Name = "Shade", Color = BackdropColor };
@@ -210,7 +221,7 @@ namespace FTT.UI {
             _skipHint.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
             _skipHint.Position = new Vector2(760, 1010);
             _skipHint.CustomMinimumSize = new Vector2(400, 24);
-            _skipHint.ThemeTypeVariation = UIPalette.LabelRoles.HintLine;
+            _skipHint.ThemeTypeVariation = UIPalette.LabelRoles.HintLinePlate;
             shade.AddChild(_skipHint);
         }
     }

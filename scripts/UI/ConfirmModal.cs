@@ -116,16 +116,16 @@ namespace FTT.UI {
             buttons.AddChild(_confirmButton);
         }
 
-        private const float ModalPanelWidth = 700f;
+        private const float ModalPanelWidth = 1000f;
 
         private static Button ModalButton(string name, string textKey) {
             var button = new Button {
                 Name = name,
                 Text = textKey,
-                CustomMinimumSize = new Vector2(300f, 58f),
+                CustomMinimumSize = new Vector2(440f, 58f),
                 ThemeTypeVariation = UIPalette.Variations.PulpButtonCompact
             };
-            Pulp.PulpButtonDecor.Apply(button, compact: true);
+            Pulp.PulpButtonDecor.Apply(button, compact: true).GrowToFit = true;
             return button;
         }
 

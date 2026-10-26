@@ -598,14 +598,14 @@
    35
   ]
  },
- "card_frame_p1": {
+ "card_frame_pick": {
   "expand_margins_LTRB": [
    8,
    8,
    17,
    18
   ],
-  "file": "card_frame_p1.png",
+  "file": "card_frame_pick.png",
   "mipmaps": true,
   "nine_slice_margins_LTRB": [
    14,
@@ -613,28 +613,7 @@
    23,
    24
   ],
-  "serves": "plate 21: card, P1 pick (cyan ring 4 + black 4, shadow 9,10)",
-  "size": [
-   45,
-   46
-  ]
- },
- "card_frame_p2": {
-  "expand_margins_LTRB": [
-   8,
-   8,
-   17,
-   18
-  ],
-  "file": "card_frame_p2.png",
-  "mipmaps": true,
-  "nine_slice_margins_LTRB": [
-   14,
-   14,
-   23,
-   24
-  ],
-  "serves": "plate 22: card, P2 pick (red ring)",
+  "serves": "plate 21: card, picked (WHITE ring 4 + black 4, shadow 9,10). The ring is white so it takes the player's active slot colour from a runtime SelfModulate (Settings > Gameplay > player-slot palette); the black ring, the shadow and the dark centre stay dark under any tint",
   "size": [
    45,
    46

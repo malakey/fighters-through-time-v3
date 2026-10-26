@@ -198,13 +198,35 @@ namespace FTT.UI {
         public static readonly Color Paper = Hex(0xF3, 0xF0, 0xE6);
 
         /// <summary>
-        /// Player 1 ownership colour. Reads the combat slot palette
-        /// (<see cref="FTT.Combat.GlowPalette.SlotColor"/>) so the two can never drift.
+        /// Player 1 ownership colour, read live from the player's chosen slot palette
+        /// (<see cref="FTT.Combat.PlayerSlotPalettes.ActiveSlotColor"/>: Default cyan, Blue/Orange or High-Contrast,
+        /// Settings &gt; Gameplay), so no ownership colour in the interface can drift from the accessibility choice.
+        /// With the Default palette it is <see cref="FTT.Combat.GlowPalette.SlotColor"/>.
         /// </summary>
-        public static Color P1 => FTT.Combat.GlowPalette.SlotColor(0);
+        public static Color P1 => FTT.Combat.PlayerSlotPalettes.ActiveSlotColor(0);
 
-        /// <summary>Player 2 ownership colour, read from the combat slot palette.</summary>
-        public static Color P2 => FTT.Combat.GlowPalette.SlotColor(1);
+        /// <summary>Player 2 ownership colour, read live from the active slot palette.</summary>
+        public static Color P2 => FTT.Combat.PlayerSlotPalettes.ActiveSlotColor(1);
+
+        /// <summary>The slot palette's contrasting edge for player 1 (<see cref="FTT.Combat.PlayerSlotPalettes.ActiveSlotEdgeColor"/>).</summary>
+        public static Color P1Edge => FTT.Combat.PlayerSlotPalettes.ActiveSlotEdgeColor(0);
+
+        /// <summary>The slot palette's contrasting edge for player 2.</summary>
+        public static Color P2Edge => FTT.Combat.PlayerSlotPalettes.ActiveSlotEdgeColor(1);
+
+        /// <summary>Below this relative luminance a slot colour does not read on the interface's dark plates.</summary>
+        public const float OwnerDarkLuminance = 0.2f;
+
+        /// <summary>
+        /// The ownership colour to paint on dark interface chrome (a star, a ring, a badge glyph): the slot colour,
+        /// or its contrasting edge when the slot colour is too dark to read there (the High-Contrast palette's
+        /// black player 2). Shape (triangle or circle, the P1 / P2 text) still tells the players apart.
+        /// </summary>
+        public static Color OwnerOnDark(int playerIndex) {
+            Color fill = playerIndex == 1 ? P2 : P1;
+            float luminance = 0.2126f * fill.R + 0.7152f * fill.G + 0.0722f * fill.B;
+            return luminance < OwnerDarkLuminance ? (playerIndex == 1 ? P2Edge : P1Edge) : fill;
+        }
 
         // UI_SPEC 1.2: literals the selected components hard-code.
         /// <summary>#000000: every ring, border and hard shadow.</summary>

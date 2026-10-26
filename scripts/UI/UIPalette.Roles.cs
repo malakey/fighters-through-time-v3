@@ -41,6 +41,8 @@ namespace FTT.UI {
             public const string PromptKey = "PromptKey";
             /// <summary>Outfit 500, 22 px, 0.00 em, outline 3 (T44).</summary>
             public const string HintLine = "HintLine";
+            /// <summary>Outfit 500, 22 px, 0.00 em, outline 3 (T44 on its own translucent ink plate (the credits skip hint)).</summary>
+            public const string HintLinePlate = "HintLinePlate";
             /// <summary>Outfit 400, 30 px, 0.02 em, outline 3 (T17, T26, T28 numerals).</summary>
             public const string HudNumeral = "HudNumeral";
             /// <summary>Outfit 400, 22 px, 0.02 em, outline 3 (T17 at bar height 30).</summary>
@@ -122,6 +124,7 @@ namespace FTT.UI {
             ("PromptCaption", 18, "outfit", 500),
             ("PromptKey", 20, "outfit", 700),
             ("HintLine", 22, "outfit", 500),
+            ("HintLinePlate", 22, "outfit", 500),
             ("HudNumeral", 30, "outfit", 400),
             ("HudNumeralSmall", 22, "outfit", 400),
             ("SlotKeyTag", 18, "outfit", 700),
@@ -185,10 +188,8 @@ namespace FTT.UI {
             public const string KeyTagPlate = "KeyTagPlate";
             /// <summary>PanelContainer, plate 20: trading card.</summary>
             public const string CardPlate = "CardPlate";
-            /// <summary>PanelContainer, plate 21: P1 pick.</summary>
-            public const string CardPlateP1 = "CardPlateP1";
-            /// <summary>PanelContainer, plate 22: P2 pick.</summary>
-            public const string CardPlateP2 = "CardPlateP2";
+            /// <summary>PanelContainer, plate 21: a picked card (white ring, tinted to the owner's slot colour at runtime).</summary>
+            public const string CardPlatePick = "CardPlatePick";
             /// <summary>PanelContainer, plate 27: speech bubble.</summary>
             public const string BubblePlate = "BubblePlate";
             /// <summary>PanelContainer, plate 26: card stamp.</summary>
@@ -197,6 +198,16 @@ namespace FTT.UI {
             public const string ScrimPanel = "ScrimPanel";
             /// <summary>ProgressBar, plate 9: skewed HP / meter track (the fill stays a StyleBoxFlat).</summary>
             public const string PulpBar = "PulpBar";
+            /// <summary>ProgressBar, plate 9 at 44 px: the Fighter HP bar (HP fill).</summary>
+            public const string PulpBarH44 = "PulpBarH44";
+            /// <summary>ProgressBar, plate 9 at 16 px: the Fighter Ultimate meter (Meter2 fill).</summary>
+            public const string PulpBarH16 = "PulpBarH16";
+            /// <summary>ProgressBar, plate 9 at 14 px: the select stat bars (accent fill).</summary>
+            public const string PulpBarH14 = "PulpBarH14";
+            /// <summary>PanelContainer, plate 25: the cover's THROUGH TIME ink banner.</summary>
+            public const string CoverBannerPanel = "CoverBannerPanel";
+            /// <summary>RichTextLabel, T49: the dialogue line (Outfit 500, 33 px).</summary>
+            public const string DialogueBodyRich = "DialogueBodyRich";
             /// <summary>ProgressBar, plate 10: boss bar.</summary>
             public const string PulpBossBar = "PulpBossBar";
         }

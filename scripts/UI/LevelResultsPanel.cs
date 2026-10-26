@@ -299,7 +299,7 @@ namespace FTT.UI {
             }
             PulpScreenKit.AddLeadingIcon(_dustLossesLabel, "dust", UIPalette.Ink3, 24f);
             if (_returnButton != null) {
-                PulpButtonDecor.Apply(_returnButton);
+                PulpButtonDecor.Apply(_returnButton).GrowToFit = true;
                 if (_shade != null) PulpScreenKit.AddPromptBar(_shade, ("ui_accept", "ui_prompt_select"));
             }
         }

@@ -89,10 +89,8 @@ nine("panel_paper", Plate(0, 0, border=(3, INK), shadow=(9, 9, 0, INK), fill=PAP
 nine("card_frame", Plate(0, 0, border=(4, INK), rings=[(3, PAPER)], shadow=(7, 8, 3, INK), fill=DARK),
      "plate 20: trading card frame (CARD-B). centre #0C0A10; paper ring 3 + border 4 + shadow 7,8", mip=True,
      notes="Tilts at runtime (pick states rotate +-1.6deg): mipmaps on.")
-nine("card_frame_p1", Plate(0, 0, border=(4, INK), rings=[(4, P1), (4, INK)], shadow=(9, 10, 8, INK), fill=DARK),
-     "plate 21: card, P1 pick (cyan ring 4 + black 4, shadow 9,10)", mip=True)
-nine("card_frame_p2", Plate(0, 0, border=(4, INK), rings=[(4, P2), (4, INK)], shadow=(9, 10, 8, INK), fill=DARK),
-     "plate 22: card, P2 pick (red ring)", mip=True)
+nine("card_frame_pick", Plate(0, 0, border=(4, INK), rings=[(4, "#FFFFFF"), (4, INK)], shadow=(9, 10, 8, INK), fill=DARK),
+     "plate 21: card, picked (WHITE ring 4 + black 4, shadow 9,10). The ring is white so it takes the player's active slot colour from a runtime SelfModulate (Settings > Gameplay > player-slot palette); the black ring, the shadow and the dark centre stay dark under any tint", mip=True)
 nine("bubble", Plate(0, 0, border=(5, INK), r=30, shadow=(6, 6, 0, INK), fill=PAPER),
      "plate 27: speech bubble body (tail is bubble_tail.png); idle variant = modulate #D8CDB2", mip=True)
 emit("bubble_tail", svg(40, 28, f'<path fill="{INK}" d="M0,0 L40,0 L6,28 Z"/>'), (40, 28), mip=True,

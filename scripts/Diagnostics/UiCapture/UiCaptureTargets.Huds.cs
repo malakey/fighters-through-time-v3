@@ -107,7 +107,7 @@ namespace FTT.Diagnostics {
             context.AfterReady = _ => {
                 CalmState(hud);
                 hud.ShowBossBar("boss_archive_prime_name", 640, 1000, new[] { 0.5f });
-                EventBus.Instance.RaiseBossPhaseChanged(2);
+                EventBus.Instance.RaiseBossPhaseChanged(1);
                 hud.UpdateBossHP(520);
             };
             return page;

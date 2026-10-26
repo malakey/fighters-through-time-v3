@@ -114,6 +114,8 @@ namespace FTT.UI {
             var layout = new VBoxContainer { Name = "Layout" };
             layout.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);
             panel.AddChild(layout);
+            // Room for the title tag that hangs over the panel's top-left corner (the first row stood under it).
+            layout.AddChild(new Control { Name = "TagClearance", CustomMinimumSize = new Vector2(0f, 22f), MouseFilter = MouseFilterEnum.Ignore });
 
             GameManager.Instance?.EnsureMatchSettingsLoaded();
             MatchSettings settings = GameManager.Instance?.CurrentSession.MatchSettings

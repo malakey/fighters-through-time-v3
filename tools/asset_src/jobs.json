@@ -438,17 +438,8 @@
     {
       "type": "svg",
       "group": "pulp",
-      "src": "res://tools/asset_src/pulp/svg/card_frame_p1.svg",
-      "out": "res://assets/sprites/ui/pulp/card_frame_p1.png",
-      "width": 45,
-      "height": 46,
-      "supersample": 3
-    },
-    {
-      "type": "svg",
-      "group": "pulp",
-      "src": "res://tools/asset_src/pulp/svg/card_frame_p2.svg",
-      "out": "res://assets/sprites/ui/pulp/card_frame_p2.png",
+      "src": "res://tools/asset_src/pulp/svg/card_frame_pick.svg",
+      "out": "res://assets/sprites/ui/pulp/card_frame_pick.png",
       "width": 45,
       "height": 46,
       "supersample": 3

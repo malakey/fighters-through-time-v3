@@ -1,4 +1,5 @@
 using FTT.Core;
+using FTT.Enemies;
 using FTT.UI;
 using FTT.UI.Pulp;
 using GdUnit4;
@@ -201,6 +202,36 @@ public class StoryHudPulpTests {
     }
 
     [TestCase]
+    public void TheFreezeStringsAreRebuiltOnlyWhenTheShownSecondTheStateOrTheLanguageChanges() {
+        Node host = CreateHost("StoryHudPulpFreezeCacheHost");
+        try {
+            StoryHUD hud = AddHud(host);
+            var freezeText = hud.GetNode<Label>($"{TemporalRow}/TimeFreezeIndicator/FreezeColumn/FreezeRemainingText");
+            EventBus.Instance.RaiseTimeFreezeStateChanged(new TimeFreezePayload { State = TimeFreezeState.Cooldown, SecondsRemaining = 31f });
+            hud._Process(0.001);
+            int key = hud.FreezeTextKey;
+            AssertThat(freezeText.Text.Contains("31")).IsTrue();
+            // Same shown second: nothing is rebuilt, so a sentinel written over the text survives the frame.
+            freezeText.Text = "sentinel";
+            hud._Process(0.001);
+            AssertThat(hud.FreezeTextKey).IsEqual(key);
+            AssertThat(freezeText.Text).IsEqual("sentinel");
+            // The next second rebuilds.
+            hud._Process(1.0);
+            AssertThat(hud.FreezeTextKey == key).IsFalse();
+            AssertThat(freezeText.Text.Contains("30")).IsTrue();
+            // A language change invalidates the key, so the strings are rebuilt in the new language.
+            freezeText.Text = "sentinel";
+            hud.Notification((int)Node.NotificationTranslationChanged);
+            AssertThat(hud.FreezeTextKey).IsEqual(-1);
+            hud._Process(0.001);
+            AssertThat(freezeText.Text.Contains("30")).IsTrue();
+        } finally {
+            host.Free();
+        }
+    }
+
+    [TestCase]
     public void TheTimeToolsShowTheRewindCountTheFreezeStateAndTheBeaconPulpArt() {
         Node host = CreateHost("StoryHudPulpTimeHost");
         int rewinds = StoryManager.Instance?.ChronalRewindsRemaining ?? 0;
@@ -292,6 +323,16 @@ public class StoryHudPulpTests {
         }
     }
 
+    private static BossController CreateBossForPhaseTab() {
+        var data = AuthoredResources.Load<BossData>("res://resources/Bosses/borgia_inquisitor.tres");
+        PackedScene scene = ResourceLoader.Load<PackedScene>("res://scenes/enemies/Boss.tscn");
+        var boss = scene.Instantiate<BossController>();
+        boss.Data = data;
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(boss);
+        boss.ApplyData(data);
+        return boss;
+    }
+
     [TestCase]
     public void TheBossBarIsAPulpNameplateWithAPhaseTabAndTheNotchesOnTheDecor() {
         Node host = CreateHost("StoryHudPulpBossHost");
@@ -309,9 +350,17 @@ public class StoryHudPulpTests {
             AssertThat(hud.BossNotches.DrawNotches).OverrideFailureMessage("the decor draws the notches").IsFalse();
             AssertThat(topLeft.Visible).OverrideFailureMessage("the level title gives way to the bar").IsFalse();
 
-            EventBus.Instance.RaiseBossPhaseChanged(2);
-            AssertThat(hud.BossPhase).IsEqual(2);
-            AssertThat(tab.Text.Contains("2")).IsTrue();
+            // The real publisher: a BossController crossing its first threshold raises phase index 1, and the
+            // tab must read "Phase 2" (the review found it reading "Phase 1" for the second phase).
+            BossController boss = CreateBossForPhaseTab();
+            try {
+                boss.TakeDamage(Mathf.RoundToInt(boss.ScaledMaxHP * 0.6f));
+                AssertThat(boss.CurrentPhase).IsEqual(1);
+                AssertThat(hud.BossPhase).IsEqual(2);
+                AssertThat(tab.Text.Contains("2")).IsTrue();
+            } finally {
+                boss.Free();
+            }
             AssertThat(Mathf.IsEqualApprox(tab.Rotation, Mathf.DegToRad(2f))).IsTrue();
             var name = hud.GetNode<Label>("SafeArea/BossPanel/BossName");
             AssertThat(Mathf.IsEqualApprox(name.Rotation, Mathf.DegToRad(-1f))).IsTrue();

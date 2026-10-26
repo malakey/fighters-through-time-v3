@@ -20,14 +20,7 @@ namespace FTT.UI.Pulp {
         public PulpTaggedPanel() {
             Name = "PulpTaggedPanel";
             MouseFilter = MouseFilterEnum.Ignore;
-            _tagLabel = new Label {
-                Name = "TagLabel", Uppercase = true, ThemeTypeVariation = UIPalette.LabelRoles.PanelTag, MouseFilter = MouseFilterEnum.Ignore
-            };
-            _tag = new PanelContainer {
-                Name = "Tag", ThemeTypeVariation = UIPalette.Variations.PanelTagPlate, MouseFilter = MouseFilterEnum.Ignore,
-                ZIndex = 1, Visible = false
-            };
-            _tag.AddChild(_tagLabel);
+            _tag = PulpTagPlate.Create(out _tagLabel);
             AddChild(_tag);
         }
 
@@ -43,8 +36,11 @@ namespace FTT.UI.Pulp {
         /// <summary>The first child that is a visible control and not the tag.</summary>
         public Control Panel {
             get {
-                foreach (Node child in GetChildren()) {
-                    if (child is Control c && c != _tag && c.Visible) return c;
+                // Indexed, not GetChildren(): this runs on every sort and minimum-size query and an undisposed engine
+                // collection wrapper is a teardown-crash risk (AGENTS.md).
+                int count = GetChildCount();
+                for (int i = 0; i < count; i++) {
+                    if (GetChild(i) is Control c && c != _tag && c.Visible) return c;
                 }
                 return null;
             }
@@ -56,10 +52,7 @@ namespace FTT.UI.Pulp {
             if (what == NotificationSortChildren) {
                 Control panel = Panel;
                 if (panel != null) FitChildInRect(panel, new Rect2(Vector2.Zero, Size));
-                _tag.ResetSize();
-                _tag.Position = new Vector2(PaddingBoxInset, PaddingBoxInset) + TagOffset;
-                _tag.PivotOffset = new Vector2(0f, _tag.Size.Y);
-                _tag.Rotation = Mathf.DegToRad(TagDegrees);
+                PulpTagPlate.Place(_tag, new Vector2(PaddingBoxInset, PaddingBoxInset) + TagOffset);
             } else if (what == NotificationThemeChanged) {
                 QueueSort();
             }

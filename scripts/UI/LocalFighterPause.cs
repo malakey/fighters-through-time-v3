@@ -332,6 +332,6 @@ namespace FTT.UI {
         }
 
         private static Button MakeButton(string name, string textKey) =>
-            PulpScreenKit.StylePauseButton(new Button { Name = name, Text = textKey });
+            PulpScreenKit.StylePauseButton(new Button { Name = name, Text = textKey }, 760f);
     }
 }

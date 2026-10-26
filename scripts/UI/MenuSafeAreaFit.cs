@@ -30,24 +30,28 @@ namespace FTT.UI {
         private Control _target;
         private Control _scaled;
         private Viewport _viewport;
+        private float _extraVertical;
 
         /// <summary>Pure rule: the uniform scale (at most 1) that fits <paramref name="size"/> into <paramref name="view"/>.</summary>
-        public static float ScaleFor(Vector2 size, Vector2 view) {
+        public static float ScaleFor(Vector2 size, Vector2 view, float extraVertical = 0f) {
             if (size.X <= 0f || size.Y <= 0f) return 1f;
             float availableX = Mathf.Max(1f, view.X - 2f * MarginPixels);
-            float availableY = Mathf.Max(1f, view.Y - 2f * MarginPixels);
+            float availableY = Mathf.Max(1f, view.Y - 2f * (MarginPixels + extraVertical));
             float scale = Mathf.Min(1f, Mathf.Min(availableX / size.X, availableY / size.Y));
             return Mathf.Max(MinScale, scale);
         }
 
-        /// <summary>Attaches the fit to <paramref name="panel"/> once (a second call returns the first).</summary>
-        public static MenuSafeAreaFit Attach(Control panel) {
+        /// <summary>
+        /// Attaches the fit to <paramref name="panel"/> once (a second call returns the first). <paramref name="extraVertical"/>
+        /// keeps that much more clear above and below (UR-POLISH: the Resonance grid clears the bottom-right prompt bar).
+        /// </summary>
+        public static MenuSafeAreaFit Attach(Control panel, float extraVertical = 0f) {
             if (panel == null) return null;
             // Parked beside the panel (under its centring parent) so the panel's own
             // child order, which scripts and tests index into, is unchanged.
             Node home = panel.GetParent() ?? panel;
             if (home.GetNodeOrNull<MenuSafeAreaFit>(NodeName) is { } existing) return existing;
-            var fit = new MenuSafeAreaFit { Name = NodeName, _target = panel };
+            var fit = new MenuSafeAreaFit { Name = NodeName, _target = panel, _extraVertical = extraVertical };
             home.AddChild(fit);
             return fit;
         }
@@ -84,7 +88,7 @@ namespace FTT.UI {
             if (_target == null || _scaled == null || !_target.IsInsideTree() || _viewport == null) return;
             Vector2 size = _target.GetCombinedMinimumSize();
             size = new Vector2(Mathf.Max(size.X, _target.Size.X), Mathf.Max(size.Y, _target.Size.Y));
-            float scale = ScaleFor(size, _viewport.GetVisibleRect().Size);
+            float scale = ScaleFor(size, _viewport.GetVisibleRect().Size, _extraVertical);
             _scaled.PivotOffset = _scaled.Size / 2f;
             Vector2 wanted = new(scale, scale);
             if (_scaled.Scale != wanted) _scaled.Scale = wanted;

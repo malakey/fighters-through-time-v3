@@ -22,15 +22,7 @@ namespace FTT.UI {
 
         public PausePanel() {
             ThemeTypeVariation = UIPalette.Variations.InkPanel;
-            _tagLabel = new Label {
-                Name = "TagLabel", Uppercase = true, ThemeTypeVariation = UIPalette.LabelRoles.PanelTag,
-                MouseFilter = MouseFilterEnum.Ignore
-            };
-            _tag = new PanelContainer {
-                Name = "Tag", ThemeTypeVariation = UIPalette.Variations.PanelTagPlate, MouseFilter = MouseFilterEnum.Ignore,
-                ZIndex = 1, Visible = false
-            };
-            _tag.AddChild(_tagLabel);
+            _tag = Pulp.PulpTagPlate.Create(out _tagLabel);
             AddChild(_tag);
         }
 
@@ -57,10 +49,7 @@ namespace FTT.UI {
 
         public override void _Notification(int what) {
             if (what != NotificationSortChildren || _tag == null) return;
-            _tag.ResetSize();
-            _tag.Position = new Vector2(Border, Border) + Pulp.PulpTaggedPanel.TagOffset;
-            _tag.PivotOffset = new Vector2(0f, _tag.Size.Y);
-            _tag.Rotation = Mathf.DegToRad(Pulp.PulpTaggedPanel.TagDegrees);
+            Pulp.PulpTagPlate.Place(_tag, new Vector2(Border, Border) + Pulp.PulpTaggedPanel.TagOffset);
         }
     }
 }

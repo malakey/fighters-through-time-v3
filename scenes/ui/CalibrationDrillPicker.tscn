@@ -134,13 +134,13 @@ theme_override_constants/separation = 12
 alignment = 1
 
 [node name="MoveListButton" type="Button" parent="Select/Root/ButtonRow"]
-custom_minimum_size = Vector2(240, 58)
+custom_minimum_size = Vector2(300, 58)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 text = "movelist_title"
 
 [node name="SystemsCardButton" type="Button" parent="Select/Root/ButtonRow"]
-custom_minimum_size = Vector2(240, 58)
+custom_minimum_size = Vector2(300, 58)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 text = "systems_card_title"

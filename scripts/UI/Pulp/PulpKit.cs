@@ -31,13 +31,40 @@ namespace FTT.UI.Pulp {
             return _kit.TryGetValue(stem, out entry);
         }
 
-        /// <summary>The texture <c>stem.png</c>.</summary>
-        public static Texture2D Texture(string stem) => GD.Load<Texture2D>(Directory + stem + ".png");
+        private static readonly Dictionary<string, Texture2D> Textures = new();
+        private static readonly Dictionary<string, int[]> Expands = new();
+        private static readonly Dictionary<string, StyleBoxTexture> Shared = new();
 
-        /// <summary>The expand margins (L, T, R, B) the catalog lists for <paramref name="stem"/>; zeros when none.</summary>
-        public static int[] Expand(string stem) =>
-            TryEntry(stem, out JsonElement entry) && entry.TryGetProperty("expand_margins_LTRB", out _)
-                ? ReadFour(entry, "expand_margins_LTRB") : new int[4];
+        /// <summary>The texture <c>stem.png</c> (cached: the path string and the lookup are built once, so a draw path may call it every frame).</summary>
+        public static Texture2D Texture(string stem) {
+            if (!Textures.TryGetValue(stem, out Texture2D texture)) {
+                texture = GD.Load<Texture2D>(Directory + stem + ".png");
+                if (texture != null) Textures[stem] = texture;
+            }
+            return texture;
+        }
+
+        /// <summary>The expand margins (L, T, R, B) the catalog lists for <paramref name="stem"/>; zeros when none. The array is shared: read it, never write it.</summary>
+        public static int[] Expand(string stem) {
+            if (!Expands.TryGetValue(stem, out int[] margins)) {
+                margins = TryEntry(stem, out JsonElement entry) && entry.TryGetProperty("expand_margins_LTRB", out _)
+                    ? ReadFour(entry, "expand_margins_LTRB") : new int[4];
+                Expands[stem] = margins;
+            }
+            return margins;
+        }
+
+        /// <summary>
+        /// A shared, read-only <see cref="Plate"/> for draw paths (<c>DrawStyleBox</c> every frame): built once per
+        /// stem. Callers must not modify it or hand it to a node as an override; use <see cref="Plate"/> for that.
+        /// </summary>
+        public static StyleBoxTexture SharedPlate(string stem) {
+            if (!Shared.TryGetValue(stem, out StyleBoxTexture plate)) {
+                plate = Plate(stem);
+                if (plate != null) Shared[stem] = plate;
+            }
+            return plate;
+        }
 
         /// <summary>A nine-slice plate for <paramref name="stem"/> with the catalog's slice and expand margins; null when the stem is unknown.</summary>
         public static StyleBoxTexture Plate(string stem) {

@@ -6,7 +6,6 @@
 [ext_resource type="Texture2D" uid="uid://uy36qss82s2l" path="res://assets/sprites/ui/pulp/rays.png" id="4_rays"]
 [ext_resource type="Texture2D" uid="uid://b5pujw830bcyy" path="res://assets/sprites/ui/pulp/halftone_screen.png" id="5_halftone"]
 [ext_resource type="Texture2D" uid="uid://po7l7igaloh2" path="res://assets/sprites/ui/pulp/burst_star.png" id="6_burst"]
-[ext_resource type="Texture2D" uid="uid://cw77eikmgwtcu" path="res://assets/sprites/ui/pulp/banner_cover.png" id="7_banner"]
 [ext_resource type="Texture2D" uid="uid://2j5ckch6uc55" path="res://assets/sprites/ui/pulp/sticker_continue.png" id="8_sticker"]
 [ext_resource type="Texture2D" uid="uid://br8yy2svobi17" path="res://assets/sprites/ui/pulp/cover_heroes/joan_victory.png" id="9_joan"]
 [ext_resource type="Texture2D" uid="uid://g53d0txw84fs" path="res://assets/sprites/ui/pulp/cover_heroes/einstein_victory.png" id="10_einstein"]
@@ -14,20 +13,6 @@
 [ext_resource type="Script" uid="uid://bpvpqpt1nw88" path="res://scripts/UI/Pulp/PulpPromptBar.cs" id="12_prompt"]
 
 [sub_resource type="StyleBoxEmpty" id="PanelClear"]
-
-[sub_resource type="StyleBoxTexture" id="BannerPlate"]
-content_margin_left = 30.0
-content_margin_top = 6.0
-content_margin_right = 44.0
-content_margin_bottom = 14.0
-texture = ExtResource("7_banner")
-texture_margin_left = 23.0
-texture_margin_top = 14.0
-texture_margin_right = 35.0
-texture_margin_bottom = 21.0
-expand_margin_left = 7.0
-expand_margin_right = 19.0
-expand_margin_bottom = 12.0
 
 [sub_resource type="CanvasItemMaterial" id="RaysAdd"]
 blend_mode = 1
@@ -240,7 +225,7 @@ offset_top = 179.0
 offset_right = 728.0
 offset_bottom = 277.0
 mouse_filter = 2
-theme_override_styles/panel = SubResource("BannerPlate")
+theme_type_variation = &"CoverBannerPanel"
 
 [node name="BannerLabel" type="Label" parent="RootScreen/TitleBlock/Banner"]
 layout_mode = 2
@@ -496,7 +481,7 @@ theme_type_variation = &"TemporalGlassButton"
 alignment = 0
 
 [node name="DeleteButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow0"]
-custom_minimum_size = Vector2(300, 96)
+custom_minimum_size = Vector2(370, 96)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 text = "save_delete"
@@ -514,7 +499,7 @@ theme_type_variation = &"TemporalGlassButton"
 alignment = 0
 
 [node name="DeleteButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow1"]
-custom_minimum_size = Vector2(300, 96)
+custom_minimum_size = Vector2(370, 96)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 text = "save_delete"
@@ -532,7 +517,7 @@ theme_type_variation = &"TemporalGlassButton"
 alignment = 0
 
 [node name="DeleteButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow2"]
-custom_minimum_size = Vector2(300, 96)
+custom_minimum_size = Vector2(370, 96)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 text = "save_delete"
@@ -1020,14 +1005,14 @@ text = "menu_extras"
 horizontal_alignment = 1
 
 [node name="CreditsButton" type="Button" parent="ExtrasScreen/Center/Panel/Layout"]
-custom_minimum_size = Vector2(560, 80)
+custom_minimum_size = Vector2(700, 80)
 layout_mode = 2
 theme_type_variation = &"PulpButton"
 text = "extras_credits"
 alignment = 0
 
 [node name="LicensesButton" type="Button" parent="ExtrasScreen/Center/Panel/Layout"]
-custom_minimum_size = Vector2(560, 80)
+custom_minimum_size = Vector2(700, 80)
 layout_mode = 2
 theme_type_variation = &"PulpButton"
 text = "extras_licenses"

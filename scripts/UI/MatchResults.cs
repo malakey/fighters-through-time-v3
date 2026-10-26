@@ -292,7 +292,7 @@ namespace FTT.UI {
 
             var row = new HBoxContainer { Name = "NameRow", Alignment = BoxContainer.AlignmentMode.Center };
             row.AddThemeConstantOverride("separation", 8);
-            Color slot = player == 0 ? UIPalette.P1 : UIPalette.P2;
+            Color slot = UIPalette.OwnerOnDark(player);
             row.AddChild(PulpIcon.Create(player == 0 ? "slot_p1" : "slot_p2", slot, 30f));
             var name = new Label { Name = "FighterName", ThemeTypeVariation = UIPalette.LabelRoles.HeroName };
             row.AddChild(name);

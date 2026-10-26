@@ -10,15 +10,7 @@ namespace FTT.UI {
 
         public PanelTagAnchor() {
             MouseFilter = MouseFilterEnum.Ignore;
-            _label = new Label {
-                Name = "TagLabel", Uppercase = true, ThemeTypeVariation = UIPalette.LabelRoles.PanelTag,
-                MouseFilter = MouseFilterEnum.Ignore
-            };
-            _tag = new PanelContainer {
-                Name = "Tag", ThemeTypeVariation = UIPalette.Variations.PanelTagPlate,
-                MouseFilter = MouseFilterEnum.Ignore, ZIndex = 1, Visible = false
-            };
-            _tag.AddChild(_label);
+            _tag = PulpTagPlate.Create(out _label);
             AddChild(_tag);
         }
 
@@ -40,14 +32,11 @@ namespace FTT.UI {
 
         private void Place() {
             if (_tag == null) return;
-            _tag.ResetSize();
             Vector2 contentOrigin = Vector2.Zero;
             if (GetParent() is PanelContainer panel && panel.GetThemeStylebox("panel") is StyleBox style) {
                 contentOrigin = style.GetOffset();
             }
-            _tag.Position = PulpScreenKit.TagFromPanelCorner - contentOrigin;
-            _tag.PivotOffset = new Vector2(0f, _tag.Size.Y);
-            _tag.Rotation = Mathf.DegToRad(PulpTaggedPanel.TagDegrees);
+            PulpTagPlate.Place(_tag, PulpScreenKit.TagFromPanelCorner - contentOrigin);
         }
     }
 }

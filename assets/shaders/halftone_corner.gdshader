@@ -19,5 +19,6 @@ void fragment() {
 	float coverage = 1.0 - smoothstep(solid_radius, fade_radius, length(cell));
 	float t = dot(q - region * 0.5, vec2(-0.7071, -0.7071)) / (0.7071 * (region.x + region.y)) + 0.5;
 	float mask = 1.0 - clamp(t / 0.82, 0.0, 1.0);
-	COLOR = vec4(dot_color.rgb, dot_color.a * coverage * mask * inside);
+	// COLOR arrives as the draw colour times the canvas modulate (panel fades): keep it.
+	COLOR = vec4(dot_color.rgb * COLOR.rgb, dot_color.a * coverage * mask * inside * COLOR.a);
 }

@@ -38,6 +38,12 @@ namespace FTT.UI.Pulp {
         private LabelLayer _labelLayer;
         private string _lastText = "";
         private float _lastWidth;
+        private bool _growToFit;
+        private float _baseMinHeight;
+        private float _baseMinWidth;
+        private float _wordMinWidth;
+        private int _growFontSize;
+        private string _growKey = "";
 
         private static readonly string[] HideSlots = {
             "font_color", "font_hover_color", "font_focus_color", "font_pressed_color", "font_hover_pressed_color",
@@ -47,6 +53,23 @@ namespace FTT.UI.Pulp {
         private static readonly string[] FontColorSlots = {
             "font_color", "font_hover_color", "font_focus_color", "font_pressed_color", "font_hover_pressed_color"
         };
+
+        /// <summary>
+        /// UR-POLISH. When true a label too long for one line wraps instead of ending in an ellipsis, and the button grows
+        /// its minimum height to hold the lines. The wrap always leaves room for the focused row's prompt badge, so the
+        /// button does not change height as focus moves. Off by default: menu rows are authored to fit one line.
+        /// </summary>
+        public bool GrowToFit {
+            get => _growToFit;
+            set {
+                if (_growToFit == value || _button == null) return;
+                _growToFit = value;
+                if (value) { _baseMinHeight = _button.CustomMinimumSize.Y; _baseMinWidth = _button.CustomMinimumSize.X; }
+                else _button.CustomMinimumSize = new Vector2(_baseMinWidth, _baseMinHeight);
+                _growKey = "";
+                Refresh();
+            }
+        }
 
         /// <summary>The marker icon (tint and shadow follow the state).</summary>
         public PulpIcon Marker => _marker;
@@ -109,8 +132,8 @@ namespace FTT.UI.Pulp {
         /// upper-cased in the decor; <c>Button.Text</c> stays the raw translation key.
         /// </summary>
         public static PulpButtonDecor Apply(Button button, bool compact = false, bool alignLeft = true, bool uppercase = true) {
-            foreach (Node child in button.GetChildren()) {
-                if (child is PulpButtonDecor existing) return existing;
+            for (int i = 0, n = button.GetChildCount(); i < n; i++) {
+                if (button.GetChild(i) is PulpButtonDecor existing) return existing;
             }
             var decor = new PulpButtonDecor { Name = "PulpButtonDecor", _button = button, _compact = compact, _uppercase = uppercase };
             if (alignLeft) button.Alignment = HorizontalAlignment.Left;
@@ -141,7 +164,7 @@ namespace FTT.UI.Pulp {
         private void Build() {
             _button.ClipContents = false;
             FocusPose existingPose = null;
-            foreach (Node child in _button.GetChildren()) if (child is FocusPose pose) existingPose = pose;
+            for (int i = 0, n = _button.GetChildCount(); i < n; i++) if (_button.GetChild(i) is FocusPose pose) existingPose = pose;
             if (existingPose == null) FocusPose.Attach(_button);
 
             _marker = new PulpIcon { Name = "Marker", IconName = "marker", Tint = UIPalette.Ink3 };
@@ -172,6 +195,7 @@ namespace FTT.UI.Pulp {
             _button.Resized += OnStateChanged;
             _button.VisibilityChanged += OnStateChanged;
             if (InputManager.Instance != null) InputManager.Instance.DeviceAssigned += OnDeviceAssigned;
+            SetProcess(_button.IsVisibleInTree());
             Refresh();
         }
 
@@ -195,6 +219,7 @@ namespace FTT.UI.Pulp {
         public override void _Process(double delta) {
             // The Disabled flag has no signal: poll it, and re-check the cheap state only when it moved.
             if (_button == null) return;
+            if (_growToFit) GrowToLines();
             if (_lastDisabled != _button.Disabled || _lastText != _button.Text || _lastWidth != _button.Size.X) {
                 _lastText = _button.Text;
                 _lastWidth = _button.Size.X;
@@ -204,13 +229,46 @@ namespace FTT.UI.Pulp {
 
         private bool _lastDisabled;
 
-        private void OnStateChanged() => Refresh();
+        private void OnStateChanged() {
+            // A button on a hidden screen needs no per-frame poll of Disabled / Text / width.
+            if (_button != null && GodotObject.IsInstanceValid(_button)) SetProcess(_button.IsVisibleInTree());
+            Refresh();
+        }
         private void OnDeviceAssigned(int slot, int device) => Refresh();
 
         private void OnToggled(bool pressed) {
             if (_button.ToggleMode) Selected = pressed;
             Refresh();
         }
+
+        // Recomputes the wrapped line count only when the text, width, font size or UI scale changed (the key), so the
+        // per-frame poll allocates nothing while the label is steady.
+        private void GrowToLines() {
+            if (!_button.IsInsideTree() || !_button.IsVisibleInTree() || !_glyphsHidden || !_uppercase) return;
+            string key = _button.Text + "|" + _button.Size.X + "|" + _button.GetThemeFontSize("font_size") + "|" + _button.Tr(_button.Text);
+            if (key == _growKey) return;
+            _growKey = key;
+            TextParagraph paragraph = BuildParagraph(DrawnText, LabelAvailableWidthReserved());
+            int lines = Mathf.Max(1, paragraph.GetLineCount());
+            StyleBox box = _button.GetThemeStylebox("normal");
+            float chrome = (box?.GetContentMargin(Side.Top) ?? 0f) + (box?.GetContentMargin(Side.Bottom) ?? 0f);
+            float needed = Mathf.Ceil(chrome + lines * Mathf.Max(1f, paragraph.GetLineSize(0).Y) + 2f);
+            float height = Mathf.Max(_baseMinHeight, lines > 1 ? needed : 0f);
+            // A single word wider than the line cannot wrap: widen the button by the shortfall (a word never breaks).
+            float widest = 0f;
+            for (int i = 0; i < paragraph.GetLineCount(); i++) widest = Mathf.Max(widest, paragraph.GetLineWidth(i));
+            float room = LabelAvailableWidthReserved();
+            int fontSize = _button.GetThemeFontSize("font_size");
+            if (fontSize != _growFontSize) { _growFontSize = fontSize; _wordMinWidth = 0f; }
+            if (widest > room + 0.5f) _wordMinWidth = Mathf.Max(_wordMinWidth, _button.Size.X + (widest - room) + 2f);
+            float width = Mathf.Max(_baseMinWidth, _wordMinWidth);
+            if (!Mathf.IsEqualApprox(_button.CustomMinimumSize.Y, height) || !Mathf.IsEqualApprox(_button.CustomMinimumSize.X, width)) {
+                _button.CustomMinimumSize = new Vector2(width, height);
+                _growKey = "";
+            }
+        }
+
+        private float LabelAvailableWidthReserved() => Mathf.Max(1f, LabelLimit(true) - LabelLeft());
 
         /// <summary>Recomputes the marker, the badge and the layout from the button's current state.</summary>
         public void Refresh() {
@@ -240,7 +298,8 @@ namespace FTT.UI.Pulp {
         }
 
         private void BuildBadge(PromptDevice device) {
-            foreach (Node child in _badge.GetChildren()) {
+            for (int i = _badge.GetChildCount() - 1; i >= 0; i--) {
+                Node child = _badge.GetChild(i);
                 _badge.RemoveChild(child);
                 child.QueueFree();
             }
@@ -350,6 +409,20 @@ namespace FTT.UI.Pulp {
         /// <summary>The width the label may use: from the left content margin (and icon) to <see cref="LabelRightLimit"/>.</summary>
         public float LabelAvailableWidth => Mathf.Max(1f, LabelLimit() - LabelLeft());
 
+        /// <summary>True when the label as drawn ends in an ellipsis: too wide for its single line, or more wrapped lines than the button's height holds.</summary>
+        public bool LabelIsTrimmed {
+            get {
+                if (_button == null || !_uppercase) return false;
+                bool multi = _button.AutowrapMode != TextServer.AutowrapMode.Off || DrawnText.Contains((char)10) || _growToFit;
+                if (!multi) return DrawnTextWidth > LabelAvailableWidth + 0.5f;
+                StyleBox box = _button.GetThemeStylebox("normal");
+                float avail = _button.Size.Y - (box?.GetContentMargin(Side.Top) ?? 0f) - (box?.GetContentMargin(Side.Bottom) ?? 0f);
+                TextParagraph paragraph = BuildParagraph(DrawnText, LabelAvailableWidth);
+                int maxLines = Mathf.Max(1, Mathf.FloorToInt((avail + 1f) / Mathf.Max(1f, paragraph.GetLineSize(0).Y)));
+                return paragraph.GetLineCount() > maxLines;
+            }
+        }
+
         /// <summary>The width the whole upper-cased label would take on one line, in the button's own font and size.</summary>
         public float DrawnTextWidth {
             get {
@@ -359,9 +432,9 @@ namespace FTT.UI.Pulp {
             }
         }
 
-        private float LabelLimit() {
+        private float LabelLimit(bool reserveBadge = false) {
             float right = _button.GetThemeStylebox("normal")?.GetContentMargin(Side.Right) ?? 0f;
-            if (_badge != null && _badge.Visible) {
+            if (_badge != null && (_badge.Visible || ((reserveBadge || _growToFit) && _badge.Size.X > 0f))) {
                 right = Mathf.Max(right, _button.Size.X - _badge.Position.X + 6f);
             }
             return _button.Size.X - right;
@@ -392,7 +465,7 @@ namespace FTT.UI.Pulp {
                 Color outlineColor = _owner.OriginalColor("font_outline_color");
                 int outline = button.GetThemeConstant("outline_size");
                 Rid canvas = GetCanvasItem();
-                bool multi = button.AutowrapMode != TextServer.AutowrapMode.Off || text.Contains('\n');
+                bool multi = button.AutowrapMode != TextServer.AutowrapMode.Off || text.Contains('\n') || _owner._growToFit;
                 if (multi) {
                     TextParagraph paragraph = _owner.BuildParagraph(text, width);
                     float lineHeight = Mathf.Max(1f, paragraph.GetLineSize(0).Y);
