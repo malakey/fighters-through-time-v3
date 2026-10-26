@@ -97,12 +97,14 @@ public class MainMenuSceneTests {
         try {
             // The A1 convention: the scene stores the key, Godot's automatic
             // control translation resolves it, so a language change needs no rebuild.
-            AssertThat(menu.GetNode<Label>(RootLayout + "Title").Text).IsEqual("game_title");
+            // UR-MENU: the cover title is two live keys (the word, and the banner plate under it).
+            AssertThat(menu.GetNode<Label>("RootScreen/TitleBlock/Title").Text).IsEqual("menu_cover_title_word");
+            AssertThat(menu.GetNode<Label>("RootScreen/TitleBlock/Banner/BannerLabel").Text).IsEqual("menu_cover_title_banner");
             AssertThat(menu.GetNode<Button>(RootLayout + "StoryButton").Text).IsEqual("menu_story_mode");
             AssertThat(menu.GetNode<Label>(SlotLayout + "Title").Text).IsEqual("save_select_title");
 
             foreach (string key in new[] {
-                         "game_title", "menu_subtitle", "menu_quick_play", "menu_story_mode",
+                         "game_title", "menu_cover_title_word", "menu_cover_title_banner", "menu_quick_play", "menu_story_mode",
                          "menu_fighter_mode", "menu_calibration_drills", "menu_settings",
                          "menu_quit", "save_select_title",
                          "save_delete", "common_back", "story_select_character",
@@ -636,7 +638,13 @@ public class MainMenuSceneTests {
     /// </summary>
     private static SessionData? _sessionAtOpen;
 
+    /// <summary>The sticker's save source as it stood at <see cref="Open"/>; the menu reads an empty one meanwhile.</summary>
+    private static StorySaveData[] _stickerSlotsAtOpen;
+
     private static MainMenu Open(out Node host) {
+        // UR-MENU: the Continue sticker reads the saves; no case here depends on the ones on this machine.
+        _stickerSlotsAtOpen = MainMenu.SaveSlotsOverrideForTesting;
+        MainMenu.SaveSlotsOverrideForTesting = new StorySaveData[3];
         // The menu writes ActiveSaveSlot (an empty slot row), the calibration
         // route and the pending selection into the shared session; Teardown
         // hands the session back exactly as it was.
@@ -661,6 +669,8 @@ public class MainMenuSceneTests {
                 host.Free();
             }
         } finally {
+            MainMenu.SaveSlotsOverrideForTesting = _stickerSlotsAtOpen;
+            _stickerSlotsAtOpen = null;
             if (_sessionAtOpen.HasValue && GameManager.Instance != null) {
                 GameManager.Instance.CurrentSession = _sessionAtOpen.Value;
             }

@@ -89,7 +89,7 @@ namespace FTT.UI {
         // Controls
         private TabContainer _tabs;
         private VBoxContainer _actionRows;
-        private VBoxContainer _shortcutRows;
+        private GridContainer _shortcutRows;
         private Label _controlsStatus;
         private readonly Dictionary<string, Button> _unbindButtons = new();
         private readonly Dictionary<string, Button> _keyboardSlots = new();
@@ -173,8 +173,10 @@ namespace FTT.UI {
 
         private const float ToggleRowWidth = 560f;
 
-        private static void SkinToggle(CheckButton toggle) {
-            toggle.CustomMinimumSize = new Vector2(ToggleRowWidth, toggle.CustomMinimumSize.Y);
+        private const float ShortcutToggleWidth = 360f;
+
+        private static void SkinToggle(CheckButton toggle, float width = ToggleRowWidth) {
+            toggle.CustomMinimumSize = new Vector2(width, toggle.CustomMinimumSize.Y);
             Pulp.PulpToggleDecor.Apply(toggle);
         }
 
@@ -223,8 +225,8 @@ namespace FTT.UI {
             _reducedEffectsToggle = _tabs.GetNode<CheckButton>("Gameplay/ReducedEffectsToggle");
             _reducedEffectsHelp = _tabs.GetNode<Label>("Gameplay/ReducedEffectsHelp");
 
-            _actionRows = _tabs.GetNode<VBoxContainer>("Controls/Scroll/ActionRows");
-            _shortcutRows = _tabs.GetNode<VBoxContainer>("Controls/ShortcutRows");
+            _actionRows = _tabs.GetNode<VBoxContainer>("Controls/Scroll/Content/ActionRows");
+            _shortcutRows = _tabs.GetNode<GridContainer>("Controls/Scroll/Content/ShortcutRows");
             _controlsStatus = _tabs.GetNode<Label>("Controls/Status");
         }
 
@@ -262,8 +264,8 @@ namespace FTT.UI {
 
             _tabs.GetNode<Label>("Controls/Hint").Text = Tr("controls_hint");
             _tabs.GetNode<Label>("Controls/ReadOnlyInfo").Text = Tr("controls_ultimate_readonly");
-            _tabs.GetNode<Label>("Controls/ShortcutsHeading").Text = Tr("controls_shortcuts_heading");
-            _tabs.GetNode<Button>("Controls/ResetAllButton").Text = Tr("controls_reset_all");
+            _tabs.GetNode<Label>("Controls/Scroll/Content/ShortcutsHeading").Text = Tr("controls_shortcuts_heading");
+            _tabs.GetNode<Button>("Controls/Scroll/Content/ResetAllButton").Text = Tr("controls_reset_all");
             _controlsStatus.Text = "";
         }
 
@@ -390,7 +392,7 @@ namespace FTT.UI {
             _reducedEffectsToggle.Toggled += on => ComfortSettings.Apply(on);
 
             _root.GetNode<Button>("Margin/Panel/Body/Footer/BackButton").Pressed += Close;
-            _tabs.GetNode<Button>("Controls/ResetAllButton").Pressed += OnResetAllBindings;
+            _tabs.GetNode<Button>("Controls/Scroll/Content/ResetAllButton").Pressed += OnResetAllBindings;
 
             // H-10: the chain is a property of the visible controls, so switching
             // tabs swaps the whole middle of it and it must be rebuilt.
@@ -520,7 +522,7 @@ namespace FTT.UI {
                         RefreshBindingLabels();
                         _controlsStatus.Text = ReachabilityWarning() ?? "";
                     };
-                    SkinToggle(toggle);
+                    SkinToggle(toggle, ShortcutToggleWidth);
                     row.AddChild(toggle);
 
                     // The chord's CURRENT buttons, not a hard-coded "LB+RB": C01c

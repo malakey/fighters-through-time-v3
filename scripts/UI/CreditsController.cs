@@ -58,7 +58,7 @@ namespace FTT.UI {
         public float TotalScrollDistance { get; private set; }
 
         /// <summary>Package 8 B3: the roll's backdrop, tied to the shared palette.</summary>
-        public static readonly Color BackdropColor = UIPalette.NavyDeep;
+        public static readonly Color BackdropColor = UIPalette.Backdrop;
 
         private Control _scrollRoot;
         private ColorRect _shade;
@@ -80,6 +80,12 @@ namespace FTT.UI {
             ProcessMode = ProcessModeEnum.Always;
             ResolveOrBuildUI();
             if (_skipHint != null) _skipHint.Text = Tr("credits_skip_hint");
+            if (_skipHint != null) {
+                // UR-SCREENS: the hint sits on its own ink plate so the roll never reads through it.
+                var plate = new StyleBoxFlat { BgColor = new Color(UIPalette.Backdrop, 0.92f) };
+                plate.SetContentMarginAll(6f);
+                _skipHint.AddThemeStyleboxOverride("normal", plate);
+            }
             PopulateLines();
             // CM-PADUI (2026-10-16): the roll owns the screen. A menu button left
             // focused underneath (the main menu's Credits replay button) would
@@ -156,9 +162,11 @@ namespace FTT.UI {
                 };
                 // Headings ride the TitleLabel role; body lines keep the theme
                 // default, so the roll follows the accessibility UI scale.
-                if (line.IsHeading) label.ThemeTypeVariation = UIPalette.TitleLabelVariation;
-                label.AddThemeColorOverride(
-                    "font_color", line.IsHeading ? UIPalette.Cyan : UIPalette.TextPrimary);
+                // UR-SCREENS: roles carry the colour (accent Cinzel headings, ink body); no overrides.
+                if (line.IsHeading) {
+                    label.ThemeTypeVariation = UIPalette.TitleLabelVariation;
+                    label.Uppercase = true;
+                }
                 _lines.AddChild(label);
             }
         }
@@ -202,8 +210,7 @@ namespace FTT.UI {
             _skipHint.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
             _skipHint.Position = new Vector2(760, 1010);
             _skipHint.CustomMinimumSize = new Vector2(400, 24);
-            _skipHint.ThemeTypeVariation = UIPalette.SmallLabelVariation;
-            _skipHint.AddThemeColorOverride("font_color", UIPalette.SlateDim);
+            _skipHint.ThemeTypeVariation = UIPalette.LabelRoles.HintLine;
             shade.AddChild(_skipHint);
         }
     }

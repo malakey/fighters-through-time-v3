@@ -132,7 +132,7 @@ public class SettingsMenuSceneTests {
         var host = NewHost("SettingsRowsHost");
         try {
             SettingsMenu menu = OpenMenu(host);
-            var rows = menu.Tabs.GetNode<VBoxContainer>("Controls/Scroll/ActionRows");
+            var rows = menu.Tabs.GetNode<VBoxContainer>("Controls/Scroll/Content/ActionRows");
             System.Collections.Generic.List<string> bindable = InputBindingService.BindableActions();
             AssertThat(rows.GetChildCount()).IsEqual(bindable.Count);
 
@@ -163,7 +163,7 @@ public class SettingsMenuSceneTests {
         var host = NewHost("SettingsShortcutsHost");
         try {
             SettingsMenu menu = OpenMenu(host);
-            var rows = menu.Tabs.GetNode<VBoxContainer>("Controls/ShortcutRows");
+            var rows = menu.Tabs.GetNode<GridContainer>("Controls/Scroll/Content/ShortcutRows");
 
             AssertObject(rows.GetNodeOrNull<HBoxContainer>(
                 $"Shortcut_{InputShortcuts.UltimateAction}_{(int)InputDeviceKind.Joypad}")).IsNotNull();
@@ -315,7 +315,7 @@ public class SettingsMenuSceneTests {
             menu.Tabs.CurrentTab = 3;
             AssertThat(menu.FocusChain.Any(control =>
                     control is Button button && button.Name.ToString().Length > 0
-                    && menu.Tabs.GetNode<VBoxContainer>("Controls/Scroll/ActionRows").IsAncestorOf(button)))
+                    && menu.Tabs.GetNode<VBoxContainer>("Controls/Scroll/Content/ActionRows").IsAncestorOf(button)))
                 .OverrideFailureMessage("The rebuilt chain must reach the remap rows.").IsTrue();
         } finally {
             Teardown(host);

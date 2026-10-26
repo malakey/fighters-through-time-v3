@@ -243,7 +243,7 @@ namespace FTT.UI {
                 "RestartButton", "LowerDifficultyButton", "QuitButton" }) {
                 if (_menuPanel?.GetNodeOrNull<Button>("Layout/" + name) is { } button) PulpScreenKit.StylePauseButton(button);
             }
-            if (_root.GetNodeOrNull("PromptBar") == null) PulpScreenKit.AddBottomPromptBar(_root, "menu_resume");
+            if (_root.GetNodeOrNull(PulpScreenKit.PromptBarName) == null) PulpScreenKit.AddBottomPromptBar(_root, "menu_resume");
         }
 
         /// <summary>The level-name tag text: the current level's title up to its first dash, or the ship at the hub.</summary>

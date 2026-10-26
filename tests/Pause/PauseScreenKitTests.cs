@@ -6,7 +6,7 @@ namespace FTT.Tests.Pause;
 
 /// <summary>UR-PAUSE: the pure rules the pause tag and status strip use. Pure C# (failure signature 7: no engine).</summary>
 [TestSuite]
-public class PulpScreenKitTests {
+public class PauseScreenKitTests {
 
     [TestCase]
     public void TheTagTakesTheLevelNameBeforeItsFirstDash() {

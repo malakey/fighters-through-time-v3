@@ -99,6 +99,16 @@ namespace FTT.Diagnostics {
         [UiCaptureTarget("settings_controls", SettleFrames = 12)]
         public static Node PauseSettingsControls(UiCaptureContext context) => PauseSettingsTab(context, 3);
 
+        /// <summary>The Controls tab at UI scale 1.4 (restored when the capture frees it).</summary>
+        [UiCaptureTarget("settings_controls_ui14", SettleFrames = 12)]
+        public static Node PauseSettingsControlsUi14(UiCaptureContext context) {
+            float saved = UIPalette.AppliedUiScale;
+            UIPalette.ApplyUiScale(1.4f);
+            Node menu = PauseSettingsTab(context, 3);
+            menu.TreeExited += () => UIPalette.ApplyUiScale(saved);
+            return menu;
+        }
+
         [UiCaptureTarget("movelist", SettleFrames = 12)]
         public static Node PauseMoveList(UiCaptureContext context) {
             var screen = new MoveListScreen { Name = "MoveList" };

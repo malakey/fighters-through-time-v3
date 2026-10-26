@@ -54,7 +54,7 @@ public class PauseSkinTests {
                     AssertObject(row.GetNodeOrNull<PulpButtonDecor>("PulpButtonDecor"))
                         .OverrideFailureMessage($"{who}: {name} has no banner decor.").IsNotNull();
                 }
-                AssertObject(pause.GetNodeOrNull<PulpPromptBar>("Root/PromptBar"))
+                AssertObject(pause.GetNodeOrNull<PulpPromptBar>("Root/" + PulpScreenKit.PromptBarName))
                     .OverrideFailureMessage(who + ": the prompt bar is missing.").IsNotNull();
                 pause.SetPaused(false);
             }
@@ -84,7 +84,7 @@ public class PauseSkinTests {
             var backdrop = pause.GetNodeOrNull<Control>("Backdrop");
             AssertObject(backdrop).IsNotNull();
             AssertThat(backdrop.GetNodeOrNull<PanelContainer>("Shade")?.ThemeTypeVariation.ToString()).IsEqual("ScrimPanel");
-            AssertObject(backdrop.GetNodeOrNull<PulpPromptBar>("PromptBar")).IsNotNull();
+            AssertObject(backdrop.GetNodeOrNull<PulpPromptBar>(PulpScreenKit.PromptBarName)).IsNotNull();
 
             var modal = pause.FindChild("DisconnectModal", true, false) as PanelContainer;
             AssertObject(modal).IsNotNull();

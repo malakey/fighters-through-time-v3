@@ -1,28 +1,43 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=7 format=3]
 
-; Package 8 B2 - the production Fighter Mode HUD.
+; Package 8 B2 - the production Fighter Mode HUD, rebuilt by UR-HUDF (pulp UI
+; redesign, HUD-F2 "top versus bars", UI_SPEC 4.5).
 ;
 ; Attached by FighterSimulationDriver for every stage rather than authored into
-; each stage scene, so the ten production stages and the Test Arena share one
-; surface. The stock / shield pips are built by the script because their counts
-; are data-driven (match stock rules, per-character MaxBlockCharges); everything
-; with a fixed shape is authored here - including, since Package 12 W5 (M25),
-; the three 20x20 radial cooldowns (S1 / S2 / Movement) beside the
-; block charges (P2 mirrored), and (G12) the P1 triangle / P2 circle slot badge
-; beside each name tag.
+; each stage scene. Both clusters hang from the TOP corners (margin 36 / 22), the
+; match timer plate hangs from the top centre, and a slot row per player (three
+; 54 px ability slots plus the two status chips) hangs below each cluster. Those
+; widgets (portrait roundel, slot shape, stock stars, shield pips, Defy icon,
+; slots, chips) are built by FighterHUD.cs because they are Pulp widgets and the
+; stock / shield counts are data-driven.
 ;
-; M-29 (audit 2026-08-08): both player clusters anchor to the BOTTOM of the
-; screen per design :2617 ("Bottom of screen, evenly spaced (P1 left, P2
-; right)"); the match clock stays top-center. HP bars keep depleting toward the
-; center (P2 fill_mode = 1).
+; The old Label glyph nodes (SlotBadge, the Damage / Control status indicators,
+; DefySeal, the three cooldown icons with their Radial) are kept under their old
+; paths as accessibility and test carriers, hidden: tests and tooltips read their
+; Text, and shape now rides the icons. P2 HP and meter fill from the outer edge
+; (fill_mode = 1), as P1 does.
 
 [ext_resource type="Script" path="res://scripts/UI/FighterHUD.cs" id="1_hud"]
 [ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="2_theme"]
 [ext_resource type="Script" path="res://scripts/UI/RadialProgress.cs" id="3_radial"]
 
+[sub_resource type="StyleBoxEmpty" id="Empty_1"]
+
+[sub_resource type="Gradient" id="Scrim_grad"]
+offsets = PackedFloat32Array(0, 0.42, 0.78, 1)
+colors = PackedColorArray(0.0235, 0.0157, 0.047, 0.8, 0.0235, 0.0157, 0.047, 0.64, 0.0235, 0.0157, 0.047, 0.3, 0.0235, 0.0157, 0.047, 0)
+
+[sub_resource type="GradientTexture2D" id="Scrim_tex"]
+gradient = SubResource("Scrim_grad")
+fill_from = Vector2(0, 0)
+fill_to = Vector2(0, 1)
+width = 4
+height = 64
+
 [node name="FighterHUD" type="CanvasLayer"]
 layer = 12
 script = ExtResource("1_hud")
+
 
 [node name="SafeArea" type="Control" parent="."]
 layout_mode = 3
@@ -34,25 +49,33 @@ grow_vertical = 2
 mouse_filter = 2
 theme = ExtResource("2_theme")
 
+[node name="TopScrim" type="TextureRect" parent="SafeArea"]
+layout_mode = 1
+anchor_right = 1.0
+offset_bottom = 300.0
+mouse_filter = 2
+texture = SubResource("Scrim_tex")
+expand_mode = 1
+stretch_mode = 0
+
 [node name="P1_Status" type="PanelContainer" parent="SafeArea"]
 layout_mode = 1
-anchors_preset = 2
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_left = 24.0
-offset_top = -186.0
-offset_right = 718.0
-offset_bottom = -18.0
-grow_vertical = 0
+anchors_preset = 0
+offset_left = 36.0
+offset_top = 22.0
+offset_right = 676.0
+offset_bottom = 171.0
 mouse_filter = 2
+theme_override_styles/panel = SubResource("Empty_1")
 
 [node name="Body" type="HBoxContainer" parent="SafeArea/P1_Status"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 20
 
 [node name="Portrait" type="TextureRect" parent="SafeArea/P1_Status/Body"]
-custom_minimum_size = Vector2(96, 96)
+visible = false
+custom_minimum_size = Vector2(110, 110)
 layout_mode = 2
 size_flags_vertical = 0
 mouse_filter = 2
@@ -63,29 +86,39 @@ stretch_mode = 5
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
-theme_override_constants/separation = 6
+theme_override_constants/separation = 9
 
 [node name="TopRow" type="HBoxContainer" parent="SafeArea/P1_Status/Body/Column"]
+custom_minimum_size = Vector2(0, 30)
 layout_mode = 2
 mouse_filter = 2
+theme_override_constants/separation = 10
 
 [node name="SlotBadge" type="Label" parent="SafeArea/P1_Status/Body/Column/TopRow"]
+visible = false
 custom_minimum_size = Vector2(24, 24)
 layout_mode = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 20
 text = "▲"
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="Name" type="Label" parent="SafeArea/P1_Status/Body/Column/TopRow"]
 layout_mode = 2
-size_flags_horizontal = 3
+size_flags_horizontal = 1
 mouse_filter = 2
-theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
-theme_override_font_sizes/font_size = 22
+theme_type_variation = "HeroName"
+uppercase = true
+
+[node name="PTag" type="Label" parent="SafeArea/P1_Status/Body/Column/TopRow"]
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = "CaptionLabel"
+uppercase = true
+vertical_alignment = 1
 
 [node name="StatusEffects_Panel" type="HBoxContainer" parent="SafeArea/P1_Status/Body/Column/TopRow"]
+visible = false
 custom_minimum_size = Vector2(56, 24)
 layout_mode = 2
 mouse_filter = 2
@@ -95,7 +128,6 @@ theme_override_constants/separation = 4
 custom_minimum_size = Vector2(24, 24)
 layout_mode = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 13
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -113,7 +145,6 @@ script = ExtResource("3_radial")
 custom_minimum_size = Vector2(24, 24)
 layout_mode = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 13
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -128,39 +159,34 @@ mouse_filter = 2
 script = ExtResource("3_radial")
 
 [node name="HPBar" type="ProgressBar" parent="SafeArea/P1_Status/Body/Column"]
-custom_minimum_size = Vector2(0, 22)
+custom_minimum_size = Vector2(502, 44)
 layout_mode = 2
+size_flags_horizontal = 0
 mouse_filter = 2
+theme_type_variation = "PulpBar"
 max_value = 100.0
 value = 100.0
 show_percentage = false
 
-[node name="MeterBar" type="ProgressBar" parent="SafeArea/P1_Status/Body/Column"]
-custom_minimum_size = Vector2(0, 12)
-layout_mode = 2
-mouse_filter = 2
-value = 0.0
-show_percentage = false
-
 [node name="DefySeal" type="Label" parent="SafeArea/P1_Status/Body/Column"]
+visible = false
 custom_minimum_size = Vector2(20, 20)
 layout_mode = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 13
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="PipRow" type="HBoxContainer" parent="SafeArea/P1_Status/Body/Column"]
+custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 18
+theme_override_constants/separation = 20
 
 [node name="StocksLabel" type="Label" parent="SafeArea/P1_Status/Body/Column/PipRow"]
+visible = false
 layout_mode = 2
 mouse_filter = 2
 text = "fighter_hud_stocks"
-theme_override_colors/font_color = Color(0.45, 0.5, 0.6, 1)
-theme_override_font_sizes/font_size = 12
 
 [node name="Stocks" type="HBoxContainer" parent="SafeArea/P1_Status/Body/Column/PipRow"]
 layout_mode = 2
@@ -170,26 +196,24 @@ mouse_filter = 2
 visible = false
 layout_mode = 2
 mouse_filter = 2
-theme_override_colors/font_color = Color(0.95, 0.8, 0.3, 1)
-theme_override_font_sizes/font_size = 12
+theme_type_variation = "SmallLabel"
 
 [node name="Spacer" type="Control" parent="SafeArea/P1_Status/Body/Column/PipRow"]
 layout_mode = 2
-size_flags_horizontal = 3
 mouse_filter = 2
 
 [node name="ShieldsLabel" type="Label" parent="SafeArea/P1_Status/Body/Column/PipRow"]
+visible = false
 layout_mode = 2
 mouse_filter = 2
 text = "fighter_hud_shield"
-theme_override_colors/font_color = Color(0.45, 0.5, 0.6, 1)
-theme_override_font_sizes/font_size = 12
 
 [node name="Shields" type="HBoxContainer" parent="SafeArea/P1_Status/Body/Column/PipRow"]
 layout_mode = 2
 mouse_filter = 2
 
 [node name="Cooldowns" type="HBoxContainer" parent="SafeArea/P1_Status/Body/Column/PipRow"]
+visible = false
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 4
@@ -198,7 +222,6 @@ theme_override_constants/separation = 4
 custom_minimum_size = Vector2(20, 20)
 layout_mode = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 8
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -216,7 +239,6 @@ script = ExtResource("3_radial")
 custom_minimum_size = Vector2(20, 20)
 layout_mode = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 8
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -234,7 +256,6 @@ script = ExtResource("3_radial")
 custom_minimum_size = Vector2(20, 20)
 layout_mode = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 8
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -248,37 +269,48 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("3_radial")
 
+[node name="MeterBar" type="ProgressBar" parent="SafeArea/P1_Status/Body/Column"]
+custom_minimum_size = Vector2(390, 16)
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+theme_type_variation = "PulpBar"
+value = 0.0
+show_percentage = false
+
 [node name="P2_Status" type="PanelContainer" parent="SafeArea"]
 layout_mode = 1
-anchors_preset = 3
+anchors_preset = 1
 anchor_left = 1.0
-anchor_top = 1.0
 anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = -718.0
-offset_top = -186.0
-offset_right = -24.0
-offset_bottom = -18.0
+offset_left = -676.0
+offset_top = 22.0
+offset_right = -36.0
+offset_bottom = 171.0
 grow_horizontal = 0
-grow_vertical = 0
 mouse_filter = 2
+theme_override_styles/panel = SubResource("Empty_1")
 
 [node name="Body" type="HBoxContainer" parent="SafeArea/P2_Status"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 20
 
 [node name="Column" type="VBoxContainer" parent="SafeArea/P2_Status/Body"]
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
-theme_override_constants/separation = 6
+theme_override_constants/separation = 9
 
 [node name="TopRow" type="HBoxContainer" parent="SafeArea/P2_Status/Body/Column"]
+custom_minimum_size = Vector2(0, 30)
 layout_mode = 2
 mouse_filter = 2
+theme_override_constants/separation = 10
+alignment = 2
 
 [node name="StatusEffects_Panel" type="HBoxContainer" parent="SafeArea/P2_Status/Body/Column/TopRow"]
+visible = false
 custom_minimum_size = Vector2(56, 24)
 layout_mode = 2
 mouse_filter = 2
@@ -288,7 +320,6 @@ theme_override_constants/separation = 4
 custom_minimum_size = Vector2(24, 24)
 layout_mode = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 13
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -306,7 +337,6 @@ script = ExtResource("3_radial")
 custom_minimum_size = Vector2(24, 24)
 layout_mode = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 13
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -320,55 +350,58 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("3_radial")
 
+[node name="PTag" type="Label" parent="SafeArea/P2_Status/Body/Column/TopRow"]
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = "CaptionLabel"
+uppercase = true
+vertical_alignment = 1
+
 [node name="Name" type="Label" parent="SafeArea/P2_Status/Body/Column/TopRow"]
 layout_mode = 2
-size_flags_horizontal = 3
+size_flags_horizontal = 1
 mouse_filter = 2
+theme_type_variation = "HeroName"
+uppercase = true
 horizontal_alignment = 2
-theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
-theme_override_font_sizes/font_size = 22
 
 [node name="SlotBadge" type="Label" parent="SafeArea/P2_Status/Body/Column/TopRow"]
+visible = false
 custom_minimum_size = Vector2(24, 24)
 layout_mode = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 20
 text = "●"
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="HPBar" type="ProgressBar" parent="SafeArea/P2_Status/Body/Column"]
-custom_minimum_size = Vector2(0, 22)
-layout_mode = 2
-mouse_filter = 2
-max_value = 100.0
-value = 100.0
-fill_mode = 1
-show_percentage = false
-
-[node name="MeterBar" type="ProgressBar" parent="SafeArea/P2_Status/Body/Column"]
-custom_minimum_size = Vector2(0, 12)
-layout_mode = 2
-mouse_filter = 2
-value = 0.0
-fill_mode = 1
-show_percentage = false
-
-[node name="DefySeal" type="Label" parent="SafeArea/P2_Status/Body/Column"]
-custom_minimum_size = Vector2(20, 20)
+custom_minimum_size = Vector2(502, 44)
 layout_mode = 2
 size_flags_horizontal = 8
 mouse_filter = 2
-theme_override_font_sizes/font_size = 13
+theme_type_variation = "PulpBar"
+max_value = 100.0
+value = 100.0
+show_percentage = false
+fill_mode = 1
+
+[node name="DefySeal" type="Label" parent="SafeArea/P2_Status/Body/Column"]
+visible = false
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+mouse_filter = 2
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="PipRow" type="HBoxContainer" parent="SafeArea/P2_Status/Body/Column"]
+custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 18
+theme_override_constants/separation = 20
+alignment = 2
 
 [node name="Cooldowns" type="HBoxContainer" parent="SafeArea/P2_Status/Body/Column/PipRow"]
+visible = false
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 4
@@ -377,7 +410,6 @@ theme_override_constants/separation = 4
 custom_minimum_size = Vector2(20, 20)
 layout_mode = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 8
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -395,7 +427,6 @@ script = ExtResource("3_radial")
 custom_minimum_size = Vector2(20, 20)
 layout_mode = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 8
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -413,7 +444,6 @@ script = ExtResource("3_radial")
 custom_minimum_size = Vector2(20, 20)
 layout_mode = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 8
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -432,15 +462,13 @@ layout_mode = 2
 mouse_filter = 2
 
 [node name="ShieldsLabel" type="Label" parent="SafeArea/P2_Status/Body/Column/PipRow"]
+visible = false
 layout_mode = 2
 mouse_filter = 2
 text = "fighter_hud_shield"
-theme_override_colors/font_color = Color(0.45, 0.5, 0.6, 1)
-theme_override_font_sizes/font_size = 12
 
 [node name="Spacer" type="Control" parent="SafeArea/P2_Status/Body/Column/PipRow"]
 layout_mode = 2
-size_flags_horizontal = 3
 mouse_filter = 2
 
 [node name="Stocks" type="HBoxContainer" parent="SafeArea/P2_Status/Body/Column/PipRow"]
@@ -451,23 +479,69 @@ mouse_filter = 2
 visible = false
 layout_mode = 2
 mouse_filter = 2
-theme_override_colors/font_color = Color(0.95, 0.8, 0.3, 1)
-theme_override_font_sizes/font_size = 12
+theme_type_variation = "SmallLabel"
 
 [node name="StocksLabel" type="Label" parent="SafeArea/P2_Status/Body/Column/PipRow"]
+visible = false
 layout_mode = 2
 mouse_filter = 2
 text = "fighter_hud_stocks"
-theme_override_colors/font_color = Color(0.45, 0.5, 0.6, 1)
-theme_override_font_sizes/font_size = 12
+
+[node name="MeterBar" type="ProgressBar" parent="SafeArea/P2_Status/Body/Column"]
+custom_minimum_size = Vector2(390, 16)
+layout_mode = 2
+size_flags_horizontal = 8
+mouse_filter = 2
+theme_type_variation = "PulpBar"
+value = 0.0
+show_percentage = false
+fill_mode = 1
 
 [node name="Portrait" type="TextureRect" parent="SafeArea/P2_Status/Body"]
-custom_minimum_size = Vector2(96, 96)
+visible = false
+custom_minimum_size = Vector2(110, 110)
 layout_mode = 2
 size_flags_vertical = 0
 mouse_filter = 2
 expand_mode = 1
 stretch_mode = 5
+
+[node name="P1_Slots" type="HBoxContainer" parent="SafeArea"]
+layout_mode = 1
+anchors_preset = 0
+offset_left = 46.0
+offset_top = 192.0
+offset_right = 46.0
+offset_bottom = 246.0
+mouse_filter = 2
+theme_override_constants/separation = 20
+
+[node name="P2_Slots" type="HBoxContainer" parent="SafeArea"]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -46.0
+offset_top = 192.0
+offset_right = -46.0
+offset_bottom = 246.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_override_constants/separation = 20
+alignment = 2
+
+[node name="TimerPlate" type="PanelContainer" parent="SafeArea"]
+visible = false
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -120.0
+offset_top = 22.0
+offset_right = 120.0
+offset_bottom = 140.0
+grow_horizontal = 2
+mouse_filter = 2
 
 [node name="MatchClock" type="Label" parent="SafeArea"]
 visible = false
@@ -475,13 +549,29 @@ layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -160.0
-offset_top = 24.0
-offset_right = 160.0
-offset_bottom = 96.0
+offset_left = -108.0
+offset_top = 28.0
+offset_right = 108.0
+offset_bottom = 100.0
 grow_horizontal = 2
 mouse_filter = 2
-theme_override_colors/font_color = Color(0.95, 0.8, 0.3, 1)
-theme_override_font_sizes/font_size = 46
+theme_type_variation = "TimerDigits"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ModeLabel" type="Label" parent="SafeArea"]
+visible = false
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -108.0
+offset_top = 102.0
+offset_right = 108.0
+offset_bottom = 132.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_type_variation = "CaptionLabel"
+uppercase = true
 horizontal_alignment = 1
 vertical_alignment = 1

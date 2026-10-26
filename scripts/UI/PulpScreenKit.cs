@@ -4,89 +4,135 @@ using Godot;
 namespace FTT.UI {
 
     /// <summary>
-    /// UR-PAUSE. The few helpers the pause, overlay and dialogue surfaces share when they take the pulp look: the
-    /// scrim, the 560 x 64 banner buttons of the PAUSE-A list, the bottom-centre prompt bar and the "first segment of
-    /// a level title" rule the pause tag uses. Everything here composes the UR-THEME roles and the UR-WIDGETS parts; it
-    /// never sets a font size and never builds a scripted StyleBox.
+    /// UR-SCREENS. The few helpers the remaining screens share, built only from the UR-WIDGETS parts
+    /// (nothing here owns a look): a panel tag that does not change the panel's node path, the halftone
+    /// corner, a bottom-right prompt bar, banner-button decoration for a whole container, and a leading
+    /// icon for a Label whose text must stay one string (the results tests read it).
     /// </summary>
-    public static class PulpScreenKit {
+    public static partial class PulpScreenKit {
 
-        /// <summary>UI_SPEC 4.3: pause rows are 560 wide and 64 tall (the 64 px plate of <c>TemporalGlassButton</c>).</summary>
-        public const float PauseButtonWidth = 560f;
-        public const float PauseButtonHeight = 64f;
+        public const string TagAnchorName = "PanelTagAnchor";
+        public const string PromptBarName = "ScreenPromptBar";
 
-        /// <summary>The scrim's own alpha: the theme's 0.85 scrim x 0.7 reads as the mock's 0.58 dim over the world.</summary>
-        public const float ScrimAlpha = 0.7f;
+        /// <summary>The tag's offset from the panel rectangle's corner, as <c>PulpTaggedPanel</c> places it.</summary>
+        public static readonly Vector2 TagFromPanelCorner = PulpTaggedPanel.TagOffset
+            + new Vector2(PulpTaggedPanel.PaddingBoxInset, PulpTaggedPanel.PaddingBoxInset);
 
-        /// <summary>Prompt bar bottom margin (UI_SPEC 4.3: y 1012 of 1080, a 34 px glyph row).</summary>
-        public const float PromptBottomMargin = 34f;
-
-        /// <summary>A full-rect translucent scrim that swallows the mouse.</summary>
-        public static PanelContainer MakeScrim(string name = "Shade") {
-            var scrim = new PanelContainer {
-                Name = name,
-                ThemeTypeVariation = UIPalette.Variations.ScrimPanel,
-                MouseFilter = Control.MouseFilterEnum.Stop,
-                SelfModulate = new Color(1f, 1f, 1f, ScrimAlpha)
-            };
-            scrim.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-            return scrim;
-        }
-
-        /// <summary>A pause row: the banner plate at 560 x 64 with the marker, the focus pose and the prompt badge.</summary>
-        public static Button StylePauseButton(Button button, float width = PauseButtonWidth) {
-            button.ThemeTypeVariation = UIPalette.Variations.TemporalGlassButton;
-            button.CustomMinimumSize = new Vector2(width, PauseButtonHeight);
-            PadLabel(button);
-            PulpButtonDecor.Apply(button);
-            return button;
-        }
-
-        /// <summary>The spec starts the row label at x + 64, clear of the marker; the 64 px plate's own margin is 54.</summary>
-        public const float RowLabelInset = 64f;
-
-        private static readonly string[] ButtonBoxes = { "normal", "hover", "pressed", "hover_pressed", "focus", "disabled" };
-
-        private static void PadLabel(Button button) {
-            Theme theme = UIPalette.LoadTheme();
-            string variation = button.ThemeTypeVariation.ToString();
-            foreach (string box in ButtonBoxes) {
-                if (!theme.HasStylebox(box, variation) || theme.GetStylebox(box, variation).Duplicate() is not StyleBoxTexture own) continue;
-                own.ContentMarginLeft = RowLabelInset;
-                button.AddThemeStyleboxOverride(box, own);
+        /// <summary>
+        /// Draws the panel's title tag without wrapping the panel (so its node path and its parent are
+        /// untouched): a plain <see cref="Control"/> child, which a <see cref="PanelContainer"/> fits to its
+        /// content area, holds a <c>PanelTagPlate</c> positioned back out to the panel's corner. An empty
+        /// key hides the tag. Idempotent: a second call re-keys the first tag.
+        /// </summary>
+        public static Label AddTag(PanelContainer panel, string tagKey) {
+            if (panel == null) return null;
+            var anchor = panel.GetNodeOrNull<PanelTagAnchor>(TagAnchorName);
+            if (anchor == null) {
+                anchor = new PanelTagAnchor { Name = TagAnchorName };
+                panel.AddChild(anchor);
             }
+            anchor.SetKey(tagKey);
+            return anchor.TagLabel;
         }
 
-        /// <summary>Adds the "(A) SELECT  (B) &lt;caption&gt;" bar at the bottom centre of <paramref name="host"/>.</summary>
-        public static PulpPromptBar AddBottomPromptBar(Control host, string cancelCaptionKey) {
-            var bar = new PulpPromptBar { Name = "PromptBar", Alignment = BoxContainer.AlignmentMode.Center };
-            bar.AddPrompt("ui_accept", "ui_prompt_select");
-            bar.AddPrompt("ui_cancel", cancelCaptionKey);
-            bar.AnchorLeft = 0.5f;
-            bar.AnchorRight = 0.5f;
+        /// <summary>The halftone corner (behind the content) and, when a key is given, the title tag.</summary>
+        public static void DressPanel(PanelContainer panel, string tagKey = null, bool halftone = true,
+            bool buttonInset = false) {
+            if (panel == null) return;
+            if (buttonInset) InsetRight(panel);
+            if (halftone && panel.GetNodeOrNull<HalftoneCorner>("HalftoneCorner") == null) HalftoneCorner.Attach(panel);
+            if (!string.IsNullOrEmpty(tagKey)) AddTag(panel, tagKey);
+        }
+
+        /// <summary>The right content margin that keeps a focused banner button's pose (+16 px, tilt) inside the plate.</summary>
+        public const float ButtonStackRightInset = 40f;
+
+        /// <summary>Gives a panel its own copy of its plate with at least <see cref="ButtonStackRightInset"/> on the right.</summary>
+        public static void InsetRight(PanelContainer panel) {
+            if (panel.GetThemeStylebox("panel") is not StyleBox plate) return;
+            if (plate.GetContentMargin(Side.Right) >= ButtonStackRightInset) return;
+            var copy = (StyleBox)plate.Duplicate();
+            copy.ContentMarginRight = ButtonStackRightInset;
+            panel.AddThemeStyleboxOverride("panel", copy);
+        }
+
+        /// <summary>
+        /// A <see cref="PulpPromptBar"/> pinned bottom-right of <paramref name="host"/> (UI_SPEC 3.7: 70 px
+        /// from the right edge, 40 px from the bottom). Returns it.
+        /// </summary>
+        public static PulpPromptBar AddPromptBar(Control host, params (string Action, string CaptionKey)[] prompts) {
+            if (host == null) return null;
+            var bar = new PulpPromptBar { Name = PromptBarName };
+            foreach ((string action, string caption) in prompts) bar.AddPrompt(action, caption);
+            host.AddChild(bar);
+            bar.AnchorLeft = 1f;
+            bar.AnchorRight = 1f;
             bar.AnchorTop = 1f;
             bar.AnchorBottom = 1f;
-            bar.GrowHorizontal = Control.GrowDirection.Both;
+            bar.GrowHorizontal = Control.GrowDirection.Begin;
             bar.GrowVertical = Control.GrowDirection.Begin;
-            bar.OffsetBottom = -PromptBottomMargin;
-            host.AddChild(bar);
+            bar.OffsetRight = -70f;
+            bar.OffsetBottom = -40f;
             return bar;
         }
 
-        /// <summary>"Pompeii 79 AD" from "Pompeii 79 AD — Eruption of Vesuvius": the text before the first dash, trimmed.</summary>
-        public static string ShortTitle(string title) {
-            if (string.IsNullOrWhiteSpace(title)) return "";
-            int cut = title.IndexOf(" — ", System.StringComparison.Ordinal);
-            return (cut > 0 ? title.Substring(0, cut) : title).Trim();
+        /// <summary>
+        /// Keeps a long, wrapping button label clear of the focused row's prompt badge: every plate the
+        /// button draws gets its own copy with the right content margin raised by <paramref name="pixels"/>.
+        /// </summary>
+        public static void ReserveBadgeSpace(Button button, float pixels = 84f) {
+            foreach (string state in new[] { "normal", "hover", "pressed", "focus", "disabled" }) {
+                if (button.GetThemeStylebox(state) is not StyleBox plate) continue;
+                var copy = (StyleBox)plate.Duplicate();
+                copy.ContentMarginRight = Mathf.Max(0f, plate.GetContentMargin(Side.Right)) + pixels;
+                button.AddThemeStyleboxOverride(state, copy);
+            }
         }
 
-        /// <summary>"2:05" or "1:02:05": a level clock.</summary>
-        public static string FormatClock(float seconds) {
-            int total = Mathf.Max(0, Mathf.FloorToInt(seconds));
-            int hours = total / 3600;
-            int minutes = total % 3600 / 60;
-            int secs = total % 60;
-            return hours > 0 ? $"{hours}:{minutes:00}:{secs:00}" : $"{minutes}:{secs:00}";
+        /// <summary>Gives every <see cref="Button"/> under <paramref name="root"/> the banner-button decor.</summary>
+        public static void DecorateButtons(Node root, bool compact = false) {
+            if (root == null) return;
+            for (int index = 0; index < root.GetChildCount(); index++) {
+                Node child = root.GetChild(index);
+                if (child is Button button && button.GetNodeOrNull<PulpButtonDecor>("PulpButtonDecor") == null
+                    && !HasDecor(button)) {
+                    PulpButtonDecor.Apply(button, compact);
+                }
+                DecorateButtons(child, compact);
+            }
+        }
+
+        private static bool HasDecor(Button button) {
+            for (int index = 0; index < button.GetChildCount(); index++) {
+                if (button.GetChild(index) is PulpButtonDecor) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Puts a kit icon at the left of a Label while the Label's <c>Text</c> stays one string: the left
+        /// content margin makes room and the icon is a child centred on the line. Idempotent per label.
+        /// </summary>
+        public static PulpIcon AddLeadingIcon(Label label, string iconName, Color tint, float size = 28f) {
+            if (label == null) return null;
+            if (label.GetNodeOrNull<PulpIcon>("LeadingIcon") is { } existing) {
+                existing.IconName = iconName;
+                existing.Tint = tint;
+                return existing;
+            }
+            float gap = 10f;
+            var box = new StyleBoxEmpty { ContentMarginLeft = size + gap };
+            label.AddThemeStyleboxOverride("normal", box);
+            PulpIcon icon = PulpIcon.Create(iconName, tint, size);
+            icon.Name = "LeadingIcon";
+            label.AddChild(icon);
+            icon.AnchorTop = 0.5f;
+            icon.AnchorBottom = 0.5f;
+            icon.OffsetLeft = 0f;
+            icon.OffsetRight = size;
+            icon.OffsetTop = -size / 2f;
+            icon.OffsetBottom = size / 2f;
+            return icon;
         }
     }
 }

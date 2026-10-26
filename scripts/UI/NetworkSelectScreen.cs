@@ -1,5 +1,6 @@
 using FTT.Core;
 using FTT.Networking;
+using FTT.UI.Pulp;
 using Godot;
 
 namespace FTT.UI {
@@ -26,17 +27,26 @@ namespace FTT.UI {
                 CustomMinimumSize = new Vector2(420f, 0f)
             };
             layout.AddThemeConstantOverride("separation", 12);
+            // UR-SCREENS (light pass, de-scoped screen): backdrop and an ink panel around the stack.
+            var backdrop = new ColorRect { Name = "Background", Color = UIPalette.Backdrop, MouseFilter = MouseFilterEnum.Ignore };
+            backdrop.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+            AddChild(backdrop);
             var center = new CenterContainer { Name = "Center", MouseFilter = MouseFilterEnum.Ignore };
             center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
             AddChild(center);
-            center.AddChild(layout);
-            MenuSafeAreaFit.Attach(layout);
+            var panel = new PanelContainer { Name = "Panel", ThemeTypeVariation = UIPalette.Variations.InkPanel };
+            center.AddChild(panel);
+            panel.AddChild(layout);
+            MenuSafeAreaFit.Attach(panel);
             UIPalette.ApplyTheme(this);
+            PulpScreenKit.DressPanel(panel, buttonInset: true);
 
             layout.AddChild(new Label {
                 Name = "Title",
                 Text = Tr("network_select_title"),
-                HorizontalAlignment = HorizontalAlignment.Center
+                HorizontalAlignment = HorizontalAlignment.Center,
+                ThemeTypeVariation = UIPalette.TitleLabelVariation,
+                Uppercase = true
             });
             layout.AddChild(new Label {
                 Name = "Notice",
@@ -75,10 +85,11 @@ namespace FTT.UI {
             var button = new Button {
                 Name = name,
                 Text = textKey,
-                CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, UIPalette.ButtonMinHeight),
-                ThemeTypeVariation = "TemporalGlassButton"
+                CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, 58f),
+                ThemeTypeVariation = UIPalette.Variations.PulpButtonCompact
             };
             button.Pressed += () => handler();
+            PulpButtonDecor.Apply(button, compact: true);
             return button;
         }
 
