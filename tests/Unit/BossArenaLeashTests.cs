@@ -15,7 +15,7 @@ namespace FTT.Tests.Unit;
 /// <summary>
 /// A default-priority node that relocates a body every physics tick — the
 /// stand-in for anything that moves the Mirror clone during its own step (its
-/// MoveAndSlide, an Echo Step, a warp). Used by
+/// MoveAndSlide, a warp). Used by
 /// <see cref="BossArenaLeashTests"/>; not a suite.
 /// </summary>
 public partial class MirrorLeashShoveProbe : Node {
@@ -501,7 +501,7 @@ public class BossArenaLeashTests {
     /// <summary>
     /// A2 — the clamp runs after the clone moves. The controller used to tick
     /// first (a parent before its child at the same priority), so whatever moved
-    /// the clone during its own step — MoveAndSlide, an Echo Step, a warp —
+    /// the clone during its own step — MoveAndSlide, a warp —
     /// left it outside the arena until the next frame, rendered and hit-tested
     /// there. Stepped through real physics frames: a default-priority node
     /// shoves the clone 300 px west of the arena every tick, and at the end of

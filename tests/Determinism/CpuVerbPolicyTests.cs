@@ -10,24 +10,22 @@ namespace FTT.Tests.Determinism;
 /// <summary>
 /// Package 11 A9b — the F19 CPU verb policy from
 /// <c>docs/design-contracts/CPU_COMBAT_POLICY.md</c>: Easy uses neither grab nor
-/// Echo Step, Medium introduces occasional use at a provisional 25% admission
-/// rolled once per opportunity, and Hard scores both tactically including the
-/// 30-meter Echo Step spend against Ultimate setup and an unused, eligible Defy.
+/// grab, Medium introduces occasional use at a provisional 25% admission
+/// rolled once per opportunity, and Hard scores it tactically. (Echo Step, the
+/// second F19 verb, was removed on 2026-10-25.)
 /// </summary>
 /// <remarks>
 /// <para>
 /// Pure C#: the decision table reads a <see cref="CpuDecisionObservation"/>, so
-/// every scenario is a hand-built observation. Both verbs reach the simulation as
-/// the <b>shared chords</b> a human presses — BasicAttack pressed while Block is
-/// held for the grab, Block plus a Roll edge during the swing's recovery frames
-/// for Echo Step — because the contract says to "generate ordinary player inputs
+/// every scenario is a hand-built observation. The grab reaches the simulation
+/// as the <b>shared chord</b> a human presses — BasicAttack pressed while Block
+/// is held — because the contract says to "generate ordinary player inputs
 /// through the shared action resolver… never call an ability directly".
 /// </para>
 /// <para>
-/// <b>Wire bits.</b> Package 11 A1c adds dedicated <c>gameplay_grab</c> and
-/// <c>gameplay_echo_step</c> actions with their own protocol-v3 bits. The CPU
-/// emits the logical verb, so when those land the chord constants below are the
-/// only thing that has to move.
+/// <b>Wire bits.</b> Package 11 A1c added a dedicated <c>gameplay_grab</c>
+/// action with its own protocol bit. The CPU emits the chord, so the chord
+/// constants below are the only thing that would have to move.
 /// </para>
 /// </remarks>
 [TestSuite]
@@ -35,16 +33,11 @@ public class CpuVerbPolicyTests {
     private const int Ticks = 900;
 
     [TestCase]
-    public void EasyEmitsNeitherGrabNorEchoStep() {
-        // CPU_COMBAT_POLICY.md: "Easy | Disabled. | Disabled."
+    public void EasyEmitsNoGrab() {
+        // CPU_COMBAT_POLICY.md: "Easy | Disabled."
         var grabber = new FighterCpuController(CpuDifficulty.Easy, 4242);
         AssertThat(CountGrabChords(grabber, GrabOpportunity(), Ticks))
             .OverrideFailureMessage("Easy must never attempt a grab.")
-            .IsEqual(0);
-
-        var stepper = new FighterCpuController(CpuDifficulty.Easy, 4242);
-        AssertThat(CountEchoStepChords(stepper, WhiffRecovery(), Ticks))
-            .OverrideFailureMessage("Easy must never attempt an Echo Step.")
             .IsEqual(0);
     }
 
@@ -58,7 +51,7 @@ public class CpuVerbPolicyTests {
         // A 0% band proves the failed roll never reopens: the conditions hold for
         // 900 straight ticks and not one chord escapes.
         var never = new FighterCpuController(
-            CpuDifficulty.Normal, 77, null, null, VerbTuning(grab: 0, echoStep: 0));
+            CpuDifficulty.Normal, 77, null, null, VerbTuning(grab: 0));
         AssertThat(CountGrabChords(never, opportunity, Ticks)).IsEqual(0);
         AssertThat(never.GrabOpportunityID)
             .OverrideFailureMessage("A continuing opportunity must stay ONE opportunity.")
@@ -67,7 +60,7 @@ public class CpuVerbPolicyTests {
         // A 100% band grabs, but the opportunity identity still advances only
         // when the conditions actually lapse and re-form.
         var always = new FighterCpuController(
-            CpuDifficulty.Normal, 77, null, null, VerbTuning(grab: 100, echoStep: 0));
+            CpuDifficulty.Normal, 77, null, null, VerbTuning(grab: 100));
         AssertThat(CountGrabChords(always, opportunity, 60) > 0).IsTrue();
         int afterFirst = always.GrabOpportunityID;
         CpuDecisionObservation lapsed = opportunity;
@@ -84,140 +77,10 @@ public class CpuVerbPolicyTests {
     }
 
     [TestCase]
-    public void HardWeighsTheThirtyMeterSpendAgainstUltimateSetupAndAnUnusedDefy() {
-        // "Hard values a viable Ultimate setup and retaining full meter for an
-        // unused, eligible Defy… This is a utility tradeoff, not a mandatory
-        // meter floor: Hard may spend to avoid a credible punish."
-        CpuDecisionObservation reserved = WhiffRecovery();
-        reserved.InfluenceRaw = FP64.FromInt(100).RawValue;
-        reserved.SelfDefyAvailable = 1;
-        // Nothing threatening: the opponent is far away and pressing nothing, so
-        // there is no punish worth 30 meter.
-        reserved.TargetPositionXRaw = FP64.FromInt(7).RawValue;
-        reserved.TargetPressedButtons = 0;
-        // Admission is forced so the assertions read the GATE, not the dice —
-        // Hard's scored 75% would otherwise make a once-per-execution roll the
-        // subject of the test instead of the meter tradeoff.
-        CpuBandTuning hard = CpuBandTuning.Hard with { EchoStepAdmissionPercent = 100 };
-        var holding = new FighterCpuController(CpuDifficulty.Hard, 1234, null, null, hard);
-        AssertThat(CountEchoStepChords(holding, reserved, Ticks))
-            .OverrideFailureMessage("Hard must keep full meter behind an unused, eligible Defy.")
-            .IsEqual(0);
-
-        // A spent Defy has no reserve value, so the same meter is available.
-        CpuDecisionObservation spentDefy = reserved;
-        spentDefy.SelfDefyAvailable = 0;
-        var spending = new FighterCpuController(CpuDifficulty.Hard, 1234, null, null, hard);
-        AssertThat(CountEchoStepChords(spending, spentDefy, Ticks) > 0)
-            .OverrideFailureMessage("A spent Defy carries no reserve value.")
-            .IsTrue();
-
-        // A credible punish buys the escape even with the Defy still in hand.
-        CpuDecisionObservation punished = reserved;
-        punished.TargetPositionXRaw = FP64.One.RawValue;
-        punished.TargetPressedButtons = (int)GameplayButtons.BasicAttack;
-        var escaping = new FighterCpuController(CpuDifficulty.Hard, 1234, null, null, hard);
-        AssertThat(CountEchoStepChords(escaping, punished, Ticks) > 0)
-            .OverrideFailureMessage("Hard may spend to avoid a credible punish.")
-            .IsTrue();
-    }
-
-    /// <summary>
-    /// CM-FIXB-CPU (finding B3; <c>CPU_COMBAT_POLICY.md</c>: "spent or
-    /// mode-disabled Defy has no reserve value", and its check of "disabled
-    /// Defy valuation"). F22's Sudden Death bars Defy without spending it, and
-    /// the CPU's observation read only the spent flag, so a Hard CPU that never
-    /// used its Defy kept declining Echo Step to save a full meter for a Defy
-    /// that could never fire. The observation now reads the shared rule through
-    /// the real world observer: a real match tied at its one-second buzzer
-    /// enters Sudden Death, and the same Hard whiff that holds its meter in
-    /// regulation Echo Steps there, exactly as with a spent Defy.
-    /// </summary>
-    [TestCase]
-    public void HardHoldsNoMeterForADefyThatSuddenDeathBars() {
-        var simulation = new FighterSimulation(matchSeconds: 1, rules: new FighterMatchRules(
-            (int)MatchMode.Stock, false, 0, false, 0));
-        var observer = new FighterSimulationWorldObserver(simulation);
-        CpuDecisionObservation regulation = ObservedWhiff(simulation, observer);
-        AssertThat(regulation.HasVerbState)
-            .OverrideFailureMessage("Harness: the world observer must fill the verb block.")
-            .IsEqual(1);
-        AssertThat(regulation.SelfDefyAvailable)
-            .OverrideFailureMessage("An unspent Defy in regulation is available.")
-            .IsEqual(1);
-
-        for (int tick = 0; tick < 60; tick++) {
-            var neutral = new PlayerInputFrame { Tick = (uint)tick };
-            simulation.Advance(neutral, neutral);
-        }
-        AssertThat(simulation.GetMatchState().SuddenDeathActive)
-            .OverrideFailureMessage("Harness: the tied one-second match must enter Sudden Death.")
-            .IsEqual(1);
-        AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent verb)).IsTrue();
-        AssertThat(verb.DefyHistoryUsed).OverrideFailureMessage("Harness: Sudden Death must not spend Defy.").IsEqual(0);
-        CpuDecisionObservation suddenDeath = ObservedWhiff(simulation, observer);
-        AssertThat(suddenDeath.SelfDefyAvailable)
-            .OverrideFailureMessage("A Defy Sudden Death bars has no reserve value, but the observation read it as available.")
-            .IsEqual(0);
-
-        CpuBandTuning hard = CpuBandTuning.Hard with { EchoStepAdmissionPercent = 100 };
-        AssertThat(CountEchoStepChords(new FighterCpuController(CpuDifficulty.Hard, 1234, null, null, hard), regulation, Ticks))
-            .OverrideFailureMessage("Control: in regulation Hard keeps its full meter behind the unspent Defy.")
-            .IsEqual(0);
-        AssertThat(CountEchoStepChords(new FighterCpuController(CpuDifficulty.Hard, 1234, null, null, hard), suddenDeath, Ticks) > 0)
-            .OverrideFailureMessage("In Sudden Death the barred Defy must not stop Hard spending the meter on an Echo Step.")
-            .IsTrue();
-    }
-
-    /// <summary>
-    /// Player one's observation built by the real world observer (the verb
-    /// block, Defy included), with its meter seeded full and the swing state of
-    /// <see cref="WhiffRecovery"/> written over it — a far, idle opponent, so
-    /// there is no punish worth the 30 meter.
-    /// </summary>
-    private static CpuDecisionObservation ObservedWhiff(
-        FighterSimulation simulation, FighterSimulationWorldObserver observer) {
-        AssertThat(simulation.SeedFighterInfluenceForTest(0, 100)).IsTrue();
-        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent self)).IsTrue();
-        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent selfRuntime)).IsTrue();
-        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
-        AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent targetRuntime)).IsTrue();
-        CpuDecisionObservation observation = FighterCpuController.Observe(
-            in self, in selfRuntime, in target, in targetRuntime, null, observer);
-        CpuDecisionObservation whiff = WhiffRecovery();
-        observation.SuppressGameplayInput = 0;
-        observation.IsGrounded = 1;
-        observation.SelfPositionXRaw = whiff.SelfPositionXRaw;
-        observation.SelfFacingRight = 1;
-        observation.TargetPositionXRaw = FP64.FromInt(7).RawValue;
-        observation.TargetPressedButtons = 0;
-        observation.SelfAttackPhase = whiff.SelfAttackPhase;
-        observation.SelfAttackMadeContact = 0;
-        observation.SelfEchoStepCooldownFrames = 0;
-        observation.SelfEchoStepWindupFrames = 0;
-        observation.SelfSpecialCastPhase = CpuCastPhase.None;
-        observation.HasEchoStepDestination = 1;
-        observation.EchoStepDestinationXRaw = whiff.EchoStepDestinationXRaw;
-        observation.EchoStepDestinationYRaw = whiff.EchoStepDestinationYRaw;
-        observation.HasStageBounds = whiff.HasStageBounds;
-        observation.LeftWallRaw = whiff.LeftWallRaw;
-        observation.RightWallRaw = whiff.RightWallRaw;
-        observation.CeilingRaw = whiff.CeilingRaw;
-        observation.BottomBlastZoneRaw = whiff.BottomBlastZoneRaw;
-        observation.HasHazard = 0;
-        observation.HasOrb = 0;
-        observation.HasHostileProjectile = 0;
-        AssertThat(observation.InfluenceRaw)
-            .OverrideFailureMessage("Harness: the seeded meter must be full.")
-            .IsEqual(FP64.FromInt(100).RawValue);
-        return observation;
-    }
-
-    [TestCase]
     public void TheGrabNeverTargetsAVictimTheSharedRulesWouldWhiffOn() {
         // "Do not intentionally target victims known to be airborne, rolling,
         // invulnerable, in hitstun, daze or shieldstun."
-        var always = VerbTuning(grab: 100, echoStep: 0);
+        var always = VerbTuning(grab: 100);
         CpuDecisionObservation baseline = GrabOpportunity();
         AssertThat(CountGrabChords(NewNormal(always), baseline, 120) > 0)
             .OverrideFailureMessage("The control case must actually grab.")
@@ -243,111 +106,12 @@ public class CpuVerbPolicyTests {
     }
 
     [TestCase]
-    public void TheEchoStepGateHonoursMeterCooldownWindUpAndDestinationValidity() {
-        var always = VerbTuning(grab: 0, echoStep: 100);
-        CpuDecisionObservation baseline = WhiffRecovery();
-        AssertThat(CountEchoStepChords(NewNormal(always), baseline, 120) > 0)
-            .OverrideFailureMessage("The control case must actually Echo Step.")
-            .IsTrue();
-
-        // 29 meter is below the canonical 30-point cost; 30 exactly is enough.
-        CpuDecisionObservation justShort = baseline;
-        justShort.InfluenceRaw = FP64.FromInt(BasicComboRules.EchoStepMeterCost - 1).RawValue;
-        AssertThat(CountEchoStepChords(NewNormal(always), justShort, Ticks)).IsEqual(0);
-        CpuDecisionObservation exactlyEnough = baseline;
-        exactlyEnough.InfluenceRaw = FP64.FromInt(BasicComboRules.EchoStepMeterCost).RawValue;
-        AssertThat(CountEchoStepChords(NewNormal(always), exactlyEnough, Ticks) > 0).IsTrue();
-
-        AssertEchoStepRefused(always, baseline, "cooldown running",
-            o => o.Value.SelfEchoStepCooldownFrames = BasicComboRules.EchoStepCooldownFrames);
-        AssertEchoStepRefused(always, baseline, "wind-up already armed", o => o.Value.SelfEchoStepWindupFrames = 8);
-        AssertEchoStepRefused(always, baseline, "not in attack recovery",
-            o => o.Value.SelfAttackPhase = FighterBasicAttackRules.PhaseNone);
-        AssertEchoStepRefused(always, baseline, "the swing connected", o => o.Value.SelfAttackMadeContact = 1);
-        AssertEchoStepRefused(always, baseline, "no resolvable destination",
-            o => o.Value.HasEchoStepDestination = 0);
-        AssertEchoStepRefused(always, baseline, "destination past the blast zone",
-            o => o.Value.EchoStepDestinationYRaw = FP64.FromInt(-6).RawValue);
-        AssertEchoStepRefused(always, baseline, "destination outside the walls",
-            o => o.Value.EchoStepDestinationXRaw = FP64.FromInt(12).RawValue);
-        // "including pit risk; a teleport toward a worse or unsupported location
-        // is not a defensive improvement."
-        AssertEchoStepRefused(always, baseline, "destination over a pit", o => {
-            o.Value.HasFloorSegments = 1;
-            o.Value.HasFloorSupportUnderSelf = 0;
-            o.Value.HasFloorEdgeLeft = 1;
-            o.Value.NearestFloorEdgeLeftXRaw = FP64.FromDouble(-2.5).RawValue;
-            o.Value.HasFloorEdgeRight = 1;
-            o.Value.NearestFloorEdgeRightXRaw = FP64.FromDouble(2.5).RawValue;
-            o.Value.EchoStepDestinationXRaw = FP64.Zero.RawValue;
-        });
-        // A Story-shaped observation has no verb layer at all.
-        AssertEchoStepRefused(always, baseline, "a Story observation", o => o.Value.HasVerbState = 0);
-    }
-
-    [TestCase]
-    public void MediumsImmediateUltimatePolicyTakesPriorityOverEchoStep() {
-        // "Medium retains its existing immediate-Ultimate policy at the first
-        // legal opportunity when meter is full. If both actions are legal in one
-        // decision, that policy takes priority."
-        CpuDecisionObservation both = WhiffRecovery();
-        both.InfluenceRaw = FP64.FromInt(100).RawValue;
-        both.TargetPositionXRaw = FP64.One.RawValue;
-
-        // Medium's own Ultimate policy, restored on top of the verb seam: 100%
-        // at the first legal opportunity, no setup requirement.
-        CpuBandTuning tuning = VerbTuning(grab: 0, echoStep: 100) with {
-            UltimatePercent = 100,
-            RequiresUltimateSetup = false
-        };
-        var cpu = new FighterCpuController(CpuDifficulty.Normal, 31337, null, null, tuning);
-        PlayerInputFrame previous = default;
-        int ultimateEdges = 0;
-        int echoChords = 0;
-        for (uint tick = 0; tick < Ticks; tick++) {
-            PlayerInputFrame frame = cpu.Sample(tick, in both, in previous);
-            previous = frame;
-            if (frame.IsPressed(GameplayButtons.Ultimate)) ultimateEdges++;
-            if (IsEchoStepChord(frame)) echoChords++;
-        }
-        AssertThat(echoChords)
-            .OverrideFailureMessage("Medium must not Echo Step while a legal Ultimate is available.")
-            .IsEqual(0);
-        AssertThat(ultimateEdges > 0)
-            .OverrideFailureMessage("Medium must still fire the Ultimate at its first legal opportunity.")
-            .IsTrue();
-        AssertThat(CpuBandTuning.Normal.UltimateBeatsEchoStep).IsTrue();
-
-        // The whiffed swing's own ability lockout (2026-10-08) refuses the
-        // Ultimate press for now, but the meter is still kept for it: a lockout
-        // that ends within frames does not make the Ultimate worth giving up.
-        CpuDecisionObservation locked = both;
-        locked.AbilityLockoutFrames = BasicComboRules.AbilityLockoutFrames - 5;
-        var waiting = new FighterCpuController(CpuDifficulty.Normal, 31337, null, null, tuning);
-        previous = default;
-        ultimateEdges = 0;
-        echoChords = 0;
-        for (uint tick = 0; tick < Ticks; tick++) {
-            PlayerInputFrame frame = waiting.Sample(tick, in locked, in previous);
-            previous = frame;
-            if (frame.IsPressed(GameplayButtons.Ultimate)) ultimateEdges++;
-            if (IsEchoStepChord(frame)) echoChords++;
-        }
-        AssertThat(echoChords)
-            .OverrideFailureMessage("Medium must not spend the Ultimate's meter on Echo Step inside the lockout.")
-            .IsEqual(0);
-        AssertThat(ultimateEdges)
-            .OverrideFailureMessage("The lockout still refuses the Ultimate press.")
-            .IsEqual(0);
-    }
-
-    [TestCase]
     public void TheExclusiveHitstunBlockHoldSurvivesTheNewVerbs() {
         // V7.4's hold is EXCLUSIVE precisely so a scheduled attack edge cannot
         // read as the grab chord and drop the shield. Adding CPU grabs must not
         // regress that: with a 100% defense roll and a 100% grab rate, every
         // hitstun frame holds Block and nothing else.
-        CpuBandTuning tuning = VerbTuning(grab: 100, echoStep: 100) with {
+        CpuBandTuning tuning = VerbTuning(grab: 100) with {
             HitstunDefensePercent = 100,
             DiPercent = 100
         };
@@ -366,7 +130,7 @@ public class CpuVerbPolicyTests {
                 .OverrideFailureMessage("A grab chord must never form out of the hitstun escape stance.")
                 .IsFalse();
             AssertThat(frame.IsHeld(GameplayButtons.Roll))
-                .OverrideFailureMessage("An Echo Step chord must never form out of the hitstun escape stance.")
+                .OverrideFailureMessage("A Roll must never form out of the hitstun escape stance.")
                 .IsFalse();
         }
     }
@@ -377,15 +141,14 @@ public class CpuVerbPolicyTests {
         new(CpuDifficulty.Normal, 555, null, null, tuning);
 
     /// <summary>
-    /// Medium's band with the two verb admissions forced, so the gates rather
-    /// than the dice are what the assertions read.
+    /// Medium's band with the grab admission forced, so the gates rather than
+    /// the dice are what the assertions read.
     /// </summary>
-    private static CpuBandTuning VerbTuning(int grab, int echoStep) =>
+    private static CpuBandTuning VerbTuning(int grab) =>
         CpuBandTuning.Normal with {
             GrabAdmissionPercent = grab,
-            EchoStepAdmissionPercent = echoStep,
             // Keep the Ultimate out of the way: these scenarios are about the
-            // verbs, and Medium's Ultimate policy has its own case above.
+            // grab.
             UltimatePercent = 0
         };
 
@@ -403,20 +166,6 @@ public class CpuVerbPolicyTests {
             .IsEqual(0);
     }
 
-    private static void AssertEchoStepRefused(
-        CpuBandTuning tuning,
-        CpuDecisionObservation baseline,
-        string label,
-        System.Action<Mutator> mutate) {
-        CpuDecisionObservation observation = baseline;
-        var mutator = new Mutator(observation);
-        mutate(mutator);
-        observation = mutator.Value;
-        AssertThat(CountEchoStepChords(NewNormal(tuning), observation, Ticks))
-            .OverrideFailureMessage($"The CPU Echo Stepped with {label}.")
-            .IsEqual(0);
-    }
-
     /// <summary>Boxes the observation so the scenario mutators can be lambdas.</summary>
     private sealed class Mutator {
         public Mutator(CpuDecisionObservation value) => Value = value;
@@ -426,9 +175,6 @@ public class CpuVerbPolicyTests {
     private static bool IsGrabChord(in PlayerInputFrame frame) =>
         frame.IsPressed(GameplayButtons.BasicAttack) && frame.IsHeld(GameplayButtons.Block);
 
-    private static bool IsEchoStepChord(in PlayerInputFrame frame) =>
-        frame.IsHeld(GameplayButtons.Block) && frame.IsHeld(GameplayButtons.Roll);
-
     private static int CountGrabChords(
         FighterCpuController cpu, CpuDecisionObservation observation, int ticks) {
         PlayerInputFrame previous = default;
@@ -437,18 +183,6 @@ public class CpuVerbPolicyTests {
             PlayerInputFrame frame = cpu.Sample(tick, in observation, in previous);
             previous = frame;
             if (IsGrabChord(in frame)) chords++;
-        }
-        return chords;
-    }
-
-    private static int CountEchoStepChords(
-        FighterCpuController cpu, CpuDecisionObservation observation, int ticks) {
-        PlayerInputFrame previous = default;
-        int chords = 0;
-        for (uint tick = 0; tick < ticks; tick++) {
-            PlayerInputFrame frame = cpu.Sample(tick, in observation, in previous);
-            previous = frame;
-            if (IsEchoStepChord(in frame)) chords++;
         }
         return chords;
     }
@@ -486,23 +220,4 @@ public class CpuVerbPolicyTests {
         CeilingRaw = FP64.FromInt(9).RawValue,
         BottomBlastZoneRaw = FP64.FromInt(-5).RawValue
     };
-
-    /// <summary>
-    /// The CPU in the recovery frames of its own whiffed swing, with the meter,
-    /// cooldown and destination Echo Step needs.
-    /// </summary>
-    private static CpuDecisionObservation WhiffRecovery() {
-        CpuDecisionObservation observation = GrabOpportunity();
-        observation.TargetBlockStance = 0;
-        observation.TargetPositionXRaw = FP64.FromInt(3).RawValue;
-        observation.SelfAttackPhase = FighterBasicAttackRules.PhaseRecovery;
-        observation.SelfAttackMadeContact = 0;
-        observation.SelfEchoStepCooldownFrames = 0;
-        observation.SelfEchoStepWindupFrames = 0;
-        observation.InfluenceRaw = FP64.FromInt(60).RawValue;
-        observation.HasEchoStepDestination = 1;
-        observation.EchoStepDestinationXRaw = FP64.FromInt(-2).RawValue;
-        observation.EchoStepDestinationYRaw = FP64.Zero.RawValue;
-        return observation;
-    }
 }

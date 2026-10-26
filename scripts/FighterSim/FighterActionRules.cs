@@ -26,8 +26,7 @@ namespace FTT.FighterSim {
         AirDodge = 8,
         /// <summary>The movement ability is accepted (its cooldown is armed).</summary>
         MovementAbility = 9,
-        /// <summary>Echo Step is accepted (meter, cooldown and the wind-up armed).</summary>
-        EchoStep = 10,
+        // Ordinal 10 was EchoStep: retired 2026-10-25 (Echo Step removed). Never reuse or reorder.
         /// <summary>A ledge hang latches.</summary>
         LedgeGrab = 11,
         /// <summary>A ledge get-up starts (no site in Phase A; CM-MOVE adds the get-ups).</summary>
@@ -54,8 +53,7 @@ namespace FTT.FighterSim {
     /// start (<c>FighterCombatSystem.AdvanceGrabs</c>), the ground jump and the
     /// air jump (<c>FighterMovementSystem.ApplyNormalMovement</c>), the roll and
     /// the air dodge (<c>FighterMovementSystem.TryStartUniversalMovement</c>),
-    /// the Echo Step start (<c>FighterMovementSystem.TryStartEchoStep</c>), the
-    /// movement ability (<c>FighterAbilityEntitySystem.Update</c>, after
+    /// the movement ability (<c>FighterAbilityEntitySystem.Update</c>, after
     /// <c>ApplyMovement</c>) and the ledge grab
     /// (<c>FighterMovementSystem.TryGrabLedge</c>). Pure rule helpers the
     /// suites drive directly (<c>FighterAirDodgeRules.TryStart</c>,

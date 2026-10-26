@@ -348,8 +348,7 @@ public class CpuMeleeBandTests {
         SpecialTwoPercent = 0,
         MovementAbilityPercent = 0,
         ApproachJumpPercent = 0,
-        GrabAdmissionPercent = 0,
-        EchoStepAdmissionPercent = 0
+        GrabAdmissionPercent = 0
     };
 
     private static int ReachOf(FighterCharacterID id) =>

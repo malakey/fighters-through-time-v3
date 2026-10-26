@@ -20,7 +20,7 @@ public class SystemsCardContentTests {
 
     /// <summary>The eight designed sections, title + body key per section.</summary>
     private static readonly string[] SectionStems = {
-        "block", "triangle", "di", "tech", "rally", "defy", "echo", "overtime"
+        "block", "triangle", "di", "tech", "rally", "defy", "momentum", "overtime"
     };
 
     [TestCase]

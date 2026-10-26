@@ -919,7 +919,6 @@ public class FighterMatchFlowTests {
                 .IsEqual(1);
             // Meter 0, every cooldown ready, block refilled.
             AssertThat(fighter.Influence.RawValue).IsEqual(0);
-            AssertThat(verb.EchoStepCooldownFrames).IsEqual(0);
             AssertThat(fighter.BlockCharges > 0).IsTrue();
         }
         // The regulation totals are frozen for the results screen: both fighters
@@ -1356,9 +1355,6 @@ public class FighterMatchFlowTests {
             AssertThat(runtime.MovementCooldownFrames).IsEqual(0);
             AssertThat(runtime.AbilityLockoutFrames)
                 .OverrideFailureMessage("The ability lockout must be cleared with the cooldowns.")
-                .IsEqual(0);
-            AssertThat(verb.EchoStepCooldownFrames)
-                .OverrideFailureMessage("Echo Step's cooldown must be ready.")
                 .IsEqual(0);
             AssertThat(runtime.StatusType).IsEqual((int)StatusType.None);
             AssertThat(runtime.DamageStatusType).IsEqual((int)StatusType.None);

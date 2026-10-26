@@ -4,16 +4,15 @@ using FTT.Core;
 namespace FTT.UI {
 
     /// <summary>
-    /// The four ability slots the Fighter HUD shows a cooldown for. M25
-    /// (Package 12 W5, HUD_CONTRACT): Special 1, Special 2, Movement and
-    /// <b>Echo Step</b> — the Ultimate plate is gone (the meter bar already shows
-    /// the Ultimate's readiness), and Echo Step took its ordinal.
+    /// The three ability slots the Fighter HUD shows a cooldown for: Special 1,
+    /// Special 2 and Movement. The Ultimate plate is gone (the meter bar already
+    /// shows the Ultimate's readiness) and the Echo Step slot (ordinal 3, M25)
+    /// was removed on 2026-10-25 with Echo Step.
     /// </summary>
     public enum FighterCooldownSlot {
         SpecialOne = 0,
         SpecialTwo = 1,
-        Movement = 2,
-        EchoStep = 3
+        Movement = 2
     }
 
     /// <summary>
@@ -162,17 +161,8 @@ namespace FTT.UI {
         public static string CooldownGlyphKey(FighterCooldownSlot slot) => slot switch {
             FighterCooldownSlot.SpecialOne => "fighter_hud_cooldown_special1",
             FighterCooldownSlot.SpecialTwo => "fighter_hud_cooldown_special2",
-            FighterCooldownSlot.Movement => "fighter_hud_cooldown_movement",
-            _ => "fighter_hud_cooldown_echo_step"
+            _ => "fighter_hud_cooldown_movement"
         };
-
-        /// <summary>
-        /// M25: Echo Step is usable only off cooldown <b>and</b> with its meter
-        /// cost banked, so the icon dims below 30 meter even when the cooldown
-        /// is done. Reads the cost from the shared rulebook.
-        /// </summary>
-        public static bool EchoStepAffordable(float influence) =>
-            influence >= FTT.Combat.BasicComboRules.EchoStepMeterCost;
 
         /// <summary>
         /// A cooldown radial's fill: 1 when ready, otherwise the elapsed share of

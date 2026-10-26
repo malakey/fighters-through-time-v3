@@ -586,7 +586,7 @@ namespace FTT.Environment {
         /// controller (Florence, which predates this base, calls it too).
         ///
         /// <para>On a mid-level resume it puts the hero's <b>actual</b> block
-        /// charges, regen progress and shatter lockout, ability and Echo Step
+        /// charges, regen progress and shatter lockout, ability
         /// cooldowns and the D02d Wardenclyffe delay back on the freshly built
         /// player — nothing is refilled. The Rally pool is discarded (T01a) and
         /// its still-uncredited damage-taken meter is settled <b>exactly once</b>

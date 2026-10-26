@@ -46,31 +46,6 @@ namespace FTT.Combat {
         public static float MeterGainFactor(bool storyScaled, float buildRateLane) =>
             (storyScaled ? MeterGainScale : 1f) * System.MathF.Max(0f, buildRateLane);
 
-        // === CM-STORY (decision 7.3, 2026-10-16): the Story Echo Step cost ===
-        // Findings CMB-16, TWO-10; ledger USER-STORY-ECHO-STEP-COST, amending
-        // PROVISIONAL-STORY-METER-SCALE-RULES (5) ("spends are unchanged"). The
-        // campaign hero earns meter x0.35 (D5), so a 30-meter Echo Step cost him
-        // about three times the play it costs in Fighter Mode. Derived, not a
-        // second 0.35: the cross-mode cost times the D5 scale. Like the gain
-        // scale it never enters InfluenceMeterRules or scripts/FighterSim/
-        // (InfluenceMeterSourceScanTests), and only the campaign hero pays it.
-
-        /// <summary>
-        /// 7.3 (Provisional, 10.5, unrounded): the campaign hero's Echo Step cost —
-        /// <see cref="BasicComboRules.EchoStepMeterCost"/> (30) ×
-        /// <see cref="MeterGainScale"/> (0.35).
-        /// </summary>
-        public const float StoryEchoStepMeterCost = BasicComboRules.EchoStepMeterCost * MeterGainScale;
-
-        /// <summary>
-        /// 7.3: the Echo Step cost a Story body pays — <see cref="StoryEchoStepMeterCost"/>
-        /// when it earns the D5 scale (<paramref name="storyScaled"/>, the campaign
-        /// hero), else the cross-mode 30 (the Mirror clone, the drills, the
-        /// Holodeck, Fighter Mode and the bots' unscaled A/B).
-        /// </summary>
-        public static float EchoStepMeterCost(bool storyScaled) =>
-            storyScaled ? StoryEchoStepMeterCost : BasicComboRules.EchoStepMeterCost;
-
         public static bool IsDropThroughAllowed(CharacterState state) => state is
             CharacterState.Idle or
             CharacterState.Running or
@@ -116,8 +91,7 @@ namespace FTT.Combat {
         // a jump from recovery frame 0, and into a basic attack (hit 1, the
         // Up-Attack or the Down-Air by held direction, per the 2026-10-11
         // addendum) or the movement ability from recovery frame 6. A whiff keeps
-        // its whole recovery (only the existing grounded Block cancel), Echo Step
-        // never comes out of a Special (A06), and Special -> Special stays
+        // its whole recovery (only the existing grounded Block cancel), and Special -> Special stays
         // lockout-gated (neither a Special nor the Ultimate is polled in a
         // Special's recovery). CM-CANCEL (combat and movement update 2026-10-16,
         // decision 11.1): D3 is one rule in both modes now, so the table lives in

@@ -44,7 +44,6 @@ namespace FTT.FighterSim {
         private const int BasicButton = 1 << 2;
         private const int BlockButton = 1 << 6;
         private const int RollButton = 1 << 10;
-        private const int EchoStepButton = 1 << 12;
         private const int GrabButton = 1 << 13;
 
         // === CM-MOVE: the Fighter ledge get-ups (decision 5.2, 2026-10-16; plan
@@ -212,7 +211,7 @@ namespace FTT.FighterSim {
         /// Advances one hang tick (gameplay-feel plan §2.11; CM-MOVE decision
         /// 5.2, 2026-10-16). One action per tick, in this priority order: a
         /// <b>Jump</b> press climb-jumps; a <b>Roll</b> press (not with Block
-        /// held, never the Echo Step request) starts the ledge roll; a
+        /// held) starts the ledge roll; a
         /// <b>BasicAttack</b> press (not with Block held, never the grab request)
         /// starts the ledge attack; <b>Down</b> held releases; and a <b>fresh</b>
         /// toward-stage or Up tilt neutral-climbs. "Fresh" is component 323's
@@ -257,7 +256,7 @@ namespace FTT.FighterSim {
                 return HangTick.ClimbJumped;
             }
 
-            if ((pressed & RollButton) != 0 && !blockHeld && (pressed & EchoStepButton) == 0) {
+            if ((pressed & RollButton) != 0 && !blockHeld) {
                 StartGetUp(ref fighter, ref runtime, ref verb, ref defense, ref action,
                     (int)UniversalMovementPhase.LedgeRoll, in hangPosition, in standPosition);
                 return HangTick.GotUp;

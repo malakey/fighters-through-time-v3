@@ -133,7 +133,7 @@ namespace FTT.Core {
     /// frame. Charge depletion needs no rule here: the simulation's existing
     /// empty-shield refusal already drops a stance with no charges, and a latched
     /// Block bit is simply "Block held" to it — which is also why shieldstun,
-    /// the shatter lockout and the grab/Echo Step exclusions all keep applying
+    /// the shatter lockout and the grab exclusions all keep applying
     /// unchanged.</para>
     /// </summary>
     public struct BlockToggleLatch {

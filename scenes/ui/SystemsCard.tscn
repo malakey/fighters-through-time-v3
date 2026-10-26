@@ -126,17 +126,17 @@ layout_mode = 2
 autowrap_mode = 3
 text = "systems_card_defy_body"
 
-[node name="EchoTitle" type="Label" parent="Center/Panel/Layout/Scroll/Sections"]
+[node name="MomentumTitle" type="Label" parent="Center/Panel/Layout/Scroll/Sections"]
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
 theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
-text = "systems_card_echo_title"
+text = "systems_card_momentum_title"
 
-[node name="EchoBody" type="Label" parent="Center/Panel/Layout/Scroll/Sections"]
+[node name="MomentumBody" type="Label" parent="Center/Panel/Layout/Scroll/Sections"]
 custom_minimum_size = Vector2(780, 0)
 layout_mode = 2
 autowrap_mode = 3
-text = "systems_card_echo_body"
+text = "systems_card_momentum_body"
 
 [node name="OvertimeTitle" type="Label" parent="Center/Panel/Layout/Scroll/Sections"]
 layout_mode = 2

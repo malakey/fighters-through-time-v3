@@ -679,7 +679,6 @@ public class FighterHitConfirmTests {
             SpecialTwoPercent = 0,
             UltimatePercent = 0,
             GrabAdmissionPercent = 0,
-            EchoStepAdmissionPercent = 0,
             EvasiveRollPercent = 0,
             BlockPercent = 0,
             ApproachJumpPercent = 0,

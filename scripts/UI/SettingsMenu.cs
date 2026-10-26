@@ -527,7 +527,7 @@ namespace FTT.UI {
         /// <summary>
         /// C01c's explicit Unbound. It clears the slot rather than deleting the
         /// row, and the reachability check runs immediately so the player is told
-        /// at once that they just made Ultimate, Grab or Echo Step unreachable —
+        /// at once that they just made Ultimate or Grab unreachable —
         /// rather than discovering it in a match.
         /// </summary>
         private void UnbindSlot(string action, InputDeviceKind deviceKind) {
@@ -538,7 +538,7 @@ namespace FTT.UI {
         }
 
         /// <summary>
-        /// C01c: "Do not silently leave Ultimate/Grab/Echo Step unreachable when
+        /// C01c: "Do not silently leave Ultimate/Grab unreachable when
         /// their shortcut is disabled. Explain the missing route." Returns the
         /// localized explanation, or null when every required verb keeps a route.
         /// </summary>

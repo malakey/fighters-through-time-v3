@@ -89,9 +89,8 @@ namespace FTT.Core {
 
         /// <summary>
         /// False while reduced: decorative temporal ghost trails and repeated
-        /// after-images are removed. The single fixed Echo Step destination
-        /// indicator, movement-path readability and real interactive decoys are
-        /// <b>not</b> covered by this and stay on.
+        /// after-images are removed. Movement-path readability and real
+        /// interactive decoys are <b>not</b> covered by this and stay on.
         /// </summary>
         public static bool GhostTrailsAllowed => !_reducedTemporalEffects;
 

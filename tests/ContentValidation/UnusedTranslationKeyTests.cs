@@ -115,7 +115,7 @@ public class UnusedTranslationKeyTests {
         // Package 12 W5 recorded fighter_local_human, fighter_cpu_selection,
         // fighter_pick_cpu_prompt and fighter_hud_cooldown_ultimate here (the
         // Local Versus select lost its CPU flow and the Ultimate cooldown plate
-        // became the Echo Step radial); the Package 12 Phase C closeout deleted
+        // became the Echo Step radial, itself removed 2026-10-25); the Package 12 Phase C closeout deleted
         // all four from en.csv.
         // The three captive_name_* rows A6 recorded here left the roster at the
         // Package 11 Phase C closeout: A5's CampaignCaptiveRoster shipped, so

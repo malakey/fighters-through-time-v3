@@ -38,8 +38,6 @@ namespace FTT.Combat {
         public int StudentTechLockoutFrames;
         public int StudentPendingLaunchActive;
         public int StudentGrabPhase;
-        public int StudentEchoStepWindupFrames;
-        public int StudentMeter;
         public float StudentEchoPool;
         public bool StudentGrounded;
         /// <summary>True when the student is holding a non-neutral stick this frame.</summary>
@@ -54,7 +52,7 @@ namespace FTT.Combat {
     /// attempt budget. The pass/fail rule itself lives in
     /// <see cref="CalibrationDrillProgress"/> so the definition stays plain data.
     ///
-    /// <para>F18 (design-godot.md §7 "Holodeck Guided Drills"): six drills, each
+    /// <para>F18 (design-godot.md §7 "Holodeck Guided Drills"): five drills, each
     /// pass/fail with one line of coaching. The catalog order is the design's
     /// order and is also the "Next Drill" order.</para>
     /// </summary>
@@ -63,11 +61,6 @@ namespace FTT.Combat {
         public string DrillID { get; }
         public string NameKey { get; }
         public string ObjectiveKey { get; }
-        /// <summary>
-        /// Second-stage objective for a two-beat drill (Echo Step's "charge the
-        /// meter, then fold the recovery"), or null when the drill has one beat.
-        /// </summary>
-        public string ObjectiveStageTwoKey { get; }
         public string PassCoachKey { get; }
         public string FailCoachKey { get; }
         /// <summary>Attempt budget in 60 Hz frames; exceeding it fails the attempt.</summary>
@@ -82,8 +75,7 @@ namespace FTT.Combat {
             string passCoachKey,
             string failCoachKey,
             int timeLimitFrames,
-            CalibrationDrillDummyRole dummyRole,
-            string objectiveStageTwoKey = null) {
+            CalibrationDrillDummyRole dummyRole) {
             DrillID = drillID;
             NameKey = nameKey;
             ObjectiveKey = objectiveKey;
@@ -91,7 +83,6 @@ namespace FTT.Combat {
             FailCoachKey = failCoachKey;
             TimeLimitFrames = timeLimitFrames;
             DummyRole = dummyRole;
-            ObjectiveStageTwoKey = objectiveStageTwoKey;
         }
     }
 
@@ -108,7 +99,7 @@ namespace FTT.Combat {
     }
 
     /// <summary>
-    /// The six Calibration Drills (F18). Static, engine-free, and the single source
+    /// The five Calibration Drills (F18). Static, engine-free, and the single source
     /// of drill identity for the list screen, the runner, and the content tests.
     /// </summary>
     public static class CalibrationDrillCatalog {
@@ -152,15 +143,6 @@ namespace FTT.Combat {
                 failCoachKey: "drill_grab_throw_fail",
                 timeLimitFrames: DefaultTimeLimitFrames,
                 dummyRole: CalibrationDrillDummyRole.Blocker),
-            new(
-                drillID: "drill_echo_step",
-                nameKey: "drill_echo_step_name",
-                objectiveKey: "drill_echo_step_objective",
-                passCoachKey: "drill_echo_step_pass",
-                failCoachKey: "drill_echo_step_fail",
-                timeLimitFrames: DefaultTimeLimitFrames,
-                dummyRole: CalibrationDrillDummyRole.Idle,
-                objectiveStageTwoKey: "drill_echo_step_objective_two"),
             new(
                 drillID: "drill_rally_reclaim",
                 nameKey: "drill_rally_reclaim_name",
@@ -226,11 +208,6 @@ namespace FTT.Combat {
         public int Misses => _misses;
         /// <summary>Non-shatter blocked hits observed. Test surface for drill 1.</summary>
         public int BlocksMade => _blocksMade;
-        /// <summary>
-        /// 1 for a single-beat drill; 2 once a two-beat drill's first beat is done
-        /// (Echo Step's meter charge). Drives which objective line the HUD shows.
-        /// </summary>
-        public int Stage { get; private set; } = 1;
 
         /// <summary>Clears every counter. Called on start and on retry.</summary>
         public void Reset() {
@@ -243,7 +220,6 @@ namespace FTT.Combat {
             _echoSeen = false;
             _hpWhenEchoOpened = 0;
             _outcome = CalibrationDrillOutcome.InProgress;
-            Stage = 1;
         }
 
         /// <summary>
@@ -270,7 +246,6 @@ namespace FTT.Combat {
                 case "drill_landing_tech": ObserveLandingTech(in sample); break;
                 case "drill_launch_di": ObserveLaunchDi(in sample); break;
                 case "drill_grab_throw": ObserveGrabThrow(in sample); break;
-                case "drill_echo_step": ObserveEchoStep(in sample); break;
                 case "drill_rally_reclaim": ObserveRallyReclaim(in sample); break;
             }
 
@@ -362,19 +337,7 @@ namespace FTT.Combat {
         }
 
         /// <summary>
-        /// Drill 5 — fold the recovery. Two beats: charge Influence to the Echo Step
-        /// cost by attacking the bag, then spend it out of a swing's recovery
-        /// frames. The wind-up arming is the unambiguous "it fired" observable.
-        /// </summary>
-        private void ObserveEchoStep(in CalibrationDrillSample sample) {
-            if (Stage == 1 && sample.StudentMeter >= BasicComboRules.EchoStepMeterCost) Stage = 2;
-            if (_previous.StudentEchoStepWindupFrames == 0 && sample.StudentEchoStepWindupFrames > 0) {
-                _outcome = CalibrationDrillOutcome.Passed;
-            }
-        }
-
-        /// <summary>
-        /// Drill 6 — reclaim the echo. Taking a hit opens an Echo pool that drains
+        /// Drill 5 — reclaim the echo. Taking a hit opens an Echo pool that drains
         /// over <see cref="BasicComboRules.EchoDrainFrames"/>; landing a hit before
         /// it empties converts the remainder back into HP. The only thing that
         /// raises a fighter's HP mid-attempt is a reclaim, so an HP rise above the

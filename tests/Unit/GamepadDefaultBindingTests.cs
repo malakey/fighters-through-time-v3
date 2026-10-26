@@ -170,7 +170,7 @@ public class GamepadDefaultBindingTests {
         // Dialogue Log must actually have been read.
         AssertThat(actions.Contains(InputManager.Actions.Special2)).IsTrue();
         AssertThat(actions.Contains(InputManager.Actions.TimeFreeze)).IsTrue();
-        AssertThat(actions.Count >= 18).IsTrue();
+        AssertThat(actions.Count >= 17).IsTrue();
 
         var offenders = new List<string>();
         foreach (string action in actions) {

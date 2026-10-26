@@ -977,18 +977,13 @@ namespace FTT.FighterSim {
         // caches below are cosmetic; nothing here writes FighterSim state, and the
         // cues route through the catalog (AudioManager.CoreCues).
         private readonly int[] _cueGrabPhase = { 0, 0 };
-        private readonly int[] _cueEchoWindup = { 0, 0 };
         private readonly int[] _cueTechLockout = { 0, 0 };
         private readonly int[] _cueKnockdownFrames = { 0, 0 };
         private readonly int[] _cueHP = { -1, -1 };
         private readonly float[] _cueEchoPool = { 0f, 0f };
         private readonly bool[] _cueMeterFull = { false, false };
-        private readonly Vector2[] _cuePosition = { Vector2.Zero, Vector2.Zero };
         private readonly Dictionary<int, int> _cueHazardPhases = new();
         private int _cueTimerSecond = -1;
-
-        /// <summary>World-unit distance an Echo Step must travel to count as an arrival, not a cancel.</summary>
-        private const float EchoStepArrivalDistance = 0.25f;
 
         /// <summary>The 00:10 match-timer warning window, in whole seconds.</summary>
         public const int MatchTimerWarningSeconds = 10;
@@ -998,7 +993,6 @@ namespace FTT.FighterSim {
         private void SyncCoreMechanicCues(int playerID, in FighterStateComponent state) {
             TryGetVerb(playerID, out FighterVerbComponent verb);
             FTT.Core.CoreMechanicCuePresenter cues = Cues;
-            var position = new Vector2(state.Position.x.ToFloat(), state.Position.y.ToFloat());
 
             // Grab and throw (F23): catch / whiff / heave / impact from GrabPhase
             // (1 startup, 2 active, 3 whiff recovery, 4 holding, 5 throw).
@@ -1012,19 +1006,6 @@ namespace FTT.FighterSim {
                 _cueGrabPhase[playerID] = grab;
             }
 
-            // Echo Step: the wind-up starting, then an arrival (a real teleport)
-            // or a completion-time cancel (no travel) when it ends.
-            int windup = verb.EchoStepWindupFrames;
-            int previousWindup = _cueEchoWindup[playerID];
-            if (windup > 0 && previousWindup == 0) {
-                cues?.Play(FTT.Core.CoreMechanicCueIDs.EchoStepWindup);
-            } else if (windup == 0 && previousWindup > 0) {
-                bool travelled = position.DistanceTo(_cuePosition[playerID]) >= EchoStepArrivalDistance;
-                cues?.Play(travelled
-                    ? FTT.Core.CoreMechanicCueIDs.EchoStepArrival
-                    : FTT.Core.CoreMechanicCueIDs.EchoStepReject);
-            }
-            _cueEchoWindup[playerID] = windup;
 
             // Landing tech vs a missed tech: a tech lockout starting is the slap;
             // a knockdown starting on W3b's component 320 is the thud (Package 12
@@ -1058,7 +1039,6 @@ namespace FTT.FighterSim {
             // CM-ULT (decision 2.1): the activation wind-up's critical cue, once.
             SyncUltimateWindupCue(playerID, cues);
 
-            _cuePosition[playerID] = position;
         }
 
         /// <summary>A stage hazard entering its warning or active phase plays the stage's cue.</summary>

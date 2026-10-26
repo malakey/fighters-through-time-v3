@@ -237,7 +237,6 @@ public class FighterCombatContractW3Tests {
         };
         var verb = new FighterVerbComponent {
             DefyHistoryUsed = 1,
-            EchoStepCooldownFrames = 60,
             EchoPool = FP64.FromInt(5)
         };
         FighterDefenseComponent defense = default;
@@ -255,7 +254,6 @@ public class FighterCombatContractW3Tests {
         AssertThat(runtime.SpecialOneCooldownFrames).OverrideFailureMessage("Cooldowns keep their time.").IsEqual(300);
         AssertThat(runtime.SpecialTwoCooldownFrames).IsEqual(200);
         AssertThat(runtime.MovementCooldownFrames).IsEqual(90);
-        AssertThat(verb.EchoStepCooldownFrames).IsEqual(60);
         AssertThat(verb.DefyHistoryUsed).OverrideFailureMessage("Defy is once per match.").IsEqual(1);
         AssertThat(fighter.RespawnFramesRemaining > 0).IsTrue();
 

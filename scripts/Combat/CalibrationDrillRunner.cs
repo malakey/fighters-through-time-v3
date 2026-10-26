@@ -58,7 +58,6 @@ namespace FTT.Combat {
         private int _liveFrames;
         private int _studentStartHP;
         private bool _cardVisible;
-        private int _lastStage = 1;
 
         private Label _nameLabel;
         private Label _objectiveLabel;
@@ -129,7 +128,6 @@ namespace FTT.Combat {
             _progress = new CalibrationDrillProgress(_definition);
             _progress.Reset();
             _liveFrames = 0;
-            _lastStage = 1;
             HideResultCard();
 
             if (GameManager.Instance != null) {
@@ -228,10 +226,6 @@ namespace FTT.Combat {
             CalibrationDrillOutcome outcome = _progress.Observe(in sample);
             PushDummyCommand(live);
 
-            if (_progress.Stage != _lastStage) {
-                _lastStage = _progress.Stage;
-                RefreshObjective();
-            }
             UpdateProgressLine(live);
 
             if (outcome != CalibrationDrillOutcome.InProgress) ShowResultCard(outcome);
@@ -243,7 +237,6 @@ namespace FTT.Combat {
                 sample.StudentHP = student.CurrentHP;
                 sample.StudentBlockCharges = student.BlockCharges;
                 sample.StudentGrounded = student.IsGrounded != 0;
-                sample.StudentMeter = (int)student.Influence.ToFloat();
             }
             if (_driver.TryGetVerb(0, out FighterVerbComponent verb)) {
                 sample.StudentShieldStunFrames = verb.ShieldStunFrames;
@@ -251,7 +244,6 @@ namespace FTT.Combat {
                 sample.StudentTechLockoutFrames = verb.TechLockoutFrames;
                 sample.StudentPendingLaunchActive = verb.PendingLaunchActive;
                 sample.StudentGrabPhase = verb.GrabPhase;
-                sample.StudentEchoStepWindupFrames = verb.EchoStepWindupFrames;
                 sample.StudentEchoPool = verb.EchoPool.ToFloat();
             }
             if (_driver.TryGetFighter(1, out FighterStateComponent dummy)) {
@@ -316,10 +308,7 @@ namespace FTT.Combat {
         private void RefreshObjective() {
             if (_nameLabel != null) _nameLabel.Text = Tr(_definition.NameKey);
             if (_objectiveLabel == null) return;
-            string key = _progress.Stage >= 2 && _definition.ObjectiveStageTwoKey != null
-                ? _definition.ObjectiveStageTwoKey
-                : _definition.ObjectiveKey;
-            _objectiveLabel.Text = Tr(key);
+            _objectiveLabel.Text = Tr(_definition.ObjectiveKey);
         }
 
         private void UpdateProgressLine(bool live) {

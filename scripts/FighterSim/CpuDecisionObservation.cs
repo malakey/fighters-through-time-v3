@@ -115,7 +115,7 @@ namespace FTT.FighterSim {
         /// Since decision 1.2 every Special plays its authored startup, active and
         /// recovery, and the cast discards the caster's presses, so the decision
         /// table reads its own cast before scheduling a Special, the Ultimate, a
-        /// grab or Echo Step. The sim fills it through the world observer's verb
+        /// grab. The sim fills it through the world observer's verb
         /// layer from component 323 (Tubman's Delegated Foresight from component
         /// 322); the Mirror adapter from the clone's executing Special. 0 (a
         /// hand-built observation) is idle.
@@ -211,8 +211,8 @@ namespace FTT.FighterSim {
         /// Presence flag for the whole self verb block. Non-zero only when the
         /// caller supplied an <see cref="ICpuWorldObserver"/> that could resolve
         /// this fighter's verb component — i.e. the deterministic Fighter path.
-        /// Zero on every Story adapter, which is what keeps the F19 grab and
-        /// Echo Step branches out of a campaign level entirely. Every other
+        /// Zero on every Story adapter, which is what keeps the F19 grab
+        /// branch out of a campaign level entirely. Every other
         /// field in this block is meaningless while it is zero.
         /// </summary>
         public int HasVerbState;
@@ -220,16 +220,9 @@ namespace FTT.FighterSim {
         public int SelfFacingRight;
         /// <summary>
         /// The fighter's own basic-string phase (<c>FighterBasicAttackRules</c>:
-        /// 0 none, 1 startup, 2 active, 3 recovery, 4 chain hold). Echo Step
-        /// requires phase 3 — the recovery frames of its own swing.
+        /// 0 none, 1 startup, 2 active, 3 recovery, 4 chain hold).
         /// </summary>
         public int SelfAttackPhase;
-        /// <summary>
-        /// Non-zero once the running swing resolved a hit or a block
-        /// (<c>FighterBasicAttackRules.FlagHitResolved</c>). The design's Echo
-        /// Step candidate is a <i>whiff</i>: phase 3 with this still zero.
-        /// </summary>
-        public int SelfAttackMadeContact;
         /// <summary>0 none, 1 startup, 2 active, 3 whiff recovery, 4 holding, 5 throw.</summary>
         public int SelfGrabPhase;
         /// <summary>1 while this fighter is held by the opponent's grab.</summary>
@@ -237,23 +230,6 @@ namespace FTT.FighterSim {
         public int SelfShieldStunFrames;
         /// <summary>Non-zero while a universal roll runs (startup, travel or recovery).</summary>
         public int SelfRolling;
-        public int SelfEchoStepCooldownFrames;
-        public int SelfEchoStepWindupFrames;
-        /// <summary>
-        /// Non-zero while an eligible, unspent Defy History still exists. Hard's
-        /// Echo Step tradeoff values retaining full meter for it; a spent or
-        /// mode-disabled Defy has no reserve value.
-        /// </summary>
-        public int SelfDefyAvailable;
-        /// <summary>
-        /// Presence flag for the resolved historical Echo Step destination — the
-        /// exact position the shared action would restore. Zero means the ring
-        /// could not be read; the temporal contract forbids substituting a
-        /// nearby point, so the CPU then simply does not select the action.
-        /// </summary>
-        public int HasEchoStepDestination;
-        public long EchoStepDestinationXRaw;
-        public long EchoStepDestinationYRaw;
         /// <summary>
         /// CM-CANCEL (fix round A's CPU half): frames left in the CPU's own
         /// landing-tech action lock (<c>FighterVerbComponent.TechLockoutFrames</c>).
@@ -356,33 +332,21 @@ namespace FTT.FighterSim {
 
         /// <summary>
         /// Package 11 A9b (F19 verb policy): the verb-layer state of one player —
-        /// grab phases, shieldstun, throw immunity, the Echo Step meter gates and
-        /// whether an eligible Defy History is still unspent. Returning
+        /// grab phases, shieldstun and throw immunity. Returning
         /// <c>false</c> leaves <see cref="CpuDecisionObservation.HasVerbState"/>
-        /// (or <c>HasTargetVerbState</c>) at zero, which disables grabs and Echo
-        /// Step outright — the default for every observer that has no verb layer,
+        /// (or <c>HasTargetVerbState</c>) at zero, which disables grabs
+        /// outright — the default for every observer that has no verb layer,
         /// including every Story adapter.
         /// </summary>
         bool TryGetVerbState(int playerID, out CpuVerbState state) {
             state = default;
             return false;
         }
-
-        /// <summary>
-        /// The exact historical position the shared Echo Step action would
-        /// restore for <paramref name="playerID"/>. The design forbids choosing a
-        /// nearby substitute, so a <c>false</c> return means the CPU must not
-        /// select Echo Step at all rather than guess a destination.
-        /// </summary>
-        bool TryGetEchoStepDestination(int playerID, out FPVector2 destination) {
-            destination = default;
-            return false;
-        }
     }
 
     /// <summary>
     /// Mode-neutral projection of one fighter's verb-layer state, so the shared
-    /// decision table can reason about grabs and Echo Step without
+    /// decision table can reason about grabs without
     /// <see cref="CpuDecisionObservation"/> taking a dependency on the
     /// deterministic component types. Package 11 A9b.
     /// </summary>
@@ -392,15 +356,6 @@ namespace FTT.FighterSim {
         public int BeingHeld;
         public int ShieldStunFrames;
         public int ThrowImmunityFrames;
-        public int EchoStepCooldownFrames;
-        public int EchoStepWindupFrames;
-        /// <summary>Non-zero once this fighter's once-per-match Defy has been spent.</summary>
-        public int DefyHistoryUsed;
-        /// <summary>
-        /// CM-FIXB-CPU: non-zero while F22's Sudden Death bars Defy
-        /// (<c>FighterDefenseComponent.DefyBarred</c>, component 312).
-        /// </summary>
-        public int DefyBarred;
         /// <summary>Non-zero while the fighter holds a functioning block stance.</summary>
         public int BlockStance;
         /// <summary>CM-CANCEL: the fighter's own Special cast phase (<see cref="CpuCastPhase"/>).</summary>
@@ -548,24 +503,17 @@ namespace FTT.FighterSim {
             // CM-CANCEL (decision 9.3): the fighter's own cast (323, or Foresight's
             // 322 stance), the tech lock, the knockdown (320) and the Ultimate
             // activation (321) — the self-state the sim's Special, Ultimate, grab
-            // and Echo Step gates read. A missing component reads idle.
+            // gates read. A missing component reads idle.
             _simulation.TryGetFighterActionState(playerID, out FighterActionStateComponent action);
             _simulation.TryGetFighterCounter(playerID, out FighterCounterComponent counter);
             _simulation.TryGetFighterKnockdown(playerID, out FighterKnockdownComponent knockdown);
             _simulation.TryGetFighterUltimateActivation(playerID, out FighterUltimateActivationComponent activation);
-            // CM-FIXB-CPU: the Sudden Death bar on Defy (312). A missing
-            // component reads unbarred.
-            _simulation.TryGetFighterDefense(playerID, out FighterDefenseComponent defense);
             int castPhase = CpuCastPhase.FromSim(in action, in counter, out int castPhaseFrames);
             state = new CpuVerbState {
                 GrabPhase = verb.GrabPhase,
                 BeingHeld = verb.BeingHeld,
                 ShieldStunFrames = verb.ShieldStunFrames,
                 ThrowImmunityFrames = verb.ThrowImmunityFrames,
-                EchoStepCooldownFrames = verb.EchoStepCooldownFrames,
-                EchoStepWindupFrames = verb.EchoStepWindupFrames,
-                DefyHistoryUsed = verb.DefyHistoryUsed,
-                DefyBarred = defense.DefyBarred,
                 BlockStance = FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb) ? 1 : 0,
                 SpecialCastPhase = castPhase,
                 SpecialCastPhaseFrames = castPhaseFrames,
@@ -574,12 +522,6 @@ namespace FTT.FighterSim {
                 UltimateCasterBusy = FighterUltimateActivationRules.IsCasterBusy(in activation) ? 1 : 0
             };
             return true;
-        }
-
-        public bool TryGetEchoStepDestination(int playerID, out FPVector2 destination) {
-            destination = default;
-            return _simulation != null
-                && _simulation.TryGetEchoStepDestination(playerID, out destination);
         }
     }
 }

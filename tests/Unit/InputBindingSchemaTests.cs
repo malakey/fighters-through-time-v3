@@ -438,7 +438,7 @@ public class InputBindingSchemaTests {
     }
 
     /// <summary>
-    /// C01c: "Do not silently leave Ultimate/Grab/Echo Step unreachable when their
+    /// C01c: "Do not silently leave Ultimate/Grab unreachable when their
     /// shortcut is disabled." A direct bind and an enabled shortcut coexist, and
     /// either one on its own is a valid route.
     /// </summary>
@@ -536,25 +536,25 @@ public class InputBindingSchemaTests {
         }
     }
 
-    // === C01c direct Grab / Echo Step actions (Package 11 A1c) ===
+    // === C01c direct Grab action (Package 11 A1c; Echo Step's twin removed 2026-10-25) ===
 
     /// <summary>
-    /// The two dedicated actions exist in the InputMap, carry deterministic wire
-    /// bits, and are offered as bindable rows. Their direct slots are authored
+    /// The dedicated action exists in the InputMap, carries a deterministic wire
+    /// bit, and is offered as a bindable row. Its direct slot is authored
     /// <b>Unbound</b>: the shipped route is the preset chord, and C01c's promise is
     /// that a direct bind is an addition rather than a replacement — so assigning
     /// one must not auto-disable the shortcut, and an unbound slot must not make the
     /// verb unreachable.
     /// </summary>
     [TestCase]
-    public void TheDirectGrabAndEchoStepActionsExistAndAreBindable() {
+    public void TheDirectGrabActionExistsAndIsBindableAndEchoStepIsGone() {
         AssertThat(InputMap.HasAction(InputManager.Actions.Grab)).IsTrue();
-        AssertThat(InputMap.HasAction(InputManager.Actions.EchoStep)).IsTrue();
+        AssertThat(InputMap.HasAction("gameplay_echo_step")).IsFalse();
         AssertThat(InputShortcuts.GrabAction).IsEqual(InputManager.Actions.Grab);
-        AssertThat(InputShortcuts.EchoStepAction).IsEqual(InputManager.Actions.EchoStep);
+        AssertThat(InputShortcuts.Recipes.Length).IsEqual(2);
 
         // Authored Unbound on both device kinds.
-        foreach (string action in new[] { InputManager.Actions.Grab, InputManager.Actions.EchoStep }) {
+        foreach (string action in new[] { InputManager.Actions.Grab }) {
             Godot.Collections.Array<InputEvent> events = InputMap.ActionGetEvents(action);
             using var lifetime = events.AsDisposable();
             AssertThat(events.Count)
@@ -562,12 +562,12 @@ public class InputBindingSchemaTests {
                 .IsEqual(0);
         }
 
-        // Both appear in the Controls tab, after the pre-existing rows, exactly once.
+        // It appears in the Controls tab, after the pre-existing rows, exactly once.
         System.Collections.Generic.List<string> bindable = InputBindingService.BindableActions();
         AssertThat(bindable.FindAll(row => row == InputManager.Actions.Grab).Count).IsEqual(1);
-        AssertThat(bindable.FindAll(row => row == InputManager.Actions.EchoStep).Count).IsEqual(1);
+        AssertThat(bindable.Contains("gameplay_echo_step")).IsFalse();
 
-        // The verbs stay reachable through their preset chords with the direct slot
+        // The verb stays reachable through its preset chord with the direct slot
         // unbound — that is the whole shipped configuration.
         var defaults = InputBindingService.ProjectDefaults;
         foreach (InputDeviceKind kind in new[] { InputDeviceKind.Keyboard, InputDeviceKind.Joypad }) {
@@ -575,25 +575,25 @@ public class InputBindingSchemaTests {
             AssertThat(InputShortcuts.HasShortcutRoute(defaults, InputManager.Actions.Grab, kind))
                 .OverrideFailureMessage($"The Grab chord must be the shipped route on {kind}.")
                 .IsTrue();
-            AssertThat(InputShortcuts.HasShortcutRoute(defaults, InputManager.Actions.EchoStep, kind)).IsTrue();
         }
         AssertThat(InputShortcuts.ProfileIsReachable(defaults, out _)).IsTrue();
     }
 
     /// <summary>
-    /// A direct bind on either action round-trips through the encrypted global
+    /// A direct bind on the Grab action round-trips through the encrypted global
     /// payload and is restored: the restore filter is built from
     /// <see cref="InputManager.RemappableActions"/> <b>unioned with</b> the C01c
     /// direct actions, and an action missing from that set has its restore silently
     /// dropped — which is exactly how a saved bind gets lost.
     ///
-    /// <para>The wire bits are pinned here too: Echo Step and Grab took the free
-    /// button bits 12 and 13, which is why protocol v3 kept the 12-byte input frame
-    /// and the 47-byte packet. The reserved Dash bit 11 is never reused.</para>
+    /// <para>The wire bits are pinned here too: Grab took bit 13 (and Echo Step
+    /// bit 12, reserved since 2026-10-25), which is why protocol v3 kept the
+    /// 12-byte input frame and the 47-byte packet. The reserved Dash bit 11 is
+    /// never reused. A stale <c>gameplay_echo_step</c> row from an older save loads
+    /// and is ignored.</para>
     /// </summary>
     [TestCase]
-    public void ADirectGrabOrEchoStepBindRoundTripsAndRestores() {
-        AssertThat((ushort)GameplayButtons.EchoStep).IsEqual((ushort)(1 << 12));
+    public void ADirectGrabBindRoundTripsAndAStaleEchoStepRowIsIgnored() {
         AssertThat((ushort)GameplayButtons.Grab).IsEqual((ushort)(1 << 13));
         AssertThat((ushort)GameplayButtons.DirectOrigin).IsEqual((ushort)(1 << 14));
         AssertThat((ushort)GameplayButtons.Dash).IsEqual((ushort)(1 << 11));
@@ -603,7 +603,7 @@ public class InputBindingSchemaTests {
         overrides.Set(InputManager.Actions.Grab, new System.Collections.Generic.List<InputBindingEvent> {
             new InputBindingEvent(InputBindingKind.Key, (int)Key.G)
         });
-        overrides.Set(InputManager.Actions.EchoStep, new System.Collections.Generic.List<InputBindingEvent> {
+        overrides.Set("gameplay_echo_step", new System.Collections.Generic.List<InputBindingEvent> {
             new InputBindingEvent(InputBindingKind.JoyButton, (int)JoyButton.RightStick)
         });
 
@@ -612,7 +612,7 @@ public class InputBindingSchemaTests {
         restored.Normalize();
 
         AssertThat(restored.For(InputManager.Actions.Grab).Count).IsEqual(1);
-        AssertThat(restored.For(InputManager.Actions.EchoStep).Count).IsEqual(1);
+        AssertThat(restored.For("gameplay_echo_step").Count).IsEqual(1);
 
         // And the restore path accepts them rather than dropping them as
         // non-remappable.
@@ -624,10 +624,7 @@ public class InputBindingSchemaTests {
                     .OverrideFailureMessage("A saved direct Grab bind must survive the restore filter.")
                     .IsEqual(1);
             }
-            Godot.Collections.Array<InputEvent> echoEvents = InputMap.ActionGetEvents(InputManager.Actions.EchoStep);
-            using (echoEvents.AsDisposable()) {
-                AssertThat(echoEvents.Count).IsEqual(1);
-            }
+            AssertThat(InputMap.HasAction("gameplay_echo_step")).IsFalse();
         } finally {
             // Never leave the InputMap rebound for the next suite.
             InputBindingService.Apply(new InputBindingSet());

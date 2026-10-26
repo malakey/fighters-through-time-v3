@@ -135,7 +135,7 @@ namespace FTT.Enemies {
         public override void _Ready() {
             // A2 (2026-10-04): tick after every default-priority node, the clone
             // included, so the arena clamp sees where the clone ended its own
-            // step (MoveAndSlide, an Echo Step, a warp) — see ApplyArenaLeash.
+            // step (MoveAndSlide, a warp) — see ApplyArenaLeash.
             ProcessPhysicsPriority = LeashPhysicsPriority;
             _spawnPosition = GlobalPosition + SpawnOffset;
             // The controller joins the mirror group itself so ChronalRewindManager's
@@ -374,7 +374,7 @@ namespace FTT.Enemies {
         /// driven by the CPU, so the leash is a positional clamp applied from here
         /// each tick rather than a steering rule inside the shared decision table.
         /// A2: the clamp runs <b>after</b> the clone's step — the controller used
-        /// to tick first, so the clone's MoveAndSlide, an Echo Step or a warp
+        /// to tick first, so the clone's MoveAndSlide or a warp
         /// relocation left it outside the arena for the rest of the frame,
         /// rendered and hit-tested there.
         /// </summary>

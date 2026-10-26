@@ -8,7 +8,7 @@ namespace FTT.UI {
     /// V7.3 Fighter Onboarding: the universal Systems Card — one static,
     /// localized reference page with eight short sections (block &amp; shatter,
     /// the attack/block/grab triangle, DI, landing tech, Rally &amp;
-    /// Desperation, Defy History, Echo Step &amp; Resonance Momentum, Overtime).
+    /// Desperation, Defy History, Resonance Momentum, Overtime).
     /// One sentence plus one number each; a reference, not a lesson
     /// (design-godot-v7.md Section 7, "Fighter Onboarding").
     ///

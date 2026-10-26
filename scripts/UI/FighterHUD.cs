@@ -32,19 +32,18 @@ namespace FTT.UI {
         public const string ScenePath = "res://scenes/ui/FighterHUD.tscn";
 
         /// <summary>
-        /// Cooldown slots rendered per player (M25, HUD_CONTRACT): four 20 × 20
+        /// Cooldown slots rendered per player (M25, HUD_CONTRACT): three 20 × 20
         /// radial icons beside the block charges. P2's row is authored mirrored.
         /// </summary>
         private static readonly FighterCooldownSlot[] Slots = {
             FighterCooldownSlot.SpecialOne,
             FighterCooldownSlot.SpecialTwo,
-            FighterCooldownSlot.Movement,
-            FighterCooldownSlot.EchoStep
+            FighterCooldownSlot.Movement
         };
 
         /// <summary>Authored node name of each slot's icon, in <see cref="Slots"/> order.</summary>
         public static readonly string[] CooldownIconNames = {
-            "S1_Cooldown", "S2_Cooldown", "Movement_Cooldown", "EchoStep_Cooldown"
+            "S1_Cooldown", "S2_Cooldown", "Movement_Cooldown"
         };
 
         private const int PipSize = 16;
@@ -239,8 +238,7 @@ namespace FTT.UI {
             in FighterStateComponent state,
             in FighterRuntimeComponent runtime,
             int tickRate,
-            float echoPool = 0f,
-            int echoStepCooldownFrames = 0) {
+            float echoPool = 0f) {
 
             PlayerPanel panel = PanelFor(playerIndex);
             if (panel == null) return;
@@ -284,7 +282,7 @@ namespace FTT.UI {
                 tickRate, ref panel.PresentedControlStatus);
 
             ApplyDefySeal(panel, in state, playerIndex);
-            UpdateCooldowns(panel, in state, in runtime, echoStepCooldownFrames);
+            UpdateCooldowns(panel, in runtime);
         }
 
         /// <summary>
@@ -439,8 +437,7 @@ namespace FTT.UI {
                     || !_driver.TryGetRuntime(playerID, out FighterRuntimeComponent runtime)) continue;
                 bool hasVerb = _driver.TryGetVerb(playerID, out FighterVerbComponent verb);
                 float echoPool = hasVerb ? verb.EchoPool.ToFloat() : 0f;
-                int echoStepCooldown = hasVerb ? verb.EchoStepCooldownFrames : 0;
-                ApplyPlayerState(playerID, in state, in runtime, tickRate, echoPool, echoStepCooldown);
+                ApplyPlayerState(playerID, in state, in runtime, tickRate, echoPool);
             }
 
             ApplyMatchState(
@@ -664,28 +661,20 @@ namespace FTT.UI {
         }
 
         /// <summary>
-        /// M25 (HUD_CONTRACT): four radial cooldowns from authoritative state —
-        /// Special 1 / Special 2 / Movement from the runtime component, Echo Step
-        /// from the verb component — with a brief flash on becoming ready. Echo
-        /// Step also dims below its 30-meter cost. The glyph never changes, so
-        /// readiness is carried by the radial and the dimming, never by colour
-        /// alone.
+        /// M25 (HUD_CONTRACT): three radial cooldowns — Special 1 / Special 2 /
+        /// Movement — from the runtime component's authoritative state, with a
+        /// brief flash on becoming ready. The glyph never changes, so readiness is
+        /// carried by the radial and the dimming, never by colour alone.
         /// </summary>
-        private void UpdateCooldowns(
-            PlayerPanel panel,
-            in FighterStateComponent state,
-            in FighterRuntimeComponent runtime,
-            int echoStepCooldownFrames) {
+        private void UpdateCooldowns(PlayerPanel panel, in FighterRuntimeComponent runtime) {
 
             if (panel.CooldownLabels.Length != Slots.Length) return;
-            bool echoAffordable = FighterHudModel.EchoStepAffordable(state.Influence.ToFloat());
             for (int index = 0; index < Slots.Length; index++) {
                 FighterCooldownSlot slot = Slots[index];
                 int frames = slot switch {
                     FighterCooldownSlot.SpecialOne => runtime.SpecialOneCooldownFrames,
                     FighterCooldownSlot.SpecialTwo => runtime.SpecialTwoCooldownFrames,
-                    FighterCooldownSlot.Movement => runtime.MovementCooldownFrames,
-                    _ => echoStepCooldownFrames
+                    _ => runtime.MovementCooldownFrames
                 };
                 if (frames < 0) frames = 0;
                 // The radial's denominator is the count the cooldown started from:
@@ -694,7 +683,7 @@ namespace FTT.UI {
                 if (frames <= 0) panel.CooldownStartFrames[index] = 0;
                 else if (frames > panel.CooldownStartFrames[index]) panel.CooldownStartFrames[index] = frames;
 
-                bool ready = frames <= 0 && (slot != FighterCooldownSlot.EchoStep || echoAffordable);
+                bool ready = frames <= 0;
                 int readyState = ready ? 1 : 0;
                 bool readinessChanged = panel.PresentedReady[index] != readyState;
                 bool wasCooling = panel.PresentedReady[index] == 0;

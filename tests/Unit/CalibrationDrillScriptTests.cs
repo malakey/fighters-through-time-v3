@@ -7,7 +7,7 @@ using static GdUnit4.Assertions;
 namespace FTT.Tests.Unit;
 
 /// <summary>
-/// Package 11 A11 (F18 Calibration Drills). The six drills' catalog contract,
+/// Package 11 A11 (F18 Calibration Drills). The five drills' catalog contract,
 /// their pass/fail rules, the scripted dummy, and the route helpers — all pure
 /// C#, no engine. Everything the evaluator reads is an ordinary simulation
 /// observable, so these rules can be exercised frame by frame without a
@@ -18,13 +18,13 @@ namespace FTT.Tests.Unit;
 public class CalibrationDrillScriptTests {
 
     [TestCase]
-    public void TheCatalogCarriesTheDesignsSixDrillsWithTheirLocalizedCoaching() {
-        AssertThat(CalibrationDrillCatalog.Count).IsEqual(6);
+    public void TheCatalogCarriesTheFiveDrillsWithTheirLocalizedCoaching() {
+        AssertThat(CalibrationDrillCatalog.Count).IsEqual(5);
 
-        // F18's six lessons, in the design's order.
+        // F18's lessons (five since Echo Step's drill left on 2026-10-25), in order.
         var expected = new List<string> {
             "drill_block_string", "drill_landing_tech", "drill_launch_di",
-            "drill_grab_throw", "drill_echo_step", "drill_rally_reclaim"
+            "drill_grab_throw", "drill_rally_reclaim"
         };
         var actual = new List<string>();
         foreach (CalibrationDrillDefinition drill in CalibrationDrillCatalog.Drills) {
@@ -56,7 +56,8 @@ public class CalibrationDrillScriptTests {
 
         AssertThat(CalibrationDrillCatalog.ClampIndex(-4)).IsEqual(0);
         AssertThat(CalibrationDrillCatalog.ClampIndex(99)).IsEqual(CalibrationDrillCatalog.Count - 1);
-        AssertThat(CalibrationDrillCatalog.IndexOf("drill_echo_step")).IsEqual(4);
+        AssertThat(CalibrationDrillCatalog.IndexOf("drill_rally_reclaim")).IsEqual(4);
+        AssertThat(CalibrationDrillCatalog.IndexOf("drill_echo_step")).IsEqual(-1);
         AssertThat(CalibrationDrillCatalog.IndexOf("drill_not_a_thing")).IsEqual(-1);
     }
 
@@ -173,7 +174,7 @@ public class CalibrationDrillScriptTests {
     }
 
     [TestCase]
-    public void BreakTheGuardPassesOnTheThrowNotTheSeizeAndEchoStepIsTwoBeats() {
+    public void BreakTheGuardPassesOnTheThrowNotTheSeize() {
         // Grab phase 4 is the 30-frame holding window; 5 is the throw. The lesson
         // is the whole triangle, so holding alone is not the pass.
         CalibrationDrillProgress grab = ProgressFor("drill_grab_throw");
@@ -183,20 +184,6 @@ public class CalibrationDrillScriptTests {
         AssertThat(grab.Outcome).IsEqual(CalibrationDrillOutcome.InProgress);
         Feed(grab, 1, s => s.StudentGrabPhase = 5);
         AssertThat(grab.Outcome).IsEqual(CalibrationDrillOutcome.Passed);
-
-        // Echo Step: the meter charge is beat one, the wind-up arming is the pass.
-        CalibrationDrillProgress echo = ProgressFor("drill_echo_step");
-        Feed(echo, 1, s => { });
-        Feed(echo, 4, s => s.StudentMeter = BasicComboRules.EchoStepMeterCost - 1);
-        AssertThat(echo.Stage).IsEqual(1);
-        Feed(echo, 1, s => s.StudentMeter = BasicComboRules.EchoStepMeterCost);
-        AssertThat(echo.Stage).IsEqual(2);
-        AssertThat(echo.Outcome).IsEqual(CalibrationDrillOutcome.InProgress);
-        Feed(echo, 1, s => {
-            s.StudentMeter = 0;
-            s.StudentEchoStepWindupFrames = BasicComboRules.EchoStepWindupFrames;
-        });
-        AssertThat(echo.Outcome).IsEqual(CalibrationDrillOutcome.Passed);
     }
 
     [TestCase]
@@ -228,11 +215,10 @@ public class CalibrationDrillScriptTests {
         sample.Frame = CalibrationDrillCatalog.DefaultTimeLimitFrames;
         AssertThat(progress.Observe(in sample)).IsEqual(CalibrationDrillOutcome.Failed);
 
-        // Retry is a clean slate: the outcome, the misses and the stage all reset.
+        // Retry is a clean slate: the outcome and the misses reset.
         progress.Reset();
         AssertThat(progress.Outcome).IsEqual(CalibrationDrillOutcome.InProgress);
         AssertThat(progress.Misses).IsEqual(0);
-        AssertThat(progress.Stage).IsEqual(1);
 
         // Countdown frames are ignored outright, so a countdown can never burn the
         // attempt budget or bank a stray observation.
@@ -392,8 +378,6 @@ public class CalibrationDrillScriptTests {
         public bool StudentDirectionHeld { set => Sample.StudentDirectionHeld = value; }
         public bool StudentGrounded { set => Sample.StudentGrounded = value; }
         public int StudentGrabPhase { set => Sample.StudentGrabPhase = value; }
-        public int StudentMeter { set => Sample.StudentMeter = value; }
-        public int StudentEchoStepWindupFrames { set => Sample.StudentEchoStepWindupFrames = value; }
         public float StudentEchoPool { set => Sample.StudentEchoPool = value; }
     }
 }

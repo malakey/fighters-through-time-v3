@@ -197,7 +197,6 @@ public class CpuSelfActionStateTests {
             SpecialOneClosePercent = 100,
             SpecialTwoPercent = 0,
             GrabAdmissionPercent = 0,
-            EchoStepAdmissionPercent = 0,
             EvasiveRollPercent = 0,
             BlockPercent = 0
         };
@@ -354,7 +353,6 @@ public class CpuSelfActionStateTests {
         CpuDifficulty.Normal, 5150, null, null,
         CpuBandTuning.Normal with {
             GrabAdmissionPercent = 100,
-            EchoStepAdmissionPercent = 0,
             UltimatePercent = 0,
             SpecialOneClosePercent = 0,
             SpecialOneRangedPercent = 0,

@@ -182,7 +182,7 @@ namespace FTT.Environment {
 
         /// <summary>
         /// Revert-to-Armed: an Engaged lock whose living hero ends a tick outside
-        /// its area (an Echo Step, a death-rewind landing, a rift snap, a scripted
+        /// its area (a death-rewind landing, a rift snap, a scripted
         /// move) goes back to Armed. A dead hero is not judged — the rewind
         /// playback moves it along its path — until it lives again.
         /// </summary>

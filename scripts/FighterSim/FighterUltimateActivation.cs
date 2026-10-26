@@ -197,7 +197,7 @@ namespace FTT.FighterSim {
         /// The caster is action-locked for the whole Ultimate: wind-up, active,
         /// whiff recovery and the cinematic. Discarding the tick's buttons before
         /// any verb reads them is what makes the whiff recovery impossible to
-        /// undo with Echo Step (or to block, roll, jump or grab out of).
+        /// undo (to block, roll, jump or grab out of).
         /// </summary>
         internal static void DiscardInput(ref FighterRuntimeComponent runtime) {
             runtime.PressedButtons = 0;

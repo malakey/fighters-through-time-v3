@@ -171,32 +171,6 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
-        /// Package 11 A9b: the exact historical position Echo Step would restore
-        /// for <paramref name="playerID"/>, read through the shared ring accessor
-        /// rather than a second copy of the resolution rule. The F19 CPU policy has
-        /// to check that destination against current geometry and pit risk before it
-        /// may select the action.
-        ///
-        /// <para>Package 11 A1c re-pointed this at the V7.6 31-sample bank. Two
-        /// things changed for the CPU: the answer is now the <b>exact</b> t-30
-        /// sample rather than the retired ring's 24-to-30-frames-ago approximation,
-        /// and it returns <b>false</b> while a history generation is still filling,
-        /// so the CPU stops proposing a destination that does not exist yet.</para>
-        /// </summary>
-        public bool TryGetEchoStepDestination(int playerID, out FPVector2 destination) {
-            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterEchoStepRing0Component>();
-            while (filter.Next(out EntityRef entity)) {
-                ref readonly FighterStateComponent fighter =
-                    ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
-                if (fighter.PlayerID != playerID) continue;
-                Frame frame = _simulation.Frame;
-                return FighterEchoStepHistory.TryGetLookback(ref frame, entity, out destination);
-            }
-            destination = FPVector2.Zero;
-            return false;
-        }
-
-        /// <summary>
         /// V7.6 D01-D04 (Package 11 A1b): reads a fighter's defensive layer
         /// (component 312) - the Defy protected-recovery window and bar, the
         /// Temporal Aegis flag and the HP barrier. Snapshot and hash state.
@@ -321,7 +295,7 @@ namespace FTT.FighterSim {
         /// <summary>
         /// Package 13 W6 test seam: sets a fighter's Influence meter directly
         /// (clamped to 0..100), so the A02 suites can fill the meter — or give a
-        /// whiffing caster Echo Step's 30 — without a scripted damage exchange.
+        /// whiffing caster a full bar — without a scripted damage exchange.
         /// Writes deterministic state and moves the hash.
         /// </summary>
         internal bool SeedFighterInfluenceForTest(int playerID, int influence) {
@@ -438,26 +412,6 @@ namespace FTT.FighterSim {
         /// </summary>
         public FighterSuddenDeathComponent GetSuddenDeathState() =>
             _simulation.Frame.GetReadOnlySingleton<FighterSuddenDeathComponent>();
-
-        /// <summary>
-        /// The V7.6 Echo Step history head for a player: head slot, newest tick,
-        /// valid-sample count, generation and the armed activation. Exposed for the
-        /// determinism suites, which have to prove the ring is one sample per tick
-        /// and survives a snapshot round trip.
-        /// </summary>
-        public bool TryGetEchoStepRing(int playerID, out FighterEchoStepRing0Component ring) {
-            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterEchoStepRing0Component>();
-            while (filter.Next(out EntityRef entity)) {
-                ref readonly FighterStateComponent fighter =
-                    ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
-                if (fighter.PlayerID == playerID) {
-                    ring = _simulation.Frame.GetReadOnly<FighterEchoStepRing0Component>(entity);
-                    return true;
-                }
-            }
-            ring = default;
-            return false;
-        }
 
         public int ProjectileCount => CountComponents<FighterProjectileComponent>();
         public int PersistentObjectCount => CountComponents<FighterPersistentObjectComponent>();

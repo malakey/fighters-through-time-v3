@@ -105,7 +105,7 @@ public class PlaytestEncounterTelemetryTests {
         AssertThat(record.EngageFrame).IsEqual(20);
         AssertThat(record.State).IsEqual("engaged");
 
-        // An Echo Step out (the lock reverts): a leave with members alive.
+        // A relocation out (the lock reverts): a leave with members alive.
         tracker.Observe(30, Seen(EncounterLockState.Armed, inside: false, living: 2));
         AssertThat(record.LeftWithMembersAlive).IsEqual(1);
         AssertThat(record.LeftFrames[0]).IsEqual(30);

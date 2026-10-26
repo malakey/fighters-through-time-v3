@@ -89,13 +89,6 @@ namespace FTT.Core {
             public const string Grab = "gameplay_grab";
 
             /// <summary>
-            /// C01c direct <b>Echo Step</b> action (Package 11 A1c). Authored
-            /// Unbound; the shipped route is the Block+Roll preset chord. Carries
-            /// <see cref="GameplayButtons.EchoStep"/>.
-            /// </summary>
-            public const string EchoStep = "gameplay_echo_step";
-
-            /// <summary>
             /// The retired V7.2 manual-rewind action name. Kept only so the
             /// global binding payload's key-rename migration has a literal to
             /// match; never bound, never polled.
@@ -140,7 +133,6 @@ namespace FTT.Core {
         /// <summary>Translation key naming an action in the remap UI.</summary>
         public static string ActionLabelKey(string action) => action switch {
             InputShortcuts.GrabAction => "controls_action_grab",
-            InputShortcuts.EchoStepAction => "controls_action_echo_step",
             InputShortcuts.TimeFreezeAction => "controls_action_time_freeze",
             Actions.MoveLeft => "controls_action_move_left",
             Actions.MoveRight => "controls_action_move_right",
@@ -1105,23 +1097,17 @@ namespace FTT.Core {
             // press, and a direct bind never disables the chord — the two simply
             // OR into one bit, so a player holding both can only fire once.
             bool grabShortcut = ShortcutEnabled(InputShortcuts.GrabAction, deviceKind);
-            bool echoShortcut = ShortcutEnabled(InputShortcuts.EchoStepAction, deviceKind);
             bool blockHeld = held.HasFlag(GameplayButtons.Block);
             bool directGrab = ReadDirectAction(Actions.Grab, deviceId, stickX, stickY);
-            bool directEcho = ReadDirectAction(Actions.EchoStep, deviceId, stickX, stickY);
             AddIfHeld(
                 ref held,
                 GameplayButtons.Grab,
                 directGrab || (grabShortcut && blockHeld && held.HasFlag(GameplayButtons.BasicAttack)));
-            AddIfHeld(
-                ref held,
-                GameplayButtons.EchoStep,
-                directEcho || (echoShortcut && blockHeld && held.HasFlag(GameplayButtons.Roll)));
             // The normalized instruction to a peer: "my chords are off, so do not
             // read my component bits as a chord." Protocol v3 carries it so a
             // remote machine's own shortcut settings can never re-recognize this
             // frame differently (see GameplayButtons.DirectOrigin).
-            AddIfHeld(ref held, GameplayButtons.DirectOrigin, !grabShortcut && !echoShortcut);
+            AddIfHeld(ref held, GameplayButtons.DirectOrigin, !grabShortcut);
 
             // G13: a grab chord formed out of a latched stance spends the latch
             // (design: the grab chord is a legal exit). Takes effect next frame.
@@ -1271,7 +1257,6 @@ namespace FTT.Core {
             Actions.Interact => GameplayButtons.Interact,
             Actions.Pause => GameplayButtons.Pause,
             Actions.Grab => GameplayButtons.Grab,
-            Actions.EchoStep => GameplayButtons.EchoStep,
             _ => GameplayButtons.None
         };
 

@@ -13,8 +13,8 @@ namespace FTT.Networking {
         public const uint ProtocolMagic = 0x46545452;
         /// <summary>
         /// v3 (Package 11 A1c, C01c): the input frame now carries the logical
-        /// combined verbs <see cref="FTT.Core.GameplayButtons.EchoStep"/> and
-        /// <see cref="FTT.Core.GameplayButtons.Grab"/> plus the
+        /// combined verb <see cref="FTT.Core.GameplayButtons.Grab"/> (and, until
+        /// 2026-10-25, Echo Step on the now-reserved bit 12) plus the
         /// <see cref="FTT.Core.GameplayButtons.DirectOrigin"/> flag, so peers
         /// replay normalized <em>action requests</em> instead of re-recognizing a
         /// remote chord with their own shortcut settings.
