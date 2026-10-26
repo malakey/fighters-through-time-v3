@@ -970,6 +970,8 @@ namespace FTT.FighterSim {
 
             SyncPresentationFeedback(player, playerID, in state, in runtime);
             SyncCoreMechanicCues(playerID, in state);
+            // FU-KNOCK R2: the wall bounce's impact burst and shake (WallBounce partial).
+            SyncWallBounce(player, playerID, in state);
         }
 
         // === Package 12 W10 / H04: Fighter core-mechanic cues ===================

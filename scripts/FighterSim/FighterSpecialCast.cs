@@ -84,7 +84,8 @@ namespace FTT.FighterSim {
         /// <see cref="ActionFlagJumpReleasedSincePress"/> (CM-MOVE); bit 2
         /// <see cref="ActionFlagLedgeStickRearmed"/> (CM-MOVE); bit 3
         /// <see cref="ActionFlagRiseFromOwnJump"/> (CM-MOVE, the Q5 ruling); bits
-        /// 4–31 reserved, 0. Zero in Phase A.
+        /// 4 <see cref="ActionFlagWallBounced"/> and bits 8-11 the wrapping wall-bounce
+        /// counter (FU-KNOCK, 2026-10-25); the other bits reserved, 0.
         /// </summary>
         public int ActionFlags;
 
@@ -96,6 +97,12 @@ namespace FTT.FighterSim {
         public const int ActionFlagLedgeStickRearmed = 4;
         /// <summary><see cref="ActionFlags"/> bit 3: the current rise began with this airtime's own Jump press (CM-MOVE, Q5).</summary>
         public const int ActionFlagRiseFromOwnJump = 8;
+        /// <summary>
+        /// <see cref="ActionFlags"/> bit 4: this launch has already bounced off a side wall
+        /// (FU-KNOCK R2); cleared by the next launch and when the tumble ends. Bits 8-11 hold
+        /// a wrapping 4-bit count of bounces, which the driver edge-detects for the impact effect.
+        /// </summary>
+        public const int ActionFlagWallBounced = 16;
     }
 
     /// <summary>

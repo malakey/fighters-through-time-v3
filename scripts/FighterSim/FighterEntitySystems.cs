@@ -941,6 +941,8 @@ namespace FTT.FighterSim {
                     if (launches) {
                         target.Velocity.y = verticalForce;
                         target.IsGrounded = 0;
+                        // FU-KNOCK R2: a new launch re-arms the wall bounce.
+                        FighterKnockbackFeelRules.RearmBounce(ref targetAction);
                         // DI (V7): a launching hit's direction is finalized when the
                         // victim's hitstop ends, bent by their held direction.
                         // M05 (Package 12 W3b): only an authored launcher reaches
@@ -955,6 +957,9 @@ namespace FTT.FighterSim {
                         // hitstun is ordinary grounded hitstun, which is what
                         // re-opens the hit-2 block escape (M06).
                         target.Velocity.y = FP64.Zero;
+                        // FU-KNOCK R3: the shove - scaled here, stopped by friction
+                        // in the movement system's hitstun branch.
+                        target.Velocity.x *= FighterKnockbackFeelRules.ShoveScale;
                     } else {
                         // M05: a non-launcher on an airborne victim keeps its
                         // authored vector, but it is not a launch — no tumble,

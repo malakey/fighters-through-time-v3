@@ -109,7 +109,9 @@ public class FighterKnockbackScalingTests {
             if (hpAfter != postHitHP) {
                 issues.Add($"MaxHP {maxHP}: post-hit HP {hpAfter} != {postHitHP}.");
             }
-            FP64 expected = FP64.FromDouble(impulse);
+            // FU-KNOCK R3 (2026-10-25): a grounded non-launching hit's speed is scaled at the
+            // hit site (the shove), so the measured speed is the force times the shove scale.
+            FP64 expected = FP64.FromDouble(impulse) * FighterKnockbackFeelRules.ShoveScale;
             if (measured.RawValue != expected.RawValue) {
                 issues.Add($"MaxHP {maxHP}: impulse {Describe(measured)} != {impulse}.");
             }
