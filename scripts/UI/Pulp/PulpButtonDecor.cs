@@ -139,6 +139,12 @@ namespace FTT.UI.Pulp {
             if (alignLeft) button.Alignment = HorizontalAlignment.Left;
             decor.Build();
             button.AddChild(decor);
+            // A decorated button in a row of buttons keeps room for its neighbour's focus pose.
+            if (button.GetParent() is HBoxContainer row) {
+                int buttons = 0;
+                for (int i = 0, n = row.GetChildCount(); i < n; i++) if (row.GetChild(i) is Button) buttons++;
+                if (buttons > 1) PulpScreenKit.SeparateFocusRow(row);
+            }
             return decor;
         }
 

@@ -241,4 +241,75 @@ public class UrPolish2Tests {
         GD.Print($"[UrPolish2] boss names needing the ellipsis: {(ellipsized.Count == 0 ? "none" : string.Join(", ", ellipsized))}");
         if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
     }
+
+    /// <summary>The focused pose's rect: the pose's slide, scale and tilt about the centre, grown by the focus plate's margins.</summary>
+    private static Rect2 PosedRect(Button button) {
+        Vector2 centre = button.Size / 2f;
+        var pose = Transform2D.Identity.Translated(centre + PulpMotionRules.FocusTranslateX * Vector2.Right)
+            * new Transform2D(Mathf.DegToRad(PulpMotionRules.FocusTiltDegrees), new Vector2(PulpMotionRules.FocusScale, PulpMotionRules.FocusScale), 0f, Vector2.Zero)
+            * Transform2D.Identity.Translated(-centre);
+        Rect2 posed = pose * new Rect2(Vector2.Zero, button.Size);
+        posed = posed.GrowIndividual(PulpScreenKit.FocusPlateExpandLeft, 0f, PulpScreenKit.FocusPlateExpandRight, 0f);
+        return new Rect2(Bounds(button).Position + posed.Position, posed.Size);
+    }
+
+    private static void CheckRow(Button[] row, string tag, List<string> problems) {
+        for (int i = 0; i < row.Length; i++) {
+            Rect2 posed = PosedRect(row[i]);
+            for (int k = 0; k < row.Length; k++) {
+                if (k == i) continue;
+                if (posed.Intersects(Bounds(row[k]))) problems.Add($"{tag}: focused {row[i].Name} {posed} covers {row[k].Name} {Bounds(row[k])}");
+            }
+        }
+    }
+
+    [TestCase]
+    public async Task AFocusedButtonInAHorizontalRowClearsItsNeighboursAtBothUiScales() {
+        float original = UIPalette.AppliedUiScale;
+        Theme hold = UIPalette.LoadTheme();
+        var problems = new List<string>();
+        try {
+            foreach (float scale in new[] { 1f, 1.4f }) {
+                UIPalette.ApplyUiScale(scale);
+                var host = new Control { Name = "UrPolish2Rows" };
+                host.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+                UIPalette.ApplyTheme(host);
+                ((SceneTree)Engine.GetMainLoop()).Root.AddChild(host);
+                try {
+                    ConfirmModal modal = ConfirmModal.Create("pause_quit_confirm");
+                    host.AddChild(modal);
+                    var list = new MoveListScreen { Name = "ML" };
+                    host.AddChild(list);
+                    list.Populate("joan", MoveListScreen.MoveListMode.Fighter);
+                    list.Visible = true;
+                    await Settle();
+                    modal.Open();
+                    await Settle();
+                    CheckRow(new[] { modal.CancelButton, modal.ConfirmButton }, $"{scale} modal", problems);
+                    var footer = list.Root.GetNode<Control>("Center/Panel/Layout/FooterRow");
+                    var buttons = new List<Button>();
+                    for (int i = 0; i < footer.GetChildCount(); i++) if (footer.GetChild(i) is Button b) buttons.Add(b);
+                    CheckRow(buttons.ToArray(), $"{scale} movelist footer", problems);
+                } finally {
+                    host.GetParent()?.RemoveChild(host);
+                    host.Free();
+                }
+            }
+        } finally {
+            UIPalette.ApplyUiScale(original);
+            System.GC.KeepAlive(hold);
+        }
+        if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
+    }
+
+    [TestCase]
+    public void TheQuitConfirmationNamesTheRealExitFee() {
+        int fee = 100 - SessionExitGuard.CalculateExitRetainedDust(100);
+        string csv = "";
+        using (var access = Godot.FileAccess.Open("res://localization/en.csv", Godot.FileAccess.ModeFlags.Read)) csv = access.GetAsText();
+        string line = "";
+        foreach (string candidate in csv.Split((char)10)) if (candidate.StartsWith("pause_quit_confirm,")) line = candidate;
+        AssertThat(line.Length > 0).IsTrue();
+        AssertThat(line.Contains($"{fee}%")).OverrideFailureMessage($"pause_quit_confirm must state the {fee}% exit fee: {line}").IsTrue();
+    }
 }

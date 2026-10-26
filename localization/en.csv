@@ -817,7 +817,7 @@ fighter_disconnect_modal,"Controller Disconnected: Player {0} controller was los
 fighter_disconnect_rebind,Bind Connected Controller
 fighter_disconnect_forfeit,Forfeit and Exit
 # Package 8 A1
-pause_quit_confirm,Exit to the main menu? You will lose 50% of your undeposited Chronal Dust.
+pause_quit_confirm,Exit to the main menu? You will lose 20% of your undeposited Chronal Dust.
 loading_rift,OPENING CHRONAL RIFT
 loading_versus,VS
 # Package 8 A4

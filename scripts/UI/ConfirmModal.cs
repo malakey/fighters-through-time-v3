@@ -114,6 +114,7 @@ namespace FTT.UI {
             _confirmButton = ModalButton("ConfirmButton", confirmKey);
             _confirmButton.Pressed += Confirm;
             buttons.AddChild(_confirmButton);
+            PulpScreenKit.SeparateFocusRow(buttons);
         }
 
         private const float ModalPanelWidth = 1000f;

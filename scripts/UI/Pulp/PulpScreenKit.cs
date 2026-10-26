@@ -11,6 +11,28 @@ namespace FTT.UI {
     /// </summary>
     public static partial class PulpScreenKit {
 
+        /// <summary>The widest decorated button that sits in a horizontal row (the 480 px Move List card button).</summary>
+        public const float RowButtonMaxWidth = 480f;
+
+        /// <summary>The theme's focus plate draws this far past the button's right and left edges (GlassBtn expand margins 10 and 6).</summary>
+        public const float FocusPlateExpandRight = 10f, FocusPlateExpandLeft = 6f;
+
+        /// <summary>
+        /// The least gap between two neighbouring decorated buttons in a horizontal row for the focused one's pose to clear
+        /// the other: the pose's own slide and scale growth, both plate margins and 2 px of air. Derived from the pose's
+        /// numbers (<see cref="FTT.UI.Motion.PulpMotionRules"/>), not chosen.
+        /// </summary>
+        public static readonly float FocusRowGap = FTT.UI.Motion.PulpMotionRules.FocusTranslateX
+            + (FTT.UI.Motion.PulpMotionRules.FocusScale - 1f) / 2f * RowButtonMaxWidth
+            + FocusPlateExpandRight + FocusPlateExpandLeft + 2f;
+
+        /// <summary>Widens a horizontal row's separation to at least <see cref="FocusRowGap"/>; a vertical stack needs nothing.</summary>
+        public static void SeparateFocusRow(BoxContainer row) {
+            if (row == null || row.Vertical) return;
+            int wanted = Mathf.CeilToInt(FocusRowGap);
+            if (row.GetThemeConstant("separation") < wanted) row.AddThemeConstantOverride("separation", wanted);
+        }
+
         public const string TagAnchorName = "PanelTagAnchor";
         public const string PromptBarName = "ScreenPromptBar";
 

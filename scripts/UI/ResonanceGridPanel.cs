@@ -168,6 +168,7 @@ namespace FTT.UI {
             row.MoveChild(_respecButton, 0);
             _respecButton.CustomMinimumSize = new Vector2(460f, 58f);
             PulpButtonDecor.Apply(_respecButton, compact: true).GrowToFit = true;
+            PulpScreenKit.SeparateFocusRow(row);
         }
 
         private static StyleBoxFlat BuildFocusStyle(Color fill) {
