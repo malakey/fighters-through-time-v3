@@ -1,0 +1,1713 @@
+{
+ "ability_icons": {
+  "files": [
+   "ability_icons/cleopatra_movement.png",
+   "ability_icons/cleopatra_special_1.png",
+   "ability_icons/cleopatra_special_2.png",
+   "ability_icons/cleopatra_ultimate.png",
+   "ability_icons/einstein_movement.png",
+   "ability_icons/einstein_special_1.png",
+   "ability_icons/einstein_special_2.png",
+   "ability_icons/einstein_ultimate.png",
+   "ability_icons/joan_movement.png",
+   "ability_icons/joan_special_1.png",
+   "ability_icons/joan_special_2.png",
+   "ability_icons/joan_ultimate.png",
+   "ability_icons/leonardo_movement.png",
+   "ability_icons/leonardo_special_1.png",
+   "ability_icons/leonardo_special_2.png",
+   "ability_icons/leonardo_ultimate.png",
+   "ability_icons/lincoln_movement.png",
+   "ability_icons/lincoln_special_1.png",
+   "ability_icons/lincoln_special_2.png",
+   "ability_icons/lincoln_ultimate.png",
+   "ability_icons/mozart_movement.png",
+   "ability_icons/mozart_special_1.png",
+   "ability_icons/mozart_special_2.png",
+   "ability_icons/mozart_ultimate.png",
+   "ability_icons/shakespeare_movement.png",
+   "ability_icons/shakespeare_special_1.png",
+   "ability_icons/shakespeare_special_2.png",
+   "ability_icons/shakespeare_ultimate.png",
+   "ability_icons/tesla_movement.png",
+   "ability_icons/tesla_special_1.png",
+   "ability_icons/tesla_special_2.png",
+   "ability_icons/tesla_ultimate.png",
+   "ability_icons/tubman_movement.png",
+   "ability_icons/tubman_special_1.png",
+   "ability_icons/tubman_special_2.png",
+   "ability_icons/tubman_ultimate.png"
+  ],
+  "mipmaps": true,
+  "serves": "Story / Fighter / select ability slot art: <id>_<special_1|special_2|movement|ultimate>.png, cropped from the retro v2 VFX atlas (scripts/UI/AbilityIconLibrary.cs)",
+  "size": [
+   144,
+   144
+  ]
+ },
+ "badge_disc": {
+  "file": "badge_disc.png",
+  "mipmaps": true,
+  "serves": "plate 18: status / HUD sticker disc (radial at 35% 30%: #FFF7DE, paper 60%, #D8C690); the 3px ink ring and the 3,4 shadow are drawn in code (their thickness must not scale)",
+  "size": [
+   64,
+   64
+  ]
+ },
+ "banner_cover": {
+  "expand_margins_LTRB": [
+   7,
+   0,
+   19,
+   12
+  ],
+  "file": "banner_cover.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   23,
+   14,
+   35,
+   21
+  ],
+  "serves": "plate 25: cover banner THROUGH TIME as the dark ink plate (orchestrator ruling Q1: no pulp red)",
+  "size": [
+   66,
+   110
+  ]
+ },
+ "banner_select": {
+  "expand_margins_LTRB": [
+   7,
+   0,
+   18,
+   11
+  ],
+  "file": "banner_select.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   23,
+   13,
+   34,
+   20
+  ],
+  "serves": "plate 24: select banner (gold), 90 high, skew 0.1405, border 7, shadow 11,11; rotate -1deg",
+  "size": [
+   65,
+   101
+  ]
+ },
+ "bar_track_boss": {
+  "expand_margins_LTRB": [
+   8,
+   3,
+   16,
+   11
+  ],
+  "file": "bar_track_boss.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   19,
+   10,
+   27,
+   18
+  ],
+  "serves": "plate 10: boss bar track, 44 high, skew 0.1763, border 5 + paper ring 3 + shadow 8,8; inner area #3A3144 (tracker accent, fill #FF5A5A)",
+  "size": [
+   54,
+   58
+  ]
+ },
+ "bar_track_h14": {
+  "expand_margins_LTRB": [
+   4,
+   2,
+   9,
+   8
+  ],
+  "file": "bar_track_h14.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   11,
+   8,
+   16,
+   13
+  ],
+  "notes": "skew 0.2126; draw fill, tracker, echo, hatch, ticks inside the inner area (box inset 3); the track box is w-8 wide with margin-left 8",
+  "serves": "plate 9: HP / meter / stat track, 14 px high (Story HP 30, Fighter HP 44, Fighter meter 16, stat bar 14); centre #3A3144",
+  "size": [
+   35,
+   24
+  ]
+ },
+ "bar_track_h16": {
+  "expand_margins_LTRB": [
+   5,
+   2,
+   10,
+   8
+  ],
+  "file": "bar_track_h16.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   12,
+   8,
+   17,
+   13
+  ],
+  "notes": "skew 0.2126; draw fill, tracker, echo, hatch, ticks inside the inner area (box inset 3); the track box is w-8 wide with margin-left 8",
+  "serves": "plate 9: HP / meter / stat track, 16 px high (Story HP 30, Fighter HP 44, Fighter meter 16, stat bar 14); centre #3A3144",
+  "size": [
+   37,
+   26
+  ]
+ },
+ "bar_track_h30": {
+  "expand_margins_LTRB": [
+   6,
+   2,
+   11,
+   8
+  ],
+  "file": "bar_track_h30.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   15,
+   8,
+   20,
+   13
+  ],
+  "notes": "skew 0.2126; draw fill, tracker, echo, hatch, ticks inside the inner area (box inset 3); the track box is w-8 wide with margin-left 8",
+  "serves": "plate 9: HP / meter / stat track, 30 px high (Story HP 30, Fighter HP 44, Fighter meter 16, stat bar 14); centre #3A3144",
+  "size": [
+   43,
+   40
+  ]
+ },
+ "bar_track_h44": {
+  "expand_margins_LTRB": [
+   8,
+   2,
+   13,
+   8
+  ],
+  "file": "bar_track_h44.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   18,
+   8,
+   23,
+   13
+  ],
+  "notes": "skew 0.2126; draw fill, tracker, echo, hatch, ticks inside the inner area (box inset 3); the track box is w-8 wide with margin-left 8",
+  "serves": "plate 9: HP / meter / stat track, 44 px high (Story HP 30, Fighter HP 44, Fighter meter 16, stat bar 14); centre #3A3144",
+  "size": [
+   49,
+   54
+  ]
+ },
+ "boss_nameplate": {
+  "expand_margins_LTRB": [
+   5,
+   0,
+   12,
+   7
+  ],
+  "file": "boss_nameplate.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   17,
+   9,
+   24,
+   14
+  ],
+  "serves": "plate 11: boss nameplate, #FF5A5A, 62 high (687 wide in HUD-S1); rotate -1deg",
+  "size": [
+   49,
+   69
+  ]
+ },
+ "boss_phase_tab": {
+  "expand_margins_LTRB": [
+   0,
+   0,
+   4,
+   4
+  ],
+  "file": "boss_phase_tab.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   6,
+   6,
+   10,
+   10
+  ],
+  "serves": "plate 12: boss PHASE tab, accent, 35 high; rotate +2deg",
+  "size": [
+   24,
+   39
+  ]
+ },
+ "btn_disabled_h58": {
+  "axis_stretch": "tile",
+  "expand_margins_LTRB": [
+   8,
+   3,
+   12,
+   7
+  ],
+  "file": "btn_disabled_h58.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   18,
+   8,
+   22,
+   12
+  ],
+  "notes": "Label at x+64 (compact x+54), right padding 30, marker 20x28 at x+26. Controls: draw the art offset by -expand and size by +expand; the focus pose (translate +16, rotate -1.2deg, scale 1.04) is a tween, not baked.",
+  "serves": "BTN-B disabled plate, 58 px high (plate rows 4-8). Hover = focus. Skew 0.1405 baked.",
+  "size": [
+   57,
+   68
+  ]
+ },
+ "btn_disabled_h64": {
+  "axis_stretch": "tile",
+  "expand_margins_LTRB": [
+   8,
+   3,
+   12,
+   7
+  ],
+  "file": "btn_disabled_h64.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   18,
+   8,
+   22,
+   12
+  ],
+  "notes": "Label at x+64 (compact x+54), right padding 30, marker 20x28 at x+26. Controls: draw the art offset by -expand and size by +expand; the focus pose (translate +16, rotate -1.2deg, scale 1.04) is a tween, not baked.",
+  "serves": "BTN-B disabled plate, 64 px high (plate rows 4-8). Hover = focus. Skew 0.1405 baked.",
+  "size": [
+   57,
+   74
+  ]
+ },
+ "btn_disabled_h80": {
+  "axis_stretch": "tile",
+  "expand_margins_LTRB": [
+   10,
+   3,
+   14,
+   7
+  ],
+  "file": "btn_disabled_h80.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   21,
+   8,
+   25,
+   12
+  ],
+  "notes": "Label at x+64 (compact x+54), right padding 30, marker 20x28 at x+26. Controls: draw the art offset by -expand and size by +expand; the focus pose (translate +16, rotate -1.2deg, scale 1.04) is a tween, not baked.",
+  "serves": "BTN-B disabled plate, 80 px high (plate rows 4-8). Hover = focus. Skew 0.1405 baked.",
+  "size": [
+   63,
+   90
+  ]
+ },
+ "btn_focus_h58": {
+  "expand_margins_LTRB": [
+   11,
+   6,
+   22,
+   17
+  ],
+  "file": "btn_focus_h58.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   21,
+   13,
+   32,
+   22
+  ],
+  "notes": "Label at x+64 (compact x+54), right padding 30, marker 20x28 at x+26. Controls: draw the art offset by -expand and size by +expand; the focus pose (translate +16, rotate -1.2deg, scale 1.04) is a tween, not baked.",
+  "serves": "BTN-B focus plate, 58 px high (plate rows 4-8). Hover = focus. Skew 0.1405 baked.",
+  "size": [
+   61,
+   81
+  ]
+ },
+ "btn_focus_h64": {
+  "expand_margins_LTRB": [
+   12,
+   6,
+   23,
+   17
+  ],
+  "file": "btn_focus_h64.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   22,
+   13,
+   33,
+   22
+  ],
+  "notes": "Label at x+64 (compact x+54), right padding 30, marker 20x28 at x+26. Controls: draw the art offset by -expand and size by +expand; the focus pose (translate +16, rotate -1.2deg, scale 1.04) is a tween, not baked.",
+  "serves": "BTN-B focus plate, 64 px high (plate rows 4-8). Hover = focus. Skew 0.1405 baked.",
+  "size": [
+   63,
+   87
+  ]
+ },
+ "btn_focus_h80": {
+  "expand_margins_LTRB": [
+   13,
+   6,
+   24,
+   17
+  ],
+  "file": "btn_focus_h80.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   24,
+   13,
+   35,
+   22
+  ],
+  "notes": "Label at x+64 (compact x+54), right padding 30, marker 20x28 at x+26. Controls: draw the art offset by -expand and size by +expand; the focus pose (translate +16, rotate -1.2deg, scale 1.04) is a tween, not baked.",
+  "serves": "BTN-B focus plate, 80 px high (plate rows 4-8). Hover = focus. Skew 0.1405 baked.",
+  "size": [
+   67,
+   103
+  ]
+ },
+ "btn_normal_h58": {
+  "expand_margins_LTRB": [
+   8,
+   3,
+   15,
+   10
+  ],
+  "file": "btn_normal_h58.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   18,
+   9,
+   25,
+   15
+  ],
+  "notes": "Label at x+64 (compact x+54), right padding 30, marker 20x28 at x+26. Controls: draw the art offset by -expand and size by +expand; the focus pose (translate +16, rotate -1.2deg, scale 1.04) is a tween, not baked.",
+  "serves": "BTN-B normal plate, 58 px high (plate rows 4-8). Hover = focus. Skew 0.1405 baked.",
+  "size": [
+   51,
+   71
+  ]
+ },
+ "btn_normal_h64": {
+  "expand_margins_LTRB": [
+   8,
+   3,
+   15,
+   10
+  ],
+  "file": "btn_normal_h64.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   18,
+   9,
+   25,
+   15
+  ],
+  "notes": "Label at x+64 (compact x+54), right padding 30, marker 20x28 at x+26. Controls: draw the art offset by -expand and size by +expand; the focus pose (translate +16, rotate -1.2deg, scale 1.04) is a tween, not baked.",
+  "serves": "BTN-B normal plate, 64 px high (plate rows 4-8). Hover = focus. Skew 0.1405 baked.",
+  "size": [
+   51,
+   77
+  ]
+ },
+ "btn_normal_h80": {
+  "expand_margins_LTRB": [
+   10,
+   3,
+   17,
+   10
+  ],
+  "file": "btn_normal_h80.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   21,
+   9,
+   28,
+   15
+  ],
+  "notes": "Label at x+64 (compact x+54), right padding 30, marker 20x28 at x+26. Controls: draw the art offset by -expand and size by +expand; the focus pose (translate +16, rotate -1.2deg, scale 1.04) is a tween, not baked.",
+  "serves": "BTN-B normal plate, 80 px high (plate rows 4-8). Hover = focus. Skew 0.1405 baked.",
+  "size": [
+   57,
+   93
+  ]
+ },
+ "btn_note": {
+  "note": "buttons: btn_<normal|focus|selected|pressed|disabled>_h<80|64|58>.png; disabled uses axis_stretch tile (centre is a multiple of 17px)"
+ },
+ "btn_pressed_h58": {
+  "expand_margins_LTRB": [
+   8,
+   3,
+   8,
+   3
+  ],
+  "file": "btn_pressed_h58.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   18,
+   8,
+   18,
+   8
+  ],
+  "notes": "Label at x+64 (compact x+54), right padding 30, marker 20x28 at x+26. Controls: draw the art offset by -expand and size by +expand; the focus pose (translate +16, rotate -1.2deg, scale 1.04) is a tween, not baked.",
+  "serves": "BTN-B pressed plate, 58 px high (plate rows 4-8). Hover = focus. Skew 0.1405 baked.",
+  "size": [
+   44,
+   64
+  ]
+ },
+ "btn_pressed_h64": {
+  "expand_margins_LTRB": [
+   8,
+   3,
+   8,
+   3
+  ],
+  "file": "btn_pressed_h64.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   18,
+   8,
+   18,
+   8
+  ],
+  "notes": "Label at x+64 (compact x+54), right padding 30, marker 20x28 at x+26. Controls: draw the art offset by -expand and size by +expand; the focus pose (translate +16, rotate -1.2deg, scale 1.04) is a tween, not baked.",
+  "serves": "BTN-B pressed plate, 64 px high (plate rows 4-8). Hover = focus. Skew 0.1405 baked.",
+  "size": [
+   44,
+   70
+  ]
+ },
+ "btn_pressed_h80": {
+  "expand_margins_LTRB": [
+   10,
+   3,
+   10,
+   3
+  ],
+  "file": "btn_pressed_h80.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   21,
+   8,
+   21,
+   8
+  ],
+  "notes": "Label at x+64 (compact x+54), right padding 30, marker 20x28 at x+26. Controls: draw the art offset by -expand and size by +expand; the focus pose (translate +16, rotate -1.2deg, scale 1.04) is a tween, not baked.",
+  "serves": "BTN-B pressed plate, 80 px high (plate rows 4-8). Hover = focus. Skew 0.1405 baked.",
+  "size": [
+   50,
+   86
+  ]
+ },
+ "btn_selected_h58": {
+  "expand_margins_LTRB": [
+   8,
+   3,
+   15,
+   10
+  ],
+  "file": "btn_selected_h58.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   18,
+   9,
+   25,
+   15
+  ],
+  "notes": "Label at x+64 (compact x+54), right padding 30, marker 20x28 at x+26. Controls: draw the art offset by -expand and size by +expand; the focus pose (translate +16, rotate -1.2deg, scale 1.04) is a tween, not baked.",
+  "serves": "BTN-B selected plate, 58 px high (plate rows 4-8). Hover = focus. Skew 0.1405 baked.",
+  "size": [
+   51,
+   71
+  ]
+ },
+ "btn_selected_h64": {
+  "expand_margins_LTRB": [
+   8,
+   3,
+   15,
+   10
+  ],
+  "file": "btn_selected_h64.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   18,
+   9,
+   25,
+   15
+  ],
+  "notes": "Label at x+64 (compact x+54), right padding 30, marker 20x28 at x+26. Controls: draw the art offset by -expand and size by +expand; the focus pose (translate +16, rotate -1.2deg, scale 1.04) is a tween, not baked.",
+  "serves": "BTN-B selected plate, 64 px high (plate rows 4-8). Hover = focus. Skew 0.1405 baked.",
+  "size": [
+   51,
+   77
+  ]
+ },
+ "btn_selected_h80": {
+  "expand_margins_LTRB": [
+   10,
+   3,
+   17,
+   10
+  ],
+  "file": "btn_selected_h80.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   21,
+   9,
+   28,
+   15
+  ],
+  "notes": "Label at x+64 (compact x+54), right padding 30, marker 20x28 at x+26. Controls: draw the art offset by -expand and size by +expand; the focus pose (translate +16, rotate -1.2deg, scale 1.04) is a tween, not baked.",
+  "serves": "BTN-B selected plate, 80 px high (plate rows 4-8). Hover = focus. Skew 0.1405 baked.",
+  "size": [
+   57,
+   93
+  ]
+ },
+ "bubble": {
+  "expand_margins_LTRB": [
+   0,
+   0,
+   6,
+   6
+  ],
+  "file": "bubble.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   32,
+   32,
+   38,
+   38
+  ],
+  "serves": "plate 27: speech bubble body (tail is bubble_tail.png); idle variant = modulate #D8CDB2",
+  "size": [
+   78,
+   78
+  ]
+ },
+ "bubble_tail": {
+  "file": "bubble_tail.png",
+  "mipmaps": true,
+  "serves": "speech bubble tail: black triangle 40x28, apex 6px from the left; sits on the bubble's bottom edge at left 34, overlapping the bubble border by 5px",
+  "size": [
+   40,
+   28
+  ]
+ },
+ "burst_star": {
+  "file": "burst_star.png",
+  "mipmaps": true,
+  "serves": "menu burst (MENU-B): 18-point star, 1000x1000 at (60,300); runtime opacity 0.92. The same gradient is burst.tres",
+  "size": [
+   1000,
+   1000
+  ]
+ },
+ "burst_tres": {
+  "file": "burst.tres",
+  "mipmaps": false,
+  "serves": "GradientTexture2D: the menu burst's radial fill (stops 0 / .537 / .99 of the 500 px radius); burst_star.png is the baked star"
+ },
+ "card_field": {
+  "file": "card_field.png",
+  "mipmaps": false,
+  "serves": "CARD-B photo window field (188x204): radial gradient at (50%,118%) #FFE08A / accent 42% / #C1752B, bottom 4px black rule",
+  "size": [
+   188,
+   204
+  ]
+ },
+ "card_field_tres": {
+  "file": "card_field.tres",
+  "mipmaps": false,
+  "serves": "GradientTexture2D: card photo field, radial from (50%,118%); card_field.png is the exact bake"
+ },
+ "card_frame": {
+  "expand_margins_LTRB": [
+   3,
+   3,
+   10,
+   11
+  ],
+  "file": "card_frame.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   9,
+   10,
+   16,
+   17
+  ],
+  "notes": "Tilts at runtime (pick states rotate +-1.6deg): mipmaps on.",
+  "serves": "plate 20: trading card frame (CARD-B). centre #0C0A10; paper ring 3 + border 4 + shadow 7,8",
+  "size": [
+   33,
+   35
+  ]
+ },
+ "card_frame_p1": {
+  "expand_margins_LTRB": [
+   8,
+   8,
+   17,
+   18
+  ],
+  "file": "card_frame_p1.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   14,
+   14,
+   23,
+   24
+  ],
+  "serves": "plate 21: card, P1 pick (cyan ring 4 + black 4, shadow 9,10)",
+  "size": [
+   45,
+   46
+  ]
+ },
+ "card_frame_p2": {
+  "expand_margins_LTRB": [
+   8,
+   8,
+   17,
+   18
+  ],
+  "file": "card_frame_p2.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   14,
+   14,
+   23,
+   24
+  ],
+  "serves": "plate 22: card, P2 pick (red ring)",
+  "size": [
+   45,
+   46
+  ]
+ },
+ "card_halftone": {
+  "file": "card_halftone.png",
+  "mipmaps": false,
+  "serves": "card photo halftone (188x204): black dots pitch 8, alpha .26, 200deg fade; draw over the field",
+  "size": [
+   188,
+   204
+  ]
+ },
+ "cover_art": {
+  "file": "cover_art.png",
+  "mipmaps": false,
+  "serves": "MENU-B background: the Level 6 Pompeii scene (assets/environments/pompeii/*) posterized to 9 levels per channel (0 .13 .26 .40 .54 .68 .82 .92 1), saturate 1.2, contrast 1.08; opaque, no vignette",
+  "size": [
+   1920,
+   1080
+  ]
+ },
+ "cover_heroes": {
+  "files": [
+   "cover_heroes/cleopatra_victory.png",
+   "cover_heroes/einstein_victory.png",
+   "cover_heroes/joan_victory.png"
+  ],
+  "mipmaps": true,
+  "poses": {
+   "cleopatra_victory": {
+    "feet_px_from_bottom": 14,
+    "file": "cover_heroes/cleopatra_victory.png",
+    "pivot_x": 85.0,
+    "size": [
+     170,
+     304
+    ],
+    "source": "cleopatra/states region 0 of victory",
+    "texel_scale": 2.0
+   },
+   "einstein_victory": {
+    "feet_px_from_bottom": 14,
+    "file": "cover_heroes/einstein_victory.png",
+    "pivot_x": 125.0,
+    "size": [
+     250,
+     257
+    ],
+    "source": "einstein/states region 2 of victory",
+    "texel_scale": 2.0
+   },
+   "joan_victory": {
+    "feet_px_from_bottom": 15,
+    "file": "cover_heroes/joan_victory.png",
+    "pivot_x": 87.0,
+    "size": [
+     174,
+     335
+    ],
+    "source": "joan/states region 0 of victory",
+    "texel_scale": 2.0
+   }
+  },
+  "serves": "MENU-B cover hero poses (Joan, Einstein, Cleopatra victory frames); feet_px_from_bottom and pivot_x per pose"
+ },
+ "dial_back": {
+  "expand_margins_LTRB": [
+   4,
+   16,
+   9,
+   10
+  ],
+  "file": "dial_back.png",
+  "mipmaps": true,
+  "serves": "plate 28: Integrity stopwatch back: crown (34x24, shadow 3,3), black ring 4, shadow 5,6, paper face. 2x bake; the 112 face's box origin is (4,16) in 1x. Draw the wedge disc (diameter 92, centre = face centre) above it, then dial_ticks.",
+  "size": [
+   250,
+   276
+  ]
+ },
+ "dial_ticks": {
+  "expand_margins_LTRB": [
+   4,
+   16,
+   9,
+   10
+  ],
+  "file": "dial_ticks.png",
+  "mipmaps": true,
+  "serves": "Integrity dial overlay: 12 ticks (every 30deg, 2deg wide, 9 long, ring inset 2%) and the 3px black ring around the wedge disc (r 43-46). Same canvas as dial_back.",
+  "size": [
+   250,
+   276
+  ]
+ },
+ "dot_10": {
+  "file": "dot_10.png",
+  "mipmaps": false,
+  "notes": "white dot, solid to r1.5 fading to r2.0; colour and alpha come from modulate",
+  "serves": "halftone corner of dark / paper panels: modulate rgba(255,255,255,.17) (dark) / rgba(0,0,0,.16) (paper); mask diagonal in a shader",
+  "size": [
+   10,
+   10
+  ],
+  "tile": true
+ },
+ "dot_8": {
+  "file": "dot_8.png",
+  "mipmaps": false,
+  "notes": "white dot, solid to r1.5 fading to r2.0; colour and alpha come from modulate",
+  "serves": "halftone of the card photo window (pitch 8): modulate rgba(0,0,0,.26)",
+  "size": [
+   8,
+   8
+  ],
+  "tile": true
+ },
+ "dot_9": {
+  "file": "dot_9.png",
+  "mipmaps": false,
+  "notes": "white dot, solid to r1.6 fading to r2.1; colour and alpha come from modulate",
+  "serves": "halftone for the cover / portraits / select split (pitch 9): modulate rgba(0,0,0,.34) / .28",
+  "size": [
+   9,
+   9
+  ],
+  "tile": true
+ },
+ "halftone_screen": {
+  "file": "halftone_screen.png",
+  "mipmaps": false,
+  "serves": "full-screen halftone for the cover (layer opacity 0.55) and the select split (0.80): black dots pitch 9 r1.7-2.2, alpha .34 x vertical mask .2 (top) to .9 (bottom) baked; MUL blend or plain alpha",
+  "size": [
+   1920,
+   1080
+  ]
+ },
+ "hatch_boss": {
+  "file": "hatch_boss.png",
+  "mipmaps": false,
+  "notes": "seamless 20x20 tile; stripe perpendicular period 14.14px (spec 14), band 6.06px",
+  "serves": "boss fill overlay: 135deg stripes, rgba(0,0,0,.20) (alpha baked)",
+  "size": [
+   20,
+   20
+  ],
+  "tile": true
+ },
+ "hatch_disabled": {
+  "file": "hatch_disabled.png",
+  "mipmaps": false,
+  "notes": "seamless 17x17 tile; stripe perpendicular period 12.02px (spec 12), band 6.01px",
+  "serves": "disabled button stripes #2C2733 / #221E29, 45deg (spec 12px tile is a perpendicular period; 17px is the horizontal period)",
+  "size": [
+   17,
+   17
+  ],
+  "tile": true
+ },
+ "hatch_hp": {
+  "file": "hatch_hp.png",
+  "mipmaps": false,
+  "notes": "seamless 16x16 tile; stripe perpendicular period 11.31px (spec 11), band 5.14px",
+  "serves": "HP / meter / stat fill overlay: 135deg stripes, rgba(0,0,0,.22) (alpha baked); clip to the fill, tile in pre-shear space",
+  "size": [
+   16,
+   16
+  ],
+  "tile": true
+ },
+ "hatch_random": {
+  "file": "hatch_random.png",
+  "mipmaps": false,
+  "notes": "seamless 34x34 tile; stripe perpendicular period 24.04px (spec 24), band 12.02px",
+  "serves": "Random card photo window hatch #2A2434 / #1B1724, 45deg",
+  "size": [
+   34,
+   34
+  ],
+  "tile": true
+ },
+ "ico_anchor": {
+  "files": [
+   "icons/ico_anchor_fill.png",
+   "icons/ico_anchor_ink.png",
+   "icons/ico_anchor_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "24 px; agent design (UI_SPEC left it undrawn)",
+  "serves": "Act III Beacon anchor icon",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "#F3C95B (gold)"
+ },
+ "ico_anchor_hollow": {
+  "files": [
+   "icons/ico_anchor_hollow_fill.png",
+   "icons/ico_anchor_hollow_ink.png",
+   "icons/ico_anchor_hollow_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "24 px; fill layer is an outline stroke, so the middle is see-through",
+  "serves": "Beacon anchor, last stand (zero charges)",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "#8A8374 or #FF5A5A"
+ },
+ "ico_anchor_pip": {
+  "files": [
+   "icons/ico_anchor_pip_fill.png",
+   "icons/ico_anchor_pip_ink.png",
+   "icons/ico_anchor_pip_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "8-12 px diamond",
+  "serves": "Beacon anchor pip",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "#F3C95B"
+ },
+ "ico_anchor_pip_cracked": {
+  "files": [
+   "icons/ico_anchor_pip_cracked_fill.png",
+   "icons/ico_anchor_pip_cracked_ink.png",
+   "icons/ico_anchor_pip_cracked_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "cracked diamond",
+  "serves": "Beacon anchor pip, spent by a Snap",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "#F3C95B, fade with alpha"
+ },
+ "ico_burn": {
+  "files": [
+   "icons/ico_burn_fill.png",
+   "icons/ico_burn_ink.png",
+   "icons/ico_burn_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "badge glyph",
+  "serves": "damage status",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "#FF7A5C"
+ },
+ "ico_cross": {
+  "files": [
+   "icons/ico_cross_fill.png",
+   "icons/ico_cross_ink.png",
+   "icons/ico_cross_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "flat; no ink, no shadow",
+  "serves": "suppressed slot",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "#38F2FF + 6 px glow"
+ },
+ "ico_defy_barred": {
+  "files": [
+   "icons/ico_defy_barred_fill.png",
+   "icons/ico_defy_barred_ink.png",
+   "icons/ico_defy_barred_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "ring + slash",
+  "serves": "Defy seal unavailable",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "#FF5A5A"
+ },
+ "ico_defy_notready": {
+  "files": [
+   "icons/ico_defy_notready_fill.png",
+   "icons/ico_defy_notready_ink.png",
+   "icons/ico_defy_notready_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "",
+  "serves": "Defy seal not ready",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "#8A8374"
+ },
+ "ico_defy_ready": {
+  "files": [
+   "icons/ico_defy_ready_fill.png",
+   "icons/ico_defy_ready_ink.png",
+   "icons/ico_defy_ready_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "34 Story / 32 Fighter; the black core ring is in _ink",
+  "serves": "Defy seal ready",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "#FFF0B0"
+ },
+ "ico_defy_spent": {
+  "files": [
+   "icons/ico_defy_spent_fill.png",
+   "icons/ico_defy_spent_ink.png",
+   "icons/ico_defy_spent_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "three arcs",
+  "serves": "Defy seal spent",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "#8A8374"
+ },
+ "ico_dilation": {
+  "files": [
+   "icons/ico_dilation_fill.png",
+   "icons/ico_dilation_ink.png",
+   "icons/ico_dilation_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "shown 25-28 px inside a 40-44 badge",
+  "serves": "control status",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "#8FC7FF"
+ },
+ "ico_dormant": {
+  "files": [
+   "icons/ico_dormant_fill.png",
+   "icons/ico_dormant_ink.png",
+   "icons/ico_dormant_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "16% inset of the slot; flat, no ink, no shadow (spec 3.4)",
+  "serves": "dormant Legacy slot",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "#8A8374 @0.9"
+ },
+ "ico_dust": {
+  "files": [
+   "icons/ico_dust_fill.png",
+   "icons/ico_dust_ink.png",
+   "icons/ico_dust_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "38",
+  "serves": "Chronal Dust",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "#F3C95B"
+ },
+ "ico_flag": {
+  "files": [
+   "icons/ico_flag_fill.png",
+   "icons/ico_flag_ink.png",
+   "icons/ico_flag_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "22",
+  "serves": "objective",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "#FFF0B0"
+ },
+ "ico_freeze": {
+  "files": [
+   "icons/ico_freeze_fill.png",
+   "icons/ico_freeze_ink.png",
+   "icons/ico_freeze_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "29 in a 46 badge, ring accent",
+  "serves": "Time Freeze",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "#FFE39A"
+ },
+ "ico_hourglass": {
+  "files": [
+   "icons/ico_hourglass_fill.png",
+   "icons/ico_hourglass_ink.png",
+   "icons/ico_hourglass_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "29 in a 46 badge; caret 34 in #FFF0B0",
+  "serves": "rewind counter, dialogue advance caret",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "#FFE39A; low = #FF5A5A"
+ },
+ "ico_marker": {
+  "files": [
+   "icons/ico_marker_fill.png",
+   "icons/ico_marker_ink.png",
+   "icons/ico_marker_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "texture is 40x56; the hard shadow is the _sh layer at (2,2)",
+  "serves": "button marker triangle (20 x 28 at 2x)",
+  "size": [
+   40,
+   56
+  ],
+  "tint": "ink3 #8A8374 normal / #0C0A10 focus / #E0412F selected / #4A4333 disabled"
+ },
+ "ico_prompt_circle": {
+  "files": [
+   "icons/ico_prompt_circle_fill.png",
+   "icons/ico_prompt_circle_ink.png",
+   "icons/ico_prompt_circle_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "34-36; _ink = black disc + outer ring (omit it inside a focused button); the letter is a live Label",
+  "serves": "A / B prompt circle",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "_fill tint = #FFF3D8 (or the label colour inside a button)"
+ },
+ "ico_root": {
+  "files": [
+   "icons/ico_root_fill.png",
+   "icons/ico_root_ink.png",
+   "icons/ico_root_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "badge glyph",
+  "serves": "control status",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "#8FC7FF"
+ },
+ "ico_shield": {
+  "files": [
+   "icons/ico_shield_fill.png",
+   "icons/ico_shield_ink.png",
+   "icons/ico_shield_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "30 Story / 24 Fighter",
+  "serves": "block pip",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "#DFE8FF; off = opacity .28 + grayscale"
+ },
+ "ico_slot_p1": {
+  "files": [
+   "icons/ico_slot_p1_fill.png",
+   "icons/ico_slot_p1_ink.png",
+   "icons/ico_slot_p1_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "30 box, 22 glyph; 28 in card badges",
+  "serves": "player slot shape (triangle)",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "P1 #00F0FF"
+ },
+ "ico_slot_p2": {
+  "files": [
+   "icons/ico_slot_p2_fill.png",
+   "icons/ico_slot_p2_ink.png",
+   "icons/ico_slot_p2_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "same",
+  "serves": "player slot shape (circle)",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "P2 #FF3366"
+ },
+ "ico_star4": {
+  "files": [
+   "icons/ico_star4_fill.png",
+   "icons/ico_star4_ink.png",
+   "icons/ico_star4_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "28",
+  "serves": "Fighter stock",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "P1 #00F0FF / P2 #FF3366; off = opacity .22"
+ },
+ "ico_static": {
+  "files": [
+   "icons/ico_static_fill.png",
+   "icons/ico_static_ink.png",
+   "icons/ico_static_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "badge glyph",
+  "serves": "control status",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "#8FC7FF"
+ },
+ "ico_suppress": {
+  "files": [
+   "icons/ico_suppress_fill.png",
+   "icons/ico_suppress_ink.png",
+   "icons/ico_suppress_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "status glyph and empty-slot ghost",
+  "serves": "Suppression",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "#38F2FF (cold, the Severed)"
+ },
+ "ico_venom": {
+  "files": [
+   "icons/ico_venom_fill.png",
+   "icons/ico_venom_ink.png",
+   "icons/ico_venom_sh.png"
+  ],
+  "layers": "fill (white, tint by modulate) < ink (black outline ring + details + paper extras, drawn over the fill) ; sh (black silhouette, drawn under the fill at +2,+2 screen px)",
+  "mipmaps": true,
+  "notes": "badge glyph",
+  "serves": "damage status",
+  "size": [
+   64,
+   64
+  ],
+  "tint": "#FF7A5C"
+ },
+ "key_tag": {
+  "expand_margins_LTRB": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "file": "key_tag.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   5,
+   5,
+   5,
+   5
+  ],
+  "serves": "plate 16: slot key tag (S1 S2 MOV ULT), paper, border 3; rotate -4deg at (-10,-12) of the slot",
+  "size": [
+   18,
+   22
+  ]
+ },
+ "keycap": {
+  "expand_margins_LTRB": [
+   2,
+   2,
+   2,
+   2
+  ],
+  "file": "keycap.png",
+  "mipmaps": false,
+  "nine_slice_margins_LTRB": [
+   21,
+   19,
+   21,
+   19
+  ],
+  "serves": "key-cap prompt (keyboard / mouse): black pill 34 high, cream border 2 + black ring 2 (UI_SPEC 3.7 prompt bar glyphs, wide variant); label #FFF3D8 centred",
+  "size": [
+   48,
+   38
+  ]
+ },
+ "panel_dark": {
+  "expand_margins_LTRB": [
+   3,
+   3,
+   12,
+   12
+  ],
+  "file": "panel_dark.png",
+  "mipmaps": false,
+  "nine_slice_margins_LTRB": [
+   11,
+   11,
+   17,
+   17
+  ],
+  "notes": "Spec margins 6/6/15/15 put the shadow's start (3px below the box edge) outside the corner slices; these margins keep it inside. Use draw_center=true.",
+  "serves": "plate 1: dark ink panel (PNL-B). centre = bg1 @0.80; ring 3 black + paper border 3 + hard shadow slab 9,9",
+  "size": [
+   36,
+   36
+  ]
+ },
+ "panel_paper": {
+  "expand_margins_LTRB": [
+   0,
+   0,
+   9,
+   9
+  ],
+  "file": "panel_paper.png",
+  "mipmaps": false,
+  "nine_slice_margins_LTRB": [
+   11,
+   11,
+   14,
+   14
+  ],
+  "serves": "plate 2: paper panel (stat cards): #000 border 3, paper centre, shadow slab 9,9",
+  "size": [
+   33,
+   33
+  ]
+ },
+ "portrait_halftone": {
+  "file": "portrait_halftone.png",
+  "mipmaps": false,
+  "serves": "portrait roundel halftone (112x112 square, clip to the disc): black dots pitch 9 alpha .28, 200deg fade; scale with the roundel diameter / 112",
+  "size": [
+   112,
+   112
+  ]
+ },
+ "portrait_roundel": {
+  "expand_margins_LTRB": [
+   10,
+   10,
+   17,
+   17
+  ],
+  "file": "portrait_roundel.png",
+  "mipmaps": true,
+  "notes": "portrait art zoom 142%, offset (-21%, -6.8%) of the diameter; scale the whole texture to the display diameter / 112",
+  "serves": "plate 17: portrait roundel back (shadow circle (6,7), black 4 + paper 3 + black 3 rings, gold disc with a #FFE39A core). 2x bake; the 112 disc's box origin is (10,10) in 1x units. Draw the portrait on a circular Polygon2D above it.",
+  "size": [
+   278,
+   278
+  ]
+ },
+ "rays": {
+  "file": "rays.png",
+  "mipmaps": false,
+  "serves": "cover rays: 30 rays, 4deg lit / 8deg clear from (614,713), rgba(244,182,59,.22) baked at .17 so an ADD blend matches the mock Screen blend; blend ADD (a Screen blend does not exist in Compatibility)",
+  "size": [
+   1920,
+   1080
+  ]
+ },
+ "select_split": {
+  "file": "select_split.png",
+  "mipmaps": false,
+  "serves": "CARD-B background: 108deg split #138A94 (P1) / #CF3A2C (P2), 1% black divider, vignette; the halftone_screen goes over it at 0.80",
+  "size": [
+   1920,
+   1080
+  ]
+ },
+ "slider_fill": {
+  "expand_margins_LTRB": [
+   2,
+   0,
+   2,
+   0
+  ],
+  "file": "slider_fill.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   5,
+   1,
+   5,
+   1
+  ],
+  "serves": "slider fill: accent skewed bar, 12 high; lay it inside the black body of slider_track (2px inset), cut its right end at the value",
+  "size": [
+   16,
+   12
+  ]
+ },
+ "slider_grabber": {
+  "file": "slider_grabber.png",
+  "mipmaps": true,
+  "serves": "slider handle: 28 px circle, paper, border 4, shadow 3,3,0",
+  "size": [
+   31,
+   31
+  ]
+ },
+ "slider_track": {
+  "expand_margins_LTRB": [
+   5,
+   3,
+   8,
+   6
+  ],
+  "file": "slider_track.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   9,
+   5,
+   12,
+   8
+  ],
+  "serves": "slider track 16 high, black body, paper ring 3, shadow 3,3,3, skew 0.1763",
+  "size": [
+   29,
+   25
+  ]
+ },
+ "slot_frame": {
+  "expand_margins_LTRB": [
+   2,
+   2,
+   7,
+   8
+  ],
+  "file": "slot_frame.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   10,
+   10,
+   15,
+   16
+  ],
+  "serves": "plate 13: square ability slot frame (Story 74, Fighter 54, select 50); centre #2A2434",
+  "size": [
+   33,
+   34
+  ]
+ },
+ "slot_frame_ready": {
+  "expand_margins_LTRB": [
+   4,
+   4,
+   9,
+   10
+  ],
+  "file": "slot_frame_ready.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   12,
+   12,
+   17,
+   18
+  ],
+  "serves": "plate 14: ready slot frame (2 accent + 2 black rings, shadow 5,6,4)",
+  "size": [
+   37,
+   38
+  ]
+ },
+ "slot_ult": {
+  "expand_margins_LTRB": [
+   2,
+   2,
+   7,
+   8
+  ],
+  "file": "slot_ult.png",
+  "mipmaps": true,
+  "notes": "fixed-size sprite; the 92 px circle's box origin is (expand L, expand T). The 116 px progress ring is drawn in code around it.",
+  "serves": "plate 15: Ultimate slot frame, circle 92 (not stretchable)",
+  "size": [
+   101,
+   102
+  ]
+ },
+ "slot_ult_ready": {
+  "expand_margins_LTRB": [
+   4,
+   4,
+   9,
+   10
+  ],
+  "file": "slot_ult_ready.png",
+  "mipmaps": true,
+  "notes": "fixed-size sprite; the 92 px circle's box origin is (expand L, expand T). The 116 px progress ring is drawn in code around it.",
+  "serves": "plate 15 ready: accent ring + black ring, shadow 5,6,4",
+  "size": [
+   105,
+   106
+  ]
+ },
+ "stamp_ready": {
+  "expand_margins_LTRB": [
+   0,
+   0,
+   5,
+   5
+  ],
+  "file": "stamp_ready.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   7,
+   7,
+   11,
+   11
+  ],
+  "serves": "plate 26: card READY stamp as the dark ink plate (orchestrator ruling Q1); rotate -10deg",
+  "size": [
+   26,
+   59
+  ]
+ },
+ "star_badge": {
+  "files": [
+   "star_badge_fill.png",
+   "star_badge_ink.png",
+   "star_badge_sh.png"
+  ],
+  "layers": "sh (shadow offset baked) < fill (tint with the player colour) < ink (outline ring)",
+  "mipmaps": true,
+  "serves": "P1 / P2 star badge (118 box, 10 points outer 50% / inner 36%; 2x bake, star box origin (4,4) in 1x). _fill = white star (tint with the player colour), _ink = 4px outline ring drawn OVER the fill, _sh = black silhouette with the (5,6) shadow offset already baked, drawn UNDER the fill",
+  "size": [
+   262,
+   264
+  ]
+ },
+ "sticker_continue": {
+  "file": "sticker_continue.png",
+  "mipmaps": true,
+  "serves": "plate 29: Continue sticker, 14-point star (outer 50% / inner 40% of 270), accent fill, 5px ink outline, shadow 10,12. 2x bake; the star's box origin is (5,5) in 1x units; rotate 8deg about the star centre (140,140 in 1x). Text is live labels.",
+  "size": [
+   580,
+   584
+  ]
+ },
+ "tab_normal": {
+  "expand_margins_LTRB": [
+   6,
+   2,
+   10,
+   6
+  ],
+  "file": "tab_normal.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   16,
+   8,
+   20,
+   12
+  ],
+  "serves": "Settings tab, normal (Appendix B): bg2 / accent fill, border 4, ring 2 paper, shadow 4,4,2, skew 0.1405, 52 high (agent default height)",
+  "size": [
+   44,
+   60
+  ]
+ },
+ "tab_selected": {
+  "expand_margins_LTRB": [
+   6,
+   2,
+   10,
+   6
+  ],
+  "file": "tab_selected.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   16,
+   8,
+   20,
+   12
+  ],
+  "serves": "Settings tab, selected (Appendix B): bg2 / accent fill, border 4, ring 2 paper, shadow 4,4,2, skew 0.1405, 52 high (agent default height)",
+  "size": [
+   44,
+   60
+  ]
+ },
+ "tag_panel": {
+  "expand_margins_LTRB": [
+   4,
+   0,
+   8,
+   4
+  ],
+  "file": "tag_panel.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   13,
+   6,
+   17,
+   9
+  ],
+  "serves": "plate 3: panel title tag (VITALS, ABILITIES, pause location, card style); text un-skewed; rotate -1.2deg",
+  "size": [
+   38,
+   42
+  ]
+ },
+ "toggle_knob": {
+  "file": "toggle_knob.png",
+  "mipmaps": true,
+  "serves": "toggle knob 34x34, paper, border 4, skewed 0.1763 (at top 6, left 5 off / right 5 on)",
+  "size": [
+   40,
+   34
+  ]
+ },
+ "toggle_track_off": {
+  "expand_margins_LTRB": [
+   7,
+   2,
+   11,
+   6
+  ],
+  "file": "toggle_track_off.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   17,
+   8,
+   21,
+   12
+  ],
+  "serves": "toggle track off (132x44 border box): fill #3A3144; text and knob are separate",
+  "size": [
+   150,
+   52
+  ]
+ },
+ "toggle_track_on": {
+  "expand_margins_LTRB": [
+   7,
+   2,
+   11,
+   6
+  ],
+  "file": "toggle_track_on.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   17,
+   8,
+   21,
+   12
+  ],
+  "serves": "toggle track on (132x44 border box): fill #8CF0B8; text and knob are separate",
+  "size": [
+   150,
+   52
+  ]
+ }
+}
