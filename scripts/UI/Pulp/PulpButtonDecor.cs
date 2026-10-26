@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Text.Json;
 using FTT.Core;
 using FTT.UI.Motion;
 using Godot;
@@ -20,12 +19,8 @@ namespace FTT.UI.Pulp {
         public static readonly Color MarkerSelectedTint = new(0xE0 / 255f, 0x41 / 255f, 0x2F / 255f);
         public static readonly Color MarkerDisabledTint = new(0x4A / 255f, 0x43 / 255f, 0x33 / 255f);
 
-        private const string KitJsonPath = "res://assets/sprites/ui/pulp/pulp_kit.json";
-        private const string KitDirectory = "res://assets/sprites/ui/pulp/";
         private const float BadgeEdgeInset = 30f;
         private const float PadBadgeSize = 36f;
-
-        private static Dictionary<string, JsonElement> _kit;
 
         private Button _button;
         private bool _compact;
@@ -61,12 +56,16 @@ namespace FTT.UI.Pulp {
             }
         }
 
-        /// <summary>Decorates <paramref name="button"/>; a second call returns the decor already on it.</summary>
-        public static PulpButtonDecor Apply(Button button, bool compact = false) {
+        /// <summary>
+        /// Decorates <paramref name="button"/>; a second call returns the decor already on it. <paramref name="alignLeft"/>
+        /// left-aligns the label (the spec puts it at x + 64) so screens need not.
+        /// </summary>
+        public static PulpButtonDecor Apply(Button button, bool compact = false, bool alignLeft = true) {
             foreach (Node child in button.GetChildren()) {
                 if (child is PulpButtonDecor existing) return existing;
             }
             var decor = new PulpButtonDecor { Name = "PulpButtonDecor", _button = button, _compact = compact };
+            if (alignLeft) button.Alignment = HorizontalAlignment.Left;
             decor.Build();
             button.AddChild(decor);
             return decor;
@@ -258,17 +257,8 @@ namespace FTT.UI.Pulp {
         };
 
         private StyleBoxTexture BuildSelectedPlate() {
-            string stem = "btn_selected_h" + SelectedPlateHeight(_button.ThemeTypeVariation);
-            if (!TryReadKitEntry(stem, out JsonElement entry)) return null;
-            var plate = new StyleBoxTexture { Texture = GD.Load<Texture2D>(KitDirectory + stem + ".png") };
-            int[] slice = ReadFour(entry, "nine_slice_margins_LTRB");
-            plate.TextureMarginLeft = slice[0]; plate.TextureMarginTop = slice[1];
-            plate.TextureMarginRight = slice[2]; plate.TextureMarginBottom = slice[3];
-            if (entry.TryGetProperty("expand_margins_LTRB", out _)) {
-                int[] expand = ReadFour(entry, "expand_margins_LTRB");
-                plate.ExpandMarginLeft = expand[0]; plate.ExpandMarginTop = expand[1];
-                plate.ExpandMarginRight = expand[2]; plate.ExpandMarginBottom = expand[3];
-            }
+            StyleBoxTexture plate = PulpKit.Plate("btn_selected_h" + SelectedPlateHeight(_button.ThemeTypeVariation));
+            if (plate == null) return null;
             // Keep the label where the theme put it.
             StyleBox current = _button.GetThemeStylebox("normal");
             if (current != null) {
@@ -278,27 +268,6 @@ namespace FTT.UI.Pulp {
                 plate.ContentMarginBottom = current.GetContentMargin(Side.Bottom);
             }
             return plate;
-        }
-
-        private static int[] ReadFour(JsonElement entry, string key) {
-            var values = new int[4];
-            int i = 0;
-            foreach (JsonElement v in entry.GetProperty(key).EnumerateArray()) values[i++] = v.GetInt32();
-            return values;
-        }
-
-        private static bool TryReadKitEntry(string stem, out JsonElement entry) {
-            if (_kit == null) {
-                _kit = new Dictionary<string, JsonElement>();
-                using FileAccess file = FileAccess.Open(KitJsonPath, FileAccess.ModeFlags.Read);
-                if (file != null) {
-                    using JsonDocument doc = JsonDocument.Parse(file.GetAsText());
-                    foreach (JsonProperty property in doc.RootElement.EnumerateObject()) {
-                        _kit[property.Name] = property.Value.Clone();
-                    }
-                }
-            }
-            return _kit.TryGetValue(stem, out entry);
         }
     }
 }
