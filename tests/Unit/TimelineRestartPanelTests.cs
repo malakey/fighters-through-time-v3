@@ -34,7 +34,7 @@ public class TimelineRestartPanelTests {
     public void TheTitleUsesTheTitleVariationWithNoFontSizeOverride() {
         (Node host, TimelineRestartPanel panel) = CreatePanel("TimelineScalePinHost");
         try {
-            var title = panel.GetNodeOrNull<Label>("Panel/Layout/Title");
+            var title = panel.GetNodeOrNull<Label>("Center/Panel/Layout/Title");
             AssertObject(title).IsNotNull();
             AssertThat(title.ThemeTypeVariation.ToString()).IsEqual(UIPalette.TitleLabelVariation);
             AssertThat(title.HasThemeFontSizeOverride("font_size")).IsFalse();
@@ -49,9 +49,9 @@ public class TimelineRestartPanelTests {
         try {
             AssertObject(panel.Theme).IsNotNull();
 
-            var anchor = panel.GetNodeOrNull<Button>("Panel/Layout/AnchorButton");
-            var full = panel.GetNodeOrNull<Button>("Panel/Layout/FullRestartButton");
-            var cancel = panel.GetNodeOrNull<Button>("Panel/Layout/CancelButton");
+            var anchor = panel.GetNodeOrNull<Button>("Center/Panel/Layout/AnchorButton");
+            var full = panel.GetNodeOrNull<Button>("Center/Panel/Layout/FullRestartButton");
+            var cancel = panel.GetNodeOrNull<Button>("Center/Panel/Layout/CancelButton");
             AssertObject(anchor).IsNotNull();
             AssertObject(full).IsNotNull();
             AssertObject(cancel).IsNotNull();
@@ -75,7 +75,7 @@ public class TimelineRestartPanelTests {
             bool? chosen = null;
             panel.RestartChosen += fromAnchor => chosen = fromAnchor;
 
-            panel.GetNode<Button>("Panel/Layout/AnchorButton")
+            panel.GetNode<Button>("Center/Panel/Layout/AnchorButton")
                 .EmitSignal(BaseButton.SignalName.Pressed);
 
             AssertThat(chosen).IsEqual(true);
@@ -92,7 +92,7 @@ public class TimelineRestartPanelTests {
             bool? chosen = null;
             panel.RestartChosen += fromAnchor => chosen = fromAnchor;
 
-            panel.GetNode<Button>("Panel/Layout/FullRestartButton")
+            panel.GetNode<Button>("Center/Panel/Layout/FullRestartButton")
                 .EmitSignal(BaseButton.SignalName.Pressed);
 
             // Pressing the button must not have acted yet.
@@ -104,7 +104,7 @@ public class TimelineRestartPanelTests {
             AssertThat(panel.FullRestartConfirmation.IsOpen).IsFalse();
             AssertThat(chosen).IsNull();
 
-            panel.GetNode<Button>("Panel/Layout/FullRestartButton")
+            panel.GetNode<Button>("Center/Panel/Layout/FullRestartButton")
                 .EmitSignal(BaseButton.SignalName.Pressed);
             panel.FullRestartConfirmation.Confirm();
 
@@ -124,7 +124,7 @@ public class TimelineRestartPanelTests {
 
             // The modal is a sibling of the button column, not a member of it: a
             // hidden confirm button must never become a focus stop on the panel.
-            var layout = panel.GetNode<VBoxContainer>("Panel/Layout");
+            var layout = panel.GetNode<VBoxContainer>("Center/Panel/Layout");
             AssertThat(modal.GetParent() == layout).IsFalse();
             AssertThat(FocusChainBuilder.Collect(layout).Count).IsEqual(3);
         } finally {

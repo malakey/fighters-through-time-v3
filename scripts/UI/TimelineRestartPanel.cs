@@ -48,9 +48,11 @@ namespace FTT.UI {
             AddChild(shade);
 
             var panel = new PanelContainer { Name = "Panel", CustomMinimumSize = new Vector2(620f, 300f) };
-            panel.SetAnchorsPreset(LayoutPreset.Center);
-            panel.Position = new Vector2(-310f, -150f);
-            AddChild(panel);
+            var center = new CenterContainer { Name = "Center", MouseFilter = MouseFilterEnum.Ignore };
+            center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+            AddChild(center);
+            center.AddChild(panel);
+            MenuSafeAreaFit.Attach(panel);
 
             var layout = new VBoxContainer { Name = "Layout", Alignment = BoxContainer.AlignmentMode.Center };
             layout.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);

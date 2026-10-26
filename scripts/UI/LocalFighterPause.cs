@@ -174,10 +174,13 @@ namespace FTT.UI {
             }
 
             _panel = new PanelContainer { Name = "PausePanel", Visible = false };
-            _panel.SetAnchorsPreset(Control.LayoutPreset.Center);
             _panel.ThemeTypeVariation = "DialogueGlassPanel";
             UIPalette.ApplyTheme(_panel);
-            AddChild(_panel);
+            var panelCenter = new CenterContainer { Name = "PanelCenter", MouseFilter = Control.MouseFilterEnum.Ignore };
+            panelCenter.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+            AddChild(panelCenter);
+            panelCenter.AddChild(_panel);
+            MenuSafeAreaFit.Attach(_panel);
 
             var layout = new VBoxContainer();
             layout.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);

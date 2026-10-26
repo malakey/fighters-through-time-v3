@@ -60,9 +60,16 @@ namespace FTT.UI {
                 Visible = false,
                 MouseFilter = Control.MouseFilterEnum.Ignore,
                 ThemeTypeVariation = "DialogueGlassPanel",
-                Position = new Vector2(560, 150),
                 CustomMinimumSize = new Vector2(800, 0)
             };
+            // FU-MENU: top-centre anchors growing both ways, not a fixed (560, 150).
+            _panel.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
+            _panel.OffsetLeft = -400f;
+            _panel.OffsetRight = 400f;
+            _panel.OffsetTop = 150f;
+            _panel.OffsetBottom = 150f;
+            _panel.GrowHorizontal = Control.GrowDirection.Both;
+            _panel.GrowVertical = Control.GrowDirection.End;
             UIPalette.ApplyTheme(_panel);
             _label = new Label {
                 Name = "TooltipText",

@@ -91,9 +91,16 @@ namespace FTT.UI {
             shade.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
             AddChild(shade);
 
+            // FU-MENU: a full-rect CenterContainer keeps the panel on the screen centre
+            // however tall it grows; SetAnchorsPreset(Center) alone left its top-left
+            // corner there and pushed the bottom off screen.
+            var center = new CenterContainer { Name = "Center", MouseFilter = MouseFilterEnum.Ignore };
+            center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+            AddChild(center);
+
             var panel = new PanelContainer { Name = "Panel", CustomMinimumSize = new Vector2(640f, 0f) };
-            panel.SetAnchorsPreset(LayoutPreset.Center);
-            AddChild(panel);
+            center.AddChild(panel);
+            MenuSafeAreaFit.Attach(panel);
 
             var layout = new VBoxContainer { Name = "Layout" };
             layout.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);

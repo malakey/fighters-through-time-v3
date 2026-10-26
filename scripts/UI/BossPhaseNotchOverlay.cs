@@ -37,7 +37,7 @@ namespace FTT.UI {
 
         public override void _Ready() {
             MouseFilter = MouseFilterEnum.Ignore;
-            SetAnchorsPreset(LayoutPreset.FullRect);
+            SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
             SetProcess(false);
         }
 

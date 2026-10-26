@@ -59,7 +59,7 @@ namespace FTT.UI {
         /// cannot be authored in the scene without duplicating content.</para>
         /// </summary>
         public override void _Ready() {
-            SetAnchorsPreset(LayoutPreset.FullRect);
+            SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
             MouseFilter = MouseFilterEnum.Stop;
             UIPalette.ApplyTheme(this);
 
