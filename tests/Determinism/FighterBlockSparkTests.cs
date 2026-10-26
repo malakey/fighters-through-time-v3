@@ -26,6 +26,7 @@ public class FighterBlockSparkTests {
         public BufferedInputSource InputOne = new();
         public BufferedInputSource InputTwo = new();
         public readonly List<BlockSparkKind> Seen = new();
+        public SessionData SavedSession;
         private int _childrenSeen;
 
         public void Tick(float oneMove, GameplayButtons oneHeld, GameplayButtons twoHeld,
@@ -46,6 +47,14 @@ public class FighterBlockSparkTests {
     }
 
     private static Rig NewRig(string name) {
+        // GameManager's boot session runs player two as the Normal CPU, which would
+        // ignore InputTwo (CLAUDE.md test-authoring notes): make it a local human
+        // before the driver is built, and Free restores the session.
+        GameManager manager = GameManager.Instance;
+        SessionData savedSession = manager.CurrentSession;
+        SessionData localVersus = savedSession;
+        localVersus.FighterOpponentType = FighterOpponentType.LocalHuman;
+        manager.CurrentSession = localVersus;
         var host = new Node2D { Name = name };
         ((SceneTree)Engine.GetMainLoop()).Root.AddChild(host);
         PlayerController one = CharacterFactory.CreateCharacter("einstein", 0, applyStoryProgression: false);
@@ -57,7 +66,7 @@ public class FighterBlockSparkTests {
         MatchSettings settings = MatchSettings.GetDefault();
         settings.StageHazardsEnabled = false;
         driver.Initialize(one, two, settings, stageHazardTypeID: 1, stageID: "florence_workshop", matchSeed: 2026);
-        var rig = new Rig { Host = host, Driver = driver };
+        var rig = new Rig { Host = host, Driver = driver, SavedSession = savedSession };
         for (int i = 0; i < FighterMatchFlowRules.CountdownFrames + 2; i++) rig.Tick(0f, GameplayButtons.None, GameplayButtons.None);
         return rig;
     }
@@ -66,6 +75,7 @@ public class FighterBlockSparkTests {
         InputManager.Instance.ClearInputSource(0);
         InputManager.Instance.ClearInputSource(1);
         rig.Host.Free();
+        GameManager.Instance.CurrentSession = rig.SavedSession;
     }
 
     [TestCase]

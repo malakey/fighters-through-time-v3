@@ -28,6 +28,12 @@ public class FighterWallBouncePresentationTests {
     [TestCase]
     public void ARisingBounceCounterSpawnsOneImpactBurstAndAnUnchangedOneSpawnsNone() {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        // A local human player two (the boot session's CPU would act on its own).
+        GameManager manager = GameManager.Instance;
+        SessionData savedSession = manager.CurrentSession;
+        SessionData localVersus = savedSession;
+        localVersus.FighterOpponentType = FighterOpponentType.LocalHuman;
+        manager.CurrentSession = localVersus;
         var host = new Node2D { Name = "WallBouncePresentationHost" };
         tree.Root.AddChild(host);
         try {
@@ -58,6 +64,7 @@ public class FighterWallBouncePresentationTests {
             AssertThat(host.GetChildCount()).OverrideFailureMessage("the same counter plays nothing more").IsEqual(afterBounce);
         } finally {
             host.Free();
+            manager.CurrentSession = savedSession;
         }
     }
 }
