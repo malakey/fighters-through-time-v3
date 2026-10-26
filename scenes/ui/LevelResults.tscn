@@ -15,7 +15,7 @@ grow_vertical = 2
 color = Color(0.0196, 0.0275, 0.1020, 0.85)
 
 [node name="Panel" type="PanelContainer" parent="Shade"]
-custom_minimum_size = Vector2(660, 320)
+custom_minimum_size = Vector2(820, 320)
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -34,9 +34,11 @@ layout_mode = 2
 theme_override_constants/separation = 10
 
 [node name="Title" type="Label" parent="Shade/Panel/Layout"]
+custom_minimum_size = Vector2(0, 64)
 layout_mode = 2
 theme_type_variation = &"TitleLabel"
 horizontal_alignment = 1
+vertical_alignment = 2
 
 [node name="DustEarned" type="Label" parent="Shade/Panel/Layout"]
 layout_mode = 2

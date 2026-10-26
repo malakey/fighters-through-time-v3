@@ -786,7 +786,9 @@ namespace FTT.UI {
 
         private void OnBossPhaseChanged(int phaseIndex) {
             _bossNotches?.NotifyPhaseChanged(phaseIndex);
-            _bossPhase = Mathf.Max(1, phaseIndex);
+            // BossController starts at phase index 0 and publishes 1 on entering its second phase: the tab shows
+            // the one-based number (index + 1) while the notches keep the raw index.
+            _bossPhase = Mathf.Max(1, phaseIndex + 1);
             RefreshBossTexts();
             LayoutBossPanel();
         }

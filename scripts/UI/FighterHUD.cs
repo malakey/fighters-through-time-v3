@@ -248,10 +248,9 @@ namespace FTT.UI {
                 topRow.MoveChild(panel.SlotShape, mirrored ? topRow.GetChildCount() - 1 : 0);
             }
 
-            // HP: a 44 px track (the PulpBar variation ships the 30 px one); the fill stays the
+            // HP: the PulpBarH44 variation ships the 44 px track; the fill stays the
             // variation's StyleBoxFlat so TintFill keeps working.
             if (panel.HP != null) {
-                OverrideTrack(panel.HP, "bar_track_h44");
                 panel.HpDecor = PulpBarDecor.Attach(panel.HP);
                 var value = new HBoxContainer {
                     Name = "HpValue",
@@ -275,15 +274,9 @@ namespace FTT.UI {
                 panel.HP.AddChild(value);
             }
 
-            // Meter: a 16 px track, the variation's flat fill recoloured to Meter2, hatch and ticks from the
-            // decor, and a gold gradient over the inner area that shows only while the meter is full.
+            // Meter: the PulpBarH16 variation ships the 16 px track and the Meter2 flat fill; hatch and ticks
+            // come from the decor, and a gold gradient over the inner area shows only while the meter is full.
             if (panel.Meter != null) {
-                OverrideTrack(panel.Meter, "bar_track_h16");
-                if (panel.Meter.GetThemeStylebox("fill") is StyleBoxFlat meterFill) {
-                    var box = (StyleBoxFlat)meterFill.Duplicate();
-                    box.BgColor = UIPalette.Meter2;
-                    panel.Meter.AddThemeStyleboxOverride("fill", box);
-                }
                 StyleBox bg = panel.Meter.GetThemeStylebox("background");
                 var gradient = new Gradient {
                     Offsets = new[] { 0f, 1f },
@@ -353,12 +346,6 @@ namespace FTT.UI {
                     for (int slot = widgets.Length - 1; slot >= 0; slot--) panel.SlotRow.AddChild(widgets[slot]);
                 }
             }
-        }
-
-        /// <summary>Overrides a bar's <c>background</c> with one of the kit's track plates (a scene-local look: the theme's variation ships the 30 px track).</summary>
-        private static void OverrideTrack(ProgressBar bar, string stem) {
-            StyleBoxTexture plate = PulpKit.Plate(stem);
-            if (plate != null) bar.AddThemeStyleboxOverride("background", plate);
         }
 
         /// <summary>

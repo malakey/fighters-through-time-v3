@@ -109,8 +109,8 @@ namespace FTT.UI.Pulp {
         /// upper-cased in the decor; <c>Button.Text</c> stays the raw translation key.
         /// </summary>
         public static PulpButtonDecor Apply(Button button, bool compact = false, bool alignLeft = true, bool uppercase = true) {
-            foreach (Node child in button.GetChildren()) {
-                if (child is PulpButtonDecor existing) return existing;
+            for (int i = 0, n = button.GetChildCount(); i < n; i++) {
+                if (button.GetChild(i) is PulpButtonDecor existing) return existing;
             }
             var decor = new PulpButtonDecor { Name = "PulpButtonDecor", _button = button, _compact = compact, _uppercase = uppercase };
             if (alignLeft) button.Alignment = HorizontalAlignment.Left;
@@ -141,7 +141,7 @@ namespace FTT.UI.Pulp {
         private void Build() {
             _button.ClipContents = false;
             FocusPose existingPose = null;
-            foreach (Node child in _button.GetChildren()) if (child is FocusPose pose) existingPose = pose;
+            for (int i = 0, n = _button.GetChildCount(); i < n; i++) if (_button.GetChild(i) is FocusPose pose) existingPose = pose;
             if (existingPose == null) FocusPose.Attach(_button);
 
             _marker = new PulpIcon { Name = "Marker", IconName = "marker", Tint = UIPalette.Ink3 };
@@ -172,6 +172,7 @@ namespace FTT.UI.Pulp {
             _button.Resized += OnStateChanged;
             _button.VisibilityChanged += OnStateChanged;
             if (InputManager.Instance != null) InputManager.Instance.DeviceAssigned += OnDeviceAssigned;
+            SetProcess(_button.IsVisibleInTree());
             Refresh();
         }
 
@@ -204,7 +205,11 @@ namespace FTT.UI.Pulp {
 
         private bool _lastDisabled;
 
-        private void OnStateChanged() => Refresh();
+        private void OnStateChanged() {
+            // A button on a hidden screen needs no per-frame poll of Disabled / Text / width.
+            if (_button != null && GodotObject.IsInstanceValid(_button)) SetProcess(_button.IsVisibleInTree());
+            Refresh();
+        }
         private void OnDeviceAssigned(int slot, int device) => Refresh();
 
         private void OnToggled(bool pressed) {
@@ -240,7 +245,8 @@ namespace FTT.UI.Pulp {
         }
 
         private void BuildBadge(PromptDevice device) {
-            foreach (Node child in _badge.GetChildren()) {
+            for (int i = _badge.GetChildCount() - 1; i >= 0; i--) {
+                Node child = _badge.GetChild(i);
                 _badge.RemoveChild(child);
                 child.QueueFree();
             }

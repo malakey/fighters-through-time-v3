@@ -51,19 +51,19 @@ namespace FTT.UI.Pulp {
 
         /// <summary>Adds the overlay as the last child of <paramref name="bar"/> (the bar's other children are untouched).</summary>
         public static PulpBarDecor Attach(ProgressBar bar, PulpBarStyle style = PulpBarStyle.Hp) {
-            foreach (Node child in bar.GetChildren()) if (child is PulpBarDecor existing) return existing;
+            for (int i = 0, n = bar.GetChildCount(); i < n; i++) if (bar.GetChild(i) is PulpBarDecor existing) return existing;
             var decor = new PulpBarDecor { _bar = bar, _style = style };
             bar.AddChild(decor);
             return decor;
         }
 
-        public PulpBarStyle Style { get => _style; set { _style = value; QueueRedraw(); } }
+        public PulpBarStyle Style { get => _style; set { if (_style == value) return; _style = value; _styleDirty = true; QueueRedraw(); } }
 
         /// <summary>The delayed damage tracker, in the bar's units (the fill end to this value draws in the tracker colour).</summary>
-        public float LagValue { get => _lagValue; set { _lagValue = value; QueueRedraw(); } }
+        public float LagValue { get => _lagValue; set { if (_lagValue == value) return; _lagValue = value; QueueRedraw(); } }
 
         /// <summary>The Rally echo's end, in the bar's units: <c>HP + echo</c>; the band runs from the fill end to here.</summary>
-        public float EchoValue { get => _echoValue; set { _echoValue = value; QueueRedraw(); } }
+        public float EchoValue { get => _echoValue; set { if (_echoValue == value) return; _echoValue = value; QueueRedraw(); } }
 
         /// <summary>Low-HP state: a 2 s ease-in-out danger glow on the track (static under Reduced Temporal Effects).</summary>
         public bool Low {
@@ -77,7 +77,7 @@ namespace FTT.UI.Pulp {
         }
 
         /// <summary>Boss phase notches as fractions of the bar's range (at most four are drawn).</summary>
-        public float[] PhaseNotches { get => _notches; set { _notches = value ?? System.Array.Empty<float>(); QueueRedraw(); } }
+        public float[] PhaseNotches { get => _notches; set { _notches = value ?? System.Array.Empty<float>(); _styleDirty = true; QueueRedraw(); } }
 
         /// <summary>The current glow strength in [0, 1]: 0 when not low, a fixed 0.6 under Reduced Temporal Effects.</summary>
         public float GlowStrength => GlowStrengthAt(_low, _clock, PulpMotion.Reduced);
@@ -152,37 +152,51 @@ namespace FTT.UI.Pulp {
         /// <summary>The fill's horizontal skew (a <c>StyleBoxFlat.Skew.X</c>), 0 when the fill is not a flat box.</summary>
         public float Skew => (_bar?.GetThemeStylebox("fill") as StyleBoxFlat)?.Skew.X ?? 0f;
 
+        private static readonly StringName PRectSize = "rect_size", PInnerPos = "inner_pos", PInnerSize = "inner_size",
+            PSkewOff = "skew_off", PReverse = "reverse", PV = "v", PLag = "lag", PEchoTo = "echo_to",
+            PLagColor = "lag_color", PEchoColor = "echo_color", PHatchDark = "hatch_dark", PHatchClear = "hatch_clear",
+            PHatchAlpha = "hatch_alpha", PHlTop = "hl_top", PHlHeight = "hl_height", PHlAlpha = "hl_alpha",
+            PTicksOn = "ticks_on", PNotches = "notches";
+        private bool _styleDirty = true;
+
+        /// <summary>The shader parameters that depend only on the style and the notches (set when they change, not on every redraw).</summary>
+        private void ApplyStyleParameters() {
+            _styleDirty = false;
+            bool boss = _style == PulpBarStyle.Boss;
+            _material.SetShaderParameter(PLagColor, boss ? UIPalette.Accent : UIPalette.HpLag);
+            _material.SetShaderParameter(PEchoColor, UIPalette.Echo);
+            _material.SetShaderParameter(PHatchDark, boss ? 6f : 5f);
+            _material.SetShaderParameter(PHatchClear, boss ? 8f : 6f);
+            _material.SetShaderParameter(PHatchAlpha, boss ? 0.20f : 0.22f);
+            _material.SetShaderParameter(PHlTop, boss ? 4f : 3f);
+            _material.SetShaderParameter(PHlHeight, boss ? 6f : 5f);
+            _material.SetShaderParameter(PHlAlpha, boss ? 0.55f : 0.60f);
+            _material.SetShaderParameter(PTicksOn, boss ? 0f : 1f);
+            var n = new Vector4(-1f, -1f, -1f, -1f);
+            for (int i = 0; i < Mathf.Min(4, _notches.Length); i++) n[i] = _notches[i];
+            _material.SetShaderParameter(PNotches, n);
+        }
+
         public override void _Draw() {
             if (_bar == null) return;
             Rect2 inner = InnerRect();
             Fractions f = FractionsFor(_bar.Value, _lagValue, _echoValue, _bar.MinValue, _bar.MaxValue);
-            bool boss = _style == PulpBarStyle.Boss;
-            _material.SetShaderParameter("rect_size", Size);
-            _material.SetShaderParameter("inner_pos", inner.Position);
-            _material.SetShaderParameter("inner_size", inner.Size);
-            _material.SetShaderParameter("skew_off", Mathf.Abs(Skew) * inner.Size.Y);
-            _material.SetShaderParameter("reverse", _bar.FillMode == (int)ProgressBar.FillModeEnum.EndToBegin ? 1f : 0f);
-            _material.SetShaderParameter("v", f.Value);
-            _material.SetShaderParameter("lag", f.Lag);
-            _material.SetShaderParameter("echo_to", f.Echo);
-            _material.SetShaderParameter("lag_color", boss ? UIPalette.Accent : UIPalette.HpLag);
-            _material.SetShaderParameter("echo_color", UIPalette.Echo);
-            _material.SetShaderParameter("hatch_dark", boss ? 6f : 5f);
-            _material.SetShaderParameter("hatch_clear", boss ? 8f : 6f);
-            _material.SetShaderParameter("hatch_alpha", boss ? 0.20f : 0.22f);
-            _material.SetShaderParameter("hl_top", boss ? 4f : 3f);
-            _material.SetShaderParameter("hl_height", boss ? 6f : 5f);
-            _material.SetShaderParameter("hl_alpha", boss ? 0.55f : 0.60f);
-            _material.SetShaderParameter("ticks_on", boss ? 0f : 1f);
-            var n = new Vector4(-1f, -1f, -1f, -1f);
-            for (int i = 0; i < Mathf.Min(4, _notches.Length); i++) n[i] = _notches[i];
-            _material.SetShaderParameter("notches", n);
+            _material.SetShaderParameter(PRectSize, Size);
+            _material.SetShaderParameter(PInnerPos, inner.Position);
+            _material.SetShaderParameter(PInnerSize, inner.Size);
+            _material.SetShaderParameter(PSkewOff, Mathf.Abs(Skew) * inner.Size.Y);
+            _material.SetShaderParameter(PReverse, _bar.FillMode == (int)ProgressBar.FillModeEnum.EndToBegin ? 1f : 0f);
+            _material.SetShaderParameter(PV, f.Value);
+            _material.SetShaderParameter(PLag, f.Lag);
+            _material.SetShaderParameter(PEchoTo, f.Echo);
+            if (_styleDirty) ApplyStyleParameters();
             DrawRect(new Rect2(Vector2.Zero, Size), Colors.White);
         }
 
         /// <summary>The low-HP glow: a few soft rings around the track, drawn without the bar shader.</summary>
         private partial class BarGlow : Control {
             private readonly PulpBarDecor _owner;
+            private readonly Vector2[] _ring = new Vector2[5];
             public BarGlow(PulpBarDecor owner) { _owner = owner; }
 
             public override void _Draw() {
@@ -194,10 +208,9 @@ namespace FTT.UI.Pulp {
                     float falloff = 1f - ring / 8f;
                     var color = new Color(danger.R, danger.G, danger.B, strength * 0.22f * falloff);
                     float d = ring;
-                    var pts = new[] {
-                        new Vector2(-d + slant, -d), new Vector2(Size.X + d, -d),
-                        new Vector2(Size.X + d - slant, Size.Y + d), new Vector2(-d, Size.Y + d), new Vector2(-d + slant, -d)
-                    };
+                    Vector2[] pts = _ring;
+                    pts[0] = new Vector2(-d + slant, -d); pts[1] = new Vector2(Size.X + d, -d);
+                    pts[2] = new Vector2(Size.X + d - slant, Size.Y + d); pts[3] = new Vector2(-d, Size.Y + d); pts[4] = pts[0];
                     DrawPolyline(pts, color, 2f);
                 }
             }

@@ -96,7 +96,21 @@ namespace FTT.UI.Pulp {
         /// <summary>Formats a remaining time for the centre number: whole seconds from 10 up, one decimal below, blank at 0.</summary>
         public static string FormatSeconds(float seconds) {
             if (seconds <= 0f) return "";
-            return seconds >= 10f ? Mathf.CeilToInt(seconds).ToString() : (Mathf.Ceil(seconds * 10f) / 10f).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+            // Cached per displayed value: a cooldown redraws every frame and must not allocate a string each time.
+            int key = seconds >= 10f ? 100000 + Mathf.CeilToInt(seconds) : Mathf.CeilToInt(seconds * 10f - 0.0001f);
+            if (!SecondsText.TryGetValue(key, out string text)) {
+                text = seconds >= 10f ? Mathf.CeilToInt(seconds).ToString() : (Mathf.Ceil(seconds * 10f) / 10f).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+                SecondsText[key] = text;
+            }
+            return text;
+        }
+
+        private static readonly System.Collections.Generic.Dictionary<int, string> SecondsText = new();
+        private static readonly string[] PercentText = BuildPercentText();
+        private static string[] BuildPercentText() {
+            var all = new string[101];
+            for (int i = 0; i <= 100; i++) all[i] = i + "%";
+            return all;
         }
 
         /// <summary>
@@ -111,7 +125,7 @@ namespace FTT.UI.Pulp {
                 case PulpSlotState.Cooling:
                     return new PulpSlotLook(true, 0.5f, 0.72f, p, FormatSeconds(secondsRemaining), null, PulpRingMode.None, false, false, false);
                 case PulpSlotState.Charging:
-                    return new PulpSlotLook(true, 0.55f, 0.62f, -1f, Mathf.RoundToInt(p * 100f) + "%", null, PulpRingMode.Meter, false, false, false);
+                    return new PulpSlotLook(true, 0.55f, 0.62f, -1f, PercentText[Mathf.RoundToInt(p * 100f)], null, PulpRingMode.Meter, false, false, false);
                 case PulpSlotState.Dormant:
                     return new PulpSlotLook(false, 1f, 1f, -1f, "", "dormant", PulpRingMode.None, false, true, false);
                 case PulpSlotState.Suppressed:
@@ -132,17 +146,31 @@ namespace FTT.UI.Pulp {
         // ---- the owner's properties ----
 
         /// <summary>74 (Story), 54 (Fighter) or 50 (select card). Ignored for the Ultimate (92 in a 116 ring).</summary>
-        public float SlotSize { get => _slotSize; set { _slotSize = value; Relayout(); } }
-        public bool Ultimate { get => _ultimate; set { _ultimate = value; Relayout(); } }
-        public PulpSlotState State { get => _state; set { _state = value; Refresh(); } }
+        public float SlotSize { get => _slotSize; set { if (_slotSize == value) return; _slotSize = value; _lookDirty = true; Relayout(); } }
+        public bool Ultimate { get => _ultimate; set { if (_ultimate == value) return; _ultimate = value; _lookDirty = true; Relayout(); } }
+        public PulpSlotState State { get => _state; set { if (_state == value) return; _state = value; _lookDirty = true; Refresh(); } }
         /// <summary>The elapsed cooldown share, or the Ultimate's meter share, 0 to 1.</summary>
-        public float Progress { get => _progress; set { _progress = value; Refresh(); } }
-        public float SecondsRemaining { get => _seconds; set { _seconds = value; Refresh(); } }
+        public float Progress { get => _progress; set { if (_progress == value) return; _progress = value; _lookDirty = true; Refresh(); } }
+        public float SecondsRemaining { get => _seconds; set { if (_seconds == value) return; _seconds = value; _lookDirty = true; Refresh(); } }
         public Texture2D Art { get => _art; set { _art = value; _artRect.Texture = value; } }
         /// <summary>The raw translation key shown on the key tag (blank hides the tag).</summary>
-        public string KeyText { get => _keyText; set { _keyText = value ?? ""; Refresh(); } }
+        public string KeyText { get => _keyText; set { string next = value ?? ""; if (_keyText == next) return; _keyText = next; _lookDirty = true; Refresh(); } }
 
-        public PulpSlotLook Look => Derive(_state, _ultimate, _progress, _seconds);
+        public PulpSlotLook Look {
+            get {
+                if (_lookDirty) { _look = Derive(_state, _ultimate, _progress, _seconds); _lookDirty = false; }
+                return _look;
+            }
+        }
+        private PulpSlotLook _look;
+        private bool _lookDirty = true;
+        private float _appliedSaturation = -1f, _appliedBrightness = -1f;
+        private string _laidKey = "";
+        private bool _laidReady;
+        private string _appliedCenter = "";
+        private string _appliedGlyph;
+        private bool _appliedKeyDim;
+        private static readonly StringName SaturationParam = "saturation", BrightnessParam = "brightness";
         public Label CenterLabel => _center;
         public PulpIcon GlyphIcon => _glyph;
         public Control ReadyTag => _readyTag;
@@ -189,14 +217,21 @@ namespace FTT.UI.Pulp {
         private void Refresh() {
             PulpSlotLook look = Look;
             _artRect.Visible = look.ArtVisible;
-            _artMaterial.SetShaderParameter("saturation", look.Saturation);
-            _artMaterial.SetShaderParameter("brightness", look.Brightness);
-            _center.Text = look.CenterText;
+            if (look.Saturation != _appliedSaturation || look.Brightness != _appliedBrightness) {
+                _appliedSaturation = look.Saturation; _appliedBrightness = look.Brightness;
+                _artMaterial.SetShaderParameter(SaturationParam, look.Saturation);
+                _artMaterial.SetShaderParameter(BrightnessParam, look.Brightness);
+            }
+            if (look.CenterText != _appliedCenter) {
+                _appliedCenter = look.CenterText;
+                _center.Text = look.CenterText;
+            }
             _center.Visible = look.CenterText.Length > 0;
             bool glyph = look.GlyphName != null;
             _glyph.Visible = glyph;
             _glyphGlow.Visible = glyph && look.GlyphName == "cross";
-            if (glyph) {
+            if (glyph && look.GlyphName != _appliedGlyph) {
+                _appliedGlyph = look.GlyphName;
                 _glyph.IconName = look.GlyphName;
                 Color tint = look.GlyphName == "cross" ? UIPalette.UnboundCold : UIPalette.Ink3;
                 _glyph.Tint = tint;
@@ -204,15 +239,24 @@ namespace FTT.UI.Pulp {
                 _glyphGlow.IconName = "cross";
                 _glyphGlow.Tint = UIPalette.UnboundCold;
                 _glyphGlow.Modulate = new Color(1f, 1f, 1f, 0.32f);
+            } else if (!glyph) {
+                _appliedGlyph = null;
             }
-            _keyLabel.Text = _keyText;
+            if (_keyLabel.Text != _keyText) _keyLabel.Text = _keyText;
             _keyTag.Visible = _keyText.Length > 0;
-            if (look.KeyDim) _keyLabel.AddThemeColorOverride("font_color", UIPalette.Ink3);
-            else _keyLabel.RemoveThemeColorOverride("font_color");
+            if (look.KeyDim != _appliedKeyDim) {
+                _appliedKeyDim = look.KeyDim;
+                if (look.KeyDim) _keyLabel.AddThemeColorOverride("font_color", UIPalette.Ink3);
+                else _keyLabel.RemoveThemeColorOverride("font_color");
+            }
             _readyTag.Visible = look.ReadyTag;
             _sweep.QueueRedraw();
             QueueRedraw();
-            CallDeferred(nameof(Relayout));
+            // The tags change size only with their text or visibility; a cooldown that just ticks relays out nothing.
+            if (_laidKey != _keyText || _laidReady != look.ReadyTag) {
+                _laidKey = _keyText; _laidReady = look.ReadyTag;
+                CallDeferred(nameof(Relayout));
+            }
         }
 
         // ---- drawing: the ring and the frame ----
@@ -227,7 +271,7 @@ namespace FTT.UI.Pulp {
                 Texture2D tex = PulpKit.Texture(stem);
                 if (tex != null) DrawTexture(tex, origin - new Vector2(expand[0], expand[1]));
             } else {
-                StyleBoxTexture plate = PulpKit.Plate(look.ReadyFrame ? "slot_frame_ready" : "slot_frame");
+                StyleBoxTexture plate = PulpKit.SharedPlate(look.ReadyFrame ? "slot_frame_ready" : "slot_frame");
                 if (plate != null) DrawStyleBox(plate, new Rect2(origin, new Vector2(_slotSize, _slotSize)));
             }
         }
@@ -253,10 +297,17 @@ namespace FTT.UI.Pulp {
             }
         }
 
+        private static readonly System.Collections.Generic.Dictionary<int, (Vector2[] Points, Color[] Colors)> ArcBuffers = new();
+
         private void DrawGradientArc(Vector2 center, float radius, float fraction, Func<float, Color> colorAt) {
             int count = Mathf.Max(2, Mathf.CeilToInt(fraction * 120f) + 1);
-            var points = new Vector2[count];
-            var colors = new Color[count];
+            // Polyline wants exact-length arrays; the ring has at most 121 points, so one buffer per length is kept.
+            if (!ArcBuffers.TryGetValue(count, out (Vector2[] Points, Color[] Colors) buffer)) {
+                buffer = (new Vector2[count], new Color[count]);
+                ArcBuffers[count] = buffer;
+            }
+            Vector2[] points = buffer.Points;
+            Color[] colors = buffer.Colors;
             for (int i = 0; i < count; i++) {
                 float t = i / (float)(count - 1);
                 float angle = -Mathf.Pi / 2f + t * fraction * Mathf.Tau;
@@ -269,6 +320,8 @@ namespace FTT.UI.Pulp {
         /// <summary>The cooldown sweep: clear for the elapsed share, a dark shade for the rest, clockwise from 12 o'clock.</summary>
         private partial class SweepLayer : Control {
             private readonly PulpAbilitySlot _owner;
+            private const int Steps = 72;
+            private readonly Vector2[] _points = new Vector2[Steps + 2];
             public SweepLayer(PulpAbilitySlot owner) { _owner = owner; }
 
             public override void _Draw() {
@@ -277,16 +330,16 @@ namespace FTT.UI.Pulp {
                 bool circle = _owner._ultimate;
                 var center = Size / 2f;
                 float half = Size.X / 2f - FrameBorder;
-                int steps = 72;
-                var points = new System.Collections.Generic.List<Vector2> { center };
-                for (int i = 0; i <= steps; i++) {
-                    float t = elapsed + (1f - elapsed) * i / steps;
+                Vector2[] points = _points;
+                points[0] = center;
+                for (int i = 0; i <= Steps; i++) {
+                    float t = elapsed + (1f - elapsed) * i / Steps;
                     float angle = -Mathf.Pi / 2f + t * Mathf.Tau;
                     var dir = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
                     float reach = circle ? half : half / Mathf.Max(Mathf.Abs(dir.X), Mathf.Abs(dir.Y));
-                    points.Add(center + dir * reach);
+                    points[i + 1] = center + dir * reach;
                 }
-                DrawColoredPolygon(points.ToArray(), SweepShade);
+                DrawColoredPolygon(points, SweepShade);
             }
         }
     }

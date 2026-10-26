@@ -185,8 +185,9 @@ public class MainMenuCoverTests {
         AssertThat(source.Contains("GlassBtn")).OverrideFailureMessage("A glass button style survives").IsFalse();
         AssertThat(source.Contains("theme_override_font_sizes")).OverrideFailureMessage("A font-size override survives").IsFalse();
         AssertThat(source.Contains("Color(0, 0.9, 0.9, 1)")).OverrideFailureMessage("A chrome cyan literal survives").IsFalse();
-        // The only scene-local texture box is the cover banner plate (a kit gap: the theme has no cover banner).
-        AssertThat(CountOf(source, "type=\"StyleBoxTexture\"")).IsEqual(1);
+        // The cover banner plate is the theme's CoverBannerPanel variation (closeout), so the scene carries no texture box of its own.
+        AssertThat(CountOf(source, "type=\"StyleBoxTexture\"")).IsEqual(0);
+        AssertThat(source.Contains("theme_type_variation = &\"CoverBannerPanel\"")).OverrideFailureMessage("The banner lost its theme variation").IsTrue();
     }
 
     private static int CountOf(string text, string needle) {

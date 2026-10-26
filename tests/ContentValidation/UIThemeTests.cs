@@ -283,18 +283,37 @@ public class UIThemeTests {
             UIPalette.Variations.PanelTagPlate, UIPalette.Variations.BossNameplate,
             UIPalette.Variations.BossPhaseTab, UIPalette.Variations.SlotPlate,
             UIPalette.Variations.SlotPlateReady, UIPalette.Variations.KeyTagPlate,
-            UIPalette.Variations.CardPlate, UIPalette.Variations.CardPlateP1,
-            UIPalette.Variations.CardPlateP2, UIPalette.Variations.BubblePlate,
-            UIPalette.Variations.StampPlate, UIPalette.Variations.ScrimPanel }) {
+            UIPalette.Variations.CardPlate, UIPalette.Variations.CardPlatePick,
+            UIPalette.Variations.BubblePlate,
+            UIPalette.Variations.StampPlate, UIPalette.Variations.ScrimPanel,
+            UIPalette.Variations.CoverBannerPanel }) {
             Require(name, "PanelContainer", "panel");
         }
-        foreach (string name in new[] { UIPalette.Variations.PulpBar, UIPalette.Variations.PulpBossBar }) {
+        foreach (string name in new[] { UIPalette.Variations.PulpBar, UIPalette.Variations.PulpBarH44, UIPalette.Variations.PulpBarH16, UIPalette.Variations.PulpBarH14, UIPalette.Variations.PulpBossBar }) {
             Require(name, "ProgressBar", "background");
             Require(name, "ProgressBar", "fill");
             // FighterHUD.TintFill recolours the fill by reading it as a StyleBoxFlat.
             if (theme.GetStylebox("fill", name) is not StyleBoxFlat) drift.Add($"{name} fill must stay a StyleBoxFlat");
         }
         if (theme.GetStylebox("fill", "ProgressBar") is not StyleBoxFlat) drift.Add("ProgressBar fill must stay a StyleBoxFlat");
+        if (drift.Count > 0) AssertThat(string.Join(" | ", drift)).IsEqual("");
+    }
+
+    /// <summary>
+    /// The closeout folded the Phase B kit gaps into the generator: the three bar tracks, the cover banner, the
+    /// dialogue line's RichTextLabel variation (UI_SPEC T49, 33 px) and the text-on-ink-plate role.
+    /// </summary>
+    [TestCase]
+    public void TheFoldedKitGapsCarryTheirSpecSizesAndPlates() {
+        Theme theme = LoadTheme();
+        var drift = new List<string>();
+        if (theme.GetTypeVariationBase(UIPalette.Variations.DialogueBodyRich) != "RichTextLabel") drift.Add("DialogueBodyRich must be a RichTextLabel variation");
+        if (theme.GetFontSize("normal_font_size", UIPalette.Variations.DialogueBodyRich) != 33) drift.Add("DialogueBodyRich must be 33 px");
+        if (theme.GetStylebox("normal", UIPalette.LabelRoles.HintLinePlate) is not StyleBoxFlat) drift.Add("HintLinePlate must carry its own ink plate");
+        foreach (var (name, stem) in new[] { (UIPalette.Variations.PulpBarH44, "bar_track_h44"), (UIPalette.Variations.PulpBarH16, "bar_track_h16"), (UIPalette.Variations.PulpBarH14, "bar_track_h14") }) {
+            if (theme.GetStylebox("background", name) is not StyleBoxTexture track || !track.Texture.ResourcePath.EndsWith(stem + ".png")) drift.Add($"{name} background must be {stem}");
+        }
+        if (theme.GetStylebox("panel", UIPalette.Variations.CoverBannerPanel) is not StyleBoxTexture banner || !banner.Texture.ResourcePath.EndsWith("banner_cover.png")) drift.Add("CoverBannerPanel must wear banner_cover");
         if (drift.Count > 0) AssertThat(string.Join(" | ", drift)).IsEqual("");
     }
 

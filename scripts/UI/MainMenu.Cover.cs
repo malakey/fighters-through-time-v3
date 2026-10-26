@@ -121,8 +121,8 @@ namespace FTT.UI {
             float ui = Mathf.Max(0.5f, UIPalette.AppliedUiScale);
             var block = GetNodeOrNull<Control>("RootScreen/TitleBlock");
             if (block == null) return;
-            foreach (Node child in block.GetChildren()) {
-                if (child is not Control control) continue;
+            for (int childIndex = 0, childCount = block.GetChildCount(); childIndex < childCount; childIndex++) {
+                if (block.GetChild(childIndex) is not Control control) continue;
                 Vector2 authored;
                 if (control.Name == "Banner") {
                     authored = new Vector2(18f, 179f);
@@ -268,8 +268,8 @@ namespace FTT.UI {
 
         private void ApplyRootRowSeparation(Control layout) {
             int rows = 0;
-            foreach (Node child in layout.GetChildren()) {
-                if (child is Button { Visible: true }) rows++;
+            for (int i = 0, n = layout.GetChildCount(); i < n; i++) {
+                if (layout.GetChild(i) is Button { Visible: true }) rows++;
             }
             if (layout is BoxContainer box) box.AddThemeConstantOverride("separation", (int)RootRowSeparation(rows));
         }
@@ -292,7 +292,8 @@ namespace FTT.UI {
         /// Flat buttons (the Continue sticker, the licence rows) are not banners.
         /// </summary>
         private static void DecorateButtons(Node root) {
-            foreach (Node child in root.GetChildren()) {
+            for (int i = 0, n = root.GetChildCount(); i < n; i++) {
+                Node child = root.GetChild(i);
                 if (child is Button { Flat: false } button) {
                     button.Alignment = HorizontalAlignment.Left;
                     ClearMarker(button);

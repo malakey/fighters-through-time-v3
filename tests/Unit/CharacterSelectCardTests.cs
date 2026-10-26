@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using FTT.Characters;
+using FTT.Combat;
 using FTT.Core;
 using FTT.UI;
 using FTT.UI.Pulp;
@@ -91,7 +92,7 @@ public class CharacterSelectCardTests {
             var card = grid.GetNode<Button>("CharacterButton0");
             var other = grid.GetNode<Button>("CharacterButton3");
             AssertThat(((Control)card.FindChild("Frame", true, false)).ThemeTypeVariation.ToString())
-                .IsEqual(UIPalette.Variations.CardPlateP1);
+                .IsEqual(UIPalette.Variations.CardPlatePick);
             AssertThat(((Control)other.FindChild("Frame", true, false)).ThemeTypeVariation.ToString())
                 .IsEqual(UIPalette.Variations.CardPlate);
             AssertThat(((Control)card.FindChild("Stamp", true, false)).Visible).IsFalse();
@@ -107,6 +108,51 @@ public class CharacterSelectCardTests {
         } finally {
             Teardown(host);
         }
+    }
+
+    /// <summary>
+    /// Review fix (closeout, 2026-10-26): every ownership colour on the cards reads the active player-slot palette
+    /// (Settings &gt; Gameplay), in all three palettes: the picked frame's ring, the pick badge glyph, the star, and
+    /// UIPalette.P1 / P2 themselves. The old baked cyan / red frames and the fixed GlowPalette read ignored it.
+    /// </summary>
+    [TestCase]
+    public void TheCardsWearTheActiveSlotPaletteInEveryPalette() {
+        GlobalSaveData data = SaveManager.Instance?.GlobalData;
+        if (data == null) return;
+        int saved = data.PlayerSlotPalette;
+        var problems = new List<string>();
+        try {
+            for (int palette = 0; palette < PlayerSlotPalettes.Count; palette++) {
+                data.PlayerSlotPalette = palette;
+                var kind = (PlayerSlotPalette)palette;
+                if (!UIPalette.P1.IsEqualApprox(PlayerSlotPalettes.SlotColor(kind, 0))) problems.Add($"{kind}: UIPalette.P1");
+                if (!UIPalette.P2.IsEqualApprox(PlayerSlotPalettes.SlotColor(kind, 1))) problems.Add($"{kind}: UIPalette.P2");
+                CharacterSelectScreen screen = Open(out Node host);
+                try {
+                    var grid = screen.GetNode<GridContainer>(SelectRoot + "PlayersRow/Grid");
+                    var card = grid.GetNode<Button>("CharacterButton0");
+                    var frame = (Control)card.FindChild("Frame", true, false);
+                    if (!frame.SelfModulate.IsEqualApprox(UIPalette.OwnerOnDark(0))) problems.Add($"{kind}: P1 frame ring");
+                    var shape = card.FindChild("Shape", true, false) as PulpIcon;
+                    if (shape == null || !shape.Tint.IsEqualApprox(UIPalette.OwnerOnDark(0))) problems.Add($"{kind}: P1 badge glyph");
+                    var star = screen.GetNode<Control>(SelectRoot + "PlayersRow/P1Panel/P1Star/Fill");
+                    if (!star.Modulate.IsEqualApprox(UIPalette.OwnerOnDark(0))) problems.Add($"{kind}: P1 star");
+                    var star2 = screen.GetNode<Control>(SelectRoot + "PlayersRow/P2Panel/P2Star/Fill");
+                    if (!star2.Modulate.IsEqualApprox(UIPalette.OwnerOnDark(1))) problems.Add($"{kind}: P2 star");
+                    // Whatever the palette, nothing painted on the dark chrome may be too dark to read there.
+                    for (int player = 0; player < 2; player++) {
+                        Color c = UIPalette.OwnerOnDark(player);
+                        float luminance = 0.2126f * c.R + 0.7152f * c.G + 0.0722f * c.B;
+                        if (luminance < UIPalette.OwnerDarkLuminance) problems.Add($"{kind}: P{player + 1} too dark on chrome");
+                    }
+                } finally {
+                    Teardown(host);
+                }
+            }
+        } finally {
+            data.PlayerSlotPalette = saved;
+        }
+        if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
     }
 
     [TestCase]

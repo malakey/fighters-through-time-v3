@@ -35,6 +35,8 @@ DISABLED_BORDER = "6B6150"
 DISABLED_FILL = "2C2733"
 DANGER = "FF5A5A"
 HP = "8CF0B8"
+BACKDROP = "05071A"
+METER2 = "FFB347"
 PAPER_INK, PAPER_INK2 = "14101A", "3A3144"
 RES2 = "FFF0B0"
 PROMPT = "FFF3D8"
@@ -212,6 +214,7 @@ ROLES = [
     ("PromptCaption",    "outfit", 500, 18, 0.16, PROMPT, 2, None, False, "T13"),
     ("PromptKey",        "outfit", 700, 20, 0.0,  LABEL_DARK, 0, None, False, "T12"),
     ("HintLine",         "outfit", 500, 22, 0.0,  PROMPT, 3, None, False, "T44"),
+    ("HintLinePlate",    "outfit", 500, 22, 0.0,  PROMPT, 3, None, False, "T44 on its own translucent ink plate (the credits skip hint)"),
     # HUD
     ("HudNumeral",       "outfit", 400, 30, 0.02, INK, 3, None, True,  "T17, T26, T28 numerals"),
     ("HudNumeralSmall",  "outfit", 400, 22, 0.02, INK, 3, None, True,  "T17 at bar height 30"),
@@ -261,6 +264,9 @@ def emit_label_roles():
             put("%s/colors/font_shadow_color" % name, col(BLACK, 0.8))
             put("%s/constants/shadow_offset_x" % name, shadow[0])
             put("%s/constants/shadow_offset_y" % name, shadow[1])
+        if name == "HintLinePlate":
+            # "Text on an ink plate": the label's own box is a translucent backdrop plate (closeout, was a scene-local override).
+            put("%s/styles/normal" % name, flat("HintPlate", (BACKDROP, 0.92), None, 0, 0, 0, None, (6, 6, 6, 6)))
 
 
 def button_set(prefix, margins, height=58, skew=0.1405):
@@ -332,6 +338,12 @@ def build():
     put("Label/font_sizes/font_size", 20)
     emit_label_roles()
 
+    # ---- RichTextLabel: the dialogue line (UI_SPEC T49; the Label role DialogueBody cannot reach a RichTextLabel)
+    put("DialogueBodyRich/base_type", '&"RichTextLabel"')
+    put("DialogueBodyRich/fonts/normal_font", font("outfit", 500, 0))
+    put("DialogueBodyRich/font_sizes/normal_font_size", 33)
+    put("DialogueBodyRich/colors/default_color", C(INK))
+
     # ---- Panels
     dark = tbox("Panel", "panel_dark", (22, 18, 28, 28))
     put("Panel/styles/panel", dark)
@@ -348,6 +360,7 @@ def build():
     pv("HudPlatePanel", tbox("Hud", "panel_dark", (26, 20, 32, 30)))
     pv("DialogueGlassPanel", tbox("Glass", "panel_dark", (28, 20, 34, 30)))
     pv("BannerPanel", tbox("Banner", "banner_select", (64, 8, 70, 10)))
+    pv("CoverBannerPanel", tbox("CoverBanner", "banner_cover", (30, 6, 44, 14)))
     pv("PanelTagPlate", tbox("Tag", "tag_panel", (14, 6, 18, 8)))
     pv("BossNameplate", tbox("BossName", "boss_nameplate", (26, 6, 30, 10)))
     pv("BossPhaseTab", tbox("BossPhase", "boss_phase_tab", (14, 5, 16, 6)))
@@ -355,8 +368,8 @@ def build():
     pv("SlotPlateReady", tbox("SlotReady", "slot_frame_ready", (6, 6, 8, 8)))
     pv("KeyTagPlate", tbox("KeyTag", "key_tag", (7, 3, 7, 2)))
     pv("CardPlate", tbox("Card", "card_frame", (10, 10, 14, 14)))
-    pv("CardPlateP1", tbox("CardP1", "card_frame_p1", (10, 10, 14, 14)))
-    pv("CardPlateP2", tbox("CardP2", "card_frame_p2", (10, 10, 14, 14)))
+    # the picked frame's ring is white: the owner's active slot colour is applied as a SelfModulate at runtime
+    pv("CardPlatePick", tbox("CardPick", "card_frame_pick", (10, 10, 14, 14)))
     pv("BubblePlate", tbox("Bubble", "bubble", (26, 10, 32, 14)))
     pv("StampPlate", tbox("Stamp", "stamp_ready", (16, 6, 20, 8)))
     pv("ScrimPanel", flat("Scrim", ("020308", 0.85), None, 0, 0, 0, None, (0, 0, 0, 0)))
@@ -396,6 +409,15 @@ def build():
     put("PulpBar/styles/fill", flat("BarFill", HP, None, 0, 0, 0.2126))
     colors("PulpBar", font_color=INK)
     put("PulpBar/font_sizes/font_size", 22)
+    # The Fighter HP (44 px), Fighter meter (16 px) and select stat (14 px) tracks (closeout: were per-node plate overrides).
+    for name, stem, margins, fill_color in (("PulpBarH44", "bar_track_h44", None, HP),
+                                            ("PulpBarH16", "bar_track_h16", None, METER2),
+                                            ("PulpBarH14", "bar_track_h14", (3, 3, 3, 3), ACCENT)):
+        put("%s/base_type" % name, '&"ProgressBar"')
+        put("%s/styles/background" % name, tbox(name + "Bg", stem, margins))
+        put("%s/styles/fill" % name, flat(name + "Fill", fill_color, None, 0, 0, 0.2126))
+        colors(name, font_color=INK)
+        put("%s/font_sizes/font_size" % name, 22)
     put("PulpBossBar/base_type", '&"ProgressBar"')
     put("PulpBossBar/styles/background", tbox("BossBarBg", "bar_track_boss", (5, 5, 5, 5)))
     put("PulpBossBar/styles/fill", flat("BossBarFill", DANGER, None, 0, 0, 0.1763))
@@ -470,12 +492,16 @@ VARIATIONS = [
     ("SlotPlateReady", "PanelContainer, plate 14: ready slot"),
     ("KeyTagPlate", "PanelContainer, plate 16: slot key tag"),
     ("CardPlate", "PanelContainer, plate 20: trading card"),
-    ("CardPlateP1", "PanelContainer, plate 21: P1 pick"),
-    ("CardPlateP2", "PanelContainer, plate 22: P2 pick"),
+    ("CardPlatePick", "PanelContainer, plate 21: a picked card (white ring, tinted to the owner's slot colour at runtime)"),
     ("BubblePlate", "PanelContainer, plate 27: speech bubble"),
     ("StampPlate", "PanelContainer, plate 26: card stamp"),
     ("ScrimPanel", "PanelContainer: translucent scrim"),
     ("PulpBar", "ProgressBar, plate 9: skewed HP / meter track (the fill stays a StyleBoxFlat)"),
+    ("PulpBarH44", "ProgressBar, plate 9 at 44 px: the Fighter HP bar (HP fill)"),
+    ("PulpBarH16", "ProgressBar, plate 9 at 16 px: the Fighter Ultimate meter (Meter2 fill)"),
+    ("PulpBarH14", "ProgressBar, plate 9 at 14 px: the select stat bars (accent fill)"),
+    ("CoverBannerPanel", "PanelContainer, plate 25: the cover's THROUGH TIME ink banner"),
+    ("DialogueBodyRich", "RichTextLabel, T49: the dialogue line (Outfit 500, 33 px)"),
     ("PulpBossBar", "ProgressBar, plate 10: boss bar"),
 ]
 

@@ -105,6 +105,8 @@ namespace FTT.UI {
                 antialiased: true);
         }
 
+        private Vector2[] _pieBuffer;
+
         private void DrawPie() {
             Vector2 centre = Size * 0.5f;
             float radius = Mathf.Max(1f, Mathf.Min(Size.X, Size.Y) * 0.5f);
@@ -114,7 +116,8 @@ namespace FTT.UI {
                 DrawCircle(centre, radius, _fillColor);
             } else if (_fraction > 0f) {
                 int steps = Mathf.Max(3, Mathf.CeilToInt(Segments * 3 * _fraction));
-                var points = new Vector2[steps + 2];
+                if (_pieBuffer == null || _pieBuffer.Length != steps + 2) _pieBuffer = new Vector2[steps + 2];
+                Vector2[] points = _pieBuffer;
                 points[0] = centre;
                 for (int i = 0; i <= steps; i++) {
                     float angle = start + Mathf.Tau * _fraction * i / steps;

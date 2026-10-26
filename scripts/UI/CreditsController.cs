@@ -80,12 +80,6 @@ namespace FTT.UI {
             ProcessMode = ProcessModeEnum.Always;
             ResolveOrBuildUI();
             if (_skipHint != null) _skipHint.Text = Tr("credits_skip_hint");
-            if (_skipHint != null) {
-                // UR-SCREENS: the hint sits on its own ink plate so the roll never reads through it.
-                var plate = new StyleBoxFlat { BgColor = new Color(UIPalette.Backdrop, 0.92f) };
-                plate.SetContentMarginAll(6f);
-                _skipHint.AddThemeStyleboxOverride("normal", plate);
-            }
             PopulateLines();
             // CM-PADUI (2026-10-16): the roll owns the screen. A menu button left
             // focused underneath (the main menu's Credits replay button) would
@@ -210,7 +204,7 @@ namespace FTT.UI {
             _skipHint.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
             _skipHint.Position = new Vector2(760, 1010);
             _skipHint.CustomMinimumSize = new Vector2(400, 24);
-            _skipHint.ThemeTypeVariation = UIPalette.LabelRoles.HintLine;
+            _skipHint.ThemeTypeVariation = UIPalette.LabelRoles.HintLinePlate;
             shade.AddChild(_skipHint);
         }
     }

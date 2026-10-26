@@ -80,8 +80,8 @@ namespace FTT.UI {
             var card = _root.GetNodeOrNull<Button>("Center/Panel/Layout/FooterRow/SystemsCardButton");
             if (card != null) card.Pressed += OpenSystemsCard;
             // UR-PAUSE: banner decor on the footer rows, and the panel's tag names the screen.
-            if (close != null) PulpScreenKit.StylePauseButton(close, 280f);
-            if (card != null) PulpScreenKit.StylePauseButton(card, 400f);
+            if (close != null) PulpScreenKit.StylePauseButton(close, 360f);
+            if (card != null) PulpScreenKit.StylePauseButton(card, 480f);
             if (_root.GetNodeOrNull<PausePanel>("Center/Panel") is { } panel) panel.TagText = Tr("movelist_title");
         }
 

@@ -66,13 +66,13 @@ theme_override_constants/separation = 12
 alignment = 1
 
 [node name="BackButton" type="Button" parent="List/Root/ButtonRow"]
-custom_minimum_size = Vector2(260, 58)
+custom_minimum_size = Vector2(340, 58)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 text = "common_back"
 
 [node name="ExitButton" type="Button" parent="List/Root/ButtonRow"]
-custom_minimum_size = Vector2(260, 58)
+custom_minimum_size = Vector2(340, 58)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 text = "drill_exit"

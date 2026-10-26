@@ -47,7 +47,7 @@ namespace FTT.UI {
             shade.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
             AddChild(shade);
 
-            var panel = new PanelContainer { Name = "Panel", CustomMinimumSize = new Vector2(620f, 300f) };
+            var panel = new PanelContainer { Name = "Panel", CustomMinimumSize = new Vector2(760f, 300f) };
             panel.ThemeTypeVariation = UIPalette.Variations.InkPanel;
             var center = new CenterContainer { Name = "Center", MouseFilter = MouseFilterEnum.Ignore };
             center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
@@ -116,7 +116,7 @@ namespace FTT.UI {
             Name = name,
             Text = text,
             ThemeTypeVariation = UIPalette.Variations.PulpButton,
-            CustomMinimumSize = new Vector2(500f, 80f)
+            CustomMinimumSize = new Vector2(640f, 80f)
         };
     }
 }

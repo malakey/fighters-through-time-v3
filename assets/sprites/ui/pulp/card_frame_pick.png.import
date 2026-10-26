@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://rv3tn1rc5526"
-path="res://.godot/imported/card_frame_p1.png-99c30d348ce8392b7672ab8eb6c5ffac.ctex"
+uid="uid://bxqjd4j0q8l0e"
+path="res://.godot/imported/card_frame_pick.png-87bb4750102b2481068f216b1e4cda0b.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sprites/ui/pulp/card_frame_p1.png"
-dest_files=["res://.godot/imported/card_frame_p1.png-99c30d348ce8392b7672ab8eb6c5ffac.ctex"]
+source_file="res://assets/sprites/ui/pulp/card_frame_pick.png"
+dest_files=["res://.godot/imported/card_frame_pick.png-87bb4750102b2481068f216b1e4cda0b.ctex"]
 
 [params]
 

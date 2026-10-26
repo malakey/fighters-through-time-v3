@@ -235,7 +235,7 @@ namespace FTT.UI {
             _dialoguePanel.AnchorRight = 0.5f;
             _dialoguePanel.OffsetLeft = -DialogueTheme.BoxWidth / 2f;
             _dialoguePanel.OffsetRight = DialogueTheme.BoxWidth / 2f;
-            _dialoguePanel.OffsetTop = -240;
+            _dialoguePanel.OffsetTop = -310;
             _dialoguePanel.OffsetBottom = -DialogueTheme.BoxBottomMargin;
             AddChild(_dialoguePanel);
 
@@ -271,10 +271,11 @@ namespace FTT.UI {
             };
             speakerRow.AddChild(_speakerLabel);
 
-            // Body copy rides the theme's default font size (no override) so
+            // Body copy rides the DialogueBodyRich variation (no font-size override) so
             // the accessibility UI scale reaches the dialogue text.
             _textLabel = new RichTextLabel {
                 Name = "TextLabel",
+                ThemeTypeVariation = UIPalette.Variations.DialogueBodyRich,
                 BbcodeEnabled = true,
                 SizeFlagsVertical = Control.SizeFlags.ExpandFill
             };

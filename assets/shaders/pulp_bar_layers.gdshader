@@ -90,5 +90,6 @@ void fragment() {
 	}
 	col = over(vec4(0.0, 0.0, 0.0, notch), col);
 
-	COLOR = vec4(col.rgb, col.a * inside);
+	// COLOR arrives as the draw colour times the canvas modulate (HUD opacity, panel fades): keep it.
+	COLOR = vec4(col.rgb * COLOR.rgb, col.a * inside * COLOR.a);
 }

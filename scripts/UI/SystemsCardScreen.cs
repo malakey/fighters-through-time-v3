@@ -46,7 +46,7 @@ namespace FTT.UI {
             var close = _root.GetNodeOrNull<Button>("Center/Panel/Layout/FooterRow/CloseButton");
             if (close != null) {
                 close.Pressed += Close;
-                PulpScreenKit.StylePauseButton(close, 280f);
+                PulpScreenKit.StylePauseButton(close, 380f);
             }
         }
 

@@ -16,7 +16,7 @@ anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
 offset_left = -750.0
-offset_top = -240.0
+offset_top = -310.0
 offset_right = 750.0
 offset_bottom = -40.0
 grow_horizontal = 2
@@ -55,6 +55,7 @@ theme_type_variation = &"SpeakerName"
 
 [node name="TextLabel" type="RichTextLabel" parent="Panel/Layout/Content"]
 layout_mode = 2
+theme_type_variation = &"DialogueBodyRich"
 size_flags_vertical = 3
 bbcode_enabled = true
 

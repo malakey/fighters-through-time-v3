@@ -109,7 +109,7 @@ namespace FTT.Diagnostics {
                 UIPalette.Variations.InkPanel, UIPalette.Variations.PaperPanel, UIPalette.Variations.BannerPanel,
                 UIPalette.Variations.PanelTagPlate, UIPalette.Variations.BossNameplate, UIPalette.Variations.BossPhaseTab,
                 UIPalette.Variations.SlotPlate, UIPalette.Variations.SlotPlateReady, UIPalette.Variations.KeyTagPlate,
-                UIPalette.Variations.CardPlate, UIPalette.Variations.CardPlateP1, UIPalette.Variations.CardPlateP2,
+                UIPalette.Variations.CardPlate, UIPalette.Variations.CardPlatePick,
                 UIPalette.Variations.BubblePlate, UIPalette.Variations.StampPlate, UIPalette.Variations.HudPlatePanel,
                 UIPalette.Variations.DialogueGlassPanel }) {
                 var panel = new PanelContainer { ThemeTypeVariation = name };

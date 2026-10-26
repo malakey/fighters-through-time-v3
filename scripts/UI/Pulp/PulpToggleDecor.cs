@@ -38,7 +38,7 @@ namespace FTT.UI.Pulp {
 
         /// <summary>Skins <paramref name="button"/>; a second call returns the decor already on it.</summary>
         public static PulpToggleDecor Apply(CheckButton button) {
-            foreach (Node child in button.GetChildren()) if (child is PulpToggleDecor existing) return existing;
+            for (int i = 0, n = button.GetChildCount(); i < n; i++) if (button.GetChild(i) is PulpToggleDecor existing) return existing;
             var decor = new PulpToggleDecor { Name = "PulpToggleDecor", _button = button };
             var blank = new PlaceholderTexture2D { Size = new Vector2(1f, 1f) };
             foreach (string slot in IconSlots) button.AddThemeIconOverride(slot, blank);
@@ -156,7 +156,7 @@ namespace FTT.UI.Pulp {
                 if (button == null) return;
                 Rect2 track = TrackRect(button.Size);
                 bool on = _owner._knob >= 0.5f;
-                StyleBoxTexture plate = PulpKit.Plate(on ? "toggle_track_on" : "toggle_track_off");
+                StyleBoxTexture plate = PulpKit.SharedPlate(on ? "toggle_track_on" : "toggle_track_off");
                 if (plate != null) DrawStyleBox(plate, track);
                 Texture2D knob = PulpKit.Texture("toggle_knob");
                 if (knob != null) {

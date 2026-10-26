@@ -114,7 +114,7 @@ namespace FTT.UI {
             };
             parts.Scaler.AddChild(parts.Tilt);
 
-            parts.FrameBack = MakeFrame("FrameBack", UIPalette.Variations.CardPlateP2);
+            parts.FrameBack = MakeFrame("FrameBack", UIPalette.Variations.CardPlatePick);
             parts.FrameBack.Position = new Vector2(16f, 12f);
             parts.FrameBack.Rotation = Mathf.DegToRad(4f);
             parts.FrameBack.Visible = false;
@@ -213,12 +213,16 @@ namespace FTT.UI {
             box.SetCornerRadiusAll(25);
             disc.AddThemeStyleboxOverride("panel", box);
             root.AddChild(disc);
-            PulpIcon icon = PulpIcon.Create(player == 0 ? "slot_p1" : "slot_p2", player == 0 ? UIPalette.P1 : UIPalette.P2, 28f);
+            PulpIcon icon = PulpIcon.Create(player == 0 ? "slot_p1" : "slot_p2", UIPalette.OwnerOnDark(player), 28f);
             icon.Name = "Shape";
             icon.ShadowEnabled = false;
             icon.Position = new Vector2(11f, 11f);
             root.AddChild(icon);
             return root;
+        }
+
+        private static void TintBadge(Control badge, int player) {
+            if (badge?.GetNodeOrNull<PulpIcon>("Shape") is { } shape) shape.Tint = UIPalette.OwnerOnDark(player);
         }
 
         private string TileDates(int index) {
@@ -261,9 +265,13 @@ namespace FTT.UI {
                 && (_tokens[1].LockedIndex == index || (!_tokens[1].Ready && _tokens[1].Cursor == index));
             bool locked = _tokens[0].LockedIndex == index || (OpponentCursorActive && _tokens[1].LockedIndex == index);
 
-            card.Frame.ThemeTypeVariation = p1Here ? UIPalette.Variations.CardPlateP1
-                : p2Here ? UIPalette.Variations.CardPlateP2 : UIPalette.Variations.CardPlate;
+            // The picked frame is a white ring; its colour is the player's active slot colour (accessibility palette).
+            card.Frame.ThemeTypeVariation = p1Here || p2Here ? UIPalette.Variations.CardPlatePick : UIPalette.Variations.CardPlate;
+            card.Frame.SelfModulate = p1Here ? UIPalette.OwnerOnDark(0) : p2Here ? UIPalette.OwnerOnDark(1) : Colors.White;
             card.FrameBack.Visible = p1Here && p2Here;
+            card.FrameBack.SelfModulate = UIPalette.OwnerOnDark(1);
+            TintBadge(card.Badge1, 0);
+            TintBadge(card.Badge2, 1);
             if (p1Here) {
                 card.Tilt.Position = new Vector2(0f, -10f);
                 card.Tilt.Rotation = Mathf.DegToRad(-1.6f);
@@ -334,7 +342,7 @@ namespace FTT.UI {
                     StretchMode = TextureRect.StretchModeEnum.Scale, Position = new Vector2(-4f, -4f), Size = new Vector2(131f, 132f),
                     MouseFilter = MouseFilterEnum.Ignore
                 };
-                if (layer == "Fill") rect.Modulate = player == 0 ? UIPalette.P1 : UIPalette.P2;
+                if (layer == "Fill") rect.Modulate = UIPalette.OwnerOnDark(player);
                 star.AddChild(rect);
             }
             var text = new Label {
@@ -427,24 +435,9 @@ namespace FTT.UI {
 
         private static ProgressBar MakeStatBar() {
             var bar = new ProgressBar {
-                Name = "Bar", ThemeTypeVariation = UIPalette.Variations.PulpBar, CustomMinimumSize = new Vector2(118f, 14f),
+                Name = "Bar", ThemeTypeVariation = UIPalette.Variations.PulpBarH14, CustomMinimumSize = new Vector2(118f, 14f),
                 SizeFlagsVertical = Control.SizeFlags.ShrinkCenter, ShowPercentage = false, MinValue = 0, MaxValue = 1, Step = 0.001
             };
-            Theme theme = UIPalette.LoadTheme();
-            // The track plate is the 14 px kit texture on the theme's own content margins; the fill stays a flat box.
-            if (theme.GetStylebox("background", UIPalette.Variations.PulpBar) is StyleBoxTexture themed
-                && PulpKit.Plate("bar_track_h14") is { } plate && themed.Duplicate() is StyleBoxTexture track) {
-                track.Texture = plate.Texture;
-                track.TextureMarginLeft = plate.TextureMarginLeft; track.TextureMarginTop = plate.TextureMarginTop;
-                track.TextureMarginRight = plate.TextureMarginRight; track.TextureMarginBottom = plate.TextureMarginBottom;
-                track.ExpandMarginLeft = plate.ExpandMarginLeft; track.ExpandMarginTop = plate.ExpandMarginTop;
-                track.ExpandMarginRight = plate.ExpandMarginRight; track.ExpandMarginBottom = plate.ExpandMarginBottom;
-                bar.AddThemeStyleboxOverride("background", track);
-            }
-            if (theme.GetStylebox("fill", UIPalette.Variations.PulpBar) is StyleBoxFlat fillThemed && fillThemed.Duplicate() is StyleBoxFlat fill) {
-                fill.BgColor = UIPalette.Accent;
-                bar.AddThemeStyleboxOverride("fill", fill);
-            }
             PulpBarDecor decor = PulpBarDecor.Attach(bar);
             decor.LagValue = 0f;
             decor.EchoValue = 0f;
