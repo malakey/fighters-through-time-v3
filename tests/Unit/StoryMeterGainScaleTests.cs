@@ -112,10 +112,10 @@ public class StoryMeterGainScaleTests {
             AssertThat(hero.CurrentUltimateMeter)
                 .OverrideFailureMessage("A flat grant (Shield of Orléans, the MeterBoost orb) is not a gain.")
                 .IsEqual(55f);
-            hero.DrainUltimateMeter(BasicComboRules.EchoStepMeterCost);
+            hero.DrainUltimateMeter(30f);
             AssertThat(hero.CurrentUltimateMeter)
                 .OverrideFailureMessage("A spend is never scaled.")
-                .IsEqual(55f - BasicComboRules.EchoStepMeterCost);
+                .IsEqual(55f - 30f);
             hero.SetUltimateMeter(InfluenceMeterRules.MaxValue);
             AssertThat(hero.CurrentUltimateMeter).IsEqual(InfluenceMeterRules.MaxValue);
             AssertThat(Meter(hero).IsFull).IsTrue();

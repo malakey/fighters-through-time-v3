@@ -597,7 +597,6 @@ public class FighterSpecialTimingTests {
             // The chord carries Block, so in recovery it is the Block cancel.
             ("grab chord", In(GameplayButtons.BasicAttack, held: GameplayButtons.Block), sim => Verb(sim).GrabPhase != 0, true, true),
             ("direct grab", In(GameplayButtons.Grab), sim => Verb(sim).GrabPhase != 0, true, false),
-            ("Echo Step", In(GameplayButtons.EchoStep), sim => Verb(sim).EchoStepWindupFrames > 0, false, false),
             ("Special 2", In(GameplayButtons.Special2), sim => Runtime(sim).SpecialTwoCooldownFrames > 0, true, false),
             ("the Ultimate", In(GameplayButtons.Ultimate), sim => UltimateActivationTestKit.Phase(sim, 0) != FighterUltimateActivationRules.PhaseNone, true, false),
             ("the movement ability", In(GameplayButtons.MovementAbility), sim => Runtime(sim).MovementCooldownFrames > 0, true, false)

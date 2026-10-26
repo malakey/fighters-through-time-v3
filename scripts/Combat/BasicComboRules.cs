@@ -763,104 +763,6 @@ namespace FTT.Combat {
         /// <summary>Story crowd bowling: a thrown mob is a projectile at this fraction.</summary>
         public const float ThrownMobCollisionDamageMultiplier = 0.5f;
 
-        // === Echo Step (V7.1, applied 2026-08-24) ===
-        // Block + Roll during the recovery frames of your own basic,
-        // directional, or special attack: after a short wind-up (a ghost
-        // telegraphs the destination) you snap to the position you occupied
-        // ~30 frames earlier. Position only — HP, cooldowns, the Echo Pool,
-        // and the world are untouched. Both modes read these numbers.
-
-        /// <summary>Influence Meter spent per Echo Step.</summary>
-        public const int EchoStepMeterCost = 30;
-        /// <summary>Wind-up before the snap (the opponent's read window).</summary>
-        public const int EchoStepWindupFrames = 8;
-        /// <summary>Internal cooldown after use — it cannot be chained.</summary>
-        public const int EchoStepCooldownFrames = 120;
-        /// <summary>How far back in time the snap reaches.</summary>
-        public const int EchoStepLookbackFrames = 30;
-        /// <summary>
-        /// Consecutive per-tick position samples both modes retain:
-        /// <see cref="EchoStepLookbackFrames"/> + 1. The newest sample is written at
-        /// the START of tick <c>t</c>, before action input and movement, so
-        /// <c>t - 30</c> has to survive that write — 31 slots is the smallest ring
-        /// where it does, and it makes the next-slot-to-overwrite index and the
-        /// <c>t - 30</c> slot the same index.
-        /// </summary>
-        public const int EchoStepRingSamples = EchoStepLookbackFrames + 1;
-
-        // === Same-frame chord priority in attack recovery (V7.6, Package 11 A1c) ===
-        // Design master 1451-1452. During a swing's recovery frames three verbs
-        // read the same Block input, so an ordering has to be authored rather
-        // than inherited from whichever system happens to run first. Before this
-        // it WAS incidental: the sim called TryStartEchoStep at movement time and
-        // evaluated the roll cancel eight lines later, so Echo Step won by
-        // accident, while the grab chord was resolved in a different system
-        // entirely. One rule now, read by both modes from this one table:
-        //
-        //     the chord beats the single input, and the priced verb beats the
-        //     free one.
-
-        /// <summary>The verb a recovery-frame input resolves to. See <see cref="SelectRecoveryVerb"/>.</summary>
-        public enum RecoveryVerb {
-            /// <summary>No Block input: the swing runs its recovery out.</summary>
-            None,
-            /// <summary>Block + Roll with Echo Step legal: the priced verb wins.</summary>
-            EchoStep,
-            /// <summary>Block + BasicAttack where grabs are legal.</summary>
-            Grab,
-            /// <summary>Block alone, or a chord whose priced verb is unavailable.</summary>
-            BlockCancel
-        }
-
-        /// <summary>
-        /// Resolves one tick of recovery-frame input to exactly one verb. Both
-        /// <c>PlayerController</c> (Story) and <c>FighterMovementSystem</c> /
-        /// <c>FighterCombatSystem</c> (the deterministic sim) call this, so the
-        /// table cannot drift between modes.
-        ///
-        /// <para>The authored table:</para>
-        /// <list type="bullet">
-        /// <item>same-frame <b>Block + Roll</b> with Echo Step legal → Echo Step
-        /// (the priced verb beats the free stance);</item>
-        /// <item>same-frame <b>Block + BasicAttack</b> with grabs legal → a grab
-        /// attempt, otherwise the block-cancel;</item>
-        /// <item><b>Block alone</b> → the block-cancel;</item>
-        /// <item>a chord whose priced verb is illegal (meter, cooldown, an
-        /// unavailable destination) falls back to the block-cancel rather than
-        /// doing nothing — it must never eat the input.</item>
-        /// </list>
-        ///
-        /// <para><paramref name="rollHeld"/> is a deliberate widening of the
-        /// plan's authored six-parameter signature: the shipped chord is
-        /// recognized on <em>either</em> edge (Block pressed onto a held Roll, or
-        /// Roll pressed onto a held Block), and a Roll-press-only test would have
-        /// silently narrowed live behaviour this workstream was not asked to
-        /// change. Recorded in the plan's §9.</para>
-        /// </summary>
-        /// <param name="blockHeld">Block is held this tick.</param>
-        /// <param name="blockPressed">Block went down this tick.</param>
-        /// <param name="rollHeld">Roll is held this tick.</param>
-        /// <param name="rollPressed">Roll went down this tick.</param>
-        /// <param name="basicPressed">BasicAttack went down this tick.</param>
-        /// <param name="grabLegal">A grab could start right now (reach aside).</param>
-        /// <param name="echoLegal">Echo Step could start right now: meter, cooldown, history and a clear destination.</param>
-        public static RecoveryVerb SelectRecoveryVerb(
-            bool blockHeld,
-            bool blockPressed,
-            bool rollHeld,
-            bool rollPressed,
-            bool basicPressed,
-            bool grabLegal,
-            bool echoLegal) {
-            if (!blockHeld) return RecoveryVerb.None;
-            // A chord is only a chord on the tick one of its halves arrives; a
-            // Block+Roll the player has simply been leaning on is a stale hold.
-            bool echoChord = rollHeld && (rollPressed || blockPressed);
-            if (echoChord) return echoLegal ? RecoveryVerb.EchoStep : RecoveryVerb.BlockCancel;
-            if (basicPressed) return grabLegal ? RecoveryVerb.Grab : RecoveryVerb.BlockCancel;
-            return RecoveryVerb.BlockCancel;
-        }
-
         // === Per-hit Momentum (user direction 2026-10-11, D2; ledger USER-PER-HIT-MOMENTUM) ===
         // Replaces V7.1's finisher-only refund (a connecting hit 3 refunded 60
         // frames, at most twice per cycle). Every LANDED basic swing — the D1a
@@ -932,7 +834,7 @@ namespace FTT.Combat {
         // releases them); a refused
         // press spends nothing and arms nothing. Basic attacks are never refused,
         // so the string chains exactly as before, and the movement ability, roll,
-        // air dodge, grab and Echo Step neither arm nor read it.
+        // air dodge and grab neither arm nor read it.
         //
         // It is armed at acceptance (the tick the sim fires a special) and counts
         // down on the fighter's own clock, so it pauses in hitstop like every

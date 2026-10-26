@@ -44,14 +44,13 @@ public class FighterCpuBehaviorTests {
         // remaining jumps plus AT MOST ONE movement-ability activation per
         // offstage episode, and "Specials remain disabled on Easy" — including
         // off-stage, which is the exact inverse of the shipped ladder (Special 2
-        // at 55%, the movement ability never). It uses neither grab nor Echo Step.
+        // at 55%, the movement ability never). It uses no grab.
         AssertThat(easy.RecoveryJumpPercent > 0).IsTrue();
         AssertThat(easy.RecoveryMovementPercent > 0).IsTrue();
         AssertThat(easy.RecoveryMovementActivationsPerEpisode).IsEqual(1);
         AssertThat(easy.RecoveryMobilitySpecialPercent).IsEqual(0);
         AssertThat(easy.PlansMultiActionRecovery).IsFalse();
         AssertThat(easy.GrabAdmissionPercent).IsEqual(0);
-        AssertThat(easy.EchoStepAdmissionPercent).IsEqual(0);
 
         // design :3161 Easy: "Rarely blocks projectiles" — below even the 10%
         // standard shield rate, and never a blink.
@@ -76,16 +75,12 @@ public class FighterCpuBehaviorTests {
         AssertThat(normal.ShieldOrbPursuitPercent).IsEqual(0);
         // F19 Medium: the movement ability is the DEFAULT recovery tool, one
         // activation per episode, no multi-ability chains. CPU_COMBAT_POLICY.md's
-        // provisional 25% admission for both verbs, and the immediate-Ultimate
-        // policy still beats Echo Step when both are legal in one decision.
+        // provisional 25% grab admission.
         AssertThat(normal.RecoveryMovementPercent > 0).IsTrue();
         AssertThat(normal.RecoveryMovementActivationsPerEpisode).IsEqual(1);
         AssertThat(normal.PlansMultiActionRecovery).IsFalse();
         AssertThat(normal.GrabAdmissionPercent).IsEqual(25);
-        AssertThat(normal.EchoStepAdmissionPercent).IsEqual(25);
-        AssertThat(normal.UltimateBeatsEchoStep).IsTrue();
         AssertThat(normal.ScoresGrabTactically).IsFalse();
-        AssertThat(normal.ReservesMeterForDefy).IsFalse();
 
         CpuBandTuning hard = CpuBandTuning.Hard;
         AssertThat(hard.BlockPercent).IsEqual(80);
@@ -103,16 +98,12 @@ public class FighterCpuBehaviorTests {
         AssertThat(hard.ShieldOrbPursuitPercent).IsEqual(95);
         AssertThat(hard.ShieldOrbTargetMeterFloor).IsEqual(85);
         // F19 Hard: route comparison with no fixed script and no per-episode
-        // activation cap (the ability's own cooldown is the constraint), both
-        // verbs scored rather than rolled flat, and full meter behind an unused
-        // Defy carries reserve value against the 30-meter Echo Step spend.
+        // activation cap (the ability's own cooldown is the constraint), and the
+        // grab scored rather than rolled flat.
         AssertThat(hard.PlansMultiActionRecovery).IsTrue();
         AssertThat(hard.RecoveryMovementActivationsPerEpisode).IsEqual(0);
         AssertThat(hard.ScoresGrabTactically).IsTrue();
         AssertThat(hard.GrabAdmissionPercent < 100).IsTrue();
-        AssertThat(hard.EchoStepAdmissionPercent < 100).IsTrue();
-        AssertThat(hard.ReservesMeterForDefy).IsTrue();
-        AssertThat(hard.UltimateBeatsEchoStep).IsFalse();
 
         AssertThat(CpuBandTuning.For(CpuDifficulty.Easy).BlockPercent).IsEqual(10);
         AssertThat(CpuBandTuning.For(CpuDifficulty.Normal).BlockPercent).IsEqual(40);
@@ -771,17 +762,16 @@ public class FighterCpuBehaviorTests {
     /// Plan §2.9.3: since decision 1.2 a Special cast discards its caster's
     /// presses until its recovery ends, so the CPU reads its own cast
     /// (<see cref="CpuDecisionObservation.SelfSpecialCastPhase"/>) before it
-    /// schedules a grab or Echo Step. With both admissions forced to 100 %, a
-    /// grab opportunity and a whiffed swing's recovery produce no chord while a
-    /// cast runs (startup, active or recovery), and the grab opportunity is never
+    /// schedules a grab. With the admission forced to 100 %, a grab opportunity
+    /// produces no chord while a cast runs (startup, active or recovery), and the
+    /// grab opportunity is never
     /// opened, so no admission is rolled or spent on it; the moment the cast ends,
     /// the same continuing opportunity is the CPU's first and it acts on it.
     /// </summary>
     [TestCase]
-    public void NoGrabOrEchoStepIsScheduledDuringTheCpusOwnCastAndNoAdmissionIsSpent() {
+    public void NoGrabIsScheduledDuringTheCpusOwnCastAndNoAdmissionIsSpent() {
         CpuBandTuning tuning = CpuBandTuning.Normal with {
             GrabAdmissionPercent = 100,
-            EchoStepAdmissionPercent = 100,
             UltimatePercent = 0,
             SpecialOneClosePercent = 0,
             SpecialOneRangedPercent = 0,
@@ -797,29 +787,15 @@ public class FighterCpuBehaviorTests {
             casting.SelfSpecialCastPhaseFrames = frames;
             uint tick = 0;
             PlayerInputFrame previous = default;
-            int castChords = CountCastChords(grabber, casting, ref tick, ref previous, 120, grab: true);
+            int castChords = CountCastChords(grabber, casting, ref tick, ref previous, 120);
             if (castChords != 0) failures.Add($"{name}: {castChords} grab chords during the cast");
             if (grabber.GrabOpportunityID != 0) {
                 failures.Add($"{name}: the cast opened grab opportunity {grabber.GrabOpportunityID}");
             }
-            int freeChords = CountCastChords(grabber, opportunity, ref tick, ref previous, 60, grab: true);
+            int freeChords = CountCastChords(grabber, opportunity, ref tick, ref previous, 60);
             if (freeChords == 0) failures.Add($"{name}: no grab once the cast ended");
             if (grabber.GrabOpportunityID != 1) {
                 failures.Add($"{name}: the post-cast opportunity is #{grabber.GrabOpportunityID}, not the first");
-            }
-
-            // Echo Step: the recovery of the CPU's own whiffed swing.
-            var stepper = new FighterCpuController(CpuDifficulty.Normal, 4402, null, null, tuning);
-            CpuDecisionObservation whiff = CastWhiffRecovery();
-            CpuDecisionObservation whiffCasting = whiff;
-            whiffCasting.SelfSpecialCastPhase = phase;
-            whiffCasting.SelfSpecialCastPhaseFrames = frames;
-            tick = 0;
-            previous = default;
-            int castSteps = CountCastChords(stepper, whiffCasting, ref tick, ref previous, 120, grab: false);
-            if (castSteps != 0) failures.Add($"{name}: {castSteps} Echo Step chords during the cast");
-            if (CountCastChords(stepper, whiff, ref tick, ref previous, 60, grab: false) == 0) {
-                failures.Add($"{name}: no Echo Step once the cast ended");
             }
         }
         if (failures.Count > 0) AssertThat(string.Join(" | ", failures)).IsEqual("");
@@ -843,7 +819,6 @@ public class FighterCpuBehaviorTests {
             SpecialOneRangedPercent = 0,
             SpecialTwoPercent = 0,
             GrabAdmissionPercent = 0,
-            EchoStepAdmissionPercent = 0,
             EvasiveRollPercent = 0,
             BlockPercent = 0
         };
@@ -885,30 +860,15 @@ public class FighterCpuBehaviorTests {
         return observation;
     }
 
-    /// <summary>The CPU in the recovery of its own whiffed swing, with the meter, cooldown and destination Echo Step needs.</summary>
-    private static CpuDecisionObservation CastWhiffRecovery() {
-        CpuDecisionObservation observation = CastGrabOpportunity();
-        observation.TargetBlockStance = 0;
-        observation.TargetPositionXRaw = FP64.FromInt(3).RawValue;
-        observation.SelfAttackPhase = FighterBasicAttackRules.PhaseRecovery;
-        observation.InfluenceRaw = FP64.FromInt(60).RawValue;
-        observation.HasEchoStepDestination = 1;
-        observation.EchoStepDestinationXRaw = FP64.FromInt(-2).RawValue;
-        observation.EchoStepDestinationYRaw = FP64.Zero.RawValue;
-        return observation;
-    }
-
-    /// <summary>Grab chords (Block held + BasicAttack pressed) or Echo Step chords (Block + Roll held) over <paramref name="ticks"/> ticks.</summary>
+    /// <summary>Grab chords (Block held + BasicAttack pressed) over <paramref name="ticks"/> ticks.</summary>
     private static int CountCastChords(
         FighterCpuController cpu, CpuDecisionObservation observation,
-        ref uint tick, ref PlayerInputFrame previous, int ticks, bool grab) {
+        ref uint tick, ref PlayerInputFrame previous, int ticks) {
         int chords = 0;
         for (uint end = tick + (uint)ticks; tick < end; tick++) {
             PlayerInputFrame frame = cpu.Sample(tick, in observation, in previous);
             previous = frame;
-            bool chord = grab
-                ? frame.IsPressed(GameplayButtons.BasicAttack) && frame.IsHeld(GameplayButtons.Block)
-                : frame.IsHeld(GameplayButtons.Block) && frame.IsHeld(GameplayButtons.Roll);
+            bool chord = frame.IsPressed(GameplayButtons.BasicAttack) && frame.IsHeld(GameplayButtons.Block);
             if (chord) chords++;
         }
         return chords;

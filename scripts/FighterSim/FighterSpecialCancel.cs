@@ -40,8 +40,7 @@ namespace FTT.FighterSim {
     /// branch, which ages nothing — with the first verb pressed in the order
     /// roll, jump, basic, movement; the latest press replaces the slot, and a
     /// press older than <see cref="FTT.Combat.BasicComboRules.SpecialCancelBufferFrames"/>
-    /// unfrozen ticks is dropped. Never buffered: the Echo Step chord's Roll (A06:
-    /// no Echo Step out of a Special), the grab chord's BasicAttack, and a
+    /// unfrozen ticks is dropped. Never buffered: the grab chord's BasicAttack, and a
     /// Movement press on a tick that presses the Ultimate (the LB+RB chord), which
     /// also clears a buffered Movement press.</para>
     ///
@@ -79,7 +78,6 @@ namespace FTT.FighterSim {
         private const int BlockButton = 1 << 6;
         private const int UltimateButton = 1 << 7;
         private const int RollButton = 1 << 10;
-        private const int EchoStepButton = 1 << 12;
         private const int GrabButton = 1 << 13;
         private const int DirectOriginButton = 1 << 14;
 
@@ -141,19 +139,16 @@ namespace FTT.FighterSim {
 
         /// <summary>
         /// The verb this tick's presses ask for, in the order roll, jump, basic,
-        /// movement — or <see cref="VerbNone"/>. The Echo Step chord's Roll (the
-        /// logical Echo Step request, or Block held with the device's chords on),
-        /// the grab chord's BasicAttack (the logical Grab request, or Block held on
-        /// the ground with the chords on) and a Movement press on an Ultimate tick
-        /// never count.
+        /// movement — or <see cref="VerbNone"/>. The grab chord's BasicAttack (the
+        /// logical Grab request, or Block held on the ground with the chords on) and
+        /// a Movement press on an Ultimate tick never count.
         /// </summary>
         public static int SelectVerb(in FighterStateComponent fighter, in FighterRuntimeComponent runtime) {
             int pressed = runtime.PressedButtons;
             int held = runtime.HeldButtons;
             bool chordsOn = (held & DirectOriginButton) == 0;
             bool blockHeld = (held & BlockButton) != 0;
-            bool echoStepRequested = ((pressed | held) & EchoStepButton) != 0 || (chordsOn && blockHeld);
-            if ((pressed & RollButton) != 0 && !echoStepRequested) return VerbRoll;
+            if ((pressed & RollButton) != 0) return VerbRoll;
             if ((pressed & JumpButton) != 0) return VerbJump;
             bool grabRequested = (pressed & GrabButton) != 0 || (chordsOn && blockHeld && fighter.IsGrounded != 0);
             if ((pressed & BasicButton) != 0 && !grabRequested) return VerbBasic;
@@ -240,7 +235,7 @@ namespace FTT.FighterSim {
 
         /// <summary>
         /// Rewrites this tick's input to the fired verb alone: <c>PressedButtons</c>
-        /// becomes the verb's bit (no Special, Ultimate, Grab or Echo Step request
+        /// becomes the verb's bit (no Special, Ultimate or Grab request
         /// survives), the stick and the held buttons stay. For a basic, the stick's
         /// vertical and the held Down are set from the press-time direction
         /// (Up → up, Down → down, neither → neutral), so <c>SelectAttackVariant</c>

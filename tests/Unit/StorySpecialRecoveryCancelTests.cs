@@ -18,8 +18,8 @@ namespace FTT.Tests.Unit;
 /// a direct hit (the D1a predicate) may cancel its recovery into a roll or a
 /// jump from recovery frame 0, and into a basic attack — hit 1, the Up-Attack
 /// or the Down-Air by the held direction (the 2026-10-11 addendum) — or the
-/// movement ability from frame 6. A whiff keeps its whole recovery, Echo Step
-/// never comes out of a Special, and neither a Special nor the Ultimate is
+/// movement ability from frame 6. A whiff keeps its whole recovery,
+/// and neither a Special nor the Ultimate is
 /// polled there. A one-slot cancel buffer holds a press for six unfrozen ticks.
 ///
 /// <para>Manual ticks in the tree order: the controller, then its four ability
@@ -311,7 +311,7 @@ public class StorySpecialRecoveryCancelTests {
     // === What never comes out ==================================================
 
     [TestCase]
-    public void NoSpecialOrEchoStepComesOutOfALandedRecovery() {
+    public void NoSpecialComesOutOfALandedRecovery() {
         Run("joan", (player, host) => {
             LiftIntoTheAir(player, 900f);
             JoanRighteousSmite smite = CastAndLandSmite(player, host);
@@ -319,9 +319,6 @@ public class StorySpecialRecoveryCancelTests {
             GameplayButtons[] refused = {
                 GameplayButtons.Special1,
                 GameplayButtons.Special2,
-                GameplayButtons.EchoStep,
-                // The airborne Echo Step chord (Block + Roll forms the EchoStep bit).
-                GameplayButtons.Block | GameplayButtons.Roll | GameplayButtons.EchoStep,
                 GameplayButtons.None
             };
             foreach (GameplayButtons press in refused) {

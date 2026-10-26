@@ -98,9 +98,9 @@ public class FighterHudSceneTests {
     }
 
     [TestCase]
-    public void FourRadialCooldownsTrackAuthoritativeStateAndEchoStepDimsBelowItsCost() {
-        // M25 (Package 12 W5, HUD_CONTRACT): S1 / S2 / Movement / Echo Step radials
-        // replace the Ultimate plate, and Echo Step also dims below 30 meter.
+    public void ThreeRadialCooldownsTrackAuthoritativeState() {
+        // M25 (Package 12 W5, HUD_CONTRACT): S1 / S2 / Movement radials replace the
+        // Ultimate plate (the Echo Step radial left on 2026-10-25).
         FighterHUD hud = Mount();
         try {
             TranslationServer.SetLocale("en");
@@ -110,12 +110,11 @@ public class FighterHudSceneTests {
             cooling.SpecialOneCooldownFrames = 120;
             cooling.SpecialTwoCooldownFrames = 0;
             cooling.MovementCooldownFrames = 30;
-            hud.ApplyPlayerState(0, State(influence: 40f), cooling, TickRate, echoStepCooldownFrames: 60);
+            hud.ApplyPlayerState(0, State(influence: 40f), cooling, TickRate);
 
             AssertThat(hud.CooldownIsReady(0, FighterCooldownSlot.SpecialOne)).IsFalse();
             AssertThat(hud.CooldownIsReady(0, FighterCooldownSlot.SpecialTwo)).IsTrue();
             AssertThat(hud.CooldownIsReady(0, FighterCooldownSlot.Movement)).IsFalse();
-            AssertThat(hud.CooldownIsReady(0, FighterCooldownSlot.EchoStep)).IsFalse();
             // A cooldown that just started shows an empty arc; a ready one a full arc.
             AssertThat(hud.CooldownFraction(0, FighterCooldownSlot.SpecialOne)).IsEqual(0f);
             AssertThat(hud.CooldownFraction(0, FighterCooldownSlot.SpecialTwo)).IsEqual(1f);
@@ -123,21 +122,17 @@ public class FighterHudSceneTests {
             // Half-way through the cooldown the radial is half full: the arc reads
             // the authoritative remaining count against the count it started from.
             cooling.SpecialOneCooldownFrames = 60;
-            hud.ApplyPlayerState(0, State(influence: 40f), cooling, TickRate, echoStepCooldownFrames: 0);
+            hud.ApplyPlayerState(0, State(influence: 40f), cooling, TickRate);
             AssertFloat(hud.CooldownFraction(0, FighterCooldownSlot.SpecialOne)).IsEqualApprox(0.5f, 0.001f);
-            AssertThat(hud.CooldownIsReady(0, FighterCooldownSlot.EchoStep))
-                .OverrideFailureMessage("Echo Step off cooldown with 40 meter is usable.")
-                .IsTrue();
 
-            // Echo Step dims below its 30-meter cost even with the cooldown done.
-            hud.ApplyPlayerState(0, State(influence: 20f), Runtime(), TickRate, echoStepCooldownFrames: 0);
-            AssertThat(hud.CooldownIsReady(0, FighterCooldownSlot.EchoStep)).IsFalse();
+            // Meter never gates a radial any more: a finished cooldown is ready.
+            hud.ApplyPlayerState(0, State(influence: 20f), Runtime(), TickRate);
             AssertThat(hud.CooldownIsReady(0, FighterCooldownSlot.SpecialOne)).IsTrue();
             // Distinct glyphs: readiness never rides on colour alone.
             AssertThat(hud.CooldownText(0, FighterCooldownSlot.SpecialOne))
                 .IsEqual(TranslationServer.Translate("fighter_hud_cooldown_special1").ToString());
-            AssertThat(hud.CooldownText(0, FighterCooldownSlot.EchoStep))
-                .IsEqual(TranslationServer.Translate("fighter_hud_cooldown_echo_step").ToString());
+            AssertThat(hud.CooldownText(0, FighterCooldownSlot.Movement))
+                .IsEqual(TranslationServer.Translate("fighter_hud_cooldown_movement").ToString());
         } finally {
             hud.Free();
         }

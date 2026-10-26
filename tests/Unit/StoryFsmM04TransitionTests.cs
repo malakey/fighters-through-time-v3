@@ -15,7 +15,7 @@ namespace FTT.Tests.Unit;
 /// Attacking → Airborne/Rolling (recovery only) and → Ultimate (any point
 /// once the 2026-10-08 ability lockout has run out);
 /// aerial Attacking → Idle on landing; Blocking → Rolling/Airborne. Under
-/// D2(a) the landing tech and the Echo Step wind-up stay FLAGS, not state
+/// D2(a) the landing tech stays a FLAG, not state
 /// moves — the tech pin below records that mapping (see the ledger entry
 /// <c>DEFER-M04-SUBPHASE-FLAGS</c>). The M05 knockdown row belongs to W3b.
 /// </summary>

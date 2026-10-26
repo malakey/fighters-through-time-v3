@@ -109,7 +109,7 @@ namespace FTT.Core {
         /// <summary>
         /// Package 11 A8 / C01c. Enable flags for the fixed preset shortcuts
         /// (Ultimate = MovementAbility + Special 2, Grab = Block held + Basic
-        /// Attack, Echo Step = Block + Roll), keyed <c>action|deviceKind</c>.
+        /// Attack), keyed <c>action|deviceKind</c>.
         ///
         /// <para>A missing entry means "legacy payload" and reproduces today's
         /// behaviour — the shortcut is <b>On</b>. That default lives in
@@ -536,12 +536,11 @@ namespace FTT.Core {
     /// label like "LB+RB" describes today's defaults rather than hard-coded keys.
     /// This class owns the recipes and the "is this verb reachable at all" check;
     /// recognizing a chord at runtime, the two new InputMap actions, the wire bits
-    /// and protocol v3 belong to the Echo Step / input workstream (A1c).</para>
+    /// and protocol v3 belong to the input workstream (A1c).</para>
     ///
-    /// <para>The three direct action names are string literals rather than
-    /// <c>InputManager.Actions</c> constants on purpose: two of them
-    /// (<c>gameplay_grab</c>, <c>gameplay_echo_step</c>) land with A1c and
-    /// <c>gameplay_time_freeze</c> lands with A2, so every consumer here tolerates
+    /// <para>The direct action names are string literals rather than
+    /// <c>InputManager.Actions</c> constants on purpose: <c>gameplay_grab</c>
+    /// landed with A1c and <c>gameplay_time_freeze</c> with A2, so every consumer here tolerates
     /// an action the InputMap does not have yet and simply renders no row for it.</para>
     /// </summary>
     public static class InputShortcuts {
@@ -563,9 +562,6 @@ namespace FTT.Core {
         /// <summary>Direct Grab action. Added by A1c; absent until then.</summary>
         public const string GrabAction = "gameplay_grab";
 
-        /// <summary>Direct Echo Step action. Added by A1c; absent until then.</summary>
-        public const string EchoStepAction = "gameplay_echo_step";
-
         /// <summary>Direct Time Freeze action (A2's rename of <c>gameplay_rewind</c>). Story only.</summary>
         public const string TimeFreezeAction = "gameplay_time_freeze";
 
@@ -574,7 +570,7 @@ namespace FTT.Core {
         /// tab lists them after the fourteen pre-existing rows.
         /// </summary>
         public static readonly string[] DirectActions = {
-            UltimateAction, GrabAction, EchoStepAction, TimeFreezeAction
+            UltimateAction, GrabAction, TimeFreezeAction
         };
 
         /// <summary>
@@ -584,7 +580,7 @@ namespace FTT.Core {
         /// is a Story-profile warning rather than an invalid layout.
         /// </summary>
         public static readonly string[] RequiredReachableActions = {
-            UltimateAction, GrabAction, EchoStepAction
+            UltimateAction, GrabAction
         };
 
         /// <summary>One fixed preset recipe: a combined verb and the component actions that spell it.</summary>
@@ -606,7 +602,7 @@ namespace FTT.Core {
         }
 
         /// <summary>
-        /// The three authored recipes. Ultimate's is gamepad-only by design —
+        /// The two authored recipes. Ultimate's is gamepad-only by design —
         /// C01c adds no new keyboard Ultimate chord — which is why
         /// <see cref="AppliesTo"/> exists rather than a flat per-device loop.
         /// </summary>
@@ -614,9 +610,7 @@ namespace FTT.Core {
             new(UltimateAction, "controls_shortcut_ultimate",
                 InputManager.Actions.MovementAbility, InputManager.Actions.Special2),
             new(GrabAction, "controls_shortcut_grab",
-                InputManager.Actions.Block, InputManager.Actions.BasicAttack),
-            new(EchoStepAction, "controls_shortcut_echo_step",
-                InputManager.Actions.Block, InputManager.Actions.Roll)
+                InputManager.Actions.Block, InputManager.Actions.BasicAttack)
         };
 
         /// <summary>The recipe for an action, or null when it has none.</summary>
@@ -639,7 +633,6 @@ namespace FTT.Core {
         public static string ActionLabelKey(string action) => action switch {
             UltimateAction => "controls_action_ultimate",
             GrabAction => "controls_action_grab",
-            EchoStepAction => "controls_action_echo_step",
             TimeFreezeAction => "controls_action_time_freeze",
             _ => InputManager.ActionLabelKey(action)
         };
@@ -675,7 +668,7 @@ namespace FTT.Core {
 
         /// <summary>
         /// The actions left with no route at all on a device kind. C01c: "Do not
-        /// silently leave Ultimate/Grab/Echo Step unreachable when their shortcut
+        /// silently leave Ultimate/Grab unreachable when their shortcut
         /// is disabled. Explain the missing route and keep the last valid
         /// configuration." The Settings screen renders this list and refuses to
         /// commit while it is non-empty.

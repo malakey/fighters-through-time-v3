@@ -1703,8 +1703,8 @@ namespace FTT.Diagnostics {
                     ["passed_while_alive"] = passedAlive.Count,
                     ["passed_then_hit_player"] = passedAlive.Count(e => e.HitsOnPlayer > 0),
                     // GU-BOT (2026-10-12): the lock meaning — the hero left an
-                    // uncleared lock's area with members alive (a revert: an Echo Step,
-                    // a rewind landing, a barrier failure) — and the old passes split
+                    // uncleared lock's area with members alive (a revert: a
+                    // rewind landing, a barrier failure) — and the old passes split
                     // into lock members and mobs no lock owns.
                     ["left_lock_with_members_alive"] = _locks.LeftWithMembersAlive,
                     ["passed_alive_lock_members"] = passedAlive.Count(e => e.LockID.Length > 0),

@@ -16,7 +16,7 @@ namespace FTT.Tests.Determinism;
 /// projectile, 20 wind-up / 10 active / 45 whiff recovery):
 /// acceptance spends the meter and starts a hyper-armored wind-up; the strike
 /// is avoided by distance, a jump or a roll; a whiff deals nothing, keeps the
-/// meter spent and ends in a whiff recovery Echo Step cannot undo; an Aegis-
+/// meter spent and ends in a whiff recovery no verb can undo; an Aegis-
 /// absorbed contact still starts the cinematic; the held victim cannot act; an
 /// airborne start freezes the caster; the whole activation is rollback safe;
 /// and the CPU commits only when the strike can plausibly connect.
@@ -127,25 +127,22 @@ public class UltimateActivationTests {
     }
 
     [TestCase]
-    public void EchoStepCannotUndoTheWhiffRecovery() {
+    public void ARollCannotUndoTheWhiffRecovery() {
         FighterSimulation simulation = NewSimulation(spawnDistance: 5, out int tick);
         Press(simulation, tick++);
         tick = UltimateActivationTestKit.Idle(simulation, tick, Windup + Active + 5);
         AssertThat(UltimateActivationTestKit.Phase(simulation, 0)).IsEqual(FighterUltimateActivationRules.PhaseWhiffRecovery);
 
-        // Give the caster Echo Step's 30 meter; the whiff recovery is part of
-        // the Ultimate, so neither the direct bind nor the chord arms it.
-        AssertThat(simulation.SeedFighterInfluenceForTest(0, 50)).IsTrue();
-        simulation.Advance(UltimateActivationTestKit.Input(tick, 0, GameplayButtons.EchoStep),
+        // The whiff recovery is part of the Ultimate, so neither a bare Roll
+        // nor the Block+Roll pair starts a roll or ends the recovery.
+        simulation.Advance(UltimateActivationTestKit.Input(tick, 0, GameplayButtons.Roll),
             UltimateActivationTestKit.Input(tick, 0, GameplayButtons.None));
         tick++;
         simulation.Advance(UltimateActivationTestKit.Input(tick, 0, GameplayButtons.Block | GameplayButtons.Roll),
             UltimateActivationTestKit.Input(tick, 0, GameplayButtons.None));
 
-        AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent verb)).IsTrue();
-        AssertThat(verb.EchoStepWindupFrames).IsEqual(0);
-        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
-        AssertThat(caster.Influence.RawValue).IsEqual(FP64.FromInt(50).RawValue);
+        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
+        AssertThat(runtime.UniversalMovementState).IsEqual((int)UniversalMovementPhase.None);
         AssertThat(UltimateActivationTestKit.Phase(simulation, 0)).IsEqual(FighterUltimateActivationRules.PhaseWhiffRecovery);
     }
 
@@ -367,7 +364,6 @@ public class UltimateActivationTests {
             UltimatePercent = 100,
             RequiresUltimateSetup = false,
             GrabAdmissionPercent = 0,
-            EchoStepAdmissionPercent = 0
         };
         AssertThat(CountUltimatePresses(always, PlausibleOpportunity())).IsGreater(0);
 
@@ -648,8 +644,7 @@ public class UltimateActivationTests {
 
     /// <summary>
     /// A generic caster (the AbilityData activation defaults) facing a 400-HP
-    /// target, with the meter seeded full after a short idle so the Echo Step
-    /// history is live. Returns the next input tick.
+    /// target, with the meter seeded full after a short idle. Returns the next input tick.
     /// </summary>
     private static FighterSimulation NewSimulation(int spawnDistance, out int nextTick) {
         var simulation = new FighterSimulation(

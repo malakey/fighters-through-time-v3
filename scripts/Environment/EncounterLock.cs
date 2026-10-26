@@ -19,7 +19,7 @@ namespace FTT.Environment {
     /// can be skipped even before it engages), pre-placed members dormant;
     /// <b>Engaged</b> — the hero is inside, both barriers closed, members fighting,
     /// waves spawning; <b>Cleared</b> — latched, both barriers open. An Engaged
-    /// lock whose living hero ends a tick outside its area (an Echo Step, a
+    /// lock whose living hero ends a tick outside its area (a
     /// death-rewind landing, a rift snap, a scripted move) reverts to Armed: the
     /// entry opens, the exit stays shut, members keep their HP and go dormant,
     /// spawned waves stay spawned and the rest spawn on the next engage.</para>
@@ -335,7 +335,7 @@ namespace FTT.Environment {
             bool inside = heroAlive && EncounterLockRules.IsInsideArea(
                 feet.X, feet.Y, Area.Position.X, Area.End.X, Area.Position.Y, Area.End.Y);
 
-            // Containment is polled every tick, held or not: an Echo Step, a
+            // Containment is polled every tick, held or not: a
             // rewind landing or a scripted move outside an engaged area must not
             // leave the hero shut out with live members.
             if (EncounterLockRules.ShouldRevertToArmed(State, heroAlive, inside)) {

@@ -518,20 +518,18 @@ public class FighterLedgeGetUpTests {
     }
 
     /// <summary>
-    /// Block+Roll (the Echo Step chord) and Block+Attack (the grab chord) start
-    /// nothing from the hang, and neither do the logical Echo Step and Grab bits
-    /// on their own; the fighter keeps hanging, untouched.
+    /// Block+Roll and Block+Attack (the grab chord) start nothing from the hang,
+    /// and neither does the logical Grab bit on its own; the fighter keeps
+    /// hanging, untouched.
     /// </summary>
     [TestCase]
-    public void TheBlockChordsAndTheLogicalChordBitsStartNothingFromTheHang() {
+    public void TheBlockChordsAndTheLogicalGrabBitStartNothingFromTheHang() {
         FighterSimulation simulation = HangingReady(out int tick);
         FighterStateComponent hanging = Fighter(simulation);
         GameplayButtons[] presses = {
             GameplayButtons.Block | GameplayButtons.Roll,
             GameplayButtons.Block | GameplayButtons.BasicAttack,
-            GameplayButtons.Roll | GameplayButtons.EchoStep,
             GameplayButtons.BasicAttack | GameplayButtons.Grab,
-            GameplayButtons.Block | GameplayButtons.Roll | GameplayButtons.EchoStep,
             GameplayButtons.Block | GameplayButtons.BasicAttack | GameplayButtons.Grab
         };
         foreach (GameplayButtons press in presses) {

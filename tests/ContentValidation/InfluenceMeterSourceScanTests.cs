@@ -169,11 +169,9 @@ public class InfluenceMeterSourceScanTests {
         foreach (string path in simFiles) {
             string file = "scripts/FighterSim/" + Path.GetRelativePath(simRoot, path).Replace('\\', '/');
             string code = Code(file);
-            // CM-STORY (7.3, 2026-10-16): the Story Echo Step cost is derived from
-            // the same scale and is Story-only too.
             foreach (string forbidden in new[] {
                          "StoryCombatRules", "MeterGainScale", "MeterGainFactor", "AppliesStoryMeterGainScale",
-                         "StoryMeterGainFactor", "StoryUltimateBuildRateMultiplier", "StoryEchoStepMeterCost" }) {
+                         "StoryMeterGainFactor", "StoryUltimateBuildRateMultiplier" }) {
                 if (code.Contains(forbidden, System.StringComparison.Ordinal)) {
                     issues.Add($"{file} names the Story-only {forbidden}");
                 }
@@ -182,8 +180,7 @@ public class InfluenceMeterSourceScanTests {
 
         string rulebook = Code(RulebookFile);
         foreach (string forbidden in new[] {
-                     "StoryCombatRules", "MeterGainScale", "MeterGainFactor", "AppliesStoryMeterGainScale",
-                     "StoryEchoStepMeterCost" }) {
+                     "StoryCombatRules", "MeterGainScale", "MeterGainFactor", "AppliesStoryMeterGainScale" }) {
             if (rulebook.Contains(forbidden, System.StringComparison.Ordinal)) {
                 issues.Add($"{RulebookFile} names the Story-only {forbidden}");
             }

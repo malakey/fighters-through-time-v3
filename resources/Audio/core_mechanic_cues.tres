@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="CoreMechanicCueCatalog" load_steps=43 format=3]
+[gd_resource type="Resource" script_class="CoreMechanicCueCatalog" load_steps=40 format=3]
 
 ; H04 (design-godot.md Section 8 "7. Core Mechanic Cues"; Package 12 W10).
 ; The single canonical core-mechanic cue catalog. Every stream is a SILENT
@@ -74,30 +74,6 @@ Bus = "SFX"
 Critical = true
 Stream = ExtResource("5_hit")
 DesignNote = "Glass-seal shatter as the Defy seal breaks; distinct from the Ultimate charge sweep."
-
-[sub_resource type="Resource" id="echo_step_windup"]
-script = ExtResource("2_entry")
-CueID = "echo_step_windup"
-Bus = "Movement"
-Critical = false
-Stream = ExtResource("6_footstep")
-DesignNote = "Short rewound whoosh across the 8-frame wind-up."
-
-[sub_resource type="Resource" id="echo_step_arrival"]
-script = ExtResource("2_entry")
-CueID = "echo_step_arrival"
-Bus = "Movement"
-Critical = false
-Stream = ExtResource("6_footstep")
-DesignNote = "Soft snap-back pop at the destination."
-
-[sub_resource type="Resource" id="echo_step_reject"]
-script = ExtResource("2_entry")
-CueID = "echo_step_reject"
-Bus = "Movement"
-Critical = false
-Stream = ExtResource("6_footstep")
-DesignNote = "Dull muted thunk when a destination is rejected."
 
 [sub_resource type="Resource" id="rally_reclaim"]
 script = ExtResource("2_entry")
@@ -262,4 +238,4 @@ DesignNote = "Fallback when a stage's StageAudioSet leaves HazardImpactCue empty
 [resource]
 script = ExtResource("1_catalog")
 SchemaVersion = 1
-Entries = Array[ExtResource("2_entry")]([SubResource("time_freeze_activate"), SubResource("time_freeze_drone"), SubResource("time_freeze_thaw_warning"), SubResource("time_freeze_thaw_release"), SubResource("post_landing_thaw_warning"), SubResource("defy_toll"), SubResource("defy_seal_shatter"), SubResource("echo_step_windup"), SubResource("echo_step_arrival"), SubResource("echo_step_reject"), SubResource("rally_reclaim"), SubResource("grab_catch"), SubResource("grab_whiff"), SubResource("throw_heave"), SubResource("throw_impact"), SubResource("landing_tech"), SubResource("knockdown_thud"), SubResource("integrity_tick"), SubResource("match_timer_pip"), SubResource("match_timer_pip_final"), SubResource("ultimate_ready"), SubResource("ultimate_activation_windup"), SubResource("ko_stinger"), SubResource("ko_stinger_decisive"), SubResource("victory_fanfare"), SubResource("draw_sting"), SubResource("seal_charge"), SubResource("seal_lock"), SubResource("stage_hazard_warning"), SubResource("stage_hazard_impact")])
+Entries = Array[ExtResource("2_entry")]([SubResource("time_freeze_activate"), SubResource("time_freeze_drone"), SubResource("time_freeze_thaw_warning"), SubResource("time_freeze_thaw_release"), SubResource("post_landing_thaw_warning"), SubResource("defy_toll"), SubResource("defy_seal_shatter"), SubResource("rally_reclaim"), SubResource("grab_catch"), SubResource("grab_whiff"), SubResource("throw_heave"), SubResource("throw_impact"), SubResource("landing_tech"), SubResource("knockdown_thud"), SubResource("integrity_tick"), SubResource("match_timer_pip"), SubResource("match_timer_pip_final"), SubResource("ultimate_ready"), SubResource("ultimate_activation_windup"), SubResource("ko_stinger"), SubResource("ko_stinger_decisive"), SubResource("victory_fanfare"), SubResource("draw_sting"), SubResource("seal_charge"), SubResource("seal_lock"), SubResource("stage_hazard_warning"), SubResource("stage_hazard_impact")])

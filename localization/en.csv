@@ -959,10 +959,8 @@ systems_card_rally_title,Rally & Desperation
 systems_card_rally_body,"20–50% of damage taken lingers as a reclaimable echo; a direct hit reclaims up to 2× its damage before the echo drains."
 systems_card_defy_title,Defy History
 systems_card_defy_body,"At 100 meter, a lethal hit shatters the meter instead of you — survive at 1 HP, once per match."
-systems_card_echo_title,Echo Step & Resonance Momentum
-# CM-STORY
-# Combat and movement update 2026-10-16 (decision 7.3): the Story Echo Step costs less meter than Fighter's 30, so the card names no cost.
-systems_card_echo_body,"Spend meter during the recovery of your own basic or directional attack to snap back 30 frames of position. Every basic hit that lands takes time off both special cooldowns (a third of a second; a full second for the finisher), up to 2 seconds per cooldown."
+systems_card_momentum_title,Momentum
+systems_card_momentum_body,"Every basic hit that lands takes time off both special cooldowns (a third of a second; a full second for the finisher), up to 2 seconds per cooldown."
 systems_card_overtime_title,Overtime
 systems_card_overtime_body,"The final 60 seconds of a timed match double the hazard cadence and raise the Rally echo by half."
 dialogue_hold_skip,"Hold {0} to skip"
@@ -1235,11 +1233,9 @@ results_dust_tier_bonus,"Integrity bonus: {0}"
 settings_reduced_temporal_effects,Reduced Temporal Effects
 settings_reduced_temporal_effects_help,"Reduces distortion, after-images and screen flashes. Keeps gameplay cues and timing unchanged."
 controls_action_grab,Grab
-controls_action_echo_step,Echo Step
 controls_shortcuts_heading,Optional shortcuts
 controls_shortcut_ultimate,Ultimate chord
 controls_shortcut_grab,Grab chord
-controls_shortcut_echo_step,Echo Step chord
 controls_unbind,Unbind
 controls_unbound_done,Slot cleared.
 controls_unreachable_action,"No way left to use: {0}. Bind a key or re-enable its shortcut."
@@ -1296,11 +1292,6 @@ drill_grab_throw_name,Break the Guard
 drill_grab_throw_objective,"The dummy is holding Block and will not drop it. Walk in, grab it, and throw."
 drill_grab_throw_pass,"Attack loses to block, block loses to grab, grab loses to attack. You just closed the triangle."
 drill_grab_throw_fail,"No throw landed. A grab is Block plus Attack, on the ground, inside jab range."
-drill_echo_step_name,Fold the Recovery
-drill_echo_step_objective,Charge Influence to 30 by attacking the training bag.
-drill_echo_step_objective_two,"Now swing, and press Block plus Roll during the recovery - Echo Step folds you back to where you stood."
-drill_echo_step_pass,"That is a swing you no longer have to finish standing still. It costs 30 Influence and will not answer again immediately."
-drill_echo_step_fail,"No step fired. It answers only out of your own swing's recovery frames, and only with 30 Influence banked."
 drill_rally_reclaim_name,Reclaim the Echo
 drill_rally_reclaim_objective,"Take the dummy's hit, then land one of your own before the echo drains away."
 drill_rally_reclaim_pass,"Reclaimed. Damage taken leaves an echo for a moment; hitting back turns it straight back into health."
@@ -1367,7 +1358,6 @@ hub_bridge,THE BRIDGE
 hub_npc_okafor,MEDIC OKAFOR
 
 # Package 12 W5
-fighter_hud_cooldown_echo_step,ECHO
 cpu_difficulty_easy,Easy
 cpu_difficulty_medium,Medium
 cpu_difficulty_hard,Hard

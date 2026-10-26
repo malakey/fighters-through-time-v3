@@ -170,7 +170,7 @@ public class SettingsMenuSceneTests {
             AssertObject(rows.GetNodeOrNull<HBoxContainer>(
                 $"Shortcut_{InputShortcuts.UltimateAction}_{(int)InputDeviceKind.Keyboard}")).IsNull();
 
-            foreach (string action in new[] { InputShortcuts.GrabAction, InputShortcuts.EchoStepAction }) {
+            foreach (string action in new[] { InputShortcuts.GrabAction }) {
                 AssertObject(rows.GetNodeOrNull<HBoxContainer>(
                     $"Shortcut_{action}_{(int)InputDeviceKind.Keyboard}")).IsNotNull();
                 AssertObject(rows.GetNodeOrNull<HBoxContainer>(

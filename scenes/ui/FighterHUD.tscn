@@ -7,7 +7,7 @@
 ; surface. The stock / shield pips are built by the script because their counts
 ; are data-driven (match stock rules, per-character MaxBlockCharges); everything
 ; with a fixed shape is authored here - including, since Package 12 W5 (M25),
-; the four 20x20 radial cooldowns (S1 / S2 / Movement / Echo Step) beside the
+; the three 20x20 radial cooldowns (S1 / S2 / Movement) beside the
 ; block charges (P2 mirrored), and (G12) the P1 triangle / P2 circle slot badge
 ; beside each name tag.
 ;
@@ -248,24 +248,6 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("3_radial")
 
-[node name="EchoStep_Cooldown" type="Label" parent="SafeArea/P1_Status/Body/Column/PipRow/Cooldowns"]
-custom_minimum_size = Vector2(20, 20)
-layout_mode = 2
-mouse_filter = 2
-theme_override_font_sizes/font_size = 8
-horizontal_alignment = 1
-vertical_alignment = 1
-
-[node name="Radial" type="Control" parent="SafeArea/P1_Status/Body/Column/PipRow/Cooldowns/EchoStep_Cooldown"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-script = ExtResource("3_radial")
-
 [node name="P2_Status" type="PanelContainer" parent="SafeArea"]
 layout_mode = 1
 anchors_preset = 3
@@ -390,24 +372,6 @@ theme_override_constants/separation = 18
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 4
-
-[node name="EchoStep_Cooldown" type="Label" parent="SafeArea/P2_Status/Body/Column/PipRow/Cooldowns"]
-custom_minimum_size = Vector2(20, 20)
-layout_mode = 2
-mouse_filter = 2
-theme_override_font_sizes/font_size = 8
-horizontal_alignment = 1
-vertical_alignment = 1
-
-[node name="Radial" type="Control" parent="SafeArea/P2_Status/Body/Column/PipRow/Cooldowns/EchoStep_Cooldown"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-script = ExtResource("3_radial")
 
 [node name="Movement_Cooldown" type="Label" parent="SafeArea/P2_Status/Body/Column/PipRow/Cooldowns"]
 custom_minimum_size = Vector2(20, 20)

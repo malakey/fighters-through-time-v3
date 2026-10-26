@@ -235,22 +235,19 @@ public class FighterSpecialRecoveryCancelTests {
         }
     }
 
-    // === 5. no Special, Ultimate or Echo Step ================================
+    // === 5. no Special or Ultimate ================================
 
     /// <summary>
     /// A landed recovery cancels only into the four D3 verbs: Special 1, Special
-    /// 2, a paid Ultimate, the direct Echo Step bind and the Echo Step chord's
-    /// Roll (A06), each pressed on every tick, start nothing and leave the cast
-    /// to its natural end.
+    /// 2 and a paid Ultimate, each pressed on every tick, start nothing and leave
+    /// the cast to its natural end.
     /// </summary>
     [TestCase]
-    public void NoSpecialUltimateOrEchoStepComesOutOfALandedRecovery() {
+    public void NoSpecialOrUltimateComesOutOfALandedRecovery() {
         var rows = new (string Name, PlayerInputFrame Input, Func<FighterSimulation, bool> Started)[] {
             ("Special 1", In(GameplayButtons.Special1), sim => Runtime(sim, 0).SpecialOneCooldownFrames > 0),
             ("Special 2", In(GameplayButtons.Special2), sim => Cast(sim, 0).SpecialSlot == 2 && Cast(sim, 0).SpecialPhase == FighterSpecialCastRules.PhaseStartup),
             ("the Ultimate", In(GameplayButtons.Ultimate), sim => UltimateActivationTestKit.Phase(sim, 0) != FighterUltimateActivationRules.PhaseNone),
-            ("the Echo Step bind", In(GameplayButtons.EchoStep), sim => Verb(sim, 0).EchoStepWindupFrames > 0),
-            ("the Echo Step chord's Roll", In(GameplayButtons.Roll | GameplayButtons.EchoStep), sim => Runtime(sim, 0).UniversalMovementState != 0 || Verb(sim, 0).EchoStepWindupFrames > 0)
         };
         int recovery = Data("lincoln").SpecialAttackTwo.RecoveryFrames;
         var failures = new List<string>();

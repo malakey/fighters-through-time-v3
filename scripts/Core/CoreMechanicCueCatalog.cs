@@ -29,9 +29,6 @@ namespace FTT.Core {
         public const string PostLandingThawWarning = "post_landing_thaw_warning";
         public const string DefyToll = "defy_toll";
         public const string DefySealShatter = "defy_seal_shatter";
-        public const string EchoStepWindup = "echo_step_windup";
-        public const string EchoStepArrival = "echo_step_arrival";
-        public const string EchoStepReject = "echo_step_reject";
         public const string RallyReclaim = "rally_reclaim";
         public const string GrabCatch = "grab_catch";
         public const string GrabWhiff = "grab_whiff";
@@ -62,7 +59,7 @@ namespace FTT.Core {
         public static readonly string[] All = {
             TimeFreezeActivate, TimeFreezeDrone, TimeFreezeThawWarning, TimeFreezeThawRelease,
             PostLandingThawWarning, DefyToll, DefySealShatter,
-            EchoStepWindup, EchoStepArrival, EchoStepReject, RallyReclaim,
+            RallyReclaim,
             GrabCatch, GrabWhiff, ThrowHeave, ThrowImpact, LandingTech, KnockdownThud,
             IntegrityTick, MatchTimerPip, MatchTimerPipFinal, UltimateReady, UltimateActivationWindup,
             KoStinger, KoStingerDecisive, VictoryFanfare, DrawSting, SealCharge, SealLock,

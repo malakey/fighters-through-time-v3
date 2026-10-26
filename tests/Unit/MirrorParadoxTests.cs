@@ -617,11 +617,11 @@ public class MirrorParadoxTests {
 
     [TestCase]
     public void TheStoryAdapterLeavesTheVerbLayerAbsentSoFighterVerbsStayOutOfTheCampaign() {
-        // Package 11 A9b: the F19 grab and Echo Step branches are gated behind
+        // Package 11 A9b: the F19 grab branch is gated behind
         // HasVerbState / HasTargetVerbState, filled only by an observer that can
         // resolve a deterministic FighterVerbComponent. Story has none, so the
         // sentinels stay zero and a campaign level can never see the CPU throw a
-        // Fighter grab or spend 30 meter on a temporal cancel. The floor-topology
+        // Fighter grab. The floor-topology
         // block (A9) stays absent for the same reason.
         MirrorParadoxController mirror = CreateMirror();
         try {
@@ -630,8 +630,6 @@ public class MirrorParadoxTests {
 
             AssertThat(observation.HasVerbState).IsEqual(0);
             AssertThat(observation.HasTargetVerbState).IsEqual(0);
-            AssertThat(observation.HasEchoStepDestination).IsEqual(0);
-            AssertThat(observation.SelfDefyAvailable).IsEqual(0);
             AssertThat(observation.HasFloorSegments).IsEqual(0);
             AssertThat(observation.LaunchTrajectoryCrossesGap).IsEqual(0);
 
@@ -648,9 +646,9 @@ public class MirrorParadoxTests {
                 PlayerInputFrame adapterFrame =
                     adapterCpu.Sample(tick, in frameObservation, in adapterPrevious);
                 AssertThat(adapterFrame.Equals(referenceFrame)).IsTrue();
-                AssertThat(adapterFrame.IsHeld(GameplayButtons.Roll)
+                AssertThat(adapterFrame.IsPressed(GameplayButtons.BasicAttack)
                     && adapterFrame.IsHeld(GameplayButtons.Block))
-                    .OverrideFailureMessage("A Story observation must never form the Echo Step chord.")
+                    .OverrideFailureMessage("A Story observation must never form the grab chord.")
                     .IsFalse();
                 referencePrevious = referenceFrame;
                 adapterPrevious = adapterFrame;
@@ -1334,8 +1332,7 @@ public class MirrorParadoxTests {
             SpecialTwoPercent = 0,
             MovementAbilityPercent = 0,
             ApproachJumpPercent = 0,
-            GrabAdmissionPercent = 0,
-            EchoStepAdmissionPercent = 0
+            GrabAdmissionPercent = 0
         };
         var cpu = new FighterCpuController(FTT.Core.CpuDifficulty.Hard, 4242, null, null, basics);
         PlayerInputFrame previous = default;

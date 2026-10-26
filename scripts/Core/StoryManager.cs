@@ -1072,7 +1072,7 @@ namespace FTT.Core {
         /// <summary>
         /// Publishes the live hero's continuous combat resources into
         /// <see cref="StoryAttemptState.PlayerResourceTimers"/>: block charges,
-        /// regen progress and shatter lockout, ability and Echo Step cooldowns,
+        /// regen progress and shatter lockout, ability cooldowns,
         /// the Rally damage-taken meter not yet credited, and the D02d
         /// Wardenclyffe delay. The committed Ultimate meter is written in the
         /// SAME step, because the uncredited Rally meter is only meaningful as a

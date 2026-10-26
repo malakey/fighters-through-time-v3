@@ -820,7 +820,7 @@ namespace FTT.Diagnostics {
         public int FullFrames;
         /// <summary>Frames from the latest meter ≤ <see cref="PlaytestCombatMath.FillWindowFloor"/> to a clean rising edge to full.</summary>
         public readonly List<int> FillFrames = new();
-        /// <summary>Rising edges to full whose window saw a decrease (a Siphon, the Extractor, an Echo Step) or began unknown.</summary>
+        /// <summary>Rising edges to full whose window saw a decrease (a Siphon, the Extractor) or began unknown.</summary>
         public int FillsDirty;
         public int DefyProcs;
         public int TrackedFrames;

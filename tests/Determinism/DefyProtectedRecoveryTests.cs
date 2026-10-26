@@ -348,7 +348,7 @@ public class DefyProtectedRecoveryTests {
         foreach (FighterActionKind kind in new[] {
                      FighterActionKind.Jump, FighterActionKind.AirJump, FighterActionKind.Roll,
                      FighterActionKind.AirDodge, FighterActionKind.MovementAbility,
-                     FighterActionKind.EchoStep, FighterActionKind.LedgeGrab, FighterActionKind.LedgeGetUp }) {
+                     FighterActionKind.LedgeGrab, FighterActionKind.LedgeGetUp }) {
             Fixture f = Fixture.New();
             f.Target.CurrentHP = 5;
             f.Target.Influence = FP64.FromInt(100);

@@ -105,7 +105,7 @@ namespace FTT.FighterSim {
                 case FighterSpecialCancelRules.VerbRoll:
                     if (rooted || !movementIdle) return false;
                     return fighter.IsGrounded != 0
-                        ? verb.EchoStepWindupFrames == 0 && verb.ShieldStunFrames <= 0
+                        ? verb.ShieldStunFrames <= 0
                         : knockdown.AirDodgeUsed == 0;
                 case FighterSpecialCancelRules.VerbJump:
                     if (rooted || !movementIdle || verb.ShieldStunFrames > 0) return false;

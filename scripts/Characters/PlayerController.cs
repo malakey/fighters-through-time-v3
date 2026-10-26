@@ -872,60 +872,6 @@ namespace FTT.Characters {
 		// the shattered meter consumed the entire blow.
 		private bool _defyFiredThisHit;
 
-		// === V7.6 Echo Step (Story side) ===
-		// The 31-sample per-tick position ring, mirroring the sim's component bank
-		// (IDs 313-317). One sample per physics tick, recorded BEFORE action input
-		// and movement, and the destination is the EXACT t-30 sample — never a
-		// nearest-sample approximation. The retired V7.1 version kept 5 samples
-		// every 6 frames, so its destination drifted between 24 and 30 frames back
-		// depending on phase. See docs/design-contracts/TEMPORAL_STATE_CONTRACT.md.
-		private readonly Vector2[] _echoStepRing =
-			new Vector2[FTT.Combat.BasicComboRules.EchoStepRingSamples];
-		/// <summary>Next slot to overwrite. With 31 slots it is also the t-30 slot.</summary>
-		private int _echoStepRingHead;
-		/// <summary>Real samples since the last generation reset; spawn fill is not history.</summary>
-		private int _echoStepRingValidCount;
-		/// <summary>Bumped on every forced relocation (spawn, respawn, death rewind, checkpoint).</summary>
-		private int _echoStepHistoryGeneration;
-		private int _echoStepWindupFrames;
-		private int _echoStepCooldownFrames;
-		private bool _echoStepArmed;
-		private Vector2 _echoStepDestination;
-
-		/// <summary>The current Echo Step history generation. Test seam.</summary>
-		public int EchoStepHistoryGeneration => _echoStepHistoryGeneration;
-
-		/// <summary>Real samples in the current generation. Test seam.</summary>
-		public int EchoStepRingValidCount => _echoStepRingValidCount;
-
-		/// <summary>The armed destination while a wind-up runs. Test seam.</summary>
-		public Vector2 EchoStepDestination => _echoStepDestination;
-
-		/// <summary>
-		/// Opens a new Echo Step history generation at the current position: storage
-		/// is filled with that coordinate, but only real subsequent samples count, so
-		/// the player must live 30 further ticks before an exact t-30 position
-		/// exists. Called at spawn and at every forced relocation — a death rewind
-		/// landing or a checkpoint reconstruction must never leave a destination
-		/// pointing into the timeline the player was just pulled out of.
-		/// </summary>
-		public void ResetEchoStepHistory() {
-			for (int index = 0; index < _echoStepRing.Length; index++) {
-				_echoStepRing[index] = GlobalPosition;
-			}
-			_echoStepRingHead = 0;
-			_echoStepRingValidCount = 0;
-			_echoStepHistoryGeneration++;
-			_echoStepArmed = false;
-			_echoStepWindupFrames = 0;
-		}
-
-		/// <summary>Frames left on the Echo Step internal cooldown. Test seam.</summary>
-		public int EchoStepCooldownFramesRemaining => _echoStepCooldownFrames;
-
-		/// <summary>True while the Echo Step wind-up is running. Test seam.</summary>
-		public bool EchoStepWindingUp => _echoStepWindupFrames > 0;
-
 		// === Ability lockout: the special global cooldown (user direction 2026-10-08) ===
 		// A basic swing start, a special cast or an accepted Ultimate arms it;
 		// while it runs Special 1, Special 2 and the Ultimate are refused. The
@@ -2177,10 +2123,6 @@ namespace FTT.Characters {
 				JumpedThisAirtime = false;
 			}
 
-			// V7.1 Echo Step bookkeeping: sample the position ring, tick the
-			// cooldown, and advance an armed wind-up (the snap fires at 0).
-			AdvanceEchoStep();
-
 			// V7.1 Rally drain: the Echo Pool empties linearly over 150 frames.
 			// Echo that finishes draining is permanently lost HP, so its
 			// deferred meter-from-damage-taken accrues now (the guardrail's
@@ -2858,10 +2800,6 @@ namespace FTT.Characters {
 			// steers the attacker but never cancels: the authored string pace
 			// is the only pace.
 			if (_attackInRecovery) {
-				// V7.1 Echo Step: the Block+Roll chord in recovery frames arms
-				// the step first — the same chord then cancels the swing below
-				// (the wind-up owns the Roll press, so no roll starts).
-				TryStartEchoStep();
 				if (TryRecoveryCancel()) return;
 			}
 
@@ -3061,149 +2999,14 @@ namespace FTT.Characters {
 		/// Fighter sim applies the identical rule in its phase machine.
 		/// </summary>
 		private bool TryRecoveryCancel() {
-			// An Echo Step wind-up owns the Roll press that armed it — the
-			// chord must not also start a roll.
 			if (CheckJumpInput()
-				|| (_echoStepWindupFrames <= 0 && CheckRollInput())
+				|| CheckRollInput()
 				|| CheckBlockInput()) {
 				CancelActiveAttack();
 				ResetComboChain();
 				return true;
 			}
 			return false;
-		}
-
-		/// <summary>
-		/// V7.6 Echo Step bookkeeping (Package 11 A1c). Records <b>one sample per
-		/// physics tick</b> into the 31-entry ring, ticks the internal cooldown, and
-		/// advances an armed wind-up.
-		///
-		/// <para>At wind-up completion the <b>same</b> destination is rechecked
-		/// against the world as it is <em>then</em>: a gate that closed or a
-		/// platform that moved during the eight frames cancels the teleport and the
-		/// committed meter and cooldown are <b>retained</b> — no refund and no
-		/// nearby substitute. On a successful snap, position only: velocity is
-		/// zeroed, facing preserved, actionable immediately. Being struck during the
-		/// wind-up cancels it, also with no refund.</para>
-		/// </summary>
-		private void AdvanceEchoStep() {
-			// A fresh controller has no generation yet: open one at the spawn.
-			if (_echoStepHistoryGeneration == 0) ResetEchoStepHistory();
-			if (_echoStepCooldownFrames > 0) _echoStepCooldownFrames--;
-			// Sampled BEFORE this tick's input and movement, so "t-30" is thirty
-			// ticks. With 31 slots the head is also the t-30 slot.
-			_echoStepRing[_echoStepRingHead] = GlobalPosition;
-			_echoStepRingHead = (_echoStepRingHead + 1) % _echoStepRing.Length;
-			if (_echoStepRingValidCount < _echoStepRing.Length) _echoStepRingValidCount++;
-
-			if (_echoStepWindupFrames <= 0) return;
-			if (CurrentState is CharacterState.Stunned or CharacterState.Dazed
-				or CharacterState.Dead or CharacterState.Respawning
-				or CharacterState.Thrown) {
-				_echoStepWindupFrames = 0;
-				_echoStepArmed = false;
-				return;
-			}
-			_echoStepWindupFrames--;
-			if (_echoStepWindupFrames != 0) return;
-			_echoStepArmed = false;
-			// The second validation. A destination that became blocked cancels the
-			// teleport; the cost stands.
-			if (!IsEchoStepDestinationClear(_echoStepDestination)) return;
-			GlobalPosition = _echoStepDestination;
-			Velocity = Vector2.Zero;
-		}
-
-		/// <summary>
-		/// The exact <c>t - 30</c> sample, or false when this history generation has
-		/// not produced one yet — a spawn, a death-rewind landing or a checkpoint
-		/// reconstruction genuinely costs the player 30 ticks before the verb is
-		/// available again. Storage filled at a reset is never treated as history.
-		/// </summary>
-		private bool TryGetEchoStepLookback(out Vector2 destination) {
-			destination = GlobalPosition;
-			if (_echoStepRingValidCount < _echoStepRing.Length) return false;
-			destination = _echoStepRing[_echoStepRingHead];
-			return true;
-		}
-
-		/// <summary>
-		/// Story's destination validation, the mirror of the sim's geometry
-		/// predicate: the player's <b>full collision shape</b> is swept against the
-		/// Environment layer at the candidate position. A solid overlap refuses it.
-		///
-		/// <para>The intervening path need not be clear — this is a teleport, not a
-		/// move — and airborne destinations stay legal, so support is never
-		/// required. Headless callers with no physics space get a permissive answer
-		/// rather than a refusal, because a test harness without a world is not
-		/// evidence of an obstruction.</para>
-		/// </summary>
-		private bool IsEchoStepDestinationClear(Vector2 destination) {
-			if (_collisionShape?.Shape == null) return true;
-			PhysicsDirectSpaceState2D space = GetWorld2D()?.DirectSpaceState;
-			if (space == null) return true;
-			var query = new PhysicsShapeQueryParameters2D {
-				Shape = _collisionShape.Shape,
-				Transform = new Transform2D(0f, destination + _collisionShape.Position),
-				CollisionMask = FTT.Core.CollisionLayers.Environment,
-				CollideWithBodies = true,
-				CollideWithAreas = false
-			};
-			Godot.Collections.Array<Godot.Collections.Dictionary> hits = space.IntersectShape(query, 1);
-			using var lifetime = hits.AsDisposable();
-			return hits.Count == 0;
-		}
-
-		/// <summary>
-		/// V7.6 Echo Step initiation. During the recovery frames of the player's own
-		/// basic or directional swing (A06, Package 13 W1: a Special's recovery no
-		/// longer qualifies) the Block+Roll chord — or the
-		/// direct <c>gameplay_echo_step</c> bind — snaps to the position held
-		/// <b>exactly</b> 30 ticks earlier.
-		///
-		/// <para><b>Exact or nothing.</b> The destination is resolved and validated
-		/// before anything is spent: insufficient history, or a target inside
-		/// terrain, refuses the activation at <b>no meter and no cooldown cost</b>
-		/// and does not start the wind-up. Acceptance spends <see cref="EchoStepMeterCost"/>
-		/// (30; 10.5 on the campaign hero since CM-STORY 7.3), arms the
-		/// 8-frame wind-up and starts the 120-frame cooldown atomically, once.</para>
-		///
-		/// <para>Callers gate the "recovery frames" half; hitstop cannot reach here
-		/// (the frozen frame returns before any state processing).</para>
-		/// </summary>
-		private bool TryStartEchoStep() {
-			if (TimeFrozen) return false;
-			if (_echoStepWindupFrames > 0 || _echoStepCooldownFrames > 0) return false;
-
-			bool echoLegal =
-				TryGetEchoStepLookback(out Vector2 destination)
-				&& IsEchoStepDestinationClear(destination)
-				&& CurrentUltimateMeter >= EchoStepMeterCost;
-
-			// V7.6 same-frame chord priority, from the one shared table both modes
-			// read. A direct bind requests the same verb once and grants no extra
-			// priority, cancel, leniency or resource bypass.
-			bool directRequest = CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.EchoStep);
-			bool chordAllowed = !CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.DirectOrigin);
-			FTT.Combat.BasicComboRules.RecoveryVerb chosen =
-				FTT.Combat.BasicComboRules.SelectRecoveryVerb(
-					blockHeld: chordAllowed && CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block),
-					blockPressed: CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Block),
-					rollHeld: CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Roll),
-					rollPressed: CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Roll),
-					basicPressed: CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack),
-					grabLegal: false,
-					echoLegal: echoLegal);
-			if (!directRequest && chosen != FTT.Combat.BasicComboRules.RecoveryVerb.EchoStep) return false;
-			// A refused direct action does nothing and spends nothing.
-			if (!echoLegal) return false;
-
-			DrainUltimateMeter(EchoStepMeterCost);
-			_echoStepCooldownFrames = FTT.Combat.BasicComboRules.EchoStepCooldownFrames;
-			_echoStepWindupFrames = FTT.Combat.BasicComboRules.EchoStepWindupFrames;
-			_echoStepDestination = destination;
-			_echoStepArmed = true;
-			return true;
 		}
 
 		/// <summary>
@@ -3273,9 +3076,6 @@ namespace FTT.Characters {
 			ApplyGravity(dt * gravityMultiplier);
 			// Q1 (2026-10-16): a grounded cast brakes to a stop; an airborne one keeps its drift.
 			ApplySpecialCastBrake(ability, dt);
-			// A06 (Package 13 W1): Echo Step is eligible only from the recovery
-			// of your own basic or directional attack — a Special's recovery no
-			// longer qualifies, so a zoner cannot fire and rewind to safety.
 			// CM-FIXB-SIM (B12): a caught hit's Foresight answer is owed until the
 			// ability node's tick, which runs after this one; neither cancel may
 			// interrupt the cast first, or the answer is dropped. The D3 press
@@ -3285,10 +3085,9 @@ namespace FTT.Characters {
 				// Package 12 W3: Block may cancel a Special's RECOVERY frames,
 				// exactly as it cancels a basic's (design 752/3080: recovery
 				// frames define block-cancel eligibility, M08). Grounded only —
-				// the stance is grounded — and never while an Echo Step wind-up
-				// owns the chord. The cast is interrupted (what it already put
+				// the stance is grounded. The cast is interrupted (what it already put
 				// into the world survives); the cooldown it armed stands.
-				if (IsOnFloor() && _echoStepWindupFrames <= 0 && CheckBlockInput()) {
+				if (IsOnFloor() && CheckBlockInput()) {
 					ability.Interrupt();
 					_specialStartedAerial = false;
 					return;
@@ -3318,8 +3117,7 @@ namespace FTT.Characters {
 		// fired by ProcessUsingSpecial's Recovery branch only when the cast landed
 		// a direct hit (BaseSpecial.LandedDirectHitThisExecution) and the verb's
 		// gate (StoryCombatRules.SpecialRecoveryAllows*) is open. A whiff never
-		// fires it. Never buffered: a Roll that forms the Echo Step chord (A06:
-		// no Echo Step out of a Special), the grab chord, and a Movement press on
+		// fires it. Never buffered: the grab chord, and a Movement press on
 		// a tick that presses the Ultimate (the LB+RB chord), which also clears a
 		// buffered Movement press. Neither a Special nor the Ultimate is polled in
 		// a Special's recovery, so Special -> Special stays lockout-gated.
@@ -3376,9 +3174,7 @@ namespace FTT.Characters {
 			SpecialCancelVerb verb = SpecialCancelVerb.None;
 			bool upHeld = false;
 			bool downHeld = false;
-			if (input.IsPressed(FTT.Core.GameplayButtons.Roll)
-				&& !input.IsHeld(FTT.Core.GameplayButtons.EchoStep)) {
-				// A06: the Echo Step chord's Roll component never rolls out of a Special.
+			if (input.IsPressed(FTT.Core.GameplayButtons.Roll)) {
 				verb = SpecialCancelVerb.Roll;
 			} else if (input.IsPressed(FTT.Core.GameplayButtons.Jump)) {
 				verb = SpecialCancelVerb.Jump;
@@ -4739,7 +4535,7 @@ namespace FTT.Characters {
 		///
 		/// <para>Refused for the whole freeze, and <b>discarded rather than
 		/// buffered</b> so nothing bursts out on thaw: basic attacks, grabs, both
-		/// specials, the ultimate, Echo Step, the character Movement Ability and
+		/// specials, the ultimate, the character Movement Ability and
 		/// world interaction. Block-charge regeneration, ability cooldowns and
 		/// status durations are suspended for the same window; movement and the
 		/// freeze's own five-second clock keep running.</para>
@@ -4829,12 +4625,6 @@ namespace FTT.Characters {
 			ClearTemporalAegis();
 			ClearDefyProtection();
 			ReleaseGrabState();
-			// V7.6 (Package 11 A1c): a death rewind is a forced relocation to a new
-			// recovery anchor, so the Echo Step history starts a new generation at
-			// the landing. Without this the next Echo Step would snap the player
-			// back into the timeline they were just pulled out of — possibly into
-			// the hazard that killed them.
-			ResetEchoStepHistory();
 			// Package 11 A4: a stock loss / respawn clears every per-airtime
 			// Resonance traversal latch and the Shield of Orleans dedup ledger.
 			ResetAirtimeTraversalLatches();
@@ -4971,9 +4761,6 @@ namespace FTT.Characters {
 			GlobalPosition = position;
 			Velocity = Vector2.Zero;
 			CurrentHP = Math.Clamp(hp, 1, MaximumHP);
-			// Checkpoint reconstruction discards old movement history (V7.6 temporal
-			// contract): a new Echo Step generation opens here too.
-			ResetEchoStepHistory();
 			ClearAbilityLockout();
 			_ultimateMeter?.SetValue(ultimateMeter);
 			CurrentUltimateMeter = _ultimateMeter?.CurrentValue
@@ -6210,7 +5997,6 @@ namespace FTT.Characters {
 			timers.AbilityCooldowns[FTT.Core.LegacyUnlockSchedule.SpecialOneKey] = MathF.Max(0f, SpecialOneCooldownTimer);
 			timers.AbilityCooldowns[FTT.Core.LegacyUnlockSchedule.SpecialTwoKey] = MathF.Max(0f, SpecialTwoCooldownTimer);
 			timers.AbilityCooldowns[FTT.Core.LegacyUnlockSchedule.MovementKey] = MathF.Max(0f, MovementAbilityCooldownTimer);
-			timers.EchoStepCooldownFrames = Math.Max(0, _echoStepCooldownFrames);
 			timers.RallyUncreditedMeter = RallyUncreditedMeter;
 			timers.WardenclyffeRechargeSeconds = MathF.Max(0f, WardenclyffeDamageDelaySeconds);
 		}
@@ -6245,7 +6031,6 @@ namespace FTT.Characters {
 					MovementAbilityCooldownTimer = MathF.Max(0f, movement);
 				}
 			}
-			_echoStepCooldownFrames = Math.Max(0, timers.EchoStepCooldownFrames);
 			WardenclyffeDamageDelaySeconds = MathF.Max(0f, timers.WardenclyffeRechargeSeconds);
 		}
 

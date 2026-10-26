@@ -15,7 +15,7 @@ namespace FTT.Tests.Unit;
 /// (docs/design-contracts/STORY_PERSISTENCE.md, <c>attemptState.playerResourceTimers</c>).
 ///
 /// <para>Before this, <c>StoryPlayerResourceTimers</c> declared block charges,
-/// the regen/shatter-lockout timers, ability and Echo Step cooldowns, the
+/// the regen/shatter-lockout timers, ability cooldowns, the
 /// uncredited Rally meter and the D02d Wardenclyffe delay — and the only writer
 /// was the Time Freeze cooldown. A load rebuilt the hero through
 /// <c>CharacterFactory</c>, so every one of those resources silently came back
@@ -35,7 +35,7 @@ public class StoryResourceTimerPersistenceTests {
 
     private sealed record Depleted(
         int Charges, float Lockout, float Regen, float Special1, float Special2, float Movement,
-        int EchoFrames, float Rally, float Meter, float Wardenclyffe);
+        float Rally, float Meter, float Wardenclyffe);
 
     [TestCase]
     public void ARealDepletedHeroSurvivesSaveReloadAndRepeatedReloadWithRallySettledOnce() {
@@ -189,16 +189,12 @@ public class StoryResourceTimerPersistenceTests {
         player.SpecialOneCooldownTimer = 6.5f;
         player.SpecialTwoCooldownTimer = 3.25f;
         player.MovementAbilityCooldownTimer = 1.5f;
-        typeof(PlayerController)
-            .GetField("_echoStepCooldownFrames",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-            .SetValue(player, 77);
         player.WardenclyffeDamageDelaySeconds = 2.25f;
         player.ApplyEnvironmentalDamage(30);
         return new Depleted(
             block.CurrentCharges, block.LockoutRemainingSeconds, block.RegenProgressSeconds,
             player.SpecialOneCooldownTimer, player.SpecialTwoCooldownTimer, player.MovementAbilityCooldownTimer,
-            player.EchoStepCooldownFramesRemaining, player.RallyUncreditedMeter, player.CurrentUltimateMeter,
+            player.RallyUncreditedMeter, player.CurrentUltimateMeter,
             player.WardenclyffeDamageDelaySeconds);
     }
 
@@ -214,7 +210,6 @@ public class StoryResourceTimerPersistenceTests {
         AssertThat(player.SpecialOneCooldownTimer).IsEqualApprox(expected.Special1, 0.001f);
         AssertThat(player.SpecialTwoCooldownTimer).IsEqualApprox(expected.Special2, 0.001f);
         AssertThat(player.MovementAbilityCooldownTimer).IsEqualApprox(expected.Movement, 0.001f);
-        AssertThat(player.EchoStepCooldownFramesRemaining).IsEqual(expected.EchoFrames);
         AssertThat(player.WardenclyffeDamageDelaySeconds).IsEqualApprox(expected.Wardenclyffe, 0.001f);
         AssertThat(player.EchoPool)
             .OverrideFailureMessage($"{when}: the Rally pool must be discarded on reconstruction.")

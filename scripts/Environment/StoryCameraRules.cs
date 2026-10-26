@@ -45,7 +45,7 @@ namespace FTT.Environment {
         /// <summary>
         /// A follow point that jumps further than this in one step is a teleport
         /// (checkpoint restore, a scene's scripted relocation): the camera cuts
-        /// instead of panning across the level. Smaller jumps (Echo Step, a warp)
+        /// instead of panning across the level. Smaller jumps (a warp)
         /// are followed with the ordinary damping.
         /// </summary>
         public const float SnapDistancePixels = 900f;

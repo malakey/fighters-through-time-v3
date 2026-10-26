@@ -131,6 +131,10 @@ namespace FTT.Core {
         public float BlockRegenSeconds;
         public float BlockLockoutSeconds;
         public Dictionary<string, float> AbilityCooldowns = new();
+        /// <summary>
+        /// Dead data: retired 2026-10-25 with Echo Step. Still deserialized from older
+        /// saves, never read or written (the <c>RatingByLevel</c> precedent).
+        /// </summary>
         public int EchoStepCooldownFrames;
         /// <summary>Rally damage-taken meter earned but not yet credited.</summary>
         public float RallyUncreditedMeter;

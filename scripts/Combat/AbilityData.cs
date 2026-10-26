@@ -120,7 +120,7 @@ namespace FTT.Combat {
 		[Export(PropertyHint.Range, "1,120,1")] public int ActivationWindupFrames = UltimateActivationRules.DefaultWindupFrames;
 		/// <summary>A02 active frames (hyper-armored, unblockable). Provisional 10.</summary>
 		[Export(PropertyHint.Range, "1,120,1")] public int ActivationActiveFrames = UltimateActivationRules.DefaultActiveFrames;
-		/// <summary>A02 whiff recovery; Echo Step cannot undo it. Provisional 45.</summary>
+		/// <summary>A02 whiff recovery; no verb can undo it. Provisional 45.</summary>
 		[Export(PropertyHint.Range, "0,240,1")] public int ActivationWhiffRecoveryFrames = UltimateActivationRules.DefaultWhiffRecoveryFrames;
 
 		/// <summary>D15: regular hits plus the finale, if any.</summary>

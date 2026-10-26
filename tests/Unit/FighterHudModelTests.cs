@@ -118,7 +118,7 @@ public class FighterHudModelTests {
         }
         AssertThat(keys.Count).OverrideFailureMessage(
             "Two cooldown slots share a glyph key, so the HUD would label two "
-            + "different abilities identically.").IsEqual(4);
+            + "different abilities identically.").IsEqual(3);
     }
 
     [TestCase]
