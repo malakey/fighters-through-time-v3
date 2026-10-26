@@ -2,71 +2,39 @@
 
 [ext_resource type="Script" uid="uid://cak0rm07raixr" path="res://scripts/UI/MainMenu.cs" id="1_script"]
 [ext_resource type="Theme" uid="uid://c3ajip41tplop" path="res://resources/UI/ftt_theme.tres" id="2_theme"]
-[ext_resource type="Texture2D" uid="uid://cya0tag6hn4g" path="res://assets/backgrounds/menu/menu_starfield.png" id="3_starfield"]
-[ext_resource type="Texture2D" uid="uid://bh1o6vpt4qjud" path="res://assets/backgrounds/menu/menu_glass_shards.png" id="4_shards"]
-[ext_resource type="Texture2D" uid="uid://ciwajd35tskt8" path="res://assets/sprites/ui/title_flourish.png" id="5_flourish"]
-[ext_resource type="Texture2D" uid="uid://dip475waolya8" path="res://assets/sprites/ui/glass_button_normal.png" id="6_btn_normal"]
-[ext_resource type="Texture2D" uid="uid://4exy7dy1xtwi" path="res://assets/sprites/ui/glass_button_focus.png" id="7_btn_focus"]
-[ext_resource type="Texture2D" uid="uid://c12iv4pgd4tk1" path="res://assets/sprites/ui/glass_button_pressed.png" id="8_btn_pressed"]
-[ext_resource type="Texture2D" uid="uid://clki77t1o0rvu" path="res://assets/sprites/ui/glass_button_disabled.png" id="9_btn_disabled"]
-[ext_resource type="Texture2D" uid="uid://cjn68h623dbh7" path="res://assets/sprites/ui/glass_button_focus_ring.png" id="10_btn_ring"]
-[ext_resource type="Texture2D" uid="uid://cynjtn7skca4i" path="res://assets/backgrounds/menu/temporal_glass_main_menu_background.png" id="11_temporal_main"]
-[ext_resource type="Texture2D" uid="uid://cfopn72aqggpn" path="res://assets/backgrounds/menu/temporal_glass_submenu_background.png" id="12_temporal_submenu"]
+[ext_resource type="Texture2D" uid="uid://doon2yeu1iusq" path="res://assets/sprites/ui/pulp/cover_art.png" id="3_art"]
+[ext_resource type="Texture2D" uid="uid://uy36qss82s2l" path="res://assets/sprites/ui/pulp/rays.png" id="4_rays"]
+[ext_resource type="Texture2D" uid="uid://b5pujw830bcyy" path="res://assets/sprites/ui/pulp/halftone_screen.png" id="5_halftone"]
+[ext_resource type="Texture2D" uid="uid://po7l7igaloh2" path="res://assets/sprites/ui/pulp/burst_star.png" id="6_burst"]
+[ext_resource type="Texture2D" uid="uid://cw77eikmgwtcu" path="res://assets/sprites/ui/pulp/banner_cover.png" id="7_banner"]
+[ext_resource type="Texture2D" uid="uid://2j5ckch6uc55" path="res://assets/sprites/ui/pulp/sticker_continue.png" id="8_sticker"]
+[ext_resource type="Texture2D" uid="uid://br8yy2svobi17" path="res://assets/sprites/ui/pulp/cover_heroes/joan_victory.png" id="9_joan"]
+[ext_resource type="Texture2D" uid="uid://g53d0txw84fs" path="res://assets/sprites/ui/pulp/cover_heroes/einstein_victory.png" id="10_einstein"]
+[ext_resource type="Texture2D" uid="uid://x0mqde2djjne" path="res://assets/sprites/ui/pulp/cover_heroes/cleopatra_victory.png" id="11_cleo"]
+[ext_resource type="Script" uid="uid://bpvpqpt1nw88" path="res://scripts/UI/Pulp/PulpPromptBar.cs" id="12_prompt"]
 
 [sub_resource type="StyleBoxEmpty" id="PanelClear"]
 
-[sub_resource type="StyleBoxTexture" id="GlassBtnNormal"]
-content_margin_left = 64.0
-content_margin_top = 10.0
+[sub_resource type="StyleBoxTexture" id="BannerPlate"]
+content_margin_left = 30.0
+content_margin_top = 6.0
 content_margin_right = 44.0
-content_margin_bottom = 10.0
-texture = ExtResource("6_btn_normal")
-texture_margin_left = 60.0
-texture_margin_top = 20.0
-texture_margin_right = 34.0
-texture_margin_bottom = 20.0
+content_margin_bottom = 14.0
+texture = ExtResource("7_banner")
+texture_margin_left = 23.0
+texture_margin_top = 14.0
+texture_margin_right = 35.0
+texture_margin_bottom = 21.0
+expand_margin_left = 7.0
+expand_margin_right = 19.0
+expand_margin_bottom = 12.0
 
-[sub_resource type="StyleBoxTexture" id="GlassBtnPressed"]
-content_margin_left = 64.0
-content_margin_top = 10.0
-content_margin_right = 44.0
-content_margin_bottom = 10.0
-texture = ExtResource("8_btn_pressed")
-texture_margin_left = 60.0
-texture_margin_top = 20.0
-texture_margin_right = 34.0
-texture_margin_bottom = 20.0
+[sub_resource type="CanvasItemMaterial" id="RaysAdd"]
+blend_mode = 1
 
-[sub_resource type="StyleBoxTexture" id="GlassBtnHover"]
-content_margin_left = 64.0
-content_margin_top = 10.0
-content_margin_right = 44.0
-content_margin_bottom = 10.0
-texture = ExtResource("7_btn_focus")
-texture_margin_left = 60.0
-texture_margin_top = 20.0
-texture_margin_right = 34.0
-texture_margin_bottom = 20.0
+[sub_resource type="StyleBoxEmpty" id="StickerEmpty"]
 
-[sub_resource type="StyleBoxTexture" id="GlassBtnDisabled"]
-content_margin_left = 64.0
-content_margin_top = 10.0
-content_margin_right = 44.0
-content_margin_bottom = 10.0
-texture = ExtResource("9_btn_disabled")
-texture_margin_left = 60.0
-texture_margin_top = 20.0
-texture_margin_right = 34.0
-texture_margin_bottom = 20.0
-
-[sub_resource type="StyleBoxTexture" id="GlassBtnFocusRing"]
-texture = ExtResource("10_btn_ring")
-texture_margin_left = 60.0
-texture_margin_top = 20.0
-texture_margin_right = 34.0
-texture_margin_bottom = 20.0
-
-[node name="MainMenu" type="Control" unique_id=1835154959]
+[node name="MainMenu" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -76,7 +44,7 @@ grow_vertical = 2
 theme = ExtResource("2_theme")
 script = ExtResource("1_script")
 
-[node name="Background" type="ColorRect" parent="." unique_id=493970753]
+[node name="Background" type="ColorRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -84,9 +52,9 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0.012, 0.016, 0.06, 1)
+color = Color(0.0196, 0.0275, 0.102, 1)
 
-[node name="Starfield" type="TextureRect" parent="Background" unique_id=2057866261]
+[node name="CoverArt" type="TextureRect" parent="Background"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -94,11 +62,11 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-texture = ExtResource("3_starfield")
+texture = ExtResource("3_art")
 expand_mode = 1
 stretch_mode = 6
 
-[node name="GlassShards" type="TextureRect" parent="Background" unique_id=1218562946]
+[node name="CoverRays" type="TextureRect" parent="Background"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -106,11 +74,12 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-texture = ExtResource("4_shards")
+texture = ExtResource("4_rays")
 expand_mode = 1
 stretch_mode = 6
+material = SubResource("RaysAdd")
 
-[node name="TemporalMainArt" type="TextureRect" parent="Background" unique_id=306761377]
+[node name="CoverHalftone" type="TextureRect" parent="Background"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -118,24 +87,35 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-texture = ExtResource("11_temporal_main")
+texture = ExtResource("5_halftone")
 expand_mode = 1
 stretch_mode = 6
+modulate = Color(1, 1, 1, 0.55)
 
-[node name="TemporalSubmenuArt" type="TextureRect" parent="Background" unique_id=1445892723]
+[node name="CoverBurst" type="TextureRect" parent="Background"]
+layout_mode = 0
+offset_left = 60.0
+offset_top = 300.0
+offset_right = 1060.0
+offset_bottom = 1300.0
+mouse_filter = 2
+modulate = Color(1, 1, 1, 0.92)
+texture = ExtResource("6_burst")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="SubScrim" type="ColorRect" parent="Background"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
 visible = false
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-texture = ExtResource("12_temporal_submenu")
-expand_mode = 1
-stretch_mode = 6
+color = Color(0.02, 0.02, 0.07, 0.62)
 
-[node name="RootScreen" type="Control" parent="." unique_id=1146942351]
+[node name="RootScreen" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -144,177 +124,339 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="Center" type="CenterContainer" parent="RootScreen" unique_id=391696692]
-layout_mode = 1
-anchors_preset = -1
-anchor_right = 0.44
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+[node name="TitleBlock" type="Control" parent="RootScreen"]
+layout_mode = 0
+offset_left = 84.0
+offset_top = 96.0
+offset_right = 934.0
+offset_bottom = 373.0
+rotation = -0.0558505
 mouse_filter = 2
 
-[node name="Panel" type="PanelContainer" parent="RootScreen/Center" unique_id=67327853]
-custom_minimum_size = Vector2(440, 0)
+[node name="Extrude7" type="Label" parent="RootScreen/TitleBlock"]
+layout_mode = 0
+offset_left = 7.0
+offset_top = 7.0
+offset_right = 857.0
+offset_bottom = 160.0
+mouse_filter = 2
+theme_type_variation = &"CoverTitle"
+theme_override_colors/font_color = Color(0.04, 0.03, 0.06, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0)
+text = "menu_cover_title_word"
+uppercase = true
+
+[node name="Extrude6" type="Label" parent="RootScreen/TitleBlock"]
+layout_mode = 0
+offset_left = 6.0
+offset_top = 6.0
+offset_right = 856.0
+offset_bottom = 159.0
+mouse_filter = 2
+theme_type_variation = &"CoverTitle"
+theme_override_colors/font_color = Color(0.04, 0.03, 0.06, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0)
+text = "menu_cover_title_word"
+uppercase = true
+
+[node name="Extrude5" type="Label" parent="RootScreen/TitleBlock"]
+layout_mode = 0
+offset_left = 5.0
+offset_top = 5.0
+offset_right = 855.0
+offset_bottom = 158.0
+mouse_filter = 2
+theme_type_variation = &"CoverTitle"
+theme_override_colors/font_color = Color(0.04, 0.03, 0.06, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0)
+text = "menu_cover_title_word"
+uppercase = true
+
+[node name="Extrude4" type="Label" parent="RootScreen/TitleBlock"]
+layout_mode = 0
+offset_left = 4.0
+offset_top = 4.0
+offset_right = 854.0
+offset_bottom = 157.0
+mouse_filter = 2
+theme_type_variation = &"CoverTitle"
+theme_override_colors/font_color = Color(0.04, 0.03, 0.06, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0)
+text = "menu_cover_title_word"
+uppercase = true
+
+[node name="Extrude3" type="Label" parent="RootScreen/TitleBlock"]
+layout_mode = 0
+offset_left = 3.0
+offset_top = 3.0
+offset_right = 853.0
+offset_bottom = 156.0
+mouse_filter = 2
+theme_type_variation = &"CoverTitle"
+theme_override_colors/font_color = Color(0.04, 0.03, 0.06, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0)
+text = "menu_cover_title_word"
+uppercase = true
+
+[node name="Extrude2" type="Label" parent="RootScreen/TitleBlock"]
+layout_mode = 0
+offset_left = 2.0
+offset_top = 2.0
+offset_right = 852.0
+offset_bottom = 155.0
+mouse_filter = 2
+theme_type_variation = &"CoverTitle"
+theme_override_colors/font_color = Color(0.04, 0.03, 0.06, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0)
+text = "menu_cover_title_word"
+uppercase = true
+
+[node name="Extrude1" type="Label" parent="RootScreen/TitleBlock"]
+layout_mode = 0
+offset_left = 1.0
+offset_top = 1.0
+offset_right = 851.0
+offset_bottom = 154.0
+mouse_filter = 2
+theme_type_variation = &"CoverTitle"
+theme_override_colors/font_color = Color(0.04, 0.03, 0.06, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0)
+text = "menu_cover_title_word"
+uppercase = true
+
+[node name="Title" type="Label" parent="RootScreen/TitleBlock"]
+layout_mode = 0
+offset_right = 850.0
+offset_bottom = 153.0
+mouse_filter = 2
+theme_type_variation = &"CoverTitle"
+text = "menu_cover_title_word"
+uppercase = true
+
+[node name="Banner" type="PanelContainer" parent="RootScreen/TitleBlock"]
+layout_mode = 0
+offset_left = 18.0
+offset_top = 179.0
+offset_right = 728.0
+offset_bottom = 277.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("BannerPlate")
+
+[node name="BannerLabel" type="Label" parent="RootScreen/TitleBlock/Banner"]
 layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"CoverBanner"
+text = "menu_cover_title_banner"
+horizontal_alignment = 1
+vertical_alignment = 1
+uppercase = true
+
+[node name="Heroes" type="Control" parent="RootScreen"]
+layout_mode = 0
+offset_right = 1920.0
+offset_bottom = 1080.0
+mouse_filter = 2
+
+[node name="Joan" type="TextureRect" parent="RootScreen/Heroes"]
+layout_mode = 0
+offset_right = 100.0
+offset_bottom = 100.0
+mouse_filter = 2
+texture = ExtResource("9_joan")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Einstein" type="TextureRect" parent="RootScreen/Heroes"]
+layout_mode = 0
+offset_right = 100.0
+offset_bottom = 100.0
+mouse_filter = 2
+texture = ExtResource("10_einstein")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Cleopatra" type="TextureRect" parent="RootScreen/Heroes"]
+layout_mode = 0
+offset_right = 100.0
+offset_bottom = 100.0
+mouse_filter = 2
+texture = ExtResource("11_cleo")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Center" type="Control" parent="RootScreen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="RootScreen/Center"]
+custom_minimum_size = Vector2(640, 0)
+layout_mode = 0
+offset_left = 1180.0
+offset_top = 322.0
+offset_right = 1820.0
+offset_bottom = 990.0
 theme_override_styles/panel = SubResource("PanelClear")
 
-[node name="Layout" type="VBoxContainer" parent="RootScreen/Center/Panel" unique_id=1329278205]
+[node name="Layout" type="VBoxContainer" parent="RootScreen/Center/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 17
+
+[node name="NoticeSlot" type="VBoxContainer" parent="RootScreen/Center/Panel/Layout"]
+visible = false
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="TitleFlourishTop" type="TextureRect" parent="RootScreen/Center/Panel/Layout" unique_id=837834642]
-custom_minimum_size = Vector2(0, 44)
+[node name="QuickPlayButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(640, 80)
 layout_mode = 2
-mouse_filter = 2
-texture = ExtResource("5_flourish")
-stretch_mode = 5
-
-[node name="Title" type="Label" parent="RootScreen/Center/Panel/Layout" unique_id=446698480]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.914, 0.933, 0.973, 1)
-theme_override_font_sizes/font_size = 46
-text = "game_title"
-horizontal_alignment = 1
-
-[node name="Subtitle" type="Label" parent="RootScreen/Center/Panel/Layout" unique_id=207595440]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.55, 0.61, 0.73, 1)
-text = "menu_subtitle"
-horizontal_alignment = 1
-
-[node name="TitleFlourishBottom" type="TextureRect" parent="RootScreen/Center/Panel/Layout" unique_id=2000460862]
-custom_minimum_size = Vector2(0, 44)
-layout_mode = 2
-mouse_filter = 2
-texture = ExtResource("5_flourish")
-stretch_mode = 5
-flip_v = true
-
-[node name="NoticeSlot" type="VBoxContainer" parent="RootScreen/Center/Panel/Layout" unique_id=560448317]
-layout_mode = 2
-theme_override_constants/separation = 14
-
-[node name="TopSeparator" type="HSeparator" parent="RootScreen/Center/Panel/Layout" unique_id=1839580082]
-layout_mode = 2
-
-[node name="QuickPlayButton" type="Button" parent="RootScreen/Center/Panel/Layout" unique_id=1839021353]
-custom_minimum_size = Vector2(380, 56)
-layout_mode = 2
-theme_type_variation = &"TemporalGlassButton"
-theme_override_font_sizes/font_size = 22
-theme_override_styles/normal = SubResource("GlassBtnNormal")
-theme_override_styles/pressed = SubResource("GlassBtnPressed")
-theme_override_styles/hover = SubResource("GlassBtnHover")
-theme_override_styles/disabled = SubResource("GlassBtnDisabled")
-theme_override_styles/focus = SubResource("GlassBtnFocusRing")
+theme_type_variation = &"PulpButton"
 text = "menu_quick_play"
 alignment = 0
 
-[node name="StoryButton" type="Button" parent="RootScreen/Center/Panel/Layout" unique_id=275507770]
-custom_minimum_size = Vector2(380, 56)
+[node name="StoryButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(640, 80)
 layout_mode = 2
-theme_type_variation = &"TemporalGlassButton"
-theme_override_font_sizes/font_size = 22
-theme_override_styles/normal = SubResource("GlassBtnNormal")
-theme_override_styles/pressed = SubResource("GlassBtnPressed")
-theme_override_styles/hover = SubResource("GlassBtnHover")
-theme_override_styles/disabled = SubResource("GlassBtnDisabled")
-theme_override_styles/focus = SubResource("GlassBtnFocusRing")
+theme_type_variation = &"PulpButton"
 text = "menu_story_mode"
 alignment = 0
 
-[node name="LevelSelectButton" type="Button" parent="RootScreen/Center/Panel/Layout" unique_id=570715277]
-custom_minimum_size = Vector2(380, 56)
+[node name="LevelSelectButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(640, 80)
 layout_mode = 2
-theme_type_variation = &"TemporalGlassButton"
-theme_override_font_sizes/font_size = 22
-theme_override_styles/normal = SubResource("GlassBtnNormal")
-theme_override_styles/pressed = SubResource("GlassBtnPressed")
-theme_override_styles/hover = SubResource("GlassBtnHover")
-theme_override_styles/disabled = SubResource("GlassBtnDisabled")
-theme_override_styles/focus = SubResource("GlassBtnFocusRing")
+theme_type_variation = &"PulpButton"
 text = "menu_level_select"
 alignment = 0
 
-[node name="FighterButton" type="Button" parent="RootScreen/Center/Panel/Layout" unique_id=1627999862]
-custom_minimum_size = Vector2(380, 56)
+[node name="FighterButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(640, 80)
 layout_mode = 2
-theme_type_variation = &"TemporalGlassButton"
-theme_override_font_sizes/font_size = 22
-theme_override_styles/normal = SubResource("GlassBtnNormal")
-theme_override_styles/pressed = SubResource("GlassBtnPressed")
-theme_override_styles/hover = SubResource("GlassBtnHover")
-theme_override_styles/disabled = SubResource("GlassBtnDisabled")
-theme_override_styles/focus = SubResource("GlassBtnFocusRing")
+theme_type_variation = &"PulpButton"
 text = "menu_fighter_mode"
 alignment = 0
 
-[node name="CalibrationDrillsButton" type="Button" parent="RootScreen/Center/Panel/Layout" unique_id=1437704189]
-custom_minimum_size = Vector2(380, 56)
+[node name="CalibrationDrillsButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(640, 80)
 layout_mode = 2
-theme_type_variation = &"TemporalGlassButton"
-theme_override_font_sizes/font_size = 22
-theme_override_styles/normal = SubResource("GlassBtnNormal")
-theme_override_styles/pressed = SubResource("GlassBtnPressed")
-theme_override_styles/hover = SubResource("GlassBtnHover")
-theme_override_styles/disabled = SubResource("GlassBtnDisabled")
-theme_override_styles/focus = SubResource("GlassBtnFocusRing")
+theme_type_variation = &"PulpButton"
 text = "menu_calibration_drills"
 alignment = 0
 
-[node name="SettingsButton" type="Button" parent="RootScreen/Center/Panel/Layout" unique_id=1007086365]
-custom_minimum_size = Vector2(380, 56)
+[node name="SettingsButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(640, 80)
 layout_mode = 2
-theme_type_variation = &"TemporalGlassButton"
-theme_override_font_sizes/font_size = 22
-theme_override_styles/normal = SubResource("GlassBtnNormal")
-theme_override_styles/pressed = SubResource("GlassBtnPressed")
-theme_override_styles/hover = SubResource("GlassBtnHover")
-theme_override_styles/disabled = SubResource("GlassBtnDisabled")
-theme_override_styles/focus = SubResource("GlassBtnFocusRing")
+theme_type_variation = &"PulpButton"
 text = "menu_settings"
 alignment = 0
 
-[node name="ExtrasButton" type="Button" parent="RootScreen/Center/Panel/Layout" unique_id=2102105034]
-custom_minimum_size = Vector2(380, 56)
+[node name="ExtrasButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(640, 80)
 layout_mode = 2
-theme_type_variation = &"TemporalGlassButton"
-theme_override_font_sizes/font_size = 22
-theme_override_styles/normal = SubResource("GlassBtnNormal")
-theme_override_styles/pressed = SubResource("GlassBtnPressed")
-theme_override_styles/hover = SubResource("GlassBtnHover")
-theme_override_styles/disabled = SubResource("GlassBtnDisabled")
-theme_override_styles/focus = SubResource("GlassBtnFocusRing")
+theme_type_variation = &"PulpButton"
 text = "menu_extras"
 alignment = 0
 
-[node name="BottomSeparator" type="HSeparator" parent="RootScreen/Center/Panel/Layout" unique_id=407877342]
+[node name="QuitButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(640, 80)
 layout_mode = 2
-
-[node name="QuitButton" type="Button" parent="RootScreen/Center/Panel/Layout" unique_id=1610034493]
-custom_minimum_size = Vector2(380, 56)
-layout_mode = 2
-theme_type_variation = &"TemporalGlassButton"
-theme_override_font_sizes/font_size = 22
-theme_override_styles/normal = SubResource("GlassBtnNormal")
-theme_override_styles/pressed = SubResource("GlassBtnPressed")
-theme_override_styles/hover = SubResource("GlassBtnHover")
-theme_override_styles/disabled = SubResource("GlassBtnDisabled")
-theme_override_styles/focus = SubResource("GlassBtnFocusRing")
+theme_type_variation = &"PulpButton"
 text = "menu_quit"
 alignment = 0
 
-[node name="SlotScreen" type="Control" parent="." unique_id=754682449]
+[node name="ContinueSticker" type="Button" parent="RootScreen"]
 visible = false
 layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+grow_horizontal = 0
+offset_left = -366.0
+offset_top = 36.0
+offset_right = -96.0
+offset_bottom = 306.0
+theme_override_styles/normal = SubResource("StickerEmpty")
+theme_override_styles/hover = SubResource("StickerEmpty")
+theme_override_styles/pressed = SubResource("StickerEmpty")
+theme_override_styles/disabled = SubResource("StickerEmpty")
+theme_override_styles/focus = SubResource("StickerEmpty")
+flat = true
+
+[node name="Visual" type="Control" parent="RootScreen/ContinueSticker"]
+layout_mode = 0
+offset_right = 270.0
+offset_bottom = 270.0
+pivot_offset = Vector2(135, 135)
+rotation = 0.1396263
+mouse_filter = 2
+
+[node name="Star" type="TextureRect" parent="RootScreen/ContinueSticker/Visual"]
+layout_mode = 0
+offset_left = -5.0
+offset_top = -5.0
+offset_right = 285.0
+offset_bottom = 287.0
+mouse_filter = 2
+texture = ExtResource("8_sticker")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Line1" type="Label" parent="RootScreen/ContinueSticker/Visual"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 66.0
+offset_right = 250.0
+offset_bottom = 122.0
+pivot_offset = Vector2(115, 28)
+mouse_filter = 2
+theme_type_variation = &"StickerLine1"
+text = "boot_continue"
+horizontal_alignment = 1
+vertical_alignment = 1
+uppercase = true
+
+[node name="Line2" type="Label" parent="RootScreen/ContinueSticker/Visual"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 122.0
+offset_right = 250.0
+offset_bottom = 162.0
+pivot_offset = Vector2(115, 20)
+mouse_filter = 2
+theme_type_variation = &"StickerLine2"
+text = ""
+horizontal_alignment = 1
+vertical_alignment = 1
+uppercase = true
+
+[node name="Line3" type="Label" parent="RootScreen/ContinueSticker/Visual"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 162.0
+offset_right = 250.0
+offset_bottom = 192.0
+pivot_offset = Vector2(115, 15)
+mouse_filter = 2
+theme_type_variation = &"StickerLine3"
+text = ""
+horizontal_alignment = 1
+vertical_alignment = 1
+uppercase = true
+
+[node name="SlotScreen" type="Control" parent="."]
+layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
+visible = false
 
-[node name="Center" type="CenterContainer" parent="SlotScreen" unique_id=790662004]
+[node name="Center" type="CenterContainer" parent="SlotScreen"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -323,488 +465,702 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="Panel" type="PanelContainer" parent="SlotScreen/Center" unique_id=1288517144]
+[node name="Panel" type="PanelContainer" parent="SlotScreen/Center"]
 layout_mode = 2
-theme_type_variation = &"DialogueGlassPanel"
+theme_type_variation = &"InkPanel"
 
-[node name="Layout" type="VBoxContainer" parent="SlotScreen/Center/Panel" unique_id=1860478991]
+[node name="Layout" type="VBoxContainer" parent="SlotScreen/Center/Panel"]
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="Title" type="Label" parent="SlotScreen/Center/Panel/Layout" unique_id=1907792790]
+[node name="TagClearance" type="Control" parent="SlotScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
-theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
-theme_override_font_sizes/font_size = 28
+mouse_filter = 2
+
+[node name="Title" type="Label" parent="SlotScreen/Center/Panel/Layout"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
 text = "save_select_title"
 horizontal_alignment = 1
 
-[node name="SlotRow0" type="HBoxContainer" parent="SlotScreen/Center/Panel/Layout" unique_id=1244047216]
+[node name="SlotRow0" type="HBoxContainer" parent="SlotScreen/Center/Panel/Layout"]
 layout_mode = 2
-theme_override_constants/separation = 10
+theme_override_constants/separation = 12
 
-[node name="SlotButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow0" unique_id=1993027510]
-custom_minimum_size = Vector2(600, 84)
+[node name="SlotButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow0"]
+custom_minimum_size = Vector2(640, 96)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"TemporalGlassButton"
+alignment = 0
 
-[node name="DeleteButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow0" unique_id=914977228]
-custom_minimum_size = Vector2(120, 84)
+[node name="DeleteButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow0"]
+custom_minimum_size = Vector2(220, 96)
 layout_mode = 2
-theme_type_variation = &"TemporalGlassButton"
+theme_type_variation = &"PulpButtonCompact"
 text = "save_delete"
+alignment = 0
 
-[node name="SlotRow1" type="HBoxContainer" parent="SlotScreen/Center/Panel/Layout" unique_id=326167892]
+[node name="SlotRow1" type="HBoxContainer" parent="SlotScreen/Center/Panel/Layout"]
 layout_mode = 2
-theme_override_constants/separation = 10
+theme_override_constants/separation = 12
 
-[node name="SlotButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow1" unique_id=1853525800]
-custom_minimum_size = Vector2(600, 84)
+[node name="SlotButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow1"]
+custom_minimum_size = Vector2(640, 96)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"TemporalGlassButton"
+alignment = 0
 
-[node name="DeleteButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow1" unique_id=607572013]
-custom_minimum_size = Vector2(120, 84)
+[node name="DeleteButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow1"]
+custom_minimum_size = Vector2(220, 96)
 layout_mode = 2
-theme_type_variation = &"TemporalGlassButton"
+theme_type_variation = &"PulpButtonCompact"
 text = "save_delete"
+alignment = 0
 
-[node name="SlotRow2" type="HBoxContainer" parent="SlotScreen/Center/Panel/Layout" unique_id=74494856]
+[node name="SlotRow2" type="HBoxContainer" parent="SlotScreen/Center/Panel/Layout"]
 layout_mode = 2
-theme_override_constants/separation = 10
+theme_override_constants/separation = 12
 
-[node name="SlotButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow2" unique_id=1775004048]
-custom_minimum_size = Vector2(600, 84)
+[node name="SlotButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow2"]
+custom_minimum_size = Vector2(640, 96)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"TemporalGlassButton"
+alignment = 0
 
-[node name="DeleteButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow2" unique_id=1972771310]
-custom_minimum_size = Vector2(120, 84)
+[node name="DeleteButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow2"]
+custom_minimum_size = Vector2(220, 96)
 layout_mode = 2
-theme_type_variation = &"TemporalGlassButton"
+theme_type_variation = &"PulpButtonCompact"
 text = "save_delete"
+alignment = 0
 
-[node name="BackButton" type="Button" parent="SlotScreen/Center/Panel/Layout" unique_id=479832375]
-custom_minimum_size = Vector2(240, 44)
+[node name="BackButton" type="Button" parent="SlotScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(320, 58)
 layout_mode = 2
-theme_type_variation = &"TemporalGlassButton"
+size_flags_horizontal = 4
+theme_type_variation = &"PulpButtonCompact"
 text = "common_back"
+alignment = 0
 
-[node name="CharacterScreen" type="Control" parent="." unique_id=152108445]
-visible = false
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-
-[node name="Center" type="CenterContainer" parent="CharacterScreen" unique_id=1438297162]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-
-[node name="Panel" type="PanelContainer" parent="CharacterScreen/Center" unique_id=931635851]
+[node name="TagHolder" type="Control" parent="SlotScreen/Center/Panel"]
 layout_mode = 2
-theme_type_variation = &"DialogueGlassPanel"
+mouse_filter = 2
 
-[node name="Layout" type="VBoxContainer" parent="CharacterScreen/Center/Panel" unique_id=1923291445]
+[node name="Tag" type="PanelContainer" parent="SlotScreen/Center/Panel/TagHolder"]
+layout_mode = 0
+offset_left = -14.0
+offset_top = -24.0
+offset_right = 100.0
+offset_bottom = 14.0
+mouse_filter = 2
+rotation = -0.020944
+theme_type_variation = &"PanelTagPlate"
+
+[node name="TagLabel" type="Label" parent="SlotScreen/Center/Panel/TagHolder/Tag"]
+layout_mode = 2
+theme_type_variation = &"PanelTag"
+text = "menu_story_mode"
+uppercase = true
+
+[node name="CharacterScreen" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+visible = false
+
+[node name="Center" type="CenterContainer" parent="CharacterScreen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="CharacterScreen/Center"]
+layout_mode = 2
+theme_type_variation = &"InkPanel"
+
+[node name="Layout" type="VBoxContainer" parent="CharacterScreen/Center/Panel"]
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="Title" type="Label" parent="CharacterScreen/Center/Panel/Layout" unique_id=1146605261]
+[node name="TagClearance" type="Control" parent="CharacterScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
-theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
-theme_override_font_sizes/font_size = 22
+mouse_filter = 2
+
+[node name="Title" type="Label" parent="CharacterScreen/Center/Panel/Layout"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
 text = "story_select_character"
 horizontal_alignment = 1
 
-[node name="TopSeparator" type="HSeparator" parent="CharacterScreen/Center/Panel/Layout" unique_id=1751807953]
+[node name="TopSeparator" type="HSeparator" parent="CharacterScreen/Center/Panel/Layout"]
 layout_mode = 2
 
-[node name="Grid" type="GridContainer" parent="CharacterScreen/Center/Panel/Layout" unique_id=2081231242]
+[node name="Grid" type="GridContainer" parent="CharacterScreen/Center/Panel/Layout"]
 layout_mode = 2
-theme_override_constants/h_separation = 10
-theme_override_constants/v_separation = 10
+theme_override_constants/h_separation = 12
+theme_override_constants/v_separation = 12
 columns = 3
 
-[node name="CharacterButton0" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid" unique_id=1823822141]
-custom_minimum_size = Vector2(210, 46)
+[node name="CharacterButton0" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(460, 58)
+layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
+alignment = 0
+
+[node name="CharacterButton1" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(460, 58)
+layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
+alignment = 0
+
+[node name="CharacterButton2" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(460, 58)
+layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
+alignment = 0
+
+[node name="CharacterButton3" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(460, 58)
+layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
+alignment = 0
+
+[node name="CharacterButton4" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(460, 58)
+layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
+alignment = 0
+
+[node name="CharacterButton5" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(460, 58)
+layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
+alignment = 0
+
+[node name="CharacterButton6" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(460, 58)
+layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
+alignment = 0
+
+[node name="CharacterButton7" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(460, 58)
+layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
+alignment = 0
+
+[node name="CharacterButton8" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(460, 58)
+layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
+alignment = 0
+
+[node name="BottomSeparator" type="HSeparator" parent="CharacterScreen/Center/Panel/Layout"]
 layout_mode = 2
 
-[node name="CharacterButton1" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid" unique_id=36021412]
-custom_minimum_size = Vector2(210, 46)
+[node name="BackButton" type="Button" parent="CharacterScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(320, 58)
 layout_mode = 2
-
-[node name="CharacterButton2" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid" unique_id=1381206115]
-custom_minimum_size = Vector2(210, 46)
-layout_mode = 2
-
-[node name="CharacterButton3" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid" unique_id=1661368727]
-custom_minimum_size = Vector2(210, 46)
-layout_mode = 2
-
-[node name="CharacterButton4" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid" unique_id=1524710696]
-custom_minimum_size = Vector2(210, 46)
-layout_mode = 2
-
-[node name="CharacterButton5" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid" unique_id=1870400132]
-custom_minimum_size = Vector2(210, 46)
-layout_mode = 2
-
-[node name="CharacterButton6" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid" unique_id=2094143290]
-custom_minimum_size = Vector2(210, 46)
-layout_mode = 2
-
-[node name="CharacterButton7" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid" unique_id=1395867446]
-custom_minimum_size = Vector2(210, 46)
-layout_mode = 2
-
-[node name="CharacterButton8" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid" unique_id=155600082]
-custom_minimum_size = Vector2(210, 46)
-layout_mode = 2
-
-[node name="BottomSeparator" type="HSeparator" parent="CharacterScreen/Center/Panel/Layout" unique_id=518680236]
-layout_mode = 2
-
-[node name="BackButton" type="Button" parent="CharacterScreen/Center/Panel/Layout" unique_id=635969890]
-custom_minimum_size = Vector2(240, 44)
-layout_mode = 2
-theme_type_variation = &"TemporalGlassButton"
+size_flags_horizontal = 4
+theme_type_variation = &"PulpButtonCompact"
 text = "common_back"
+alignment = 0
 
-[node name="DifficultyScreen" type="Control" parent="." unique_id=1740499351]
-visible = false
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-
-[node name="Center" type="CenterContainer" parent="DifficultyScreen" unique_id=511404561]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-
-[node name="Panel" type="PanelContainer" parent="DifficultyScreen/Center" unique_id=303862261]
+[node name="TagHolder" type="Control" parent="CharacterScreen/Center/Panel"]
 layout_mode = 2
-theme_type_variation = &"DialogueGlassPanel"
+mouse_filter = 2
 
-[node name="Layout" type="VBoxContainer" parent="DifficultyScreen/Center/Panel" unique_id=1858992281]
+[node name="Tag" type="PanelContainer" parent="CharacterScreen/Center/Panel/TagHolder"]
+layout_mode = 0
+offset_left = -14.0
+offset_top = -24.0
+offset_right = 100.0
+offset_bottom = 14.0
+mouse_filter = 2
+rotation = -0.020944
+theme_type_variation = &"PanelTagPlate"
+
+[node name="TagLabel" type="Label" parent="CharacterScreen/Center/Panel/TagHolder/Tag"]
+layout_mode = 2
+theme_type_variation = &"PanelTag"
+text = "menu_story_mode"
+uppercase = true
+
+[node name="DifficultyScreen" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+visible = false
+
+[node name="Center" type="CenterContainer" parent="DifficultyScreen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="DifficultyScreen/Center"]
+layout_mode = 2
+theme_type_variation = &"InkPanel"
+
+[node name="Layout" type="VBoxContainer" parent="DifficultyScreen/Center/Panel"]
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="Title" type="Label" parent="DifficultyScreen/Center/Panel/Layout" unique_id=1386481230]
+[node name="TagClearance" type="Control" parent="DifficultyScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
-theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
-theme_override_font_sizes/font_size = 26
+mouse_filter = 2
+
+[node name="Title" type="Label" parent="DifficultyScreen/Center/Panel/Layout"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
 text = "story_select_difficulty"
 horizontal_alignment = 1
 
-[node name="EasyButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout" unique_id=424135465]
-custom_minimum_size = Vector2(620, 76)
+[node name="EasyButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(800, 96)
 layout_mode = 2
 theme_type_variation = &"TemporalGlassButton"
+alignment = 0
 
-[node name="NormalButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout" unique_id=478659306]
-custom_minimum_size = Vector2(620, 76)
+[node name="NormalButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(800, 96)
 layout_mode = 2
 theme_type_variation = &"TemporalGlassButton"
+alignment = 0
 
-[node name="HardButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout" unique_id=1778351622]
-custom_minimum_size = Vector2(620, 76)
+[node name="HardButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(800, 96)
 layout_mode = 2
 theme_type_variation = &"TemporalGlassButton"
+alignment = 0
 
-[node name="BackButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout" unique_id=988953116]
-custom_minimum_size = Vector2(400, 44)
+[node name="BackButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(320, 58)
 layout_mode = 2
-theme_type_variation = &"TemporalGlassButton"
+size_flags_horizontal = 4
+theme_type_variation = &"PulpButtonCompact"
 text = "common_back"
+alignment = 0
 
-[node name="LevelSelectScreen" type="Control" parent="." unique_id=1017199683]
-visible = false
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-
-[node name="Center" type="CenterContainer" parent="LevelSelectScreen" unique_id=1158401066]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-
-[node name="Panel" type="PanelContainer" parent="LevelSelectScreen/Center" unique_id=1639155957]
+[node name="TagHolder" type="Control" parent="DifficultyScreen/Center/Panel"]
 layout_mode = 2
-theme_type_variation = &"DialogueGlassPanel"
+mouse_filter = 2
 
-[node name="Layout" type="VBoxContainer" parent="LevelSelectScreen/Center/Panel" unique_id=126012986]
+[node name="Tag" type="PanelContainer" parent="DifficultyScreen/Center/Panel/TagHolder"]
+layout_mode = 0
+offset_left = -14.0
+offset_top = -24.0
+offset_right = 100.0
+offset_bottom = 14.0
+mouse_filter = 2
+rotation = -0.020944
+theme_type_variation = &"PanelTagPlate"
+
+[node name="TagLabel" type="Label" parent="DifficultyScreen/Center/Panel/TagHolder/Tag"]
+layout_mode = 2
+theme_type_variation = &"PanelTag"
+text = "menu_story_mode"
+uppercase = true
+
+[node name="LevelSelectScreen" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+visible = false
+
+[node name="Center" type="CenterContainer" parent="LevelSelectScreen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="LevelSelectScreen/Center"]
+layout_mode = 2
+theme_type_variation = &"InkPanel"
+
+[node name="Layout" type="VBoxContainer" parent="LevelSelectScreen/Center/Panel"]
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="Title" type="Label" parent="LevelSelectScreen/Center/Panel/Layout" unique_id=1450096488]
+[node name="TagClearance" type="Control" parent="LevelSelectScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
-theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
-theme_override_font_sizes/font_size = 22
+mouse_filter = 2
+
+[node name="Title" type="Label" parent="LevelSelectScreen/Center/Panel/Layout"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
 text = "dev_level_select_title"
 horizontal_alignment = 1
 
-[node name="TopSeparator" type="HSeparator" parent="LevelSelectScreen/Center/Panel/Layout" unique_id=93262850]
+[node name="TopSeparator" type="HSeparator" parent="LevelSelectScreen/Center/Panel/Layout"]
 layout_mode = 2
 
-[node name="Grid" type="GridContainer" parent="LevelSelectScreen/Center/Panel/Layout" unique_id=575211326]
+[node name="Grid" type="GridContainer" parent="LevelSelectScreen/Center/Panel/Layout"]
 layout_mode = 2
-theme_override_constants/h_separation = 10
+theme_override_constants/h_separation = 12
 theme_override_constants/v_separation = 8
 columns = 2
 
-[node name="LevelButton0" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid" unique_id=2101970429]
-custom_minimum_size = Vector2(360, 44)
+[node name="LevelButton0" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(560, 58)
 layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
 text = "campaign_level_tutorial"
 alignment = 0
 
-[node name="LevelButton1" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid" unique_id=1690131661]
-custom_minimum_size = Vector2(360, 44)
+[node name="LevelButton1" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(560, 58)
 layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
 text = "campaign_level_florence"
 alignment = 0
 
-[node name="LevelButton2" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid" unique_id=1932783967]
-custom_minimum_size = Vector2(360, 44)
+[node name="LevelButton2" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(560, 58)
 layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
 text = "campaign_level_orleans"
 alignment = 0
 
-[node name="LevelButton3" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid" unique_id=1214840651]
-custom_minimum_size = Vector2(360, 44)
+[node name="LevelButton3" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(560, 58)
 layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
 text = "campaign_level_chicago"
 alignment = 0
 
-[node name="LevelButton4" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid" unique_id=836107709]
-custom_minimum_size = Vector2(360, 44)
+[node name="LevelButton4" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(560, 58)
 layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
 text = "campaign_level_paris"
 alignment = 0
 
-[node name="LevelButton5" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid" unique_id=279370966]
-custom_minimum_size = Vector2(360, 44)
+[node name="LevelButton5" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(560, 58)
 layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
 text = "campaign_level_titanic"
 alignment = 0
 
-[node name="LevelButton6" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid" unique_id=1785313202]
-custom_minimum_size = Vector2(360, 44)
+[node name="LevelButton6" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(560, 58)
 layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
 text = "campaign_level_pompeii"
 alignment = 0
 
-[node name="LevelButton7" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid" unique_id=1210363081]
-custom_minimum_size = Vector2(360, 44)
+[node name="LevelButton7" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(560, 58)
 layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
 text = "campaign_level_nassau"
 alignment = 0
 
-[node name="LevelButton8" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid" unique_id=1556765111]
-custom_minimum_size = Vector2(360, 44)
+[node name="LevelButton8" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(560, 58)
 layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
 text = "campaign_level_egypt"
 alignment = 0
 
-[node name="LevelButton9" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid" unique_id=1883484260]
-custom_minimum_size = Vector2(360, 44)
+[node name="LevelButton9" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(560, 58)
 layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
 text = "campaign_level_berlin"
 alignment = 0
 
-[node name="LevelButton10" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid" unique_id=498726130]
-custom_minimum_size = Vector2(360, 44)
+[node name="LevelButton10" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(560, 58)
 layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
 text = "campaign_level_globe"
 alignment = 0
 
-[node name="LevelButton11" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid" unique_id=1213190220]
-custom_minimum_size = Vector2(360, 44)
+[node name="LevelButton11" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(560, 58)
 layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
 text = "campaign_level_gettysburg"
 alignment = 0
 
-[node name="LevelButton12" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid" unique_id=1232062086]
-custom_minimum_size = Vector2(360, 44)
+[node name="LevelButton12" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(560, 58)
 layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
 text = "campaign_level_lunar"
 alignment = 0
 
-[node name="LevelButton13" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid" unique_id=194560227]
-custom_minimum_size = Vector2(360, 44)
+[node name="LevelButton13" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(560, 58)
 layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
 text = "campaign_level_chronal_void"
 alignment = 0
 
-[node name="LevelButton14" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid" unique_id=2054785321]
-custom_minimum_size = Vector2(360, 44)
+[node name="LevelButton14" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(560, 58)
 layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
 text = "campaign_level_neo_earth"
 alignment = 0
 
-[node name="LevelButton15" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid" unique_id=918729081]
-custom_minimum_size = Vector2(360, 44)
+[node name="LevelButton15" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(560, 58)
 layout_mode = 2
+theme_type_variation = &"PulpButtonCompact"
 text = "campaign_level_alexandria"
 alignment = 0
 
-[node name="BottomSeparator" type="HSeparator" parent="LevelSelectScreen/Center/Panel/Layout" unique_id=1528517129]
+[node name="BottomSeparator" type="HSeparator" parent="LevelSelectScreen/Center/Panel/Layout"]
 layout_mode = 2
 
-[node name="BackButton" type="Button" parent="LevelSelectScreen/Center/Panel/Layout" unique_id=1406848350]
-custom_minimum_size = Vector2(240, 44)
+[node name="BackButton" type="Button" parent="LevelSelectScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(320, 58)
 layout_mode = 2
-theme_type_variation = &"TemporalGlassButton"
+size_flags_horizontal = 4
+theme_type_variation = &"PulpButtonCompact"
 text = "common_back"
+alignment = 0
 
-[node name="ExtrasScreen" type="Control" parent="." unique_id=3877896]
-visible = false
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-
-[node name="Center" type="CenterContainer" parent="ExtrasScreen" unique_id=1854499752]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-
-[node name="Panel" type="PanelContainer" parent="ExtrasScreen/Center" unique_id=39651537]
+[node name="TagHolder" type="Control" parent="LevelSelectScreen/Center/Panel"]
 layout_mode = 2
-theme_type_variation = &"DialogueGlassPanel"
+mouse_filter = 2
 
-[node name="Layout" type="VBoxContainer" parent="ExtrasScreen/Center/Panel" unique_id=2058333011]
+[node name="Tag" type="PanelContainer" parent="LevelSelectScreen/Center/Panel/TagHolder"]
+layout_mode = 0
+offset_left = -14.0
+offset_top = -24.0
+offset_right = 100.0
+offset_bottom = 14.0
+mouse_filter = 2
+rotation = -0.020944
+theme_type_variation = &"PanelTagPlate"
+
+[node name="TagLabel" type="Label" parent="LevelSelectScreen/Center/Panel/TagHolder/Tag"]
+layout_mode = 2
+theme_type_variation = &"PanelTag"
+text = "menu_level_select"
+uppercase = true
+
+[node name="ExtrasScreen" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+visible = false
+
+[node name="Center" type="CenterContainer" parent="ExtrasScreen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="ExtrasScreen/Center"]
+layout_mode = 2
+theme_type_variation = &"InkPanel"
+
+[node name="Layout" type="VBoxContainer" parent="ExtrasScreen/Center/Panel"]
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="Title" type="Label" parent="ExtrasScreen/Center/Panel/Layout" unique_id=1059286657]
+[node name="TagClearance" type="Control" parent="ExtrasScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
-theme_type_variation = &"EmphasisLabel"
-theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+mouse_filter = 2
+
+[node name="Title" type="Label" parent="ExtrasScreen/Center/Panel/Layout"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
 text = "menu_extras"
 horizontal_alignment = 1
 
-[node name="CreditsButton" type="Button" parent="ExtrasScreen/Center/Panel/Layout" unique_id=99858039]
-custom_minimum_size = Vector2(400, 44)
+[node name="CreditsButton" type="Button" parent="ExtrasScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(560, 80)
 layout_mode = 2
-theme_type_variation = &"TemporalGlassButton"
+theme_type_variation = &"PulpButton"
 text = "extras_credits"
+alignment = 0
 
-[node name="LicensesButton" type="Button" parent="ExtrasScreen/Center/Panel/Layout" unique_id=1115704366]
-custom_minimum_size = Vector2(400, 44)
+[node name="LicensesButton" type="Button" parent="ExtrasScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(560, 80)
 layout_mode = 2
-theme_type_variation = &"TemporalGlassButton"
+theme_type_variation = &"PulpButton"
 text = "extras_licenses"
+alignment = 0
 
-[node name="BackButton" type="Button" parent="ExtrasScreen/Center/Panel/Layout" unique_id=1759759590]
-custom_minimum_size = Vector2(400, 44)
+[node name="BackButton" type="Button" parent="ExtrasScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(320, 58)
 layout_mode = 2
-theme_type_variation = &"TemporalGlassButton"
+size_flags_horizontal = 4
+theme_type_variation = &"PulpButtonCompact"
 text = "common_back"
+alignment = 0
 
-[node name="LicensesScreen" type="Control" parent="." unique_id=2040175663]
-visible = false
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-
-[node name="Center" type="CenterContainer" parent="LicensesScreen" unique_id=1998560496]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-
-[node name="Panel" type="PanelContainer" parent="LicensesScreen/Center" unique_id=2035725294]
+[node name="TagHolder" type="Control" parent="ExtrasScreen/Center/Panel"]
 layout_mode = 2
-theme_type_variation = &"DialogueGlassPanel"
+mouse_filter = 2
 
-[node name="Layout" type="VBoxContainer" parent="LicensesScreen/Center/Panel" unique_id=336799773]
+[node name="Tag" type="PanelContainer" parent="ExtrasScreen/Center/Panel/TagHolder"]
+layout_mode = 0
+offset_left = -14.0
+offset_top = -24.0
+offset_right = 100.0
+offset_bottom = 14.0
+mouse_filter = 2
+rotation = -0.020944
+theme_type_variation = &"PanelTagPlate"
+
+[node name="TagLabel" type="Label" parent="ExtrasScreen/Center/Panel/TagHolder/Tag"]
+layout_mode = 2
+theme_type_variation = &"PanelTag"
+text = "game_title"
+uppercase = true
+
+[node name="LicensesScreen" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+visible = false
+
+[node name="Center" type="CenterContainer" parent="LicensesScreen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="LicensesScreen/Center"]
+layout_mode = 2
+theme_type_variation = &"InkPanel"
+
+[node name="Layout" type="VBoxContainer" parent="LicensesScreen/Center/Panel"]
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="Title" type="Label" parent="LicensesScreen/Center/Panel/Layout" unique_id=1027312860]
+[node name="TagClearance" type="Control" parent="LicensesScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
-theme_type_variation = &"EmphasisLabel"
-theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+mouse_filter = 2
+
+[node name="Title" type="Label" parent="LicensesScreen/Center/Panel/Layout"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
 text = "extras_licenses"
 horizontal_alignment = 1
 
-[node name="Intro" type="Label" parent="LicensesScreen/Center/Panel/Layout" unique_id=155900059]
+[node name="Intro" type="Label" parent="LicensesScreen/Center/Panel/Layout"]
 custom_minimum_size = Vector2(640, 0)
 layout_mode = 2
 theme_type_variation = &"SmallLabel"
 text = "licenses_intro"
 autowrap_mode = 3
 
-[node name="Scroll" type="ScrollContainer" parent="LicensesScreen/Center/Panel/Layout" unique_id=370311203]
+[node name="Scroll" type="ScrollContainer" parent="LicensesScreen/Center/Panel/Layout"]
 custom_minimum_size = Vector2(640, 360)
 layout_mode = 2
 horizontal_scroll_mode = 0
 
-[node name="Rows" type="VBoxContainer" parent="LicensesScreen/Center/Panel/Layout/Scroll" unique_id=606904082]
+[node name="Rows" type="VBoxContainer" parent="LicensesScreen/Center/Panel/Layout/Scroll"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 8
 
-[node name="BackButton" type="Button" parent="LicensesScreen/Center/Panel/Layout" unique_id=1924524077]
-custom_minimum_size = Vector2(400, 44)
+[node name="BackButton" type="Button" parent="LicensesScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(320, 58)
 layout_mode = 2
-theme_type_variation = &"TemporalGlassButton"
+size_flags_horizontal = 4
+theme_type_variation = &"PulpButtonCompact"
 text = "common_back"
+alignment = 0
 
-[node name="VersionLabel" type="Label" parent="." unique_id=1772726629]
+[node name="TagHolder" type="Control" parent="LicensesScreen/Center/Panel"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Tag" type="PanelContainer" parent="LicensesScreen/Center/Panel/TagHolder"]
+layout_mode = 0
+offset_left = -14.0
+offset_top = -24.0
+offset_right = 100.0
+offset_bottom = 14.0
+mouse_filter = 2
+rotation = -0.020944
+theme_type_variation = &"PanelTagPlate"
+
+[node name="TagLabel" type="Label" parent="LicensesScreen/Center/Panel/TagHolder/Tag"]
+layout_mode = 2
+theme_type_variation = &"PanelTag"
+text = "game_title"
+uppercase = true
+
+[node name="VersionLabel" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+grow_vertical = 0
+offset_left = 70.0
+offset_top = -60.0
+offset_right = 470.0
+offset_bottom = -22.0
+mouse_filter = 2
+theme_type_variation = &"SceneCaption"
+vertical_alignment = 1
+
+[node name="PromptBar" type="HBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 3
 anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -520.0
-offset_top = -48.0
-offset_right = -24.0
-offset_bottom = -16.0
+offset_left = -70.0
+offset_top = -76.0
+offset_right = -70.0
+offset_bottom = -40.0
 grow_horizontal = 0
 grow_vertical = 0
-theme_type_variation = &"SmallLabel"
-theme_override_colors/font_color = Color(0.55, 0.61, 0.73, 1)
-horizontal_alignment = 2
+mouse_filter = 2
+script = ExtResource("12_prompt")
