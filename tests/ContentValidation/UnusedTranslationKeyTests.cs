@@ -73,7 +73,9 @@ public class UnusedTranslationKeyTests {
         ("missing_places_", "scripts/Core/MissingLegendTokens.cs", "$\"missing_places_{heroID}\""),
         // Package 13 W3 (S07/S48): the whole-line acceptance and farewell families.
         ("hero_accept_line_", "scripts/Core/DialogueTokens.cs", "$\"hero_accept_line_{heroID}\""),
-        ("hero_farewell_line_", "scripts/Core/DialogueTokens.cs", "$\"hero_farewell_line_{heroID}\"")
+        ("hero_farewell_line_", "scripts/Core/DialogueTokens.cs", "$\"hero_farewell_line_{heroID}\""),
+        // UR-SELECT (2026-10-26): the trading cards' life dates and short names, built from the roster ID.
+        ("character_", "scripts/UI/CharacterSelectScreen.Cards.cs", "$\"character_{_characterIDs[index]}_dates\"")
     };
 
     /// <summary>

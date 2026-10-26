@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using FTT.Characters;
 using FTT.Core;
 using FTT.Environment;
+using FTT.UI.Pulp;
 using Godot;
 
 namespace FTT.UI {
@@ -98,22 +99,21 @@ namespace FTT.UI {
             center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
             AddChild(center);
 
-            var panel = new PanelContainer { Name = "Panel", CustomMinimumSize = new Vector2(640f, 0f) };
-            center.AddChild(panel);
-            MenuSafeAreaFit.Attach(panel);
+            // UR-SELECT: an ink panel with its title tag (the tag carries the screen's name).
+            var tagged = new PulpTaggedPanel {
+                Name = "Tagged",
+                TagKey = FrontEnd ? "fighter_versus_cpu_title" : "holodeck_console_title"
+            };
+            center.AddChild(tagged);
+            var panel = new PanelContainer {
+                Name = "Panel", ThemeTypeVariation = UIPalette.Variations.InkPanel, CustomMinimumSize = new Vector2(720f, 0f)
+            };
+            tagged.AddChild(panel);
+            MenuSafeAreaFit.Attach(tagged);
 
             var layout = new VBoxContainer { Name = "Layout" };
             layout.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);
             panel.AddChild(layout);
-
-            var title = new Label {
-                Name = "Title",
-                Text = Tr(FrontEnd ? "fighter_versus_cpu_title" : "holodeck_console_title"),
-                HorizontalAlignment = HorizontalAlignment.Center
-            };
-            title.ThemeTypeVariation = UIPalette.HeadingLabelVariation;
-            title.AddThemeColorOverride("font_color", UIPalette.TemporalViolet);
-            layout.AddChild(title);
 
             GameManager.Instance?.EnsureMatchSettingsLoaded();
             MatchSettings settings = GameManager.Instance?.CurrentSession.MatchSettings
@@ -168,19 +168,25 @@ namespace FTT.UI {
                 Text = Tr("fighter_meter_pickups"),
                 ButtonPressed = settings.MeterPickupsEnabled
             };
+            PulpToggleDecor.Apply(_meterPickups);
+            _meterPickups.CustomMinimumSize = new Vector2(330f, 52f);
             togglesRow.AddChild(_meterPickups);
             _stageHazards = new CheckButton {
                 Name = "StageHazards",
                 Text = Tr("fighter_hazards"),
                 ButtonPressed = settings.StageHazardsEnabled
             };
+            PulpToggleDecor.Apply(_stageHazards);
+            _stageHazards.CustomMinimumSize = new Vector2(330f, 52f);
             togglesRow.AddChild(_stageHazards);
 
             var launch = new Button {
                 Name = "LaunchButton",
                 Text = Tr("holodeck_launch"),
-                CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, UIPalette.ButtonMinHeight)
+                ThemeTypeVariation = UIPalette.Variations.PulpButtonCompact,
+                CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, 58f)
             };
+            PulpButtonDecor.Apply(launch, compact: true);
             launch.Pressed += OnLaunchPressed;
             layout.AddChild(launch);
 
@@ -194,8 +200,10 @@ namespace FTT.UI {
                 var drills = new Button {
                     Name = "CalibrationDrillsButton",
                     Text = Tr("holodeck_calibration_drills"),
-                    CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, UIPalette.ButtonMinHeight)
+                    ThemeTypeVariation = UIPalette.Variations.PulpButtonCompact,
+                    CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, 58f)
                 };
+                PulpButtonDecor.Apply(drills, compact: true);
                 drills.Pressed += OnCalibrationDrillsPressed;
                 layout.AddChild(drills);
             }
@@ -203,8 +211,10 @@ namespace FTT.UI {
             var back = new Button {
                 Name = "BackButton",
                 Text = Tr("common_back"),
-                CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, UIPalette.ButtonMinHeight)
+                ThemeTypeVariation = UIPalette.Variations.PulpButtonCompact,
+                CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, 58f)
             };
+            PulpButtonDecor.Apply(back, compact: true);
             back.Pressed += () => Closed?.Invoke();
             layout.AddChild(back);
 
