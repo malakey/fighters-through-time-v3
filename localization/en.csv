@@ -1674,3 +1674,6 @@ fighter_results_player,Player {0}
 loading_player_one,Player 1
 loading_player_two,Player 2
 resonance_grid_tag,Constellation
+# UR HUDF
+fighter_hud_mode_stock,Stock match
+fighter_hud_mode_time,Time match

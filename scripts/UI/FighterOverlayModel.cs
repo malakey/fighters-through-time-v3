@@ -108,7 +108,7 @@ namespace FTT.UI {
                         ? new FighterOverlayBeat(
                             FighterBannerStyle.CountdownNumeral,
                             "fighter_countdown_digit",
-                            UIPalette.Cyan,
+                            UIPalette.P1,
                             Duration(payload.DurationSeconds),
                             CountdownFontSize,
                             showsPlate: false)
