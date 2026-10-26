@@ -2,6 +2,8 @@ using Godot;
 using FTT.Characters;
 using FTT.Core;
 using FTT.FighterSim;
+using FTT.UI.Motion;
+using FTT.UI.Pulp;
 
 namespace FTT.UI {
 
@@ -46,8 +48,18 @@ namespace FTT.UI {
             "S1_Cooldown", "S2_Cooldown", "Movement_Cooldown"
         };
 
-        private const int PipSize = 16;
-        private const int PipSpacing = 4;
+        // UI_SPEC 3.3.4: stocks are 28 px stars with a 6 px gap, block pips 24 px shields with a 7 px gap.
+        private const float StockSize = 28f;
+        private const float StockSpacing = 6f;
+        private const float ShieldSize = 24f;
+        private const float ShieldSpacing = 7f;
+        private const float StockOffAlpha = 0.22f;
+        private const float ShieldOffAlpha = 0.28f;
+        private const float DefyIconSize = 32f;
+        private const float SlotShapeBox = 30f;
+        private const float SlotShapeGlyph = 22f;
+        private const float AbilitySlotSize = 54f;
+        private const float ChipBadge = 40f;
         /// <summary>Seconds the M25 "ready" flash takes to settle.</summary>
         private const float ReadyFlashSeconds = 0.3f;
 
@@ -56,15 +68,35 @@ namespace FTT.UI {
             public TextureRect Portrait;
             public Label Name;
             public ProgressBar HP;
-            public ColorRect EchoBand;
             public ProgressBar Meter;
+            // UR-HUDF: the GAUGE-B overlays (tracker, Rally echo, hatch, ticks), the
+            // HP numerals, the full-meter gradient, the 110 px roundel, the slot
+            // shape, the "P1" tag, and the Pulp widgets of the slot row.
+            public PulpBarDecor HpDecor;
+            public PulpBarDecor MeterDecor;
+            public TextureRect MeterFull;
+            public Label HpCur;
+            public Label HpMax;
+            public Label PTag;
+            public PulpPortraitRoundel Roundel;
+            public Control SlotShape;
+            public PulpIcon SlotShapeIcon;
+            public PulpIcon DefyIcon;
+            public PulpAbilitySlot[] SlotWidgets = System.Array.Empty<PulpAbilitySlot>();
+            public PulpStatusChip DamageChip;
+            public PulpStatusChip ControlChip;
+            public Control SlotRow;
+            public readonly HitFlashLimiter FlashLimiter = new();
+            public int PresentedHP = -1;
+            public int PresentedMaxHP = -1;
+            public int PresentedMeterFull = -1;
             public HBoxContainer StockPips;
             public Label StocksLost;
             public Label StocksLabel;
             public HBoxContainer ShieldPips;
             public HBoxContainer Cooldowns;
-            public ColorRect[] Stocks = System.Array.Empty<ColorRect>();
-            public ColorRect[] Shields = System.Array.Empty<ColorRect>();
+            public Control[] Stocks = System.Array.Empty<Control>();
+            public Control[] Shields = System.Array.Empty<Control>();
             public Label[] CooldownLabels = System.Array.Empty<Label>();
             public RadialProgress[] CooldownRadials = System.Array.Empty<RadialProgress>();
             /// <summary>M25: the remaining count each cooldown started from (the radial's denominator).</summary>
@@ -91,6 +123,8 @@ namespace FTT.UI {
             // on every frame of every match. Diffing keeps the steady state free.
             public int PresentedDamageStatus = -1;
             public int PresentedControlStatus = -1;
+            public int PresentedDamageTenths = -1;
+            public int PresentedControlTenths = -1;
             public int PresentedStocksLost = -1;
             // Tri-state (-1 unknown / 0 cooling / 1 ready). A plain bool cannot
             // express "never presented", so the first refresh of a slot that is
@@ -102,6 +136,9 @@ namespace FTT.UI {
 
         private Control _root;
         private Label _timer;
+        private Control _timerPlate;
+        private Label _modeLabel;
+        private float _layoutCanvasWidth = -1f;
         private readonly PlayerPanel[] _panels = new PlayerPanel[2];
         private FighterSimulationDriver _driver;
         private float _appliedOpacity = -1f;
@@ -135,15 +172,19 @@ namespace FTT.UI {
                 if (unscaled != null) _root.Theme = unscaled;
             }
             _timer = GetNodeOrNull<Label>("SafeArea/MatchClock");
+            _timerPlate = GetNodeOrNull<Control>("SafeArea/TimerPlate");
+            _modeLabel = GetNodeOrNull<Label>("SafeArea/ModeLabel");
             _panels[0] = BindPanel("SafeArea/P1_Status");
             _panels[1] = BindPanel("SafeArea/P2_Status");
             for (int index = 0; index < _panels.Length; index++) {
                 BuildCooldownSlots(_panels[index]);
+                BuildWidgets(_panels[index], index);
                 ConfigurePlayer(index, null, 3, 3);
             }
-            if (_timer != null) _timer.Visible = false;
+            SetTimerShown(false);
             ApplyOpacity();
             _uiScale.Apply(_root, force: true);
+            ApplyLayout(force: true);
         }
 
         private PlayerPanel BindPanel(string path) {
@@ -171,23 +212,187 @@ namespace FTT.UI {
                     "Body/Column/TopRow/StatusEffects_Panel/ControlStatus_Indicator/ControlStatus_DurationRadial"),
                 DefySeal = panelRoot.GetNodeOrNull<Label>("Body/Column/DefySeal")
             };
-            // Rally echo band (V7.1): a gold sliver inside the HP bar, sitting
-            // directly above the current fill — the HP this player wins back by
-            // landing a direct hit before the drain empties it. Built in code so
-            // the authored scene stays untouched.
-            if (panel.HP != null) {
-                Color echoTint = UIPalette.GoldBright;
-                echoTint.A = 0.55f;
-                panel.EchoBand = new ColorRect {
-                    Name = "EchoBand",
-                    Color = echoTint,
-                    Visible = false,
+            panel.PTag = panelRoot.GetNodeOrNull<Label>("Body/Column/TopRow/PTag");
+            return panel;
+        }
+
+        /// <summary>
+        /// UR-HUDF: builds the Pulp widgets around the authored nodes of one player
+        /// panel (UI_SPEC 4.5): the 110 px portrait roundel, the 30 px slot shape,
+        /// the "P1" tag, the HP / meter tracks and overlays, the HP numerals, the
+        /// full-meter gradient, the Defy icon and the slot row (three 54 px ability
+        /// slots plus the two status chips). Nothing here is simulation state.
+        /// </summary>
+        private void BuildWidgets(PlayerPanel panel, int index) {
+            if (panel == null) return;
+            bool mirrored = index == 1;
+            Node body = panel.Root.GetNodeOrNull("Body");
+            if (body != null) {
+                panel.Roundel = new PulpPortraitRoundel { Name = "PortraitRoundel", Diameter = 110f };
+                body.AddChild(panel.Roundel);
+                body.MoveChild(panel.Roundel, mirrored ? body.GetChildCount() - 1 : 0);
+            }
+
+            Node topRow = panel.Root.GetNodeOrNull("Body/Column/TopRow");
+            if (topRow != null) {
+                panel.SlotShape = new Control {
+                    Name = "SlotShape",
+                    CustomMinimumSize = new Vector2(SlotShapeBox, SlotShapeBox),
                     MouseFilter = Control.MouseFilterEnum.Ignore
                 };
-                panel.EchoBand.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-                panel.HP.AddChild(panel.EchoBand);
+                panel.SlotShapeIcon = PulpIcon.Create(mirrored ? "slot_p2" : "slot_p1",
+                    FTT.Combat.PlayerSlotPalettes.ActiveSlotColor(index), SlotShapeGlyph);
+                panel.SlotShapeIcon.Position = Vector2.One * ((SlotShapeBox - SlotShapeGlyph) / 2f);
+                panel.SlotShape.AddChild(panel.SlotShapeIcon);
+                topRow.AddChild(panel.SlotShape);
+                topRow.MoveChild(panel.SlotShape, mirrored ? topRow.GetChildCount() - 1 : 0);
             }
-            return panel;
+
+            // HP: a 44 px track (the PulpBar variation ships the 30 px one); the fill stays the
+            // variation's StyleBoxFlat so TintFill keeps working.
+            if (panel.HP != null) {
+                OverrideTrack(panel.HP, "bar_track_h44");
+                panel.HpDecor = PulpBarDecor.Attach(panel.HP);
+                var value = new HBoxContainer {
+                    Name = "HpValue",
+                    MouseFilter = Control.MouseFilterEnum.Ignore,
+                    Alignment = mirrored ? BoxContainer.AlignmentMode.Begin : BoxContainer.AlignmentMode.End
+                };
+                value.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+                if (mirrored) value.OffsetLeft = 26f; else value.OffsetRight = -26f;
+                panel.HpCur = new Label {
+                    Name = "Cur", MouseFilter = Control.MouseFilterEnum.Ignore,
+                    ThemeTypeVariation = UIPalette.LabelRoles.HudNumeral,
+                    SizeFlagsVertical = Control.SizeFlags.ShrinkCenter
+                };
+                panel.HpMax = new Label {
+                    Name = "Max", MouseFilter = Control.MouseFilterEnum.Ignore,
+                    ThemeTypeVariation = UIPalette.LabelRoles.HudNumeralSmall,
+                    SizeFlagsVertical = Control.SizeFlags.ShrinkCenter
+                };
+                value.AddChild(panel.HpCur);
+                value.AddChild(panel.HpMax);
+                panel.HP.AddChild(value);
+            }
+
+            // Meter: a 16 px track, the variation's flat fill recoloured to Meter2, hatch and ticks from the
+            // decor, and a gold gradient over the inner area that shows only while the meter is full.
+            if (panel.Meter != null) {
+                OverrideTrack(panel.Meter, "bar_track_h16");
+                if (panel.Meter.GetThemeStylebox("fill") is StyleBoxFlat meterFill) {
+                    var box = (StyleBoxFlat)meterFill.Duplicate();
+                    box.BgColor = UIPalette.Meter2;
+                    panel.Meter.AddThemeStyleboxOverride("fill", box);
+                }
+                StyleBox bg = panel.Meter.GetThemeStylebox("background");
+                var gradient = new Gradient {
+                    Offsets = new[] { 0f, 1f },
+                    Colors = new[] { UIPalette.Res, UIPalette.Res2 }
+                };
+                var gradientTexture = new GradientTexture2D {
+                    Gradient = gradient, Width = 64, Height = 4,
+                    FillFrom = new Vector2(0f, 0f), FillTo = new Vector2(1f, 0f)
+                };
+                panel.MeterFull = new TextureRect {
+                    Name = "FullGradient",
+                    Texture = gradientTexture,
+                    ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+                    StretchMode = TextureRect.StretchModeEnum.Scale,
+                    MouseFilter = Control.MouseFilterEnum.Ignore,
+                    Visible = false
+                };
+                panel.MeterFull.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+                panel.MeterFull.OffsetLeft = bg?.GetContentMargin(Side.Left) ?? 3f;
+                panel.MeterFull.OffsetTop = bg?.GetContentMargin(Side.Top) ?? 3f;
+                panel.MeterFull.OffsetRight = -(bg?.GetContentMargin(Side.Right) ?? 3f);
+                panel.MeterFull.OffsetBottom = -(bg?.GetContentMargin(Side.Bottom) ?? 3f);
+                panel.Meter.AddChild(panel.MeterFull);
+                panel.MeterDecor = PulpBarDecor.Attach(panel.Meter);
+            }
+
+            // Defy seal: the icon beside the pips (the old glyph Label stays as the carrier).
+            Node pipRow = panel.Root.GetNodeOrNull("Body/Column/PipRow");
+            if (pipRow != null) {
+                panel.DefyIcon = PulpIcon.Create("defy_notready", UIPalette.Ink3, DefyIconSize);
+                panel.DefyIcon.Name = "DefyIcon";
+                pipRow.AddChild(panel.DefyIcon);
+                if (mirrored) pipRow.MoveChild(panel.DefyIcon, 0);
+            }
+
+            // The slot row: S1 / S2 / MOV at 54 with key tags, then the two status chips.
+            panel.SlotRow = GetNodeOrNull<Control>(mirrored ? "SafeArea/P2_Slots" : "SafeArea/P1_Slots");
+            if (panel.SlotRow != null) {
+                var widgets = new PulpAbilitySlot[Slots.Length];
+                for (int slot = 0; slot < Slots.Length; slot++) {
+                    widgets[slot] = new PulpAbilitySlot {
+                        Name = CooldownIconNames[slot].Replace("_Cooldown", "_Slot"),
+                        SlotSize = AbilitySlotSize,
+                        KeyText = FighterHudModel.CooldownGlyphKey(Slots[slot])
+                    };
+                }
+                panel.SlotWidgets = widgets;
+                panel.DamageChip = new PulpStatusChip {
+                    Name = "DamageChip", BadgeSize = ChipBadge, Kind = PulpChipKind.Damage, Empty = true
+                };
+                panel.ControlChip = new PulpStatusChip {
+                    Name = "ControlChip", BadgeSize = ChipBadge, Kind = PulpChipKind.Control, Empty = true
+                };
+                var gap = new Control {
+                    Name = "Gap", CustomMinimumSize = new Vector2(10f, 0f), MouseFilter = Control.MouseFilterEnum.Ignore
+                };
+                if (!mirrored) {
+                    foreach (PulpAbilitySlot w in widgets) panel.SlotRow.AddChild(w);
+                    panel.SlotRow.AddChild(gap);
+                    panel.SlotRow.AddChild(panel.DamageChip);
+                    panel.SlotRow.AddChild(panel.ControlChip);
+                } else {
+                    // Mirrored: the pair of chips keeps damage left, control right; S1 is on the outer edge.
+                    panel.SlotRow.AddChild(panel.DamageChip);
+                    panel.SlotRow.AddChild(panel.ControlChip);
+                    panel.SlotRow.AddChild(gap);
+                    for (int slot = widgets.Length - 1; slot >= 0; slot--) panel.SlotRow.AddChild(widgets[slot]);
+                }
+            }
+        }
+
+        /// <summary>Overrides a bar's <c>background</c> with one of the kit's track plates (a scene-local look: the theme's variation ships the 30 px track).</summary>
+        private static void OverrideTrack(ProgressBar bar, string stem) {
+            StyleBoxTexture plate = PulpKit.Plate(stem);
+            if (plate != null) bar.AddThemeStyleboxOverride("background", plate);
+        }
+
+        /// <summary>
+        /// UI_SPEC 8.2 item 6 / plan item 14: the clusters are scaled per corner. The HP bars shrink before they
+        /// meet the timer plate (the rule is <see cref="FighterHudModel.HpBarWidth"/>), the meter bars follow, and
+        /// the status chips drop their text column when the canvas is too narrow for it. Runs when the canvas
+        /// width (the root's size, which the UI scale divides) changes.
+        /// </summary>
+        private void ApplyLayout(bool force = false) {
+            if (_root == null) return;
+            float width = _root.Size.X > 1f ? _root.Size.X : FighterHudModel.ReferenceCanvasWidth;
+            if (!force && Mathf.IsEqualApprox(width, _layoutCanvasWidth)) return;
+            _layoutCanvasWidth = width;
+            float hp = FighterHudModel.HpBarWidth(width);
+            float meter = FighterHudModel.MeterBarWidth(hp);
+            float cluster = FighterHudModel.ClusterWidth(hp);
+            bool chipText = FighterHudModel.ChipsShowText(width);
+            for (int index = 0; index < _panels.Length; index++) {
+                PlayerPanel panel = _panels[index];
+                if (panel == null) continue;
+                if (panel.HP != null) panel.HP.CustomMinimumSize = new Vector2(hp, FighterHudModel.HpBarHeight);
+                if (panel.Meter != null) panel.Meter.CustomMinimumSize = new Vector2(meter, FighterHudModel.MeterBarHeight);
+                if (panel.Root is Control root) {
+                    if (index == 0) {
+                        root.OffsetLeft = FighterHudModel.ClusterMargin;
+                        root.OffsetRight = FighterHudModel.ClusterMargin + cluster;
+                    } else {
+                        root.OffsetRight = -FighterHudModel.ClusterMargin;
+                        root.OffsetLeft = -(FighterHudModel.ClusterMargin + cluster);
+                    }
+                }
+                if (panel.DamageChip != null) panel.DamageChip.ShowText = chipText;
+                if (panel.ControlChip != null) panel.ControlChip.ShowText = chipText;
+            }
         }
 
         /// <summary>
@@ -213,8 +418,19 @@ namespace FTT.UI {
             if (panel == null) return;
 
             if (panel.Portrait != null) {
+                // The authored TextureRect keeps the texture (it is the old seam); the 110 px roundel draws it.
                 panel.Portrait.Texture = data?.CharacterPortrait;
-                panel.Portrait.Visible = data?.CharacterPortrait != null;
+                panel.Portrait.Visible = false;
+            }
+            if (panel.Roundel != null) {
+                panel.Roundel.Portrait = data?.CharacterPortrait;
+                panel.Roundel.Visible = data?.CharacterPortrait != null;
+            }
+            if (panel.SlotWidgets.Length == Slots.Length) {
+                AbilitySlot[] ids = { AbilitySlot.Special1, AbilitySlot.Special2, AbilitySlot.MovementAbility };
+                for (int slot = 0; slot < Slots.Length; slot++) {
+                    panel.SlotWidgets[slot].Art = AbilityIconLibrary.Load(data?.CharacterID, ids[slot]);
+                }
             }
             if (panel.Name != null) {
                 string key = data?.DisplayNameKey ?? "";
@@ -222,10 +438,13 @@ namespace FTT.UI {
                     ? string.Format(Tr("fighter_hud_player"), playerIndex + 1)
                     : Tr(key);
             }
+            if (panel.PTag != null) panel.PTag.Text = string.Format(Tr("fighter_hud_player"), playerIndex + 1);
             ApplySlotIdentity(panel, playerIndex);
 
-            panel.Stocks = RebuildPips(panel.StockPips, Mathf.Max(1, maxStocks), UIPalette.GoldBright);
-            panel.Shields = RebuildPips(panel.ShieldPips, Mathf.Max(1, maxShieldCharges), UIPalette.Cyan);
+            panel.Stocks = RebuildPips(panel.StockPips, Mathf.Max(1, maxStocks), "star4", StockSize, StockSpacing,
+                FTT.Combat.PlayerSlotPalettes.ActiveSlotColor(playerIndex));
+            panel.Shields = RebuildPips(panel.ShieldPips, Mathf.Max(1, maxShieldCharges), "shield", ShieldSize,
+                ShieldSpacing, UIPalette.Shield);
         }
 
         /// <summary>
@@ -244,28 +463,46 @@ namespace FTT.UI {
             if (panel == null) return;
 
             if (panel.HP != null) {
-                panel.HP.MaxValue = Mathf.Max(1, state.MaxHP);
-                panel.HP.Value = Mathf.Clamp(state.CurrentHP, 0, Mathf.Max(1, state.MaxHP));
+                int maxHp = Mathf.Max(1, state.MaxHP);
+                int hp = Mathf.Clamp(state.CurrentHP, 0, maxHp);
+                panel.HP.MaxValue = maxHp;
+                panel.HP.Value = hp;
                 TintFill(panel.HP, FighterHudModel.HpFillColor(state.CurrentHP, state.MaxHP));
-                if (panel.EchoBand != null) {
-                    float band = FighterHudModel.EchoBandFraction(state.CurrentHP, echoPool, state.MaxHP);
-                    panel.EchoBand.Visible = band > 0f;
-                    if (band > 0f) {
-                        float fill = FighterHudModel.BarFraction(state.CurrentHP, state.MaxHP);
-                        panel.EchoBand.AnchorLeft = fill;
-                        panel.EchoBand.AnchorRight = fill + band;
-                        panel.EchoBand.OffsetLeft = 0f;
-                        panel.EchoBand.OffsetRight = 0f;
+                if (panel.PresentedHP != hp || panel.PresentedMaxHP != maxHp) {
+                    // UI_SPEC 5 rows 6 and 7: the tracker holds then drops, and a damaging hit flashes the
+                    // bar plate black for one frame, at most once a second per bar (plan item 14, Q3).
+                    bool damaged = panel.PresentedHP >= 0 && hp < panel.PresentedHP;
+                    if (panel.HpDecor != null) {
+                        if (panel.PresentedHP < 0) panel.HpDecor.LagValue = hp;
+                        else panel.HpDecor.DropLagTo(hp);
                     }
+                    if (damaged) PulpMotion.HitFlash(panel.HP, panel.FlashLimiter, Time.GetTicksMsec() / 1000.0);
+                    panel.PresentedHP = hp;
+                    panel.PresentedMaxHP = maxHp;
+                    if (panel.HpCur != null) panel.HpCur.Text = hp.ToString();
+                    if (panel.HpMax != null) panel.HpMax.Text = "/" + maxHp;
+                }
+                if (panel.HpDecor != null) {
+                    // The Rally echo: the decor draws the band from the fill end to HP + echo (the shipped
+                    // EchoBandFraction rule, in the bar's units), so nothing else draws it.
+                    float band = FighterHudModel.EchoBandFraction(state.CurrentHP, echoPool, state.MaxHP);
+                    panel.HpDecor.EchoValue = band > 0f ? hp + band * maxHp : 0f;
+                    panel.HpDecor.Low = hp > 0 && FighterHudModel.BarFraction(hp, maxHp) <= FighterHudModel.HpDangerFraction;
                 }
             }
             if (panel.Meter != null) {
                 panel.Meter.MaxValue = FighterHudModel.MaxInfluence;
-                panel.Meter.Value = Mathf.Clamp(state.Influence.ToFloat(), 0f, FighterHudModel.MaxInfluence);
+                float influence = Mathf.Clamp(state.Influence.ToFloat(), 0f, FighterHudModel.MaxInfluence);
+                panel.Meter.Value = influence;
+                int full = FighterHudModel.UltimateIsReady(influence) ? 1 : 0;
+                if (full != panel.PresentedMeterFull) {
+                    panel.PresentedMeterFull = full;
+                    if (panel.MeterFull != null) panel.MeterFull.Visible = full == 1;
+                }
             }
 
-            SetPips(panel.Stocks, state.Stocks);
-            SetPips(panel.Shields, state.BlockCharges);
+            SetPips(panel.Stocks, state.Stocks, StockOffAlpha);
+            SetPips(panel.Shields, state.BlockCharges, ShieldOffAlpha);
             ApplyStockDisplay(panel, in state, in runtime);
 
             // F24: both slots render simultaneously, at fixed positions, never
@@ -273,13 +510,13 @@ namespace FTT.UI {
             // the runtime component bit-packs both — and PresentedStatusType was
             // only ever a single-pip collapse helper.
             ApplyStatusSlot(
-                panel.DamageStatus, panel.DamageRadial,
+                panel.DamageStatus, panel.DamageRadial, panel.DamageChip,
                 (StatusType)runtime.DamageStatusType, runtime.DamageStatusFrames,
-                tickRate, ref panel.PresentedDamageStatus);
+                tickRate, ref panel.PresentedDamageStatus, ref panel.PresentedDamageTenths);
             ApplyStatusSlot(
-                panel.ControlStatus, panel.ControlRadial,
+                panel.ControlStatus, panel.ControlRadial, panel.ControlChip,
                 (StatusType)runtime.StatusType, runtime.StatusFrames,
-                tickRate, ref panel.PresentedControlStatus);
+                tickRate, ref panel.PresentedControlStatus, ref panel.PresentedControlTenths);
 
             ApplyDefySeal(panel, in state, playerIndex);
             UpdateCooldowns(panel, in runtime);
@@ -296,8 +533,8 @@ namespace FTT.UI {
         /// having to know that happened.</para>
         /// </summary>
         private void ApplyStatusSlot(
-            Label indicator, RadialProgress radial,
-            StatusType status, int remainingFrames, int tickRate, ref int presented) {
+            Label indicator, RadialProgress radial, PulpStatusChip chip,
+            StatusType status, int remainingFrames, int tickRate, ref int presented, ref int presentedTenths) {
 
             if (indicator == null) return;
             if (radial != null) {
@@ -306,12 +543,31 @@ namespace FTT.UI {
                     radial.Fraction = FighterHudModel.StatusRadialFraction(remainingFrames, tickRate);
                 }
             }
+            if (chip != null && status != StatusType.None) {
+                // The ring follows the authoritative frame count; the time text changes by tenths only.
+                chip.Remaining = FighterHudModel.StatusRadialFraction(remainingFrames, tickRate);
+                int tenths = Mathf.CeilToInt(remainingFrames * 10f / Mathf.Max(1, tickRate));
+                if (tenths != presentedTenths) {
+                    presentedTenths = tenths;
+                    chip.TimeText = string.Format(Tr("common_seconds_short"), tenths / 10f);
+                }
+            }
             if (presented == (int)status) return;
             presented = (int)status;
             if (status == StatusType.None) {
                 indicator.Text = "";
                 indicator.TooltipText = "";
+                presentedTenths = -1;
+                if (chip != null) {
+                    chip.Empty = true;
+                    chip.TimeText = "";
+                }
                 return;
+            }
+            if (chip != null) {
+                chip.Empty = false;
+                chip.GlyphName = FighterHudModel.StatusIconName(status);
+                chip.NameText = FighterHudModel.StatusKey(status);
             }
             // Glyph plus localized name: colour alone must not identify an effect.
             indicator.Text = HudAbilityIndicatorModel.StatusGlyph(status);
@@ -335,7 +591,6 @@ namespace FTT.UI {
             PlayerPanel panel, in FighterStateComponent state, in FighterRuntimeComponent runtime) {
             bool timeMode = FighterHudModel.UsesStocksLostDisplay(_matchMode);
             if (panel.StockPips != null) panel.StockPips.Visible = !timeMode;
-            if (panel.StocksLabel != null) panel.StocksLabel.Visible = !timeMode;
             if (panel.StocksLost == null) return;
             panel.StocksLost.Visible = timeMode;
             if (!timeMode) return;
@@ -365,6 +620,10 @@ namespace FTT.UI {
             panel.DefySeal.Text = DefySealModel.Glyph(seal);
             panel.DefySeal.TooltipText = Tr(DefySealModel.LabelKey(seal));
             panel.DefySeal.AddThemeColorOverride("font_color", DefySealModel.Tint(seal));
+            if (panel.DefyIcon != null) {
+                panel.DefyIcon.IconName = FighterHudModel.DefyIconName(seal);
+                panel.DefyIcon.Tint = FighterHudModel.DefyIconTint(seal);
+            }
         }
 
         /// <summary>Applies match-level state: clock visibility and remaining time.</summary>
@@ -388,17 +647,27 @@ namespace FTT.UI {
             _matchMode = matchMode;
             _suddenDeath = suddenDeath;
             if (_timer == null) return;
+            SetModeLabel(matchMode);
 
             if (suddenDeath) {
-                _timer.Visible = true;
+                // F22: the phase text replaces the running clock; a long line needs the small role.
+                SetTimerShown(true);
+                _timer.ThemeTypeVariation = UIPalette.LabelRoles.StateLabel;
+                _timer.AutowrapMode = TextServer.AutowrapMode.WordSmart;
                 _timer.Text = Tr("fighter_hud_sudden_death_clock");
-                _timer.AddThemeColorOverride("font_color", UIPalette.BossRed);
+                _timer.AddThemeColorOverride("font_color", UIPalette.Danger);
                 _lastTimerSeconds = -1;
                 return;
             }
+            if (_timer.ThemeTypeVariation != UIPalette.LabelRoles.TimerDigits) {
+                _timer.ThemeTypeVariation = UIPalette.LabelRoles.TimerDigits;
+                _timer.AutowrapMode = TextServer.AutowrapMode.Off;
+                _timer.RemoveThemeColorOverride("font_color");
+                _timerDangerShown = false;
+            }
 
             bool visible = FighterHudModel.TimerIsVisible(timerEnabled);
-            _timer.Visible = visible;
+            SetTimerShown(visible);
             if (!visible) {
                 _lastTimerSeconds = -1;
                 return;
@@ -411,7 +680,8 @@ namespace FTT.UI {
             bool danger = FighterHudModel.IsTimerDanger(seconds);
             if (danger != _timerDangerShown) {
                 _timerDangerShown = danger;
-                _timer.AddThemeColorOverride("font_color", danger ? UIPalette.BossRed : UIPalette.Gold);
+                if (danger) _timer.AddThemeColorOverride("font_color", UIPalette.Danger);
+                else _timer.RemoveThemeColorOverride("font_color");
             }
             if (danger && seconds != _lastTimerSeconds && seconds == FighterHudModel.TimerDangerSeconds) {
                 // C01b: a timer-danger cue is a protected warning, so it rides the
@@ -421,9 +691,23 @@ namespace FTT.UI {
             _lastTimerSeconds = seconds;
         }
 
+        /// <summary>Shows or hides the clock, its ink plate and the mode label together.</summary>
+        private void SetTimerShown(bool shown) {
+            if (_timer != null) _timer.Visible = shown;
+            if (_timerPlate != null) _timerPlate.Visible = shown;
+            if (_modeLabel != null) _modeLabel.Visible = shown;
+        }
+
+        private void SetModeLabel(int matchMode) {
+            if (_modeLabel == null) return;
+            string key = FighterHudModel.ModeLabelKey(matchMode);
+            if (_modeLabel.Text != key) _modeLabel.Text = key;
+        }
+
         public override void _Process(double delta) {
             ApplyOpacity();
             _uiScale.Apply(_root);
+            ApplyLayout();
             if (_driver == null || !IsInstanceValid(_driver) || _driver.Simulation == null) return;
 
             int tickRate = FighterSimulation.TickRate;
@@ -469,9 +753,11 @@ namespace FTT.UI {
 
         /// <summary>Rally echo band width in 0..1 of the HP bar, 0 when hidden. Test seam.</summary>
         public float EchoBandWidth(int playerIndex) {
-            ColorRect band = PanelFor(playerIndex)?.EchoBand;
-            if (band == null || !band.Visible) return 0f;
-            return Mathf.Max(0f, band.AnchorRight - band.AnchorLeft);
+            PlayerPanel panel = PanelFor(playerIndex);
+            if (panel?.HP == null || panel.HpDecor == null || panel.HP.MaxValue <= 0) return 0f;
+            float end = panel.HpDecor.EchoValue;
+            if (end <= panel.HP.Value) return 0f;
+            return (float)((end - panel.HP.Value) / panel.HP.MaxValue);
         }
 
         /// <summary>Meter fill in 0..1 for a player. Test seam.</summary>
@@ -600,27 +886,25 @@ namespace FTT.UI {
             }
         }
 
-        private static int CountLit(ColorRect[] pips) {
+        private static int CountLit(Control[] pips) {
             if (pips == null) return 0;
             int lit = 0;
-            foreach (ColorRect pip in pips) {
+            foreach (Control pip in pips) {
                 if (pip.Modulate.A >= 1f) lit++;
             }
             return lit;
         }
 
-        private static ColorRect[] RebuildPips(HBoxContainer container, int count, Color color) {
-            if (container == null) return System.Array.Empty<ColorRect>();
+        /// <summary>Rebuilds a pip row from kit icons (UI_SPEC 3.3.4): stocks are stars, block charges shields.</summary>
+        private static Control[] RebuildPips(
+            HBoxContainer container, int count, string icon, float size, float spacing, Color color) {
+            if (container == null) return System.Array.Empty<Control>();
             ClearChildren(container);
-            container.AddThemeConstantOverride("separation", PipSpacing);
-            var pips = new ColorRect[count];
+            container.AddThemeConstantOverride("separation", (int)spacing);
+            var pips = new Control[count];
             for (int index = 0; index < count; index++) {
-                var pip = new ColorRect {
-                    Name = $"Pip{index}",
-                    Color = color,
-                    CustomMinimumSize = new Vector2(PipSize, PipSize),
-                    MouseFilter = Control.MouseFilterEnum.Ignore
-                };
+                PulpIcon pip = PulpIcon.Create(icon, color, size);
+                pip.Name = $"Pip{index}";
                 container.AddChild(pip);
                 pips[index] = pip;
             }
@@ -631,11 +915,11 @@ namespace FTT.UI {
         /// A spent pip is dimmed rather than removed, so the panel never reflows
         /// mid-match and the player can still see the capacity they started with.
         /// </summary>
-        private static void SetPips(ColorRect[] pips, int filled) {
+        private static void SetPips(Control[] pips, int filled, float offAlpha) {
             if (pips == null) return;
             int lit = FighterHudModel.FilledPips(filled, pips.Length);
             for (int index = 0; index < pips.Length; index++) {
-                pips[index].Modulate = new Color(1f, 1f, 1f, index < lit ? 1f : 0.18f);
+                pips[index].Modulate = new Color(1f, 1f, 1f, index < lit ? 1f : offAlpha);
             }
         }
 
@@ -696,12 +980,19 @@ namespace FTT.UI {
                     radial.Fraction = FighterHudModel.CooldownRadialFraction(
                         frames, panel.CooldownStartFrames[index]);
                 }
+                if (index < panel.SlotWidgets.Length && panel.SlotWidgets[index] != null) {
+                    // The visible 54 px slot: a pie sweep over the elapsed share and the remaining seconds.
+                    PulpAbilitySlot widget = panel.SlotWidgets[index];
+                    widget.State = ready ? PulpSlotState.Ready : PulpSlotState.Cooling;
+                    widget.Progress = FighterHudModel.CooldownRadialFraction(frames, panel.CooldownStartFrames[index]);
+                    widget.SecondsRemaining = FighterHudModel.CooldownSeconds(frames, FighterSimulation.TickRate);
+                    if (readinessChanged && ready && wasCooling) FlashReady(widget);
+                }
                 if (!readinessChanged) continue;
                 Label icon = panel.CooldownLabels[index];
-                icon.AddThemeColorOverride("font_color", ready ? UIPalette.Cyan : UIPalette.SlateDim);
+                icon.AddThemeColorOverride("font_color", ready ? UIPalette.Res2 : UIPalette.SlateDim);
                 icon.Modulate = new Color(1f, 1f, 1f, ready ? 1f : 0.45f);
-                if (radial != null) radial.FillColor = ready ? UIPalette.Cyan : UIPalette.SlateDim;
-                if (ready && wasCooling) FlashReady(icon);
+                if (radial != null) radial.FillColor = ready ? UIPalette.Accent : UIPalette.SlateDim;
             }
         }
 
@@ -726,10 +1017,15 @@ namespace FTT.UI {
             if (index < 0 || index >= panel.CooldownLabels.Length) return;
             Label icon = panel.CooldownLabels[index];
             NotYetFlash.Play(icon, icon);
+            // The label is the hidden carrier; the flash must be visible on the 54 px slot.
+            if (index < panel.SlotWidgets.Length && panel.SlotWidgets[index] != null) {
+                PulpAbilitySlot widget = panel.SlotWidgets[index];
+                NotYetFlash.Play(widget, widget);
+            }
         }
 
         /// <summary>M25's brief ready flash: an overbright pulse that settles to normal.</summary>
-        private void FlashReady(Label icon) {
+        private void FlashReady(Control icon) {
             if (!icon.IsInsideTree()) return;
             icon.Modulate = new Color(1.8f, 1.8f, 1.8f, 1f);
             Tween tween = icon.CreateTween();
@@ -744,17 +1040,14 @@ namespace FTT.UI {
         private static void ApplySlotIdentity(PlayerPanel panel, int playerIndex) {
             Color slotColour = FTT.Combat.PlayerSlotPalettes.ActiveSlotColor(playerIndex);
             Color edge = FTT.Combat.PlayerSlotPalettes.ActiveSlotEdgeColor(playerIndex);
+            // The ▲ / ● Label is the hidden text carrier; the shape icon carries identity (never colour alone),
+            // and the name reads in the HeroName ink role.
             if (panel.SlotBadge != null) {
                 panel.SlotBadge.Text = FTT.Combat.PlayerSlotPalettes.ShapeGlyph(playerIndex);
                 panel.SlotBadge.AddThemeColorOverride("font_color", slotColour);
                 panel.SlotBadge.AddThemeColorOverride("font_outline_color", edge);
-                panel.SlotBadge.AddThemeConstantOverride("outline_size", 4);
             }
-            if (panel.Name != null) {
-                panel.Name.AddThemeColorOverride("font_color", slotColour);
-                panel.Name.AddThemeColorOverride("font_outline_color", edge);
-                panel.Name.AddThemeConstantOverride("outline_size", 3);
-            }
+            if (panel.SlotShapeIcon != null) panel.SlotShapeIcon.Tint = slotColour;
         }
 
         /// <summary>

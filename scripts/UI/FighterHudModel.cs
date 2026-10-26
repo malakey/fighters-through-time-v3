@@ -129,7 +129,7 @@ namespace FTT.UI {
             float fraction = BarFraction(current, maximum);
             if (fraction <= HpDangerFraction) return UIPalette.BossRed;
             if (fraction <= HpCautionFraction) return UIPalette.Warning;
-            return UIPalette.Cyan;
+            return UIPalette.Hp;
         }
 
         /// <summary>
@@ -191,5 +191,71 @@ namespace FTT.UI {
         /// the HUD invisible and unrecoverable from inside a match.
         /// </summary>
         public static float ResolveOpacity(float saved) => Mathf.Clamp(saved, 0.2f, 1f);
+
+        // ---- UR-HUDF layout (UI_SPEC 4.5; every number a UI_SPEC size, the fit rule plan item 14) ----
+
+        /// <summary>The reference canvas the clusters are authored on.</summary>
+        public const float ReferenceCanvasWidth = 1920f;
+        public const float ClusterMargin = 36f;
+        public const float TimerPlateWidth = 240f;
+        public const float TimerClearance = 16f;
+        public const float RoundelColumnWidth = 130f;
+        public const float HpBarFullWidth = 502f;
+        public const float HpBarMinWidth = 240f;
+        public const float HpBarHeight = 44f;
+        public const float MeterBarFullWidth = 390f;
+        public const float MeterBarHeight = 16f;
+        /// <summary>Below this canvas width the status chips show their badge and ring only (the text column would collide).</summary>
+        public const float ChipTextMinCanvas = 1700f;
+
+        /// <summary>
+        /// The HP bar width that keeps both clusters clear of the timer plate: full width on a wide enough canvas, else
+        /// each bar gives up half the shortfall (the canvas is the viewport width divided by the UI scale).
+        /// </summary>
+        public static float HpBarWidth(float canvasWidth) {
+            float cluster = ClusterWidth(HpBarFullWidth);
+            float need = 2f * (ClusterMargin + cluster) + TimerPlateWidth + 2f * TimerClearance;
+            float deficit = Mathf.Max(0f, need - canvasWidth);
+            return Mathf.Max(HpBarMinWidth, HpBarFullWidth - deficit / 2f);
+        }
+
+        /// <summary>The meter bar keeps the spec's 390 : 502 proportion to its HP bar.</summary>
+        public static float MeterBarWidth(float hpBarWidth) =>
+            Mathf.Round(hpBarWidth * MeterBarFullWidth / HpBarFullWidth);
+
+        /// <summary>A cluster's width: the roundel and gap plus the HP bar plus the 8 px track margin.</summary>
+        public static float ClusterWidth(float hpBarWidth) => RoundelColumnWidth + hpBarWidth + 8f;
+
+        public static bool ChipsShowText(float canvasWidth) => canvasWidth >= ChipTextMinCanvas;
+
+        /// <summary>Kit icon for a status (UI_SPEC 3.4).</summary>
+        public static string StatusIconName(StatusType status) => status switch {
+            StatusType.TimeDilation => "dilation",
+            StatusType.Venom => "venom",
+            StatusType.StaticCharge => "static",
+            StatusType.RadiantBurn => "burn",
+            StatusType.Root => "root",
+            StatusType.Suppression => "suppress",
+            _ => "venom"
+        };
+
+        /// <summary>Kit icon per Defy seal state; the four shapes differ (shape carries state).</summary>
+        public static string DefyIconName(DefySealState state) => state switch {
+            DefySealState.Ready => "defy_ready",
+            DefySealState.Spent => "defy_spent",
+            DefySealState.Barred => "defy_barred",
+            _ => "defy_notready"
+        };
+
+        /// <summary>UI_SPEC 3.3.4: ready res2, not ready and spent ink3, unavailable danger.</summary>
+        public static Color DefyIconTint(DefySealState state) => state switch {
+            DefySealState.Ready => UIPalette.Res2,
+            DefySealState.Barred => UIPalette.Danger,
+            _ => UIPalette.Ink3
+        };
+
+        /// <summary>The small mode caption under the timer digits (a raw key; the label upper-cases it).</summary>
+        public static string ModeLabelKey(int matchMode) =>
+            UsesStocksLostDisplay(matchMode) ? "fighter_hud_mode_time" : "fighter_hud_mode_stock";
     }
 }

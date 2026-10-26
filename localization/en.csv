@@ -1666,3 +1666,6 @@ select_press_to_join_player_one,Press confirm on any controller or keyboard to j
 ui_prompt_select,Select
 ui_toggle_on,On
 ui_toggle_off,Off
+# UR HUDF
+fighter_hud_mode_stock,Stock match
+fighter_hud_mode_time,Time match
