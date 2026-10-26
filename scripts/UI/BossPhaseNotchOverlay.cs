@@ -22,6 +22,12 @@ namespace FTT.UI {
 
         private const float NotchWidth = 3f;
 
+        /// <summary>
+        /// UR-HUDS: false when a <c>PulpBarDecor</c> on the bar draws the (6 px, black) notches itself; this
+        /// overlay then only keeps the crossed count and shows the phase-change flash as a gold wash.
+        /// </summary>
+        public bool DrawNotches { get; set; } = true;
+
         private readonly List<float> _positions = new();
         private float _flashTimer;
         private int _crossedPhases;
@@ -80,15 +86,23 @@ namespace FTT.UI {
             // readable through the transition, which is exactly when the player is
             // looking at it.
             float strength = _flashTimer / FlashSeconds;
-            Modulate = Colors.White.Lerp(UIPalette.GoldBright, strength);
+            if (DrawNotches) Modulate = Colors.White.Lerp(UIPalette.GoldBright, strength);
             QueueRedraw();
         }
 
         public override void _Draw() {
-            if (_positions.Count == 0) return;
             float width = Size.X;
             float height = Size.Y;
             if (width <= 0f || height <= 0f) return;
+            if (!DrawNotches) {
+                if (_flashTimer > 0f) {
+                    Color wash = UIPalette.GoldBright;
+                    wash.A = 0.5f * _flashTimer / FlashSeconds;
+                    DrawRect(new Rect2(0f, 0f, width, height), wash);
+                }
+                return;
+            }
+            if (_positions.Count == 0) return;
 
             for (int index = 0; index < _positions.Count; index++) {
                 float x = _positions[index] * width;

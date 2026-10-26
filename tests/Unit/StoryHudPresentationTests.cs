@@ -64,17 +64,17 @@ public class StoryHudPresentationTests {
             AssertObject(hud.BossNotches).IsNotNull();
 
             AssertObject(hud.GetNodeOrNull<TextureRect>(
-                "SafeArea/TopLeft_Panel/PlayerPortrait")).IsNotNull();
+                "SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top/PortraitHost/PlayerPortrait")).IsNotNull();
             AssertObject(hud.GetNodeOrNull<ProgressBar>(
-                "SafeArea/TopLeft_Panel/Vitals/HealthBar_BG")).IsNotNull();
+                "SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top/Vitals/HealthBar_BG")).IsNotNull();
             AssertObject(hud.GetNodeOrNull<ColorRect>(
-                "SafeArea/TopLeft_Panel/Vitals/HealthBar_BG/RallyEcho_Band")).IsNotNull();
+                "SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top/Vitals/HealthBar_BG/RallyEcho_Band")).IsNotNull();
             AssertObject(hud.GetNodeOrNull<HBoxContainer>(
-                "SafeArea/TopLeft_Panel/Vitals/BlockCharges_Panel")).IsNotNull();
+                "SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top/Vitals/BlockCharges_Panel")).IsNotNull();
             AssertObject(hud.GetNodeOrNull<Label>(
-                "SafeArea/TopLeft_Panel/Vitals/TemporalRow/RewindCounter/RewindCountText")).IsNotNull();
+                "SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow/RewindCounter/RewindCountText")).IsNotNull();
             AssertObject(hud.GetNodeOrNull<Label>(
-                "SafeArea/TopRight_Panel/CurrencyContainer/ChronalDustText")).IsNotNull();
+                "SafeArea/TopRight_Panel/DustPlate/Pad/CurrencyContainer/ChronalDustText")).IsNotNull();
         } finally {
             host.Free();
         }
@@ -274,11 +274,11 @@ public class StoryHudPresentationTests {
             StoryHUD hud = AddHud(host);
             EventBus bus = EventBus.Instance;
             AssertObject(bus).IsNotNull();
-            const string Row = "SafeArea/TopLeft_Panel/Vitals/CooldownRow";
+            const string Row = "SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/CooldownRow";
             var slotOne = hud.GetNode<Label>($"{Row}/Cooldown1_Icon");
             var slotTwo = hud.GetNode<Label>($"{Row}/Cooldown2_Icon");
-            var meterHost = hud.GetNode<Control>("SafeArea/TopLeft_Panel/Vitals/MeterRow/UltimateMeter_BG");
-            var meterFill = hud.GetNode<Control>("SafeArea/TopLeft_Panel/Vitals/MeterRow/UltimateMeter_BG/UltimateMeter_Fill");
+            var meterHost = hud.GetNode<Control>("SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/MeterRow/UltimateMeter_BG");
+            var meterFill = hud.GetNode<Control>("SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/MeterRow/UltimateMeter_BG/UltimateMeter_Fill");
             Color slotOneModulate = slotOne.Modulate;
 
             bus.RaiseAbilityLockoutRefused(new AbilityLockoutRefusedPayload {

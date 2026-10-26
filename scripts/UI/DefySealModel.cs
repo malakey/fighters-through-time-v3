@@ -82,5 +82,20 @@ namespace FTT.UI {
             DefySealState.Barred => UIPalette.TextDisabled,
             _ => UIPalette.Slate
         };
+
+        /// <summary>UR-HUDS: the ICN-B icon of a seal state; the four shapes differ (UI_SPEC Appendix A).</summary>
+        public static string IconName(DefySealState state) => state switch {
+            DefySealState.Ready => "defy_ready",
+            DefySealState.Spent => "defy_spent",
+            DefySealState.Barred => "defy_barred",
+            _ => "defy_notready"
+        };
+
+        /// <summary>UR-HUDS: the pulp tint per state (UI_SPEC 3.3.4): ready res2, not ready or spent ink3, unavailable danger.</summary>
+        public static Godot.Color PulpTint(DefySealState state) => state switch {
+            DefySealState.Ready => UIPalette.Res2,
+            DefySealState.Barred => UIPalette.Danger,
+            _ => UIPalette.Ink3
+        };
     }
 }

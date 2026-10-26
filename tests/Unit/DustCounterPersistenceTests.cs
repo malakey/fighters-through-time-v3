@@ -31,9 +31,9 @@ public class DustCounterPersistenceTests {
         Node host = CreateHost("DustCounterZeroHost");
         try {
             StoryHUD hud = AddHud(host);
-            var container = hud.GetNode<Control>("SafeArea/TopRight_Panel/CurrencyContainer");
-            var text = hud.GetNode<Label>("SafeArea/TopRight_Panel/CurrencyContainer/ChronalDustText");
-            var icon = hud.GetNode<Label>("SafeArea/TopRight_Panel/CurrencyContainer/ChronalDustIcon");
+            var container = hud.GetNode<Control>("SafeArea/TopRight_Panel/DustPlate/Pad/CurrencyContainer");
+            var text = hud.GetNode<Label>("SafeArea/TopRight_Panel/DustPlate/Pad/CurrencyContainer/ChronalDustText");
+            var icon = hud.GetNode<Label>("SafeArea/TopRight_Panel/DustPlate/Pad/CurrencyContainer/ChronalDustIcon");
 
             AssertThat(container.Visible).IsTrue();
             AssertThat(icon.Visible).IsTrue();
@@ -59,7 +59,7 @@ public class DustCounterPersistenceTests {
         Node host = CreateHost("DustCounterBossHost");
         try {
             StoryHUD hud = AddHud(host);
-            var container = hud.GetNode<Control>("SafeArea/TopRight_Panel/CurrencyContainer");
+            var container = hud.GetNode<Control>("SafeArea/TopRight_Panel/DustPlate/Pad/CurrencyContainer");
             var clock = hud.GetNode<Control>("SafeArea/TopRight_Panel/IntegrityClock");
 
             clock.Visible = false;
@@ -83,8 +83,8 @@ public class DustCounterPersistenceTests {
         Node host = CreateHost("DustCounterFloatHost");
         try {
             StoryHUD hud = AddHud(host);
-            var text = hud.GetNode<Label>("SafeArea/TopRight_Panel/CurrencyContainer/ChronalDustText");
-            var pickupFloat = hud.GetNode<Label>("SafeArea/TopRight_Panel/CurrencyContainer/DustPickup_Float");
+            var text = hud.GetNode<Label>("SafeArea/TopRight_Panel/DustPlate/Pad/CurrencyContainer/ChronalDustText");
+            var pickupFloat = hud.GetNode<Label>("SafeArea/TopRight_Panel/DustPlate/Pad/CurrencyContainer/DustPickup_Float");
             AssertThat(pickupFloat.Visible).IsFalse();
 
             string balanceBefore = text.Text;
