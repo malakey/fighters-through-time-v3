@@ -52,7 +52,7 @@ public class CalibrationDrillsRouteTests {
                 AssertThat(button.Visible).IsTrue();
                 // The A1 convention: the scene stores the raw key.
                 AssertThat(button.Text).IsEqual("menu_calibration_drills");
-                AssertThat(button.ThemeTypeVariation.ToString()).IsEqual("TemporalGlassButton");
+                AssertThat(button.ThemeTypeVariation.ToString()).IsEqual("PulpButton");
 
                 // The handler's session half, without the scene change: pressing
                 // the button in the test host would hand the runner's current scene

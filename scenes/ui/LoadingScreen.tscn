@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://scripts/UI/LoadingScreen.cs" id="1_script"]
 [ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="2_theme"]
 
+
 [node name="LoadingScreen" type="CanvasLayer"]
 layer = 100
 process_mode = 3
@@ -23,7 +24,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.05, 0.05, 0.1, 1)
+color = Color(0.0196, 0.0275, 0.102, 1)
 
 [node name="Center" type="CenterContainer" parent="Root"]
 anchors_preset = 15
@@ -33,13 +34,17 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="Layout" type="VBoxContainer" parent="Root/Center"]
+[node name="Plate" type="PanelContainer" parent="Root/Center"]
+custom_minimum_size = Vector2(520, 0)
+layout_mode = 2
+theme_type_variation = &"InkPanel"
+
+[node name="Layout" type="VBoxContainer" parent="Root/Center/Plate"]
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="StatusLabel" type="Label" parent="Root/Center/Layout"]
+[node name="StatusLabel" type="Label" parent="Root/Center/Plate/Layout"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
-theme_override_font_sizes/font_size = 28
+theme_type_variation = &"HeadingLabel"
 text = "loading"
 horizontal_alignment = 1

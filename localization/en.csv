@@ -286,7 +286,6 @@ resonance_result_prerequisite,Unlock the prerequisite node first.
 resonance_result_dust,Not enough deposited Chronal Dust.
 resonance_result_unavailable,That node cannot be unlocked.
 game_title,FIGHTERS THROUGH TIME
-menu_subtitle,Temporal Resonance Prototype
 menu_quick_play,Quick Play (Einstein vs CPU)
 menu_level_select,Level Select (Dev)
 dev_level_select_title,DEV — SELECT LEVEL
@@ -1690,3 +1689,12 @@ fighter_stat_weight,Weight
 fighter_stats_card,"HP {0}  Speed {1:0.##}  Weight {2:0.##}  {3}"
 fighter_select_choosing,Hmm...
 fighter_random_mystery,Mystery fighter
+# UR MENU
+menu_cover_title_word,Fighters
+menu_cover_title_banner,Through Time
+menu_continue_chapter,Chapter {0}
+# UR SCREENS
+fighter_results_player,Player {0}
+loading_player_one,Player 1
+loading_player_two,Player 2
+resonance_grid_tag,Constellation

@@ -40,6 +40,10 @@ namespace FTT.UI {
             GetNode<Button>(Root + "ButtonRow/BackButton").Pressed += Back;
             GetNode<Button>(Root + "ButtonRow/ExitButton").Pressed += ExitCalibration;
 
+            // UR-SCREENS: banner decor on every row and footer button, the prompt bar bottom-right.
+            PulpScreenKit.DecorateButtons(GetNode<Control>(Root.TrimEnd('/')), compact: true);
+            foreach (Button row in _drillButtons) PulpScreenKit.ReserveBadgeSpace(row);
+            PulpScreenKit.AddPromptBar(this, ("ui_accept", "ui_prompt_select"), ("ui_cancel", "common_back"));
             // FU-MENU: nine drill rows outgrow 1080 px at the 1.4 UI scale; shrink to fit.
             MenuSafeAreaFit.Attach(GetNode<Control>(Root.TrimEnd('/')));
             FocusChainBuilder.Apply(GetNode<Control>("List"));
@@ -54,8 +58,8 @@ namespace FTT.UI {
                     // Numbered so the order the design fixes is visible, and the
                     // objective sits under the name as the one-line lesson.
                     Text = $"{index + 1}.  {Tr(drill.NameKey)}\n{Tr(drill.ObjectiveKey)}",
-                    CustomMinimumSize = new Vector2(720f, 64f),
-                    ThemeTypeVariation = "TemporalGlassButton",
+                    CustomMinimumSize = new Vector2(720f, 70f),
+                    ThemeTypeVariation = UIPalette.Variations.PulpButtonCompact,
                     Alignment = HorizontalAlignment.Left,
                     AutowrapMode = TextServer.AutowrapMode.WordSmart
                 };
