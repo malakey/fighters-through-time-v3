@@ -487,7 +487,7 @@ This package is out of the numbered sequence on purpose. The V7.5/V7.6 design ma
 Twenty workstreams across two parallel waves plus a serial closeout, in isolated git worktrees:
 
 - **Wave 1 (nine):** A1 status architecture · A2 Time Freeze · A3 Timeline Integrity as the level timer · A4 Resonance Grids V7.6 · A5 Legacy Unlock Schedule and dialogue mechanisms · A6 narrative content · A8 HUD, presentation and comfort settings · A9 three Open Fighter stages · A12 the Level 4A framework and Einstein exemplar.
-- **Wave 2 (eleven):** A1b defensive contract D01–D04 · A1c Echo Step determinism, protocol v3, F21/F22 · A3b Act III gauntlet and attempt state · A6b roster de-hardcoding and the two-colour grammar · A7a the Eraser · A7b bosses · A9b Fighter CPU recovery and verb policy · A10 the F05 dust economy · A11 Calibration Drills · B1/B2/B3 the remaining eight Level 4A variants.
+- **Wave 2 (eleven):** A1b defensive contract D01–D04 · A1c Echo Step determinism (the verb was removed on 2026-10-25), protocol v3, F21/F22 · A3b Act III gauntlet and attempt state · A6b roster de-hardcoding and the two-colour grammar · A7a the Eraser · A7b bosses · A9b Fighter CPU recovery and verb policy · A10 the F05 dust economy · A11 Calibration Drills · B1/B2/B3 the remaining eight Level 4A variants.
 - **Phase C (serial):** the single save-schema v6 migration, the compiled translation, the `AGENTS.md`/`CLAUDE.md` rewrite, the ledgers, and three consecutive full-suite runs.
 
 ### Standing decisions worth carrying forward
@@ -541,6 +541,14 @@ Eleven workstreams across two parallel waves plus a serial closeout, in isolated
 ### Explicitly NOT met
 
 **Nothing in this package was played, looked at, listened to or balanced.** F09, V02, V01 par measurement and S01 stayed out of scope, and the user rulings D10, D11, D13, D14 and D15 are still owed. Package 9 inherits the validation; the held rulings block their own follow-ups, not Package 9.
+
+## Feel and UI update - 2026-10-25
+
+Feel and UI update (2026-10-25): per `docs/FEEL_UI_UPDATE_2026-10-25_PLAN.md`, Echo Step was removed from both modes (components 313-317 retired; the largest Fighter snapshot fell from 4,473 B to 3,277 B), the hub Holodeck console, Fighter pause, LAN select, collapse choice and Resonance grid were centred on screen, Story encounter areas stopped panning the camera and lost their drawn wall, "Enemies left" count and GO prompt, the Fighter finisher now launches 2x as far with a side-wall bounce and a short hitstun shove replaced the slide, and a successful block plays a drawn effect. Baseline 3541 tests, three consecutive green runs at `07cb30fa`. Nobody has played or looked at any of it; the UI and HUD redesign exists only as mockups outside the repository awaiting the user's selections. Details: `AGENTS.md`, the ledger section "Confirmed open deviations — feel and UI update, 2026-10-25", and `docs/handoffs/FU_*.md`.
+
+### Explicitly NOT met
+
+Nothing in this update was played. The UI and HUD redesign (request 7) is mockups only, outside the repository; the user's per-element selections are pending and implementing them is a later package. Open questions are in the ledger (`VERIFY-INVISIBLE-ENCOUNTER-WALL-CUE`, `USER-FIGHTER-HITSTUN-SHOVE`'s heavy-hit distance, `VERIFY-STORY-HERO-HITSTUN-GLIDE`).
 
 ## Recommended next implementation batch
 

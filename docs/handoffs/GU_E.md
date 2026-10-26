@@ -21,7 +21,7 @@ Pure, engine-free (floats, ints, bools and two `FTT.Core` enums; no Godot type, 
 | `DefaultBarrierWidthPixels` | 20 | Provisional |
 | `BarrierEdgeTolerancePixels` | 20 | Provisional (the hero's half-width) |
 | `ViewWorldWidth` / `ViewWorldHeight` | 1280 / 720 | **TODO for the orchestrator:** point both at `StoryCameraRules.ViewWorldSize` once GU-B is merged. Until then this is the only copy. |
-| `CameraEaseSeconds` | 0.6 | Provisional |
+| `CameraEaseSeconds` | 0.6 (**superseded 2026-10-25, FU-LOCK: constant deleted, the camera limits ratchet instead**) | Provisional |
 | `GoPromptSeconds` | 3 | Provisional |
 | `MinAreaWidthPixels` | `= ViewWorldWidth` (1280) | |
 | `MaxAreaWidthPixels` | 3200 | Provisional. See Deviations: the plan said "about 2600". |
@@ -33,8 +33,8 @@ Enum `EncounterWaveTrigger { OnBuild, OnEngage, WhenAliveAtMost, AfterPreviousCl
 ### Event and HUD
 
 - `scripts/Core/EventBus.cs`: `enum EncounterLockState { Armed, Engaged, Cleared }`, `enum EncounterGoDirection { None, Right, Left, Up, Down }`, `struct EncounterLockPayload { LockID, State, Remaining, Total, GoDirection }`, `event OnEncounterLockChanged` / `RaiseEncounterLockChanged`. The payload is raised on every state edge and, while Engaged, whenever the count changes. `Remaining` = living members + members a wave has yet to spawn; `Total` = everything the lock plans on this difficulty.
-- `StoryHUD` (new partial `scripts/UI/StoryHUD.EncounterLock.cs` and four one-line hooks in `StoryHUD.cs`): the authored node `SafeArea/EncounterLockPanel` in `scenes/ui/StoryHUD.tscn`, with `EnemiesLeft` (`HeadingLabel`, "Enemies left: {0}", shown while Engaged when `Total > 0`) and `GoPrompt/{GoText, GoArrow}` (`EmphasisLabel`, the text `hud_encounter_go` plus the arrow glyph, gold, shown for `GoPromptSeconds` after a clear). Theme roles only, no font-size overrides. Test seams: `EncounterCounterVisible`, `EncounterCounterText`, `EncounterGoPromptVisible`, `EncounterGoArrow`, and the const `StoryHUD.EncounterEnemiesLeftKey`.
-- `localization/en.csv` block `# GU-E`: `hud_encounter_enemies_left` ("Enemies left: {0}"), `hud_encounter_go` ("GO"), `encounter_lock_objective_clear` ("Defeat every enemy here to break the Severed barrier."). `--import` was run and `localization/en.en.translation` is committed.
+- `StoryHUD` (new partial `scripts/UI/StoryHUD.EncounterLock.cs` and four one-line hooks in `StoryHUD.cs`): the authored node `SafeArea/EncounterLockPanel` in `scenes/ui/StoryHUD.tscn`, with `EnemiesLeft` (`HeadingLabel`, "Enemies left: {0}", shown while Engaged when `Total > 0`) and `GoPrompt/{GoText, GoArrow}` (`EmphasisLabel`, the text `hud_encounter_go` plus the arrow glyph, gold, shown for `GoPromptSeconds` after a clear). Theme roles only, no font-size overrides. Test seams: `EncounterCounterVisible`, `EncounterCounterText`, `EncounterGoPromptVisible`, `EncounterGoArrow`, and the const `StoryHUD.EncounterEnemiesLeftKey`. **Superseded 2026-10-25 (FU-LOCK, `docs/handoffs/FU_LOCK.md`):** the panel, `StoryHUD.EncounterLock.cs`, its hooks and both keys were deleted; the Story HUD shows no count and no GO prompt.
+- `localization/en.csv` block `# GU-E`: `hud_encounter_enemies_left` ("Enemies left: {0}"), `hud_encounter_go` ("GO"), `encounter_lock_objective_clear` ("Defeat every enemy here to break the Severed barrier."). `--import` was run and `localization/en.en.translation` is committed. **Superseded 2026-10-25 (FU-LOCK, `docs/handoffs/FU_LOCK.md`):** `hud_encounter_enemies_left` and `hud_encounter_go` were deleted from `en.csv`; `encounter_lock_objective_clear` stays.
 
 ### The node: `FTT.Environment.EncounterLock` (`scripts/Environment/EncounterLock.cs`)
 
@@ -46,7 +46,7 @@ Enum `EncounterWaveTrigger { OnBuild, OnEngage, WhenAliveAtMost, AfterPreviousCl
   2. Hero containment, **every tick, even while held**: revert to Armed on a living hero outside the area.
   3. If held (the Time Freeze latch, `ChronalRewindManager.IsWorldHeld`, or the live freeze controller), stop here.
   4. Armed: engage when `CanEngage`. Engaged: re-engage members that lost their target, spawn due waves (then `TimeFreezeController.FreezeActivatedRoom`), run the stall watchdog, then clear or hard-cap.
-- Engage: the entry closes (with the hero push-out), every living member gets `Engage(hero)`, the camera gets `SetLockBounds(CameraBounds)`, then `StateChanged` and the payload.
+- Engage: the entry closes (with the hero push-out), every living member gets `Engage(hero)`, the camera gets `SetLockBounds(CameraBounds)`, then `StateChanged` and the payload. **Superseded 2026-10-25 (FU-LOCK, `docs/handoffs/FU_LOCK.md`):** `SetLockBounds` no longer starts an ease; it opens the limits to the union of the view and the lock's bounds and the limits then ratchet inward only as the follow rig's view passes them.
 - Revert: the entry opens, the exit stays closed, members go dormant (HP kept), the camera gets `ClearLockBounds()`.
 - Clear: latched. Both barriers open, the camera gets `ClearLockBounds()`, the payload carries `GoDirection`.
 - Members are registered at the spawn call (`EnemyFactory.Spawn` under the lock's parent) at their `SpawnGeneration`. Each member subscribes to `Died`. A member counts as removed when it is dead, freed, queued for deletion, recycled (generation changed: logged as `[encounter-lock] … recycled`, counted in `RecycledMembers`) or no longer carries the lock's token (parked by the pool).
@@ -73,7 +73,7 @@ Plain data.
 - Group `EncounterLockBarrier.Group` (`"story_encounter_barrier"`). Not in `StoryGateRules.DoorGroup` and not a `ForcefieldBarrier`.
 - `PushOut(body, halfWidth)` puts an overlapping body just past the face on the area side and zeroes its horizontal speed.
 - Read surface: `Footprint`, `CenterX`, `TopY`, `BottomY`, `Width`, `IsEntry`, `AreaSide`, `IsClosed`, `Shape`, `LockID`.
-- Placeholder look: an `UnboundCold` / `UnboundColdDim` curtain, drawn only while closed, with zig-zag edges and a column of hollow diamonds (the non-colour channel). Only the part at y ≥ 0 is drawn.
+- Placeholder look: an `UnboundCold` / `UnboundColdDim` curtain, drawn only while closed, with zig-zag edges and a column of hollow diamonds (the non-colour channel). Only the part at y ≥ 0 is drawn. **Superseded 2026-10-25 (FU-LOCK, `docs/handoffs/FU_LOCK.md`):** no curtain is drawn any more: the walls are invisible (collision, `IsClosed` and push-out unchanged).
 - `EncounterSpawnTear` (`scripts/Environment/EncounterSpawnTear.cs`): a 0.5 s cold jagged tear at each spawn-in. Placeholder, not pooled.
 
 ### Members: `EnemyController.Encounter.cs` (new partial) and hooks in `EnemyController.cs`
@@ -95,9 +95,9 @@ Plain data.
 
 ### Camera: the lock-bounds layer in `StoryCameraConfiner`
 
-- `SetLockBounds(Rect2)` / `ClearLockBounds()`. `SetBounds(room)` always stores `RoomBounds`, and while a lock holds the camera it does nothing else. That covers Level 3's and Level 7's repeatable room triggers and the base's `OnRewindLanded` and `ApplyResumeCameraBounds`.
-- The limits ease toward the target with `StoryCameraRules.DampFactor(EncounterLockRules.CameraEaseSeconds, delta)` in `StepBoundsEase(delta)`. That method is public, and one line at the top of `_PhysicsProcess` calls it.
-- `ActiveBounds` reads the target at once. `CurrentLimits` is the eased rect.
+- `SetLockBounds(Rect2)` / `ClearLockBounds()`. `SetBounds(room)` always stores `RoomBounds`, and while a lock holds the camera it does nothing else. That covers Level 3's and Level 7's repeatable room triggers and the base's `OnRewindLanded` and `ApplyResumeCameraBounds`. **Superseded 2026-10-25 (FU-LOCK, `docs/handoffs/FU_LOCK.md`):** the lock layer is now a ratchet (`StepRatchet`), see below.
+- The limits ease toward the target with `StoryCameraRules.DampFactor(EncounterLockRules.CameraEaseSeconds, delta)` in `StepBoundsEase(delta)`. That method is public, and one line at the top of `_PhysicsProcess` calls it. **Superseded 2026-10-25 (FU-LOCK, `docs/handoffs/FU_LOCK.md`):** there is no ease: `StepBoundsEase` and `CameraEaseSeconds` were deleted; `StepRatchet(desiredCentre)` moves each limit side toward the target only when the follow rig's unclamped desired view has passed it, inward and never back.
+- `ActiveBounds` reads the target at once. `CurrentLimits` is the eased rect. **Superseded 2026-10-25 (FU-LOCK, `docs/handoffs/FU_LOCK.md`):** `CurrentLimits` is the ratcheting working rect (the target merged with the view at the call), not an eased rect.
 - Other read surface: `HasLockBounds`, `LockBounds`, `RoomBounds`, `IsEasingBounds`.
 - Without a follow rig the limits apply at once.
 - GU-B's `Zoom` / `ViewSize` / framing members were not touched.
@@ -193,7 +193,7 @@ No scene other than `StoryHUD.tscn` changed. `level_02_rewards.tres` and `Level_
 8. **The hard cap never bypasses a pending puzzle or breakable.** The plan's literal rule ("no living registered member force-clears") would have opened a puzzle lock after 5 minutes. With waves counted as spawned once attempted (a failed pool spawn is logged and skipped), the cap only rescues a wave whose trigger can never fire.
 9. **Remaining = living + unspawned planned.** The counter hides when `Total` is 0 (a puzzle-only lock).
 10. **Area vertical span** is authored from `ColumnTopY` to the level bottom (`EncounterLockSpec.Span`), so no jump or movement ability ever leaves an area upward and reverts it. The camera rect clips that span to the level.
-11. **The camera rect** is the area clipped to the level, and if narrower than the view it is grown about its centre and shifted inside the level. The barriers sit just outside the camera's limits, so the screen edge itself reads as the lock (the classic beat-'em-up stop). The curtain's glow reaches 10 px past each face.
+11. **The camera rect** is the area clipped to the level, and if narrower than the view it is grown about its centre and shifted inside the level. The barriers sit just outside the camera's limits, so the screen edge itself reads as the lock (the classic beat-'em-up stop). The curtain's glow reaches 10 px past each face. **Superseded 2026-10-25 (FU-LOCK, `docs/handoffs/FU_LOCK.md`):** there is no curtain glow and the walls draw nothing; the stop is felt as collision only.
 12. **Barrier defaults**: 20 px wide and full height (`ColumnTopY` to the floor). At a gate with a gate column, the barrier spans only the column's foot to the floor, so it never stands beside the column as a second wall.
 13. **Content rules as implemented** (`EncounterLockContentTests`):
     - no checkpoint, font or sealing anchor footprint (±30 px) inside an area;
@@ -234,7 +234,7 @@ New suites (+35):
   - `AMemberPushedPastTheAreaEdgeIsClampedBackInsideInEveryState`
   - `AWallPhasingRiftPhantomStaysInsideTheAreaItCouldOtherwisePassThrough`
   - `TheHudCountsTheEnemiesLeftAndShowsTheGoArrowAfterTheClear`
-  - `TheCameraLockLayerOverridesRoomBoundsAndEasesInAndOut`
+  - `TheCameraLockLayerOverridesRoomBoundsAndEasesInAndOut` **Superseded 2026-10-25 (FU-LOCK, `docs/handoffs/FU_LOCK.md`):** renamed `TheCameraLockLayerOverridesRoomBoundsAndRatchetsInAndOut`; `EncounterLockCameraRatchetTests` (7) is new.
   - `TheStallWatchdogRelocatesAMemberStuckOutOfReachAndNeverKillsIt`
   - `TheHardCapForceClearsALockWhoseWaveCanNeverSpawn`
   - `AClosingBarrierPushesAnOverlappingHeroToTheAreaSide`
@@ -280,8 +280,8 @@ Runs (lock held for each, orphans checked):
 - **The camera's view constant is a fallback copy** (`EncounterLockRules.ViewWorldWidth` / `ViewWorldHeight`). After GU-B merges, point both at `StoryCameraRules.ViewWorldSize` and delete the copies. Until then a lock camera rect narrower than 1920 px is centred by the zoom-1.0 confiner, which is harmless.
 - **The bots** (GU-BOT) still target by `EngageRadius` and give up after 720 frames. They need the lock queries (`StoryLevelControllerBase.EncounterLocks`, group `story_encounter_lock`, `EncounterLock.LivingMembers`, `IsHolding`) and a nav rebuild rule for barriers. The barriers toggle pre-built shapes, which `PlaytestNav` already notices.
 - **Mover hold:** only the query (`IsHolding`, `StateChanged`). No level wires a mover to it yet.
-- **Placeholders only:** the curtain, the spawn tear and the GO prompt. Nobody has looked at them; they are untuned against the 1.5 zoom.
-- **The Story HUD contract (`HUD_CONTRACT`)** does not yet name `EncounterLockPanel`. That amendment is owed.
+- **Placeholders only:** the curtain, the spawn tear and the GO prompt. Nobody has looked at them; they are untuned against the 1.5 zoom. **Superseded 2026-10-25 (FU-LOCK, `docs/handoffs/FU_LOCK.md`):** the curtain and the GO prompt no longer exist; only the spawn tear remains a placeholder.
+- **The Story HUD contract (`HUD_CONTRACT`)** does not yet name `EncounterLockPanel`. That amendment is owed. **Superseded 2026-10-25 (FU-LOCK, `docs/handoffs/FU_LOCK.md`):** moot: there is no `EncounterLockPanel`, so `HUD_CONTRACT` needs no amendment.
 - **Not covered:**
   - a hero that grabs a member and is then reverted out keeps holding it (the clamp skips a held body);
   - crowd bowling's direct `TryApplyKnockback` on a dormant member across a barrier is not warded (within 55 px through a 20 px wall);
@@ -313,7 +313,7 @@ Runs (lock held for each, orphans checked):
 - :406 (the Combat Trial)
 - :2122 (F10 baseline encounter IDs now include lock IDs)
 - :3208–3211 "Enemy Spawn Rules" and :3213–3216 "Room Transitions" (the lock state machine, barriers, dormant members, the camera override)
-- the Story HUD section (the counter and GO prompt)
+- the Story HUD section (the counter and GO prompt) **Superseded 2026-10-25 (FU-LOCK, `docs/handoffs/FU_LOCK.md`):** the counter and GO prompt were removed.
 
 **Ledger rows:**
 - Write `USER-ENCOUNTER-LOCKS` (quote request 3 and the scope ruling "every area with enemies, plus puzzle rooms whose puzzle blocks the way forward") and `PROVISIONAL-ENCOUNTER-LOCK-RULES` (Decisions 1–16 and the constants table).
@@ -321,7 +321,7 @@ Runs (lock held for each, orphans checked):
 - Amend `PROVISIONAL-ENEMY-CHASE-LEASH`: its premise "encounters may be skipped" is superseded inside locks, and an engaged member's leash is bypassed.
 - Amend `P5-GATE-COLUMN-SWEEP`: the sky-ceiling launch-point skip.
 - Note `ARENA-WAKE-REVEAL`: unchanged, because boss arenas are not locks.
-- Amend `HUD_CONTRACT` (the `EncounterLockPanel` widget).
+- Amend `HUD_CONTRACT` (the `EncounterLockPanel` widget). **Superseded 2026-10-25 (FU-LOCK, `docs/handoffs/FU_LOCK.md`):** withdrawn; there is no widget to name.
 - Move the 2026-10-04 Level 2 Middle-anchor fact (5300) to 6370.
 
 **Merge notes:**

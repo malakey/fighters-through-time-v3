@@ -1,6 +1,6 @@
 # Feel and UI update (2026-10-25): Echo Step removal, centred menus, encounter areas without the shift or the blue line, Fighter finisher / wall bounce / hitstun shove, block-success effect, UI redesign mockups
 
-Status: **in progress** (orchestrated 2026-10-25). Base: `0eba848`, test baseline **3529**.
+Status: **closed 2026-10-25** (orchestrated 2026-10-25; integrated at `07cb30fa`). Base: `0eba848`, test baseline **3529**, final **3541**.
 
 This is a scaled-down package plan: one worktree agent per concern, locked decisions in each brief, an orchestrator who merges, and a serial closeout that writes the shared docs. Workstream IDs are `FU-*`; handoffs are `docs/handoffs/FU_<WS>.md`.
 
@@ -125,8 +125,45 @@ Self-contained HTML mockups and an `OPTIONS.md` under `D:/Projects/fighters-thro
 
 ## 9. Deviation log (append-only)
 
-(empty)
+Entries record where the build departed from this plan or where a plan estimate proved wrong; the handoffs (`docs/handoffs/FU_*.md`) carry the detail.
+
+- **FU-MENU also fixed two bugs the recon had not named.** `ResonanceGridPanel` (`:62`) and `BossPhaseNotchOverlay` (`:40`) called `SetAnchorsPreset(FullRect)` on a node already in the tree, which recomputes offsets to keep the old 0 × 0 rect; the grid's root control was therefore 0 × 0 and the whole Resonance grid (hub Repository terminal and Warden Beacons) centred on the screen's top-left corner. Both now use `SetAnchorsAndOffsetsPreset`. The recon's "MainMenu root panel 886 px at 1.0" passes at UI scale 1.4 in the sweep, so no fit was added there; only the Calibration Drill list needed `MenuSafeAreaFit` (about 0.9 at 1.4). The fit is a shrink, not a `ScrollContainer`, to keep node paths and focus chains; the four fixed panels' node paths did move (`Panel/Layout/...` → `Center/Panel/Layout/...`) and the dependent tests were updated.
+- **FU-ECHO kept the whiff-recovery case as a roll case.** `UltimateActivationTests.EchoStepCannotUndoTheWhiffRecovery` became `ARollCannotUndoTheWhiffRecovery` instead of being deleted, so the workstream is −26, not the recon map's −27. It also removed more dead CPU state than the map listed (`_attackExecutionID`, `_lastObservedAttackPhase`, `SelfAttackMadeContact`, `SelfDefyAvailable`, the `CpuVerbState` Defy fields; `TrackEpisodeAndExecution` became `TrackEpisode`), changed `GamepadDefaultBindingTests.NoAuthoredActionDefaultsToTheGuideButton`'s action-count floor from 18 to 17, and left `CalibrationDrillDummyRole.Idle` unused. No seeded Medium or Hard CPU expectation flipped despite the shifted RNG stream.
+- **FU-LOCK's stand-still test bounds the camera within 120 px of the hero, not 1 px.** The follow rig's look-ahead settles after the hero stops (its dead zone and damping), so a 1 px bound was wrong; the case still fails against the old ease (588 px from the hero). The plan's "tightens onto the area as the hero walks in" is built as a per-side ratchet; `EncounterLockRules.CameraEaseSeconds`, `GoPromptSeconds` and `GoGlyph` were all deleted because nothing else read them.
+- **FU-KNOCK's heaviest real grounded shove is 0.36–0.38 u, not the ruling's "about 0.5".** The recon's 0.5–0.6 figure assumed a weight-1.0 victim; the measured mirror matchups use each kit's own weight. The shipped constants (scale 3.0, decay 0.79, snap 0.25 u/s) hit the weak end (0.21 u) and ninety percent of every shove within 12–13 moving ticks. One constant, `FighterHitstunShoveScale` 3.0 → 4.0, would give 0.28–0.51 u; it is left for the user (`USER-FIGHTER-HITSTUN-SHOVE`).
+- **FU-KNOCK's wall bounce lengthens the stun in wall-clock terms and a slam relaunch does not re-arm it.** The bounce's 6-tick freeze suspends the victim's hitstun counter like any hitstop (hitstun itself is untouched), and the Down-Air slam-bounce relaunch in `FighterVerbRules` does not clear the once-per-launch flag, so it counts as part of the same continuous tumble. Lincoln's finisher (and most finishers at about 50 % victim HP) now reaches a wall from mid-stage; the ruling set no per-kit cap. Story's finisher, D6a carry and D9 mob wall bounce are untouched.
+- **Integration fragility, found and fixed.** The merged tree failed `FighterBlockSparkTests.AnOrdinaryBlockShowsAnOrdinarySparkAndTheGuardBreakAShatterOne` (three runs read `Failed: 1`): the harness left player two as the boot session's Normal CPU, which had only happened to block three times at the old spacing before FU-KNOCK changed it. `7e90d1f5` runs player two as `FighterOpponentType.LocalHuman` in `FighterBlockSparkTests` and `FighterWallBouncePresentationTests` and restores the session in `finally`. No count changed. `3d5aa099` regenerated the compiled translation once after the merges, as §4 planned.
+- **Review round (Codex gpt-6-astra, high, round 1, `APPROVE WITH NITS`).** Two minor findings: the driver fired the wall-bounce burst and the perfect-block flash and spark on any rise of a wrapping counter, so a rollback correction that lowers a counter could replay the effect; and the block-spark fixture did not force a local human opponent. `07cb30fa` fires on a short forward step only (`FighterSimulationDriver.IsForwardCounterStep`) and extended two cases in place (`FighterBlockSparkTests.ARiseOfThePerfectBlockCountShowsOnePerfectSparkAndALoweredCountShowsNone`, `FighterWallBouncePresentationTests.ARisingBounceCounterSpawnsOneImpactBurstAndAnUnchangedOrLoweredOneSpawnsNone`); the fixture half was `7e90d1f5`. No critical or major finding, so no second round.
+- **FU-MOCK was not a worktree workstream.** Its output (HTML mockups and an option list) lives outside the repository, so it shipped no code, no test and no handoff in `docs/handoffs/`; see §10.
 
 ## 10. Closeout
 
-(pending)
+**Closed 2026-10-25.** Integrated at `07cb30fa`; full suite `Failed: 0, Passed: 3541, Total: 3541`, three consecutive runs (1 m 45 s, 1 m 42 s, 1 m 44 s), orphan processes drained and the GdUnit lock held for each, with a fourth earlier run on the tree without the review fix reading the same in 1 m 42 s. The earlier integration runs that read `Failed: 1` are the harness fragility in §9.
+
+### What shipped, per workstream
+
+- **FU-MENU (+4).** The hub Holodeck console (and the Versus CPU stage phase), the Fighter pause, the LAN select and the hub collapse choice are centred under a full-rect `CenterContainer`; `FirstUseTooltipPresenter` anchors top-centre; the Resonance grid and `BossPhaseNotchOverlay` anchor bug is fixed; `MenuSafeAreaFit` shrinks a tall panel to the viewport (the Drill list at 1.4); `MenuLayoutBoundsTests` sweeps every menu surface at UI scale 1.0 and 1.4. Ledger `USER-MENUS-CENTERED`, `PROVISIONAL-MENU-SAFE-AREA-FIT`.
+- **FU-BLOCK (+11).** A pooled, code-drawn `BlockSparkEffect` in three kinds (ordinary arc and sparks 0.28 s, perfect gold double ring 0.40 s, guard-break shards 0.45 s), hooked in Story (block branch, hazard block) and Fighter (charge drop, daze edge, perfect-block counter). Ledger `USER-BLOCK-SUCCESS-EFFECT`, `PROVISIONAL-BLOCK-SPARK-LOOK`.
+- **FU-LOCK (+5).** The camera-limit ease became a ratchet (no forced pan on entry or clear), the encounter walls draw nothing, the Story HUD lost the "Enemies left" count and GO prompt with their keys. Ledger `USER-LOCK-NO-CAMERA-SHIFT`, `USER-LOCK-BARRIERS-INVISIBLE`, `USER-LOCK-HUD-REMOVED`, `VERIFY-INVISIBLE-ENCOUNTER-WALL-CUE`.
+- **FU-KNOCK (+18).** The Fighter finisher launches with 2× horizontal speed (2.0–2.1× travel off-wall), a launched fighter bounces off a side wall once per launch (6-tick freeze, burst, shake), and a grounded victim of a non-launching hit gets a 0.2–0.4 u shove instead of a slide; component 323 `ActionFlags` bit 4 and bits 8–11. Ledger `USER-FIGHTER-FINISHER-2X`, `USER-FIGHTER-WALL-BOUNCE`, `USER-FIGHTER-HITSTUN-SHOVE`, `PROVISIONAL-FIGHTER-KNOCKBACK-FEEL`, `VERIFY-STORY-HERO-HITSTUN-GLIDE`, `VERIFY-PRESENTATION-COUNTER-ROLLBACK`.
+- **FU-ECHO (−26).** Echo Step removed from both modes: components 313–317 retired, the largest Fighter snapshot 4,473 B → 3,277 B, the HUD's fourth radial, the sixth drill, the C01c recipe and the action gone; protocol v4 and save schema v8 unchanged. Ledger `USER-REMOVE-ECHO-STEP`.
+- **FU-MOCK.** Request 7: HTML mockups and an option list outside the repository at `D:\Projects\fighters-through-time-docs-2\mockups\ui_redesign_2026-10-25\`. **The user's selections are pending**, and implementing the redesign is a later package. Ledger `USER-UI-REDESIGN-MOCKUPS`.
+
+### Test arithmetic
+
+3529 + 11 (FU-BLOCK) − 26 (FU-ECHO) + 5 (FU-LOCK) + 4 (FU-MENU) + 18 (FU-KNOCK) = **3541**, and the `[TestCase]` attribute count under `tests/` is 3541. The integration and review commits changed no count. AGENTS.md's validation section lists every in-place change.
+
+### Validation
+
+`dotnet build` 0 errors, with only the known pre-existing warnings (`CS8632` in vendored GdUnit4, and Klotho's `KLSG_ECS004` on a full rebuild) and no `KLOTHO_DET002`; the full suite as above; `--headless --import` run after the localization deletions and renames, the compiled translation regenerated once by the orchestrator (`3d5aa099`). Rollback readiness, measured on `fu/echo` before FU-KNOCK merged (FU-KNOCK adds no snapshot state): largest snapshot 3,277 B (was 4,473 B), worst-case resimulation 0.090 ms median / 0.137 ms p95, no breach; the integrated logs print no timing lines (`docs/PERFORMANCE_BASELINE.md`).
+
+### Review
+
+Cross-provider review by Codex gpt-6-astra (high), one round on the integrated change: `APPROVE WITH NITS`, two minor findings, both fixed (§9).
+
+### Not delivered, and nobody played it
+
+- **Nobody has played or looked at any of it** in a window. Every claim is a headless suite, a probe or a model: the finisher's distance, a bounce and its freeze and shake, the shove, a block effect at the 1.5 Story zoom or the Fighter camera, an invisible wall, the ratcheting camera on entry, a centred menu at UI scale 1.4, the three-radial Fighter HUD.
+- **Open for the user:** the heavy-hit shove distance (0.36–0.38 u against "about 0.5"; one constant), whether invisible walls need a cue, whether the Story hero should get the same shove, Lincoln's wall-reaching finisher (no cap by ruling), and whether a meter-priced combo breaker should ever replace Echo Step.
+- **Not built:** the UI and HUD redesign itself (mockups only, selections pending); a core audio cue for the bounce or the block (every stream is silent anyway); a Fighter contact point for the block effect; a block effect for enemies and bosses.
+- **Design documents** (`design-godot.md`, its master, the adopted contracts) were edited by the design closeout of the same package; the ledger's index section lists the lines each ruling required.

@@ -19,11 +19,11 @@ Package 11 update (2026-09-13): **Sections 1, 3, 5, 6, 7, 9, 10, 11, 12, 14, 17,
 - **Campaign (§1, §23).** Seventeen route slots, not sixteen: `CampaignLevel.LegacyNexus = 16` adds Level 4A between Levels 4 and 5, with nine per-character variants on a sealed `LegacyLevelControllerBase`. Levels 13–15 are an Act III gauntlet that never returns to the hub. Checkpoints carry authored roles; the F10 attempt record drives load routing; Smothered is the game's only Game Over.
 - **Time mechanics (§10).** Manual Rewind, the Stasis Anchor, the Stasis Echo and the 12 s cooldown are **deleted**. Time Freeze (5 s, 45 s cooldown at thaw, Story-only, no charges) replaces them. The death rewind is unchanged.
 - **Integrity (§23).** Timeline Integrity is now the level timer with no restoration path at all; the whole siphon share/grace/restore model is gone, tier lines are 50/20, and the Collapse Tremor is a real mechanic below 20 % / 10 %.
-- **Combat (§9, §22).** The D01–D04 defensive order, Defy protected recovery, F15's full shatter, the F17 lockout fix, the Rally clamp, zone/ultimate meter-origin rules, the exact 31-sample Echo Step, two status slots with stronger-wins replacement, `Suppression`, the Conductive mark, F21 mode consolidation and the F22 Sudden Death rewrite.
+- **Combat (§9, §22).** The D01–D04 defensive order, Defy protected recovery, F15's full shatter, the F17 lockout fix, the Rally clamp, zone/ultimate meter-origin rules, the exact 31-sample Echo Step (removed 2026-10-25), two status slots with stronger-wins replacement, `Suppression`, the Conductive mark, F21 mode consolidation and the F22 Sudden Death rewrite.
 - **Progression (§6, §7).** Nine unique V7.6 Resonance topologies with a real topology renderer and nine wired traversal flags; the V7.5 Legacy Unlock Schedule gating ability slots by campaign milestone; save schema **v6**.
 - **Enemies and bosses (§4).** A 28th enemy (the Eraser, with the Null Lance and the Siphon Snare channel), spawn placements for it and for the never-placed Chrono-Warden, the four V7.6 boss HP rows, the F20 Mirror Paradox profile and the First Unbound's P2 self-rewind and P3 Borrowed Legacies.
 - **Economy (§24).** Per-source dust is an authored manifest, not a rate card; an unauthored source pays nothing, a difficulty changes the distribution but never the total, and every boss pays 25.
-- **Fighter (§2, §21).** Three Open stages with real, reachable pits (closing audit H-11), floor-segment ledges, and the F19 tiered CPU recovery planner with pit-aware DI and per-band grab/Echo Step policy.
+- **Fighter (§2, §21).** Three Open stages with real, reachable pits (closing audit H-11), floor-segment ledges, and the F19 tiered CPU recovery planner with pit-aware DI and per-band grab policy (and Echo Step until its removal on 2026-10-25).
 - **Presentation and settings (§11, §12, §17, §18).** The HUD_CONTRACT Story HUD rewrite, the F24 ownership outline channel, C01a Reduced Temporal Effects, C01b prioritized audio with `CriticalCues` and `Dialogue` buses, and the C01c binding shape with explicit Unbound slots and per-device shortcut toggles.
 - **Narrative and onboarding (§14, §11).** The V7.5 canon (the Unbound, the Wardens, the Meridian), the retired power-fade arc, 21 hero-conditional dialogue sequences, universal hold-to-skip with a global seen set, and F18's six Calibration Drills on a standalone main-menu route.
 
@@ -611,6 +611,8 @@ The project has strong architectural foundations that will support scaling:
 | Test | TestScene |
 
 ---
+
+Feel and UI update (2026-10-25): per `docs/FEEL_UI_UPDATE_2026-10-25_PLAN.md`, Echo Step was removed from both modes (components 313-317 retired; the largest Fighter snapshot fell from 4,473 B to 3,277 B), the hub Holodeck console, Fighter pause, LAN select, collapse choice and Resonance grid were centred on screen, Story encounter areas stopped panning the camera and lost their drawn wall, "Enemies left" count and GO prompt, the Fighter finisher now launches 2x as far with a side-wall bounce and a short hitstun shove replaced the slide, and a successful block plays a drawn effect. Baseline 3541 tests, three consecutive green runs at `07cb30fa`. Nobody has played or looked at any of it; the UI and HUD redesign exists only as mockups outside the repository awaiting the user's selections. Details: `AGENTS.md`, the ledger section "Confirmed open deviations — feel and UI update, 2026-10-25", and `docs/handoffs/FU_*.md`.
 
 ## Conclusion
 
