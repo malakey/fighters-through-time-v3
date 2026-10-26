@@ -63,3 +63,10 @@ Live matches (no driver run: the HUD was driven by hand-built components), a rea
 ## 8. Process note
 
 One capture command ran after its lock-acquire loop timed out (10 minutes without the lock) and then executed `rmdir` on the lock directory it did not own; another agent's run may have lost its lock for that moment. The later test runs acquired the lock properly (the loop now only proceeds on a successful `mkdir`).
+
+## 9. Review fixes (orchestrator round)
+
+- **Row order.** Row 2 (stocks, block pips, Defy) now sits between the HP bar and the 390 x 16 meter bar, both players, P2 mirrored (UI_SPEC 3L.e / 3L.f): in the scene the `MeterBar` is the last child of `Column`, after `PipRow`. No test pinned the sibling order.
+- **Clock.** `FighterHUD.ApplyMatchState` passes the minutes zero-padded (`ToString("D2")`) to `fighter_hud_clock`; the key is unchanged. Sudden Death shows no time, so nothing to pad. Tests changed in place (pinned text): `FighterHudSceneTests.TheMatchClockFollowsTheTimerFlagAndFormatsTimedModes` "8:00" -> "08:00", "1:05" -> "01:05"; `SuddenDeathReplacesTheRunningClockWithItsPhaseText` "0:12" -> "00:12".
+- **Echo vs numerals at 1.4.** The numerals keep their ink outline (the `HudNumeral` role) and a bar narrower than `FighterHudModel.HpMaxTextMinWidth` (460) drops the "/max" label, so only the current value sits beside the echo band; `hudf_140` shows "86" and "63" clear of it. The echo band still touches the digits at the bar's edge; it no longer sits under them.
+- Re-captured `hudf_versus` and `hudf_140` and checked both. Full run `Failed: 0, Passed: 3607, Total: 3607` (2 m 13 s), delta unchanged (+5).

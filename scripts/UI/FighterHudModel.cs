@@ -202,6 +202,8 @@ namespace FTT.UI {
         public const float RoundelColumnWidth = 130f;
         public const float HpBarFullWidth = 502f;
         public const float HpBarMinWidth = 240f;
+        /// <summary>Below this bar width the HP numerals drop their "/max" (the echo band would sit under them).</summary>
+        public const float HpMaxTextMinWidth = 460f;
         public const float HpBarHeight = 44f;
         public const float MeterBarFullWidth = 390f;
         public const float MeterBarHeight = 16f;

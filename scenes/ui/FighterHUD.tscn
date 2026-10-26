@@ -168,15 +168,6 @@ max_value = 100.0
 value = 100.0
 show_percentage = false
 
-[node name="MeterBar" type="ProgressBar" parent="SafeArea/P1_Status/Body/Column"]
-custom_minimum_size = Vector2(390, 16)
-layout_mode = 2
-size_flags_horizontal = 0
-mouse_filter = 2
-theme_type_variation = "PulpBar"
-value = 0.0
-show_percentage = false
-
 [node name="DefySeal" type="Label" parent="SafeArea/P1_Status/Body/Column"]
 visible = false
 custom_minimum_size = Vector2(20, 20)
@@ -277,6 +268,15 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("3_radial")
+
+[node name="MeterBar" type="ProgressBar" parent="SafeArea/P1_Status/Body/Column"]
+custom_minimum_size = Vector2(390, 16)
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+theme_type_variation = "PulpBar"
+value = 0.0
+show_percentage = false
 
 [node name="P2_Status" type="PanelContainer" parent="SafeArea"]
 layout_mode = 1
@@ -385,16 +385,6 @@ value = 100.0
 show_percentage = false
 fill_mode = 1
 
-[node name="MeterBar" type="ProgressBar" parent="SafeArea/P2_Status/Body/Column"]
-custom_minimum_size = Vector2(390, 16)
-layout_mode = 2
-size_flags_horizontal = 8
-mouse_filter = 2
-theme_type_variation = "PulpBar"
-value = 0.0
-show_percentage = false
-fill_mode = 1
-
 [node name="DefySeal" type="Label" parent="SafeArea/P2_Status/Body/Column"]
 visible = false
 custom_minimum_size = Vector2(20, 20)
@@ -496,6 +486,16 @@ visible = false
 layout_mode = 2
 mouse_filter = 2
 text = "fighter_hud_stocks"
+
+[node name="MeterBar" type="ProgressBar" parent="SafeArea/P2_Status/Body/Column"]
+custom_minimum_size = Vector2(390, 16)
+layout_mode = 2
+size_flags_horizontal = 8
+mouse_filter = 2
+theme_type_variation = "PulpBar"
+value = 0.0
+show_percentage = false
+fill_mode = 1
 
 [node name="Portrait" type="TextureRect" parent="SafeArea/P2_Status/Body"]
 visible = false

@@ -380,6 +380,8 @@ namespace FTT.UI {
                 PlayerPanel panel = _panels[index];
                 if (panel == null) continue;
                 if (panel.HP != null) panel.HP.CustomMinimumSize = new Vector2(hp, FighterHudModel.HpBarHeight);
+                // A narrow bar drops the "/max" so the current value stays clear of the Rally echo band.
+                if (panel.HpMax != null) panel.HpMax.Visible = hp >= FighterHudModel.HpMaxTextMinWidth;
                 if (panel.Meter != null) panel.Meter.CustomMinimumSize = new Vector2(meter, FighterHudModel.MeterBarHeight);
                 if (panel.Root is Control root) {
                     if (index == 0) {
@@ -675,7 +677,7 @@ namespace FTT.UI {
             int seconds = FighterHudModel.TotalSeconds(remainingFrames, tickRate);
             _timer.Text = string.Format(
                 Tr("fighter_hud_clock"),
-                FighterHudModel.ClockMinutes(remainingFrames, tickRate),
+                FighterHudModel.ClockMinutes(remainingFrames, tickRate).ToString("D2"),
                 FighterHudModel.ClockSeconds(remainingFrames, tickRate).ToString("D2"));
             bool danger = FighterHudModel.IsTimerDanger(seconds);
             if (danger != _timerDangerShown) {

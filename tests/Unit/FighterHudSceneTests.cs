@@ -354,12 +354,12 @@ public class FighterHudSceneTests {
 
             hud.ApplyMatchState(timerEnabled: true, 480 * TickRate, TickRate);
             AssertThat(hud.TimerVisible).IsTrue();
-            AssertThat(hud.TimerText).IsEqual("8:00");
+            AssertThat(hud.TimerText).IsEqual("08:00");
 
             hud.ApplyMatchState(timerEnabled: true, 65 * TickRate, TickRate);
             AssertThat(hud.TimerVisible).IsTrue();
-            // Seconds are zero-padded, so 1:05 never renders as "1:5".
-            AssertThat(hud.TimerText).IsEqual("1:05");
+            // Seconds are zero-padded, so 01:05 never renders as "1:5", and minutes are padded too (mm:ss, UR-HUDF).
+            AssertThat(hud.TimerText).IsEqual("01:05");
 
             // Timer Off takes the clock away again.
             hud.ApplyMatchState(timerEnabled: false, 65 * TickRate, TickRate);
@@ -381,7 +381,7 @@ public class FighterHudSceneTests {
             TranslationServer.SetLocale("en");
 
             hud.ApplyMatchState(true, 12 * TickRate, TickRate, (int)MatchMode.Stock, suddenDeath: false);
-            AssertThat(hud.TimerText).IsEqual("0:12");
+            AssertThat(hud.TimerText).IsEqual("00:12");
 
             hud.ApplyMatchState(true, 0, TickRate, (int)MatchMode.Stock, suddenDeath: true);
             AssertThat(hud.TimerVisible).IsTrue();
