@@ -111,7 +111,7 @@ namespace FTT.UI {
             UIPalette.ApplyTheme(_root);
             AddChild(_root);
 
-            var backdrop = new ColorRect { Name = "Backdrop", Color = UIPalette.NavyDeep, MouseFilter = Control.MouseFilterEnum.Ignore };
+            var backdrop = new ColorRect { Name = "Backdrop", Color = UIPalette.Backdrop, MouseFilter = Control.MouseFilterEnum.Ignore };
             backdrop.SetAnchorsPreset(Control.LayoutPreset.FullRect);
             _root.AddChild(backdrop);
 
@@ -119,10 +119,9 @@ namespace FTT.UI {
             center.SetAnchorsPreset(Control.LayoutPreset.FullRect);
             _root.AddChild(center);
 
-            var panel = new PanelContainer {
+            var panel = new PausePanel {
                 Name = "Panel",
-                CustomMinimumSize = new Vector2(820, 0),
-                ThemeTypeVariation = DialogueTheme.GlassPanelVariation
+                CustomMinimumSize = new Vector2(1000, 0)
             };
             center.AddChild(panel);
 
@@ -221,11 +220,13 @@ namespace FTT.UI {
                 ButtonPressed = ComfortSettings.ReducedTemporalEffects
             };
             _rteToggle.Toggled += on => ComfortSettings.Apply(on);
+            _rteToggle.CustomMinimumSize = new Vector2(540f, 0f);
+            Pulp.PulpToggleDecor.Apply(_rteToggle);
             comfortRow.AddChild(_rteToggle);
             _previewSwatch = new ColorRect {
                 Name = "PreviewSwatch",
                 CustomMinimumSize = new Vector2(160, 48),
-                Color = UIPalette.TextAccent,
+                Color = UIPalette.Accent,
                 MouseFilter = Control.MouseFilterEnum.Ignore
             };
             comfortRow.AddChild(_previewSwatch);
@@ -240,7 +241,7 @@ namespace FTT.UI {
                 MaxValue = GlobalSaveData.MaxUiScale,
                 Step = 0.05,
                 Value = data?.UiScale ?? 1f,
-                CustomMinimumSize = new Vector2(360, 20)
+                CustomMinimumSize = new Vector2(360, 44)
             };
             _uiScaleSlider.ValueChanged += value => UIPalette.ApplyUiScale((float)value);
             _content.AddChild(_uiScaleSlider);
@@ -271,11 +272,11 @@ namespace FTT.UI {
             if (_previewSwatch == null) return;
             _previewPhase += seconds;
             if (ComfortSettings.ReducedTemporalEffects) {
-                _previewSwatch.Color = UIPalette.TextAccent;
+                _previewSwatch.Color = UIPalette.Accent;
                 return;
             }
             float pulse = 0.5f + 0.5f * Mathf.Sin(_previewPhase * 9f);
-            _previewSwatch.Color = UIPalette.TextAccent.Lerp(UIPalette.Gold, pulse);
+            _previewSwatch.Color = UIPalette.Accent.Lerp(UIPalette.Accent2, pulse);
         }
 
         private void RefreshDetectedController() {
@@ -408,11 +409,10 @@ namespace FTT.UI {
                 Name = name,
                 Text = key,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                CustomMinimumSize = new Vector2(760, 0)
+                CustomMinimumSize = new Vector2(940, 0)
             };
             if (!string.IsNullOrEmpty(variation)) label.ThemeTypeVariation = variation;
             if (wrap) label.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-            if (accent) label.AddThemeColorOverride("font_color", UIPalette.TextAccent);
             return label;
         }
 
@@ -420,9 +420,10 @@ namespace FTT.UI {
             var button = new Button {
                 Name = name,
                 Text = key,
-                CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, UIPalette.ButtonMinHeight),
-                ThemeTypeVariation = "TemporalGlassButton"
+                CustomMinimumSize = new Vector2(300f, 58f),
+                ThemeTypeVariation = UIPalette.Variations.PulpButtonCompact
             };
+            Pulp.PulpButtonDecor.Apply(button, compact: true);
             button.Pressed += handler;
             return button;
         }

@@ -1666,3 +1666,6 @@ select_press_to_join_player_one,Press confirm on any controller or keyboard to j
 ui_prompt_select,Select
 ui_toggle_on,On
 ui_toggle_off,Off
+# UR PAUSE
+pause_status_level,"{0} · {1} · Integrity {2}%"
+pause_tag_controller,Controller

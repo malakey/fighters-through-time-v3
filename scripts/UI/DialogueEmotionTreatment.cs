@@ -67,15 +67,15 @@ namespace FTT.UI {
         /// <summary>The treatment for a parsed emotion.</summary>
         public static Treatment Resolve(DialogueEmotion emotion) => emotion switch {
             DialogueEmotion.Determined => new Treatment(
-                emotion, UIPalette.Gold, new Color(1f, 0.97f, 0.88f), CalmFrameWidth),
+                emotion, UIPalette.Accent2, new Color(1f, 0.97f, 0.88f), CalmFrameWidth),
             DialogueEmotion.Shocked => new Treatment(
-                emotion, UIPalette.Cyan, new Color(0.9f, 1f, 1f), UrgentFrameWidth),
+                emotion, UIPalette.Accent, new Color(1f, 0.97f, 0.88f), UrgentFrameWidth),
             DialogueEmotion.Confused => new Treatment(
-                emotion, UIPalette.SlateDim, new Color(0.86f, 0.88f, 0.94f), CalmFrameWidth),
+                emotion, UIPalette.Ink2, new Color(0.9f, 0.9f, 0.92f), CalmFrameWidth),
             DialogueEmotion.Injured => new Treatment(
                 emotion, UIPalette.BossRed, new Color(1f, 0.82f, 0.82f), UrgentFrameWidth),
             _ => new Treatment(
-                DialogueEmotion.Neutral, UIPalette.CyanDim, Colors.White, CalmFrameWidth)
+                DialogueEmotion.Neutral, UIPalette.Ink3, Colors.White, CalmFrameWidth)
         };
     }
 }

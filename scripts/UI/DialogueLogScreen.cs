@@ -51,9 +51,7 @@ namespace FTT.UI {
             UIPalette.ApplyTheme(_root);
             AddChild(_root);
 
-            var shade = new ColorRect { Name = "Shade", Color = UIPalette.Shade, MouseFilter = Control.MouseFilterEnum.Ignore };
-            shade.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-            _root.AddChild(shade);
+            _root.AddChild(PulpScreenKit.MakeScrim());
 
             var margin = new MarginContainer { Name = "Margin" };
             margin.SetAnchorsPreset(Control.LayoutPreset.FullRect);
@@ -63,7 +61,7 @@ namespace FTT.UI {
             margin.AddThemeConstantOverride("margin_bottom", 90);
             _root.AddChild(margin);
 
-            var panel = new PanelContainer { Name = "Panel", ThemeTypeVariation = DialogueTheme.GlassPanelVariation };
+            var panel = new PausePanel { Name = "Panel" };
             margin.AddChild(panel);
 
             var body = new VBoxContainer { Name = "Body" };
@@ -76,7 +74,6 @@ namespace FTT.UI {
                 HorizontalAlignment = HorizontalAlignment.Center,
                 ThemeTypeVariation = UIPalette.TitleLabelVariation
             };
-            title.AddThemeColorOverride("font_color", UIPalette.TextAccent);
             body.AddChild(title);
 
             _emptyLabel = new Label {
@@ -103,9 +100,9 @@ namespace FTT.UI {
             _closeButton = new Button {
                 Name = "CloseButton",
                 Text = "common_back",
-                CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, UIPalette.ButtonMinHeight),
-                ThemeTypeVariation = "TemporalGlassButton"
             };
+            PulpScreenKit.StylePauseButton(_closeButton);
+            _closeButton.CustomMinimumSize = new Vector2(320f, PulpScreenKit.PauseButtonHeight);
             _closeButton.Pressed += Close;
             footer.AddChild(_closeButton);
         }
@@ -147,14 +144,10 @@ namespace FTT.UI {
             var row = new HBoxContainer { Name = $"Entry{index}" };
             row.AddThemeConstantOverride("separation", 12);
 
-            var portrait = new TextureRect {
-                Name = "Portrait",
-                CustomMinimumSize = new Vector2(56, 56),
-                ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-                StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered
-            };
+            // UR-PAUSE: a 64 px roundel, the dialogue box's portrait at log size.
+            var portrait = new Pulp.PulpPortraitRoundel { Name = "Portrait", Diameter = 64f };
             if (!string.IsNullOrWhiteSpace(entry.PortraitPath) && ResourceLoader.Exists(entry.PortraitPath)) {
-                portrait.Texture = ResourceLoader.Load<Texture2D>(entry.PortraitPath);
+                portrait.Portrait = ResourceLoader.Load<Texture2D>(entry.PortraitPath);
             }
             row.AddChild(portrait);
 
@@ -166,9 +159,8 @@ namespace FTT.UI {
                 Name = "Speaker",
                 Text = entry.Speaker ?? "",
                 AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled,
-                ThemeTypeVariation = UIPalette.HeadingLabelVariation
+                ThemeTypeVariation = UIPalette.LabelRoles.SpeakerName
             };
-            speaker.AddThemeColorOverride("font_color", UIPalette.TextAccent);
             column.AddChild(speaker);
 
             var text = new Label {

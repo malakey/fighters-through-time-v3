@@ -30,29 +30,28 @@ namespace FTT.UI {
 
         // ---- Glass panel -----------------------------------------------------
 
-        /// <summary>Translucent fill. Alpha is the whole point: the scene reads through it.</summary>
+        /// <summary>
+        /// Translucent ink fill. Alpha is the whole point: the scene reads through it. The plate's border, shadow and
+        /// corners are baked into the kit art (UR-ART), so the old border, shadow and radius constants are retired.
+        /// </summary>
         public static readonly Color GlassBackground = UIPalette.PlateFill;
 
-        /// <summary>Accent border, dimmer and more translucent than a solid UI panel's.</summary>
-        public static readonly Color GlassBorder = UIPalette.Paper;
+        // ---- Box and roundel (UI_SPEC Appendix B) -----------------------------
 
-        /// <summary>Drop shadow that lifts the panel off the scene behind it.</summary>
-        public static readonly Color GlassShadow = UIPalette.InkBlack;
+        /// <summary>The box is 1500 px wide, centred, its bottom edge 40 px above the screen's.</summary>
+        public const float BoxWidth = 1500f;
+        public const float BoxBottomMargin = 40f;
 
-        public const int GlassCornerRadius = 4;
-        public const int GlassBorderWidth = 3;
-        public const int GlassShadowSize = 1;
+        /// <summary>The speaker roundel's diameter.</summary>
+        public const float PortraitSize = 150f;
 
-        // ---- Portrait frame --------------------------------------------------
+        /// <summary>The <c>hourglass</c> advance caret: 34 px, 26 px from the box's right edge and 18 px above its bottom.</summary>
+        public const float CaretSize = 34f;
+        public const float CaretRight = 26f;
+        public const float CaretBottom = 18f;
 
-        /// <summary>
-        /// Backing fill behind the portrait. Darker and more opaque than the
-        /// panel so a light portrait still has contrast against the glass.
-        /// </summary>
-        public static readonly Color PortraitBackground = new(0.03f, 0.04f, 0.08f, 0.85f);
-
-        public const int PortraitCornerRadius = 6;
-        public const int PortraitSize = 160;
+        /// <summary>Gap between the roundel's disc and the emotion ring drawn around it.</summary>
+        public const int RingInset = 4;
 
         // ---- Box animation ---------------------------------------------------
 
@@ -63,24 +62,21 @@ namespace FTT.UI {
         public const float BoxSlideDistance = 48f;
 
         /// <summary>
-        /// Builds the per-emotion portrait frame box. Constructed in code rather
-        /// than duplicated from the theme because its border colour changes on
-        /// every line — an authored resource mutated at runtime would be a
-        /// shared cached instance every other dialogue box also draws.
+        /// Builds the per-emotion ring that surrounds the portrait roundel: no fill, a border whose colour and width
+        /// change on every line (an authored resource mutated at runtime would be a shared cached instance every
+        /// other dialogue box also draws) and a corner radius that makes the box a circle.
         /// </summary>
         public static StyleBoxFlat CreatePortraitFrameStyle() {
             var box = new StyleBoxFlat {
-                BgColor = PortraitBackground,
+                BgColor = new Color(0f, 0f, 0f, 0f),
                 BorderColor = DialogueEmotionTreatment.Resolve(DialogueEmotion.Neutral).FrameColor,
-                ContentMarginLeft = 6,
-                ContentMarginTop = 6,
-                ContentMarginRight = 6,
-                ContentMarginBottom = 6,
-                CornerRadiusTopLeft = PortraitCornerRadius,
-                CornerRadiusTopRight = PortraitCornerRadius,
-                CornerRadiusBottomLeft = PortraitCornerRadius,
-                CornerRadiusBottomRight = PortraitCornerRadius
+                ContentMarginLeft = RingInset,
+                ContentMarginTop = RingInset,
+                ContentMarginRight = RingInset,
+                ContentMarginBottom = RingInset
             };
+            int radius = Mathf.CeilToInt(PortraitSize / 2f) + RingInset + 4;
+            box.SetCornerRadiusAll(radius);
             box.SetBorderWidthAll(DialogueEmotionTreatment.CalmFrameWidth);
             return box;
         }

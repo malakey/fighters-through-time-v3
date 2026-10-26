@@ -44,7 +44,10 @@ namespace FTT.UI {
             AddChild(_root);
             UIPalette.ApplyTheme(_root);
             var close = _root.GetNodeOrNull<Button>("Center/Panel/Layout/FooterRow/CloseButton");
-            if (close != null) close.Pressed += Close;
+            if (close != null) {
+                close.Pressed += Close;
+                PulpScreenKit.StylePauseButton(close, 280f);
+            }
         }
 
         /// <summary>Shows the card and takes focus onto its close button.</summary>

@@ -153,6 +153,29 @@ namespace FTT.UI {
             PopulateDropdowns();
             WireSignals();
             BuildControlsTab();
+            ApplyPulpWidgets();
+        }
+
+        /// <summary>
+        /// UR-PAUSE: skins the scene's switches as the pulp toggle track and the Back row as a banner button. The
+        /// remap rows built in code (<see cref="BuildControlsTab"/>) skin their own toggles as they are made.
+        /// </summary>
+        private void ApplyPulpWidgets() {
+            if (_root == null) return;
+            var found = _root.FindChildren("*", "CheckButton", true, false);
+            using (found.AsDisposable()) {
+                foreach (Node node in found) if (node is CheckButton toggle) SkinToggle(toggle);
+            }
+            if (_root.GetNodeOrNull<Button>("Margin/Panel/Body/Footer/BackButton") is { } back) {
+                PulpScreenKit.StylePauseButton(back, 320f);
+            }
+        }
+
+        private const float ToggleRowWidth = 560f;
+
+        private static void SkinToggle(CheckButton toggle) {
+            toggle.CustomMinimumSize = new Vector2(ToggleRowWidth, toggle.CustomMinimumSize.Y);
+            Pulp.PulpToggleDecor.Apply(toggle);
         }
 
         /// <summary>
@@ -431,12 +454,12 @@ namespace FTT.UI {
                 };
                 row.AddChild(label);
 
-                var keyboardSlot = new Button { CustomMinimumSize = new Vector2(200, 34) };
+                var keyboardSlot = new Button { CustomMinimumSize = new Vector2(200, 42) };
                 keyboardSlot.Pressed += () => BeginListening(capturedAction, InputDeviceKind.Keyboard);
                 row.AddChild(keyboardSlot);
                 _keyboardSlots[action] = keyboardSlot;
 
-                var joypadSlot = new Button { CustomMinimumSize = new Vector2(200, 34) };
+                var joypadSlot = new Button { CustomMinimumSize = new Vector2(200, 42) };
                 joypadSlot.Pressed += () => BeginListening(capturedAction, InputDeviceKind.Joypad);
                 row.AddChild(joypadSlot);
                 _joypadSlots[action] = joypadSlot;
@@ -445,14 +468,14 @@ namespace FTT.UI {
                 // override, inherit the default". Without a control for it the
                 // player could never reach the state the save format now stores.
                 var unbind = new Button {
-                    Text = Tr("controls_unbind"), CustomMinimumSize = new Vector2(110, 34)
+                    Text = Tr("controls_unbind"), CustomMinimumSize = new Vector2(110, 42)
                 };
                 unbind.Pressed += () => UnbindSlot(capturedAction, InputDeviceKind.Keyboard);
                 row.AddChild(unbind);
                 _unbindButtons[action] = unbind;
 
                 var reset = new Button {
-                    Text = Tr("controls_reset_action"), CustomMinimumSize = new Vector2(110, 34)
+                    Text = Tr("controls_reset_action"), CustomMinimumSize = new Vector2(110, 42)
                 };
                 reset.Pressed += () => ResetSingleAction(capturedAction);
                 row.AddChild(reset);
@@ -497,6 +520,7 @@ namespace FTT.UI {
                         RefreshBindingLabels();
                         _controlsStatus.Text = ReachabilityWarning() ?? "";
                     };
+                    SkinToggle(toggle);
                     row.AddChild(toggle);
 
                     // The chord's CURRENT buttons, not a hard-coded "LB+RB": C01c

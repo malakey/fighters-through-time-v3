@@ -104,6 +104,8 @@ namespace FTT.UI {
         private Label _speakerLabel;
         private RichTextLabel _textLabel;
         private Label _continueHint;
+        private Pulp.PulpPortraitRoundel _roundel;
+        private Pulp.PulpIcon _advanceCaret;
         private Texture2D _defaultPortrait;
 
         private readonly List<DialogueSetData> _registeredSets = new();
@@ -184,16 +186,57 @@ namespace FTT.UI {
             _continueHint = GetNodeOrNull<Label>("Panel/Layout/Content/ContinueHint");
         }
 
+        /// <summary>
+        /// UR-PAUSE (UI_SPEC Appendix B): the 150 px portrait roundel replaces the square portrait on both build
+        /// paths. The <c>Portrait</c> TextureRect stays in the frame as the state carrier (texture, emotion tint,
+        /// tooltip) but is hidden, and the roundel mirrors its texture; the hourglass advance caret sits at the
+        /// panel's right 26 / bottom 18 and shows with the continue hint.
+        /// </summary>
+        private void AddPulpChrome() {
+            if (_portraitFrame != null && _roundel == null) {
+                if (_portrait != null) {
+                    _portrait.Visible = false;
+                    _portrait.CustomMinimumSize = Vector2.Zero;
+                }
+                _roundel = new Pulp.PulpPortraitRoundel { Name = "Roundel", Diameter = DialogueTheme.PortraitSize };
+                _portraitFrame.AddChild(_roundel);
+            }
+            if (_advanceCaret == null) {
+                var host = new Control { Name = "CaretHost", MouseFilter = Control.MouseFilterEnum.Ignore };
+                host.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+                AddChild(host);
+                _advanceCaret = Pulp.PulpIcon.Create("hourglass", UIPalette.Res2, DialogueTheme.CaretSize);
+                _advanceCaret.Name = "AdvanceCaret";
+                _advanceCaret.Visible = false;
+                _advanceCaret.AnchorLeft = 0.5f;
+                _advanceCaret.AnchorRight = 0.5f;
+                _advanceCaret.AnchorTop = 1f;
+                _advanceCaret.AnchorBottom = 1f;
+                _advanceCaret.OffsetRight = DialogueTheme.BoxWidth / 2f - DialogueTheme.CaretRight;
+                _advanceCaret.OffsetLeft = _advanceCaret.OffsetRight - DialogueTheme.CaretSize;
+                _advanceCaret.OffsetBottom = -(DialogueTheme.BoxBottomMargin + DialogueTheme.CaretBottom);
+                _advanceCaret.OffsetTop = _advanceCaret.OffsetBottom - DialogueTheme.CaretSize;
+                host.AddChild(_advanceCaret);
+            }
+        }
+
+        private void SetContinueVisible(bool visible) {
+            if (_continueHint != null) _continueHint.Visible = visible;
+            if (_advanceCaret != null) _advanceCaret.Visible = visible;
+        }
+
         private void BuildFallbackUI() {
             _dialoguePanel = new PanelContainer {
                 Name = "Panel",
                 MouseFilter = Control.MouseFilterEnum.Ignore
             };
             _dialoguePanel.SetAnchorsPreset(Control.LayoutPreset.BottomWide);
-            _dialoguePanel.OffsetLeft = 100;
-            _dialoguePanel.OffsetRight = -100;
+            _dialoguePanel.AnchorLeft = 0.5f;
+            _dialoguePanel.AnchorRight = 0.5f;
+            _dialoguePanel.OffsetLeft = -DialogueTheme.BoxWidth / 2f;
+            _dialoguePanel.OffsetRight = DialogueTheme.BoxWidth / 2f;
             _dialoguePanel.OffsetTop = -240;
-            _dialoguePanel.OffsetBottom = -40;
+            _dialoguePanel.OffsetBottom = -DialogueTheme.BoxBottomMargin;
             AddChild(_dialoguePanel);
 
             var layout = new HBoxContainer { Name = "Layout" };
@@ -224,9 +267,8 @@ namespace FTT.UI {
 
             _speakerLabel = new Label {
                 Name = "SpeakerLabel",
-                ThemeTypeVariation = UIPalette.HeadingLabelVariation
+                ThemeTypeVariation = UIPalette.LabelRoles.SpeakerName
             };
-            _speakerLabel.AddThemeColorOverride("font_color", UIPalette.TextAccent);
             speakerRow.AddChild(_speakerLabel);
 
             // Body copy rides the theme's default font size (no override) so
@@ -244,7 +286,6 @@ namespace FTT.UI {
                 Visible = false,
                 ThemeTypeVariation = UIPalette.SmallLabelVariation
             };
-            _continueHint.AddThemeColorOverride("font_color", UIPalette.SlateDim);
             content.AddChild(_continueHint);
         }
 
@@ -264,6 +305,7 @@ namespace FTT.UI {
                 _portraitFrameStyle = DialogueTheme.CreatePortraitFrameStyle();
                 _portraitFrame.AddThemeStyleboxOverride("panel", _portraitFrameStyle);
             }
+            AddPulpChrome();
             ApplyEmotion(DialogueEmotionTreatment.Resolve(DialogueEmotion.Neutral), "");
             SetBoxAnimationProgress(0f);
         }
@@ -417,6 +459,7 @@ namespace FTT.UI {
             string emotionKey = _currentSequence.GetEmotionKey(_currentIndex);
             ApplyEmotion(DialogueEmotionTreatment.Resolve(emotionKey), emotionKey);
             if (_portrait != null) _portrait.Texture = _currentSequence.GetPortrait(_currentIndex) ?? _defaultPortrait;
+            if (_roundel != null && _portrait != null) _roundel.Portrait = _portrait.Texture;
             // Package 13 W3 (S02): the Level 0 unnamed voice ("???") has no portrait.
             if (_portraitFrame != null) _portraitFrame.Visible = !IsPortraitlessSpeaker(speakerKey);
 
@@ -433,8 +476,8 @@ namespace FTT.UI {
             _autoAdvanceTimer = _currentSequence.AutoAdvanceDelay;
             if (_continueHint != null) {
                 _continueHint.Text = BuildContinueHint();
-                _continueHint.Visible = Reveal.IsComplete;
             }
+            SetContinueVisible(Reveal.IsComplete);
         }
 
         /// <summary>
@@ -474,6 +517,7 @@ namespace FTT.UI {
                 _portraitFrameStyle.BorderColor = treatment.FrameColor;
                 _portraitFrameStyle.SetBorderWidthAll(treatment.FrameWidth);
             }
+            if (_roundel != null) _roundel.Modulate = treatment.PortraitTint;
             if (_portrait != null) {
                 _portrait.SelfModulate = treatment.PortraitTint;
                 // Keeps the emotion_* keys referenced and the information
@@ -628,7 +672,7 @@ namespace FTT.UI {
 
         private void CompleteLineReveal() {
             _textLabel.VisibleCharacters = -1;
-            if (_continueHint != null) _continueHint.Visible = true;
+            SetContinueVisible(true);
         }
 
         public void AdvanceLine() {
@@ -831,7 +875,7 @@ namespace FTT.UI {
                 Name = "SkipHintLabel",
                 ThemeTypeVariation = UIPalette.SmallLabelVariation
             };
-            _skipHintLabel.AddThemeColorOverride("font_color", UIPalette.SlateDim);
+            _skipHintLabel.AddThemeColorOverride("font_color", UIPalette.Ink3);
             row.AddChild(_skipHintLabel);
             _skipProgressBar = new ProgressBar {
                 Name = "SkipHoldProgress",

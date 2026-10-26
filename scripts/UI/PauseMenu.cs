@@ -40,6 +40,8 @@ namespace FTT.UI {
         private Button _lowerDifficultyButton;
         private ConfirmModal _lowerDifficultyConfirm;
         private Label _controllerNotice;
+        private Label _statusLine;
+        private PausePanel _pausePanel;
         private bool _awaitingController;
 
         /// <summary>Test seam: forces the hub check instead of reading the current scene.</summary>
@@ -223,9 +225,50 @@ namespace FTT.UI {
                 _lowerDifficultyButton = GetNodeOrNull<Button>("Root/Center/Panel/Layout/LowerDifficultyButton");
                 if (_lowerDifficultyButton != null) _lowerDifficultyButton.Pressed += ShowLowerDifficultyConfirmation;
                 _controllerNotice = GetNodeOrNull<Label>("Root/Center/Panel/Layout/ControllerNotice");
-                return;
+                _statusLine = GetNodeOrNull<Label>("Root/Center/Panel/Layout/StatusLine");
+                _pausePanel = _menuPanel as PausePanel;
+            } else {
+                BuildFallbackUI();
             }
-            BuildFallbackUI();
+            DecorateForPulp();
+        }
+
+        /// <summary>
+        /// UR-PAUSE: what both build paths share — every row takes the banner decor (marker, focus pose, prompt badge)
+        /// and the bottom-centre prompt bar is added. The authored scene and the fallback differ only in who made the nodes.
+        /// </summary>
+        private void DecorateForPulp() {
+            if (_root == null) return;
+            foreach (string name in new[] { "ResumeButton", "SettingsButton", "MoveListButton", "LogButton", "SaveButton",
+                "RestartButton", "LowerDifficultyButton", "QuitButton" }) {
+                if (_menuPanel?.GetNodeOrNull<Button>("Layout/" + name) is { } button) PulpScreenKit.StylePauseButton(button);
+            }
+            if (_root.GetNodeOrNull("PromptBar") == null) PulpScreenKit.AddBottomPromptBar(_root, "menu_resume");
+        }
+
+        /// <summary>The level-name tag text: the current level's title up to its first dash, or the ship at the hub.</summary>
+        private string LevelTagText() {
+            var story = FTT.Core.StoryManager.Instance;
+            string key = IsAtHub()
+                ? LoadingScreen.HubTitleKey
+                : FTT.Environment.HubWorldController.CampaignLevelNameKey(story?.CurrentLevel ?? FTT.Core.CampaignLevel.Tutorial);
+            return PulpScreenKit.ShortTitle(Tr(key));
+        }
+
+        /// <summary>The strip under the title: difficulty, the level clock and Timeline Integrity (the hub shows the difficulty alone).</summary>
+        private string StatusText() {
+            FTT.Core.Difficulty difficulty =
+                FTT.Core.GameManager.Instance?.CurrentSession.Difficulty ?? FTT.Core.Difficulty.Normal;
+            string name = Tr(FTT.Core.CampaignDifficultyService.DifficultyNameKey(difficulty));
+            var story = FTT.Core.StoryManager.Instance;
+            if (IsAtHub() || story == null) return name;
+            return string.Format(Tr("pause_status_level"), name,
+                PulpScreenKit.FormatClock(story.LevelElapsedSeconds), Mathf.RoundToInt(story.TimelineIntegrityPercent));
+        }
+
+        private void RefreshStatus() {
+            if (_pausePanel != null) _pausePanel.TagText = LevelTagText();
+            if (_statusLine != null) _statusLine.Text = StatusText();
         }
 
         private void WireButton(string path, System.Action handler) {
@@ -239,32 +282,36 @@ namespace FTT.UI {
             UIPalette.ApplyTheme(_root);
             AddChild(_root);
 
-            var shade = new ColorRect { Name = "Shade", Color = UIPalette.Shade };
-            shade.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-            _root.AddChild(shade);
+            _root.AddChild(PulpScreenKit.MakeScrim());
 
             var center = new CenterContainer { Name = "Center" };
             center.SetAnchorsPreset(Control.LayoutPreset.FullRect);
             _root.AddChild(center);
 
-            var panel = new PanelContainer { Name = "Panel" };
-            panel.CustomMinimumSize = new Vector2(420, 0);
-            panel.ThemeTypeVariation = "DialogueGlassPanel";
+            var panel = new PausePanel { Name = "Panel" };
             center.AddChild(panel);
             _menuPanel = panel;
+            _pausePanel = panel;
 
             var layout = new VBoxContainer { Name = "Layout" };
-            layout.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);
+            layout.AddThemeConstantOverride("separation", 9);
             panel.AddChild(layout);
 
             var title = new Label {
                 Name = "Title",
                 Text = "menu_paused",
                 HorizontalAlignment = HorizontalAlignment.Center,
-                ThemeTypeVariation = UIPalette.TitleLabelVariation
+                ThemeTypeVariation = UIPalette.LabelRoles.PauseTitle
             };
-            title.AddThemeColorOverride("font_color", UIPalette.TextAccent);
             layout.AddChild(title);
+
+            _statusLine = new Label {
+                Name = "StatusLine",
+                HorizontalAlignment = HorizontalAlignment.Center,
+                ThemeTypeVariation = UIPalette.LabelRoles.StatusLine,
+                Uppercase = true
+            };
+            layout.AddChild(_statusLine);
 
             _controllerNotice = new Label {
                 Name = "ControllerNotice",
@@ -294,8 +341,8 @@ namespace FTT.UI {
             var button = new Button {
                 Name = name,
                 Text = textKey,
-                CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, UIPalette.ButtonMinHeight),
-                ThemeTypeVariation = "TemporalGlassButton"
+                CustomMinimumSize = new Vector2(PulpScreenKit.PauseButtonWidth, PulpScreenKit.PauseButtonHeight),
+                ThemeTypeVariation = UIPalette.Variations.TemporalGlassButton
             };
             button.Pressed += handler;
             return button;
@@ -523,6 +570,7 @@ namespace FTT.UI {
             // the pause session that performed the save.
             if (_saveButton != null) _saveButton.Text = "menu_save";
             RefreshLowerDifficultyEntry();
+            RefreshStatus();
 
             // Rebuilt on every open: the chain has to reflect what is actually
             // visible now, and the modal's buttons must not join the menu's chain.

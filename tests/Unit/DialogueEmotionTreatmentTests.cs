@@ -64,8 +64,8 @@ public class DialogueEmotionTreatmentTests {
     public void EachEmotionCarriesItsOwnFrameColourDrawnFromTheSharedPalette() {
         var seen = new List<Color>();
         var allowed = new List<Color> {
-            UIPalette.Cyan, UIPalette.CyanDim, UIPalette.Gold, UIPalette.GoldBright,
-            UIPalette.BossRed, UIPalette.Slate, UIPalette.SlateDim, UIPalette.Warning
+            UIPalette.Accent, UIPalette.Accent2, UIPalette.Ink2, UIPalette.Ink3,
+            UIPalette.BossRed, UIPalette.Warning
         };
         var issues = new List<string>();
 

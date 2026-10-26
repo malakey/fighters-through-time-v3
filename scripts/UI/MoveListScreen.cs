@@ -79,6 +79,10 @@ namespace FTT.UI {
             if (close != null) close.Pressed += Close;
             var card = _root.GetNodeOrNull<Button>("Center/Panel/Layout/FooterRow/SystemsCardButton");
             if (card != null) card.Pressed += OpenSystemsCard;
+            // UR-PAUSE: banner decor on the footer rows, and the panel's tag names the screen.
+            if (close != null) PulpScreenKit.StylePauseButton(close, 280f);
+            if (card != null) PulpScreenKit.StylePauseButton(card, 400f);
+            if (_root.GetNodeOrNull<PausePanel>("Center/Panel") is { } panel) panel.TagText = Tr("movelist_title");
         }
 
         /// <summary>Builds the list for one roster character and shows the screen.</summary>
@@ -258,7 +262,6 @@ namespace FTT.UI {
                 Text = Tr(titleKey),
                 ThemeTypeVariation = UIPalette.HeadingLabelVariation
             };
-            title.AddThemeColorOverride("font_color", UIPalette.TextAccent);
             _sections.AddChild(title);
         }
 
@@ -321,7 +324,7 @@ namespace FTT.UI {
                         Tr("movelist_ability_stats"), ability.BaseDamage, ability.CooldownDuration),
                 ThemeTypeVariation = UIPalette.SmallLabelVariation
             };
-            stats.AddThemeColorOverride("font_color", dormant ? UIPalette.SlateDim : UIPalette.Gold);
+            stats.AddThemeColorOverride("font_color", dormant ? UIPalette.Ink3 : UIPalette.Accent);
             body.AddChild(stats);
 
             if (!string.IsNullOrWhiteSpace(ability.DescriptionKey)) {
@@ -332,7 +335,6 @@ namespace FTT.UI {
                     CustomMinimumSize = new Vector2(720, 0),
                     ThemeTypeVariation = UIPalette.SmallLabelVariation
                 };
-                description.AddThemeColorOverride("font_color", UIPalette.SlateDim);
                 body.AddChild(description);
             }
         }

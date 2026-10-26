@@ -147,34 +147,18 @@ namespace FTT.UI {
         }
 
         private void BuildPanel() {
-            var shade = new ColorRect {
-                Name = "Shade",
-                Color = UIPalette.Shade,
-                MouseFilter = Control.MouseFilterEnum.Stop,
-                Visible = false
-            };
-            shade.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-            UIPalette.ApplyTheme(shade);
-            AddChild(shade);
-            _pauseBackdrop = shade;
+            // UR-PAUSE: the PAUSE-A language: a scrim, the centred ink panel with its tag, 560 x 64 banner rows
+            // and the prompt bar. The pause backdrop owns the prompt bar so it shows and hides with the pause.
+            var backdrop = new Control { Name = "Backdrop", MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
+            backdrop.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+            UIPalette.ApplyTheme(backdrop);
+            AddChild(backdrop);
+            backdrop.AddChild(PulpScreenKit.MakeScrim());
+            _pauseBackdrop = backdrop;
+            PulpScreenKit.AddBottomPromptBar(backdrop, "menu_resume");
 
-            const string artPath =
-                "res://assets/backgrounds/menu/temporal_glass_submenu_background.png";
-            if (ResourceLoader.Exists(artPath)) {
-                var art = new TextureRect {
-                    Name = "TemporalGlassArt",
-                    Texture = ResourceLoader.Load<Texture2D>(artPath),
-                    ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-                    StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered,
-                    MouseFilter = Control.MouseFilterEnum.Ignore,
-                    Modulate = new Color(1f, 1f, 1f, 0.24f)
-                };
-                art.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-                shade.AddChild(art);
-            }
-
-            _panel = new PanelContainer { Name = "PausePanel", Visible = false };
-            _panel.ThemeTypeVariation = "DialogueGlassPanel";
+            var pausePanel = new PausePanel { Name = "PausePanel", Visible = false, TagText = Tr("menu_fighter_mode") };
+            _panel = pausePanel;
             UIPalette.ApplyTheme(_panel);
             var panelCenter = new CenterContainer { Name = "PanelCenter", MouseFilter = Control.MouseFilterEnum.Ignore };
             panelCenter.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
@@ -182,16 +166,15 @@ namespace FTT.UI {
             panelCenter.AddChild(_panel);
             MenuSafeAreaFit.Attach(_panel);
 
-            var layout = new VBoxContainer();
-            layout.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);
+            var layout = new VBoxContainer { Name = "Layout" };
+            layout.AddThemeConstantOverride("separation", 9);
             _panel.AddChild(layout);
 
             var title = new Label {
                 Text = "menu_paused",
                 HorizontalAlignment = HorizontalAlignment.Center,
-                ThemeTypeVariation = UIPalette.TitleLabelVariation
+                ThemeTypeVariation = UIPalette.LabelRoles.PauseTitle
             };
-            title.AddThemeColorOverride("font_color", UIPalette.TextAccent);
             layout.AddChild(title);
 
             var resume = MakeButton("ResumeButton", "menu_resume");
@@ -227,30 +210,30 @@ namespace FTT.UI {
         }
 
         private void BuildDisconnectModal() {
-            var modal = new ColorRect {
-                Name = "DisconnectModal",
-                Color = new Color(0.05f, 0.02f, 0.03f, 0.9f),
-                MouseFilter = Control.MouseFilterEnum.Stop,
-                Visible = false
-            };
-            modal.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+            // UR-PAUSE: the blocking "rebind or forfeit" state in the same panel language (tag "Controller").
+            PanelContainer modal = PulpScreenKit.MakeScrim("DisconnectModal");
+            modal.Visible = false;
             UIPalette.ApplyTheme(modal);
             AddChild(modal);
             _disconnectModal = modal;
 
-            var center = new CenterContainer();
-            center.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+            var center = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+            center.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
             modal.AddChild(center);
+
+            var panel = new PausePanel { Name = "DisconnectPanel", TagText = Tr("pause_tag_controller") };
+            center.AddChild(panel);
+            MenuSafeAreaFit.Attach(panel);
 
             var layout = new VBoxContainer();
             layout.AddThemeConstantOverride("separation", 16);
-            center.AddChild(layout);
+            panel.AddChild(layout);
 
             _disconnectLabel = new Label {
                 Name = "DisconnectLabel",
                 HorizontalAlignment = HorizontalAlignment.Center,
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
-                CustomMinimumSize = new Vector2(720, 0),
+                CustomMinimumSize = new Vector2(PulpScreenKit.PauseButtonWidth, 0),
                 ThemeTypeVariation = UIPalette.EmphasisLabelVariation
             };
             _disconnectLabel.AddThemeColorOverride("font_color", UIPalette.Warning);
@@ -348,11 +331,7 @@ namespace FTT.UI {
             _settingsMenu.Show();
         }
 
-        private static Button MakeButton(string name, string textKey) => new() {
-            Name = name,
-            Text = textKey,
-            CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, UIPalette.ButtonMinHeight),
-            ThemeTypeVariation = "TemporalGlassButton"
-        };
+        private static Button MakeButton(string name, string textKey) =>
+            PulpScreenKit.StylePauseButton(new Button { Name = name, Text = textKey });
     }
 }

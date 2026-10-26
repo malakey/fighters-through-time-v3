@@ -11,12 +11,13 @@ script = ExtResource("1_script")
 
 [node name="Panel" type="PanelContainer" parent="."]
 anchors_preset = 12
+anchor_left = 0.5
 anchor_top = 1.0
-anchor_right = 1.0
+anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = 100.0
+offset_left = -750.0
 offset_top = -240.0
-offset_right = -100.0
+offset_right = 750.0
 offset_bottom = -40.0
 grow_horizontal = 2
 grow_vertical = 0
@@ -33,7 +34,8 @@ layout_mode = 2
 size_flags_vertical = 4
 
 [node name="Portrait" type="TextureRect" parent="Panel/Layout/PortraitFrame"]
-custom_minimum_size = Vector2(160, 160)
+custom_minimum_size = Vector2(0, 0)
+visible = false
 layout_mode = 2
 texture = ExtResource("2_portrait")
 expand_mode = 1
@@ -49,8 +51,7 @@ theme_override_constants/separation = 12
 
 [node name="SpeakerLabel" type="Label" parent="Panel/Layout/Content/SpeakerRow"]
 layout_mode = 2
-theme_type_variation = &"HeadingLabel"
-theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+theme_type_variation = &"SpeakerName"
 
 [node name="TextLabel" type="RichTextLabel" parent="Panel/Layout/Content"]
 layout_mode = 2
@@ -61,6 +62,5 @@ bbcode_enabled = true
 visible = false
 layout_mode = 2
 theme_type_variation = &"SmallLabel"
-theme_override_colors/font_color = Color(0.6, 0.65, 0.75, 1)
 horizontal_alignment = 2
 text = "dialogue_continue"
