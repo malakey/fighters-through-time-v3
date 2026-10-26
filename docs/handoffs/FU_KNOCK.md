@@ -30,9 +30,9 @@ Constants (all in `BasicComboRules`, doubles converted with `FP64.FromDouble`):
 | `FighterWallBounceMinSpeed` | 5.0 u/s |
 | `FighterWallBounceRestitution` | 0.5 |
 | `FighterWallBounceHitstopFrames` | 6 (only raised to 6, never shortens an existing freeze) |
-| `FighterHitstunShoveScale` | 3.0 (applied at the hit site to a grounded non-launching hit's horizontal speed) |
-| `FighterHitstunShoveDecay` | 0.79 per tick |
-| `FighterHitstunShoveSnapSpeed` | 0.25 u/s (below it the shove snaps to 0) |
+| `HitstunShoveScale` | 3.0 (applied at the hit site to a grounded non-launching hit's horizontal speed) |
+| `HitstunShoveDecay` | 0.79 per tick |
+| `HitstunShoveSnapSpeed` | 0.25 u/s (below it the shove snaps to 0) |
 
 Presentation constants (driver partial): impact scene `res://scenes/vfx/VfxImpact.tscn`, burst at the fighter's chest (40 px up) inset 24 px toward the wall, mirrored by side; `CameraShake.Instance.Shake(6, 0.15)` (so the accessibility scale applies); `HapticFeedbackManager.OnGuardImpact`. No audio cue (FU-ECHO owns the catalog).
 
@@ -92,7 +92,7 @@ Shove (victim displacement over 40 ticks / ticks until it stops, which include a
 | Joan | 0.85 / 34 -> 0.31 / 16 | 1.27 / 44 -> 0.38 / 17 |
 | Lincoln | 0.98 / 34 -> 0.36 / 17 | hit 2 launches (unchanged, 0.77 / 26) |
 
-90 % of every shove is done 12-13 ticks after the freeze ends. Weakest real hit 0.21 u (target about 0.2). The strongest real grounded hit is 0.36-0.38 u (target "about 0.5") because these runs use mirror weights; the recon's 0.5-0.6 figures assumed a weight-1.0 victim. Raising `FighterHitstunShoveScale` raises all of them proportionally (4.0 would give 0.28-0.51).
+90 % of every shove is done 12-13 ticks after the freeze ends. Weakest real hit 0.21 u (target about 0.2). The strongest real grounded hit is 0.36-0.38 u (target "about 0.5") because these runs use mirror weights; the recon's 0.5-0.6 figures assumed a weight-1.0 victim. Raising `HitstunShoveScale` raises all of them proportionally (4.0 would give 0.28-0.51).
 
 ## 5. Provisional numbers and why
 

@@ -1266,13 +1266,13 @@ namespace FTT.Combat {
         /// <summary>R2: ticks the bouncing fighter alone is frozen at the impact.</summary>
         public const int FighterWallBounceHitstopFrames = 6;
 
-        /// <summary>R3: a grounded non-launching hit's horizontal speed is multiplied by this at the hit site (the distance stays proportional to the hit).</summary>
-        public const double FighterHitstunShoveScale = 3.0;
+        /// <summary>R3 (both modes since FU-STORYSHOVE, 2026-10-26): a grounded non-launching hit's horizontal speed is multiplied by this at the hit site (the distance stays proportional to the hit).</summary>
+        public const double HitstunShoveScale = 3.0;
 
         /// <summary>R3: the per-tick speed multiplier while a grounded victim is in plain hitstun (≈ 81 % of the distance in 7 ticks).</summary>
-        public const double FighterHitstunShoveDecay = 0.79;
+        public const double HitstunShoveDecay = 0.79;
 
         /// <summary>R3: below this speed (u/s) the shove snaps to zero and the victim is planted.</summary>
-        public const double FighterHitstunShoveSnapSpeed = 0.25;
+        public const double HitstunShoveSnapSpeed = 0.25;
     }
 }
