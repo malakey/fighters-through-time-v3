@@ -352,38 +352,7 @@ public class EncounterLockTests {
     // === Presentation and camera =============================================
 
     [TestCase(Timeout = 60000)]
-    public async Task TheHudCountsTheEnemiesLeftAndShowsTheGoArrowAfterTheClear() {
-        using var scene = new LockScene();
-        EncounterLock encounterLock = scene.BuildLock(OnBuildWave(2));
-        StoryHUD hud = StoryHUD.CreateDefault();
-        scene.Host.AddChild(hud);
-        await Frames(2);
-        AssertThat(hud.EncounterCounterVisible).IsFalse();
-        AssertThat(hud.EncounterGoPromptVisible).IsFalse();
-
-        scene.PlaceHero(AreaMin + 200f);
-        await Frames(3);
-        AssertThat(hud.EncounterCounterVisible).IsTrue();
-        AssertThat(hud.EncounterCounterText).IsEqual(string.Format(TranslationServer.Translate(StoryHUD.EncounterEnemiesLeftKey), 2));
-        AssertThat(hud.EncounterCounterText.Contains("2")).IsTrue();
-
-        encounterLock.LivingMembers[0].TakeDamage(99999);
-        await Frames(2);
-        AssertThat(hud.EncounterCounterText.Contains("1")).IsTrue();
-
-        encounterLock.LivingMembers[0].TakeDamage(99999);
-        await Frames(2);
-        AssertThat(encounterLock.State).IsEqual(EncounterLockState.Cleared);
-        AssertThat(hud.EncounterCounterVisible).IsFalse();
-        AssertThat(hud.EncounterGoPromptVisible).IsTrue();
-        AssertThat(hud.EncounterGoArrow).IsEqual("→");
-
-        hud._Process(EncounterLockRules.GoPromptSeconds + 0.1);
-        AssertThat(hud.EncounterGoPromptVisible).IsFalse();
-    }
-
-    [TestCase(Timeout = 60000)]
-    public async Task TheCameraLockLayerOverridesRoomBoundsAndEasesInAndOut() {
+    public async Task TheCameraLockLayerOverridesRoomBoundsAndRatchetsInAndOut() {
         using var scene = new LockScene();
         EncounterLock encounterLock = scene.BuildLock(OnBuildWave(1));
         var room = new Rect2(Origin.X, 0f, 3200f, 1080f);
@@ -410,20 +379,22 @@ public class EncounterLockTests {
         AssertThat(camera.ActiveBounds).IsEqual(encounterLock.CameraBounds);
         AssertThat(camera.RoomBounds).IsEqual(nextRoom);
 
-        // Eased, not snapped: the limits move part-way each step and settle.
-        AssertThat(camera.IsEasingBounds).IsTrue();
-        float firstLeft = camera.LimitLeft;
-        for (int step = 0; step < 240 && camera.IsEasingBounds; step++) camera.StepBoundsEase(Step);
-        AssertThat(camera.IsEasingBounds).IsFalse();
+        // FU-LOCK: no forced pan. The limits open to the union of the view and the
+        // lock rect, then tighten onto the rect only as the rig moves past a side.
+        AssertThat(camera.IsRatchetingBounds).IsTrue();
+        Rect2 opened = camera.CurrentLimits;
+        AssertThat(opened.Position.X <= encounterLock.CameraBounds.Position.X).IsTrue();
+        AssertThat(opened.End.X >= encounterLock.CameraBounds.End.X).IsTrue();
+        camera.StepRatchet(new Vector2(encounterLock.CameraBounds.GetCenter().X, scene.Hero.GlobalPosition.Y));
+        AssertThat(camera.IsRatchetingBounds).IsFalse();
         AssertThat(camera.CurrentLimits).IsEqual(encounterLock.CameraBounds);
-        AssertThat(firstLeft).IsNotEqual(camera.CurrentLimits.Position.X);
 
         encounterLock.LivingMembers[0].TakeDamage(99999);
         await Frames(2);
         AssertThat(encounterLock.State).IsEqual(EncounterLockState.Cleared);
         AssertThat(camera.HasLockBounds).IsFalse();
         AssertThat(camera.ActiveBounds).IsEqual(nextRoom);
-        for (int step = 0; step < 240 && camera.IsEasingBounds; step++) camera.StepBoundsEase(Step);
+        camera.StepRatchet(nextRoom.GetCenter());
         AssertThat(camera.CurrentLimits).IsEqual(nextRoom);
     }
 

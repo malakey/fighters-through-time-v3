@@ -47,11 +47,11 @@ namespace FTT.Environment {
         public void SetBounds(Rect2 bounds) {
             // GU-E: a room change while an encounter lock holds the camera only
             // updates the stored room rect (Levels 3 and 7 re-fire room
-            // triggers on every crossing); the lock's release eases back to it.
+            // triggers on every crossing); the lock's release heads back to it.
             _roomBounds = bounds.Abs();
             _roomBoundsKnown = true;
             if (_hasLockBounds) return;
-            _boundsEasing = false;
+            _ratcheting = false;
             ActiveBounds = bounds.Abs();
             LimitLeft = Mathf.RoundToInt(ActiveBounds.Position.X);
             LimitTop = Mathf.RoundToInt(ActiveBounds.Position.Y);
@@ -89,32 +89,43 @@ namespace FTT.Environment {
             _lastTargetPosition = FollowTarget.GlobalPosition;
             _hasLastTarget = true;
             _lastFollowPoint = FollowTarget.GlobalPosition + StoryCameraRules.FollowOffsetPixels;
+            if (_ratcheting) {
+                // FU-LOCK: a cut folds the view it lands on into the working limits.
+                Vector2 snapHalf = ViewSize() / 2f;
+                _working = _working.Merge(new Rect2(_lastFollowPoint - snapHalf, snapHalf * 2f));
+                _ratcheting = _working != _ratchetTarget;
+                WriteLimits(_working);
+            }
             RigCenter = Confine(_lastFollowPoint);
             GlobalPosition = RigCenter;
         }
 
         public override void _PhysicsProcess(double delta) {
-            StepBoundsEase((float)delta); // GU-E: the lock-bounds ease, before the rig confines
             if (!IsFollowing) return;
             StepFollow((float)delta);
         }
 
-        // === GU-E (2026-10-12): the encounter-lock bounds layer ===============
+        // === GU-E (2026-10-12) / FU-LOCK (2026-10-25): the encounter-lock bounds layer
         //
         // An engaged EncounterLock overrides the room rect with its own camera
         // rect; a room SetBounds while it holds only updates the stored room
         // rect, so a repeatable room-trigger pair cannot overwrite the clamp, and
         // the base level's rewind and resume re-confinement defer to it for free.
-        // The limits ease in and out (EncounterLockRules.CameraEaseSeconds) rather
-        // than snapping. Zoom, the view size and boss framing are GU-B's.
+        //
+        // FU-LOCK: the limits never pan the camera. A change of target rect T (a
+        // lock engaging, or its release back to the room rect) opens the working
+        // limits W to the union of the view as it stands and T, then W ratchets
+        // toward T one side at a time, only as the follow rig's own desired view
+        // passes that side, and never back. The camera therefore moves only when
+        // the hero does, and the view tightens onto the area as the hero walks in.
 
         private Rect2 _roomBounds;
         private bool _roomBoundsKnown;
         private bool _hasLockBounds;
         private Rect2 _lockBounds;
-        private bool _boundsEasing;
-        private Rect2 _easedBounds;
-        private Rect2 _easeTarget;
+        private bool _ratcheting;
+        private Rect2 _working;
+        private Rect2 _ratchetTarget;
 
         /// <summary>True while an encounter lock's rect overrides the room rect.</summary>
         public bool HasLockBounds => _hasLockBounds;
@@ -125,18 +136,18 @@ namespace FTT.Environment {
         /// <summary>The last room rect a room trigger or the level set (the rect a lock release returns to).</summary>
         public Rect2 RoomBounds => _roomBoundsKnown ? _roomBounds : ActiveBounds;
 
-        /// <summary>True while the limits are still easing toward a lock rect or back to the room.</summary>
-        public bool IsEasingBounds => _boundsEasing;
+        /// <summary>True while the working limits are still wider than the target rect and tightening toward it.</summary>
+        public bool IsRatchetingBounds => _ratcheting;
 
         /// <summary>
-        /// The limits the camera currently confines to (eased), as a rect. Equal to
-        /// <see cref="ActiveBounds"/> once an ease has settled. Test seam.
+        /// The limits the camera currently confines to, as a rect. Equal to
+        /// <see cref="ActiveBounds"/> once the ratchet has settled. Test seam.
         /// </summary>
         public Rect2 CurrentLimits => new(LimitLeft, LimitTop, LimitRight - LimitLeft, LimitBottom - LimitTop);
 
         /// <summary>
-        /// An engaged encounter lock takes the camera: its rect overrides the room
-        /// rect, eased in. <see cref="ActiveBounds"/> reads the lock rect at once.
+        /// An engaged encounter lock takes the camera: its rect becomes the target
+        /// of the limits. <see cref="ActiveBounds"/> reads the lock rect at once.
         /// </summary>
         public void SetLockBounds(Rect2 bounds) {
             if (!_roomBoundsKnown) {
@@ -145,46 +156,49 @@ namespace FTT.Environment {
             }
             _hasLockBounds = true;
             _lockBounds = bounds.Abs();
-            BeginBoundsEase(_lockBounds);
+            BeginRatchet(_lockBounds);
         }
 
-        /// <summary>The lock released the camera: ease back to the stored room rect.</summary>
+        /// <summary>The lock released the camera: the limits head back to the stored room rect without a pan.</summary>
         public void ClearLockBounds() {
             if (!_hasLockBounds) return;
             _hasLockBounds = false;
-            BeginBoundsEase(RoomBounds);
+            BeginRatchet(RoomBounds);
         }
 
-        private void BeginBoundsEase(Rect2 target) {
+        private void BeginRatchet(Rect2 target) {
             ActiveBounds = target;
+            _ratchetTarget = target;
             if (!IsFollowing || !IsInsideTree()) {
-                // No rig to pan smoothly: the built-in limits apply at once.
-                _boundsEasing = false;
+                // No rig to pan: the built-in limits apply at once.
+                _ratcheting = false;
                 WriteLimits(target);
             } else {
-                _easedBounds = _boundsEasing ? _easedBounds : CurrentLimits;
-                _easeTarget = target;
-                _boundsEasing = true;
+                _working = target.Merge(VisibleWorldRect);
+                _ratcheting = _working != target;
+                WriteLimits(_working);
             }
             EmitSignal(SignalName.BoundsChanged, ActiveBounds);
         }
 
         /// <summary>
-        /// One step of the limit ease. Public so tests can drive it frame by
-        /// frame; the camera's own physics step runs it.
+        /// Tightens the working limits toward the target on each side the
+        /// <paramref name="desiredCentre"/> view has moved past, never back.
+        /// Public (pure on the camera's state) so tests can drive it.
         /// </summary>
-        public void StepBoundsEase(float delta) {
-            if (!_boundsEasing) return;
-            float factor = StoryCameraRules.DampFactor(EncounterLockRules.CameraEaseSeconds, delta);
-            Vector2 start = _easedBounds.Position.Lerp(_easeTarget.Position, factor);
-            Vector2 end = _easedBounds.End.Lerp(_easeTarget.End, factor);
-            if (start.DistanceTo(_easeTarget.Position) < 0.5f && end.DistanceTo(_easeTarget.End) < 0.5f) {
-                start = _easeTarget.Position;
-                end = _easeTarget.End;
-                _boundsEasing = false;
-            }
-            _easedBounds = new Rect2(start, end - start);
-            WriteLimits(_easedBounds);
+        public void StepRatchet(Vector2 desiredCentre) {
+            if (!_ratcheting) return;
+            Vector2 half = ViewSize() / 2f;
+            float left = _working.Position.X, top = _working.Position.Y;
+            float right = _working.End.X, bottom = _working.End.Y;
+            Rect2 t = _ratchetTarget;
+            if (t.Position.X > left) left = Mathf.Max(left, Mathf.Min(t.Position.X, desiredCentre.X - half.X));
+            if (t.Position.Y > top) top = Mathf.Max(top, Mathf.Min(t.Position.Y, desiredCentre.Y - half.Y));
+            if (t.End.X < right) right = Mathf.Min(right, Mathf.Max(t.End.X, desiredCentre.X + half.X));
+            if (t.End.Y < bottom) bottom = Mathf.Min(bottom, Mathf.Max(t.End.Y, desiredCentre.Y + half.Y));
+            _working = new Rect2(left, top, right - left, bottom - top);
+            if (_working == _ratchetTarget) _ratcheting = false;
+            WriteLimits(_working);
         }
 
         private void WriteLimits(Rect2 bounds) {
@@ -227,6 +241,7 @@ namespace FTT.Environment {
             float y = StoryCameraRules.FollowAxis(RigCenter.Y, follow.Y,
                 StoryCameraRules.DeadZoneHeight * view.Y / 2f, StoryCameraRules.SoftZoneHeight * view.Y / 2f,
                 StoryCameraRules.DampingY, delta);
+            StepRatchet(new Vector2(x, y)); // FU-LOCK: tighten the lock limits before the rig confines
             RigCenter = Confine(new Vector2(x, y));
             GlobalPosition = RigCenter;
         }

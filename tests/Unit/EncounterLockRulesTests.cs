@@ -191,16 +191,10 @@ public class EncounterLockRulesTests {
     }
 
     [TestCase]
-    public void TheHudCountsTheLivingAndTheUnspawnedAndTheGoPromptReadsByItsArrow() {
+    public void TheRemainingCountIsTheLivingPlusTheUnspawnedAndZeroOnceCleared() {
         AssertThat(EncounterLockRules.RemainingCount(EncounterLockState.Engaged, livingMembers: 2, unspawnedPlanned: 3)).IsEqual(5);
         AssertThat(EncounterLockRules.RemainingCount(EncounterLockState.Armed, 2, 0)).IsEqual(2);
         AssertThat(EncounterLockRules.RemainingCount(EncounterLockState.Cleared, 2, 3)).IsEqual(0);
-        AssertThat(EncounterLockRules.GoGlyph(EncounterGoDirection.Right)).IsEqual("→");
-        AssertThat(EncounterLockRules.GoGlyph(EncounterGoDirection.Left)).IsEqual("←");
-        AssertThat(EncounterLockRules.GoGlyph(EncounterGoDirection.Up)).IsEqual("↑");
-        AssertThat(EncounterLockRules.GoGlyph(EncounterGoDirection.Down)).IsEqual("↓");
-        AssertThat(EncounterLockRules.GoGlyph(EncounterGoDirection.None)).IsEqual("");
-        AssertThat(EncounterLockRules.GoPromptSeconds).IsEqual(3f);
     }
 
     [TestCase]

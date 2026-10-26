@@ -127,16 +127,6 @@ namespace FTT.Environment {
         /// <summary>See <see cref="ViewWorldWidth"/>.</summary>
         public const float ViewWorldHeight = StoryCameraRules.ReferenceViewportHeight / StoryCameraRules.ViewZoom;
 
-        /// <summary>
-        /// <i>Provisional.</i> The camera eases into and out of a lock rect over
-        /// this damping time (the follow rig's own damper semantics: 99 % of the
-        /// gap closed) instead of snapping.
-        /// </summary>
-        public const float CameraEaseSeconds = 0.6f;
-
-        /// <summary><i>Provisional.</i> How long the HUD's GO prompt stays up after a clear.</summary>
-        public const float GoPromptSeconds = 3f;
-
         // === Content rules (EncounterLockContentTests) =======================
 
         /// <summary>An area is never narrower than the visible view (plan §2.3).</summary>
@@ -409,17 +399,5 @@ namespace FTT.Environment {
         /// </summary>
         public static int RemainingCount(EncounterLockState state, int livingMembers, int unspawnedPlanned) =>
             state == EncounterLockState.Cleared ? 0 : Math.Max(0, livingMembers) + Math.Max(0, unspawnedPlanned);
-
-        /// <summary>
-        /// The GO prompt's arrow glyph — the non-colour channel the prompt reads
-        /// by, beside its translated text. Empty for <see cref="EncounterGoDirection.None"/>.
-        /// </summary>
-        public static string GoGlyph(EncounterGoDirection direction) => direction switch {
-            EncounterGoDirection.Right => "→",
-            EncounterGoDirection.Left => "←",
-            EncounterGoDirection.Up => "↑",
-            EncounterGoDirection.Down => "↓",
-            _ => ""
-        };
     }
 }
