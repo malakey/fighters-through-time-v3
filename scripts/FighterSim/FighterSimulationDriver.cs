@@ -918,6 +918,9 @@ namespace FTT.FighterSim {
             int previous = _presentedPerfectBlockCount[playerID];
             _presentedPerfectBlockCount[playerID] = count;
             if (previous < 0 || count == 0 || count == previous) return;
+            // The count cycles 1..15 (0 = none this stock): a rollback correction
+            // that lowers it is not a new perfect block (FU review fix, 2026-10-25).
+            if (previous > 0 && !IsForwardCounterStep(previous, count, 15)) return;
             glow?.FlashHit(FTT.Combat.BlockSystem.PerfectBlockFlashColor, FTT.Combat.BlockSystem.PerfectBlockFlashSeconds);
             ShowBlockSpark(player, FTT.Combat.BlockSparkKind.Perfect); // FU-BLOCK
             CameraShake.Instance?.Shake(3f, 0.08f);

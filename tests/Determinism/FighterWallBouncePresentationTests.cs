@@ -26,7 +26,7 @@ public class FighterWallBouncePresentationTests {
     }
 
     [TestCase]
-    public void ARisingBounceCounterSpawnsOneImpactBurstAndAnUnchangedOneSpawnsNone() {
+    public void ARisingBounceCounterSpawnsOneImpactBurstAndAnUnchangedOrLoweredOneSpawnsNone() {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
         // A local human player two (the boot session's CPU would act on its own).
         GameManager manager = GameManager.Instance;
@@ -62,6 +62,18 @@ public class FighterWallBouncePresentationTests {
 
             driver._PhysicsProcess(Step);
             AssertThat(host.GetChildCount()).OverrideFailureMessage("the same counter plays nothing more").IsEqual(afterBounce);
+
+            // A second bounce plays a second burst; a rollback correction that
+            // lowers the counter again (removing a predicted bounce) plays none.
+            action.ActionFlags = FighterActionStateComponent.ActionFlagWallBounced | (2 << 8);
+            AssertThat(driver.Simulation.SeedFighterActionStateForTest(0, action)).IsTrue();
+            driver._PhysicsProcess(Step);
+            int afterSecond = host.GetChildCount();
+            AssertThat(afterSecond).OverrideFailureMessage("the next bounce plays one more burst").IsEqual(afterBounce + 1);
+            action.ActionFlags = FighterActionStateComponent.ActionFlagWallBounced | (1 << 8);
+            AssertThat(driver.Simulation.SeedFighterActionStateForTest(0, action)).IsTrue();
+            driver._PhysicsProcess(Step);
+            AssertThat(host.GetChildCount()).OverrideFailureMessage("a lowered counter is a correction, not a bounce").IsEqual(afterSecond);
         } finally {
             host.Free();
             manager.CurrentSession = savedSession;

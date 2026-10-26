@@ -105,7 +105,7 @@ public class FighterBlockSparkTests {
     }
 
     [TestCase]
-    public void ARiseOfThePerfectBlockCountShowsOnePerfectSpark() {
+    public void ARiseOfThePerfectBlockCountShowsOnePerfectSparkAndALoweredCountShowsNone() {
         if (InputManager.Instance == null) return;
         Rig rig = NewRig("FighterBlockSparkPerfectHost");
         try {
@@ -117,6 +117,21 @@ public class FighterBlockSparkTests {
             rig.Tick(0f, GameplayButtons.None, GameplayButtons.None);
             AssertThat(rig.Seen.Count).IsEqual(1);
             AssertThat(rig.Seen[0]).IsEqual(BlockSparkKind.Perfect);
+
+            // Two more perfect blocks (count 1 -> 3) show one more spark; a rollback
+            // correction that lowers the count (3 -> 2) is not a perfect block.
+            AssertThat(rig.Driver.Simulation.TryGetFighterActionState(1, out FighterActionStateComponent after)).IsTrue();
+            FighterActionStateComponent countTwo = after;
+            FighterBlockTimingRules.NotePerfectBlock(ref countTwo);
+            FighterActionStateComponent countThree = countTwo;
+            FighterBlockTimingRules.NotePerfectBlock(ref countThree);
+            AssertThat(FighterBlockTimingRules.PerfectBlockCount(in countThree)).IsEqual(3);
+            AssertThat(rig.Driver.Simulation.SeedFighterActionStateForTest(1, in countThree)).IsTrue();
+            rig.Tick(0f, GameplayButtons.None, GameplayButtons.None);
+            AssertThat(rig.Seen.Count).IsEqual(2);
+            AssertThat(rig.Driver.Simulation.SeedFighterActionStateForTest(1, in countTwo)).IsTrue();
+            rig.Tick(0f, GameplayButtons.None, GameplayButtons.None);
+            AssertThat(rig.Seen.Count).OverrideFailureMessage("a lowered count is a correction, not a perfect block").IsEqual(2);
         } finally {
             Free(rig);
         }
