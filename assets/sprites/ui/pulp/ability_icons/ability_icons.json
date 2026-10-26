@@ -1,0 +1,506 @@
+{
+ "cleopatra_movement": {
+  "atlas_column": 1,
+  "atlas_row": 2,
+  "file": "ability_icons/cleopatra_movement.png",
+  "opaque_px": [
+   44932,
+   45378,
+   27981
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "cleopatra_special_1": {
+  "atlas_column": 1,
+  "atlas_row": 0,
+  "file": "ability_icons/cleopatra_special_1.png",
+  "opaque_px": [
+   54785,
+   63044,
+   60328
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "cleopatra_special_2": {
+  "atlas_column": 1,
+  "atlas_row": 1,
+  "file": "ability_icons/cleopatra_special_2.png",
+  "opaque_px": [
+   75800,
+   76114,
+   82743
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "cleopatra_ultimate": {
+  "atlas_column": 1,
+  "atlas_row": 3,
+  "file": "ability_icons/cleopatra_ultimate.png",
+  "opaque_px": [
+   86573,
+   79661,
+   76056
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "einstein_movement": {
+  "atlas_column": 1,
+  "atlas_row": 2,
+  "file": "ability_icons/einstein_movement.png",
+  "opaque_px": [
+   30602,
+   51436,
+   27495
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "einstein_special_1": {
+  "atlas_column": 1,
+  "atlas_row": 0,
+  "file": "ability_icons/einstein_special_1.png",
+  "opaque_px": [
+   20322,
+   33354,
+   73610
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "einstein_special_2": {
+  "atlas_column": 1,
+  "atlas_row": 1,
+  "file": "ability_icons/einstein_special_2.png",
+  "opaque_px": [
+   75719,
+   76679,
+   79151
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "einstein_ultimate": {
+  "atlas_column": 1,
+  "atlas_row": 3,
+  "file": "ability_icons/einstein_ultimate.png",
+  "opaque_px": [
+   75379,
+   66483,
+   86580
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "joan_movement": {
+  "atlas_column": 1,
+  "atlas_row": 2,
+  "file": "ability_icons/joan_movement.png",
+  "opaque_px": [
+   56127,
+   82888,
+   77840
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "joan_special_1": {
+  "atlas_column": 1,
+  "atlas_row": 0,
+  "file": "ability_icons/joan_special_1.png",
+  "opaque_px": [
+   65294,
+   62182,
+   77220
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "joan_special_2": {
+  "atlas_column": 1,
+  "atlas_row": 1,
+  "file": "ability_icons/joan_special_2.png",
+  "opaque_px": [
+   65405,
+   76176,
+   74166
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "joan_ultimate": {
+  "atlas_column": 1,
+  "atlas_row": 3,
+  "file": "ability_icons/joan_ultimate.png",
+  "opaque_px": [
+   70341,
+   76952,
+   72374
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "leonardo_movement": {
+  "atlas_column": 1,
+  "atlas_row": 2,
+  "file": "ability_icons/leonardo_movement.png",
+  "opaque_px": [
+   66155,
+   60029,
+   38348
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "leonardo_special_1": {
+  "atlas_column": 1,
+  "atlas_row": 0,
+  "file": "ability_icons/leonardo_special_1.png",
+  "opaque_px": [
+   15936,
+   73281,
+   56739
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "leonardo_special_2": {
+  "atlas_column": 1,
+  "atlas_row": 1,
+  "file": "ability_icons/leonardo_special_2.png",
+  "opaque_px": [
+   35746,
+   18110,
+   37538
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "leonardo_ultimate": {
+  "atlas_column": 1,
+  "atlas_row": 3,
+  "file": "ability_icons/leonardo_ultimate.png",
+  "opaque_px": [
+   63830,
+   67406,
+   63768
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "lincoln_movement": {
+  "atlas_column": 1,
+  "atlas_row": 2,
+  "file": "ability_icons/lincoln_movement.png",
+  "opaque_px": [
+   40472,
+   55577,
+   29698
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "lincoln_special_1": {
+  "atlas_column": 1,
+  "atlas_row": 0,
+  "file": "ability_icons/lincoln_special_1.png",
+  "opaque_px": [
+   37267,
+   34799,
+   48928
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "lincoln_special_2": {
+  "atlas_column": 1,
+  "atlas_row": 1,
+  "file": "ability_icons/lincoln_special_2.png",
+  "opaque_px": [
+   70375,
+   89318,
+   53822
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "lincoln_ultimate": {
+  "atlas_column": 1,
+  "atlas_row": 3,
+  "file": "ability_icons/lincoln_ultimate.png",
+  "opaque_px": [
+   45944,
+   79544,
+   77919
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "mozart_movement": {
+  "atlas_column": 1,
+  "atlas_row": 2,
+  "file": "ability_icons/mozart_movement.png",
+  "opaque_px": [
+   50390,
+   60761,
+   53020
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "mozart_special_1": {
+  "atlas_column": 1,
+  "atlas_row": 0,
+  "file": "ability_icons/mozart_special_1.png",
+  "opaque_px": [
+   69538,
+   59412,
+   88851
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "mozart_special_2": {
+  "atlas_column": 1,
+  "atlas_row": 1,
+  "file": "ability_icons/mozart_special_2.png",
+  "opaque_px": [
+   75265,
+   92012,
+   89426
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "mozart_ultimate": {
+  "atlas_column": 1,
+  "atlas_row": 3,
+  "file": "ability_icons/mozart_ultimate.png",
+  "opaque_px": [
+   48231,
+   70161,
+   90962
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "shakespeare_movement": {
+  "atlas_column": 1,
+  "atlas_row": 2,
+  "file": "ability_icons/shakespeare_movement.png",
+  "opaque_px": [
+   52446,
+   65995,
+   25212
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "shakespeare_special_1": {
+  "atlas_column": 1,
+  "atlas_row": 0,
+  "file": "ability_icons/shakespeare_special_1.png",
+  "opaque_px": [
+   49775,
+   40765,
+   78743
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "shakespeare_special_2": {
+  "atlas_column": 1,
+  "atlas_row": 1,
+  "file": "ability_icons/shakespeare_special_2.png",
+  "opaque_px": [
+   68246,
+   61114,
+   58056
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "shakespeare_ultimate": {
+  "atlas_column": 1,
+  "atlas_row": 3,
+  "file": "ability_icons/shakespeare_ultimate.png",
+  "opaque_px": [
+   87437,
+   81500,
+   81583
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "tesla_movement": {
+  "atlas_column": 1,
+  "atlas_row": 2,
+  "file": "ability_icons/tesla_movement.png",
+  "opaque_px": [
+   23875,
+   33886,
+   16326
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "tesla_special_1": {
+  "atlas_column": 1,
+  "atlas_row": 0,
+  "file": "ability_icons/tesla_special_1.png",
+  "opaque_px": [
+   35437,
+   58077,
+   28488
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "tesla_special_2": {
+  "atlas_column": 1,
+  "atlas_row": 1,
+  "file": "ability_icons/tesla_special_2.png",
+  "opaque_px": [
+   56743,
+   78084,
+   79007
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "tesla_ultimate": {
+  "atlas_column": 1,
+  "atlas_row": 3,
+  "file": "ability_icons/tesla_ultimate.png",
+  "opaque_px": [
+   58401,
+   70284,
+   67884
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "tubman_movement": {
+  "atlas_column": 1,
+  "atlas_row": 2,
+  "file": "ability_icons/tubman_movement.png",
+  "opaque_px": [
+   20382,
+   29542,
+   15986
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "tubman_special_1": {
+  "atlas_column": 1,
+  "atlas_row": 0,
+  "file": "ability_icons/tubman_special_1.png",
+  "opaque_px": [
+   56524,
+   52951,
+   59894
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "tubman_special_2": {
+  "atlas_column": 1,
+  "atlas_row": 1,
+  "file": "ability_icons/tubman_special_2.png",
+  "opaque_px": [
+   62274,
+   60114,
+   58281
+  ],
+  "size": [
+   144,
+   144
+  ]
+ },
+ "tubman_ultimate": {
+  "atlas_column": 1,
+  "atlas_row": 3,
+  "file": "ability_icons/tubman_ultimate.png",
+  "opaque_px": [
+   64752,
+   71110,
+   86599
+  ],
+  "size": [
+   144,
+   144
+  ]
+ }
+}
