@@ -37,7 +37,7 @@ budget, with zero budget breaches over 3,000 measured corrections and a largest 
 of 2,699 bytes. Recorded 2026-08-08 by C1 across the ten production stage geometries; the A4 numbers
 this section originally carried were Florence-only. The gate still passed when re-measured on
 2026-10-16, after the combat and movement update: 0.084 ms median / 0.168 ms p95, zero breaches, a
-largest snapshot of 4,473 bytes (the re-measure section below).
+largest snapshot of 4,473 bytes (the re-measure section below). After Echo Step's removal (2026-10-25) it read 0.090 ms median / 0.137 ms p95 and 3,277 bytes (the last section below).
 
 Captured 2026-08-08 on the same Windows development machine, Godot 4.7.1 .NET / .NET 10 Debug build.
 
@@ -147,6 +147,28 @@ checkouts' builds failed it on isolated over-budget corrections beside normal me
 `alexandria_chambers`, max 10.942 ms, in CM-BOT's run; one of 17.4 ms on `paris_bastille` in
 CM-SIM's), and both passed when re-run alone under the lock.
 Re-run the class alone before reading a breach as a cost.
+
+### Re-measure, 2026-10-25 (the feel and UI update: Echo Step removed)
+
+**Gate verdict: PASS, zero breaches.** Echo Step's removal (`docs/FEEL_UI_UPDATE_2026-10-25_PLAN.md`
+§2.5) retired Klotho components 313–317 (the 31-sample position ring, 524 B per fighter) and four
+`FighterVerbComponent` fields, about 1,096 B off every full snapshot. FU-ECHO measured the rollback
+readiness class on its own branch (`fu/echo`), before FU-KNOCK merged; FU-KNOCK added no snapshot
+state (it uses only reserved bits of component 323), so the snapshot figure carries to the merged
+tree, while the resimulation timings were not re-run on it (the `dotnet test` logs of the integrated
+runs print no timing lines). Same machine, Godot 4.7.1 .NET / .NET 10 Debug build, the same
+10-stage worst-case depth-7 harness as above.
+
+| Metric | 2026-10-16 | 2026-10-25 (`fu/echo`) |
+|---|---:|---:|
+| Worst median across ten stages | 0.084 ms (`alexandria_chambers`) | 0.090 ms |
+| Worst p95 across ten stages | 0.168 ms (`chicago_exposition`) | 0.137 ms |
+| Budget breaches | 0 | 0 |
+| Largest full-state snapshot | 4,473 bytes (`globe_theatre`) | 3,277 bytes |
+
+The median is a few microseconds higher while the p95 and the snapshot are lower; the medians
+differ by less than the run-to-run spread seen on this shared machine, so no cost change is claimed.
+The per-stage table was not recorded for this re-measure.
 
 ### Convergence and history bounds
 
