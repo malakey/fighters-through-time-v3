@@ -1691,6 +1691,7 @@ namespace FTT.Characters {
 						ApplyShieldOfOrleans(hit, blockResult);
 					}
 					FTT.Core.CameraShake.Instance?.Shake(3f, 0.08f);
+					ShowBlockSpark(blockResult); // FU-BLOCK: the success effect
 					if (blockResult == FTT.Combat.BlockResult.Blocked) {
 						// Guard Impact (design haptic table): a successful absorb.
 						// A guard break buzzes its own heavier pattern through the
