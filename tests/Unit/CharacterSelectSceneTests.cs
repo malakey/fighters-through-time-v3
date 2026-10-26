@@ -31,9 +31,9 @@ public class CharacterSelectSceneTests {
 
     private const string ScenePath = "res://scenes/menus/CharacterSelect.tscn";
     // UR-SELECT: the name and stat line live inside each player's paper card.
-    private const string P1NamePath = "SelectPhase/Root/PlayersRow/P1Panel/P1Card/Paper/Inset/Col/P1Name";
+    private const string P1NamePath = "SelectPhase/Root/PlayersRow/P1Panel/P1Card/Paper/Inset/Col/NameBox/P1Name";
     private const string P1StatsPath = "SelectPhase/Root/PlayersRow/P1Panel/P1Card/Paper/Inset/Col/P1Stats";
-    private const string P2NamePath = "SelectPhase/Root/PlayersRow/P2Panel/P2Card/Paper/Inset/Col/P2Name";
+    private const string P2NamePath = "SelectPhase/Root/PlayersRow/P2Panel/P2Card/Paper/Inset/Col/NameBox/P2Name";
     private const string P2StatsPath = "SelectPhase/Root/PlayersRow/P2Panel/P2Card/Paper/Inset/Col/P2Stats";
     private const string SelectRoot = "SelectPhase/Root/";
     private const string StageRoot = "StagePhase/Root/";

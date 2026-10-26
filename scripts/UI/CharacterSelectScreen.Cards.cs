@@ -158,13 +158,13 @@ namespace FTT.UI {
                 Name = "CharacterName", Text = TileName(index), Uppercase = true,
                 ThemeTypeVariation = UIPalette.LabelRoles.CardName, MouseFilter = MouseFilterEnum.Ignore,
                 HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-                Position = new Vector2(0f, 210f), Size = new Vector2(196f, 32f), ClipText = true
+                Position = new Vector2(0f, 206f), Size = new Vector2(196f, 36f)
             };
             parts.Tilt.AddChild(parts.Name);
             parts.Dates = new Label {
                 Name = "CharacterDates", Text = TileDates(index), ThemeTypeVariation = UIPalette.LabelRoles.CardDates,
                 MouseFilter = MouseFilterEnum.Ignore, HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center, Position = new Vector2(0f, 240f), Size = new Vector2(196f, 28f), ClipText = true
+                VerticalAlignment = VerticalAlignment.Center, Position = new Vector2(0f, 242f), Size = new Vector2(196f, 28f)
             };
             parts.Tilt.AddChild(parts.Dates);
 
@@ -379,11 +379,15 @@ namespace FTT.UI {
             col.AddThemeConstantOverride("separation", 8);
             inset.AddChild(col);
 
+            // The name sits in a plain Control so a shrink-to-fit scale on the label sticks (a container resets it).
+            var nameBox = new Control { Name = "NameBox", CustomMinimumSize = new Vector2(0f, 34f * Mathf.Max(1f, UIPalette.AppliedUiScale)), MouseFilter = MouseFilterEnum.Ignore };
+            col.AddChild(nameBox);
             pp.Name = new Label {
                 Name = $"P{t + 1}Name", ThemeTypeVariation = UIPalette.LabelRoles.SideCardName, Uppercase = true,
-                ClipText = true, CustomMinimumSize = new Vector2(0f, 34f), VerticalAlignment = VerticalAlignment.Center
+                Size = new Vector2(0f, 34f * Mathf.Max(1f, UIPalette.AppliedUiScale)), VerticalAlignment = VerticalAlignment.Center, MouseFilter = MouseFilterEnum.Ignore
             };
-            col.AddChild(pp.Name);
+            nameBox.AddChild(pp.Name);
+            nameBox.Resized += () => FitSideName(pp);
             pp.Stats = new Label { Name = $"P{t + 1}Stats", Visible = false };
             col.AddChild(pp.Stats);
 
@@ -462,8 +466,29 @@ namespace FTT.UI {
         private string TileStats(int index) =>
             index == RandomTileIndex ? Tr("fighter_random_character_hint") : StatsText(_characterIDs[index]);
 
+        private static void FitSideName(PlayerPanel pp) {
+            if (pp.Name.GetParent() is Control box && box.Size.X > 0f) CardTextFit.Fit(pp.Name, 0f, box.Size.X, centred: false);
+        }
+
+        /// <summary>Re-fits every card text to its box (after a text change or a UI scale change).</summary>
+        private void RefitCardText() {
+            if (_cards != null) {
+                foreach (CardParts card in _cards) {
+                    if (card == null) continue;
+                    CardTextFit.Fit(card.Name, 0f, CardW, centred: true);
+                    CardTextFit.Fit(card.Dates, 0f, CardW, centred: true);
+                }
+            }
+            foreach (PlayerPanel pp in _players) if (pp != null) FitSideName(pp);
+        }
+
+        public override void _Notification(int what) {
+            if (what == NotificationThemeChanged && IsInsideTree()) RefitCardText();
+        }
+
         private void FillCard(PlayerPanel pp, int index) {
             pp.Name.Text = TileFullName(index);
+            FitSideName(pp);
             pp.Stats.Text = TileStats(index);
             bool real = index != RandomTileIndex && index >= 0 && index < _characterIDs.Length;
             pp.Rows.Visible = real;
@@ -504,6 +529,7 @@ namespace FTT.UI {
             if (IsVersusCpuFlow) {
                 // The CPU is configured on the next screen, not picked here.
                 p2.Name.Text = Tr("fighter_versus_cpu_title");
+                FitSideName(p2);
                 p2.Stats.Text = Tr("fighter_cpu_configured_next");
                 p2.Card.TagKey = "";
                 p2.Rows.Visible = false;
@@ -533,7 +559,10 @@ namespace FTT.UI {
             StyleBanner(GetNode<Label>(StageRoot + "StageTitle"));
 
             foreach (string name in new[] { "MoveListButton", "SystemsCardButton", "BackButton" }) {
-                PulpButtonDecor.Apply(GetNode<Button>(SelectRoot + "ButtonRow/" + name), compact: true);
+                var footer = GetNode<Button>(SelectRoot + "ButtonRow/" + name);
+                // The decor draws the label upper-case and ellipsizes it: the plate widens with the UI scale so it still fits.
+                footer.CustomMinimumSize = new Vector2(316f * Mathf.Max(1f, UIPalette.AppliedUiScale), footer.CustomMinimumSize.Y);
+                PulpButtonDecor.Apply(footer, compact: true);
             }
             var bar = new PulpPromptBar { Name = "PromptBar", SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter };
             bar.AddPrompt("ui_accept", "common_confirm");
@@ -544,6 +573,7 @@ namespace FTT.UI {
             PulpButtonDecor.Apply(GetNode<Button>(StageRoot + "StageButtonRow/FightButton"));
             PulpToggleDecor.Apply(_meterPickups);
             PulpToggleDecor.Apply(_stageHazards);
+            RefitCardText();
         }
 
         /// <summary>The gold select banner behind a heading: the kit plate as the label's box, tilted a degree (re-applied after every container sort).</summary>

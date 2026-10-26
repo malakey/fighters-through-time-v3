@@ -110,6 +110,33 @@ public class CharacterSelectCardTests {
     }
 
     [TestCase]
+    public void CardTextShrinksToItsBoxAtLargeUiScaleButNeverBelowItsSizeAtScaleOne() {
+        float saved = UIPalette.AppliedUiScale;
+        CharacterSelectScreen screen = null;
+        Node host = null;
+        try {
+            UIPalette.ApplyUiScale(1.4f);
+            screen = Open(out host);
+            var problems = new List<string>();
+            var grid = screen.GetNode<GridContainer>(SelectRoot + "PlayersRow/Grid");
+            float floor = 1f / 1.4f - 0.001f;
+            foreach (Node tile in grid.GetChildren()) {
+                foreach (string part in new[] { "CharacterName", "CharacterDates" }) {
+                    var label = tile.FindChild(part, true, false) as Label;
+                    float scale = label.Scale.X;
+                    float drawn = CardTextFit.TextWidth(label) * scale;
+                    if (scale > 1.001f || scale < floor) problems.Add($"{tile.Name}/{part}: scale {scale}");
+                    else if (drawn > CardGridRules.CardWidth + 1f && scale > floor + 0.002f) problems.Add($"{tile.Name}/{part}: {drawn} px is neither fitted nor at the floor");
+                }
+            }
+            if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
+        } finally {
+            UIPalette.ApplyUiScale(saved);
+            if (host != null) Teardown(host);
+        }
+    }
+
+    [TestCase]
     public void TheStagePhaseAndTheHolodeckConsoleSkinTheirTogglesAndKeepTheirValues() {
         CharacterSelectScreen screen = Open(out Node host);
         try {
