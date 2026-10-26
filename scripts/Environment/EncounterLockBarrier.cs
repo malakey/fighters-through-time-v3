@@ -22,19 +22,12 @@ namespace FTT.Environment {
     /// <see cref="StaticBody2D"/>, never an <c>AnimatableBody2D</c>, which the
     /// static-geometry sweeps exclude.</para>
     ///
-    /// <para>Placeholder look: a cold, jagged energy curtain in
-    /// <see cref="FTT.UI.UIPalette.UnboundCold"/> — the Severed's kind of door, not
-    /// the Warden portal's gold — with a column of hollow diamonds down its centre
-    /// as the non-colour channel. Drawn only while closed.</para>
+    /// <para>Invisible since FU-LOCK (2026-10-25, ruling R4): the wall is solid
+    /// and holds the hero in, but nothing is drawn.</para>
     /// </summary>
     public partial class EncounterLockBarrier : StaticBody2D {
         /// <summary>Every lock barrier joins this group.</summary>
         public const string Group = "story_encounter_barrier";
-
-        /// <summary>How far the curtain's glow reaches past each face (presentation only).</summary>
-        private const float GlowPixels = 10f;
-        /// <summary>Vertical pitch of the jagged edge and the diamond column.</summary>
-        private const float PatternPitchPixels = 48f;
 
         /// <summary>The owning lock's ID; diagnostics and the content sweep.</summary>
         public string LockID { get; private set; } = "";
@@ -80,8 +73,7 @@ namespace FTT.Environment {
                 Width = clampedWidth,
                 CollisionLayer = CollisionLayers.Environment,
                 CollisionMask = 0,
-                // Placed at its footprint's centre so the drawing and the
-                // collision share one local frame.
+                // Placed at its footprint's centre.
                 Position = new Vector2(centerX, (top + bottom) * 0.5f)
             };
             barrier.Shape = new CollisionShape2D {
@@ -108,8 +100,6 @@ namespace FTT.Environment {
             if (IsClosed == closed && Shape != null && Shape.Disabled == !closed) return;
             IsClosed = closed;
             Shape?.SetShapeDisabledSafe(!closed);
-            Visible = closed;
-            QueueRedraw();
         }
 
         /// <summary>
@@ -133,42 +123,6 @@ namespace FTT.Environment {
             body.GlobalPosition = new Vector2(x, feet.Y);
             body.Velocity = new Vector2(0f, body.Velocity.Y);
             return true;
-        }
-
-        public override void _Draw() {
-            if (!IsClosed) return;
-            float height = BottomY - TopY;
-            float half = Width * 0.5f;
-            float top = -height * 0.5f;
-            // Only the part a camera can show is drawn: the level never shows
-            // y < 0, and the column above it may be kilometres tall.
-            float visibleTop = Mathf.Max(top, -Position.Y);
-            float visibleHeight = height * 0.5f - visibleTop;
-            if (visibleHeight <= 0f) return;
-            Color fill = FTT.UI.UIPalette.UnboundColdDim;
-            Color edge = FTT.UI.UIPalette.UnboundCold;
-            DrawRect(new Rect2(-half - GlowPixels, visibleTop, Width + 2f * GlowPixels, visibleHeight),
-                new Color(fill.R, fill.G, fill.B, fill.A * 0.6f));
-            DrawRect(new Rect2(-half, visibleTop, Width, visibleHeight), fill);
-            // The jagged edges: a zig-zag down each face (the tear, not a frame).
-            int steps = Mathf.Max(1, Mathf.CeilToInt(visibleHeight / (PatternPitchPixels * 0.5f)));
-            float step = visibleHeight / steps;
-            for (int side = -1; side <= 1; side += 2) {
-                var points = new Vector2[steps + 1];
-                for (int index = 0; index <= steps; index++) {
-                    float jag = index % 2 == 0 ? 0f : 6f;
-                    points[index] = new Vector2(side * (half + jag), visibleTop + index * step);
-                }
-                DrawPolyline(points, edge, 2f);
-            }
-            // The non-colour channel: hollow diamonds down the centre line.
-            for (float y = visibleTop + PatternPitchPixels * 0.5f; y < visibleTop + visibleHeight; y += PatternPitchPixels) {
-                float r = Mathf.Min(half, 7f);
-                DrawPolyline(new[] {
-                    new Vector2(0f, y - r), new Vector2(r, y), new Vector2(0f, y + r),
-                    new Vector2(-r, y), new Vector2(0f, y - r)
-                }, edge, 1.5f);
-            }
         }
     }
 }
