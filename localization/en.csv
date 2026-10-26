@@ -1415,6 +1415,7 @@ licenses_intro,Fighters Through Time is built with the following third-party sof
 licenses_row,{0} — {1}
 license_name_mit,MIT License
 license_name_apache2,Apache License 2.0
+license_name_ofl,SIL Open Font License 1.1
 boot_photosensitivity_title,Photosensitivity Warning
 boot_photosensitivity_body,"A very small percentage of people may experience seizures when exposed to certain lights, patterns or flashing images in video games. If you or anyone in your family has epilepsy, consult a doctor before playing. Stop playing at once if you feel dizzy or unwell. Reduced Temporal Effects and Screen Shake in Settings soften flashes, distortion and camera motion."
 boot_continue,Continue

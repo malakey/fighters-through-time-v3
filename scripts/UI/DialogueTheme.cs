@@ -31,17 +31,17 @@ namespace FTT.UI {
         // ---- Glass panel -----------------------------------------------------
 
         /// <summary>Translucent fill. Alpha is the whole point: the scene reads through it.</summary>
-        public static readonly Color GlassBackground = new(0.06f, 0.06f, 0.12f, 0.72f);
+        public static readonly Color GlassBackground = UIPalette.PlateFill;
 
         /// <summary>Accent border, dimmer and more translucent than a solid UI panel's.</summary>
-        public static readonly Color GlassBorder = new(0f, 0.9f, 0.9f, 0.55f);
+        public static readonly Color GlassBorder = UIPalette.Paper;
 
         /// <summary>Drop shadow that lifts the panel off the scene behind it.</summary>
-        public static readonly Color GlassShadow = new(0f, 0.02f, 0.04f, 0.45f);
+        public static readonly Color GlassShadow = UIPalette.InkBlack;
 
-        public const int GlassCornerRadius = 10;
-        public const int GlassBorderWidth = 2;
-        public const int GlassShadowSize = 12;
+        public const int GlassCornerRadius = 4;
+        public const int GlassBorderWidth = 3;
+        public const int GlassShadowSize = 1;
 
         // ---- Portrait frame --------------------------------------------------
 

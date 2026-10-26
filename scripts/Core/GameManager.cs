@@ -191,6 +191,10 @@ namespace FTT.Core {
         private double _loadingDisplayTimer;
         private ScenePoolCatalog _scenePoolCatalog;
         private const double MinLoadingDisplayTime = 2.0;
+        // UR-THEME: the MOT-B diagonal wipe over the loading screen. It never lengthens the minimum
+        // display time (the cover starts a cover-length early) and never blocks a swap for long.
+        private FTT.UI.Motion.ScreenWipe _wipe;
+        private const double WipeGraceSeconds = 1.0;
 
         /// <summary>
         /// True from <see cref="LoadScene"/> until the new scene replaces the old
@@ -308,6 +312,10 @@ namespace FTT.Core {
             AddChild(_loadingScreen);
             _loadingScreen.Configure(scenePath, CurrentSession);
 
+            _wipe = FTT.UI.Motion.ScreenWipe.EnsureFor(this);
+            _wipe.Release();
+            _wipe.PlayThrough();
+
             Error requestError = ResourceLoader.LoadThreadedRequest(scenePath);
             if (requestError != Error.Ok) {
                 AbortLoad($"Threaded scene load request failed for '{scenePath}': {requestError}.");
@@ -327,6 +335,7 @@ namespace FTT.Core {
         private void AbortLoad(string reason) {
             GD.PushError(reason);
             string failedPath = _pendingScenePath;
+            _wipe?.Release();
             DismissLoadingScreen();
             _isLoading = false;
             _pendingScenePath = null;
@@ -359,7 +368,15 @@ namespace FTT.Core {
                 AbortLoad($"Threaded scene load failed for '{_pendingScenePath}' ({status}).");
                 return;
             }
-            if (status == ResourceLoader.ThreadLoadStatus.Loaded && _loadingDisplayTimer >= MinLoadingDisplayTime) {
+            bool loaded = status == ResourceLoader.ThreadLoadStatus.Loaded;
+            // Start covering a cover-length early so the swap still lands at the minimum display time.
+            if (loaded && _wipe != null && !_wipe.IsActive
+                && _loadingDisplayTimer >= MinLoadingDisplayTime - _wipe.CoverSeconds) {
+                _wipe.BeginCover();
+            }
+            bool wipeReady = _wipe == null || _wipe.IsCovered
+                || _loadingDisplayTimer >= MinLoadingDisplayTime + WipeGraceSeconds;
+            if (loaded && _loadingDisplayTimer >= MinLoadingDisplayTime && wipeReady) {
                 var packedScene = ResourceLoader.LoadThreadedGet(_pendingScenePath) as PackedScene;
                 if (packedScene == null) {
                     AbortLoad($"Threaded scene load for '{_pendingScenePath}' did not produce a PackedScene.");
@@ -368,6 +385,8 @@ namespace FTT.Core {
                 WarmPoolsForScene(_pendingScenePath);
                 GetTree().ChangeSceneToPacked(packedScene);
                 DismissLoadingScreen();
+                // The slab uncovers the new scene (a no-op when the wipe was skipped).
+                _wipe?.BeginReveal();
                 _isLoading = false;
                 _pendingScenePath = null;
             }
