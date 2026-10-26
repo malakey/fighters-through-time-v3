@@ -16,7 +16,7 @@ namespace FTT.Tests.Unit;
 [TestSuite]
 [RequireGodotRuntime]
 public class StoryHudBeaconAnchorTests {
-    private const string TemporalRow = "SafeArea/TopLeft_Panel/Vitals/TemporalRow";
+    private const string TemporalRow = "SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow";
 
     [TestCase]
     public void TheBeaconSitsImmediatelyRightOfTheHourglassAheadOfTheFreezeIndicator() {
@@ -35,13 +35,13 @@ public class StoryHudBeaconAnchorTests {
 
             var icon = hud.GetNode<Control>($"{TemporalRow}/BeaconAnchors/BeaconIcon");
             AssertObject(icon as BeaconAnchorIcon).IsNotNull();
-            AssertThat(icon.CustomMinimumSize).IsEqual(new Vector2(24f, 24f));
+            AssertThat(icon.CustomMinimumSize).IsEqual(new Vector2(AnchorPip.IconSize, AnchorPip.IconSize));
 
             EventBus.Instance.RaiseAnchorChargesChanged(new AnchorChargesPayload { Charges = 3, Max = 3 });
             AssertThat(hud.AnchorPipCount).IsEqual(3);
             foreach (AnchorPip pip in hud.AnchorPips) {
                 AssertThat(pip.CustomMinimumSize).IsEqual(new Vector2(AnchorPip.PipSize, AnchorPip.PipSize));
-                AssertThat(AnchorPip.PipSize).IsEqual(8);
+                AssertThat(AnchorPip.PipSize).IsEqual(18);
             }
         } finally {
             host.Free();

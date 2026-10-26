@@ -1,3 +1,4 @@
+using FTT.UI.Pulp;
 using Godot;
 
 namespace FTT.UI {
@@ -25,8 +26,14 @@ namespace FTT.UI {
             Spent
         }
 
-        /// <summary>The contract's pip edge length, in reference pixels.</summary>
-        public const int PipSize = 8;
+        /// <summary>
+        /// The pip's edge length, in reference pixels: 18 since the pulp UI redesign (UR-HUDS, the
+        /// HUD_CONTRACT's 8 px at about twice the size, drawn with the kit's <c>anchor_pip</c> icons).
+        /// </summary>
+        public const int PipSize = 18;
+
+        /// <summary>The Beacon icon's edge length (24 before UR-HUDS), the 46 px badge size of the time tools.</summary>
+        public const int IconSize = 46;
 
         /// <summary>Length of the crack-and-fade beat.</summary>
         public const float CrackSeconds = 0.6f;
@@ -46,10 +53,28 @@ namespace FTT.UI {
 
         public Color FillColor { get; set; } = UIPalette.GoldBright;
 
+        private readonly PulpIcon _icon;
+
         public AnchorPip() {
             CustomMinimumSize = new Vector2(PipSize, PipSize);
             MouseFilter = MouseFilterEnum.Ignore;
             SizeFlagsVertical = SizeFlags.ShrinkCenter;
+            _icon = PulpIcon.Create("anchor_pip", FillColor, PipSize);
+            AddChild(_icon);
+            UpdateIcon();
+        }
+
+        private void UpdateIcon() {
+            if (_icon == null) return;
+            bool cracking = _state == PipState.Cracking;
+            _icon.IconName = cracking ? "anchor_pip_cracked" : "anchor_pip";
+            _icon.Tint = FillColor;
+            float alpha = _state switch {
+                PipState.Filled => 1f,
+                PipState.Cracking => Mathf.Lerp(1f, SpentAlpha, CrackProgress),
+                _ => SpentAlpha
+            };
+            _icon.Modulate = new Color(1f, 1f, 1f, alpha);
         }
 
         /// <summary>Filled or spent, with no animation (bind, load, refill).</summary>
@@ -57,7 +82,7 @@ namespace FTT.UI {
             _state = filled ? PipState.Filled : PipState.Spent;
             _crackElapsed = 0f;
             SetProcess(false);
-            QueueRedraw();
+            UpdateIcon();
         }
 
         /// <summary>An Anchor Snap spent this charge: crack, then fade to spent.</summary>
@@ -66,7 +91,7 @@ namespace FTT.UI {
             _state = PipState.Cracking;
             _crackElapsed = 0f;
             SetProcess(true);
-            QueueRedraw();
+            UpdateIcon();
         }
 
         /// <summary>Advances the crack beat. Public so tests can drive it headlessly.</summary>
@@ -77,52 +102,11 @@ namespace FTT.UI {
                 _state = PipState.Spent;
                 SetProcess(false);
             }
-            QueueRedraw();
+            UpdateIcon();
         }
 
         public override void _Ready() => SetProcess(_state == PipState.Cracking);
 
         public override void _Process(double delta) => Advance((float)delta);
-
-        public override void _Draw() {
-            Vector2 size = Size.X > 0f && Size.Y > 0f ? Size : CustomMinimumSize;
-            float half = Mathf.Min(size.X, size.Y) * 0.5f;
-            var centre = new Vector2(size.X * 0.5f, size.Y * 0.5f);
-            Vector2[] diamond = {
-                centre + new Vector2(0f, -half),
-                centre + new Vector2(half, 0f),
-                centre + new Vector2(0f, half),
-                centre + new Vector2(-half, 0f)
-            };
-            switch (_state) {
-                case PipState.Filled:
-                    DrawColoredPolygon(diamond, FillColor);
-                    break;
-                case PipState.Cracking: {
-                    float t = CrackProgress;
-                    Color fill = FillColor;
-                    fill.A = Mathf.Lerp(1f, SpentAlpha, t);
-                    DrawColoredPolygon(diamond, fill);
-                    // The crack: a jagged line across the diamond, darkest at the start.
-                    var crack = new Color(0.05f, 0.05f, 0.1f, 1f - t * 0.6f);
-                    DrawPolyline(new[] {
-                        centre + new Vector2(-half * 0.2f, -half * 0.9f),
-                        centre + new Vector2(half * 0.15f, -half * 0.15f),
-                        centre + new Vector2(-half * 0.15f, half * 0.2f),
-                        centre + new Vector2(half * 0.1f, half * 0.9f)
-                    }, crack, 1f);
-                    break;
-                }
-                default: {
-                    Color outline = FillColor;
-                    outline.A = SpentAlpha;
-                    var closed = new Vector2[diamond.Length + 1];
-                    diamond.CopyTo(closed, 0);
-                    closed[diamond.Length] = diamond[0];
-                    DrawPolyline(closed, outline, 1f);
-                    break;
-                }
-            }
-        }
     }
 }

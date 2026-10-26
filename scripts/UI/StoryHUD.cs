@@ -1,5 +1,6 @@
 using Godot;
 using FTT.Core;
+using FTT.UI.Pulp;
 
 namespace FTT.UI {
 
@@ -39,8 +40,8 @@ namespace FTT.UI {
             FTT.Core.AbilitySlot.MovementAbility
         };
 
-        /// <summary>Design's 20x20 px shield icons; a ColorRect stands in for art.</summary>
-        private const int BlockPipSize = 20;
+        /// <summary>UR-HUDS: the 30 px shield pips (UI_SPEC 3.3.4), gap 7.</summary>
+        private const int BlockPipSize = 30;
 
         /// <summary>
         /// M15 (Package 12 W10): the localized accessible label for the Act III
@@ -57,7 +58,11 @@ namespace FTT.UI {
         private Control _root;
         private TextureRect _portrait;
         private HBoxContainer _blockPipRow;
-        private ColorRect[] _blockPips = System.Array.Empty<ColorRect>();
+        private PulpIcon[] _blockPips = System.Array.Empty<PulpIcon>();
+        private Control _topLeft;
+        private Label _heroName;
+        private Label _bossPhaseTab;
+        private Label _bossHpValue;
         private Label _levelTitleLabel;
         private Label _objectiveLabel;
         private ProgressBar _hpBar;
@@ -149,7 +154,7 @@ namespace FTT.UI {
         public int LitBlockPips {
             get {
                 int lit = 0;
-                foreach (ColorRect pip in _blockPips) {
+                foreach (PulpIcon pip in _blockPips) {
                     if (pip.Modulate.A >= 1f) lit++;
                 }
                 return lit;
@@ -242,6 +247,7 @@ namespace FTT.UI {
             RefreshIntegrity();
             _opacity.Apply(_root, force: true);
             _uiScale.Apply(_root, force: true);
+            ApplyFit(force: true);
         }
 
         public override void _ExitTree() {
@@ -274,6 +280,7 @@ namespace FTT.UI {
             // and there is no settings-changed event to subscribe to.
             _opacity.Apply(_root);
             _uiScale.Apply(_root);
+            ApplyFit();
             SyncStatusAuthority();
             _indicators.Tick((float)delta);
             // After the fallback tick, so the drawn arc is the hero's own value
@@ -346,13 +353,13 @@ namespace FTT.UI {
         /// <b>keeps its reserved position</b> — the panel is fixed-position
         /// precisely so hiding one indicator cannot shift the other.
         /// </summary>
-        private void RefreshStatusSlot(Label indicator, RadialProgress radial, bool damageSlot) {
+        private void RefreshStatusSlot(Label indicator, RadialProgress radial, PulpStatusChip chip, bool damageSlot) {
             if (indicator == null) return;
             StatusType status = _indicators.StatusIn(damageSlot);
             if (status == StatusType.None) {
                 indicator.Text = "";
                 indicator.TooltipText = "";
-                if (radial != null) radial.Visible = false;
+                ApplyChip(chip, StatusType.None, 0f, 0f);
                 return;
             }
             // Glyph plus localized name: HUD_CONTRACT forbids identifying an effect
@@ -364,10 +371,12 @@ namespace FTT.UI {
             // than creating a second canonical palette for statuses.
             Color tint = FTT.Combat.GlowPalette.Status(status).OutlineColor;
             indicator.AddThemeColorOverride("font_color", tint);
+            float remaining = _indicators.RemainingIn(damageSlot);
+            ApplyChip(chip, status, remaining, StatusRadialFraction(remaining));
             if (radial == null) return;
-            radial.Visible = true;
+            // The chip draws the ring and the glyph (UR-HUDS); the legacy radial keeps its value, hidden.
             radial.FillColor = tint;
-            radial.Fraction = StatusRadialFraction(_indicators.RemainingIn(damageSlot));
+            radial.Fraction = StatusRadialFraction(remaining);
         }
 
         /// <summary>
@@ -401,20 +410,26 @@ namespace FTT.UI {
                 ? _integrity.Percent
                 : FTT.Core.StoryManager.Instance.TimelineIntegrityPercent;
             _integrityClock.Visible = true;
+            int whole = Mathf.FloorToInt(percent);
             if (_integrityText != null) {
-                _integrityText.Text = string.Format(Tr("hud_integrity"), Mathf.FloorToInt(percent));
-                _integrityText.AddThemeColorOverride("font_color", IntegrityTint());
+                _integrityText.Text = string.Format(Tr("hud_percent"), whole);
+                _integrityText.TooltipText = string.Format(Tr("hud_integrity"), whole);
             }
             if (_clockWedge != null) {
                 _clockWedge.Fraction = Mathf.Clamp(percent / 100f, 0f, 1f);
                 _clockWedge.FillColor = IntegrityTint();
             }
+            // F01 / UI_SPEC 3.3.4: sealed at the pre-boss checkpoint the dial gives way to the note.
+            bool sealedGauge = FTT.Core.StoryManager.Instance != null && FTT.Core.StoryManager.Instance.IsPreBossLocked;
+            SetDialShown(!sealedGauge);
             if (_siphonStreams == null) return;
             bool siphoning = _integrityKnown && _integrity.LivingExtractors > 0 && !_integrity.Frozen;
             _siphonStreams.Visible = siphoning;
             if (siphoning) {
                 _siphonStreams.Text = string.Format(Tr("hud_integrity_siphons"), _integrity.LivingExtractors);
+                _siphonStreams.TooltipText = _siphonStreams.Text;
             }
+            if (_siphonDraw != null) _siphonDraw.Count = siphoning && !sealedGauge ? _integrity.LivingExtractors : 0;
         }
 
         /// <summary>
@@ -424,11 +439,11 @@ namespace FTT.UI {
         /// Otherwise an active siphon reads red and the tier drives the rest.
         /// </summary>
         private Color IntegrityTint() {
+            // Calm gold while the gauge is healthy; `Danger` once it falls into the Collapse Tremor's first
+            // stage (the threshold is TimelineIntegrityRules', not a literal here); a locked gauge reads slate.
             if (_integrityKnown && _integrity.Frozen) return UIPalette.SlateDim;
-            if (_integrityKnown && _integrity.LivingExtractors > 0) return UIPalette.BossRed;
             float percent = _integrityKnown ? _integrity.Percent : 100f;
-            if (percent < FTT.Core.TimelineIntegrityRules.StabilizedThreshold) return UIPalette.Warning;
-            return UIPalette.Cyan;
+            return FTT.Core.TimelineIntegrityRules.TremorStage(percent) >= 1 ? UIPalette.Danger : UIPalette.Res;
         }
 
         private void OnTimelineIntegrityChanged(IntegrityPayload payload) {
@@ -477,21 +492,41 @@ namespace FTT.UI {
             }
             bool thawWarning = _timeFreezeState == TimeFreezeState.Active
                 && _timeFreezeSeconds > 0f && _timeFreezeSeconds <= ThawWarningSeconds;
-            Color tint = _timeFreezeState switch {
-                TimeFreezeState.Active => thawWarning ? UIPalette.Warning : UIPalette.Cyan,
-                TimeFreezeState.Cooldown => UIPalette.TextDisabled,
-                _ => UIPalette.Cyan
-            };
-            if (_freezeIcon != null) _freezeIcon.AddThemeColorOverride("font_color", tint);
+            // UI_SPEC 3.3.4: ready res2 with no ring, active a ring on the remaining share, cooldown ink2.
+            if (_freezeBadge != null) {
+                _freezeBadge.Ring = _timeFreezeState switch {
+                    TimeFreezeState.Active => _timeFreezeSeconds / FTT.Environment.TimeFreezeController.FreezeSeconds,
+                    TimeFreezeState.Cooldown => _timeFreezeSeconds / FTT.Environment.TimeFreezeController.CooldownSeconds,
+                    _ => 0f
+                };
+                _freezeBadge.RingColor = thawWarning ? UIPalette.Danger : UIPalette.Accent;
+                _freezeBadge.Modulate = _timeFreezeState == TimeFreezeState.Cooldown
+                    ? new Color(1f, 1f, 1f, 0.7f) : Colors.White;
+            }
             if (_freezeRemainingText == null) return;
+            Color tint = _timeFreezeState switch {
+                TimeFreezeState.Active => thawWarning ? UIPalette.Danger : UIPalette.Ink,
+                TimeFreezeState.Cooldown => UIPalette.Ink2,
+                _ => UIPalette.Res2
+            };
             _freezeRemainingText.AddThemeColorOverride("font_color", tint);
-            _freezeRemainingText.Text = _timeFreezeState switch {
+            string state = _timeFreezeState switch {
+                TimeFreezeState.Ready => Tr("common_ready"),
+                TimeFreezeState.Active => string.Format(Tr("hud_seconds_short"), PulpAbilitySlot.FormatSeconds(_timeFreezeSeconds)),
+                _ => string.Format(Tr("hud_seconds_short"), Mathf.CeilToInt(_timeFreezeSeconds))
+            };
+            if (_freezeRemainingText.Text != state) _freezeRemainingText.Text = state;
+            // The long form stays as the accessible name (and the legacy keys stay in use).
+            string spoken = _timeFreezeState switch {
                 TimeFreezeState.Ready => Tr("hud_time_freeze_ready"),
                 TimeFreezeState.Active => string.Format(
-                    Tr(thawWarning ? "hud_time_freeze_thaw" : "hud_time_freeze_active"),
-                    Mathf.CeilToInt(_timeFreezeSeconds)),
+                    Tr(thawWarning ? "hud_time_freeze_thaw" : "hud_time_freeze_active"), Mathf.CeilToInt(_timeFreezeSeconds)),
                 _ => string.Format(Tr("hud_time_freeze_cooldown"), Mathf.CeilToInt(_timeFreezeSeconds))
             };
+            if (_timeFreezeIndicator.TooltipText != spoken) {
+                _timeFreezeIndicator.TooltipText = spoken;
+                _timeFreezeIndicator.AccessibilityName = spoken;
+            }
         }
 
         private void OnAbilitySlotLockChanged(AbilitySlotLockPayload payload) {
@@ -556,17 +591,15 @@ namespace FTT.UI {
             _defySeal.Text = DefySealModel.Glyph(_defySealState);
             _defySeal.TooltipText = Tr(DefySealModel.LabelKey(_defySealState));
             _defySeal.AddThemeColorOverride("font_color", DefySealModel.Tint(_defySealState));
+            if (_defyIcon != null) {
+                _defyIcon.IconName = DefySealModel.IconName(_defySealState);
+                _defyIcon.Tint = DefySealModel.PulpTint(_defySealState);
+            }
         }
 
         private void OnRallyEchoChanged(RallyEchoPayload payload) {
-            if (payload.PlayerIndex != 0 || _echoBand == null) return;
-            // The band geometry still comes from the shared FighterHudModel
-            // arithmetic in RefreshEchoBand; this event carries the reclaim flash,
-            // which has no polled equivalent.
-            if (!payload.ReclaimFlash) return;
-            Color flash = UIPalette.GoldBright;
-            flash.A = 0.9f;
-            _echoBand.Color = flash;
+            // The band geometry is polled in RefreshEchoBand; the old reclaim flash tinted the ColorRect,
+            // which the pulp bar replaced (recorded as a gap in docs/handoffs/UR_HUDS.md).
         }
 
         // === Dust counter (HUD_CONTRACT) ======================================
@@ -616,27 +649,18 @@ namespace FTT.UI {
         /// FighterHudModel band arithmetic so both modes agree on the geometry.
         /// </summary>
         private void RefreshEchoBand() {
-            if (_echoBand == null) return;
             FTT.Characters.PlayerController player = ResolveStoryPlayer();
+            // UR-HUDS: the PulpBarDecor draws the band (HP + echo, in the bar's units); the authored
+            // RallyEcho_Band node stays for the path pins and never shows.
+            if (_echoBand != null) _echoBand.Visible = false;
+            if (_hpDecor == null) return;
             if (player == null) {
-                _echoBand.Visible = false;
+                _hpDecor.EchoValue = 0f;
                 return;
             }
             float band = FighterHudModel.EchoBandFraction(
                 player.CurrentHP, player.EchoPool, player.MaximumHP);
-            _echoBand.Visible = band > 0f;
-            if (band <= 0f) return;
-            float fill = FighterHudModel.BarFraction(player.CurrentHP, player.MaximumHP);
-            _echoBand.AnchorLeft = fill;
-            _echoBand.AnchorRight = fill + band;
-            _echoBand.OffsetLeft = 0f;
-            _echoBand.OffsetRight = 0f;
-            // Decay a reclaim flash back to the resting band tint.
-            Color resting = UIPalette.GoldBright;
-            resting.A = 0.55f;
-            if (_echoBand.Color.A > resting.A) {
-                _echoBand.Color = _echoBand.Color.Lerp(resting, 0.15f);
-            }
+            _hpDecor.EchoValue = band > 0f ? player.CurrentHP + band * player.MaximumHP : 0f;
         }
 
         // === Public API used by level controllers ===
@@ -651,6 +675,7 @@ namespace FTT.UI {
             _objectiveLabel.Text = arguments != null && arguments.Length > 0
                 ? string.Format(text, arguments)
                 : text;
+            if (_objectiveFlag != null) _objectiveFlag.Visible = !string.IsNullOrWhiteSpace(_objectiveLabel.Text);
         }
 
         public void InitializePlayerVitals(int currentHP, int maximumHP, float ultimateMeter) {
@@ -670,21 +695,36 @@ namespace FTT.UI {
         public void ShowBossBar(string bossNameKey, int currentHP, int maximumHP, float[] phaseThresholds) {
             if (_bossPanel == null) return;
             _bossPanel.Visible = true;
+            _bossPhase = 1;
             if (_bossNameLabel != null) _bossNameLabel.Text = Tr(bossNameKey);
             if (_bossBar != null) {
                 _bossBar.MaxValue = maximumHP;
                 _bossBar.Value = currentHP;
             }
             _bossNotches?.SetThresholds(phaseThresholds);
+            if (_bossDecor != null) {
+                _bossDecor.LagValue = currentHP;
+                var notches = new System.Collections.Generic.List<float>(
+                    _bossNotches?.Positions ?? System.Array.Empty<float>());
+                _bossDecor.PhaseNotches = notches.ToArray();
+            }
+            RefreshBossTexts();
+            LayoutBossPanel();
+            // The level title and objective give way to the bar while a boss is revealed (UI_SPEC 4.4 stress frame).
+            if (_topLeft != null) _topLeft.Visible = false;
         }
 
         public void UpdateBossHP(int currentHP) {
             if (_bossBar != null) _bossBar.Value = currentHP;
+            _bossDecor?.DropLagTo(currentHP);
+            RefreshBossTexts();
         }
 
         public void HideBossBar() {
             if (_bossPanel != null) _bossPanel.Visible = false;
             _bossNotches?.Clear();
+            if (_bossDecor != null) _bossDecor.PhaseNotches = System.Array.Empty<float>();
+            if (_topLeft != null) _topLeft.Visible = true;
         }
 
         // === Event handlers ===
@@ -717,6 +757,7 @@ namespace FTT.UI {
         private void OnAbilityLockoutRefused(FTT.Core.AbilityLockoutRefusedPayload payload) {
             if (payload.PlayerIndex != 0) return;
             if (payload.Slot == FTT.Core.AbilitySlot.Ultimate) {
+                NotYetFlash.Play(_meterHost, _ultSlot);
                 NotYetFlash.Play(_meterHost, _meterFill);
                 return;
             }
@@ -724,6 +765,7 @@ namespace FTT.UI {
             int index = System.Array.IndexOf(CooldownSlots, payload.Slot);
             if (index < 0) return;
             Label icon = _cooldownIcons[index];
+            NotYetFlash.Play(icon, _slots[index]);
             NotYetFlash.Play(icon, icon);
         }
 
@@ -742,7 +784,12 @@ namespace FTT.UI {
             _indicators.ClearStatus(payload.Type);
         }
 
-        private void OnBossPhaseChanged(int phaseIndex) => _bossNotches?.NotifyPhaseChanged(phaseIndex);
+        private void OnBossPhaseChanged(int phaseIndex) {
+            _bossNotches?.NotifyPhaseChanged(phaseIndex);
+            _bossPhase = Mathf.Max(1, phaseIndex);
+            RefreshBossTexts();
+            LayoutBossPanel();
+        }
 
         private void OnBlockChargesChanged(FTT.Core.BlockChargesPayload payload) {
             if (payload.PlayerIndex != 0) return;
@@ -765,7 +812,21 @@ namespace FTT.UI {
                 _hpBar.MaxValue = maximumHP;
                 _hpBar.Value = currentHP;
             }
-            if (_hpText != null) _hpText.Text = $"{Tr("hud_hp")} {currentHP}/{maximumHP}";
+            if (_hpText != null) {
+                _hpText.Text = $"{currentHP}/{maximumHP}";
+                _hpText.TooltipText = $"{Tr("hud_hp")} {currentHP}/{maximumHP}";
+            }
+            if (_hpDecor != null) {
+                // The first value seeds the tracker; later drops fall through it (a hit, not a level start).
+                if (!_hpSeeded) {
+                    _hpDecor.LagValue = currentHP;
+                    _hpSeeded = true;
+                }
+                _hpDecor.DropLagTo(currentHP);
+                bool low = maximumHP > 0 && currentHP > 0 && currentHP / (float)maximumHP <= LowHpFraction;
+                _hpDecor.Low = low;
+                if (_hpFill != null) _hpFill.BgColor = low ? UIPalette.Danger : UIPalette.Hp;
+            }
         }
 
         private void UpdateMeter(float value) {
@@ -774,7 +835,7 @@ namespace FTT.UI {
                 / FTT.Combat.InfluenceMeterRules.MaxValue;
             _meterFill.FillColor = value >= HudAbilityIndicatorModel.UltimateReadyMeter
                 ? UIPalette.GoldBright
-                : UIPalette.Cyan;
+                : UIPalette.Meter;
         }
 
         private void RefreshCounters(bool force) {
@@ -782,26 +843,27 @@ namespace FTT.UI {
             if (storyManager == null) return;
             int rewinds = storyManager.ChronalRewindsRemaining;
             if ((force || rewinds != _lastRewinds) && _rewindCountText != null) {
-                _rewindCountText.Text = string.Format(Tr("hud_rewinds"), rewinds);
-                // Red at one, an empty hourglass at zero — and deliberately no
-                // alarm there: running out is a state, not an event.
-                Color tint = rewinds <= 0 ? UIPalette.TextDisabled
-                    : rewinds == 1 ? UIPalette.BossRed
-                    : new Color(0.6f, 0.9f, 1f);
-                _rewindCountText.AddThemeColorOverride("font_color", tint);
-                if (_rewindIcon != null) {
-                    _rewindIcon.AddThemeColorOverride("font_color", tint);
-                    _rewindIcon.Modulate = new Color(1f, 1f, 1f, rewinds <= 0 ? 0.35f : 1f);
+                _rewindCountText.Text = string.Format(Tr("hud_rewind_count"), rewinds);
+                _rewindCountText.TooltipText = string.Format(Tr("hud_rewinds"), rewinds);
+                // UI_SPEC 3.3.4: the glyph and the number turn to danger at one or none left; an empty
+                // hourglass at zero dims, and deliberately raises no alarm: running out is a state.
+                bool low = rewinds <= 1;
+                if (low) _rewindCountText.AddThemeColorOverride("font_color", UIPalette.Danger);
+                else _rewindCountText.RemoveThemeColorOverride("font_color");
+                if (_rewindBadge != null) {
+                    _rewindBadge.Tint = low ? UIPalette.Danger : UIPalette.Accent2;
+                    _rewindBadge.Modulate = new Color(1f, 1f, 1f, rewinds <= 0 ? 0.45f : 1f);
                 }
+                if (_rewindIcon != null) _rewindIcon.TooltipText = _rewindCountText.TooltipText;
                 _lastRewinds = rewinds;
             }
             int dust = storyManager.ChronalDustCollected;
             if ((force || dust != _lastDust) && _dustText != null) {
-                // HUD_CONTRACT: this is the level's UNDEPOSITED balance, bound to
-                // the committed wallet. The Repository/Beacon shows spendable dust
-                // separately — a combined balance would imply the player can spend
-                // what they are still carrying.
-                _dustText.Text = string.Format(Tr("hud_level_dust"), dust);
+                // HUD_CONTRACT: this is the level's UNDEPOSITED balance, bound to the committed wallet;
+                // the Repository/Beacon shows spendable dust separately. The plate shows the bare number
+                // (UI_SPEC 3.3.4); the long form is its tooltip and accessible name.
+                _dustText.Text = dust.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
+                _dustText.TooltipText = string.Format(Tr("hud_level_dust"), dust);
                 _lastDust = dust;
             }
         }
@@ -815,23 +877,23 @@ namespace FTT.UI {
                 FTT.Core.AbilitySlot slot = CooldownSlots[index];
                 AbilitySlotLockState lockState = _indicators.LockState(slot);
                 RadialProgress radial = _cooldownRadials[index];
-                if (radial != null) {
-                    radial.Fraction = _indicators.ReadinessFraction(slot);
-                    radial.FillColor = lockState == AbilitySlotLockState.Clear
-                        ? UIPalette.Cyan
-                        : UIPalette.TextDisabled;
-                }
+                if (radial != null) radial.Fraction = _indicators.ReadinessFraction(slot);
                 Label icon = _cooldownIcons[index];
                 if (icon != null) {
                     icon.AddThemeColorOverride(
                         "font_color",
-                        _indicators.IsReady(slot) ? UIPalette.TextAccent : UIPalette.TextDisabled);
+                        _indicators.IsReady(slot) ? UIPalette.Res2 : UIPalette.TextDisabled);
                 }
                 ApplyLockOverlay(_cooldownLockOverlays[index], lockState);
+                ApplySlot(_slots[index], lockState, _indicators.IsReady(slot),
+                    _indicators.ReadinessFraction(slot), _indicators.RemainingSeconds(slot));
             }
-            ApplyLockOverlay(_meterLockOverlay, _indicators.LockState(FTT.Core.AbilitySlot.Ultimate));
-            RefreshStatusSlot(_damageStatusIndicator, _damageStatusRadial, damageSlot: true);
-            RefreshStatusSlot(_controlStatusIndicator, _controlStatusRadial, damageSlot: false);
+            AbilitySlotLockState ultLock = _indicators.LockState(FTT.Core.AbilitySlot.Ultimate);
+            ApplyLockOverlay(_meterLockOverlay, ultLock);
+            ApplySlot(_ultSlot, ultLock, _indicators.IsReady(FTT.Core.AbilitySlot.Ultimate),
+                _indicators.ReadinessFraction(FTT.Core.AbilitySlot.Ultimate), 0f);
+            RefreshStatusSlot(_damageStatusIndicator, _damageStatusRadial, _damageChip, damageSlot: true);
+            RefreshStatusSlot(_controlStatusIndicator, _controlStatusRadial, _controlChip, damageSlot: false);
         }
 
         /// <summary>
@@ -876,6 +938,12 @@ namespace FTT.UI {
                 _portrait.Texture = data.CharacterPortrait;
                 _portrait.Visible = data.CharacterPortrait != null;
             }
+            if (_roundel != null) _roundel.Portrait = data.CharacterPortrait;
+            if (_heroName != null && !string.IsNullOrWhiteSpace(data.DisplayNameKey)) _heroName.Text = data.DisplayNameKey;
+            for (int index = 0; index < CooldownSlots.Length; index++) {
+                if (_slots[index] != null) _slots[index].Art = AbilityIconLibrary.Load(characterID, CooldownSlots[index]);
+            }
+            if (_ultSlot != null) _ultSlot.Art = AbilityIconLibrary.Load(characterID, FTT.Core.AbilitySlot.Ultimate);
 
             int capacity = data.MaxBlockCharges;
             if (FTT.Environment.ResonanceProgression.TryResolveActive(
@@ -892,7 +960,7 @@ namespace FTT.UI {
         /// Fighter HUD's stock/shield pips.
         /// </summary>
         private void RebuildBlockPips(int capacity) {
-            _blockPips = RebuildPipRow(_blockPipRow, Mathf.Max(1, capacity), BlockPipSize, UIPalette.Cyan);
+            _blockPips = RebuildPipRow(_blockPipRow, Mathf.Max(1, capacity), BlockPipSize);
         }
 
         private void RebuildAnchorPips(int capacity) {
@@ -919,8 +987,8 @@ namespace FTT.UI {
             return pips;
         }
 
-        private static ColorRect[] RebuildPipRow(HBoxContainer row, int count, int size, Color color) {
-            if (row == null) return System.Array.Empty<ColorRect>();
+        private static PulpIcon[] RebuildPipRow(HBoxContainer row, int count, int size) {
+            if (row == null) return System.Array.Empty<PulpIcon>();
             Godot.Collections.Array<Node> children = row.GetChildren();
             using (children.AsDisposable()) {
                 foreach (Node child in children) {
@@ -928,34 +996,38 @@ namespace FTT.UI {
                     child.Free();
                 }
             }
-            if (count <= 0) return System.Array.Empty<ColorRect>();
-            var pips = new ColorRect[count];
+            if (count <= 0) return System.Array.Empty<PulpIcon>();
+            var pips = new PulpIcon[count];
             for (int index = 0; index < count; index++) {
-                var pip = new ColorRect {
-                    Name = $"Pip{index}",
-                    Color = color,
-                    CustomMinimumSize = new Vector2(size, size),
-                    MouseFilter = Control.MouseFilterEnum.Ignore
-                };
+                PulpIcon pip = PulpIcon.Create("shield", UIPalette.Shield, size);
+                pip.Name = $"Pip{index}";
                 row.AddChild(pip);
                 pips[index] = pip;
             }
             return pips;
         }
 
-        /// <summary>A spent pip dims rather than disappearing, so capacity stays readable.</summary>
+        /// <summary>A spent pip dims (opacity 0.28, grey) rather than disappearing, so capacity stays readable.</summary>
         private void SetBlockPips(int filled) {
             int lit = Mathf.Clamp(filled, 0, _blockPips.Length);
             for (int index = 0; index < _blockPips.Length; index++) {
-                _blockPips[index].Modulate = new Color(1f, 1f, 1f, index < lit ? 1f : 0.18f);
+                bool on = index < lit;
+                _blockPips[index].Tint = on ? UIPalette.Shield : UIPalette.Ink3;
+                _blockPips[index].Modulate = new Color(1f, 1f, 1f, on ? 1f : 0.28f);
             }
         }
 
         // === UI resolution ===
 
         private const string TopLeftPanelPath = "SafeArea/TopLeft_Panel";
-        private const string VitalsPath = "SafeArea/TopLeft_Panel/Vitals";
+        private const string VitalsPanelPath = "SafeArea/TopLeft_Panel/VitalsPanel";
+        private const string VitalsStackPath = "SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack";
+        private const string VitalsPath = "SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top/Vitals";
+        private const string AbilitiesPanelPath = "SafeArea/TopLeft_Panel/AbilitiesPanel";
+        private const string AbilitiesPath = "SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities";
+        private const string TemporalRowPath = "SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow";
         private const string TopRightPanelPath = "SafeArea/TopRight_Panel";
+        private const string CurrencyPath = "SafeArea/TopRight_Panel/DustPlate/Pad/CurrencyContainer";
 
         private void ResolveUI() {
             _root = GetNodeOrNull<Control>("SafeArea");
@@ -964,56 +1036,58 @@ namespace FTT.UI {
             // instead, so the shared (scale-mutated) theme would double-scale.
             _root.Theme ??= UIPalette.NewUnscaledTheme();
 
+            _topLeft = GetNodeOrNull<Control>("SafeArea/TopLeft");
             _levelTitleLabel = GetNodeOrNull<Label>("SafeArea/TopLeft/LevelTitle");
             _objectiveLabel = GetNodeOrNull<Label>("SafeArea/TopLeft/Objective");
-            _portrait = GetNodeOrNull<TextureRect>($"{TopLeftPanelPath}/PlayerPortrait");
+            _portrait = GetNodeOrNull<TextureRect>($"{VitalsStackPath}/Top/PortraitHost/PlayerPortrait");
+            _heroName = GetNodeOrNull<Label>($"{VitalsPath}/HeroName");
 
             _hpBar = GetNodeOrNull<ProgressBar>($"{VitalsPath}/HealthBar_BG");
             _echoBand = GetNodeOrNull<ColorRect>($"{VitalsPath}/HealthBar_BG/RallyEcho_Band");
-            _hpText = GetNodeOrNull<Label>($"{VitalsPath}/HPText");
+            _hpText = GetNodeOrNull<Label>($"{VitalsPath}/HealthBar_BG/HPText");
             _blockPipRow = GetNodeOrNull<HBoxContainer>($"{VitalsPath}/BlockCharges_Panel");
 
             _damageStatusIndicator =
-                GetNodeOrNull<Label>($"{VitalsPath}/StatusEffects_Panel/DamageStatus_Indicator");
+                GetNodeOrNull<Label>($"{VitalsStackPath}/StatusEffects_Panel/DamageStatus_Indicator");
             _damageStatusRadial = GetNodeOrNull<RadialProgress>(
-                $"{VitalsPath}/StatusEffects_Panel/DamageStatus_Indicator/DamageStatus_DurationRadial");
+                $"{VitalsStackPath}/StatusEffects_Panel/DamageStatus_Indicator/DamageStatus_DurationRadial");
             _controlStatusIndicator =
-                GetNodeOrNull<Label>($"{VitalsPath}/StatusEffects_Panel/ControlStatus_Indicator");
+                GetNodeOrNull<Label>($"{VitalsStackPath}/StatusEffects_Panel/ControlStatus_Indicator");
             _controlStatusRadial = GetNodeOrNull<RadialProgress>(
-                $"{VitalsPath}/StatusEffects_Panel/ControlStatus_Indicator/ControlStatus_DurationRadial");
+                $"{VitalsStackPath}/StatusEffects_Panel/ControlStatus_Indicator/ControlStatus_DurationRadial");
 
-            _meterHost = GetNodeOrNull<Control>($"{VitalsPath}/MeterRow/UltimateMeter_BG");
+            _meterHost = GetNodeOrNull<Control>($"{AbilitiesPath}/MeterRow/UltimateMeter_BG");
             _meterFill = GetNodeOrNull<RadialProgress>(
-                $"{VitalsPath}/MeterRow/UltimateMeter_BG/UltimateMeter_Fill");
+                $"{AbilitiesPath}/MeterRow/UltimateMeter_BG/UltimateMeter_Fill");
             _meterLockOverlay = GetNodeOrNull<Label>(
-                $"{VitalsPath}/MeterRow/UltimateMeter_BG/UltimateMeter_LockOverlay");
-            _defySeal = GetNodeOrNull<Label>($"{VitalsPath}/MeterRow/DefySeal");
+                $"{AbilitiesPath}/MeterRow/UltimateMeter_BG/UltimateMeter_LockOverlay");
+            _defySeal = GetNodeOrNull<Label>($"{AbilitiesPath}/MeterRow/DefyStack/DefySeal");
 
             for (int index = 0; index < CooldownSlots.Length; index++) {
                 string iconName = $"Cooldown{index + 1}_Icon";
-                _cooldownIcons[index] = GetNodeOrNull<Label>($"{VitalsPath}/CooldownRow/{iconName}");
+                _cooldownIcons[index] = GetNodeOrNull<Label>($"{AbilitiesPath}/CooldownRow/{iconName}");
                 _cooldownRadials[index] = GetNodeOrNull<RadialProgress>(
-                    $"{VitalsPath}/CooldownRow/{iconName}/Cooldown{index + 1}_Radial");
+                    $"{AbilitiesPath}/CooldownRow/{iconName}/Cooldown{index + 1}_Radial");
                 _cooldownLockOverlays[index] = GetNodeOrNull<Label>(
-                    $"{VitalsPath}/CooldownRow/{iconName}/Cooldown{index + 1}_LockOverlay");
+                    $"{AbilitiesPath}/CooldownRow/{iconName}/Cooldown{index + 1}_LockOverlay");
                 if (_cooldownIcons[index] != null) {
                     _cooldownIcons[index].Text =
                         Tr(HudAbilityIndicatorModel.SlotLabelKey(CooldownSlots[index]));
                 }
             }
 
-            _rewindIcon = GetNodeOrNull<Label>($"{VitalsPath}/TemporalRow/RewindCounter/RewindIcon");
-            _rewindCountText = GetNodeOrNull<Label>($"{VitalsPath}/TemporalRow/RewindCounter/RewindCountText");
-            _timeFreezeIndicator = GetNodeOrNull<Control>($"{VitalsPath}/TemporalRow/TimeFreezeIndicator");
-            _freezeIcon = GetNodeOrNull<Label>($"{VitalsPath}/TemporalRow/TimeFreezeIndicator/FreezeIcon");
+            _rewindIcon = GetNodeOrNull<Label>($"{TemporalRowPath}/RewindCounter/RewindIcon");
+            _rewindCountText = GetNodeOrNull<Label>($"{TemporalRowPath}/RewindCounter/RewindCountText");
+            _timeFreezeIndicator = GetNodeOrNull<Control>($"{TemporalRowPath}/TimeFreezeIndicator");
+            _freezeIcon = GetNodeOrNull<Label>($"{TemporalRowPath}/TimeFreezeIndicator/FreezeIcon");
             _freezeRemainingText =
-                GetNodeOrNull<Label>($"{VitalsPath}/TemporalRow/TimeFreezeIndicator/FreezeRemainingText");
-            _beaconAnchors = GetNodeOrNull<Control>($"{VitalsPath}/TemporalRow/BeaconAnchors");
-            _anchorPipRow = GetNodeOrNull<HBoxContainer>($"{VitalsPath}/TemporalRow/BeaconAnchors/AnchorPips");
-            _beaconIcon = GetNodeOrNull<BeaconAnchorIcon>($"{VitalsPath}/TemporalRow/BeaconAnchors/BeaconIcon");
+                GetNodeOrNull<Label>($"{TemporalRowPath}/TimeFreezeIndicator/FreezeColumn/FreezeRemainingText");
+            _beaconAnchors = GetNodeOrNull<Control>($"{TemporalRowPath}/BeaconAnchors");
+            _anchorPipRow = GetNodeOrNull<HBoxContainer>($"{TemporalRowPath}/BeaconAnchors/AnchorPips");
+            _beaconIcon = GetNodeOrNull<BeaconAnchorIcon>($"{TemporalRowPath}/BeaconAnchors/BeaconIcon");
 
-            _dustText = GetNodeOrNull<Label>($"{TopRightPanelPath}/CurrencyContainer/ChronalDustText");
-            _dustFloat = GetNodeOrNull<Label>($"{TopRightPanelPath}/CurrencyContainer/DustPickup_Float");
+            _dustText = GetNodeOrNull<Label>($"{CurrencyPath}/ChronalDustText");
+            _dustFloat = GetNodeOrNull<Label>($"{CurrencyPath}/DustPickup_Float");
             _integrityClock = GetNodeOrNull<Control>($"{TopRightPanelPath}/IntegrityClock");
             _clockWedge = GetNodeOrNull<RadialProgress>($"{TopRightPanelPath}/IntegrityClock/ClockWedge");
             _siphonStreams = GetNodeOrNull<Label>($"{TopRightPanelPath}/IntegrityClock/SiphonStreams");
@@ -1026,6 +1100,9 @@ namespace FTT.UI {
             _bossIntroCard = GetNodeOrNull<Label>("SafeArea/BossIntroCard");
             _tremorOverlay = GetNodeOrNull<ColorRect>("SafeArea/TremorOverlay");
             _checkpointToast = GetNodeOrNull<Label>("SafeArea/CheckpointToast");
+            _bossPhaseTab = GetNodeOrNull<Label>("SafeArea/BossPanel/BossPhaseTab");
+            _bossHpValue = GetNodeOrNull<Label>("SafeArea/BossPanel/BossBar/BossHpValue");
+            BuildPulpWidgets();
         }
     }
 }

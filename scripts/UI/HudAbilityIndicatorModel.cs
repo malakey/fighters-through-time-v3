@@ -369,5 +369,25 @@ namespace FTT.UI {
             AbilitySlotLockState.Suppressed => "✕",
             _ => ""
         };
+
+        /// <summary>
+        /// UR-HUDS: the ICN-B icon of a status (<c>assets/sprites/ui/pulp/icons</c>). Shape carries the
+        /// effect, never colour alone; the glyph <see cref="StatusGlyph"/> stays for the tests and tooltips.
+        /// </summary>
+        public static string StatusIconName(StatusType type) => type switch {
+            StatusType.TimeDilation => "dilation",
+            StatusType.Venom => "venom",
+            StatusType.StaticCharge => "static",
+            StatusType.RadiantBurn => "burn",
+            StatusType.Root => "root",
+            StatusType.Suppression => "suppress",
+            _ => ""
+        };
+
+        /// <summary>UR-HUDS: which chip colour family a status belongs to (damage, control, suppression).</summary>
+        public static FTT.UI.Pulp.PulpChipKind StatusChipKind(StatusType type) =>
+            type == StatusType.Suppression ? FTT.UI.Pulp.PulpChipKind.Suppression
+            : IsDamageStatus(type) ? FTT.UI.Pulp.PulpChipKind.Damage
+            : FTT.UI.Pulp.PulpChipKind.Control;
     }
 }

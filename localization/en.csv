@@ -1664,6 +1664,17 @@ select_press_to_join_player_one,Press confirm on any controller or keyboard to j
 ui_prompt_select,Select
 ui_toggle_on,On
 ui_toggle_off,Off
+# UR HUDS
+hud_vitals,Vitals
+hud_abilities,Abilities
+hud_defy_label,Defy
+hud_integrity_caption,Timeline Integrity
+hud_integrity_sealed,Timeline sealed at the checkpoint
+hud_time_freeze_name,Time Freeze
+hud_seconds_short,{0}s
+hud_percent,{0}%
+hud_rewind_count,×{0}
+hud_boss_phase,Phase {0}
 # UR SELECT
 character_einstein_dates,1879–1955
 character_joan_dates,c. 1412–1431
