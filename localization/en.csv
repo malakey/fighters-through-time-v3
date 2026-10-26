@@ -1662,3 +1662,5 @@ movelist_ledge_options,"Ledge (Fighter): Jump climb-jumps; a fresh tilt toward t
 # CM-PADUI
 # Combat and movement update 2026-10-16 (9.1 pad-first menus): the Fighter select's press-to-join prompt for Player 1.
 select_press_to_join_player_one,Press confirm on any controller or keyboard to join as Player 1
+# UR WIDGETS
+ui_prompt_select,Select
