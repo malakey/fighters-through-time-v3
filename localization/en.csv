@@ -287,7 +287,6 @@ resonance_result_prerequisite,Unlock the prerequisite node first.
 resonance_result_dust,Not enough deposited Chronal Dust.
 resonance_result_unavailable,That node cannot be unlocked.
 game_title,FIGHTERS THROUGH TIME
-menu_subtitle,Temporal Resonance Prototype
 menu_quick_play,Quick Play (Einstein vs CPU)
 menu_level_select,Level Select (Dev)
 dev_level_select_title,DEV — SELECT LEVEL
@@ -1666,3 +1665,7 @@ select_press_to_join_player_one,Press confirm on any controller or keyboard to j
 ui_prompt_select,Select
 ui_toggle_on,On
 ui_toggle_off,Off
+# UR MENU
+menu_cover_title_word,Fighters
+menu_cover_title_banner,Through Time
+menu_continue_chapter,Chapter {0}
