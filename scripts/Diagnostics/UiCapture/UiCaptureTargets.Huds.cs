@@ -6,7 +6,7 @@ namespace FTT.Diagnostics {
 
     /// <summary>
     /// UR-HUDS' capture targets: the Story HUD (HUD-S1) with a fake hero and fake state.
-    /// <c>huds_calm</c>, <c>huds_stress</c>, <c>huds_boss</c> and <c>huds_140</c> (the stress frame at UI scale 1.4).
+    /// <c>huds_calm</c>, <c>huds_stress</c>, <c>huds_boss</c>, <c>huds_boss_140</c> (the longest boss name at UI scale 1.4) and <c>huds_140</c> (the stress frame at UI scale 1.4).
     /// </summary>
     public static partial class UiCaptureTargets {
 
@@ -122,6 +122,21 @@ namespace FTT.Diagnostics {
             context.AfterReady = _ => {
                 StressState(hud);
                 hud.ShowBossBar("boss_archive_prime_name", 640, 1000, new[] { 0.5f });
+            };
+            return page;
+        }
+
+        [UiCaptureTarget("huds_boss_140", SettleFrames = 14)]
+        public static Node HudsBoss140(UiCaptureContext context) {
+            Control page = HudStage("einstein");
+            SaveManager save = SaveManager.Instance;
+            if (save?.GlobalData != null) save.GlobalData.UiScale = 1.4f;
+            StoryHUD hud = AddCaptureHud(page);
+            context.AfterReady = _ => {
+                CalmState(hud);
+                hud.ShowBossBar("boss_iron_chancellor_name", 640, 1000, new[] { 0.5f });
+                EventBus.Instance.RaiseBossPhaseChanged(1);
+                hud.UpdateBossHP(520);
             };
             return page;
         }

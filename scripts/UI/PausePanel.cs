@@ -48,8 +48,10 @@ namespace FTT.UI {
         }
 
         public override void _Notification(int what) {
+            if (what == NotificationThemeChanged) QueueSort();
             if (what != NotificationSortChildren || _tag == null) return;
-            Pulp.PulpTagPlate.Place(_tag, new Vector2(Border, Border) + Pulp.PulpTaggedPanel.TagOffset);
+            Pulp.PulpTagPlate.Place(_tag, new Vector2(Border, Border) + Pulp.PulpTaggedPanel.TagOffset,
+                Size.X - Pulp.PulpTagPlate.RightMargin);
         }
     }
 }

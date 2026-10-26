@@ -52,7 +52,8 @@ namespace FTT.UI.Pulp {
             if (what == NotificationSortChildren) {
                 Control panel = Panel;
                 if (panel != null) FitChildInRect(panel, new Rect2(Vector2.Zero, Size));
-                PulpTagPlate.Place(_tag, new Vector2(PaddingBoxInset, PaddingBoxInset) + TagOffset);
+                PulpTagPlate.Place(_tag, new Vector2(PaddingBoxInset, PaddingBoxInset) + TagOffset,
+                    Size.X - PulpTagPlate.RightMargin);
             } else if (what == NotificationThemeChanged) {
                 QueueSort();
             }

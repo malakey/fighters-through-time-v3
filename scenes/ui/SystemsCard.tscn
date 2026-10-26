@@ -39,7 +39,7 @@ script = ExtResource("2_panel")
 
 [node name="Layout" type="VBoxContainer" parent="Center/Panel"]
 layout_mode = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 36
 
 [node name="Title" type="Label" parent="Center/Panel/Layout"]
 layout_mode = 2

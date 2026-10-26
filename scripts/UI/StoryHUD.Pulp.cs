@@ -392,9 +392,17 @@ namespace FTT.UI {
             }
             if (_bossNameLabel != null) {
                 float available = Mathf.Min(687f, width - tabWidth - 12f);
+                // Measure unclipped: a clipped label reports about no minimum width, which would flip the rule each call.
+                _bossNameLabel.ClipText = false;
+                _bossNameLabel.TextOverrunBehavior = TextServer.OverrunBehavior.NoTrimming;
                 float natural = Mathf.Max(available, _bossNameLabel.GetCombinedMinimumSize().X);
                 float shrink = Mathf.Clamp(available / natural, 0.5f, 1f);
-                _bossNameLabel.Size = new Vector2(natural, PlateHeight);
+                // At the 0.5 floor a name that still cannot fit beside the tab is ellipsized to the free width,
+                // so the name plate and the PHASE tab never overlap (VERIFY-UI-BOSS-PHASE-TAB-140).
+                bool floored = natural * shrink > available + 0.5f;
+                _bossNameLabel.ClipText = floored;
+                _bossNameLabel.TextOverrunBehavior = floored ? TextServer.OverrunBehavior.TrimEllipsis : TextServer.OverrunBehavior.NoTrimming;
+                _bossNameLabel.Size = new Vector2(floored ? available / shrink : natural, PlateHeight);
                 _bossNameLabel.PivotOffset = Vector2.Zero;
                 _bossNameLabel.Position = new Vector2(0f, 0f);
                 _bossNameLabel.Scale = new Vector2(shrink, shrink);
