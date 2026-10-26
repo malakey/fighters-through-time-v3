@@ -843,6 +843,7 @@ namespace FTT.FighterSim {
             if (previousBlockCharges > 0 && state.BlockCharges < previousBlockCharges
                 && state.DazeFrames <= 0) {
                 CameraShake.Instance?.Shake(3f, 0.08f);
+                ShowBlockSpark(player, FTT.Combat.BlockSparkKind.Ordinary); // FU-BLOCK
                 HapticFeedbackManager.Instance?.OnGuardImpact(playerID);
             }
 
@@ -851,6 +852,7 @@ namespace FTT.FighterSim {
             int previousDaze = _presentedDazeFrames[playerID];
             _presentedDazeFrames[playerID] = state.DazeFrames;
             if (previousDaze <= 0 && state.DazeFrames > 0) {
+                ShowBlockSpark(player, FTT.Combat.BlockSparkKind.Shatter); // FU-BLOCK
                 HapticFeedbackManager.Instance?.VibrateForPlayer(
                     playerID,
                     HapticFeedbackManager.GuardBreakWeak,
@@ -895,7 +897,7 @@ namespace FTT.FighterSim {
             // CM-ULT (decision 2.1): the A02 wind-up telegraph, from component 321.
             SyncUltimateTelegraph(player, playerID, glow);
             // CM-BLOCK (decision 3.4): the perfect-block flash, from component 323.
-            SyncPerfectBlockFlash(playerID, glow);
+            SyncPerfectBlockFlash(player, playerID, glow);
         }
 
         // CM-BLOCK (decision 3.4): the last presented perfect-block count per
@@ -910,13 +912,14 @@ namespace FTT.FighterSim {
         /// shared with Story) with the ordinary block's shake and Guard Impact
         /// buzz. Writes nothing into the simulation.
         /// </summary>
-        private void SyncPerfectBlockFlash(int playerID, FTT.Combat.GlowPresentationController glow) {
+        private void SyncPerfectBlockFlash(PlayerController player, int playerID, FTT.Combat.GlowPresentationController glow) {
             if (Simulation == null || !Simulation.TryGetFighterActionState(playerID, out FighterActionStateComponent action)) return;
             int count = FighterBlockTimingRules.PerfectBlockCount(in action);
             int previous = _presentedPerfectBlockCount[playerID];
             _presentedPerfectBlockCount[playerID] = count;
             if (previous < 0 || count == 0 || count == previous) return;
             glow?.FlashHit(FTT.Combat.BlockSystem.PerfectBlockFlashColor, FTT.Combat.BlockSystem.PerfectBlockFlashSeconds);
+            ShowBlockSpark(player, FTT.Combat.BlockSparkKind.Perfect); // FU-BLOCK
             CameraShake.Instance?.Shake(3f, 0.08f);
             HapticFeedbackManager.Instance?.OnGuardImpact(playerID);
         }

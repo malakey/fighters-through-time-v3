@@ -110,6 +110,7 @@ namespace FTT.Characters {
 			CurrentBlockCharges = _blockSystem.CurrentCharges;
 			if (result == FTT.Combat.BlockResult.NotBlocked) return false;
 			FTT.Core.CameraShake.Instance?.Shake(3f, 0.08f);
+			ShowBlockSpark(result); // FU-BLOCK: the success effect
 			if (result == FTT.Combat.BlockResult.Blocked) {
 				FTT.Core.HapticFeedbackManager.Instance?.OnGuardImpact(PlayerIndex);
 			}
