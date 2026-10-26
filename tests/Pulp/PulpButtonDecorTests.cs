@@ -242,4 +242,64 @@ public class PulpButtonDecorTests {
             button.Free();
         }
     }
+
+    [TestCase]
+    public void ADecoratedTwiceOrRefreshingButtonStillDrawsItsThemeColourNeverTransparent() {
+        // The button re-enters Refresh from its own theme notification, as a screen that re-themes does: the
+        // override the decor writes must never be read back as the theme colour.
+        var button = new DecorRefreshingButton {
+            Text = "menu_settings", ThemeTypeVariation = "TemporalGlassButton", FocusMode = Control.FocusModeEnum.All,
+            CustomMinimumSize = new Vector2(400f, 64f), Size = new Vector2(400f, 64f)
+        };
+        UIPalette.ApplyTheme(button);
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(button);
+        Color themeColor = button.GetThemeColor("font_color");
+        try {
+            AssertThat(themeColor.A).IsEqual(1f);
+            PulpButtonDecor decor = PulpButtonDecor.Apply(button);
+            PulpButtonDecor.Apply(button);
+            decor.Refresh();
+            decor.Refresh();
+            button.Notification((int)Control.NotificationThemeChanged);
+            AssertThat(decor.CurrentLabelColor.A).IsEqual(1f);
+            AssertThat(decor.CurrentLabelColor).IsEqual(themeColor);
+            AssertThat(button.GetThemeColor("font_color").A).IsEqual(0f);
+            // Hiding the glyphs and restoring them leaves the theme colour as it was.
+            decor.Uppercase = false;
+            AssertThat(button.GetThemeColor("font_color")).IsEqual(themeColor);
+            decor.Uppercase = true;
+            decor.Refresh();
+            AssertThat(decor.CurrentLabelColor).IsEqual(themeColor);
+        } finally {
+            button.Free();
+        }
+    }
+
+    [TestCase]
+    public void AMultiLineLabelWrapsWithinTheAvailableWidthAndKeepsTheBadgeRoom() {
+        PulpPromptGlyphs.DeviceOverrideForTesting = PromptDevice.Pad;
+        Button button = BuildButton(false, "TemporalGlassButton");
+        button.CustomMinimumSize = new Vector2(800f, 140f);
+        button.Size = new Vector2(800f, 140f);
+        button.Text = "Easy\n5 rewinds; 70% HP restoration; checkpoints refill your rewinds every time you strike one";
+        try {
+            PulpButtonDecor decor = PulpButtonDecor.Apply(button);
+            button.GrabFocus();
+            decor.Refresh();
+            AssertThat(decor.WrappedLineCount >= 3).IsTrue();
+            AssertThat(decor.WidestWrappedLine <= decor.LabelAvailableWidth + 0.5f).IsTrue();
+            AssertThat(decor.LabelRightLimit <= decor.Badge.Position.X).IsTrue();
+        } finally {
+            PulpPromptGlyphs.DeviceOverrideForTesting = null;
+            button.Free();
+        }
+    }
+}
+
+/// <summary>A button that calls the decor's Refresh from its own theme notification (non-suite helper node).</summary>
+public partial class DecorRefreshingButton : Button {
+    public override void _Notification(int what) {
+        if (what != NotificationThemeChanged) return;
+        foreach (Node child in GetChildren()) if (child is PulpButtonDecor decor) decor.Refresh();
+    }
 }

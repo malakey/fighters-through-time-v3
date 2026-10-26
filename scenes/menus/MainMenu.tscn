@@ -496,7 +496,7 @@ theme_type_variation = &"TemporalGlassButton"
 alignment = 0
 
 [node name="DeleteButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow0"]
-custom_minimum_size = Vector2(220, 96)
+custom_minimum_size = Vector2(300, 96)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 text = "save_delete"
@@ -514,7 +514,7 @@ theme_type_variation = &"TemporalGlassButton"
 alignment = 0
 
 [node name="DeleteButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow1"]
-custom_minimum_size = Vector2(220, 96)
+custom_minimum_size = Vector2(300, 96)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 text = "save_delete"
@@ -532,7 +532,7 @@ theme_type_variation = &"TemporalGlassButton"
 alignment = 0
 
 [node name="DeleteButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow2"]
-custom_minimum_size = Vector2(220, 96)
+custom_minimum_size = Vector2(300, 96)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 text = "save_delete"
@@ -614,58 +614,67 @@ theme_override_constants/v_separation = 12
 columns = 3
 
 [node name="CharacterButton0" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
-custom_minimum_size = Vector2(460, 58)
+custom_minimum_size = Vector2(460, 92)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 alignment = 0
+autowrap_mode = 3
 
 [node name="CharacterButton1" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
-custom_minimum_size = Vector2(460, 58)
+custom_minimum_size = Vector2(460, 92)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 alignment = 0
+autowrap_mode = 3
 
 [node name="CharacterButton2" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
-custom_minimum_size = Vector2(460, 58)
+custom_minimum_size = Vector2(460, 92)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 alignment = 0
+autowrap_mode = 3
 
 [node name="CharacterButton3" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
-custom_minimum_size = Vector2(460, 58)
+custom_minimum_size = Vector2(460, 92)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 alignment = 0
+autowrap_mode = 3
 
 [node name="CharacterButton4" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
-custom_minimum_size = Vector2(460, 58)
+custom_minimum_size = Vector2(460, 92)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 alignment = 0
+autowrap_mode = 3
 
 [node name="CharacterButton5" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
-custom_minimum_size = Vector2(460, 58)
+custom_minimum_size = Vector2(460, 92)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 alignment = 0
+autowrap_mode = 3
 
 [node name="CharacterButton6" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
-custom_minimum_size = Vector2(460, 58)
+custom_minimum_size = Vector2(460, 92)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 alignment = 0
+autowrap_mode = 3
 
 [node name="CharacterButton7" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
-custom_minimum_size = Vector2(460, 58)
+custom_minimum_size = Vector2(460, 92)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 alignment = 0
+autowrap_mode = 3
 
 [node name="CharacterButton8" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
-custom_minimum_size = Vector2(460, 58)
+custom_minimum_size = Vector2(460, 92)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 alignment = 0
+autowrap_mode = 3
 
 [node name="BottomSeparator" type="HSeparator" parent="CharacterScreen/Center/Panel/Layout"]
 layout_mode = 2
@@ -737,19 +746,19 @@ text = "story_select_difficulty"
 horizontal_alignment = 1
 
 [node name="EasyButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout"]
-custom_minimum_size = Vector2(800, 96)
+custom_minimum_size = Vector2(800, 140)
 layout_mode = 2
 theme_type_variation = &"TemporalGlassButton"
 alignment = 0
 
 [node name="NormalButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout"]
-custom_minimum_size = Vector2(800, 96)
+custom_minimum_size = Vector2(800, 140)
 layout_mode = 2
 theme_type_variation = &"TemporalGlassButton"
 alignment = 0
 
 [node name="HardButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout"]
-custom_minimum_size = Vector2(800, 96)
+custom_minimum_size = Vector2(800, 140)
 layout_mode = 2
 theme_type_variation = &"TemporalGlassButton"
 alignment = 0

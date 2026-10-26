@@ -285,14 +285,17 @@ namespace FTT.UI.Pulp {
                 if (_glyphsHidden) RestoreGlyphs();
                 return;
             }
+            // Idempotent and re-entrancy proof: the flag is raised before the first override is written, because
+            // an override raises the button's theme notification, which can reach Refresh again. The saved
+            // colours are only ever read from the theme, never from an override this decor set.
             if (_glyphsHidden) return;
+            _glyphsHidden = true;
             _original.Clear();
             foreach (string slot in HideSlots) {
                 bool had = _button.HasThemeColorOverride(slot);
                 _original[slot] = (_button.GetThemeColor(slot), had);
             }
             foreach (string slot in HideSlots) _button.AddThemeColorOverride(slot, Colors.Transparent);
-            _glyphsHidden = true;
             _labelLayer?.QueueRedraw();
         }
 
@@ -313,6 +316,28 @@ namespace FTT.UI.Pulp {
             if (_selected) return UIPalette.LabelDark;
             string slot = LabelColorSlot(_button.Disabled, _button.GetDrawMode(), _button.HasFocus());
             return OriginalColor(slot);
+        }
+
+        private TextParagraph BuildParagraph(string text, float width) {
+            var paragraph = new TextParagraph();
+            paragraph.AddString(text, _button.GetThemeFont("font"), _button.GetThemeFontSize("font_size"));
+            paragraph.Width = width;
+            paragraph.Alignment = _button.Alignment;
+            paragraph.BreakFlags = TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound;
+            return paragraph;
+        }
+
+        /// <summary>How many lines the whole upper-cased label wraps to inside <see cref="LabelAvailableWidth"/> (before any ellipsis).</summary>
+        public int WrappedLineCount => BuildParagraph(DrawnText, LabelAvailableWidth).GetLineCount();
+
+        /// <summary>The widest wrapped line, in pixels; never wider than <see cref="LabelAvailableWidth"/> unless one word is.</summary>
+        public float WidestWrappedLine {
+            get {
+                TextParagraph paragraph = BuildParagraph(DrawnText, LabelAvailableWidth);
+                float widest = 0f;
+                for (int i = 0; i < paragraph.GetLineCount(); i++) widest = Mathf.Max(widest, paragraph.GetLineWidth(i));
+                return widest;
+            }
         }
 
         private float LabelLeft() {
@@ -369,14 +394,15 @@ namespace FTT.UI.Pulp {
                 Rid canvas = GetCanvasItem();
                 bool multi = button.AutowrapMode != TextServer.AutowrapMode.Off || text.Contains('\n');
                 if (multi) {
-                    var paragraph = new TextParagraph();
-                    paragraph.AddString(text, font, fontSize);
-                    paragraph.Width = width;
-                    paragraph.Alignment = button.Alignment;
-                    paragraph.BreakFlags = button.AutowrapMode == TextServer.AutowrapMode.Off
-                        ? TextServer.LineBreakFlag.Mandatory
-                        : TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound;
-                    Vector2 pos = new(left, top + (availHeight - paragraph.GetSize().Y) / 2f);
+                    TextParagraph paragraph = _owner.BuildParagraph(text, width);
+                    float lineHeight = Mathf.Max(1f, paragraph.GetLineSize(0).Y);
+                    int maxLines = Mathf.Max(1, Mathf.FloorToInt((availHeight + 1f) / lineHeight));
+                    if (paragraph.GetLineCount() > maxLines) {
+                        paragraph.MaxLinesVisible = maxLines;
+                        paragraph.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+                    }
+                    float height = Mathf.Min(paragraph.GetSize().Y, availHeight + 1f);
+                    Vector2 pos = new(left, top + (availHeight - height) / 2f);
                     if (outline > 0 && outlineColor.A > 0f) paragraph.DrawOutline(canvas, pos, outline, outlineColor);
                     paragraph.Draw(canvas, pos, color);
                 } else {
