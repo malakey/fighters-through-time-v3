@@ -40,15 +40,15 @@ namespace FTT.FighterSim {
 
         /// <summary>R3: grounded non-launching hit speed multiplier.</summary>
         public static readonly FP64 ShoveScale =
-            FP64.FromDouble(FTT.Combat.BasicComboRules.FighterHitstunShoveScale);
+            FP64.FromDouble(FTT.Combat.BasicComboRules.HitstunShoveScale);
 
         /// <summary>R3: per-tick speed multiplier during plain grounded hitstun.</summary>
         public static readonly FP64 ShoveDecay =
-            FP64.FromDouble(FTT.Combat.BasicComboRules.FighterHitstunShoveDecay);
+            FP64.FromDouble(FTT.Combat.BasicComboRules.HitstunShoveDecay);
 
         /// <summary>R3: the speed below which the shove snaps to zero.</summary>
         public static readonly FP64 ShoveSnapSpeed =
-            FP64.FromDouble(FTT.Combat.BasicComboRules.FighterHitstunShoveSnapSpeed);
+            FP64.FromDouble(FTT.Combat.BasicComboRules.HitstunShoveSnapSpeed);
 
         private const int BounceCounterShift = 8;
         private const int BounceCounterMask = 0xF << BounceCounterShift;

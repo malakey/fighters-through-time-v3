@@ -112,7 +112,7 @@ public class FighterFinisherKnockbackTests {
         string root = ProjectSettings.GlobalizePath("res://");
         var offenders = new List<string>();
         string[] needles = {
-            "FighterKnockbackFeelRules", "FighterFinisherHorizontalScale", "FighterWallBounce", "FighterHitstunShove"
+            "FighterKnockbackFeelRules", "FighterFinisherHorizontalScale", "FighterWallBounce"
         };
         foreach (string file in Directory.EnumerateFiles(Path.Combine(root, "scripts"), "*.cs", SearchOption.AllDirectories)) {
             string rel = Path.GetRelativePath(root, file).Replace(Path.DirectorySeparatorChar, '/');

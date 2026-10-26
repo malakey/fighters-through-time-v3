@@ -576,12 +576,15 @@ public class StoryCombatRulesTests {
             AssertThat(hpAfterThird * 5 <= player.MaximumHP)
                 .OverrideFailureMessage($"The third hit must leave the hero at low HP; it left {hpAfterThird} of {player.MaximumHP}.")
                 .IsTrue();
+            // FU-STORYSHOVE: the grounded non-launcher's horizontal speed carries the
+            // shove scale (x3), still the same at every HP - that is what is pinned.
             // (A grounded victim of this non-launcher slides: M05 zeroes the
             // vertical, so the horizontal carries the rule.)
+            float expectedX = expected.X * (float)BasicComboRules.HitstunShoveScale;
             foreach ((string label, Vector2 impulse) in new[] {
                          ("full HP", firstImpulse), ("after a hit", secondImpulse), ("at a fifth of max HP", thirdImpulse) }) {
-                AssertThat(impulse.X).OverrideFailureMessage($"{label}: vx {impulse.X:F3}, static {expected.X:F3}.")
-                    .IsEqualApprox(expected.X, 0.001f);
+                AssertThat(impulse.X).OverrideFailureMessage($"{label}: vx {impulse.X:F3}, static {expectedX:F3}.")
+                    .IsEqualApprox(expectedX, 0.001f);
                 AssertThat(impulse).OverrideFailureMessage($"{label}: {impulse}, at full HP {firstImpulse}.")
                     .IsEqual(firstImpulse);
             }

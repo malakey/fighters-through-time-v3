@@ -1714,7 +1714,10 @@ namespace FTT.Characters {
 						// M05: a non-launcher on a grounded victim is grounded
 						// knockback — a horizontal slide on the floor, no tumble,
 						// no DI (mirrors FighterDamageRules.ApplyFighterHit).
-						Velocity = new Vector2(Velocity.X, 0f);
+						// FU-STORYSHOVE (2026-10-26): the same short shove as Fighter
+						// mode - the speed is scaled here and ProcessStunned's
+						// friction plants the hero within about 15 ticks.
+						Velocity = new Vector2(Velocity.X * (float)FTT.Combat.BasicComboRules.HitstunShoveScale, 0f);
 					}
 					// An airborne victim of a non-launcher keeps the authored
 					// vector but gets no tumble, DI or tech.
@@ -3578,6 +3581,18 @@ namespace FTT.Characters {
 				return;
 			}
 			ApplyGravity(dt);
+			// FU-STORYSHOVE (2026-10-26, ruling "fix it in Story too"): plain
+			// grounded hitstun is a short shove, not a constant-speed glide -
+			// the same per-tick decay and snap as the Fighter sim. A launch
+			// (tumble) keeps its flight; the guard-break daze is its own state.
+			// ProcessStunned never runs under the hero's hitstop (the early
+			// return in _PhysicsProcess), so the decay pauses with it.
+			if (IsOnFloor() && !_stunTumble) {
+				float shoveVx = Velocity.X * (float)FTT.Combat.BasicComboRules.HitstunShoveDecay;
+				Velocity = new Vector2(
+					MathF.Abs(shoveVx) < (float)FTT.Combat.BasicComboRules.HitstunShoveSnapSpeed * 60f ? 0f : shoveVx,
+					Velocity.Y);
+			}
 			// F4: ordinary and launched hitstun both read as hitstun (H03).
 			PlayAnimation("hitstun");
 			// Track the launch leaving the ground with a per-stun latch.
