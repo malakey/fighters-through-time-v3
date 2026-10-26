@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using FTT.Core;
 using FTT.Environment;
+using FTT.UI.Pulp;
 using Godot;
 
 namespace FTT.UI {
@@ -27,6 +28,10 @@ namespace FTT.UI {
         private ResonanceNodeData _pendingNode;
         private int _focusedIndex;
         private StyleBoxFlat _focusStyle;
+        private StyleBoxFlat _focusStylePaper;
+        private StyleBoxTexture _inkChip;
+        private StyleBoxTexture _paperChip;
+        private readonly Dictionary<string, ResonanceUnlockResult> _chipStates = new(StringComparer.Ordinal);
         private readonly List<ResonanceNodeData> _nodes = new();
         private readonly Dictionary<string, Button> _buttons = new(StringComparer.Ordinal);
 
@@ -74,12 +79,22 @@ namespace FTT.UI {
             closeButton.Pressed += Close;
             BuildRespecButton(closeButton);
 
-            _focusStyle = new StyleBoxFlat {
-                BgColor = new Color(0.05f, 0.14f, 0.2f),
-                BorderColor = UIPalette.Cyan
-            };
-            _focusStyle.SetBorderWidthAll(3);
-            _focusStyle.SetContentMarginAll(8);
+            // UR-SCREENS: pulp chips. Ink and paper plates from the kit by state, a gold focus ring.
+            _inkChip = PulpKit.Plate("panel_dark");
+            _paperChip = PulpKit.Plate("panel_paper");
+            foreach (StyleBoxTexture plate in new[] { _inkChip, _paperChip }) {
+                if (plate == null) continue;
+                plate.ContentMarginLeft = 12f; plate.ContentMarginRight = 38f; // room for the tier mark
+                plate.ContentMarginTop = 8f; plate.ContentMarginBottom = 8f;
+            }
+            _focusStyle = BuildFocusStyle(UIPalette.PlateFill);
+            _focusStylePaper = BuildFocusStyle(UIPalette.Paper);
+            if (Root.GetNodeOrNull<PanelContainer>("Center/Panel") is { } gridPanel) {
+                MenuSafeAreaFit.Attach(gridPanel);
+                PulpScreenKit.DressPanel(gridPanel, "resonance_grid_tag");
+            }
+            PulpButtonDecor.Apply(closeButton, compact: true);
+            PulpScreenKit.AddPromptBar(this, ("ui_accept", "ui_prompt_select"), ("ui_cancel", "common_back"));
 
             // The native ConfirmationDialog this replaces opened an OS-level window,
             // ignored the theme, and trapped no focus. A purchase is destructive
@@ -116,12 +131,21 @@ namespace FTT.UI {
             _respecButton = new Button {
                 Name = "RespecButton",
                 Text = "resonance_respec_button",
-                ThemeTypeVariation = "TemporalGlassButton"
+                ThemeTypeVariation = UIPalette.Variations.PulpButtonCompact
             };
             _respecButton.Pressed += ShowRespecConfirmation;
             Node layout = closeButton.GetParent();
             layout.AddChild(_respecButton);
             layout.MoveChild(_respecButton, closeButton.GetIndex());
+            PulpButtonDecor.Apply(_respecButton, compact: true);
+        }
+
+        private static StyleBoxFlat BuildFocusStyle(Color fill) {
+            var style = new StyleBoxFlat { BgColor = fill, BorderColor = UIPalette.Accent };
+            style.SetBorderWidthAll(4);
+            style.SetContentMarginAll(10);
+            style.ContentMarginRight = 38f;
+            return style;
         }
 
         private void ShowRespecConfirmation() {
@@ -219,6 +243,8 @@ namespace FTT.UI {
                     SetFocusedIndex(index);
                     ActivateNode(node);
                 };
+                var mark = new ResonanceTierMark { Tier = node.Tier, Name = "TierMark" };
+                button.AddChild(mark);
                 _nodeGrid.AddChild(button);
                 _buttons[node.NodeID] = button;
             }
@@ -257,14 +283,29 @@ namespace FTT.UI {
                 if (!_buttons.TryGetValue(node.NodeID, out Button target)) continue;
                 foreach (string prerequisiteID in node.PrerequisiteNodeIDs ?? Array.Empty<string>()) {
                     if (!_buttons.TryGetValue(prerequisiteID, out Button source)) continue;
+                    // UR-SCREENS: the chips are plates, so an edge stops at each chip's border instead of
+                    // running under it.
                     edges.Add(new ResonanceEdgeLayer.Edge(
-                        source.GetRect().GetCenter(),
-                        target.GetRect().GetCenter(),
+                        ClipToRect(source.GetRect(), target.GetRect().GetCenter()),
+                        ClipToRect(target.GetRect(), source.GetRect().GetCenter()),
                         node.PrerequisiteMode == PrerequisiteMode.Any,
                         unlocked.Contains(prerequisiteID)));
                 }
             }
             _edgeLayer.SetEdges(edges);
+        }
+
+        /// <summary>
+        /// Where the segment from <paramref name="chip"/>'s centre toward <paramref name="other"/> leaves the
+        /// chip rectangle (the centre itself when the points coincide). Pure; the edge's endpoint.
+        /// </summary>
+        internal static Vector2 ClipToRect(Rect2 chip, Vector2 other) {
+            Vector2 centre = chip.GetCenter();
+            Vector2 delta = other - centre;
+            if (delta.LengthSquared() < 0.0001f) return centre;
+            float tx = Mathf.Abs(delta.X) < 0.0001f ? float.MaxValue : chip.Size.X / 2f / Mathf.Abs(delta.X);
+            float ty = Mathf.Abs(delta.Y) < 0.0001f ? float.MaxValue : chip.Size.Y / 2f / Mathf.Abs(delta.Y);
+            return centre + delta * Mathf.Min(1f, Mathf.Min(tx, ty));
         }
 
         /// <summary>The authored normalized positions, in node order. Test surface.</summary>
@@ -348,35 +389,49 @@ namespace FTT.UI {
                 ResonanceUnlockResult state = ResonanceProgression.EvaluateUnlock(_grid, _save, node.NodeID);
                 button.Text = NodeText(node, state);
                 button.TooltipText = BuildTooltip(node, state);
+                _chipStates[node.NodeID] = state;
+                // UR-SCREENS: state is a plate (paper when owned, ink otherwise) plus a dim for locked and
+                // dormant; the dormant node stays unnamed in its true position (V7.6).
                 button.Modulate = state switch {
-                    ResonanceUnlockResult.AlreadyUnlocked => new Color(0.4f, 1f, 0.9f),
-                    ResonanceUnlockResult.Unlocked => Colors.White,
-                    // V7.6 dormant silhouette: dim and unlabeled, but drawn in
-                    // its TRUE position so the constellation is honest about
-                    // what is still to come.
-                    ResonanceUnlockResult.AbilityLocked => new Color(0.30f, 0.32f, 0.40f),
-                    _ => new Color(0.62f, 0.62f, 0.7f)
+                    ResonanceUnlockResult.AbilityLocked => new Color(0.55f, 0.55f, 0.62f),
+                    ResonanceUnlockResult.Unlocked or ResonanceUnlockResult.AlreadyUnlocked => Colors.White,
+                    _ => new Color(0.78f, 0.78f, 0.84f)
                 };
             }
+            ApplyChipStyles();
             RebuildEdges();
         }
 
         private void SetFocusedIndex(int index) {
             if (_nodes.Count == 0) return;
             _focusedIndex = Math.Clamp(index, 0, _nodes.Count - 1);
+            ApplyChipStyles();
+        }
+
+        private void ApplyChipStyles() {
             for (int i = 0; i < _nodes.Count; i++) {
                 if (!_buttons.TryGetValue(_nodes[i].NodeID, out Button button)) continue;
-                if (i == _focusedIndex) {
-                    button.AddThemeStyleboxOverride("normal", _focusStyle);
-                    button.AddThemeStyleboxOverride("hover", _focusStyle);
-                    button.AddThemeStyleboxOverride("pressed", _focusStyle);
-                } else {
-                    button.RemoveThemeStyleboxOverride("normal");
-                    button.RemoveThemeStyleboxOverride("hover");
-                    button.RemoveThemeStyleboxOverride("pressed");
+                _chipStates.TryGetValue(_nodes[i].NodeID, out ResonanceUnlockResult state);
+                bool paper = state == ResonanceUnlockResult.AlreadyUnlocked;
+                StyleBox box = i == _focusedIndex
+                    ? (paper ? _focusStylePaper : _focusStyle)
+                    : (paper ? _paperChip : _inkChip);
+                if (box != null) {
+                    foreach (string slot in new[] { "normal", "hover", "pressed", "focus", "disabled" }) {
+                        button.AddThemeStyleboxOverride(slot, box);
+                    }
+                }
+                Color text = paper ? UIPalette.PaperInk : UIPalette.Ink;
+                foreach (string slot in new[] { "font_color", "font_hover_color", "font_pressed_color",
+                             "font_focus_color", "font_hover_pressed_color", "font_disabled_color" }) {
+                    button.AddThemeColorOverride(slot, text);
                 }
             }
         }
+
+        /// <summary>The state a node chip currently shows. Test surface.</summary>
+        internal ResonanceUnlockResult ChipState(string nodeID) =>
+            _chipStates.TryGetValue(nodeID, out ResonanceUnlockResult state) ? state : ResonanceUnlockResult.MissingPrerequisite;
 
         private string NodeText(ResonanceNodeData node, ResonanceUnlockResult state) {
             // A gated node is an unnamed dormant star until the Legacy ability

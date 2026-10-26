@@ -1,13 +1,13 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/UI/LoadingScreen.cs" id="1_script"]
 [ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="2_theme"]
-
-; Fighter VS variant. PlayerPortrait/OpponentPortrait, StageNameLabel and
-; StagePreview are filled by LoadingScreen.Configure from GameManager's live
-; SessionData. Each of those nodes hides itself when its source is unset, so a
-; session with no opponent or no authored preview degrades to the VS plate
-; rather than showing an empty frame.
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/pulp/burst_star.png" id="3_burst"]
+[ext_resource type="Script" path="res://scripts/UI/Pulp/PulpPortraitRoundel.cs" id="4_roundel"]
+; Fighter VS variant (UR-SCREENS). PlayerPortrait / OpponentPortrait are portrait roundels (filled by
+; LoadingScreen.Configure from GameManager's live SessionData), the VS mark sits on the pulp starburst,
+; and StageNameLabel / StagePreview describe the stage. Each node hides itself when its source is unset,
+; so a session with no opponent or no authored preview degrades to the VS plate rather than an empty frame.
 
 [node name="FighterLoading" type="CanvasLayer"]
 layer = 100
@@ -29,7 +29,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.05, 0.05, 0.1, 1)
+color = Color(0.0196, 0.0275, 0.102, 1)
 
 [node name="Center" type="CenterContainer" parent="Root"]
 anchors_preset = 15
@@ -39,50 +39,99 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="Layout" type="VBoxContainer" parent="Root/Center"]
+[node name="Plate" type="PanelContainer" parent="Root/Center"]
+custom_minimum_size = Vector2(900, 0)
+layout_mode = 2
+theme_type_variation = &"InkPanel"
+
+[node name="Layout" type="VBoxContainer" parent="Root/Center/Plate"]
 layout_mode = 2
 theme_override_constants/separation = 20
 
-[node name="Versus" type="HBoxContainer" parent="Root/Center/Layout"]
+[node name="Versus" type="HBoxContainer" parent="Root/Center/Plate/Layout"]
 layout_mode = 2
 alignment = 1
 theme_override_constants/separation = 40
 
-[node name="PlayerPortrait" type="TextureRect" parent="Root/Center/Layout/Versus"]
-custom_minimum_size = Vector2(256, 256)
+[node name="PlayerColumn" type="VBoxContainer" parent="Root/Center/Plate/Layout/Versus"]
 layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="PlayerPortrait" type="Control" parent="Root/Center/Plate/Layout/Versus/PlayerColumn"]
+custom_minimum_size = Vector2(220, 220)
+layout_mode = 2
+size_flags_horizontal = 4
+script = ExtResource("4_roundel")
+
+[node name="PlayerSlot" type="Label" parent="Root/Center/Plate/Layout/Versus/PlayerColumn"]
+layout_mode = 2
+theme_type_variation = &"HeroName"
+text = "loading_player_one"
+horizontal_alignment = 1
+
+[node name="VersusMark" type="Control" parent="Root/Center/Plate/Layout/Versus"]
+custom_minimum_size = Vector2(190, 190)
+layout_mode = 2
+size_flags_vertical = 0
+
+[node name="VersusBurst" type="TextureRect" parent="Root/Center/Plate/Layout/Versus/VersusMark"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("3_burst")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="VersusLabel" type="Label" parent="Root/Center/Layout/Versus"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.95, 0.25, 0.25, 1)
-theme_override_font_sizes/font_size = 28
+[node name="VersusLabel" type="Label" parent="Root/Center/Plate/Layout/Versus/VersusMark"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"StickerLine1"
 text = "loading_versus"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="OpponentPortrait" type="TextureRect" parent="Root/Center/Layout/Versus"]
-custom_minimum_size = Vector2(256, 256)
+[node name="OpponentColumn" type="VBoxContainer" parent="Root/Center/Plate/Layout/Versus"]
 layout_mode = 2
-expand_mode = 1
-stretch_mode = 5
+theme_override_constants/separation = 10
 
-[node name="StagePreview" type="TextureRect" parent="Root/Center/Layout"]
+[node name="OpponentPortrait" type="Control" parent="Root/Center/Plate/Layout/Versus/OpponentColumn"]
+custom_minimum_size = Vector2(220, 220)
+layout_mode = 2
+size_flags_horizontal = 4
+script = ExtResource("4_roundel")
+
+[node name="OpponentSlot" type="Label" parent="Root/Center/Plate/Layout/Versus/OpponentColumn"]
+layout_mode = 2
+theme_type_variation = &"HeroName"
+text = "loading_player_two"
+horizontal_alignment = 1
+
+[node name="StageFrame" type="PanelContainer" parent="Root/Center/Plate/Layout"]
+layout_mode = 2
+size_flags_horizontal = 4
+theme_type_variation = &"PaperPanel"
+
+[node name="StagePreview" type="TextureRect" parent="Root/Center/Plate/Layout/StageFrame"]
 custom_minimum_size = Vector2(420, 160)
 layout_mode = 2
 expand_mode = 1
 stretch_mode = 5
 
-[node name="StageNameLabel" type="Label" parent="Root/Center/Layout"]
+[node name="StageNameLabel" type="Label" parent="Root/Center/Plate/Layout"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
-theme_override_font_sizes/font_size = 22
+theme_type_variation = &"ObjectiveLine"
 horizontal_alignment = 1
 
-[node name="StatusLabel" type="Label" parent="Root/Center/Layout"]
+[node name="StatusLabel" type="Label" parent="Root/Center/Plate/Layout"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.7, 0.75, 0.85, 1)
-theme_override_font_sizes/font_size = 18
+theme_type_variation = &"StatusLine"
 text = "loading"
 horizontal_alignment = 1

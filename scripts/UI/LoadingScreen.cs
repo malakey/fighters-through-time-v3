@@ -3,6 +3,7 @@ using Godot;
 using FTT.Characters;
 using FTT.Core;
 using FTT.Environment;
+using FTT.UI.Pulp;
 
 namespace FTT.UI {
 
@@ -132,8 +133,9 @@ namespace FTT.UI {
 
         private Label _titleLabel;
         private Label _stageNameLabel;
-        private TextureRect _playerPortrait;
-        private TextureRect _opponentPortrait;
+        private Control _playerPortrait;
+        private Control _opponentPortrait;
+        private Control _stageFrame;
         private TextureRect _stagePreview;
 
         public override void _Ready() {
@@ -151,8 +153,13 @@ namespace FTT.UI {
         private void ResolveVariantNodes() {
             _titleLabel = FindControl<Label>("TitleLabel");
             _stageNameLabel = FindControl<Label>("StageNameLabel");
-            _playerPortrait = FindControl<TextureRect>("PlayerPortrait");
-            _opponentPortrait = FindControl<TextureRect>("OpponentPortrait");
+            // UR-SCREENS: the VS portraits are PulpPortraitRoundel controls (a TextureRect still works).
+            _playerPortrait = FindControl<Control>("PlayerPortrait");
+            _opponentPortrait = FindControl<Control>("OpponentPortrait");
+            _stageFrame = FindControl<Control>("StageFrame");
+            if (FindChild("Plate", recursive: true, owned: false) is PanelContainer plate) {
+                PulpScreenKit.DressPanel(plate);
+            }
             _stagePreview = FindControl<TextureRect>("StagePreview");
         }
 
@@ -162,7 +169,7 @@ namespace FTT.UI {
             UIPalette.ApplyTheme(root);
             AddChild(root);
 
-            var background = new ColorRect { Name = "Background", Color = UIPalette.NavyDeep };
+            var background = new ColorRect { Name = "Background", Color = UIPalette.Backdrop };
             background.SetAnchorsPreset(Control.LayoutPreset.FullRect);
             root.AddChild(background);
 
@@ -173,7 +180,7 @@ namespace FTT.UI {
                 VerticalAlignment = VerticalAlignment.Center
             };
             status.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-            status.AddThemeColorOverride("font_color", UIPalette.TextAccent);
+            status.ThemeTypeVariation = UIPalette.HeadingLabelVariation;
             root.AddChild(status);
         }
 
@@ -205,11 +212,13 @@ namespace FTT.UI {
             ApplyStage(session.SelectedStageID);
         }
 
-        private static void ApplyPortrait(TextureRect target, string characterID) {
+        private static void ApplyPortrait(Control target, string characterID) {
             if (target == null) return;
             CharacterData data = LoadCharacter(characterID);
-            target.Texture = data?.CharacterPortrait;
-            target.Visible = target.Texture != null;
+            Texture2D portrait = data?.CharacterPortrait;
+            if (target is PulpPortraitRoundel roundel) roundel.Portrait = portrait;
+            else if (target is TextureRect rect) rect.Texture = portrait;
+            target.Visible = portrait != null;
         }
 
         private static CharacterData LoadCharacter(string characterID) {
@@ -238,6 +247,7 @@ namespace FTT.UI {
             // and released with the screen rather than pinned for the process.
             _stagePreview.Texture = hasPreview ? ResourceLoader.Load<Texture2D>(previewPath) : null;
             _stagePreview.Visible = _stagePreview.Texture != null;
+            if (_stageFrame != null) _stageFrame.Visible = _stagePreview.Visible;
         }
 
         private T FindControl<T>(string nodeName) where T : Control =>

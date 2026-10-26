@@ -1,3 +1,4 @@
+using FTT.UI.Pulp;
 using Godot;
 
 namespace FTT.UI {
@@ -14,6 +15,7 @@ namespace FTT.UI {
         [Signal] public delegate void ReturnRequestedEventHandler();
 
         private Control _shade;
+        private PanelContainer _panel;
         private Label _titleLabel;
         private Label _dustLabel;
         private Label _dustMobsLabel;
@@ -174,7 +176,9 @@ namespace FTT.UI {
         /// standing up the StoryManager autoload and playing a level through.
         /// </summary>
         public void ShowResults(string levelTitleKey, int dustEarned, float completionSeconds, int rewindsUsed) {
-            if (_titleLabel != null) _titleLabel.Text = $"{Tr("results_level_complete")}\n{Tr(levelTitleKey)}";
+            // UR-SCREENS: the level's name rides the panel tag, the title is the stamp.
+            if (_titleLabel != null) _titleLabel.Text = Tr("results_level_complete");
+            if (_panel != null) PulpScreenKit.AddTag(_panel, levelTitleKey);
             if (_dustLabel != null) _dustLabel.Text = string.Format(Tr("results_dust_earned"), dustEarned);
             SetLineVisible(_dustMobsLabel, false);
             SetLineVisible(_dustExtractorsLabel, false);
@@ -254,6 +258,7 @@ namespace FTT.UI {
             _timeLabel = GetNodeOrNull<Label>("Shade/Panel/Layout/CompletionTime");
             _rewindsLabel = GetNodeOrNull<Label>("Shade/Panel/Layout/RewindsUsed");
             _returnButton = GetNodeOrNull<Button>("Shade/Panel/Layout/ReturnButton");
+            _panel = GetNodeOrNull<PanelContainer>("Shade/Panel");
             // V7/V7.1 lines are code-built so the authored scene stays untouched:
             // inserted above the return button, hidden until populated.
             if (GetNodeOrNull<Container>("Shade/Panel/Layout") is Container layout) {
@@ -266,8 +271,36 @@ namespace FTT.UI {
                 _integrityLabel = AppendResultLine(layout, "IntegrityLine");
                 _secretsLabel = AppendResultLine(layout, "SecretsLine");
                 _resonanceRestoredLabel = AppendResultLine(layout, "ResonanceRestoredLine");
-                _resonanceRestoredLabel.AddThemeColorOverride("font_color", UIPalette.TextAccent);
+                _resonanceRestoredLabel.ThemeTypeVariation = UIPalette.LabelRoles.ObjectiveLine;
                 // No RatingLine: V7.6 ruling 2.A retires the Chronal Rating.
+            }
+            DressPulp();
+            // The dust ledger reads together: total, categories, then the run statistics.
+            if (_dustLabel != null && _dustLabel.GetParent() is Container ledger) {
+                int at = _dustLabel.GetIndex();
+                foreach (Label line in new[] { _dustMobsLabel, _dustExtractorsLabel, _dustBossLabel,
+                             _dustOptionalLabel, _dustCarriedLabel, _dustTierBonusLabel, _dustLossesLabel }) {
+                    if (line != null) ledger.MoveChild(line, ++at);
+                }
+            }
+        }
+
+        /// <summary>
+        /// UR-SCREENS: the pulp dressing around the authored labels. Every text stays one string on its
+        /// own Label (the results tests read them); the dust lines get the kit's dust icon at the left,
+        /// the statistics read as a left-aligned ledger, and the Return button is a banner button.
+        /// </summary>
+        private void DressPulp() {
+            if (_panel != null) PulpScreenKit.DressPanel(_panel, buttonInset: true);
+            PulpScreenKit.AddLeadingIcon(_dustLabel, "dust", UIPalette.Res, 34f);
+            foreach (Label line in new[] { _dustMobsLabel, _dustExtractorsLabel, _dustBossLabel,
+                         _dustOptionalLabel, _dustCarriedLabel, _dustTierBonusLabel }) {
+                PulpScreenKit.AddLeadingIcon(line, "dust", UIPalette.Res, 24f);
+            }
+            PulpScreenKit.AddLeadingIcon(_dustLossesLabel, "dust", UIPalette.Ink3, 24f);
+            if (_returnButton != null) {
+                PulpButtonDecor.Apply(_returnButton);
+                if (_shade != null) PulpScreenKit.AddPromptBar(_shade, ("ui_accept", "ui_prompt_select"));
             }
         }
 
@@ -322,6 +355,9 @@ namespace FTT.UI {
 
         private Label AppendResultLine(Container layout, string name) {
             var label = new Label { Name = name, Visible = false };
+            // UR-SCREENS: the dust and statistics lines are a left-aligned ledger; the small-numeral role
+            // is for the dust amounts, the others keep the body face.
+            if (name.StartsWith("Dust")) label.ThemeTypeVariation = UIPalette.LabelRoles.HudNumeralSmall;
             layout.AddChild(label);
             if (_returnButton != null && _returnButton.GetParent() == layout) {
                 layout.MoveChild(label, _returnButton.GetIndex());

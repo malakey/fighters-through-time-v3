@@ -2,6 +2,7 @@ using Godot;
 using FTT.Core;
 using FTT.Environment;
 using FTT.FighterSim;
+using FTT.UI.Pulp;
 
 namespace FTT.UI {
 
@@ -20,6 +21,10 @@ namespace FTT.UI {
         private Label _stocksLostOne;
         private Label _stocksLostTwo;
         private Label _suddenDeathNote;
+        private readonly PulpPortraitRoundel[] _roundels = new PulpPortraitRoundel[2];
+        private readonly Label[] _fighterNames = new Label[2];
+        private readonly Control[] _fighterColumns = new Control[2];
+        private readonly PulpIcon[] _winnerStars = new PulpIcon[2];
         private Button _rematchButton;
         private bool _shown;
         // V7 "Rematch requires both": in local-human matches the Rematch press
@@ -69,11 +74,49 @@ namespace FTT.UI {
                     ? Tr("fighter_results_draw")
                     : string.Format(Tr("fighter_results_winner"), result.WinnerPlayerID + 1);
             }
+            ApplyFighters(result);
             ApplyStocksLostTotals(result);
             // Focus is authored only once the panel is on screen: a chain built
             // against a hidden subtree collects nothing (FocusChainBuilder skips
             // invisible branches), and a controller player would land on nothing.
             FocusChainBuilder.Apply(_panel);
+        }
+
+        /// <summary>The roundel portrait of player <paramref name="player"/> (0 or 1). Test seam.</summary>
+        internal PulpPortraitRoundel RoundelFor(int player) => _roundels[player];
+
+        /// <summary>The star on the winner's column (visible only on a decided match). Test seam.</summary>
+        internal bool WinnerStarVisible(int player) => _winnerStars[player]?.Visible == true;
+
+        /// <summary>
+        /// UR-SCREENS: both fighters on portrait roundels with their slot shape and colour (the shape,
+        /// not the colour alone, tells player one from player two), the winner marked with a star and the
+        /// loser dimmed.
+        /// </summary>
+        private void ApplyFighters(FighterMatchResult result) {
+            SessionData session = GameManager.Instance?.CurrentSession ?? default;
+            string[] ids = { session.SelectedCharacterID, session.OpponentCharacterID };
+            for (int player = 0; player < 2; player++) {
+                FTT.Characters.CharacterData data = LoadCharacter(ids[player]);
+                if (_roundels[player] != null) _roundels[player].Portrait = data?.CharacterPortrait;
+                if (_fighterNames[player] != null) {
+                    _fighterNames[player].Text = data == null || string.IsNullOrWhiteSpace(data.DisplayNameKey)
+                        ? string.Format(Tr("fighter_results_player"), player + 1)
+                        : Tr(data.DisplayNameKey);
+                }
+                bool won = !result.IsTrueTie && result.WinnerPlayerID == player;
+                bool lost = !result.IsTrueTie && result.WinnerPlayerID >= 0 && result.WinnerPlayerID != player;
+                if (_winnerStars[player] != null) _winnerStars[player].Visible = won;
+                if (_fighterColumns[player] != null) {
+                    _fighterColumns[player].Modulate = lost ? new Color(1f, 1f, 1f, 0.62f) : Colors.White;
+                }
+            }
+        }
+
+        private static FTT.Characters.CharacterData LoadCharacter(string characterID) {
+            if (string.IsNullOrWhiteSpace(characterID)) return null;
+            string path = $"res://resources/Characters/{characterID}_data.tres";
+            return ResourceLoader.Exists(path) ? AuthoredResources.Load<FTT.Characters.CharacterData>(path) : null;
         }
 
         /// <summary>
@@ -165,9 +208,11 @@ namespace FTT.UI {
             center.SetAnchorsPreset(Control.LayoutPreset.FullRect);
             shade.AddChild(center);
 
-            var panel = new PanelContainer { Name = "Panel", CustomMinimumSize = new Vector2(560, 360) };
+            var panel = new PanelContainer { Name = "Panel", CustomMinimumSize = new Vector2(760, 360) };
             center.AddChild(panel);
+            MenuSafeAreaFit.Attach(panel);
             _panel = panel;
+            PulpScreenKit.DressPanel(panel, "fighter_results_title", buttonInset: true);
 
             var layout = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
             layout.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);
@@ -183,14 +228,6 @@ namespace FTT.UI {
             _stamp.AddThemeConstantOverride("outline_size", 6);
             layout.AddChild(_stamp);
 
-            var title = new Label {
-                Text = Tr("fighter_results_title"),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                ThemeTypeVariation = UIPalette.TitleLabelVariation
-            };
-            title.AddThemeColorOverride("font_color", UIPalette.TextAccent);
-            layout.AddChild(title);
-
             _outcome = new Label {
                 Name = "Outcome",
                 HorizontalAlignment = HorizontalAlignment.Center,
@@ -198,10 +235,18 @@ namespace FTT.UI {
             };
             layout.AddChild(_outcome);
 
+            // UR-SCREENS: the two fighters, each a portrait roundel, a slot shape + name row and the
+            // F21 stocks-lost line under it. The totals Labels keep their names and texts.
+            var fighters = new HBoxContainer {
+                Name = "Fighters", Alignment = BoxContainer.AlignmentMode.Center
+            };
+            fighters.AddThemeConstantOverride("separation", 120);
+            layout.AddChild(fighters);
             _stocksLostOne = MakeTotalsLine("StocksLostOne");
-            layout.AddChild(_stocksLostOne);
             _stocksLostTwo = MakeTotalsLine("StocksLostTwo");
-            layout.AddChild(_stocksLostTwo);
+            fighters.AddChild(BuildFighterColumn(0, _stocksLostOne));
+            fighters.AddChild(BuildFighterColumn(1, _stocksLostTwo));
+
             _suddenDeathNote = MakeTotalsLine("SuddenDeathNote");
             layout.AddChild(_suddenDeathNote);
 
@@ -229,7 +274,39 @@ namespace FTT.UI {
                     };
                 }
                 layout.AddChild(button);
+                PulpButtonDecor.Apply(button, compact: true);
             }
+            PulpScreenKit.AddPromptBar(shade, ("ui_accept", "ui_prompt_select"));
+        }
+
+        private Control BuildFighterColumn(int player, Label stocksLost) {
+            var column = new VBoxContainer { Name = "Fighter" + (player + 1) };
+            column.AddThemeConstantOverride("separation", 8);
+            _fighterColumns[player] = column;
+
+            var roundel = new PulpPortraitRoundel { Name = "Roundel", Diameter = 140f };
+            var roundelHost = new CenterContainer { Name = "RoundelHost", MouseFilter = Control.MouseFilterEnum.Ignore };
+            roundelHost.AddChild(roundel);
+            column.AddChild(roundelHost);
+            _roundels[player] = roundel;
+
+            var row = new HBoxContainer { Name = "NameRow", Alignment = BoxContainer.AlignmentMode.Center };
+            row.AddThemeConstantOverride("separation", 8);
+            Color slot = player == 0 ? UIPalette.P1 : UIPalette.P2;
+            row.AddChild(PulpIcon.Create(player == 0 ? "slot_p1" : "slot_p2", slot, 30f));
+            var name = new Label { Name = "FighterName", ThemeTypeVariation = UIPalette.LabelRoles.HeroName };
+            row.AddChild(name);
+            var star = PulpIcon.Create("star4", UIPalette.Accent, 30f);
+            star.Name = "WinnerStar";
+            star.Visible = false;
+            row.AddChild(star);
+            _fighterNames[player] = name;
+            _winnerStars[player] = star;
+            column.AddChild(row);
+
+            stocksLost.HorizontalAlignment = HorizontalAlignment.Center;
+            column.AddChild(stocksLost);
+            return column;
         }
 
         private void OnRematchPressed() {
@@ -279,7 +356,8 @@ namespace FTT.UI {
 
         private static Button MakeButton(string text) => new() {
             Text = text,
-            CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, UIPalette.ButtonMinHeight)
+            ThemeTypeVariation = UIPalette.Variations.PulpButtonCompact,
+            CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, 58f)
         };
     }
 }

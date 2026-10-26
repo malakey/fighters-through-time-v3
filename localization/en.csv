@@ -1666,3 +1666,8 @@ select_press_to_join_player_one,Press confirm on any controller or keyboard to j
 ui_prompt_select,Select
 ui_toggle_on,On
 ui_toggle_off,Off
+# UR SCREENS
+fighter_results_player,Player {0}
+loading_player_one,Player 1
+loading_player_two,Player 2
+resonance_grid_tag,Constellation
