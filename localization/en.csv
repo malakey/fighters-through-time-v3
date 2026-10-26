@@ -1701,3 +1701,6 @@ resonance_grid_tag,Constellation
 # UR HUDF
 fighter_hud_mode_stock,Stock match
 fighter_hud_mode_time,Time match
+# UR PAUSE
+pause_status_level,"{0} · {1} · Integrity {2}%"
+pause_tag_controller,Controller

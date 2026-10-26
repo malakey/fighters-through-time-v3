@@ -129,7 +129,7 @@ public class DialoguePresentationTests {
 
             dialogue.AdvanceLine();
             AssertThat(dialogue.ActiveEmotion.Emotion).IsEqual(DialogueEmotion.Confused);
-            AssertThat(style.BorderColor.IsEqualApprox(UIPalette.SlateDim)).IsTrue();
+            AssertThat(style.BorderColor.IsEqualApprox(UIPalette.Ink2)).IsTrue();
         } finally {
             Teardown(dialogue);
         }
@@ -137,7 +137,7 @@ public class DialoguePresentationTests {
 
     /// <summary>
     /// V7.3 UI-scale pass: the speaker and continue-hint labels ride theme
-    /// Label variations (HeadingLabel / SmallLabel) and the text body rides
+    /// Label variations (SpeakerName / SmallLabel) and the text body rides
     /// the theme default, with no font-size overrides, so the box follows the
     /// accessibility UI scale.
     /// </summary>
@@ -146,7 +146,7 @@ public class DialoguePresentationTests {
         DialogueManager dialogue = Attach();
         try {
             var speaker = dialogue.GetNode<Label>("Panel/Layout/Content/SpeakerRow/SpeakerLabel");
-            AssertThat(speaker.ThemeTypeVariation.ToString()).IsEqual(UIPalette.HeadingLabelVariation);
+            AssertThat(speaker.ThemeTypeVariation.ToString()).IsEqual(UIPalette.LabelRoles.SpeakerName);
             AssertThat(speaker.HasThemeFontSizeOverride("font_size")).IsFalse();
 
             var hint = dialogue.GetNode<Label>("Panel/Layout/Content/ContinueHint");

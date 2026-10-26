@@ -171,13 +171,13 @@ public class LocalFighterPauseTests {
         try {
             var panel = pause.FindChild("PausePanel", recursive: true, owned: false) as Control;
             AssertObject(panel).IsNotNull();
-            Node layout = panel.GetChild(0);
+            Node layout = panel.GetNode("Layout");
             Label title = null;
             for (int index = 0; index < layout.GetChildCount() && title == null; index++) {
                 title = layout.GetChild(index) as Label;
             }
             AssertObject(title).IsNotNull();
-            AssertThat(title.ThemeTypeVariation.ToString()).IsEqual(UIPalette.TitleLabelVariation);
+            AssertThat(title.ThemeTypeVariation.ToString()).IsEqual(UIPalette.LabelRoles.PauseTitle);
             AssertThat(title.HasThemeFontSizeOverride("font_size")).IsFalse();
 
             var disconnect = pause.FindChild("DisconnectLabel", recursive: true, owned: false) as Label;

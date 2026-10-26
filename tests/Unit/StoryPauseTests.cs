@@ -247,7 +247,7 @@ public class StoryPauseTests {
     }
 
     /// <summary>
-    /// V7.3 UI-scale pass: the pause title rides the TitleLabel theme variation
+    /// V7.3 UI-scale pass: the pause title rides the PauseTitle theme role (UR-PAUSE)
     /// on both the authored scene and the code-built fallback, with no
     /// font-size override, so it follows the accessibility UI scale.
     /// </summary>
@@ -264,7 +264,7 @@ public class StoryPauseTests {
                 var title = pause.GetNodeOrNull<Label>("Root/Center/Panel/Layout/Title");
                 AssertObject(title).IsNotNull();
                 AssertThat(title.ThemeTypeVariation.ToString())
-                    .IsEqual(UIPalette.TitleLabelVariation);
+                    .IsEqual(UIPalette.LabelRoles.PauseTitle);
                 AssertThat(title.HasThemeFontSizeOverride("font_size"))
                     .OverrideFailureMessage(
                         $"{pause.Name}: a font-size override freezes the title out of the UI scale.")

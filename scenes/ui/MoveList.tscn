@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="1_theme"]
+[ext_resource type="Script" path="res://scripts/UI/PausePanel.cs" id="2_panel"]
 
 [node name="MoveList" type="Control"]
 anchors_preset = 15
@@ -11,14 +12,15 @@ grow_vertical = 2
 mouse_filter = 0
 theme = ExtResource("1_theme")
 
-[node name="Shade" type="ColorRect" parent="."]
+[node name="Shade" type="PanelContainer" parent="."]
+self_modulate = Color(1, 1, 1, 0.7)
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.02, 0.03, 0.08, 0.85)
+theme_type_variation = &"ScrimPanel"
 
 [node name="Center" type="CenterContainer" parent="."]
 layout_mode = 1
@@ -32,7 +34,8 @@ mouse_filter = 2
 [node name="Panel" type="PanelContainer" parent="Center"]
 custom_minimum_size = Vector2(900, 0)
 layout_mode = 2
-theme_type_variation = &"DialogueGlassPanel"
+theme_type_variation = &"InkPanel"
+script = ExtResource("2_panel")
 
 [node name="Layout" type="VBoxContainer" parent="Center/Panel"]
 layout_mode = 2
@@ -55,12 +58,10 @@ size_flags_horizontal = 3
 [node name="CharacterName" type="Label" parent="Center/Panel/Layout/Header/HeaderText"]
 layout_mode = 2
 theme_type_variation = &"TitleLabel"
-theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
 
 [node name="Archetype" type="Label" parent="Center/Panel/Layout/Header/HeaderText"]
 layout_mode = 2
 theme_type_variation = &"SmallLabel"
-theme_override_colors/font_color = Color(0.45, 0.5, 0.6, 1)
 
 [node name="Scroll" type="ScrollContainer" parent="Center/Panel/Layout"]
 custom_minimum_size = Vector2(840, 540)
@@ -77,13 +78,13 @@ theme_override_constants/separation = 24
 alignment = 1
 
 [node name="SystemsCardButton" type="Button" parent="Center/Panel/Layout/FooterRow"]
-custom_minimum_size = Vector2(240, 44)
+custom_minimum_size = Vector2(400, 64)
 layout_mode = 2
 theme_type_variation = &"TemporalGlassButton"
 text = "systems_card_title"
 
 [node name="CloseButton" type="Button" parent="Center/Panel/Layout/FooterRow"]
-custom_minimum_size = Vector2(180, 44)
+custom_minimum_size = Vector2(280, 64)
 layout_mode = 2
 theme_type_variation = &"TemporalGlassButton"
 text = "common_back"

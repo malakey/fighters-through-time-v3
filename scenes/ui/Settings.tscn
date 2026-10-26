@@ -1,7 +1,7 @@
 [gd_scene load_steps=4 format=3]
 
 [ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="1_theme"]
-[ext_resource type="Texture2D" path="res://assets/backgrounds/menu/temporal_glass_submenu_background.png" id="2_temporal_submenu"]
+[ext_resource type="Script" path="res://scripts/UI/PausePanel.cs" id="4_panel"]
 [ext_resource type="Script" path="res://scripts/UI/PlayerSlotPaletteRow.cs" id="3_p12w5_slot_palette"]
 
 [node name="SettingsRoot" type="Control"]
@@ -19,20 +19,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.012, 0.016, 0.06, 0.96)
-
-[node name="TemporalGlassArt" type="TextureRect" parent="Backdrop"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-texture = ExtResource("2_temporal_submenu")
-modulate = Color(1, 1, 1, 0.62)
-expand_mode = 1
-stretch_mode = 6
+color = Color(0.0196, 0.0275, 0.102, 0.97)
 
 [node name="Margin" type="MarginContainer" parent="."]
 anchors_preset = 15
@@ -41,22 +28,22 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/margin_left = 200
-theme_override_constants/margin_top = 80
+theme_override_constants/margin_top = 16
 theme_override_constants/margin_right = 200
-theme_override_constants/margin_bottom = 80
+theme_override_constants/margin_bottom = 16
 
 [node name="Panel" type="PanelContainer" parent="Margin"]
 layout_mode = 2
-theme_type_variation = &"DialogueGlassPanel"
+theme_type_variation = &"InkPanel"
+script = ExtResource("4_panel")
 
 [node name="Body" type="VBoxContainer" parent="Margin/Panel"]
 layout_mode = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 4
 
 [node name="Title" type="Label" parent="Margin/Panel/Body"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.914, 0.933, 0.973, 1)
-theme_override_font_sizes/font_size = 40
+theme_type_variation = &"TitleLabel"
 horizontal_alignment = 1
 
 [node name="Tabs" type="TabContainer" parent="Margin/Panel/Body"]
@@ -71,8 +58,9 @@ theme_override_constants/separation = 6
 layout_mode = 2
 
 [node name="MasterSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Audio"]
-custom_minimum_size = Vector2(360, 20)
+custom_minimum_size = Vector2(360, 44)
 layout_mode = 2
+size_flags_horizontal = 0
 max_value = 1.0
 step = 0.05
 value = 1.0
@@ -86,8 +74,9 @@ text = "settings_mute"
 layout_mode = 2
 
 [node name="MusicSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Audio"]
-custom_minimum_size = Vector2(360, 20)
+custom_minimum_size = Vector2(360, 44)
 layout_mode = 2
+size_flags_horizontal = 0
 max_value = 1.0
 step = 0.05
 value = 0.8
@@ -101,8 +90,9 @@ text = "settings_mute"
 layout_mode = 2
 
 [node name="SfxSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Audio"]
-custom_minimum_size = Vector2(360, 20)
+custom_minimum_size = Vector2(360, 44)
 layout_mode = 2
+size_flags_horizontal = 0
 max_value = 1.0
 step = 0.05
 value = 1.0
@@ -116,8 +106,9 @@ text = "settings_mute"
 layout_mode = 2
 
 [node name="UiSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Audio"]
-custom_minimum_size = Vector2(360, 20)
+custom_minimum_size = Vector2(360, 44)
 layout_mode = 2
+size_flags_horizontal = 0
 max_value = 1.0
 step = 0.05
 value = 1.0
@@ -173,8 +164,9 @@ button_pressed = true
 layout_mode = 2
 
 [node name="HudOpacitySlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Gameplay"]
-custom_minimum_size = Vector2(360, 20)
+custom_minimum_size = Vector2(360, 44)
 layout_mode = 2
+size_flags_horizontal = 0
 min_value = 0.2
 max_value = 1.0
 step = 0.05
@@ -184,8 +176,9 @@ value = 1.0
 layout_mode = 2
 
 [node name="ScreenShakeSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Gameplay"]
-custom_minimum_size = Vector2(360, 20)
+custom_minimum_size = Vector2(360, 44)
 layout_mode = 2
+size_flags_horizontal = 0
 max_value = 1.0
 step = 0.05
 value = 1.0
@@ -203,8 +196,9 @@ autowrap_mode = 3
 layout_mode = 2
 
 [node name="UiScaleSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Gameplay"]
-custom_minimum_size = Vector2(360, 20)
+custom_minimum_size = Vector2(360, 44)
 layout_mode = 2
+size_flags_horizontal = 0
 min_value = 0.9
 max_value = 1.4
 step = 0.05
@@ -276,7 +270,7 @@ text = "settings_open_logs_folder"
 [node name="Controls" type="VBoxContainer" parent="Margin/Panel/Body/Tabs"]
 visible = false
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 2
 
 [node name="Hint" type="Label" parent="Margin/Panel/Body/Tabs/Controls"]
 layout_mode = 2
@@ -286,7 +280,7 @@ autowrap_mode = 3
 layout_mode = 2
 theme_override_constants/h_separation = 16
 theme_override_constants/v_separation = 6
-columns = 2
+columns = 4
 
 [node name="BlockModeLabel" type="Label" parent="Margin/Panel/Body/Tabs/Controls/Options"]
 custom_minimum_size = Vector2(260, 0)
@@ -312,8 +306,9 @@ layout_mode = 2
 text = "settings_stick_deadzone"
 
 [node name="DeadzoneSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Controls/Options"]
-custom_minimum_size = Vector2(360, 20)
+custom_minimum_size = Vector2(360, 44)
 layout_mode = 2
+size_flags_horizontal = 0
 max_value = 0.4
 step = 0.01
 value = 0.15
@@ -323,8 +318,9 @@ layout_mode = 2
 text = "settings_down_threshold"
 
 [node name="DownThresholdSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Controls/Options"]
-custom_minimum_size = Vector2(360, 20)
+custom_minimum_size = Vector2(360, 44)
 layout_mode = 2
+size_flags_horizontal = 0
 min_value = 0.2
 max_value = 0.9
 step = 0.05
@@ -342,50 +338,60 @@ layout_mode = 2
 layout_mode = 2
 
 [node name="HapticSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Controls/Options"]
-custom_minimum_size = Vector2(360, 20)
+custom_minimum_size = Vector2(360, 44)
 layout_mode = 2
+size_flags_horizontal = 0
 max_value = 1.0
 step = 0.05
 value = 0.7
 
-[node name="Scroll" type="ScrollContainer" parent="Margin/Panel/Body/Tabs/Controls"]
-layout_mode = 2
-size_flags_vertical = 3
-
-[node name="ActionRows" type="VBoxContainer" parent="Margin/Panel/Body/Tabs/Controls/Scroll"]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_constants/separation = 4
-
 [node name="ReadOnlyInfo" type="Label" parent="Margin/Panel/Body/Tabs/Controls"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.6, 0.62, 0.7, 1)
+theme_type_variation = &"SmallLabel"
 autowrap_mode = 3
 
 [node name="Status" type="Label" parent="Margin/Panel/Body/Tabs/Controls"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.95, 0.8, 0.3, 1)
+theme_type_variation = &"HintLine"
 autowrap_mode = 3
 
-[node name="ShortcutsHeading" type="Label" parent="Margin/Panel/Body/Tabs/Controls"]
+[node name="Scroll" type="ScrollContainer" parent="Margin/Panel/Body/Tabs/Controls"]
+custom_minimum_size = Vector2(0, 120)
+layout_mode = 2
+size_flags_vertical = 3
+follow_focus = true
+
+[node name="Content" type="VBoxContainer" parent="Margin/Panel/Body/Tabs/Controls/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="ActionRows" type="VBoxContainer" parent="Margin/Panel/Body/Tabs/Controls/Scroll/Content"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="ShortcutsHeading" type="Label" parent="Margin/Panel/Body/Tabs/Controls/Scroll/Content"]
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
 
-[node name="ShortcutRows" type="VBoxContainer" parent="Margin/Panel/Body/Tabs/Controls"]
+[node name="ShortcutRows" type="GridContainer" parent="Margin/Panel/Body/Tabs/Controls/Scroll/Content"]
 layout_mode = 2
-theme_override_constants/separation = 4
+theme_override_constants/h_separation = 24
+theme_override_constants/v_separation = 2
+columns = 2
 
-[node name="ResetAllButton" type="Button" parent="Margin/Panel/Body/Tabs/Controls"]
-custom_minimum_size = Vector2(280, 40)
+[node name="ResetAllButton" type="Button" parent="Margin/Panel/Body/Tabs/Controls/Scroll/Content"]
+custom_minimum_size = Vector2(280, 58)
 layout_mode = 2
 size_flags_horizontal = 0
-theme_type_variation = &"TemporalGlassButton"
+theme_type_variation = &"PulpButtonCompact"
 
 [node name="Footer" type="HBoxContainer" parent="Margin/Panel/Body"]
 layout_mode = 2
 alignment = 2
 
 [node name="BackButton" type="Button" parent="Margin/Panel/Body/Footer"]
-custom_minimum_size = Vector2(220, 46)
+custom_minimum_size = Vector2(320, 64)
 layout_mode = 2
 theme_type_variation = &"TemporalGlassButton"

@@ -69,21 +69,15 @@ namespace FTT.UI {
             SetAnchorsPreset(LayoutPreset.FullRect);
             UIPalette.ApplyTheme(this);
 
-            var shade = new ColorRect {
-                Name = "Shade",
-                Color = UIPalette.Shade,
-                MouseFilter = MouseFilterEnum.Stop
-            };
-            shade.SetAnchorsPreset(LayoutPreset.FullRect);
-            AddChild(shade);
+            AddChild(PulpScreenKit.MakeScrim());
 
             var center = new CenterContainer { Name = "Center" };
             center.SetAnchorsPreset(LayoutPreset.FullRect);
             AddChild(center);
 
-            var panel = new PanelContainer { Name = "Panel" };
-            panel.CustomMinimumSize = new Vector2(520, 0);
-            panel.ThemeTypeVariation = "DialogueGlassPanel";
+            // UR-PAUSE: the pulp ink panel (no tag) with compact banner buttons.
+            var panel = new PausePanel { Name = "Panel" };
+            panel.CustomMinimumSize = new Vector2(ModalPanelWidth, 0);
             center.AddChild(panel);
 
             var layout = new VBoxContainer { Name = "Layout" };
@@ -97,7 +91,6 @@ namespace FTT.UI {
                     HorizontalAlignment = HorizontalAlignment.Center
                 };
                 title.ThemeTypeVariation = UIPalette.HeadingLabelVariation;
-                title.AddThemeColorOverride("font_color", UIPalette.TextAccent);
                 layout.AddChild(title);
             }
 
@@ -106,7 +99,7 @@ namespace FTT.UI {
                 Text = promptKey,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
-                CustomMinimumSize = new Vector2(440, 0)
+                CustomMinimumSize = new Vector2(ModalPanelWidth - 90f, 0)
             };
             layout.AddChild(_prompt);
 
@@ -114,23 +107,26 @@ namespace FTT.UI {
             buttons.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);
             layout.AddChild(buttons);
 
-            _cancelButton = new Button {
-                Name = "CancelButton",
-                Text = cancelKey,
-                CustomMinimumSize = new Vector2(180, UIPalette.ButtonMinHeight),
-                ThemeTypeVariation = "TemporalGlassButton"
-            };
+            _cancelButton = ModalButton("CancelButton", cancelKey);
             _cancelButton.Pressed += Cancel;
             buttons.AddChild(_cancelButton);
 
-            _confirmButton = new Button {
-                Name = "ConfirmButton",
-                Text = confirmKey,
-                CustomMinimumSize = new Vector2(180, UIPalette.ButtonMinHeight),
-                ThemeTypeVariation = "TemporalGlassButton"
-            };
+            _confirmButton = ModalButton("ConfirmButton", confirmKey);
             _confirmButton.Pressed += Confirm;
             buttons.AddChild(_confirmButton);
+        }
+
+        private const float ModalPanelWidth = 700f;
+
+        private static Button ModalButton(string name, string textKey) {
+            var button = new Button {
+                Name = name,
+                Text = textKey,
+                CustomMinimumSize = new Vector2(300f, 58f),
+                ThemeTypeVariation = UIPalette.Variations.PulpButtonCompact
+            };
+            Pulp.PulpButtonDecor.Apply(button, compact: true);
+            return button;
         }
 
         /// <summary>Replaces the prompt copy, for reusing one modal across actions.</summary>

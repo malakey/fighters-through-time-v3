@@ -59,7 +59,7 @@ namespace FTT.UI {
                 Name = "TooltipPanel",
                 Visible = false,
                 MouseFilter = Control.MouseFilterEnum.Ignore,
-                ThemeTypeVariation = "DialogueGlassPanel",
+                ThemeTypeVariation = UIPalette.Variations.InkPanel,
                 CustomMinimumSize = new Vector2(800, 0)
             };
             // FU-MENU: top-centre anchors growing both ways, not a fixed (560, 150).
@@ -74,6 +74,7 @@ namespace FTT.UI {
             _label = new Label {
                 Name = "TooltipText",
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
+                ThemeTypeVariation = UIPalette.LabelRoles.HintLine,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 CustomMinimumSize = new Vector2(760, 0)
             };
