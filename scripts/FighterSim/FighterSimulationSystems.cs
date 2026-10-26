@@ -599,6 +599,16 @@ namespace FTT.FighterSim {
                     // untouched by the 2026-10-08 air model, so launch arcs, DI
                     // and the tech window keep their timing.
                     fighter.Velocity.y = FighterAirPhysics.StepLaunch(fighter.Velocity.y);
+                    // FU-KNOCK R3 (2026-10-25): plain grounded hitstun is a short
+                    // shove, not a constant-speed glide. The hit site scaled the
+                    // speed; strong friction stops it within ~15 ticks and the
+                    // victim is planted for the rest of the stun. The guard-break
+                    // daze keeps its frictionless push and launches their flight.
+                    if (fighter.IsGrounded != 0
+                        && fighter.DazeFrames <= 0
+                        && verb.Tumble == FighterVerbRules.TumbleNone) {
+                        fighter.Velocity.x = FighterKnockbackFeelRules.StepShove(fighter.Velocity.x);
+                    }
                 } else {
                     bool rooted = runtime.StatusType == (int)FTT.Core.StatusType.Root;
                     FP64 statusMoveMultiplier = runtime.StatusType == (int)FTT.Core.StatusType.TimeDilation
@@ -771,7 +781,12 @@ namespace FTT.FighterSim {
                 FP64 previousY = fighter.Position.y;
                 bool wasAirborne = fighter.IsGrounded == 0;
                 fighter.Position += fighter.Velocity * FixedDelta;
+                FP64 unclampedX = fighter.Position.x;
                 fighter.Position.x = FP64.Clamp(fighter.Position.x, _geometry.LeftWall, _geometry.RightWall);
+                // FU-KNOCK R2 (2026-10-25): a launched fighter driven into a side
+                // wall rebounds once per launch.
+                FighterKnockbackFeelRules.TryWallBounce(
+                    ref fighter, ref verb, ref action, unclampedX, _geometry.LeftWall, _geometry.RightWall);
                 if (fighter.Position.y > _geometry.Ceiling) {
                     fighter.Position.y = _geometry.Ceiling;
                     if (fighter.Velocity.y > FP64.Zero) fighter.Velocity.y = FP64.Zero;
@@ -2356,6 +2371,11 @@ namespace FTT.FighterSim {
             FP64 knockback = attackerTuning.BasicKnockback * (finisher
                 ? FP64.FromInt(profile.FinisherKnockbackTenths) / FP64.FromInt(10)
                 : BasicKnockbackMultipliers[step]);
+            // FU-KNOCK R1 (2026-10-25): the Fighter finisher flies twice as far.
+            // Horizontal speed doubles and the vertical stays the force (scale
+            // 1/2 on the doubled impulse), so the arc height and airtime are
+            // unchanged and the travel doubles. Story's finisher never reads this.
+            if (finisher) knockback *= FighterKnockbackFeelRules.FinisherHorizontalScale;
             // V7.1 riders through the ordinary payload: the finisher's authored
             // status (Tesla's priming Static Charge, Cleopatra's venom mark)
             // and hit 2's vertical launch scale (Lincoln's heavy upward swing).
@@ -2366,7 +2386,7 @@ namespace FTT.FighterSim {
                 : FP64.One;
             FP64 hit2VerticalScale = step == 1
                 ? FP64.FromInt(profile.Hit2VerticalLaunchTenths) / FP64.FromInt(10)
-                : FP64.Zero;
+                : finisher ? FighterKnockbackFeelRules.FinisherVerticalScale : FP64.Zero;
             attackerRuntime.AttackFlags |= FighterBasicAttackRules.FlagHitResolved;
             // Package 13 W5: a string swing is a strike Foresight can catch.
             if (FighterForesightRules.TryCounter(ref targetCounter, ref target)) return;

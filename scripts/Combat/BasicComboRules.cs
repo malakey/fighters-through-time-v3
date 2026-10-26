@@ -1238,5 +1238,41 @@ namespace FTT.Combat {
                 || hitboxID == AirAttackHitboxID
                 || hitboxID == UpAttackHitboxID
                 || hitboxID == DownAirHitboxID);
+
+        // ----------------------------------------------------------------
+        // Fighter knockback feel (2026-10-25, FU-KNOCK; ledger
+        // USER-FIGHTER-FINISHER-2X, USER-FIGHTER-WALL-BOUNCE,
+        // USER-FIGHTER-HITSTUN-SHOVE, PROVISIONAL-FIGHTER-KNOCKBACK-FEEL).
+        // Fighter Mode only: Story reads none of this (its finisher is
+        // FinisherKnockbackTenths, its wall bounce StoryEnemyCombatRules D9).
+        // Doubles, converted by the sim with FP64.FromDouble (the string-box
+        // precedent). Every value is provisional.
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// R1: the Fighter finisher's horizontal launch speed is this multiple of
+        /// its force; the vertical stays the force, so the arc height and airtime
+        /// are unchanged and the travel doubles (a taller arc would outlast the
+        /// 24-frame hitstun, where air control strips the extra speed).
+        /// </summary>
+        public const double FighterFinisherHorizontalScale = 2.0;
+
+        /// <summary>R2: the minimum horizontal speed (u/s) into a wall that bounces a launched fighter (Story D9 uses 300 px/s = 5).</summary>
+        public const double FighterWallBounceMinSpeed = 5.0;
+
+        /// <summary>R2: the rebound keeps this fraction of the speed, reversed ("about half speed").</summary>
+        public const double FighterWallBounceRestitution = 0.5;
+
+        /// <summary>R2: ticks the bouncing fighter alone is frozen at the impact.</summary>
+        public const int FighterWallBounceHitstopFrames = 6;
+
+        /// <summary>R3: a grounded non-launching hit's horizontal speed is multiplied by this at the hit site (the distance stays proportional to the hit).</summary>
+        public const double FighterHitstunShoveScale = 3.0;
+
+        /// <summary>R3: the per-tick speed multiplier while a grounded victim is in plain hitstun (≈ 81 % of the distance in 7 ticks).</summary>
+        public const double FighterHitstunShoveDecay = 0.79;
+
+        /// <summary>R3: below this speed (u/s) the shove snaps to zero and the victim is planted.</summary>
+        public const double FighterHitstunShoveSnapSpeed = 0.25;
     }
 }

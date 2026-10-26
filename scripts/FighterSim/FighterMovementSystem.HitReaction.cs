@@ -41,6 +41,8 @@ namespace FTT.FighterSim {
             FighterVerbRules.UpdateTumble(in fighter, ref verb);
             if (fighter.HitstunFrames > 0) FighterAirDodgeRules.Refresh(ref knockdown);
             FighterMatchFlowRules.ExpireRespawnProtection(in fighter, ref action);
+            // FU-KNOCK R2: the launch is over, so the next one may bounce again.
+            if (verb.Tumble == FighterVerbRules.TumbleNone) FighterKnockbackFeelRules.RearmBounce(ref action);
             if (verb.GrabPhase == FighterGrabRules.PhaseThrowAnimation && fighter.InvulnerabilityFrames > 0) {
                 fighter.InvulnerabilityFrames--;
             }
