@@ -73,6 +73,15 @@ public class UIThemeTests {
         if (missing.Count > 0) AssertThat(string.Join(" | ", missing)).IsEqual("");
     }
 
+    private static Color CentrePixel(StyleBoxTexture box) {
+        Image image = box.Texture.GetImage();
+        return image.GetPixel(image.GetWidth() / 2, image.GetHeight() / 2);
+    }
+
+    private static bool Near(Color a, Color b, float tolerance = 0.02f) =>
+        Mathf.Abs(a.R - b.R) <= tolerance && Mathf.Abs(a.G - b.G) <= tolerance
+        && Mathf.Abs(a.B - b.B) <= tolerance && Mathf.Abs(a.A - b.A) <= tolerance;
+
     [TestCase]
     public void AuthoredColoursMatchTheUIPaletteConstants() {
         Theme theme = LoadTheme();
@@ -99,33 +108,43 @@ public class UIThemeTests {
         RequireColor("TabContainer", "font_selected_color", UIPalette.TextOnAccent);  // the selected tab is an accent plate
 
         // The painted surfaces, not just the type colours.
-        var panel = theme.GetStylebox("panel", "PanelContainer") as StyleBoxFlat;
-        AssertObject(panel).IsNotNull();
-        if (!panel.BgColor.IsEqualApprox(UIPalette.PanelBackground)) {
-            drift.Add($"PanelContainer bg is {panel.BgColor} but UIPalette says {UIPalette.PanelBackground}");
-        }
-        if (!panel.BorderColor.IsEqualApprox(UIPalette.PanelBorder)) {
-            drift.Add($"PanelContainer border is {panel.BorderColor} but UIPalette says {UIPalette.PanelBorder}");
+        // Since step 2 the plates are the UR-ART kit's StyleBoxTextures, so the painted surfaces are
+        // checked by sampling the centre pixel of each plate's texture against the palette token
+        // (the same drift this test always guarded: the art and UIPalette must say the same colour).
+        var panel = theme.GetStylebox("panel", "PanelContainer") as StyleBoxTexture;
+        AssertObject(panel).OverrideFailureMessage("PanelContainer/panel must be the kit's ink panel texture").IsNotNull();
+        Color panelCentre = CentrePixel(panel);
+        if (!Near(panelCentre, UIPalette.PanelBackground)) {
+            drift.Add($"PanelContainer centre is {panelCentre} but UIPalette says {UIPalette.PanelBackground}");
         }
 
-        // A button's focus is the filled accent plate (UI_SPEC 3.2): the fill is what
-        // controller and keyboard players navigate by. The ring styles are for
-        // line edits and check boxes.
-        var focus = theme.GetStylebox("focus", "Button") as StyleBoxFlat;
-        AssertObject(focus).IsNotNull();
-        if (!focus.BgColor.IsEqualApprox(UIPalette.FocusFill)) {
-            drift.Add($"Button focus fill is {focus.BgColor} but UIPalette says {UIPalette.FocusFill}");
+        // A button's focus is the filled accent plate (UI_SPEC 3.2), and hover = focus.
+        var focus = theme.GetStylebox("focus", "Button") as StyleBoxTexture;
+        AssertObject(focus).OverrideFailureMessage("Button/focus must be the kit's focus plate texture").IsNotNull();
+        Color focusCentre = CentrePixel(focus);
+        if (!Near(focusCentre, UIPalette.FocusFill)) {
+            drift.Add($"Button focus fill is {focusCentre} but UIPalette says {UIPalette.FocusFill}");
         }
-        var hover = theme.GetStylebox("hover", "Button") as StyleBoxFlat;
+        var hover = theme.GetStylebox("hover", "Button") as StyleBoxTexture;
         AssertObject(hover).IsNotNull();
-        if (!hover.BgColor.IsEqualApprox(UIPalette.ButtonHover)) {
-            drift.Add($"Button hover fill is {hover.BgColor} but UIPalette says {UIPalette.ButtonHover}");
+        if (!Near(CentrePixel(hover), UIPalette.ButtonHover)) {
+            drift.Add($"Button hover fill is {CentrePixel(hover)} but UIPalette says {UIPalette.ButtonHover}");
         }
-        var pressed = theme.GetStylebox("pressed", "Button") as StyleBoxFlat;
+        AssertThat(hover.Texture.ResourcePath).IsEqual(focus.Texture.ResourcePath);
+        var pressed = theme.GetStylebox("pressed", "Button") as StyleBoxTexture;
         AssertObject(pressed).IsNotNull();
-        if (!pressed.BgColor.IsEqualApprox(UIPalette.ButtonPressed)) {
-            drift.Add($"Button pressed fill is {pressed.BgColor} but UIPalette says {UIPalette.ButtonPressed}");
+        if (!Near(CentrePixel(pressed), UIPalette.ButtonPressed)) {
+            drift.Add($"Button pressed fill is {CentrePixel(pressed)} but UIPalette says {UIPalette.ButtonPressed}");
         }
+        var normal = theme.GetStylebox("normal", "Button") as StyleBoxTexture;
+        AssertObject(normal).IsNotNull();
+        if (!Near(CentrePixel(normal), UIPalette.ButtonNormal)) {
+            drift.Add($"Button normal fill is {CentrePixel(normal)} but UIPalette says {UIPalette.ButtonNormal}");
+        }
+        // The disabled plate's stripes tile instead of stretching.
+        var disabled = theme.GetStylebox("disabled", "Button") as StyleBoxTexture;
+        AssertObject(disabled).IsNotNull();
+        AssertThat(disabled.AxisStretchHorizontal).IsEqual(StyleBoxTexture.AxisStretchMode.Tile);
         var lineFocus = theme.GetStylebox("focus", "LineEdit") as StyleBoxFlat;
         AssertObject(lineFocus).IsNotNull();
         if (!lineFocus.BorderColor.IsEqualApprox(UIPalette.FocusOutline)) {

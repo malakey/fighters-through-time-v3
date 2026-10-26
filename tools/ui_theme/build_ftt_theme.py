@@ -9,6 +9,7 @@ variation's numbers in one table (UI_SPEC section 2 roles T01-T50 and section
 3.0 plates). The output is committed; edit this script, not the .tres.
 Hex values below mirror scripts/UI/UIPalette.cs (UIThemeTests pins the two).
 """
+import json
 import os
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -95,6 +96,41 @@ def flat(prefix, bg=None, border=None, bw=0, radius=0, skew=0.0, shadow=None,
         p += [("shadow_color", C(scol)), ("shadow_size", size),
               ("shadow_offset", "Vector2(%g, %g)" % (dx, dy))]
     return add_sub("StyleBoxFlat", p, prefix)
+
+
+KIT_DIR = "res://assets/sprites/ui/pulp/"
+_KIT = json.load(open(os.path.join(ROOT, "assets", "sprites", "ui", "pulp", "pulp_kit.json"), encoding="utf-8"))
+_tex_ids = {}
+
+
+def kit_tex(stem):
+    """An ExtResource for a kit PNG (catalog key = file stem)."""
+    if stem not in _tex_ids:
+        ident = "kit_" + stem
+        ext.append(("Texture2D", KIT_DIR + _KIT[stem]["file"], ident))
+        _tex_ids[stem] = 'ExtResource("%s")' % ident
+    return _tex_ids[stem]
+
+
+def tbox(prefix, stem, content=None):
+    """A StyleBoxTexture from the UR-ART kit: margins and expand margins come from pulp_kit.json."""
+    entry = _KIT[stem]
+    p = []
+    if content:
+        l, t, r, b = content
+        p += [("content_margin_left", float(l)), ("content_margin_top", float(t)),
+              ("content_margin_right", float(r)), ("content_margin_bottom", float(b))]
+    p.append(("texture", kit_tex(stem)))
+    l, t, r, b = entry["nine_slice_margins_LTRB"]
+    p += [("texture_margin_left", float(l)), ("texture_margin_top", float(t)),
+          ("texture_margin_right", float(r)), ("texture_margin_bottom", float(b))]
+    if "expand_margins_LTRB" in entry:
+        l, t, r, b = entry["expand_margins_LTRB"]
+        p += [("expand_margin_left", float(l)), ("expand_margin_top", float(t)),
+              ("expand_margin_right", float(r)), ("expand_margin_bottom", float(b))]
+    if entry.get("axis_stretch") == "tile":
+        p.append(("axis_stretch_horizontal", 1))
+    return add_sub("StyleBoxTexture", p, prefix)
 
 
 def empty(prefix="Empty"):
@@ -227,7 +263,20 @@ def emit_label_roles():
             put("%s/constants/shadow_offset_y" % name, shadow[1])
 
 
-def button_set(prefix, margins, skew=0.1405):
+def button_set(prefix, margins, height=58, skew=0.1405):
+    """normal / hover = focus / pressed / disabled / focus from the kit's plates at the given control height
+    (hover = focus per the spec; the disabled stripes tile)."""
+    h = "_h%d" % height
+    return {
+        "normal": tbox(prefix + "Normal", "btn_normal" + h, margins),
+        "hover": tbox(prefix + "Hover", "btn_focus" + h, margins),
+        "pressed": tbox(prefix + "Pressed", "btn_pressed" + h, margins),
+        "disabled": tbox(prefix + "Disabled", "btn_disabled" + h, margins),
+        "focus": tbox(prefix + "Focus", "btn_focus" + h, margins),
+    }
+
+
+def button_set_flat(prefix, margins, skew=0.1405):
     """normal / hover / pressed / disabled / focus boxes for a pulp button (UI_SPEC 3.0 rows 4-8, flat)."""
     return {
         "normal": flat(prefix + "Normal", PLATE, PAPER, 3, 0, skew, HARD(7), margins),
@@ -254,11 +303,11 @@ def build():
     default_font = font("outfit", 400, default=True)
 
     # ---- Buttons
-    plain = button_set("Btn", (22, 8, 22, 8))
+    plain = button_set("Btn", (24, 8, 26, 8), 58)
     put_button("Button", None, plain, 20, font("outfit", 700, 1))
-    put_button("PulpButton", "Button", button_set("PulpBtn", (64, 10, 30, 10)), 34, font("outfit", 700, 2))
-    put_button("PulpButtonCompact", "Button", button_set("PulpBtnSm", (54, 8, 20, 8)), 27, font("outfit", 700, 2))
-    put_button("TemporalGlassButton", "Button", button_set("GlassBtn", (42, 8, 32, 8)), 26, font("outfit", 700, 2))
+    put_button("PulpButton", "Button", button_set("PulpBtn", (64, 18, 34, 19), 80), 34, font("outfit", 700, 2))
+    put_button("PulpButtonCompact", "Button", button_set("PulpBtnSm", (54, 11, 24, 12), 58), 27, font("outfit", 700, 2))
+    put_button("TemporalGlassButton", "Button", button_set("GlassBtn", (42, 15, 34, 16), 64), 26, font("outfit", 700, 2))
     put_button("OptionButton", None, plain, 20, font("outfit", 700, 1))
     put("OptionButton/constants/arrow_margin", 8)
 
@@ -284,7 +333,7 @@ def build():
     emit_label_roles()
 
     # ---- Panels
-    dark = flat("Panel", PLATE, PAPER, 3, 0, 0, HARD(9), (22, 18, 22, 18))
+    dark = tbox("Panel", "panel_dark", (22, 18, 28, 28))
     put("Panel/styles/panel", dark)
     put("PanelContainer/styles/panel", dark)
     popup = flat("Popup", PLATE, PAPER, 3, 0, 0, None, (10, 10, 10, 10))
@@ -295,21 +344,21 @@ def build():
         put(name + "/styles/panel", ref)
 
     pv("InkPanel", dark)
-    pv("PaperPanel", flat("Paper", PAPER, BLACK, 3, 0, 0, HARD(9), (22, 18, 22, 18)))
-    pv("HudPlatePanel", flat("Hud", PLATE, PAPER, 3, 0, 0, HARD(9), (26, 20, 26, 20)))
-    pv("DialogueGlassPanel", flat("Glass", PLATE, PAPER, 3, 4, 0, HARD(9), (28, 20, 28, 20)))
-    pv("BannerPanel", flat("Banner", ACCENT, BLACK, 7, 0, 0.1405, HARD(11), (64, 8, 64, 10)))
-    pv("PanelTagPlate", flat("Tag", ACCENT, BLACK, 3, 0, 0.1763, HARD(4), (14, 6, 14, 6)))
-    pv("BossNameplate", flat("BossName", DANGER, BLACK, 5, 0, 0.1405, HARD(7), (26, 6, 26, 6)))
-    pv("BossPhaseTab", flat("BossPhase", ACCENT, BLACK, 4, 0, 0, HARD(4), (14, 5, 14, 4)))
-    pv("SlotPlate", flat("Slot", SLOT, PAPER, 4, 6, 0, HARD(5, 6), (6, 6, 6, 6)))
-    pv("SlotPlateReady", flat("SlotReady", SLOT, ACCENT, 4, 6, 0, HARD(5, 6), (6, 6, 6, 6)))
-    pv("KeyTagPlate", flat("KeyTag", PAPER, BLACK, 3, 0, 0, None, (7, 3, 7, 2)))
-    pv("CardPlate", flat("Card", LABEL_DARK, PAPER, 4, 0, 0, HARD(7, 8), (8, 8, 8, 8)))
-    pv("CardPlateP1", flat("CardP1", LABEL_DARK, P1, 4, 0, 0, HARD(9, 10), (8, 8, 8, 8)))
-    pv("CardPlateP2", flat("CardP2", LABEL_DARK, P2, 4, 0, 0, HARD(9, 10), (8, 8, 8, 8)))
-    pv("BubblePlate", flat("Bubble", PAPER, BLACK, 5, 30, 0, HARD(6), (26, 10, 26, 8)))
-    pv("StampPlate", flat("Stamp", LABEL_DARK, PAPER, 4, 0, 0, HARD(5), (16, 6, 16, 4)))
+    pv("PaperPanel", tbox("Paper", "panel_paper", (22, 18, 28, 28)))
+    pv("HudPlatePanel", tbox("Hud", "panel_dark", (26, 20, 32, 30)))
+    pv("DialogueGlassPanel", tbox("Glass", "panel_dark", (28, 20, 34, 30)))
+    pv("BannerPanel", tbox("Banner", "banner_select", (64, 8, 70, 10)))
+    pv("PanelTagPlate", tbox("Tag", "tag_panel", (14, 6, 18, 8)))
+    pv("BossNameplate", tbox("BossName", "boss_nameplate", (26, 6, 30, 10)))
+    pv("BossPhaseTab", tbox("BossPhase", "boss_phase_tab", (14, 5, 16, 6)))
+    pv("SlotPlate", tbox("Slot", "slot_frame", (6, 6, 8, 8)))
+    pv("SlotPlateReady", tbox("SlotReady", "slot_frame_ready", (6, 6, 8, 8)))
+    pv("KeyTagPlate", tbox("KeyTag", "key_tag", (7, 3, 7, 2)))
+    pv("CardPlate", tbox("Card", "card_frame", (10, 10, 14, 14)))
+    pv("CardPlateP1", tbox("CardP1", "card_frame_p1", (10, 10, 14, 14)))
+    pv("CardPlateP2", tbox("CardP2", "card_frame_p2", (10, 10, 14, 14)))
+    pv("BubblePlate", tbox("Bubble", "bubble", (26, 10, 32, 14)))
+    pv("StampPlate", tbox("Stamp", "stamp_ready", (16, 6, 20, 8)))
     pv("ScrimPanel", flat("Scrim", ("020308", 0.85), None, 0, 0, 0, None, (0, 0, 0, 0)))
 
     # ---- Inputs
@@ -320,11 +369,13 @@ def build():
     put("LineEdit/styles/normal", flat("LineN", PLATE, INK3, 2, 0, 0, None, (12, 8, 12, 8)))
     put("LineEdit/styles/focus", flat("LineF", PLATE, ACCENT, 3, 0, 0, None, (12, 8, 12, 8)))
     put("LineEdit/styles/read_only", flat("LineR", DISABLED_FILL, DISABLED_BORDER, 2, 0, 0, None, (12, 8, 12, 8)))
-    track = flat("Slider", TRACK, BLACK, 3, 0, 0, None, (0, 5, 0, 5))
+    track = tbox("Slider", "slider_track", (0, 5, 0, 5))
     for t in ("HSlider", "VSlider"):
         put(t + "/styles/slider", track)
-        put(t + "/styles/grabber_area", flat("GrabArea", ACCENT, BLACK, 3, 0))
-        put(t + "/styles/grabber_area_highlight", flat("GrabAreaHi", ACCENT2, BLACK, 3, 0))
+        put(t + "/styles/grabber_area", tbox("GrabArea", "slider_fill"))
+        put(t + "/styles/grabber_area_highlight", tbox("GrabAreaHi", "slider_fill"))
+        for icon in ("grabber", "grabber_highlight", "grabber_disabled"):
+            put(t + "/icons/" + icon, kit_tex("slider_grabber"))
     for t in ("VScrollBar", "HScrollBar"):
         put(t + "/styles/scroll", flat("Scroll", TRACK, BLACK, 2, 0))
         put(t + "/styles/scroll_focus", flat("ScrollF", TRACK, ACCENT, 2, 0))
@@ -341,21 +392,21 @@ def build():
     put("ProgressBar/styles/background", flat("ProgBg", TRACK, BLACK, 3, 0))
     put("ProgressBar/styles/fill", flat("ProgFill", ACCENT, None, 0, 0))
     put("PulpBar/base_type", '&"ProgressBar"')
-    put("PulpBar/styles/background", flat("BarBg", TRACK, BLACK, 3, 0, 0.2126, HARD(5, 6)))
+    put("PulpBar/styles/background", tbox("BarBg", "bar_track_h30", (3, 3, 3, 3)))
     put("PulpBar/styles/fill", flat("BarFill", HP, None, 0, 0, 0.2126))
     colors("PulpBar", font_color=INK)
     put("PulpBar/font_sizes/font_size", 22)
     put("PulpBossBar/base_type", '&"ProgressBar"')
-    put("PulpBossBar/styles/background", flat("BossBarBg", TRACK, BLACK, 5, 0, 0.1763, HARD(8)))
+    put("PulpBossBar/styles/background", tbox("BossBarBg", "bar_track_boss", (5, 5, 5, 5)))
     put("PulpBossBar/styles/fill", flat("BossBarFill", DANGER, None, 0, 0, 0.1763))
     colors("PulpBossBar", font_color="FFFFFF")
     put("PulpBossBar/font_sizes/font_size", 24)
 
     # ---- Tabs
-    put("TabContainer/styles/panel", flat("TabPanel", PLATE, PAPER, 3, 0, 0, None, (18, 18, 18, 18)))
-    put("TabContainer/styles/tab_selected", flat("TabSel", ACCENT, BLACK, 0, 0, 0.1405, HARD(4), (18, 8, 18, 8), bw_sides=(3, 3, 3, 0)))
-    put("TabContainer/styles/tab_unselected", flat("TabUn", BG2, PAPER, 0, 0, 0.1405, None, (18, 8, 18, 8), bw_sides=(2, 2, 2, 0)))
-    put("TabContainer/styles/tab_hovered", flat("TabHov", ACCENT2, BLACK, 0, 0, 0.1405, None, (18, 8, 18, 8), bw_sides=(3, 3, 3, 0)))
+    put("TabContainer/styles/panel", tbox("TabPanel", "panel_dark", (18, 18, 24, 26)))
+    put("TabContainer/styles/tab_selected", tbox("TabSel", "tab_selected", (18, 8, 22, 10)))
+    put("TabContainer/styles/tab_unselected", tbox("TabUn", "tab_normal", (18, 8, 22, 10)))
+    put("TabContainer/styles/tab_hovered", tbox("TabHov", "tab_selected", (18, 8, 22, 10)))
     put("TabContainer/styles/tab_focus", ring)
     put("TabContainer/styles/tabbar_background", empty("TabBar"))
     colors("TabContainer", font_selected_color=LABEL_DARK, font_hovered_color=LABEL_DARK,
