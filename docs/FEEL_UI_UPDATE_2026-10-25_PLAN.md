@@ -139,6 +139,8 @@ Entries record where the build departed from this plan or where a plan estimate 
 
 - **2026-10-26, FU-STORYSHOVE verification and review.** Merged as `daef1285`; three consecutive green full runs at `daef1285` read 3546 (2 m 18 s, 2 m 10 s, 2 m 12 s). Its cross-provider review (Codex gpt-6-astra) could not run: the Codex usage limit was reached until 04:32 on 2026-10-26. The review is owed and will run with the pulp UI redesign's review (`docs/UI_REDESIGN_2026-10-26_PLAN.md` Phase C).
 
+- **2026-10-26, FU-STORYSHOVE review done.** The owed review ran as part two of the pulp UI redesign's first cross-provider round (Codex gpt-6-astra, scope commit `e0db15be`; ledger `REVIEW-UI-PULP-CODEX-1`): "No significant defect found in FU-STORYSHOVE during static review." Nothing changed.
+
 ## 10. Closeout
 
 **Closed 2026-10-25.** Integrated at `07cb30fa`; full suite `Failed: 0, Passed: 3541, Total: 3541`, three consecutive runs (1 m 45 s, 1 m 42 s, 1 m 44 s), orphan processes drained and the GdUnit lock held for each, with a fourth earlier run on the tree without the review fix reading the same in 1 m 42 s. The earlier integration runs that read `Failed: 1` are the harness fragility in §9.
