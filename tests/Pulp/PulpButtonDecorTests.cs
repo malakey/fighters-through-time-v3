@@ -147,7 +147,7 @@ public class PulpButtonDecorTests {
             AssertObject(plate).IsNotNull();
             AssertThat(plate.Texture.ResourcePath.EndsWith("btn_selected_h80.png")).IsTrue();
             AssertThat(button.GetThemeStylebox("hover")).IsEqual(plate);
-            AssertThat(button.GetThemeColor("font_color")).IsEqual(UIPalette.LabelDark);
+            AssertThat(decor.CurrentLabelColor).IsEqual(UIPalette.LabelDark);
             AssertThat(decor.Marker.Tint).IsEqual(PulpButtonDecor.MarkerSelectedTint);
             AssertThat(decor.Marker.ShadowEnabled).IsTrue();
 
@@ -155,7 +155,7 @@ public class PulpButtonDecorTests {
             AssertThat(decor.Selected).IsFalse();
             AssertThat(button.HasThemeStyleboxOverride("normal")).IsFalse();
             AssertThat(button.HasThemeStyleboxOverride("hover")).IsFalse();
-            AssertThat(button.HasThemeColorOverride("font_color")).IsFalse();
+            AssertThat(decor.CurrentLabelColor).IsNotEqual(UIPalette.LabelDark);
             AssertThat(decor.Marker.Tint).IsEqual(UIPalette.Ink3);
         } finally {
             button.Free();
@@ -175,5 +175,131 @@ public class PulpButtonDecorTests {
             left.Free();
             centred.Free();
         }
+    }
+
+    [TestCase]
+    public void TheDrawnLabelIsUpperCaseWhileTheButtonKeepsItsRawKey() {
+        Button button = BuildButton();
+        button.Text = "menu_story_mode";
+        try {
+            PulpButtonDecor decor = PulpButtonDecor.Apply(button);
+            AssertThat(button.Text).IsEqual("menu_story_mode");
+            AssertThat(decor.DrawnText).IsEqual("STORY MODE");
+            AssertThat(PulpButtonDecor.ToDrawnText("Quick play (Einstein vs CPU)")).IsEqual("QUICK PLAY (EINSTEIN VS CPU)");
+        } finally {
+            button.Free();
+        }
+    }
+
+    [TestCase]
+    public void TheButtonsOwnGlyphsAreTransparentAndTheDecorDrawsThePerStateColours() {
+        Button button = BuildButton();
+        button.Text = "menu_settings";
+        try {
+            Color normal = button.GetThemeColor("font_color");
+            Color focus = button.GetThemeColor("font_focus_color");
+            Color disabled = button.GetThemeColor("font_disabled_color");
+            PulpButtonDecor decor = PulpButtonDecor.Apply(button);
+            decor.Refresh();
+            foreach (string slot in new[] { "font_color", "font_hover_color", "font_focus_color", "font_pressed_color",
+                "font_hover_pressed_color", "font_disabled_color", "font_outline_color" }) {
+                AssertThat(button.GetThemeColor(slot).A).IsEqual(0f);
+            }
+            AssertThat(decor.CurrentLabelColor).IsEqual(normal);
+            button.GrabFocus();
+            AssertThat(decor.CurrentLabelColor).IsEqual(focus);
+            button.Disabled = true;
+            AssertThat(decor.CurrentLabelColor).IsEqual(disabled);
+            AssertThat(PulpButtonDecor.LabelColorSlot(false, BaseButton.DrawMode.Hover, false)).IsEqual("font_hover_color");
+            AssertThat(PulpButtonDecor.LabelColorSlot(false, BaseButton.DrawMode.Pressed, true)).IsEqual("font_pressed_color");
+
+            decor.Uppercase = false;
+            AssertThat(button.HasThemeColorOverride("font_color")).IsFalse();
+            AssertThat(button.GetThemeColor("font_color")).IsEqual(normal);
+        } finally {
+            button.Free();
+        }
+    }
+
+    [TestCase]
+    public void AFocusedLongLabelReservesTheBadgeAndIsTrimmedNotDrawnUnderIt() {
+        PulpPromptGlyphs.DeviceOverrideForTesting = PromptDevice.Pad;
+        Button button = BuildButton();
+        button.Text = "A very long menu label that cannot possibly fit on one banner button row";
+        try {
+            PulpButtonDecor decor = PulpButtonDecor.Apply(button);
+            decor.Refresh();
+            float unfocused = decor.LabelRightLimit;
+            button.GrabFocus();
+            decor.Refresh();
+            float focused = decor.LabelRightLimit;
+            AssertThat(focused < unfocused).IsTrue();
+            AssertThat(focused <= decor.Badge.Position.X).IsTrue();
+            AssertThat(decor.DrawnTextWidth > decor.LabelAvailableWidth).IsTrue();
+            AssertThat(button.Text.StartsWith("A very long")).IsTrue();
+        } finally {
+            PulpPromptGlyphs.DeviceOverrideForTesting = null;
+            button.Free();
+        }
+    }
+
+    [TestCase]
+    public void ADecoratedTwiceOrRefreshingButtonStillDrawsItsThemeColourNeverTransparent() {
+        // The button re-enters Refresh from its own theme notification, as a screen that re-themes does: the
+        // override the decor writes must never be read back as the theme colour.
+        var button = new DecorRefreshingButton {
+            Text = "menu_settings", ThemeTypeVariation = "TemporalGlassButton", FocusMode = Control.FocusModeEnum.All,
+            CustomMinimumSize = new Vector2(400f, 64f), Size = new Vector2(400f, 64f)
+        };
+        UIPalette.ApplyTheme(button);
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(button);
+        Color themeColor = button.GetThemeColor("font_color");
+        try {
+            AssertThat(themeColor.A).IsEqual(1f);
+            PulpButtonDecor decor = PulpButtonDecor.Apply(button);
+            PulpButtonDecor.Apply(button);
+            decor.Refresh();
+            decor.Refresh();
+            button.Notification((int)Control.NotificationThemeChanged);
+            AssertThat(decor.CurrentLabelColor.A).IsEqual(1f);
+            AssertThat(decor.CurrentLabelColor).IsEqual(themeColor);
+            AssertThat(button.GetThemeColor("font_color").A).IsEqual(0f);
+            // Hiding the glyphs and restoring them leaves the theme colour as it was.
+            decor.Uppercase = false;
+            AssertThat(button.GetThemeColor("font_color")).IsEqual(themeColor);
+            decor.Uppercase = true;
+            decor.Refresh();
+            AssertThat(decor.CurrentLabelColor).IsEqual(themeColor);
+        } finally {
+            button.Free();
+        }
+    }
+
+    [TestCase]
+    public void AMultiLineLabelWrapsWithinTheAvailableWidthAndKeepsTheBadgeRoom() {
+        PulpPromptGlyphs.DeviceOverrideForTesting = PromptDevice.Pad;
+        Button button = BuildButton(false, "TemporalGlassButton");
+        button.CustomMinimumSize = new Vector2(800f, 140f);
+        button.Size = new Vector2(800f, 140f);
+        button.Text = "Easy\n5 rewinds; 70% HP restoration; checkpoints refill your rewinds every time you strike one";
+        try {
+            PulpButtonDecor decor = PulpButtonDecor.Apply(button);
+            button.GrabFocus();
+            decor.Refresh();
+            AssertThat(decor.WrappedLineCount >= 3).IsTrue();
+            AssertThat(decor.WidestWrappedLine <= decor.LabelAvailableWidth + 0.5f).IsTrue();
+            AssertThat(decor.LabelRightLimit <= decor.Badge.Position.X).IsTrue();
+        } finally {
+            PulpPromptGlyphs.DeviceOverrideForTesting = null;
+            button.Free();
+        }
+    }
+}
+
+/// <summary>A button that calls the decor's Refresh from its own theme notification (non-suite helper node).</summary>
+public partial class DecorRefreshingButton : Button {
+    public override void _Notification(int what) {
+        if (what != NotificationThemeChanged) return;
+        foreach (Node child in GetChildren()) if (child is PulpButtonDecor decor) decor.Refresh();
     }
 }

@@ -30,6 +30,11 @@ namespace FTT.Tests.Unit;
 public class CharacterSelectSceneTests {
 
     private const string ScenePath = "res://scenes/menus/CharacterSelect.tscn";
+    // UR-SELECT: the name and stat line live inside each player's paper card.
+    private const string P1NamePath = "SelectPhase/Root/PlayersRow/P1Panel/P1Card/Paper/Inset/Col/NameBox/P1Name";
+    private const string P1StatsPath = "SelectPhase/Root/PlayersRow/P1Panel/P1Card/Paper/Inset/Col/P1Stats";
+    private const string P2NamePath = "SelectPhase/Root/PlayersRow/P2Panel/P2Card/Paper/Inset/Col/NameBox/P2Name";
+    private const string P2StatsPath = "SelectPhase/Root/PlayersRow/P2Panel/P2Card/Paper/Inset/Col/P2Stats";
     private const string SelectRoot = "SelectPhase/Root/";
     private const string StageRoot = "StagePhase/Root/";
 
@@ -42,12 +47,12 @@ public class CharacterSelectSceneTests {
             AssertThat(screen.GetNodeOrNull<ColorRect>("Background") != null).IsTrue();
             foreach (string path in new[] {
                          SelectRoot + "Title", SelectRoot + "PlayersRow/Grid",
-                         SelectRoot + "PlayersRow/P1Panel/P1Name",
+                         P1NamePath,
                          SelectRoot + "PlayersRow/P1Panel/P1Ready",
-                         SelectRoot + "PlayersRow/P1Panel/P1Stats",
-                         SelectRoot + "PlayersRow/P2Panel/P2Name",
+                         P1StatsPath,
+                         P2NamePath,
                          SelectRoot + "PlayersRow/P2Panel/P2Ready",
-                         SelectRoot + "PlayersRow/P2Panel/P2Stats",
+                         P2StatsPath,
                          SelectRoot + "PlayersRow/Grid/RandomTile",
                          SelectRoot + "FeedbackLabel", SelectRoot + "CountdownLabel",
                          SelectRoot + "HintLabel", SelectRoot + "ButtonRow/BackButton",
@@ -99,7 +104,7 @@ public class CharacterSelectSceneTests {
                 AssertThat(tile != null)
                     .OverrideFailureMessage($"Tile {index} is not a Button")
                     .IsTrue();
-                var nameLabel = tile.GetNodeOrNull<Label>("CharacterName");
+                var nameLabel = tile.FindChild("CharacterName", true, false) as Label;
                 AssertObject(nameLabel)
                     .OverrideFailureMessage($"Tile {index} has no dedicated name label")
                     .IsNotNull();
@@ -109,13 +114,13 @@ public class CharacterSelectSceneTests {
                 AssertThat(nameLabel.MouseFilter)
                     .OverrideFailureMessage($"Tile {index} name intercepts tile input")
                     .IsEqual(Control.MouseFilterEnum.Ignore);
-                var portrait = tile.GetNodeOrNull<TextureRect>("Portrait");
+                var portrait = tile.FindChild("Portrait", true, false) as TextureRect;
                 AssertObject(portrait)
                     .OverrideFailureMessage($"Tile {index} has no portrait")
                     .IsNotNull();
                 if (random) {
                     // G15a: a silhouette placeholder until Package 10 art.
-                    AssertThat(tile.GetNodeOrNull<ColorRect>("Silhouette") != null)
+                    AssertThat(tile.FindChild("Silhouette", true, false) is ColorRect)
                         .OverrideFailureMessage("The Random tile has no silhouette placeholder.")
                         .IsTrue();
                 } else {
@@ -124,8 +129,8 @@ public class CharacterSelectSceneTests {
                         .IsNotNull();
                 }
                 AssertThat(portrait.Size)
-                    .OverrideFailureMessage($"Tile {index} portrait does not have a dedicated 72px layer")
-                    .IsEqual(new Vector2(72f, 72f));
+                    .OverrideFailureMessage($"Tile {index} portrait does not have the card's 132 % photo layer")
+                    .IsEqual(CharacterSelectScreen.CardPortraitSize);
                 AssertThat(portrait.MouseFilter)
                     .OverrideFailureMessage($"Tile {index} portrait intercepts tile input")
                     .IsEqual(Control.MouseFilterEnum.Ignore);
@@ -150,16 +155,16 @@ public class CharacterSelectSceneTests {
     /// accessibility UI scale.
     /// </summary>
     [TestCase]
-    public void TileNameLabelsUseTheSmallVariationWithNoFontSizeOverride() {
+    public void TileNameLabelsUseTheCardNameRoleWithNoFontSizeOverride() {
         CharacterSelectScreen screen = Open(out Node host);
         try {
             var grid = screen.GetNode<GridContainer>(SelectRoot + "PlayersRow/Grid");
             for (int index = 0; index < 9; index++) {
                 var nameLabel = grid.GetNode<Button>($"CharacterButton{index}")
-                    .GetNodeOrNull<Label>("CharacterName");
+                    .FindChild("CharacterName", true, false) as Label;
                 AssertObject(nameLabel).IsNotNull();
                 AssertThat(nameLabel.ThemeTypeVariation.ToString())
-                    .IsEqual(UIPalette.SmallLabelVariation);
+                    .IsEqual(UIPalette.LabelRoles.CardName);
                 AssertThat(nameLabel.HasThemeFontSizeOverride("font_size"))
                     .OverrideFailureMessage($"Tile {index} name label carries a font-size override.")
                     .IsFalse();
@@ -247,7 +252,7 @@ public class CharacterSelectSceneTests {
         CharacterSelectScreen screen = Open(out Node host);
         try {
             AssertThat(screen.SelectedIndex).IsEqual(0);
-            string first = screen.GetNode<Label>(SelectRoot + "PlayersRow/P1Panel/P1Name").Text;
+            string first = screen.GetNode<Label>(P1NamePath).Text;
 
             var tile = screen.GetNode<Button>(SelectRoot + "PlayersRow/Grid/CharacterButton4");
             tile.EmitSignal(BaseButton.SignalName.Pressed);
@@ -255,9 +260,9 @@ public class CharacterSelectSceneTests {
             // First click reserves (hover): the cursor moved, nothing locked yet.
             AssertThat(screen.SelectedIndex).IsEqual(4);
             AssertThat(screen.IsSlotReady(0)).IsFalse();
-            string second = screen.GetNode<Label>(SelectRoot + "PlayersRow/P1Panel/P1Name").Text;
+            string second = screen.GetNode<Label>(P1NamePath).Text;
             AssertThat(second).IsNotEqual(first);
-            AssertThat(screen.GetNode<Label>(SelectRoot + "PlayersRow/P1Panel/P1Stats").Text)
+            AssertThat(screen.GetNode<Label>(P1StatsPath).Text)
                 .IsNotEqual(TranslationServer.Translate("fighter_stats_unavailable").ToString());
 
             // Second click on the hovered tile confirms: READY banner up.
@@ -366,7 +371,7 @@ public class CharacterSelectSceneTests {
             HolodeckConsolePanel panel = screen.CpuConfigPanel;
             AssertObject(panel).IsNotNull();
             AssertThat(panel.FrontEnd).IsTrue();
-            AssertThat(panel.GetNodeOrNull("Center/Panel/Layout/CalibrationDrillsButton") == null)
+            AssertThat(panel.GetNodeOrNull("Center/Tagged/Panel/Layout/CalibrationDrillsButton") == null)
                 .OverrideFailureMessage("The front-end Versus CPU screen must not offer the hub's drills entry.")
                 .IsTrue();
 
@@ -1042,7 +1047,7 @@ public class CharacterSelectSceneTests {
     /// hanging the runner.
     /// </summary>
     private static void MoveCursorTo(CharacterSelectScreen screen, int player, int target) {
-        const int columns = 3;
+        const int columns = CardGridRules.Columns;
         for (int step = 0; step < 12 && screen.GetCursor(player) % columns != target % columns; step++) {
             screen.TryMoveCursor(player, 1, 0);
         }

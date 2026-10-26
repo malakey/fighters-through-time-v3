@@ -25,6 +25,10 @@ namespace FTT.UI {
             GetNode<Button>(Layout + "VersusCpuButton").Pressed += () => Go(ApplyVersusCpu());
             GetNode<Button>(Layout + "BackButton").Pressed += () => Go(FighterFlowRoutes.MainMenuScenePath);
             FocusChainBuilder.Apply(GetNode<Control>(Layout));
+            // UR-SCREENS: halftone corner on the panel, banner decor, the prompt bar bottom-right.
+            if (GetNodeOrNull<PanelContainer>("Center/Panel") is { } panel) PulpScreenKit.DressPanel(panel, buttonInset: true);
+            PulpScreenKit.DecorateButtons(GetNode<Control>(Layout));
+            PulpScreenKit.AddPromptBar(this, ("ui_accept", "ui_prompt_select"), ("ui_cancel", "common_back"));
         }
 
         public override void _UnhandledInput(InputEvent @event) {

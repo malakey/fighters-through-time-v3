@@ -71,8 +71,8 @@ public class FighterHudModelTests {
 
     [TestCase]
     public void TheHpBarReadsInThreeBandsRatherThanAGradient() {
-        AssertThat(FighterHudModel.HpFillColor(100, 100)).IsEqual(UIPalette.Cyan);
-        AssertThat(FighterHudModel.HpFillColor(51, 100)).IsEqual(UIPalette.Cyan);
+        AssertThat(FighterHudModel.HpFillColor(100, 100)).IsEqual(UIPalette.Hp);
+        AssertThat(FighterHudModel.HpFillColor(51, 100)).IsEqual(UIPalette.Hp);
         AssertThat(FighterHudModel.HpFillColor(50, 100)).IsEqual(UIPalette.Warning);
         AssertThat(FighterHudModel.HpFillColor(26, 100)).IsEqual(UIPalette.Warning);
         AssertThat(FighterHudModel.HpFillColor(25, 100)).IsEqual(UIPalette.BossRed);

@@ -88,8 +88,6 @@ namespace FTT.UI {
         private Control _licensesScreen;
         private CreditsController _creditsReplay;
         private BootSequenceOverlay _bootOverlay;
-        private TextureRect _temporalMainArt;
-        private TextureRect _temporalSubmenuArt;
 
         private readonly Button[] _slotButtons = new Button[StorySlotCount];
         private readonly Button[] _deleteButtons = new Button[StorySlotCount];
@@ -134,8 +132,6 @@ namespace FTT.UI {
             _levelSelectScreen = GetNode<Control>("LevelSelectScreen");
             _extrasScreen = GetNode<Control>("ExtrasScreen");
             _licensesScreen = GetNode<Control>("LicensesScreen");
-            _temporalMainArt = GetNodeOrNull<TextureRect>("Background/TemporalMainArt");
-            _temporalSubmenuArt = GetNodeOrNull<TextureRect>("Background/TemporalSubmenuArt");
 
             BindRootScreen();
             BindSlotScreen();
@@ -144,6 +140,7 @@ namespace FTT.UI {
             BindLevelSelectScreen();
             BindExtrasScreens();
             BindVersionLabel();
+            BindCover();
 
             AddSaveLoadNotice(GetNode<Control>("RootScreen/Center/Panel/Layout/NoticeSlot"));
             ShowScreen(MainMenuScreen.Root, resetStack: true);
@@ -192,6 +189,7 @@ namespace FTT.UI {
             // Already-resolved: the version is an argument, not a key.
             label.AutoTranslateMode = AutoTranslateModeEnum.Disabled;
             label.Text = string.Format(Tr("menu_version"), FTT.Core.BuildInfo.Version);
+            label.Uppercase = true;
         }
 
         private void BindExtrasScreens() {
@@ -248,6 +246,7 @@ namespace FTT.UI {
             var levelSelect = GetNode<Button>(layout + "LevelSelectButton");
             levelSelect.Visible = ShowDeveloperLevelSelect;
             levelSelect.Pressed += OnLevelSelectPressed;
+            ApplyRootRowSeparation(GetNode<Control>("RootScreen/Center/Panel/Layout"));
             var fighterButton = GetNode<Button>(layout + "FighterButton");
             // Package 12 W5 (H05/G01): the Fighter button opens the Fighter Play
             // Options menu (Local Versus / Versus CPU); the flow from there on
@@ -304,7 +303,6 @@ namespace FTT.UI {
                 string characterID = RosterIDs[index];
                 var button = grid.GetNodeOrNull<Button>($"CharacterButton{index}");
                 if (button == null) continue;
-                button.ThemeTypeVariation = "TemporalGlassButton";
                 button.Text = CharacterName(characterID);
                 button.Pressed += () => OnCharacterPressed(characterID);
             }
@@ -348,7 +346,6 @@ namespace FTT.UI {
             for (int index = 0; index < CampaignLevelCount; index++) {
                 var level = (FTT.Core.CampaignLevel)index;
                 var button = grid.GetNode<Button>($"LevelButton{index}");
-                button.ThemeTypeVariation = "TemporalGlassButton";
                 button.Text = $"{LevelSelectNumber(level)}  {Tr(FTT.Environment.HubWorldController.CampaignLevelNameKey(level))}";
                 button.Pressed += () => OnLevelPressed(level);
             }
@@ -380,11 +377,17 @@ namespace FTT.UI {
             _extrasScreen.Visible = screen == MainMenuScreen.Extras;
             _licensesScreen.Visible = screen == MainMenuScreen.Licenses;
             if (screen == MainMenuScreen.Root) _developerLevelFlow = false;
-            if (_temporalMainArt != null) _temporalMainArt.Visible = screen == MainMenuScreen.Root;
-            if (_temporalSubmenuArt != null) _temporalSubmenuArt.Visible = screen != MainMenuScreen.Root;
+            // The cover layers (rays, burst) are the root's alone; the sub-screens sit on the cover art under a scrim.
+            if (_coverRays != null) _coverRays.Visible = screen == MainMenuScreen.Root;
+            if (_coverBurst != null) _coverBurst.Visible = screen == MainMenuScreen.Root;
+            if (_subScrim != null) _subScrim.Visible = screen != MainMenuScreen.Root;
+            if (screen == MainMenuScreen.Root) RefreshContinueSticker();
 
             if (screen == MainMenuScreen.SlotSelect) RefreshSlotRows();
             FocusChainBuilder.Apply(ScreenRoot(screen));
+            // The cover opens on Story Mode, as the mock draws it (Quick Play is a developer row above it).
+            if (screen == MainMenuScreen.Root) GetNodeOrNull<Button>("RootScreen/Center/Panel/Layout/StoryButton")?.GrabFocus();
+            PopInPanel(screen);
         }
 
         private Control ScreenRoot(MainMenuScreen screen) => screen switch {
@@ -513,6 +516,7 @@ namespace FTT.UI {
             };
             notice.AddThemeColorOverride("font_color", UIPalette.Gold);
             parent.AddChild(notice);
+            parent.Visible = true;
         }
 
         // ---- Story slot select ----------------------------------------------
@@ -528,6 +532,8 @@ namespace FTT.UI {
                 _slotButtons[slot].Text = save == null
                     ? string.Format(Tr("save_slot_empty"), slot + 1)
                     : SaveSlotSummary(slot, save);
+                // A saved slot shows up to four upper-case lines (a long first line wraps); an empty one is one line.
+                _slotButtons[slot].CustomMinimumSize = new Vector2(_slotButtons[slot].CustomMinimumSize.X, save == null ? 96f : 168f);
                 _deleteButtons[slot].Visible = save != null;
             }
         }
@@ -585,6 +591,7 @@ namespace FTT.UI {
             if (slot < 0) return;
             FTT.Core.SaveManager.Instance?.DeleteStorySlot(slot);
             RefreshSlotRows();
+            RefreshContinueSticker();
             FocusChainBuilder.Apply(_slotScreen);
         }
 

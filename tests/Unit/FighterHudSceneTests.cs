@@ -213,29 +213,29 @@ public class FighterHudSceneTests {
     }
 
     [TestCase]
-    public void PlayerPanelsAnchorToTheBottomAndTheClockStaysTopCenter() {
-        // M-29 (audit 2026-08-08; design :2617): "Bottom of screen, evenly spaced
-        // (P1 left, P2 right)" — the panels were authored top-anchored.
-        // Package 11 A8 renamed Root -> SafeArea and PlayerOne/Two -> P1_Status /
-        // P2_Status to match HUD_CONTRACT; the geometry rule is unchanged.
+    public void PlayerPanelsAnchorToTheTopAndTheClockStaysTopCenter() {
+        // UR-HUDF (HUD-F2 "top versus bars", UI_SPEC 4.5): both clusters hang from the TOP
+        // corners (margin 36 / 22), replacing M-29's bottom anchors (design :2617); the match
+        // timer stays top-centre. The fill-mode and clock checks are unchanged.
         FighterHUD hud = Mount();
         try {
             var one = hud.GetNode<Control>("SafeArea/P1_Status");
             var two = hud.GetNode<Control>("SafeArea/P2_Status");
 
-            AssertFloat(one.AnchorTop).IsEqual(1f);
-            AssertFloat(one.AnchorBottom).IsEqual(1f);
+            AssertFloat(one.AnchorTop).IsEqual(0f);
+            AssertFloat(one.AnchorBottom).IsEqual(0f);
             AssertFloat(one.AnchorLeft).IsEqual(0f);
-            AssertThat(one.OffsetBottom < 0f)
-                .OverrideFailureMessage("P1 panel must sit above the bottom edge.").IsTrue();
+            AssertFloat(one.OffsetTop).IsEqual(22f);
+            AssertFloat(one.OffsetLeft).IsEqual(36f);
 
-            AssertFloat(two.AnchorTop).IsEqual(1f);
-            AssertFloat(two.AnchorBottom).IsEqual(1f);
+            AssertFloat(two.AnchorTop).IsEqual(0f);
+            AssertFloat(two.AnchorBottom).IsEqual(0f);
             AssertFloat(two.AnchorLeft).IsEqual(1f);
             AssertFloat(two.AnchorRight).IsEqual(1f);
+            AssertFloat(two.OffsetRight).IsEqual(-36f);
 
-            // The deplete-toward-center HP treatment survives the move: P2's bar
-            // still fills end-to-begin (fill_mode = 1).
+            // HP fills stay anchored at the outer edges (plan item 14, Q2): P2's bar still
+            // fills end-to-begin (fill_mode = 1), as does its meter.
             AssertThat(hud.GetNode<ProgressBar>("SafeArea/P2_Status/Body/Column/HPBar")
                 .Get("fill_mode").AsInt32()).IsEqual(1);
             AssertThat(hud.GetNode<ProgressBar>("SafeArea/P1_Status/Body/Column/HPBar")
@@ -354,12 +354,12 @@ public class FighterHudSceneTests {
 
             hud.ApplyMatchState(timerEnabled: true, 480 * TickRate, TickRate);
             AssertThat(hud.TimerVisible).IsTrue();
-            AssertThat(hud.TimerText).IsEqual("8:00");
+            AssertThat(hud.TimerText).IsEqual("08:00");
 
             hud.ApplyMatchState(timerEnabled: true, 65 * TickRate, TickRate);
             AssertThat(hud.TimerVisible).IsTrue();
-            // Seconds are zero-padded, so 1:05 never renders as "1:5".
-            AssertThat(hud.TimerText).IsEqual("1:05");
+            // Seconds are zero-padded, so 01:05 never renders as "1:5", and minutes are padded too (mm:ss, UR-HUDF).
+            AssertThat(hud.TimerText).IsEqual("01:05");
 
             // Timer Off takes the clock away again.
             hud.ApplyMatchState(timerEnabled: false, 65 * TickRate, TickRate);
@@ -381,7 +381,7 @@ public class FighterHudSceneTests {
             TranslationServer.SetLocale("en");
 
             hud.ApplyMatchState(true, 12 * TickRate, TickRate, (int)MatchMode.Stock, suddenDeath: false);
-            AssertThat(hud.TimerText).IsEqual("0:12");
+            AssertThat(hud.TimerText).IsEqual("00:12");
 
             hud.ApplyMatchState(true, 0, TickRate, (int)MatchMode.Stock, suddenDeath: true);
             AssertThat(hud.TimerVisible).IsTrue();

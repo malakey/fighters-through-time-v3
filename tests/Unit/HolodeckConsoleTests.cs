@@ -51,8 +51,8 @@ public class HolodeckConsoleTests {
         try {
             panel.CpuDifficultySelect.Select((int)CpuDifficulty.Hard);
             panel.CpuCharacterSelect.Select(1); // joan
-            panel.GetNode<SpinBox>("Center/Panel/Layout/RulesRow/StockCount").Value = 5;
-            panel.GetNode<OptionButton>("Center/Panel/Layout/ItemFrequencyRow/ItemFrequency").Select(0); // Off
+            panel.GetNode<SpinBox>("Center/Tagged/Panel/Layout/RulesRow/StockCount").Value = 5;
+            panel.GetNode<OptionButton>("Center/Tagged/Panel/Layout/ItemFrequencyRow/ItemFrequency").Select(0); // Off
 
             FTT.Environment.FighterStageData stage = panel.ApplyToSession();
             AssertObject(stage).IsNotNull();
@@ -83,10 +83,10 @@ public class HolodeckConsoleTests {
         // training mode and stays exactly where it was.
         (Node host, HolodeckConsolePanel panel) = CreatePanel("HolodeckDrillsEntryHost");
         try {
-            AssertThat(panel.GetNodeOrNull<Button>("Center/Panel/Layout/LaunchButton") != null)
+            AssertThat(panel.GetNodeOrNull<Button>("Center/Tagged/Panel/Layout/LaunchButton") != null)
                 .OverrideFailureMessage("The CPU practice bout's launch button is gone")
                 .IsTrue();
-            var drills = panel.GetNodeOrNull<Button>("Center/Panel/Layout/CalibrationDrillsButton");
+            var drills = panel.GetNodeOrNull<Button>("Center/Tagged/Panel/Layout/CalibrationDrillsButton");
             AssertThat(drills != null)
                 .OverrideFailureMessage("The console has no Calibration Drills entry")
                 .IsTrue();
@@ -111,7 +111,7 @@ public class HolodeckConsoleTests {
         try {
             bool closed = false;
             panel.Closed += () => closed = true;
-            panel.GetNode<Button>("Center/Panel/Layout/BackButton")
+            panel.GetNode<Button>("Center/Tagged/Panel/Layout/BackButton")
                 .EmitSignal(BaseButton.SignalName.Pressed);
 
             AssertThat(closed).IsTrue();

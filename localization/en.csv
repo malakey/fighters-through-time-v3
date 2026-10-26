@@ -259,7 +259,6 @@ test_arena_controls,A/D Move | W/S Up/Down | Space Jump | O Roll | J Attack | W+
 common_back,Back
 fighter_select_title,SELECT YOUR FIGHTER
 fighter_start_match,FIGHT!
-fighter_player_selection,P{0}: {1}
 fighter_items,Chronal Orbs
 fighter_hazards,Stage Hazards
 fighter_mode_stock,Stock
@@ -287,7 +286,6 @@ resonance_result_prerequisite,Unlock the prerequisite node first.
 resonance_result_dust,Not enough deposited Chronal Dust.
 resonance_result_unavailable,That node cannot be unlocked.
 game_title,FIGHTERS THROUGH TIME
-menu_subtitle,Temporal Resonance Prototype
 menu_quick_play,Quick Play (Einstein vs CPU)
 menu_level_select,Level Select (Dev)
 dev_level_select_title,DEV — SELECT LEVEL
@@ -1677,3 +1675,40 @@ hud_seconds_short,{0}s
 hud_percent,{0}%
 hud_rewind_count,×{0}
 hud_boss_phase,Phase {0}
+# UR SELECT
+character_einstein_dates,1879–1955
+character_joan_dates,c. 1412–1431
+character_leonardo_dates,1452–1519
+character_lincoln_dates,1809–1865
+character_cleopatra_dates,69–30 BC
+character_tesla_dates,1856–1943
+character_shakespeare_dates,1564–1616
+character_mozart_dates,1756–1791
+character_tubman_dates,c. 1822–1913
+character_einstein_card_name,Einstein
+character_joan_card_name,Joan
+character_leonardo_card_name,Leonardo
+character_lincoln_card_name,Lincoln
+character_cleopatra_card_name,Cleopatra
+character_tesla_card_name,Tesla
+character_shakespeare_card_name,Shakespeare
+character_mozart_card_name,Mozart
+character_tubman_card_name,Tubman
+fighter_stat_max_hp,Max HP
+fighter_stat_speed,Speed
+fighter_stat_weight,Weight
+fighter_stats_card,"HP {0}  Speed {1:0.##}  Weight {2:0.##}  {3}"
+fighter_select_choosing,Hmm...
+fighter_random_mystery,Mystery fighter
+# UR MENU
+menu_cover_title_word,Fighters
+menu_cover_title_banner,Through Time
+menu_continue_chapter,Chapter {0}
+# UR SCREENS
+fighter_results_player,Player {0}
+loading_player_one,Player 1
+loading_player_two,Player 2
+resonance_grid_tag,Constellation
+# UR HUDF
+fighter_hud_mode_stock,Stock match
+fighter_hud_mode_time,Time match
