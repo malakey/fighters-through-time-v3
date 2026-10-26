@@ -25,9 +25,12 @@ namespace FTT.UI {
                 Name = "Layout",
                 CustomMinimumSize = new Vector2(420f, 0f)
             };
-            layout.SetAnchorsPreset(LayoutPreset.Center);
             layout.AddThemeConstantOverride("separation", 12);
-            AddChild(layout);
+            var center = new CenterContainer { Name = "Center", MouseFilter = MouseFilterEnum.Ignore };
+            center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+            AddChild(center);
+            center.AddChild(layout);
+            MenuSafeAreaFit.Attach(layout);
             UIPalette.ApplyTheme(this);
 
             layout.AddChild(new Label {

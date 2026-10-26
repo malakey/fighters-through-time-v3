@@ -40,6 +40,8 @@ namespace FTT.UI {
             GetNode<Button>(Root + "ButtonRow/BackButton").Pressed += Back;
             GetNode<Button>(Root + "ButtonRow/ExitButton").Pressed += ExitCalibration;
 
+            // FU-MENU: nine drill rows outgrow 1080 px at the 1.4 UI scale; shrink to fit.
+            MenuSafeAreaFit.Attach(GetNode<Control>(Root.TrimEnd('/')));
             FocusChainBuilder.Apply(GetNode<Control>("List"));
         }
 

@@ -366,7 +366,7 @@ public class CharacterSelectSceneTests {
             HolodeckConsolePanel panel = screen.CpuConfigPanel;
             AssertObject(panel).IsNotNull();
             AssertThat(panel.FrontEnd).IsTrue();
-            AssertThat(panel.GetNodeOrNull("Panel/Layout/CalibrationDrillsButton") == null)
+            AssertThat(panel.GetNodeOrNull("Center/Panel/Layout/CalibrationDrillsButton") == null)
                 .OverrideFailureMessage("The front-end Versus CPU screen must not offer the hub's drills entry.")
                 .IsTrue();
 
