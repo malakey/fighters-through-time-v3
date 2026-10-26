@@ -105,7 +105,9 @@ The chrome-cyan source-scan guard; `HUD_CONTRACT.md` amendments (sizes, Fighter 
 
 ## 9. Deviation log (append-only)
 
-(empty)
+- **2026-10-26, Phase A landed.** UR-ART merged at `d1e9e2a0` (3552 = 3546 + 6); UR-THEME (both steps) merged at `a76ca292`, the compiled translation regenerated at `1ead360d`; one full run on `main`: `Failed: 0, Passed: 3574, Total: 3574` (3552 + 22). The headless `GameManager.LoadScene` "Parse Error" UR-THEME saw on `MainMenu.tscn` / `HubWorld.tscn` reproduces at `68eb32fc` (pre-UR); not this package's.
+- **2026-10-26, orchestrator: a shared-widget step (UR-WIDGETS) between Phase A and Phase B.** Writing the Phase B briefs showed that four or more screens each need the same parts: the three-layer ICN-B icon, the banner button's marker / focus pose / prompt badge / selected plate, the device-aware prompt bar, the halftone panel corner, and the GAUGE-B parts (the HP / meter / stat bar overlays, the square and Ultimate ability slot, the status chip, the portrait roundel, a tagged panel). Six parallel agents would build divergent copies, so one agent builds them under `scripts/UI/Pulp/` (namespace `FTT.UI.Pulp`, handoff `docs/handoffs/UR_WIDGETS.md`) in two steps: step 1 the icon, button decor, prompt bar and halftone corner; step 2 the gauge parts. UR-MENU starts after step 1 (it needs nothing from step 2); the other five Phase B workstreams start after step 2. Phase B owns none of `scripts/UI/Pulp/`; a gap there goes in the handoff for the closeout.
+- **2026-10-26, orchestrator: the theme stays Phase A's.** `UR_THEME.md` §2.6 invites a Phase B workstream to edit the generator; standing decision 2 governs instead (six branches regenerating one `.tres` cannot be merged). A screen that needs a role or plate the kit lacks uses the nearest existing role, or a scene-local `StyleBoxTexture` over a kit PNG (never a font-size override), and lists the gap; the closeout folds the gaps into the generator.
 
 ## 10. Closeout
 
