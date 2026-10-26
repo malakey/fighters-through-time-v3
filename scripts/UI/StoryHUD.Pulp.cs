@@ -374,39 +374,63 @@ namespace FTT.UI {
             const float TabHeight = 35f;
             const float BarHeight = 44f;
             const float TabWidth = 128f;
-            _bossPanel.Position = new Vector2(x, 22f);
-            _bossPanel.Size = new Vector2(width, PlateHeight + 10f + BarHeight);
-            if (_bossBar != null) {
-                _bossBar.Position = new Vector2(0f, PlateHeight + 10f);
-                _bossBar.Size = new Vector2(width, BarHeight);
-                _bossBar.CustomMinimumSize = new Vector2(width, BarHeight);
-            }
+            // The tab's +2 degree tilt lifts its corner about 2 px, so it keeps this much below the name plate and above the bar.
+            const float TabGapBelowName = 6f, TabGapAboveBar = 6f;
             float tabWidth = width < 520f ? 104f : TabWidth;
             // The tab never narrower than its own text, so it cannot poke past the bar's right edge.
             if (_bossPhaseTab != null) tabWidth = Mathf.Max(tabWidth, _bossPhaseTab.GetCombinedMinimumSize().X);
-            if (_bossPhaseTab != null) {
-                _bossPhaseTab.Size = new Vector2(tabWidth, TabHeight);
-                _bossPhaseTab.Position = new Vector2(width - tabWidth, PlateHeight - TabHeight + 2f);
-                _bossPhaseTab.PivotOffset = _bossPhaseTab.Size / 2f;
-                _bossPhaseTab.Rotation = Mathf.DegToRad(2f);
-            }
+            float tabHeight = _bossPhaseTab != null ? Mathf.Max(TabHeight, _bossPhaseTab.GetCombinedMinimumSize().Y) : TabHeight;
+            float tabY = PlateHeight - tabHeight + 2f;
+            float barY = PlateHeight + 10f;
             if (_bossNameLabel != null) {
-                float available = Mathf.Min(687f, width - tabWidth - 12f);
                 // Measure unclipped: a clipped label reports about no minimum width, which would flip the rule each call.
                 _bossNameLabel.ClipText = false;
                 _bossNameLabel.TextOverrunBehavior = TextServer.OverrunBehavior.NoTrimming;
-                float natural = Mathf.Max(available, _bossNameLabel.GetCombinedMinimumSize().X);
-                float shrink = Mathf.Clamp(available / natural, 0.5f, 1f);
-                // At the 0.5 floor a name that still cannot fit beside the tab is ellipsized to the free width,
-                // so the name plate and the PHASE tab never overlap (VERIFY-UI-BOSS-PHASE-TAB-140).
-                bool floored = natural * shrink > available + 0.5f;
-                _bossNameLabel.ClipText = floored;
-                _bossNameLabel.TextOverrunBehavior = floored ? TextServer.OverrunBehavior.TrimEllipsis : TextServer.OverrunBehavior.NoTrimming;
-                _bossNameLabel.Size = new Vector2(floored ? available / shrink : natural, PlateHeight);
+                Vector2 minSize = _bossNameLabel.GetCombinedMinimumSize();
+                float minWidth = minSize.X;
+                // The label cannot be shorter than its own font line plus plate, which at the larger UI scales passes 62.
+                float nameHeight = Mathf.Max(PlateHeight, minSize.Y);
+                float beside = Mathf.Min(687f, width - tabWidth - 12f);
+                float natural = Mathf.Max(beside, minWidth);
+                float shrink = Mathf.Clamp(beside / natural, 0.5f, 1f);
+                bool clip = false;
+                float drawnWidth = natural * shrink;
+                if (drawnWidth > beside + 0.5f) {
+                    // VERIFY-UI-BOSS-PHASE-TAB-140: the name is too long to sit beside the tab even at the 0.5 floor, so
+                    // it takes the panel's full width and the tab drops below the (now shorter) scaled name plate; the
+                    // bar moves down to keep clear of the tab. Only a name too long for the full width at the floor
+                    // is ellipsized.
+                    float full = Mathf.Min(687f, width - 4f);
+                    natural = Mathf.Max(full, minWidth);
+                    shrink = Mathf.Clamp(full / natural, 0.5f, 1f);
+                    clip = natural * shrink > full + 0.5f;
+                    drawnWidth = clip ? full : natural * shrink;
+                    // The name's rotation is about its top-left corner, so its lowest point is its left edge's bottom.
+                    tabY = nameHeight * shrink + TabGapBelowName;
+                    barY = Mathf.Max(barY, tabY + tabHeight + TabGapAboveBar);
+                } else {
+                    barY = Mathf.Max(barY, nameHeight * shrink + TabGapAboveBar);
+                }
+                _bossNameLabel.ClipText = clip;
+                _bossNameLabel.TextOverrunBehavior = clip ? TextServer.OverrunBehavior.TrimEllipsis : TextServer.OverrunBehavior.NoTrimming;
+                _bossNameLabel.Size = new Vector2(clip ? drawnWidth / shrink : natural, nameHeight);
                 _bossNameLabel.PivotOffset = Vector2.Zero;
                 _bossNameLabel.Position = new Vector2(0f, 0f);
                 _bossNameLabel.Scale = new Vector2(shrink, shrink);
                 _bossNameLabel.Rotation = Mathf.DegToRad(-1f);
+            }
+            _bossPanel.Position = new Vector2(x, 22f);
+            _bossPanel.Size = new Vector2(width, barY + BarHeight);
+            if (_bossBar != null) {
+                _bossBar.Position = new Vector2(0f, barY);
+                _bossBar.Size = new Vector2(width, BarHeight);
+                _bossBar.CustomMinimumSize = new Vector2(width, BarHeight);
+            }
+            if (_bossPhaseTab != null) {
+                _bossPhaseTab.Size = new Vector2(tabWidth, tabHeight);
+                _bossPhaseTab.Position = new Vector2(width - tabWidth, tabY);
+                _bossPhaseTab.PivotOffset = _bossPhaseTab.Size / 2f;
+                _bossPhaseTab.Rotation = Mathf.DegToRad(2f);
             }
         }
 

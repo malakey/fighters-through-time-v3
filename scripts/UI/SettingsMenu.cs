@@ -597,6 +597,45 @@ namespace FTT.UI {
                     joypadSlot.TooltipText = joypadSlot.Text;
                 }
             }
+            ApplyColumnWidths();
+        }
+
+        private float _columnScale = 1f;
+
+        /// <summary>Re-fits the columns when the UI scale changes while Settings is open.</summary>
+        public override void _Process(double delta) {
+            if (_actionRows == null || Mathf.IsEqualApprox(_columnScale, UIPalette.AppliedUiScale)) return;
+            ApplyColumnWidths();
+        }
+
+        /// <summary>
+        /// One width per column, the same for every row so the table reads as columns: the 1.0 widths, grown to the widest
+        /// text in that column at the current font size (the default pad bindings at 1.4 need more than 340), and capped
+        /// so the table keeps fitting the tab. A binding longer than the cap still clips with an ellipsis and its tooltip.
+        /// </summary>
+        private void ApplyColumnWidths() {
+            if (_actionRows == null) return;
+            _columnScale = UIPalette.AppliedUiScale;
+            float[] width = { LabelColumnWidth, KeyboardColumnWidth, PadColumnWidth, UnbindColumnWidth, ResetColumnWidth };
+            float[] cap = { 380f, 360f, 520f, 200f, 200f };
+            int rows = _actionRows.GetChildCount();
+            for (int r = 0; r < rows; r++) {
+                if (_actionRows.GetChild(r) is not HBoxContainer row) continue;
+                for (int c = 0; c < 5 && c < row.GetChildCount(); c++) {
+                    if (row.GetChild(c) is not Control cell) continue;
+                    string text = cell is Label l ? l.Text : cell is Button b ? b.Text : "";
+                    Font font = cell.GetThemeFont("font");
+                    float chrome = (cell.GetThemeStylebox("normal")?.GetMinimumSize().X ?? 0f) + 28f;
+                    float measured = font.GetStringSize(text, HorizontalAlignment.Left, -1f, cell.GetThemeFontSize("font_size")).X + chrome;
+                    width[c] = Mathf.Max(width[c], Mathf.Min(measured, cap[c]));
+                }
+            }
+            for (int r = 0; r < rows; r++) {
+                if (_actionRows.GetChild(r) is not HBoxContainer row) continue;
+                for (int c = 0; c < 5 && c < row.GetChildCount(); c++) {
+                    if (row.GetChild(c) is Control cell) cell.CustomMinimumSize = new Vector2(width[c], cell.CustomMinimumSize.Y);
+                }
+            }
         }
 
         /// <summary>

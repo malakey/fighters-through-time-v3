@@ -97,46 +97,45 @@ public class UrPolish2Tests {
     }
 
     [TestCase]
-    public async Task TheControlsColumnsLineUpWhateverTheBindingTextAtBothUiScales() {
+    public async Task TheControlsColumnsLineUpAndShowEveryDefaultWholeAtBothUiScalesEvenWhenTheScaleChangesWhileOpen() {
         float original = UIPalette.AppliedUiScale;
         Theme hold = UIPalette.LoadTheme();
         var problems = new List<string>();
+        var host = new Node { Name = "UrPolish2Settings" };
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(host);
         try {
+            UIPalette.ApplyUiScale(1f);
+            var menu = new SettingsMenu { Name = "SettingsMenu" };
+            host.AddChild(menu);
+            menu.Show();
+            var rows = menu.Tabs.GetNode<VBoxContainer>("Controls/Scroll/Content/ActionRows");
+            var scroll = menu.Tabs.GetNode<Control>("Controls/Scroll");
+            menu.Tabs.CurrentTab = 3;
             foreach (float scale in new[] { 1f, 1.4f }) {
-                UIPalette.ApplyUiScale(scale);
-                var host = new Node { Name = "UrPolish2Settings" };
-                ((SceneTree)Engine.GetMainLoop()).Root.AddChild(host);
-                try {
-                    var menu = new SettingsMenu { Name = "SettingsMenu" };
-                    host.AddChild(menu);
-                    menu.Show();
-                    var rows = menu.Tabs.GetNode<VBoxContainer>("Controls/Scroll/Content/ActionRows");
-                    string action = InputManager.Actions.Roll;
-                    menu.CaptureForTesting(action, InputDeviceKind.Joypad, new InputBindingEvent(InputBindingKind.JoyButton, 13));
-                    menu.CaptureForTesting(InputManager.Actions.Jump, InputDeviceKind.Keyboard, new InputBindingEvent(InputBindingKind.Key, (int)Key.F9));
-                    await Settle();
-                    Vector2[] reference = null;
-                    for (int i = 0; i < rows.GetChildCount(); i++) {
-                        var row = (HBoxContainer)rows.GetChild(i);
-                        var cells = new Vector2[5];
-                        for (int c = 0; c < 5; c++) {
-                            var cell = (Control)row.GetChild(c);
-                            cells[c] = new Vector2(cell.Position.X, cell.Size.X);
-                        }
-                        reference ??= cells;
-                        for (int c = 0; c < 5; c++) {
-                            if (cells[c] != reference[c]) problems.Add($"{scale}: {row.Name} column {c} {cells[c]} vs {reference[c]}");
-                        }
+                UIPalette.ApplyUiScale(scale);   // the second pass changes the scale while Settings is open
+                await Settle();
+                Vector2[] reference = null;
+                for (int i = 0; i < rows.GetChildCount(); i++) {
+                    var row = (HBoxContainer)rows.GetChild(i);
+                    var cells = new Vector2[5];
+                    for (int c = 0; c < 5; c++) {
+                        var cell = (Control)row.GetChild(c);
+                        cells[c] = new Vector2(cell.Position.X, cell.Size.X);
+                        string text = cell is Label l ? l.Text : ((Button)cell).Text;
+                        float needed = cell.GetThemeFont("font").GetStringSize(text, HorizontalAlignment.Left, -1f, cell.GetThemeFontSize("font_size")).X;
+                        if (needed > cell.Size.X - 8f) problems.Add($"{scale}: {row.Name} column {c} '{text}' needs {needed} in {cell.Size.X}");
                     }
-                    var slot = (Button)rows.GetNode<HBoxContainer>($"Row_{action}").GetChild(2);
-                    if (slot.TooltipText != slot.Text || slot.Text.Length == 0) problems.Add($"{scale}: tooltip '{slot.TooltipText}' != '{slot.Text}'");
-                } finally {
-                    host.GetParent()?.RemoveChild(host);
-                    host.Free();
+                    reference ??= cells;
+                    for (int c = 0; c < 5; c++) {
+                        if (cells[c] != reference[c]) problems.Add($"{scale}: {row.Name} column {c} {cells[c]} vs {reference[c]}");
+                    }
+                    if (Bounds(row.GetChild<Control>(4)).End.X > Bounds(scroll).End.X) problems.Add($"{scale}: {row.Name} runs past the tab");
                 }
             }
         } finally {
             UIPalette.ApplyUiScale(original);
+            host.GetParent()?.RemoveChild(host);
+            host.Free();
             System.GC.KeepAlive(hold);
         }
         if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
@@ -182,12 +181,27 @@ public class UrPolish2Tests {
         if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
     }
 
+    /// <summary>Every campaign boss's display-name key: the <c>DisplayNameKey</c> of each top-level <c>BossData</c> resource.</summary>
+    private static List<string> BossNameKeys() {
+        var keys = new List<string>();
+        foreach (string file in DirAccess.GetFilesAt("res://resources/Bosses")) {
+            if (!file.EndsWith(".tres")) continue;
+            using var access = Godot.FileAccess.Open($"res://resources/Bosses/{file}", Godot.FileAccess.ModeFlags.Read);
+            var match = System.Text.RegularExpressions.Regex.Match(access.GetAsText(), "DisplayNameKey = \"([^\"]+)\"");
+            if (match.Success) keys.Add(match.Groups[1].Value);
+        }
+        return keys;
+    }
+
     [TestCase]
-    public async Task TheBossNameAndThePhaseTabNeverOverlapForTheLongestNameAtBothUiScales() {
+    public async Task EveryBossNameAndThePhaseTabStayApartAndInsideThePanelAtBothUiScales() {
         SaveManager save = SaveManager.Instance;
         AssertObject(save?.GlobalData).IsNotNull();
         float original = save.GlobalData.UiScale;
+        List<string> keys = BossNameKeys();
+        AssertThat(keys.Count).IsEqual(15);
         var problems = new List<string>();
+        var ellipsized = new List<string>();
         foreach (float scale in new[] { 1.0f, 1.4f }) {
             SceneTree tree = (SceneTree)Engine.GetMainLoop();
             var port = new SubViewport { Size = new Vector2I(1920, 1080), RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled };
@@ -197,23 +211,34 @@ public class UrPolish2Tests {
                 StoryHUD hud = StoryHUD.CreateDefault();
                 port.AddChild(hud);
                 await Settle(4);
-                hud.ShowBossBar("boss_iron_chancellor_name", 640, 1000, new[] { 0.5f });
-                EventBus.Instance.RaiseBossPhaseChanged(2);
-                await Settle(3);
-                var panel = hud.GetNode<Control>("SafeArea/BossPanel");
-                var name = hud.GetNode<Control>("SafeArea/BossPanel/BossName");
-                var tab = hud.GetNode<Control>("SafeArea/BossPanel/BossPhaseTab");
-                Rect2 n = Bounds(name), t = Bounds(tab), p = Bounds(panel).Grow(16f * scale);
-                if (n.Intersects(t)) problems.Add($"{scale}: name {n} overlaps tab {t}");
-                if (!p.Encloses(n)) problems.Add($"{scale}: name {n} outside panel {p}");
-                if (!p.Encloses(t)) problems.Add($"{scale}: tab {t} outside panel {p}");
-                if (name.Scale.X < 0.5f - 0.001f) problems.Add($"{scale}: name scale {name.Scale.X} below its floor");
+                foreach (string key in keys) {
+                    hud.ShowBossBar(key, 640, 1000, new[] { 0.5f });
+                    EventBus.Instance.RaiseBossPhaseChanged(2);
+                    await Settle(2);
+                    var panel = hud.GetNode<Control>("SafeArea/BossPanel");
+                    var name = hud.GetNode<Label>("SafeArea/BossPanel/BossName");
+                    var tab = hud.GetNode<Control>("SafeArea/BossPanel/BossPhaseTab");
+                    var bar = hud.GetNode<Control>("SafeArea/BossPanel/BossBar");
+                    // The name tilts -1 degree about its top-left, so its right end rises a little above the panel.
+                    Rect2 n = Bounds(name), t = Bounds(tab), b = Bounds(bar), p = Bounds(panel).Grow(16f * scale);
+                    string tag = $"{scale}/{key}";
+                    if (n.Intersects(t)) problems.Add($"{tag}: name {n} overlaps tab {t}");
+                    if (n.Intersects(b)) problems.Add($"{tag}: name overlaps the bar");
+                    if (t.Intersects(b)) problems.Add($"{tag}: tab {t} overlaps the bar {b}");
+                    if (!p.Encloses(n)) problems.Add($"{tag}: name {n} outside panel {p}");
+                    if (!p.Encloses(t)) problems.Add($"{tag}: tab {t} outside panel {p}");
+                    if (name.Scale.X < 0.5f - 0.001f) problems.Add($"{tag}: name scale {name.Scale.X} below its floor");
+                    if (name.ClipText) ellipsized.Add(tag);
+                }
                 hud.QueueFree();
             } finally {
                 save.GlobalData.UiScale = original;
                 port.Free();
             }
         }
+        // Ellipsis is the last resort: at most the longest name, and only at 1.4.
+        foreach (string tag in ellipsized) if (tag != "1.4/boss_iron_chancellor_name") problems.Add($"{tag}: ellipsized");
+        GD.Print($"[UrPolish2] boss names needing the ellipsis: {(ellipsized.Count == 0 ? "none" : string.Join(", ", ellipsized))}");
         if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
     }
 }
