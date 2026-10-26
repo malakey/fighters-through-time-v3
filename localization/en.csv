@@ -259,7 +259,6 @@ test_arena_controls,A/D Move | W/S Up/Down | Space Jump | O Roll | J Attack | W+
 common_back,Back
 fighter_select_title,SELECT YOUR FIGHTER
 fighter_start_match,FIGHT!
-fighter_player_selection,P{0}: {1}
 fighter_items,Chronal Orbs
 fighter_hazards,Stage Hazards
 fighter_mode_stock,Stock
@@ -1665,6 +1664,31 @@ select_press_to_join_player_one,Press confirm on any controller or keyboard to j
 ui_prompt_select,Select
 ui_toggle_on,On
 ui_toggle_off,Off
+# UR SELECT
+character_einstein_dates,1879–1955
+character_joan_dates,c. 1412–1431
+character_leonardo_dates,1452–1519
+character_lincoln_dates,1809–1865
+character_cleopatra_dates,69–30 BC
+character_tesla_dates,1856–1943
+character_shakespeare_dates,1564–1616
+character_mozart_dates,1756–1791
+character_tubman_dates,c. 1822–1913
+character_einstein_card_name,Einstein
+character_joan_card_name,Joan
+character_leonardo_card_name,Leonardo
+character_lincoln_card_name,Lincoln
+character_cleopatra_card_name,Cleopatra
+character_tesla_card_name,Tesla
+character_shakespeare_card_name,Shakespeare
+character_mozart_card_name,Mozart
+character_tubman_card_name,Tubman
+fighter_stat_max_hp,Max HP
+fighter_stat_speed,Speed
+fighter_stat_weight,Weight
+fighter_stats_card,"HP {0}  Speed {1:0.##}  Weight {2:0.##}  {3}"
+fighter_select_choosing,Hmm...
+fighter_random_mystery,Mystery fighter
 # UR MENU
 menu_cover_title_word,Fighters
 menu_cover_title_banner,Through Time

@@ -60,7 +60,7 @@ namespace FTT.UI {
 
         private const string SelectRoot = "SelectPhase/Root/";
         private const string StageRoot = "StagePhase/Root/";
-        private const int GridColumns = 3;
+        private const int GridColumns = CardGridRules.Columns;
         private const float CountdownSeconds = 3.0f;
         private const float AxisThreshold = 0.5f;
 
@@ -158,12 +158,8 @@ namespace FTT.UI {
 
             _selectPhase = GetNode<Control>("SelectPhase");
             _stagePhase = GetNode<Control>("StagePhase");
-            _p1Name = GetNode<Label>(SelectRoot + "PlayersRow/P1Panel/P1Name");
             _p1Ready = GetNode<Label>(SelectRoot + "PlayersRow/P1Panel/P1Ready");
-            _p1Stats = GetNode<Label>(SelectRoot + "PlayersRow/P1Panel/P1Stats");
-            _p2Name = GetNode<Label>(SelectRoot + "PlayersRow/P2Panel/P2Name");
             _p2Ready = GetNode<Label>(SelectRoot + "PlayersRow/P2Panel/P2Ready");
-            _p2Stats = GetNode<Label>(SelectRoot + "PlayersRow/P2Panel/P2Stats");
             _p2JoinPrompt = GetNodeOrNull<Label>(SelectRoot + "PlayersRow/P2Panel/P2JoinPrompt");
             _p1JoinPrompt = GetNodeOrNull<Label>(SelectRoot + "PlayersRow/P1Panel/P1JoinPrompt");
             _countdownLabel = GetNode<Label>(SelectRoot + "CountdownLabel");
@@ -186,7 +182,7 @@ namespace FTT.UI {
 
             BindCharacterGrid();
             BindRules();
-            ApplySlotColours();
+            StyleChrome();
 
             GetNode<Button>(SelectRoot + "ButtonRow/BackButton").Pressed += OnBack;
             GetNode<Button>(StageRoot + "StageButtonRow/StageBackButton").Pressed += ReturnToSelection;
@@ -433,6 +429,7 @@ namespace FTT.UI {
             }
             _selectPhase.Visible = false;
             _stagePhase.Visible = true;
+            _stageScrim.Visible = true;
             UpdateStagePreview();
             BuildFocusChain();
         }
@@ -468,6 +465,7 @@ namespace FTT.UI {
             if (_cpuConfigPanel != null && IsInstanceValid(_cpuConfigPanel)) _cpuConfigPanel.QueueFree();
             _cpuConfigPanel = null;
             _stagePhase.Visible = false;
+            _stageScrim.Visible = false;
             _selectPhase.Visible = true;
             RefreshPanels();
             RepaintTiles();
@@ -512,128 +510,6 @@ namespace FTT.UI {
             chain[0]?.GrabFocus();
         }
 
-        private void BindCharacterGrid() {
-            var grid = GetNode<GridContainer>(SelectRoot + "PlayersRow/Grid");
-            _characterButtons = new Button[TileCount];
-            _tileBadges = new Label[TileCount];
-            for (int index = 0; index < TileCount; index++) {
-                int captured = index;
-                bool random = index == RandomTileIndex;
-                // Package 11 A6b: the roster is manifest-driven while the grid's
-                // tiles are authored, so bind what the scene actually carries and
-                // let a larger roster degrade to the authored tile count rather
-                // than throwing out of _Ready. Adding tiles is scene work.
-                var button = grid.GetNodeOrNull<Button>(random ? "RandomTile" : $"CharacterButton{index}");
-                if (button == null) continue;
-                // Button icons share a horizontal row with their text, so long
-                // names such as "Wolfgang Amadeus Mozart" can squeeze the icon
-                // down to a sliver. Keep the full name and give every portrait a
-                // dedicated layer above it instead.
-                button.Text = string.Empty;
-                if (random) {
-                    AddRandomSilhouette(button);
-                    AddPortraitLayer(button, null, Tr("fighter_random_character"));
-                } else {
-                    AddPortraitLayer(button, GetCharacterPortrait(index), GetCharacterName(index));
-                }
-                _tileBadges[index] = AddTokenBadge(button);
-                // Cursor-driven, not focus-driven: see FocusChain.
-                button.FocusMode = FocusModeEnum.None;
-                button.AddToGroup(FocusChainBuilder.SkipGroup);
-                button.Pressed += () => OnTilePressed(captured);
-                _characterButtons[index] = button;
-            }
-        }
-
-        /// <summary>
-        /// G15a's placeholder silhouette: a dark figure-shaped block with a "?"
-        /// over it, until Package 10 supplies Random tile art.
-        /// </summary>
-        private static void AddRandomSilhouette(Button button) {
-            var silhouette = new ColorRect {
-                Name = "Silhouette",
-                Color = new Color(0.05f, 0.06f, 0.12f, 0.9f),
-                MouseFilter = MouseFilterEnum.Ignore,
-                AnchorLeft = 0.5f,
-                AnchorRight = 0.5f,
-                OffsetLeft = -24f,
-                OffsetTop = 8f,
-                OffsetRight = 24f,
-                OffsetBottom = 74f
-            };
-            button.AddChild(silhouette);
-            var mark = new Label {
-                Name = "RandomMark",
-                Text = "?",
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-                MouseFilter = MouseFilterEnum.Ignore
-            };
-            mark.SetAnchorsPreset(LayoutPreset.FullRect);
-            mark.ThemeTypeVariation = UIPalette.TitleLabelVariation;
-            silhouette.AddChild(mark);
-        }
-
-        /// <summary>
-        /// G12: the corner badge that carries the hovering/locking tokens' slot
-        /// shapes (▲ / ●), so a cursor never reads by colour alone.
-        /// </summary>
-        private static Label AddTokenBadge(Button button) {
-            var badge = new Label {
-                Name = "TokenBadge",
-                Text = "",
-                HorizontalAlignment = HorizontalAlignment.Right,
-                MouseFilter = MouseFilterEnum.Ignore,
-                AnchorLeft = 1f,
-                AnchorRight = 1f,
-                OffsetLeft = -52f,
-                OffsetTop = 2f,
-                OffsetRight = -6f,
-                OffsetBottom = 26f
-            };
-            badge.ThemeTypeVariation = UIPalette.HeadingLabelVariation;
-            badge.AddThemeConstantOverride("outline_size", 4);
-            button.AddChild(badge);
-            return badge;
-        }
-
-        private static void AddPortraitLayer(Button button, Texture2D portrait, string characterName) {
-            var portraitRect = new TextureRect {
-                Name = "Portrait",
-                Texture = portrait,
-                ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-                StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
-                MouseFilter = MouseFilterEnum.Ignore,
-                AnchorLeft = 0.5f,
-                AnchorRight = 0.5f,
-                OffsetLeft = -36f,
-                OffsetTop = 5f,
-                OffsetRight = 36f,
-                OffsetBottom = 77f
-            };
-            button.AddChild(portraitRect);
-
-            var nameLabel = new Label {
-                Name = "CharacterName",
-                Text = characterName,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-                AutowrapMode = TextServer.AutowrapMode.WordSmart,
-                MouseFilter = MouseFilterEnum.Ignore,
-                AnchorRight = 1f,
-                AnchorTop = 1f,
-                AnchorBottom = 1f,
-                OffsetLeft = 4f,
-                OffsetTop = -42f,
-                OffsetRight = -4f,
-                OffsetBottom = -3f
-            };
-            // V7.3 UI-scale pass: the theme's SmallLabel role replaces the old
-            // 16 px override so the tile names follow the accessibility scale.
-            nameLabel.ThemeTypeVariation = UIPalette.SmallLabelVariation;
-            button.AddChild(nameLabel);
-        }
-
         /// <summary>
         /// Mouse path, acting as Player 1: a click on a new tile moves the driven
         /// token there (hover/Reserved); a click on the hovered tile confirms it —
@@ -656,166 +532,6 @@ namespace FTT.UI {
             if (_characterButtons == null) return;
             for (int index = 0; index < _characterButtons.Length; index++) StyleTile(index);
         }
-
-        /// <summary>The badge glyphs on a tile: ▲ for P1, ● for P2, both when shared. Test seam.</summary>
-        public string TileBadgeText(int index) =>
-            _tileBadges != null && index >= 0 && index < _tileBadges.Length && _tileBadges[index] != null
-                ? _tileBadges[index].Text
-                : "";
-
-        /// <summary>
-        /// Paints one tile from the token states. Occupied (locked) tiles carry a
-        /// thick border and glow in the owning token's slot colour; Reserved
-        /// (hovered) tiles a thinner border; overlapping hovers blend the two
-        /// colours, and (V7.3, mirror matches) a tile BOTH tokens have locked
-        /// blends the two lock colours the same way. The theme's focus stylebox is
-        /// never overridden.
-        /// </summary>
-        private void StyleTile(int index) {
-            Button button = _characterButtons[index];
-            // A manifest roster larger than the authored tile grid leaves the
-            // tail unbound (see BindCharacterGrid); styling must skip it.
-            if (button == null) return;
-
-            Color color = index == RandomTileIndex
-                ? UIPalette.Slate
-                : CharacterFactory.GetCharacterColor(_characterIDs[index]);
-            Color playerOne = PlayerSlotPalettes.ActiveSlotColor(0);
-            Color playerTwo = PlayerSlotPalettes.ActiveSlotColor(1);
-
-            Color borderColor = new(0.2f, 0.2f, 0.25f);
-            int borderWidth = 2;
-            bool occupied = false;
-            bool p1Here = _tokens[0].LockedIndex == index || (!_tokens[0].Ready && _tokens[0].Cursor == index);
-            bool p2Here = OpponentCursorActive
-                && (_tokens[1].LockedIndex == index || (!_tokens[1].Ready && _tokens[1].Cursor == index));
-
-            if (_tokens[0].LockedIndex == index && _tokens[1].LockedIndex == index) {
-                borderColor = playerOne.Lerp(playerTwo, 0.5f);
-                borderWidth = 5;
-                occupied = true;
-            } else if (_tokens[0].LockedIndex == index) {
-                borderColor = playerOne;
-                borderWidth = 5;
-                occupied = true;
-            } else if (_tokens[1].LockedIndex == index && OpponentCursorActive) {
-                borderColor = playerTwo;
-                borderWidth = 5;
-                occupied = true;
-            } else {
-                bool p1Hover = !_tokens[0].Ready && _tokens[0].Cursor == index;
-                bool opponentHover = OpponentCursorActive && !_tokens[1].Ready && _tokens[1].Cursor == index;
-                if (p1Hover && opponentHover) {
-                    borderColor = playerOne.Lerp(playerTwo, 0.5f);
-                    borderWidth = 4;
-                } else if (p1Hover) {
-                    borderColor = playerOne;
-                    borderWidth = 4;
-                } else if (opponentHover) {
-                    borderColor = playerTwo;
-                    borderWidth = 4;
-                }
-            }
-
-            Label badge = _tileBadges[index];
-            if (badge != null) {
-                string text = (p1Here ? PlayerSlotPalettes.PlayerOneGlyph : "")
-                    + (p2Here ? PlayerSlotPalettes.PlayerTwoGlyph : "");
-                badge.Text = text;
-                Color badgeColor = p1Here && !p2Here ? playerOne : p2Here && !p1Here ? playerTwo : borderColor;
-                badge.AddThemeColorOverride("font_color", badgeColor);
-                badge.AddThemeColorOverride("font_outline_color",
-                    PlayerSlotPalettes.ActiveSlotEdgeColor(p2Here && !p1Here ? 1 : 0));
-            }
-
-            Color cardColor = color.Lerp(UIPalette.Navy, 0.62f);
-            var style = new StyleBoxFlat {
-                // Keep each fighter's identity colour, but sink it into the
-                // midnight glass palette so portraits read as layered time cards
-                // instead of opaque placeholder blocks.
-                BgColor = new Color(cardColor, 0.86f),
-                BorderColor = borderColor,
-                ShadowSize = occupied ? 8 : 0,
-                ShadowColor = occupied ? new Color(borderColor, 0.5f) : Colors.Transparent
-            };
-            style.SetBorderWidthAll(borderWidth);
-            style.SetCornerRadiusAll(6);
-            style.SetContentMarginAll(8);
-
-            button.AddThemeStyleboxOverride("normal", style);
-            button.AddThemeStyleboxOverride("hover", style);
-            button.AddThemeStyleboxOverride("pressed", style);
-
-            // Readable text on top of an arbitrary character colour.
-            float luminance =
-                0.299f * cardColor.R + 0.587f * cardColor.G + 0.114f * cardColor.B;
-            Color textColor = luminance > 0.55f
-                ? new Color(0.1f, 0.1f, 0.15f)
-                : new Color(0.95f, 0.95f, 0.98f);
-            button.AddThemeColorOverride("font_color", textColor);
-            button.AddThemeColorOverride("font_hover_color", textColor);
-            button.AddThemeColorOverride("font_pressed_color", textColor);
-            button.AddThemeColorOverride("font_focus_color", textColor);
-        }
-
-        /// <summary>
-        /// Player 2's token only exists in Local Versus, and (9.1) only once Player
-        /// 2 has joined — or has locked a pick through the token API, which only a
-        /// joined device can do through the polled input.
-        /// </summary>
-        private bool OpponentCursorActive => !IsVersusCpuFlow && (IsPlayerTwoJoined || _tokens[1].Ready);
-
-        /// <summary>G12: the two player panels' name tags wear the local slot palette.</summary>
-        private void ApplySlotColours() {
-            _p1Name?.AddThemeColorOverride("font_color", PlayerSlotPalettes.ActiveSlotColor(0));
-            _p1Name?.AddThemeColorOverride("font_outline_color", PlayerSlotPalettes.ActiveSlotEdgeColor(0));
-            _p1Name?.AddThemeConstantOverride("outline_size", 3);
-            _p2Name?.AddThemeColorOverride("font_color", PlayerSlotPalettes.ActiveSlotColor(1));
-            _p2Name?.AddThemeColorOverride("font_outline_color", PlayerSlotPalettes.ActiveSlotEdgeColor(1));
-            _p2Name?.AddThemeConstantOverride("outline_size", 3);
-        }
-
-        private void RefreshPanels() {
-            if (_p1Name == null) return;
-
-            int p1Index = EffectiveIndex(_tokens[0]);
-            _p1Name.Text = $"{PlayerSlotPalettes.PlayerOneGlyph} "
-                + string.Format(Tr("fighter_player_selection"), 1, TileName(p1Index));
-            _p1Ready.Visible = _tokens[0].Ready;
-            _p1Stats.Text = TileStats(p1Index);
-            // CM-PADUI (2026-10-16): Local Versus pre-claims no slot (CM-FIXA-INPUT),
-            // so until a device presses, Player 1's panel says how to join too.
-            if (_p1JoinPrompt != null) _p1JoinPrompt.Visible = IsPlayerOneJoinPromptShown;
-
-            if (IsVersusCpuFlow) {
-                // The CPU is configured on the next screen, not picked here.
-                _p2Name.Text = $"{PlayerSlotPalettes.PlayerTwoGlyph} {Tr("fighter_versus_cpu_title")}";
-                _p2Ready.Visible = false;
-                _p2Stats.Text = Tr("fighter_cpu_configured_next");
-                if (_p2JoinPrompt != null) _p2JoinPrompt.Visible = false;
-                return;
-            }
-            // 9.1: an unjoined Player 2 shows only the press-to-join prompt.
-            bool joined = OpponentCursorActive;
-            if (_p2JoinPrompt != null) _p2JoinPrompt.Visible = !joined;
-            _p2Stats.Visible = joined;
-            if (!joined) {
-                _p2Name.Text = PlayerSlotPalettes.PlayerTwoGlyph;
-                _p2Ready.Visible = false;
-                return;
-            }
-            int p2Index = EffectiveIndex(_tokens[1]);
-            _p2Name.Text = $"{PlayerSlotPalettes.PlayerTwoGlyph} "
-                + string.Format(Tr("fighter_player_selection"), 2, TileName(p2Index));
-            _p2Ready.Visible = _tokens[1].Ready;
-            _p2Stats.Text = TileStats(p2Index);
-        }
-
-        private string TileName(int index) =>
-            index == RandomTileIndex ? Tr("fighter_random_character") : GetCharacterName(index);
-
-        private string TileStats(int index) =>
-            index == RandomTileIndex ? Tr("fighter_random_character_hint") : StatsText(_characterIDs[index]);
 
         private void BindRules() {
             _stageSelect.ItemSelected += _ => UpdateStagePreview();
@@ -951,15 +667,6 @@ namespace FTT.UI {
             return data == null || string.IsNullOrWhiteSpace(data.DisplayNameKey)
                 ? Tr("common_unknown")
                 : Tr(data.DisplayNameKey);
-        }
-
-        private string StatsText(string characterID) {
-            var data = AuthoredResources.Load<CharacterData>($"res://resources/Characters/{characterID}_data.tres");
-            if (data == null) return Tr("fighter_stats_unavailable");
-            return string.Format(
-                Tr("fighter_stats_summary"),
-                data.MaxHP, data.MaxMoveSpeed, data.BasicAttackDamage, data.BasicAttackKnockback,
-                data.Weight, data.MaxBlockCharges, data.Style, data.MaxJumpForce, data.MaxJumpCount);
         }
 
         private static int EffectiveIndex(SelectionToken token) =>
