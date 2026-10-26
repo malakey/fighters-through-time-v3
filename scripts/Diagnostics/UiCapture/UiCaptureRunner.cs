@@ -57,16 +57,33 @@ namespace FTT.Diagnostics {
                 return;
             }
 
+            // UR-POLISH: the shared theme is not pinned by anything (ResourceLoader drops it once the last screen is
+            // freed), so a scale applied to it between two targets was lost with the instance and the next screen
+            // loaded the authored sizes: every 1.4 target of a batch came out as its 1.0 twin. Holding it for the
+            // whole run keeps one instance, and the scale (and the saved UiScale setting) is reset around every target
+            // so one target's scale never leaks into the next.
+            _themeHold = FTT.UI.UIPalette.LoadTheme();
+            float savedSetting = FTT.Core.SaveManager.Instance?.GlobalData?.UiScale ?? 1f;
             int failures = 0;
             foreach (string name in names) {
                 try {
+                    ResetScale(savedSetting);
                     await CaptureAsync(UiCaptureTargets.All[name], outDir);
                 } catch (Exception exception) {
                     failures++;
                     GD.PushError($"[ui-capture] '{name}' failed: {exception}");
+                } finally {
+                    ResetScale(savedSetting);
                 }
             }
             GetTree().Quit(failures == 0 ? 0 : 3);
+        }
+
+        private Theme _themeHold;
+
+        internal static void ResetScale(float setting) {
+            if (FTT.Core.SaveManager.Instance?.GlobalData != null) FTT.Core.SaveManager.Instance.GlobalData.UiScale = setting;
+            FTT.UI.UIPalette.ApplyUiScale(1f);
         }
 
         private async Task CaptureAsync(UiCaptureTargets.Target target, string outDir) {

@@ -118,7 +118,8 @@ public class CharacterSelectCardTests {
     [TestCase]
     public void TheCardsWearTheActiveSlotPaletteInEveryPalette() {
         GlobalSaveData data = SaveManager.Instance?.GlobalData;
-        if (data == null) return;
+        // A test that can pass without asserting anything is not a test: fail loudly when the settings are missing.
+        if (data == null) AssertThat("GlobalData is missing").IsEqual("");
         int saved = data.PlayerSlotPalette;
         var problems = new List<string>();
         try {

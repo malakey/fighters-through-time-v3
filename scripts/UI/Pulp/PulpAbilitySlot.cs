@@ -96,10 +96,14 @@ namespace FTT.UI.Pulp {
         /// <summary>Formats a remaining time for the centre number: whole seconds from 10 up, one decimal below, blank at 0.</summary>
         public static string FormatSeconds(float seconds) {
             if (seconds <= 0f) return "";
-            // Cached per displayed value: a cooldown redraws every frame and must not allocate a string each time.
-            int key = seconds >= 10f ? 100000 + Mathf.CeilToInt(seconds) : Mathf.CeilToInt(seconds * 10f - 0.0001f);
+            // Quantize once, then derive both the cache key and the text from that one value, so the result never
+            // depends on which call filled the cache. A cooldown redraws every frame and must not allocate each time.
+            int tenths = seconds >= 10f ? 0 : Mathf.CeilToInt(seconds * 10f - 0.0001f);
+            int whole = seconds >= 10f ? Mathf.CeilToInt(seconds - 0.0001f) : 0;
+            int key = seconds >= 10f ? 100000 + whole : tenths;
             if (!SecondsText.TryGetValue(key, out string text)) {
-                text = seconds >= 10f ? Mathf.CeilToInt(seconds).ToString() : (Mathf.Ceil(seconds * 10f) / 10f).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+                text = seconds >= 10f ? whole.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    : (tenths / 10) + "." + (tenths % 10);
                 SecondsText[key] = text;
             }
             return text;

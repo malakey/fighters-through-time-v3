@@ -510,6 +510,16 @@ namespace FTT.UI {
                 _ => UIPalette.Res2
             };
             _freezeRemainingText.AddThemeColorOverride("font_color", tint);
+            // The text only changes when the state, the shown tenth / second or the thaw warning does (or the language),
+            // so both strings are rebuilt on that key alone and a steady frame formats nothing.
+            int shown = _timeFreezeState switch {
+                TimeFreezeState.Active => Mathf.CeilToInt(_timeFreezeSeconds * 10f - 0.0001f),
+                TimeFreezeState.Cooldown => Mathf.CeilToInt(_timeFreezeSeconds),
+                _ => 0
+            };
+            int key = ((int)_timeFreezeState << 24) | ((thawWarning ? 1 : 0) << 23) | shown;
+            if (key == _freezeTextKey) return;
+            _freezeTextKey = key;
             string state = _timeFreezeState switch {
                 TimeFreezeState.Ready => Tr("common_ready"),
                 TimeFreezeState.Active => string.Format(Tr("hud_seconds_short"), PulpAbilitySlot.FormatSeconds(_timeFreezeSeconds)),
@@ -527,6 +537,15 @@ namespace FTT.UI {
                 _timeFreezeIndicator.TooltipText = spoken;
                 _timeFreezeIndicator.AccessibilityName = spoken;
             }
+        }
+
+        private int _freezeTextKey = -1;
+
+        /// <summary>The (state, shown time, warning) key the Time Freeze strings were last built for; -1 forces a rebuild. Test surface.</summary>
+        internal int FreezeTextKey => _freezeTextKey;
+
+        public override void _Notification(int what) {
+            if (what == (int)NotificationTranslationChanged) _freezeTextKey = -1;
         }
 
         private void OnAbilitySlotLockChanged(AbilitySlotLockPayload payload) {

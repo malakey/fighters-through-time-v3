@@ -202,6 +202,36 @@ public class StoryHudPulpTests {
     }
 
     [TestCase]
+    public void TheFreezeStringsAreRebuiltOnlyWhenTheShownSecondTheStateOrTheLanguageChanges() {
+        Node host = CreateHost("StoryHudPulpFreezeCacheHost");
+        try {
+            StoryHUD hud = AddHud(host);
+            var freezeText = hud.GetNode<Label>($"{TemporalRow}/TimeFreezeIndicator/FreezeColumn/FreezeRemainingText");
+            EventBus.Instance.RaiseTimeFreezeStateChanged(new TimeFreezePayload { State = TimeFreezeState.Cooldown, SecondsRemaining = 31f });
+            hud._Process(0.001);
+            int key = hud.FreezeTextKey;
+            AssertThat(freezeText.Text.Contains("31")).IsTrue();
+            // Same shown second: nothing is rebuilt, so a sentinel written over the text survives the frame.
+            freezeText.Text = "sentinel";
+            hud._Process(0.001);
+            AssertThat(hud.FreezeTextKey).IsEqual(key);
+            AssertThat(freezeText.Text).IsEqual("sentinel");
+            // The next second rebuilds.
+            hud._Process(1.0);
+            AssertThat(hud.FreezeTextKey == key).IsFalse();
+            AssertThat(freezeText.Text.Contains("30")).IsTrue();
+            // A language change invalidates the key, so the strings are rebuilt in the new language.
+            freezeText.Text = "sentinel";
+            hud.Notification((int)Node.NotificationTranslationChanged);
+            AssertThat(hud.FreezeTextKey).IsEqual(-1);
+            hud._Process(0.001);
+            AssertThat(freezeText.Text.Contains("30")).IsTrue();
+        } finally {
+            host.Free();
+        }
+    }
+
+    [TestCase]
     public void TheTimeToolsShowTheRewindCountTheFreezeStateAndTheBeaconPulpArt() {
         Node host = CreateHost("StoryHudPulpTimeHost");
         int rewinds = StoryManager.Instance?.ChronalRewindsRemaining ?? 0;

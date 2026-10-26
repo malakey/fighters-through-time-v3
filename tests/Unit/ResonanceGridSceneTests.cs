@@ -144,7 +144,7 @@ public class ResonanceGridSceneTests {
         bool closed = false;
         try {
             panel.Closed += () => closed = true;
-            panel.Root.GetNode<Button>(Layout + "CloseButton").EmitSignal(BaseButton.SignalName.Pressed);
+            panel.Root.GetNode<Button>(Layout + "ButtonRow/CloseButton").EmitSignal(BaseButton.SignalName.Pressed);
             AssertThat(closed).IsTrue();
         } finally {
             Teardown(host);

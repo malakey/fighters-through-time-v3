@@ -504,7 +504,7 @@ public class ResonanceLiveApplyTests {
         }
 
         public void Close(ResonanceGridPanel panel) {
-            panel.Root.GetNode<Button>(Layout + "CloseButton").EmitSignal(BaseButton.SignalName.Pressed);
+            panel.Root.GetNode<Button>(Layout + "ButtonRow/CloseButton").EmitSignal(BaseButton.SignalName.Pressed);
             AssertThat(Hero.ProcessMode).IsEqual(Node.ProcessModeEnum.Inherit);
         }
 

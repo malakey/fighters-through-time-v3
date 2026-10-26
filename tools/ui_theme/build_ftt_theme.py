@@ -114,7 +114,7 @@ def kit_tex(stem):
     return _tex_ids[stem]
 
 
-def tbox(prefix, stem, content=None):
+def tbox(prefix, stem, content=None, expand_right=None):
     """A StyleBoxTexture from the UR-ART kit: margins and expand margins come from pulp_kit.json."""
     entry = _KIT[stem]
     p = []
@@ -128,6 +128,8 @@ def tbox(prefix, stem, content=None):
           ("texture_margin_right", float(r)), ("texture_margin_bottom", float(b))]
     if "expand_margins_LTRB" in entry:
         l, t, r, b = entry["expand_margins_LTRB"]
+        if expand_right is not None:
+            r = expand_right
         p += [("expand_margin_left", float(l)), ("expand_margin_top", float(t)),
               ("expand_margin_right", float(r)), ("expand_margin_bottom", float(b))]
     if entry.get("axis_stretch") == "tile":
@@ -358,7 +360,7 @@ def build():
     pv("InkPanel", dark)
     pv("PaperPanel", tbox("Paper", "panel_paper", (22, 18, 28, 28)))
     pv("HudPlatePanel", tbox("Hud", "panel_dark", (26, 20, 32, 30)))
-    pv("DialogueGlassPanel", tbox("Glass", "panel_dark", (28, 20, 34, 30)))
+    pv("DialogueGlassPanel", tbox("Glass", "panel_dark", (30, 34, 34, 28)))
     pv("BannerPanel", tbox("Banner", "banner_select", (64, 8, 70, 10)))
     pv("CoverBannerPanel", tbox("CoverBanner", "banner_cover", (30, 6, 44, 14)))
     pv("PanelTagPlate", tbox("Tag", "tag_panel", (14, 6, 18, 8)))
@@ -382,7 +384,9 @@ def build():
     put("LineEdit/styles/normal", flat("LineN", PLATE, INK3, 2, 0, 0, None, (12, 8, 12, 8)))
     put("LineEdit/styles/focus", flat("LineF", PLATE, ACCENT, 3, 0, 0, None, (12, 8, 12, 8)))
     put("LineEdit/styles/read_only", flat("LineR", DISABLED_FILL, DISABLED_BORDER, 2, 0, 0, None, (12, 8, 12, 8)))
-    track = tbox("Slider", "slider_track", (0, 5, 0, 5))
+    # UR-POLISH: the track's slanted right cap stuck out past the grabber at a high value and read as a stray "7";
+    # ending the track under the grabber's travel limit hides it.
+    track = tbox("Slider", "slider_track", (0, 5, 0, 5), expand_right=-6)
     for t in ("HSlider", "VSlider"):
         put(t + "/styles/slider", track)
         put(t + "/styles/grabber_area", tbox("GrabArea", "slider_fill"))

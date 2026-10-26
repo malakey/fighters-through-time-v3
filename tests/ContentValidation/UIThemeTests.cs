@@ -323,8 +323,17 @@ public class UIThemeTests {
     /// </summary>
     [TestCase]
     public void OwnershipColoursReadTheCombatSlotPaletteAndChromeIsGold() {
-        AssertThat(UIPalette.P1.IsEqualApprox(FTT.Combat.GlowPalette.SlotColor(0))).IsTrue();
-        AssertThat(UIPalette.P2.IsEqualApprox(FTT.Combat.GlowPalette.SlotColor(1))).IsTrue();
+        // Select the default palette explicitly: the developer's own loaded settings may pick Blue / Orange or High Contrast.
+        FTT.Core.GlobalSaveData data = FTT.Core.SaveManager.Instance?.GlobalData;
+        if (data == null) AssertThat("GlobalData is missing").IsEqual("");
+        int savedPalette = data.PlayerSlotPalette;
+        try {
+            data.PlayerSlotPalette = 0;
+            AssertThat(UIPalette.P1.IsEqualApprox(FTT.Combat.GlowPalette.SlotColor(0))).IsTrue();
+            AssertThat(UIPalette.P2.IsEqualApprox(FTT.Combat.GlowPalette.SlotColor(1))).IsTrue();
+        } finally {
+            data.PlayerSlotPalette = savedPalette;
+        }
         AssertThat(UIPalette.Accent.IsEqualApprox(UIPalette.Cyan)).IsFalse();
         AssertThat(UIPalette.TextAccent.IsEqualApprox(UIPalette.Accent)).IsTrue();
         // The grammar is untouched by the redesign.

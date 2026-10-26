@@ -176,8 +176,25 @@ namespace FTT.UI {
             if (_shade != null) {
                 UIPalette.ApplyTheme(_shade);
                 _shade.Color = BackdropColor;
+                AddHintBand();
             }
         }
+
+        /// <summary>
+        /// UR-POLISH. The skip hint sat over the scrolling text. It now has its own opaque band along the bottom edge,
+        /// above the roll and under the hint, so the roll ends at the band and the hint is always legible.
+        /// </summary>
+        private void AddHintBand() {
+            if (_shade.GetNodeOrNull("HintBand") != null) return;
+            var band = new ColorRect { Name = "HintBand", Color = BackdropColor, MouseFilter = Control.MouseFilterEnum.Ignore };
+            band.SetAnchorsPreset(Control.LayoutPreset.BottomWide);
+            band.OffsetTop = -HintBandHeight;
+            band.OffsetBottom = 0f;
+            _shade.AddChild(band);
+            if (_skipHint != null && _skipHint.GetParent() == _shade) _shade.MoveChild(band, _skipHint.GetIndex());
+        }
+
+        private const float HintBandHeight = 96f;
 
         private void BuildFallbackUI() {
             _shade = new ColorRect { Name = "Shade", Color = BackdropColor };
