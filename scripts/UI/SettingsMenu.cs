@@ -452,16 +452,17 @@ namespace FTT.UI {
 
                 var label = new Label {
                     Text = ActionLabel(action),
-                    CustomMinimumSize = new Vector2(260, 0)
+                    CustomMinimumSize = new Vector2(LabelColumnWidth, 0),
+                    ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis
                 };
                 row.AddChild(label);
 
-                var keyboardSlot = new Button { CustomMinimumSize = new Vector2(200, 42) };
+                var keyboardSlot = NewSlotButton(KeyboardColumnWidth);
                 keyboardSlot.Pressed += () => BeginListening(capturedAction, InputDeviceKind.Keyboard);
                 row.AddChild(keyboardSlot);
                 _keyboardSlots[action] = keyboardSlot;
 
-                var joypadSlot = new Button { CustomMinimumSize = new Vector2(200, 42) };
+                var joypadSlot = NewSlotButton(PadColumnWidth);
                 joypadSlot.Pressed += () => BeginListening(capturedAction, InputDeviceKind.Joypad);
                 row.AddChild(joypadSlot);
                 _joypadSlots[action] = joypadSlot;
@@ -470,14 +471,14 @@ namespace FTT.UI {
                 // override, inherit the default". Without a control for it the
                 // player could never reach the state the save format now stores.
                 var unbind = new Button {
-                    Text = Tr("controls_unbind"), CustomMinimumSize = new Vector2(110, 42)
+                    Text = Tr("controls_unbind"), CustomMinimumSize = new Vector2(UnbindColumnWidth, 42)
                 };
                 unbind.Pressed += () => UnbindSlot(capturedAction, InputDeviceKind.Keyboard);
                 row.AddChild(unbind);
                 _unbindButtons[action] = unbind;
 
                 var reset = new Button {
-                    Text = Tr("controls_reset_action"), CustomMinimumSize = new Vector2(110, 42)
+                    Text = Tr("controls_reset_action"), CustomMinimumSize = new Vector2(ResetColumnWidth, 42)
                 };
                 reset.Pressed += () => ResetSingleAction(capturedAction);
                 row.AddChild(reset);
@@ -489,6 +490,15 @@ namespace FTT.UI {
 
             RefreshBindingLabels();
         }
+
+        // The Controls table's column widths: fixed, so a long binding ("Pad Axis 0-, Pad Button 13") clips with an
+        // ellipsis (its tooltip carries the whole text) instead of pushing its row's other columns out of line.
+        internal const float LabelColumnWidth = 300f, KeyboardColumnWidth = 260f, PadColumnWidth = 340f, UnbindColumnWidth = 140f, ResetColumnWidth = 140f;
+
+        private static Button NewSlotButton(float width) => new Button {
+            CustomMinimumSize = new Vector2(width, 42), SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin,
+            ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis
+        };
 
         /// <summary>
         /// C01c's preset shortcuts. Their action recipes are FIXED — there is no
@@ -580,9 +590,11 @@ namespace FTT.UI {
                 IReadOnlyList<InputBindingEvent> events = _workingBindings.For(action);
                 if (_keyboardSlots.TryGetValue(action, out Button keyboardSlot) && IsInstanceValid(keyboardSlot)) {
                     keyboardSlot.Text = DescribeSlot(events, InputDeviceKind.Keyboard);
+                    keyboardSlot.TooltipText = keyboardSlot.Text;
                 }
                 if (_joypadSlots.TryGetValue(action, out Button joypadSlot) && IsInstanceValid(joypadSlot)) {
                     joypadSlot.Text = DescribeSlot(events, InputDeviceKind.Joypad);
+                    joypadSlot.TooltipText = joypadSlot.Text;
                 }
             }
         }

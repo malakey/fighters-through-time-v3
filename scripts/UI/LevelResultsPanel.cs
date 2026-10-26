@@ -178,7 +178,7 @@ namespace FTT.UI {
         public void ShowResults(string levelTitleKey, int dustEarned, float completionSeconds, int rewindsUsed) {
             // UR-SCREENS: the level's name rides the panel tag, the title is the stamp.
             if (_titleLabel != null) _titleLabel.Text = Tr("results_level_complete");
-            if (_panel != null) PulpScreenKit.AddTag(_panel, levelTitleKey);
+            if (_panel != null) PulpScreenKit.AddTag(_panel, PulpScreenKit.ShortTitle(Tr(levelTitleKey)));
             if (_dustLabel != null) _dustLabel.Text = string.Format(Tr("results_dust_earned"), dustEarned);
             SetLineVisible(_dustMobsLabel, false);
             SetLineVisible(_dustExtractorsLabel, false);

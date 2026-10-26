@@ -17,7 +17,7 @@ namespace FTT.Diagnostics {
 
         private static void FillLevelResults(Node node) {
             if (node is LevelResultsPanel panel) {
-                panel.ShowResults("campaign_level_02", 140, 60, 25, 30, 20, 40, 15, 612f, 2);
+                panel.ShowResults("gettysburg_level_title", 140, 60, 25, 30, 20, 40, 15, 612f, 2);
             }
         }
 

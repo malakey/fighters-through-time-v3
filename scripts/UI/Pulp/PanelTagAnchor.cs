@@ -36,7 +36,9 @@ namespace FTT.UI {
             if (GetParent() is PanelContainer panel && panel.GetThemeStylebox("panel") is StyleBox style) {
                 contentOrigin = style.GetOffset();
             }
-            PulpTagPlate.Place(_tag, PulpScreenKit.TagFromPanelCorner - contentOrigin);
+            float maxRight = float.PositiveInfinity;
+            if (GetParent() is PanelContainer host) maxRight = host.Size.X - contentOrigin.X - PulpTagPlate.RightMargin;
+            PulpTagPlate.Place(_tag, PulpScreenKit.TagFromPanelCorner - contentOrigin, maxRight);
         }
     }
 }
