@@ -32,6 +32,17 @@ namespace FTT.UI.Pulp {
         private bool _hasSavedNormal, _hasSavedHover;
         private StyleBox _savedNormal, _savedHover;
         private readonly Dictionary<string, Color?> _savedColors = new();
+        private bool _uppercase = true;
+        private bool _glyphsHidden;
+        private readonly Dictionary<string, (Color Color, bool HadOverride)> _original = new();
+        private LabelLayer _labelLayer;
+        private string _lastText = "";
+        private float _lastWidth;
+
+        private static readonly string[] HideSlots = {
+            "font_color", "font_hover_color", "font_focus_color", "font_pressed_color", "font_hover_pressed_color",
+            "font_disabled_color", "font_outline_color"
+        };
 
         private static readonly string[] FontColorSlots = {
             "font_color", "font_hover_color", "font_focus_color", "font_pressed_color", "font_hover_pressed_color"
@@ -44,6 +55,41 @@ namespace FTT.UI.Pulp {
         /// <summary>The device family the badge currently shows.</summary>
         public PromptDevice BadgeDevice => _badgeDevice;
         public Button Button => _button;
+
+        /// <summary>True while the decor draws the upper-cased label and hides the button's own glyphs.</summary>
+        public bool Uppercase {
+            get => _uppercase;
+            set {
+                if (_uppercase == value) return;
+                _uppercase = value;
+                if (_button != null && _button.IsInsideTree()) ApplyGlyphHiding();
+                Refresh();
+            }
+        }
+
+        /// <summary>The string the decor draws: the translated button text, upper-cased for the current locale.</summary>
+        public string DrawnText => _button == null ? "" : ToDrawnText(_button.Tr(_button.Text));
+
+        /// <summary>The colour the label draws in right now (ink-dark when selected, else the theme colour of the state).</summary>
+        public Color CurrentLabelColor => LabelColorNow();
+
+        /// <summary>The right limit (from the button's left) the label may reach: the right content margin, or the badge's room on the focused row.</summary>
+        public float LabelRightLimit => LabelLimit();
+
+        /// <summary>Which theme colour slot the label uses for a state (disabled, pressed, hover, focus, normal); selected is handled apart.</summary>
+        public static string LabelColorSlot(bool disabled, BaseButton.DrawMode mode, bool focused) {
+            if (disabled) return "font_disabled_color";
+            return mode switch {
+                BaseButton.DrawMode.Pressed => "font_pressed_color",
+                BaseButton.DrawMode.HoverPressed => "font_hover_pressed_color",
+                BaseButton.DrawMode.Hover => "font_hover_color",
+                _ => focused ? "font_focus_color" : "font_color"
+            };
+        }
+
+        /// <summary>Upper-cases <paramref name="text"/> through the text server for the current locale.</summary>
+        public static string ToDrawnText(string text) =>
+            TextServerManager.GetPrimaryInterface().StringToUpper(text ?? "", TranslationServer.GetLocale());
 
         /// <summary>True while the paper selected plate is shown. In ToggleMode it follows <c>ButtonPressed</c>.</summary>
         public bool Selected {
@@ -58,13 +104,15 @@ namespace FTT.UI.Pulp {
 
         /// <summary>
         /// Decorates <paramref name="button"/>; a second call returns the decor already on it. <paramref name="alignLeft"/>
-        /// left-aligns the label (the spec puts it at x + 64) so screens need not.
+        /// left-aligns the label (the spec puts it at x + 64) so screens need not. <paramref name="uppercase"/> (the
+        /// spec renders banner labels upper-case) hides the button's own glyphs and draws the translated label
+        /// upper-cased in the decor; <c>Button.Text</c> stays the raw translation key.
         /// </summary>
-        public static PulpButtonDecor Apply(Button button, bool compact = false, bool alignLeft = true) {
+        public static PulpButtonDecor Apply(Button button, bool compact = false, bool alignLeft = true, bool uppercase = true) {
             foreach (Node child in button.GetChildren()) {
                 if (child is PulpButtonDecor existing) return existing;
             }
-            var decor = new PulpButtonDecor { Name = "PulpButtonDecor", _button = button, _compact = compact };
+            var decor = new PulpButtonDecor { Name = "PulpButtonDecor", _button = button, _compact = compact, _uppercase = uppercase };
             if (alignLeft) button.Alignment = HorizontalAlignment.Left;
             decor.Build();
             button.AddChild(decor);
@@ -98,6 +146,10 @@ namespace FTT.UI.Pulp {
 
             _marker = new PulpIcon { Name = "Marker", IconName = "marker", Tint = UIPalette.Ink3 };
             _button.AddChild(_marker);
+            _labelLayer = new LabelLayer(this) { Name = "UpperLabel", MouseFilter = Control.MouseFilterEnum.Ignore };
+            _labelLayer.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+            _button.AddChild(_labelLayer);
+            _button.MoveChild(_labelLayer, 0);
             _badge = new Control { Name = "PromptBadge", MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
             _button.AddChild(_badge);
 
@@ -142,7 +194,12 @@ namespace FTT.UI.Pulp {
 
         public override void _Process(double delta) {
             // The Disabled flag has no signal: poll it, and re-check the cheap state only when it moved.
-            if (_button != null && _lastDisabled != _button.Disabled) Refresh();
+            if (_button == null) return;
+            if (_lastDisabled != _button.Disabled || _lastText != _button.Text || _lastWidth != _button.Size.X) {
+                _lastText = _button.Text;
+                _lastWidth = _button.Size.X;
+                Refresh();
+            }
         }
 
         private bool _lastDisabled;
@@ -159,6 +216,8 @@ namespace FTT.UI.Pulp {
         public void Refresh() {
             if (_button == null || !GodotObject.IsInstanceValid(_button) || _marker == null) return;
             _lastDisabled = _button.Disabled;
+            if (_button.IsInsideTree() && !_glyphsHidden && _uppercase) ApplyGlyphHiding();
+            _labelLayer?.QueueRedraw();
             BaseButton.DrawMode mode = _button.GetDrawMode();
             bool held = mode is BaseButton.DrawMode.Pressed or BaseButton.DrawMode.HoverPressed
                 && !_button.ToggleMode;
@@ -214,6 +273,151 @@ namespace FTT.UI.Pulp {
             }
         }
 
+        public override void _Notification(int what) {
+            if (what == NotificationPredelete && _glyphsHidden && _button != null && GodotObject.IsInstanceValid(_button)) RestoreGlyphs();
+        }
+
+        // ---- the upper-case label ----
+
+        private void ApplyGlyphHiding() {
+            if (_button == null) return;
+            if (!_uppercase) {
+                if (_glyphsHidden) RestoreGlyphs();
+                return;
+            }
+            // Idempotent and re-entrancy proof: the flag is raised before the first override is written, because
+            // an override raises the button's theme notification, which can reach Refresh again. The saved
+            // colours are only ever read from the theme, never from an override this decor set.
+            if (_glyphsHidden) return;
+            _glyphsHidden = true;
+            _original.Clear();
+            foreach (string slot in HideSlots) {
+                bool had = _button.HasThemeColorOverride(slot);
+                _original[slot] = (_button.GetThemeColor(slot), had);
+            }
+            foreach (string slot in HideSlots) _button.AddThemeColorOverride(slot, Colors.Transparent);
+            _labelLayer?.QueueRedraw();
+        }
+
+        private void RestoreGlyphs() {
+            foreach (var pair in _original) {
+                if (pair.Value.HadOverride) _button.AddThemeColorOverride(pair.Key, pair.Value.Color);
+                else _button.RemoveThemeColorOverride(pair.Key);
+            }
+            _original.Clear();
+            _glyphsHidden = false;
+            _labelLayer?.QueueRedraw();
+        }
+
+        private Color OriginalColor(string slot) =>
+            _original.TryGetValue(slot, out var entry) ? entry.Color : _button.GetThemeColor(slot);
+
+        private Color LabelColorNow() {
+            if (_selected) return UIPalette.LabelDark;
+            string slot = LabelColorSlot(_button.Disabled, _button.GetDrawMode(), _button.HasFocus());
+            return OriginalColor(slot);
+        }
+
+        private TextParagraph BuildParagraph(string text, float width) {
+            var paragraph = new TextParagraph();
+            paragraph.AddString(text, _button.GetThemeFont("font"), _button.GetThemeFontSize("font_size"));
+            paragraph.Width = width;
+            paragraph.Alignment = _button.Alignment;
+            paragraph.BreakFlags = TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound;
+            return paragraph;
+        }
+
+        /// <summary>How many lines the whole upper-cased label wraps to inside <see cref="LabelAvailableWidth"/> (before any ellipsis).</summary>
+        public int WrappedLineCount => BuildParagraph(DrawnText, LabelAvailableWidth).GetLineCount();
+
+        /// <summary>The widest wrapped line, in pixels; never wider than <see cref="LabelAvailableWidth"/> unless one word is.</summary>
+        public float WidestWrappedLine {
+            get {
+                TextParagraph paragraph = BuildParagraph(DrawnText, LabelAvailableWidth);
+                float widest = 0f;
+                for (int i = 0; i < paragraph.GetLineCount(); i++) widest = Mathf.Max(widest, paragraph.GetLineWidth(i));
+                return widest;
+            }
+        }
+
+        private float LabelLeft() {
+            float left = _button.GetThemeStylebox("normal")?.GetContentMargin(Side.Left) ?? 0f;
+            Texture2D icon = _button.Icon;
+            if (icon != null) left += icon.GetWidth() + _button.GetThemeConstant("h_separation");
+            return left;
+        }
+
+        /// <summary>The width the label may use: from the left content margin (and icon) to <see cref="LabelRightLimit"/>.</summary>
+        public float LabelAvailableWidth => Mathf.Max(1f, LabelLimit() - LabelLeft());
+
+        /// <summary>The width the whole upper-cased label would take on one line, in the button's own font and size.</summary>
+        public float DrawnTextWidth {
+            get {
+                var line = new TextLine();
+                line.AddString(DrawnText, _button.GetThemeFont("font"), _button.GetThemeFontSize("font_size"));
+                return line.GetSize().X;
+            }
+        }
+
+        private float LabelLimit() {
+            float right = _button.GetThemeStylebox("normal")?.GetContentMargin(Side.Right) ?? 0f;
+            if (_badge != null && _badge.Visible) {
+                right = Mathf.Max(right, _button.Size.X - _badge.Position.X + 6f);
+            }
+            return _button.Size.X - right;
+        }
+
+        private partial class LabelLayer : Control {
+            private readonly PulpButtonDecor _owner;
+            public LabelLayer(PulpButtonDecor owner) { _owner = owner; }
+
+            public override void _Notification(int what) {
+                if (what == NotificationThemeChanged || what == NotificationTranslationChanged) QueueRedraw();
+            }
+
+            public override void _Draw() {
+                Button button = _owner._button;
+                if (button == null || !_owner._uppercase || !_owner._glyphsHidden || string.IsNullOrEmpty(button.Text)) return;
+                string text = _owner.DrawnText;
+                Font font = button.GetThemeFont("font");
+                int fontSize = button.GetThemeFontSize("font_size");
+                StyleBox box = button.GetThemeStylebox("normal");
+                float left = _owner.LabelLeft();
+                float top = box?.GetContentMargin(Side.Top) ?? 0f;
+                float bottom = box?.GetContentMargin(Side.Bottom) ?? 0f;
+                float limit = _owner.LabelLimit();
+                float width = Mathf.Max(1f, limit - left);
+                float availHeight = button.Size.Y - top - bottom;
+                Color color = _owner.LabelColorNow();
+                Color outlineColor = _owner.OriginalColor("font_outline_color");
+                int outline = button.GetThemeConstant("outline_size");
+                Rid canvas = GetCanvasItem();
+                bool multi = button.AutowrapMode != TextServer.AutowrapMode.Off || text.Contains('\n');
+                if (multi) {
+                    TextParagraph paragraph = _owner.BuildParagraph(text, width);
+                    float lineHeight = Mathf.Max(1f, paragraph.GetLineSize(0).Y);
+                    int maxLines = Mathf.Max(1, Mathf.FloorToInt((availHeight + 1f) / lineHeight));
+                    if (paragraph.GetLineCount() > maxLines) {
+                        paragraph.MaxLinesVisible = maxLines;
+                        paragraph.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+                    }
+                    float height = Mathf.Min(paragraph.GetSize().Y, availHeight + 1f);
+                    Vector2 pos = new(left, top + (availHeight - height) / 2f);
+                    if (outline > 0 && outlineColor.A > 0f) paragraph.DrawOutline(canvas, pos, outline, outlineColor);
+                    paragraph.Draw(canvas, pos, color);
+                } else {
+                    var line = new TextLine();
+                    line.AddString(text, font, fontSize);
+                    line.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+                    line.Width = width;
+                    line.Alignment = button.Alignment;
+                    Vector2 pos = new(left, top + (availHeight - line.GetSize().Y) / 2f);
+                    if (outline > 0 && outlineColor.A > 0f) line.DrawOutline(canvas, pos, outline, outlineColor);
+                    line.Draw(canvas, pos, color);
+                }
+            }
+        }
+
         // ---- the selected (paper) look ----
 
         private void ApplySelectedLook() {
@@ -229,9 +433,11 @@ namespace FTT.UI.Pulp {
                     _button.AddThemeStyleboxOverride("hover", plate);
                 }
                 _savedColors.Clear();
-                foreach (string slot in FontColorSlots) {
-                    _savedColors[slot] = _button.HasThemeColorOverride(slot) ? _button.GetThemeColor(slot) : null;
-                    _button.AddThemeColorOverride(slot, UIPalette.LabelDark);
+                if (!_uppercase) {
+                    foreach (string slot in FontColorSlots) {
+                        _savedColors[slot] = _button.HasThemeColorOverride(slot) ? _button.GetThemeColor(slot) : null;
+                        _button.AddThemeColorOverride(slot, UIPalette.LabelDark);
+                    }
                 }
             } else {
                 Restore("normal", _hasSavedNormal, _savedNormal);

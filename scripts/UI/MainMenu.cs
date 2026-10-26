@@ -532,6 +532,8 @@ namespace FTT.UI {
                 _slotButtons[slot].Text = save == null
                     ? string.Format(Tr("save_slot_empty"), slot + 1)
                     : SaveSlotSummary(slot, save);
+                // A saved slot shows up to four upper-case lines (a long first line wraps); an empty one is one line.
+                _slotButtons[slot].CustomMinimumSize = new Vector2(_slotButtons[slot].CustomMinimumSize.X, save == null ? 96f : 168f);
                 _deleteButtons[slot].Visible = save != null;
             }
         }
