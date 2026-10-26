@@ -17,7 +17,7 @@ Use distinct status glyphs plus localized names in the existing reference UI; co
 
 ## Fighter ability cooldowns — M25 (2026-09-26)
 
-Each Fighter player shows four `20 × 20 px` cooldown icons (Special 1, Special 2, Movement Ability, Echo Step) in a row beside their block charges, P2 mirrored. Radial timers and a brief ready flash come from authoritative cooldown state, including Resonance Momentum refunds and rollback corrections; Echo Step also dims below 30 meter. Both players' icons are always visible. Icons use distinct glyphs, so readiness never depends on color alone.
+Each Fighter player shows three `20 × 20 px` cooldown icons (Special 1, Special 2, Movement Ability) in a row beside their block charges, P2 mirrored. Radial timers and a brief ready flash come from authoritative cooldown state, including Resonance Momentum refunds and rollback corrections. Both players' icons are always visible. Icons use distinct glyphs, so readiness never depends on color alone.
 
 ## Beacon anchors — M15 (2026-09-26)
 
@@ -47,7 +47,7 @@ Keep each actor's visual state isolated. Initialize ownership on spawn/slot assi
 
 ## Reduced Temporal Effects — C01a
 
-The [comfort preset](COMFORT_SETTINGS.md) replaces decorative distortion, repeated after-images, full-screen flashes and heavy desaturation/pulsing with stable cues. Preserve the P1/P2 ownership edge, both status glyphs/radials, attack-class signatures, hazard footprints, clocks and the single fixed Echo Step target. Armor/spawn/Defy feedback becomes steady secondary glow with a smooth expiry fade; the Defy seal stays broken. No preset toggle changes authoritative timers or replays an effect. Screen Shake, HUD opacity and UI scale remain independent; validate small displays and long localized labels under both presentations.
+The [comfort preset](COMFORT_SETTINGS.md) replaces decorative distortion, repeated after-images, full-screen flashes and heavy desaturation/pulsing with stable cues. Preserve the P1/P2 ownership edge, both status glyphs/radials, attack-class signatures, hazard footprints, clocks. Armor/spawn/Defy feedback becomes steady secondary glow with a smooth expiry fade; the Defy seal stays broken. No preset toggle changes authoritative timers or replays an effect. Screen Shake, HUD opacity and UI scale remain independent; validate small displays and long localized labels under both presentations.
 
 ## Acceptance checks
 
@@ -56,3 +56,5 @@ Check Story with zero/one/two statuses, either slot expiring or being overwritte
 Check both Fighter slots and mirrored characters with both statuses, armor, spawn protection, flashes and persistent objects active. P1/P2 ownership must remain distinguishable when effects start, overlap and expire, including rollback and Sudden Death. Test both damage/control icons simultaneously and their fixed positions.
 
 Review bright/dark backgrounds, supported color/contrast options, reduced-effects settings where available, HUD opacity, 90%–140% UI scale, long localized labels and small displays. Validate readability, per-actor material isolation and rendering budgets in the actual game. These checks remain pending; documentation consistency is not visual or runtime sign-off.
+
+**Feel and UI update (2026-10-25).** The M25 cooldown row is three radials (Special 1, Special 2, Movement Ability) per player, P2 mirrored: Echo Step was removed from both modes, with its fourth radial and its under-30-meter dim. The Story HUD's authored encounter-lock panel (`SafeArea/EncounterLockPanel`: the "Enemies left" count and the 3 s GO prompt), which the 2026-10-12 gameplay update added and this contract never named, was removed on the user's request (ruling R4); no amendment for it is owed. A lock's objective line is unchanged. A successful block now also plays a code-drawn effect at the blocker's front (presentation only, outside the HUD layers and outside the ownership edge).
