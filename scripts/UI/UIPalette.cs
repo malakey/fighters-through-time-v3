@@ -19,7 +19,7 @@ namespace FTT.UI {
     /// constant here only for the things a Theme cannot express — a
     /// <see cref="ColorRect"/> fill, a runtime tint, a drawn overlay.
     /// </summary>
-    public static class UIPalette {
+    public static partial class UIPalette {
 
         /// <summary>The shared Theme every UI root should adopt.</summary>
         public const string ThemePath = "res://resources/UI/ftt_theme.tres";
@@ -147,28 +147,124 @@ namespace FTT.UI {
         /// </summary>
         public static readonly Color WardenPortal = new(0.98f, 0.84f, 0.38f, 0.85f);
 
-        // ---- Derived control colours (what the Theme actually paints) --------
+        // ---- Pulp tokens (PAL-B "Resonance Gold", UI redesign 2026-10-26) ------
+        //
+        // UI_SPEC section 1 resolved to constants. The chrome accent is gold;
+        // cyan stays the Player-1 ownership colour and the Severed's cold light
+        // (UnboundCold, above) and is no longer the chrome. There is no
+        // "pulp red" token (orchestrator ruling Q1): functional damage cues use
+        // Danger. Colours are written as byte triples so they read as the
+        // spec's hex values; UIThemeTests pins the authored theme to them.
 
-        public static readonly Color PanelBackground = new(0.06f, 0.06f, 0.12f, 0.94f);
-        public static readonly Color PanelBorder = new(0f, 0.55f, 0.6f, 0.9f);
+        private static Color Hex(int r, int g, int b, float a = 1f) => new(r / 255f, g / 255f, b / 255f, a);
 
-        public static readonly Color ButtonNormal = new(0.1f, 0.12f, 0.2f, 0.95f);
-        public static readonly Color ButtonHover = new(0.14f, 0.2f, 0.3f, 0.98f);
-        public static readonly Color ButtonPressed = new(0f, 0.3f, 0.34f, 1f);
-        public static readonly Color ButtonDisabled = new(0.08f, 0.08f, 0.12f, 0.7f);
+        /// <summary>bg1: the translucent ink plate fill (#090C1E at 0.80).</summary>
+        public static readonly Color PlateFill = Hex(0x09, 0x0C, 0x1E, 0.80f);
+        /// <summary>bg2: raised fill for settings tabs (#1E1C34 at 0.78).</summary>
+        public static readonly Color PlateRaised = Hex(0x1E, 0x1C, 0x34, 0.78f);
+        /// <summary>Screen backdrop under art (#05071A).</summary>
+        public static readonly Color Backdrop = Hex(0x05, 0x07, 0x1A);
+        /// <summary>Text 1 (#F3F0E6).</summary>
+        public static readonly Color Ink = Hex(0xF3, 0xF0, 0xE6);
+        /// <summary>Text 2 (#C0BAA6): captions.</summary>
+        public static readonly Color Ink2 = Hex(0xC0, 0xBA, 0xA6);
+        /// <summary>Text 3 (#8A8374): secondary and dormant, never the only cue.</summary>
+        public static readonly Color Ink3 = Hex(0x8A, 0x83, 0x74);
+        /// <summary>The chrome accent (#F3C95B): focus fill, tags, banners.</summary>
+        public static readonly Color Accent = Hex(0xF3, 0xC9, 0x5B);
+        /// <summary>Accent light (#FFE39A): pressed fill, rewind and Time Freeze tint.</summary>
+        public static readonly Color Accent2 = Hex(0xFF, 0xE3, 0x9A);
+        /// <summary>Resonance gold (#F3C95B): dust, Ultimate ring start.</summary>
+        public static readonly Color Res = Hex(0xF3, 0xC9, 0x5B);
+        /// <summary>Resonance bright (#FFF0B0): Defy ready, objective, full meter.</summary>
+        public static readonly Color Res2 = Hex(0xFF, 0xF0, 0xB0);
+        /// <summary>Ultimate meter start (#F3C95B).</summary>
+        public static readonly Color Meter = Hex(0xF3, 0xC9, 0x5B);
+        /// <summary>Ultimate meter end and the Fighter meter fill (#FFB347).</summary>
+        public static readonly Color Meter2 = Hex(0xFF, 0xB3, 0x47);
+        /// <summary>HP fill (#8CF0B8).</summary>
+        public static readonly Color Hp = Hex(0x8C, 0xF0, 0xB8);
+        /// <summary>HP damage tracker (#FF5A5A), the delayed underfill.</summary>
+        public static readonly Color HpLag = Hex(0xFF, 0x5A, 0x5A);
+        /// <summary>Rally echo band (#FFF7DA).</summary>
+        public static readonly Color Echo = Hex(0xFF, 0xF7, 0xDA);
+        /// <summary>Block pip (#DFE8FF).</summary>
+        public static readonly Color Shield = Hex(0xDF, 0xE8, 0xFF);
+        /// <summary>Low HP and warnings (#FF5A5A).</summary>
+        public static readonly Color Danger = Hex(0xFF, 0x5A, 0x5A);
+        /// <summary>Boss red (#FF5A5A).</summary>
+        public static readonly Color Boss = Hex(0xFF, 0x5A, 0x5A);
+        /// <summary>Paper (#F3F0E6): panel border, selected button, bubbles.</summary>
+        public static readonly Color Paper = Hex(0xF3, 0xF0, 0xE6);
 
         /// <summary>
-        /// Focus ring colour. Controller and keyboard players navigate entirely
-        /// by this outline, so every focusable control in the theme draws it.
+        /// Player 1 ownership colour. Reads the combat slot palette
+        /// (<see cref="FTT.Combat.GlowPalette.SlotColor"/>) so the two can never drift.
         /// </summary>
-        public static readonly Color FocusOutline = new(0f, 0.9f, 0.9f);
+        public static Color P1 => FTT.Combat.GlowPalette.SlotColor(0);
 
-        public static readonly Color TextPrimary = new(0.7f, 0.75f, 0.85f);
-        public static readonly Color TextAccent = new(0f, 0.9f, 0.9f);
-        public static readonly Color TextDisabled = new(0.4f, 0.42f, 0.5f);
+        /// <summary>Player 2 ownership colour, read from the combat slot palette.</summary>
+        public static Color P2 => FTT.Combat.GlowPalette.SlotColor(1);
+
+        // UI_SPEC 1.2: literals the selected components hard-code.
+        /// <summary>#000000: every ring, border and hard shadow.</summary>
+        public static readonly Color InkBlack = Hex(0, 0, 0);
+        /// <summary>#0C0A10: dark text on gold or paper, card base.</summary>
+        public static readonly Color LabelDark = Hex(0x0C, 0x0A, 0x10);
+        /// <summary>#14101A: paper-panel text 1.</summary>
+        public static readonly Color PaperInk = Hex(0x14, 0x10, 0x1A);
+        /// <summary>#3A3144: paper-panel text 2 (stat labels).</summary>
+        public static readonly Color PaperInk2 = Hex(0x3A, 0x31, 0x44);
+        /// <summary>#6B6150: paper-panel text 3, disabled border.</summary>
+        public static readonly Color PaperInk3 = Hex(0x6B, 0x61, 0x50);
+        /// <summary>#3A3144: empty bar, ring and toggle tracks.</summary>
+        public static readonly Color Track = Hex(0x3A, 0x31, 0x44);
+        /// <summary>#2A2434: ability slot frame fill.</summary>
+        public static readonly Color SlotFrame = Hex(0x2A, 0x24, 0x34);
+        /// <summary>#FFF3D8: prompt text, key circles, hint lines.</summary>
+        public static readonly Color PromptCream = Hex(0xFF, 0xF3, 0xD8);
+        /// <summary>#FF7A5C: damage-over-time status badge.</summary>
+        public static readonly Color StatusDamage = Hex(0xFF, 0x7A, 0x5C);
+        /// <summary>#8FC7FF: control status badge.</summary>
+        public static readonly Color StatusControl = Hex(0x8F, 0xC7, 0xFF);
+        /// <summary>#2C2733: disabled button base stripe.</summary>
+        public static readonly Color DisabledFill = Hex(0x2C, 0x27, 0x33);
+        /// <summary>
+        /// Disabled label (#A0987F). The spec's #7A705A reads 2.97:1 on the disabled
+        /// stripe; this is lifted past 4.5:1 (plan item 14, accessibility).
+        /// </summary>
+        public static readonly Color DisabledLabel = Hex(0xA0, 0x98, 0x7F);
+
+        // ---- Derived control colours (what the Theme actually paints) --------
+
+        public static readonly Color PanelBackground = PlateFill;
+        public static readonly Color PanelBorder = Paper;
+
+        public static readonly Color ButtonNormal = PlateFill;
+        public static readonly Color ButtonHover = Accent;
+        public static readonly Color ButtonPressed = Accent2;
+        public static readonly Color ButtonDisabled = DisabledFill;
+
+        /// <summary>
+        /// Focus ring colour for ring-style focus boxes (line edits, check boxes).
+        /// A button's focus is the filled accent plate instead
+        /// (<see cref="FocusFill"/>). Controller and keyboard players navigate
+        /// entirely by these, so every focusable control in the theme draws one.
+        /// </summary>
+        public static readonly Color FocusOutline = Accent;
+
+        /// <summary>The filled plate a focused or hovered button draws.</summary>
+        public static readonly Color FocusFill = Accent;
+
+        /// <summary>Label colour on a focused, hovered or pressed (accent-filled) button.</summary>
+        public static readonly Color TextOnAccent = LabelDark;
+
+        public static readonly Color TextPrimary = Ink;
+        public static readonly Color TextAccent = Accent;
+        public static readonly Color TextDisabled = DisabledLabel;
 
         /// <summary>Slider and progress-bar troughs.</summary>
-        public static readonly Color TrackBackground = new(0.03f, 0.04f, 0.08f, 0.95f);
+        public static readonly Color TrackBackground = Track;
 
         // ---- Type scale -----------------------------------------------------
         //
@@ -179,11 +275,14 @@ namespace FTT.UI {
         // and freezes that label out of the accessibility UI scale. The constants
         // stay as the C# mirror UIThemeTests pins against the authored theme.
 
-        public const int SmallFontSize = 14;
-        public const int BodyFontSize = 18;
-        public const int HeadingFontSize = 22;
-        public const int EmphasisFontSize = 26;
-        public const int TitleFontSize = 28;
+        public const int SmallFontSize = 18;
+        public const int BodyFontSize = 20;
+        public const int HeadingFontSize = 26;
+        public const int EmphasisFontSize = 30;
+        public const int TitleFontSize = 40;
+
+        /// <summary>No UI label renders below this at 1080p (plan item 14).</summary>
+        public const int MinLabelFontSize = 18;
 
         /// <summary>Label type variation names authored in the shared theme
         /// (ftt_theme.tres), one per type-scale role. The body role is the

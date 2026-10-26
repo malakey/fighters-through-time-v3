@@ -45,25 +45,23 @@ public class DialoguePresentationTests {
             .OverrideFailureMessage("The variation must be based on PanelContainer to apply to the box.")
             .IsEqual("PanelContainer");
 
-        var glass = theme.GetStylebox("panel", DialogueTheme.GlassPanelVariation) as StyleBoxFlat;
+        // Since the pulp kit (UR-THEME step 2) the glass is the kit's ink-panel texture: the border,
+        // shadow and corners are baked into the art, so the contract left is "a translucent plate in
+        // the DialogueTheme fill colour". (UR-PAUSE restyles the box and can retire the other constants.)
+        var glass = theme.GetStylebox("panel", DialogueTheme.GlassPanelVariation) as StyleBoxTexture;
         AssertObject(glass).IsNotNull();
+        Image art = glass.Texture.GetImage();
+        Color centre = art.GetPixel(art.GetWidth() / 2, art.GetHeight() / 2);
 
         // Translucency is the whole point of the treatment: a fully opaque box
-        // is the old panel with rounder corners.
-        AssertThat(glass.BgColor.A < 1f)
-            .OverrideFailureMessage($"The glass fill must be translucent; alpha is {glass.BgColor.A}.")
+        // is a plain panel.
+        AssertThat(centre.A < 1f)
+            .OverrideFailureMessage($"The glass fill must be translucent; alpha is {centre.A}.")
             .IsTrue();
-        AssertThat(glass.BgColor.IsEqualApprox(DialogueTheme.GlassBackground)).IsTrue();
-        AssertThat(glass.BorderColor.IsEqualApprox(DialogueTheme.GlassBorder)).IsTrue();
-        AssertThat(glass.ShadowColor.IsEqualApprox(DialogueTheme.GlassShadow)).IsTrue();
-        AssertThat(glass.ShadowSize).IsEqual(DialogueTheme.GlassShadowSize);
-        AssertThat(glass.CornerRadiusTopLeft).IsEqual(DialogueTheme.GlassCornerRadius);
-        AssertThat(glass.BorderWidthTop).IsEqual(DialogueTheme.GlassBorderWidth);
-
-        // And it must be a heavier read than the utility panel, or the box
-        // would be indistinguishable from a settings dialog.
-        var utility = theme.GetStylebox("panel", "PanelContainer") as StyleBoxFlat;
-        AssertThat(glass.CornerRadiusTopLeft > utility.CornerRadiusTopLeft).IsTrue();
+        AssertThat(Mathf.Abs(centre.R - DialogueTheme.GlassBackground.R) < 0.02f
+            && Mathf.Abs(centre.G - DialogueTheme.GlassBackground.G) < 0.02f
+            && Mathf.Abs(centre.B - DialogueTheme.GlassBackground.B) < 0.02f
+            && Mathf.Abs(centre.A - DialogueTheme.GlassBackground.A) < 0.02f).IsTrue();
     }
 
     [TestCase]
