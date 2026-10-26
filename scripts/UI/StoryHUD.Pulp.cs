@@ -196,7 +196,7 @@ namespace FTT.UI {
             if (_clockWedge != null) {
                 _clockWedge.Pie = true;
                 _clockWedge.TrackColor = UIPalette.PromptCream;
-                _clockWedge.FillColor = UIPalette.Danger;
+                _clockWedge.FillColor = UIPalette.Res;
                 _dialTicks = new IntegrityDialLayer("dial_ticks");
                 _integrityClock.AddChild(_dialTicks);
                 _integrityClock.MoveChild(_dialTicks, _clockWedge.GetIndex() + 1);

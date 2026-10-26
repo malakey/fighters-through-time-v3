@@ -64,3 +64,9 @@ Branch `ur/huds`, from `main` at `22219329`. The Story HUD is rebuilt as the HUD
 - Acceptance at 90 to 140 % UI scale: the clusters stay inside the frame and overlap neither each other nor the boss bar (`StoryHudBoundsTests`).
 
 **`design-godot.md` Story HUD lines** (recon B section 3: `:3371`, `:3375`, `:3516-3528`, the node sketches `:3426-3507`): top-left becomes three tagged panels (Vitals, Abilities, time tools) under the level title; "Ultimate Meter (circular or smaller bar)" becomes the ringed circular slot; Story sizing becomes HP 380 x 30, slots 74 / 92 (ring 116), badges 44 / 46, pips 30, Defy glyph 34, dust glyph 38, dial 112, boss bar 840; the sketches gain the panel nesting above.
+
+## 6. Follow-up: dial wedge colour and the `main` merge
+
+- **Wedge colour (coordinator ruling).** The Integrity wedge is `UIPalette.Res` (gold) by default and `UIPalette.Danger` once `TimelineIntegrityRules.TremorStage(percent) >= 1` (below `TremorStage1Threshold`, 20 %); a frozen gauge still reads slate. The threshold is read from `TimelineIntegrityRules`, not a literal. New case `TheDialWedgeIsGoldAboveTheTremorThresholdAndDangerBelowIt` in `StoryHudPulpTests` (100 / 64 / 20 gold, 19 / 8 danger). Section 4's "the wedge is `Danger`" and the HUD_CONTRACT draft's "`Danger` wedge" now read: gold, `Danger` below 20 %.
+- **Merge.** `main` at `eba201ec` merged into `ur/huds` (`2c612e9a`): the only conflict was `localization/en.csv`; every block kept, no markers. No Fighter HUD test needed a change for `RadialProgress`'s new default fill.
+- **Verification.** `huds_calm` (gold wedge at 64 %) and `huds_140` (red at 18 %) re-captured and looked at. Full run: `Failed: 0, Passed: 3660, Total: 3660` = 3648 + 11 + 1.

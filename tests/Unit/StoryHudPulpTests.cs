@@ -272,6 +272,27 @@ public class StoryHudPulpTests {
     }
 
     [TestCase]
+    public void TheDialWedgeIsGoldAboveTheTremorThresholdAndDangerBelowIt() {
+        Node host = CreateHost("StoryHudPulpWedgeHost");
+        try {
+            StoryHUD hud = AddHud(host);
+            var wedge = hud.GetNode<RadialProgress>("SafeArea/TopRight_Panel/IntegrityClock/ClockWedge");
+            foreach (float percent in new[] { 100f, 64f, 20f }) {
+                EventBus.Instance.RaiseTimelineIntegrityChanged(new IntegrityPayload { Percent = percent, Tier = IntegrityTier.Stabilized });
+                AssertThat(TimelineIntegrityRules.TremorStage(percent)).IsEqual(0);
+                AssertThat(wedge.FillColor).OverrideFailureMessage($"{percent}% reads calm gold").IsEqual(UIPalette.Res);
+            }
+            foreach (float percent in new[] { 19f, 8f }) {
+                EventBus.Instance.RaiseTimelineIntegrityChanged(new IntegrityPayload { Percent = percent, Tier = IntegrityTier.Fractured });
+                AssertThat(TimelineIntegrityRules.TremorStage(percent)).IsGreater(0);
+                AssertThat(wedge.FillColor).OverrideFailureMessage($"{percent}% reads danger").IsEqual(UIPalette.Danger);
+            }
+        } finally {
+            host.Free();
+        }
+    }
+
+    [TestCase]
     public void TheBossBarIsAPulpNameplateWithAPhaseTabAndTheNotchesOnTheDecor() {
         Node host = CreateHost("StoryHudPulpBossHost");
         try {

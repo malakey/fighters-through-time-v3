@@ -439,9 +439,11 @@ namespace FTT.UI {
         /// Otherwise an active siphon reads red and the tier drives the rest.
         /// </summary>
         private Color IntegrityTint() {
-            // UI_SPEC 3.3.4 / ruling 8: the danger wedge is `Danger`; a locked gauge reads slate.
+            // Calm gold while the gauge is healthy; `Danger` once it falls into the Collapse Tremor's first
+            // stage (the threshold is TimelineIntegrityRules', not a literal here); a locked gauge reads slate.
             if (_integrityKnown && _integrity.Frozen) return UIPalette.SlateDim;
-            return UIPalette.Danger;
+            float percent = _integrityKnown ? _integrity.Percent : 100f;
+            return FTT.Core.TimelineIntegrityRules.TremorStage(percent) >= 1 ? UIPalette.Danger : UIPalette.Res;
         }
 
         private void OnTimelineIntegrityChanged(IntegrityPayload payload) {
