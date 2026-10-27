@@ -401,3 +401,174 @@ Temporal Effects, a live match or level, UI scale 1.4 (no theme target scales).
   legacy name `PulpMotion`): a 14 px focus slide, panel fade-rise and fade-sink, the hold-and-drain tracker, a single
   ready bloom and a 0.2 s bg0 dissolve between scenes (`ScreenWipe`)."
 - CLAUDE.md, UI captures: add `compare_capture.py` (the README's "Comparing a capture with the mockups").
+
+## Step 2 (2026-10-27)
+
+`main` at `90167018` (TG-ART merged, 3696) merged into `tg/theme` (`694e9a32`), `--headless --import` run in the worktree
+under the lock, then TG-ART's kit wired into the generator. Commits `eaf31837` (code) and `18e1b477` (a bounds guard in
+the rewritten test); this section in the next commit.
+
+### What shipped
+
+| File | Change |
+|---|---|
+| `tools/ui_theme/build_ftt_theme.py` | Reads `assets/sprites/ui/glass/glass_kit.json`: `glass_tex` (an ExtResource per stem) and `gbox` (a `StyleBoxTexture` with the catalog's texture, 6.4 nine-slice margins, expand margins and tile flag; the content margins are the padding or inset; an optional palette modulate). `slab`, `tag_plate`, `chevron_set`, `field_set` and the new `tab_set` build on it; the slider grabber icons are `glass_slider_grabber` with `center_grabber` 1; new palette entry `DimModulate`. The flat chevron, slab, tag and tab helpers and `CHEVRON_RADIUS` / `SLAB_CHAMFER` are gone; `FIELD_CHAMFER` stays for the tooltip. |
+| `resources/UI/ftt_theme.tres`, `scripts/UI/UIPalette.Roles.cs` | Regenerated: 38 ext (15 glass textures), 115 sub-resources, 735 items, 66 roles, 83 palette entries. |
+| `scripts/UI/UIPalette.cs` | New `GlassFillMid` (the fill `glass_panel` bakes at its centre, the midpoint of the 160 degree build gradient) and `DimModulate`; `PanelBackground` = `GlassFillMid` (was `GlassFillFlat`); `ButtonHover` and `FocusFill` = `ButtonFill` (were `ButtonFillFocus`); `TrackBackground` = the pulp `Track` again (ruling 3; was `TubeTrackTop`). |
+| `tools/ui_theme/README.md` | The styles paragraph describes the nine-slice wiring. |
+| Tests, in place | `UIThemeTests.AuthoredColoursMatchTheUIPaletteConstants`, `DialoguePresentationTests.TheSharedThemeCarriesTheDialogueGlassVariation` (below). |
+
+### Wiring (`glass_kit.json` to the theme)
+
+| Kit texture (size; nine-slice L/T/R/B; expand) | Theme entries |
+|---|---|
+| `glass_panel` (140 x 140; 42/28/42/56; 22/8/22/36) | `Panel`, `PanelContainer`, `InkPanel`, `HudPlatePanel` (padding 22 / 28 / 22), `DialogueGlassPanel` (22 / 26 / 22), the eight 3.1 presets (their paddings), `PopupPanel` and `PopupMenu` (8) |
+| `glass_tag` (40 x 24; 3/0/9/0) | `PanelTagPlate`, `HintLinePlate` (the credits hint), content 14 / 3 / 14 / 3 |
+| `glass_btn_normal` (96 x 70; 2/2/32/2) | the three chevrons' `normal` and `hover` (one sub-resource, ruling 2) |
+| `glass_btn_pressed` | `pressed`, `hover_pressed` |
+| `glass_btn_disabled` (104 x 70; tile) | `disabled` |
+| `glass_btn_focus` (124 x 98; 16/16/46/16; 14) | `focus` (the overlay) |
+| `glass_btn_selected` | `selected` (swapped in by the decor) |
+| `glass_field` (48 x 44; 10) | `normal`, `pressed`, `hover_pressed` and (at `DimModulate`) `disabled` of the default `Button`, `OptionButton` and `GlassField`; `LineEdit` `normal` and (at `DimModulate`) `read_only`, which the spin box's field inherits |
+| `glass_field_hover` (76 x 72; 24; 14) | `hover` of `Button`, `OptionButton`, `GlassField` (ruling 2) |
+| `glass_field_focus` (76 x 72; 24; 14) | `focus` of `Button`, `OptionButton`, `GlassField`, `LineEdit` |
+| `glass_tab` (64 x 48; 1/0/17/0) | `GlassTab` `normal` and (at `DimModulate`) `disabled`; `TabContainer` `tab_unselected` / `tab_disabled` |
+| `glass_tab_hover` (92 x 76; 15/14/31/14; 14) | `GlassTab` `hover`, `TabContainer` `tab_hovered` (ruling 2) |
+| `glass_tab_selected` | `GlassTab` `pressed` / `hover_pressed`, every `GlassTabSelected` state, `TabContainer` `tab_selected` |
+| `glass_tab_focus` (92 x 76; 15/14/31/14; 14) | `GlassTab` / `GlassTabSelected` `focus`, `TabContainer` `tab_focus` |
+| `glass_slider_grabber` (64 x 64, icon) | `HSlider` / `VSlider` `grabber`, `grabber_highlight`, `grabber_disabled`; `center_grabber` 1 |
+
+Stays as step 1 built it (a `StyleBoxFlat`, 6.2's form; the separators a `StyleBoxLine`): the READY badges, the scrim,
+the slider track and fill, the scroll bars, the check box ring, the tooltip, the spin box button backgrounds, the
+separators and the tab container's inner panel. The
+five HUD bars keep their pulp tracks and fills (ruling 1); the pulp-only plates are unchanged.
+
+### Rulings applied
+
+1. **HUD bars:** untouched.
+2. **Hover:** a chevron's `hover` is its `normal` sub-resource (`UIThemeTests` checks it is the same box), so a hovered
+   chevron draws exactly what a focused one does once the decor takes focus on mouse-enter. `glass_btn_hover` stays in
+   the kit, wired to nothing. Fields and tabs hover with `glass_field_hover` / `glass_tab_hover`.
+3. **`TrackBackground`:** the pulp `Track` (#3A3144) again, so `RadialProgress`'s default remainder (the world-space
+   Restoration Font and Resonance Hold rings) is unchanged; the tube's tracks stay `TubeTrackTop` / `TubeTrackBottom`.
+4. **TG-ART's choices** (the `glass_ico_*` prefix, the P5 focus split, the Vitals gradient layout, the disabled haze):
+   taken as built. `chevron_down` is not wired (deviation 1).
+
+### Deviations and agent choices (step 2)
+
+1. **The `OptionButton` arrow is still Godot's default.** `glass_ico_chevron_down_bold` is a 64 x 64 canvas (the
+   glyph with its baked glow), and an `OptionButton` draws its `arrow` icon at the texture's own size (no theme constant
+   scales it), so wiring it would draw a 64 px chevron. It needs an 18 px raster from TG-ART, or TG-WIDGETS' field decor
+   draws the arrow. **For the orchestrator** (below).
+2. **A slider is now 64 px tall.** A `Slider`'s minimum height is its grabber icon's, and the glass grabber's canvas is
+   64 px (the 31.7 px diamond, its ring and its 16 px glow). The Settings sliders' scene minimum is 44 px, so each
+   slider row grows from 44 to 64 px (Audio: four rows, +80 px; everything still fits, and the UI filter's layout cases
+   pass at 1.0 and 1.4). `center_grabber` makes the diamond's centre travel the whole track (the mock's handle sits at
+   x = v %); at 100 % the diamond overhangs the track's end by about half its width and covers the slanted cap. A
+   tighter canvas from TG-ART would bring the rows back.
+3. **Disabled fields and tabs** are `glass_field` / `glass_tab` at `DimModulate` (white at .50; agent choice, a new
+   palette entry and constant): the kit has no disabled field or tab. `LineEdit` `read_only` the same.
+4. **A pressed field is the field itself:** there is no pressed field texture; under its focus overlay a pressed field
+   reads as the focused field.
+5. **A hovered tab reads as selected:** `glass_tab_hover` is the selected gold plus the glow (TG-ART 2.1), so its text
+   turns `TabSelectedInk` to stay legible (`GlassTab` `font_hover_color` and the `TabContainer`'s `font_hovered_color`,
+   both `Ink` before). An unselected tab under the mouse looks selected until the mouse leaves.
+6. **A field hovered and focused** draws the hover box (lit edge and glow) under the focus overlay (lit edge and glow):
+   a doubled glow (TG-ART 2.1 noted it). Fields have no decor to take focus on hover.
+7. **The tooltip stays a small flat slab:** `glass_panel` needs 84 px of height for its top and bottom slices against a
+   tooltip's 36 to 40, so its corners would overlap.
+8. **Popups** draw `glass_panel` at padding 8 with its baked shadow; whether the popup window clips the shadow outside
+   its rect was not seen (no capture opens a popup). The slab's edge sits on the popup's rect either way.
+9. **Step 1's deviations 2, 4 and 5 are resolved by the art:** the focus overlay now carries the focus wash (AC8 by
+   ruling 2), the chevron tip has the nine-slice's exact run, and the tag and tabs have their real slants (tabs measure
+   48 px in `theme_controls`).
+
+### Test delta
+
+No count change in step 2: 3698 = `main` 3696 + TG-THEME's +2 (the `[TestCase]` count in the worktree is 3698).
+
+- `UIThemeTests.AuthoredColoursMatchTheUIPaletteConstants`: the texture branches. A nine-slice's centre texel is compared
+  with its constant composited as the kit bakes it, at 0.03 (the kit's rounding): the slab with `PanelBackground` over
+  `PanelShadow`; each chevron's `normal` and `hover` with `ButtonNormal` / `ButtonHover`, and `hover` must be the `normal`
+  box; `pressed` under the focus overlay with `ButtonPressed` (0.05) and brighter than `normal` under it; `disabled` with
+  `ButtonDisabled` over the averaged stripe haze rgba(glow, .15) (TG-ART 6.2), tiled, and fainter than `normal`. A focus
+  overlay (default `Button`, the chevrons, `LineEdit`) expands 14 px on every side, its texel at the expand margin is the
+  lit edge (`FocusOutline`) and the one outside it the glow (`FocusGlow`'s colour, alpha in (0, .55]). The slab's edge
+  texel has `PanelBorder`'s hue. The default `Button`'s `hover`, `LineEdit`'s `focus`, the `TabContainer`'s `tab_hovered`
+  and `GlassTab`'s `hover` draw their named kit textures. The flat branches are kept.
+- `DialoguePresentationTests.TheSharedThemeCarriesTheDialogueGlassVariation`: the nine-slice branch compares the centre
+  with `DialogueTheme.GlassBackground` over `PanelShadow` at 0.03, and the failure message names both colours.
+- `18e1b477` keeps the overlay and slab texel reads inside the image when an expand margin is zero.
+
+### Runs
+
+- UI filter (plan 3.2), in this worktree under the lock: **710 / 710** before the commits and again at `18e1b477`
+  (708 on `main` at `90167018`: 703 + TG-ART's 5; +2 TG-THEME).
+- The step 1 extra suites (the twelve named there): **74 / 74**.
+- `dotnet build`: 0 errors, the two known warnings. The capture run logged no error or warning. The generator reproduces
+  the committed `.tres` (only line endings differ after a regeneration). `.import` line-ending churn from the import and
+  every launch reverted; none committed.
+
+### Fail evidence (every rewritten assertion seen failing)
+
+Mutation set C on top of `18e1b477`, one filtered GdUnit run under the lock (`UIThemeTests` and
+`DialoguePresentationTests`), reverted with `git checkout -- .` (log `D:\Projects\ftt-scratch\tg-theme\s2mutC.log`): the
+chevrons' `hover` the full-look `glass_btn_hover`; their `pressed` drawing `glass_btn_normal`; no expand margins on the
+focus overlays; no tile flag; the field's `hover` the plain field; the tab's hover `glass_tab_selected`;
+`PanelBackground` = `GlassFillTop`; `PanelBorder` = `Ink`; `ButtonDisabled` = `ButtonFill`. Result: 2 failed, 27 passed,
+exactly the two rewritten cases, with every mutation reported by its own message: "PanelContainer/styles/panel paints
+...", "PulpButton/styles/hover must be its normal box" (and the hover fill, for all three chevrons), "pressed under focus
+paints ..." and "does not read brighter than normal under focus", "disabled paints ...", "must tile its dashes", "focus
+overlay expands 0 px on side 0..3", "focus edge is ...", "focus glow is ..." (default `Button`, chevrons, `LineEdit`),
+"the slab's edge is ..., not the hue of UIPalette.PanelBorder", "Button/styles/hover draws .../glass_field.png, not
+glass_field_hover", "TabContainer/styles/tab_hovered" and "GlassTab/styles/hover draws .../glass_tab_selected.png", and
+the dialogue case "The glass paints (0.035, 0.059, 0.133, 0.973) at its centre but DialogueTheme says (0.056, 0.090,
+0.196, 0.968)". The other `UIThemeTests` cases and the dialogue suite's other cases stayed green.
+
+### Captures and comparison
+
+Into `D:\Projects\ftt-scratch\tg-captures\theme\` (windowed console Godot, under the lock; step 1's set moved to
+`theme\step1\`): `theme_labels_small`, `theme_labels_large`, `theme_controls`, `theme_palette`, `theme_glass_components`,
+`main_menu_root`, `menu_cover`, `menu_cover_scale14`, `pause_story`, `pause_story_ui14`, `settings_audio`,
+`settings_display`, `settings_gameplay`, `settings_controls`, `settings_controls_ui14`, `confirm_modal`,
+`two_option_prompt`, `credits`, `movelist`, `systems_card`, `resonance_grid`, `select_cards`, `huds_calm`, `hudf_versus`,
+`results_level`, `dialogue_box`, `widgets_buttons`, `widgets_tagged_panel`, `drill_list`, `timeline_restart`.
+Comparisons (`compare_capture.py`, beside them): `theme_glass_components` against the `menu_button_column` crop
+(`--crop 30,54,614,490`), `pause_story` against `rec_03` and the `pause_panel` crop.
+
+- **Chevrons against the menu crop** (texels at the row's centre): normal (34, 33, 37) left and (14, 17, 32) right
+  against the crop's (37, 35, 38) / (14, 17, 32); focused (102, 88, 54) / (31, 30, 36) against (101, 90, 60) /
+  (42, 42, 45), the wash matching on the left and about 11 darker on the right (TG-ART's note: the exact CSS without the
+  browser's blur); the lit edge (216, 179, 82) over 1.5 px against the crop's (210, 174, 79) over 2 px; the glow above
+  it within a few units. Geometry coincides; the markers and the A badge are TG-WIDGETS'.
+- **Pause panel against `rec_03`**: the slab is the glass navy with the chamfers and the gold edge; its fill runs
+  (27, 32, 50) to (15, 19, 38) down the left and about (14, 17, 32) on the right, against the crop's lighter, warmer
+  (64, 62, 60) to (35, 34, 46) and (23, 26, 40): the mock's backdrop blur of bright art, which the build has no means to
+  draw (1.4, by design one level darker). The build's edge is brighter and thinner ((152, 123, 59) then (86, 73, 51))
+  than the render's 2 px (86, 62, 40). Layout, tag, markers and badges are TG-PAUSE's and TG-WIDGETS'.
+- **Seen and right:** every chevron state (normal and hover alike, the focused overlay with its wash and glow, pressed,
+  focused and pressed, selected, the dashed disabled ring with its haze), the slabs and presets at small sizes, the tag
+  (also as the credits hint), the tabs (selected gold, unselected, the glow-only focus, dimmed disabled), the fields
+  (normal, focus, dimmed disabled; the option button and the spin box field), the slider's diamond with its glow, and
+  every sampled screen at 1.0 and the 1.4 captures. Unchanged from step 1 (not this workstream's): the pulp decor's
+  selected marker overlaps the label's first letter in `widgets_buttons` (same in `step1\`), the pulp HUD bars, cover,
+  cards and plates.
+- **Not seen:** a hovered field or tab, a mouse, a pad, an open popup, motion in flight, Reduced Temporal Effects.
+
+### For the orchestrator to decide
+
+1. **The option button arrow** (deviation 1): (a) TG-ART ships an 18 px `chevron_down` raster (bold, glow baked) and the
+   generator wires it as `OptionButton/icons/arrow` (one line); (b) TG-WIDGETS' field decor draws the arrow and the theme
+   sets an empty arrow. I recommend (a).
+2. **The 64 px slider rows** (deviation 2): accept, or TG-ART trims the grabber canvas (the glow clipped to, say, 40 px).
+3. **The tab hover** (deviation 5): accept TG-ART's selected-plus-glow hover, or ask for a quieter dark hover tab.
+4. **The doubled glow on a hovered, focused field** (deviation 6): accept, or have fields take focus on mouse-enter as
+   the chevrons do.
+5. **Disabled fields and tabs** at `DimModulate` .50 (deviation 3): accept, or TG-ART ships dedicated textures.
+
+### Drafted doc text (step 2 addendum, for the closeout)
+
+- AGENTS.md, UI section, after the generator sentence: "The glass styles are TG-ART's nine-slices: the generator reads
+  `assets/sprites/ui/glass/glass_kit.json` for each texture's 6.4 margins, expand margins and tile flag (`gbox`). A
+  chevron's hover is its normal box (the decor takes focus on mouse-enter); a field and a tab hover with their own boxes.
+  The READY badges, scrim, slider track, scroll bars, check ring and tooltip stay `StyleBoxFlat`."
