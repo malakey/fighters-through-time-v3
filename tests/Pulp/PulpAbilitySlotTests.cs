@@ -164,6 +164,12 @@ public class PulpAbilitySlotTests {
 
     [TestCase]
     public async Task TheReadinessRingSitsOutsideTheLensAtItsSpecWidth() {
+        // TG-CLOSE (TG-HUDS kit gap 4): the suppressed Ultimate's glow is the CSS 0 0 12 rgba(56, 242, 255, .4); a CSS blur
+        // starts at half its colour at the edge, a Godot shadow at its full colour, so the shadow carries .2 (it read heavy).
+        (int coldSize, Color cold) = PulpAbilitySlot.OuterGlowOf(readyUltimate: false, suppressed: true);
+        AssertThat(coldSize).IsEqual(12);
+        AssertThat(Mathf.IsEqualApprox(cold.A, 0.2f)).OverrideFailureMessage($"the suppressed Ultimate glows at {cold.A}").IsTrue();
+        AssertThat(new Color(cold, 1f).IsEqualApprox(new Color(UIPalette.UnboundCold, 1f))).IsTrue();
         var story = new PulpAbilitySlot { SlotSize = 74f, State = PulpSlotState.Cooling, Progress = 0.3f, SecondsRemaining = 4f };
         var fighter = new PulpAbilitySlot { SlotSize = 54f };
         var select = new PulpAbilitySlot { SlotSize = 56f };

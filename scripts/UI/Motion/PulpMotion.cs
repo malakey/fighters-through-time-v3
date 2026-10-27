@@ -101,6 +101,15 @@ namespace FTT.UI.Motion {
         private static readonly Dictionary<ulong, PanelMotion> Running = new();
         private static readonly List<ulong> Stale = new();
 
+        /// <summary>
+        /// Stops <paramref name="panel"/>'s fade-rise or fade-sink, if one runs, and settles it on its slot (TG-CLOSE: public,
+        /// TG-PAUSE kit gap 6; it was private, so a screen that stopped its own tween left the rise's offset in place). The
+        /// alpha is the caller's: a stopped appear usually wants full opacity, a stopped disappear none.
+        /// </summary>
+        public static void Settle(Control panel) {
+            if (panel != null) TakeOver(panel);
+        }
+
         // Stops the panel's running motion, if any, and puts it back on its resting position (its laid-out slot when a
         // container moved it meanwhile), before a new motion reads that position as its base.
         private static void TakeOver(Control panel) {

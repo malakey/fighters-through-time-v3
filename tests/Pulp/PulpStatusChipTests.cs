@@ -56,4 +56,26 @@ public class PulpStatusChipTests {
             empty.Free();
         }
     }
+
+    /// <summary>
+    /// TG-CLOSE (TG-HUDF kit gap 3): a chip given a rect taller than its badge (a 54 px lens row) draws its badge, glyph and
+    /// text column centred on that rect; it drew them at its top, so the Fighter HUD had to shrink-centre it.
+    /// </summary>
+    [TestCase]
+    public void ABadgeInATallerRectIsCentredOnIt() {
+        var chip = new PulpStatusChip { BadgeSize = 40f, Kind = PulpChipKind.Damage, GlyphName = "venom", NameText = "status_venom", TimeText = "4.0s" };
+        UIPalette.ApplyTheme(chip);
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(chip);
+        try {
+            chip.Size = new Vector2(300f, 54f);
+            chip.Notification((int)Control.NotificationResized);
+            float glyphCentre = chip.Glyph.Position.Y + chip.Glyph.Size.Y / 2f;
+            float columnCentre = chip.TextColumn.Position.Y + chip.TextColumn.Size.Y / 2f;
+            AssertThat(Mathf.Abs(glyphCentre - 27f) < 0.6f).OverrideFailureMessage($"the glyph is centred at {glyphCentre}, not 27").IsTrue();
+            AssertThat(Mathf.Abs(columnCentre - 27f) < 1f).OverrideFailureMessage($"the text column is centred at {columnCentre}, not 27").IsTrue();
+            AssertThat(Mathf.Abs(chip.BadgeTop - 7f) < 0.01f).OverrideFailureMessage($"the badge's top is {chip.BadgeTop}, not 7").IsTrue();
+        } finally {
+            chip.Free();
+        }
+    }
 }

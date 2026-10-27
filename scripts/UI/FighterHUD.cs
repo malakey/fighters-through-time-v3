@@ -350,13 +350,12 @@ namespace FTT.UI {
                 }
                 panel.SlotWidgets = widgets;
                 // The badges sit centred on the 54 px row (4.5, 4L: the damage badge at y 199).
+                // The chips fill the row's height and centre their badges themselves (TG-CLOSE folded the shrink-centring).
                 panel.DamageChip = new PulpStatusChip {
-                    Name = "DamageChip", BadgeSize = ChipBadge, Kind = PulpChipKind.Damage, Empty = true,
-                    SizeFlagsVertical = Control.SizeFlags.ShrinkCenter
+                    Name = "DamageChip", BadgeSize = ChipBadge, Kind = PulpChipKind.Damage, Empty = true
                 };
                 panel.ControlChip = new PulpStatusChip {
-                    Name = "ControlChip", BadgeSize = ChipBadge, Kind = PulpChipKind.Control, Empty = true,
-                    SizeFlagsVertical = Control.SizeFlags.ShrinkCenter
+                    Name = "ControlChip", BadgeSize = ChipBadge, Kind = PulpChipKind.Control, Empty = true
                 };
                 if (!mirrored) {
                     for (int slot = 0; slot < widgets.Length; slot++) {
@@ -1277,7 +1276,8 @@ namespace FTT.UI {
             if (panel == null || refused == FighterLockoutRefusal.None) return;
             if ((refused & FighterLockoutRefusal.SpecialOne) != 0) FlashCooldownIcon(panel, FighterCooldownSlot.SpecialOne);
             if ((refused & FighterLockoutRefusal.SpecialTwo) != 0) FlashCooldownIcon(panel, FighterCooldownSlot.SpecialTwo);
-            if ((refused & FighterLockoutRefusal.Ultimate) != 0) NotYetFlash.Play(panel.Meter, panel.Meter);
+            // The Ultimate tube's refusal is a frame leaning with the tube (TG-CLOSE; it was the rectangle round it).
+            if ((refused & FighterLockoutRefusal.Ultimate) != 0) NotYetFlash.Play(panel.Meter, panel.Meter, NotYetShape.Tube);
         }
 
         private static void FlashCooldownIcon(PlayerPanel panel, FighterCooldownSlot slot) {

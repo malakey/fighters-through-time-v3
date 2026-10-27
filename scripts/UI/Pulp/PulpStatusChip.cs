@@ -40,6 +40,7 @@ namespace FTT.UI.Pulp {
         private readonly Vector2[] _discUvs = new Vector2[CircleSegments];
         private readonly Color[] _discColors = new Color[CircleSegments];
         private float _builtBadge = -1f;
+        private float _builtTop = -1f;
 
         public PulpStatusChip() {
             Name = "PulpStatusChip";
@@ -88,6 +89,11 @@ namespace FTT.UI.Pulp {
         public string NameText { get => _name.Text; set { _name.Text = value ?? ""; Layout(); } }
         public string TimeText { get => _time.Text; set { _time.Text = value ?? ""; Layout(); } }
         public PulpIcon Glyph => _glyph;
+        /// <summary>
+        /// The badge's top inside the chip's rect: centred when the rect is taller than the badge (TG-CLOSE, TG-HUDF kit gap 3:
+        /// it sat at the top, so a row taller than the badge had to shrink-centre the chip).
+        /// </summary>
+        public float BadgeTop => Mathf.Max(0f, (Size.Y - _badge) / 2f);
         public Control TextColumn => _column;
 
         public override Vector2 _GetMinimumSize() {
@@ -100,7 +106,8 @@ namespace FTT.UI.Pulp {
             if (_glyph == null || _column == null) return;
             float glyphSize = _badge * GlyphShare;
             _glyph.Size = new Vector2(glyphSize, glyphSize);
-            _glyph.Position = Vector2.One * ((_badge - glyphSize) / 2f);
+            float top = BadgeTop;
+            _glyph.Position = new Vector2((_badge - glyphSize) / 2f, top + (_badge - glyphSize) / 2f);
             _glyph.IconName = _glyphName;
             _glyph.Tint = GlyphColor(_kind);
             _glyph.Visible = !_empty;
@@ -108,28 +115,32 @@ namespace FTT.UI.Pulp {
             _column.Modulate = new Color(1f, 1f, 1f, _empty ? 0.35f : 1f);
             if (_empty) _name.Text = "";
             _column.ResetSize();
-            _column.Position = new Vector2(_badge + TextGap, (_badge - _column.Size.Y) / 2f);
+            _column.Position = new Vector2(_badge + TextGap, top + (_badge - _column.Size.Y) / 2f);
             UpdateMinimumSize();
             QueueRedraw();
         }
 
         public override void _Notification(int what) {
             if (what == NotificationThemeChanged) CallDeferred(nameof(Layout));
+            else if (what == NotificationResized) Layout();
         }
 
         public override void _Ready() => CallDeferred(nameof(Layout));
 
         private void EnsureDisc() {
-            if (Mathf.IsEqualApprox(_badge, _builtBadge)) return;
+            float top = BadgeTop;
+            if (Mathf.IsEqualApprox(_badge, _builtBadge) && Mathf.IsEqualApprox(top, _builtTop)) return;
             _builtBadge = _badge;
-            var box = new Rect2(Vector2.Zero, new Vector2(_badge, _badge));
+            _builtTop = top;
+            var box = new Rect2(new Vector2(0f, top), new Vector2(_badge, _badge));
             GlassGeometry.Circle(box.GetCenter(), _badge / 2f, CircleSegments, box, _disc, _discUvs);
             for (int i = 0; i < CircleSegments; i++) _discColors[i] = Colors.White;
         }
 
         public override void _Draw() {
             float radius = _badge / 2f;
-            var center = new Vector2(radius, radius);
+            float top = BadgeTop;
+            var center = new Vector2(radius, top + radius);
             if (_empty) {
                 DrawArc(center, radius + GlassGeometry.EdgeWidth / 2f, 0f, Mathf.Tau, 64, EmptyRingColor, GlassGeometry.EdgeWidth, true);
                 return;
@@ -138,7 +149,7 @@ namespace FTT.UI.Pulp {
             int corner = Mathf.RoundToInt(radius);
             _glowBox.CornerRadiusTopLeft = _glowBox.CornerRadiusTopRight = corner;
             _glowBox.CornerRadiusBottomLeft = _glowBox.CornerRadiusBottomRight = corner;
-            DrawStyleBox(_glowBox, new Rect2(Vector2.Zero, new Vector2(_badge, _badge)));
+            DrawStyleBox(_glowBox, new Rect2(new Vector2(0f, top), new Vector2(_badge, _badge)));
             Texture2D fill = PulpKit.Texture("glass_badge_radial");
             if (fill != null) DrawPolygon(_disc, _discColors, _discUvs, fill);
             else DrawColoredPolygon(_disc, UIPalette.BadgeFill);

@@ -433,14 +433,10 @@ namespace FTT.UI.Pulp {
                 : (14f, new Color(UIPalette.Accent, 0.22f));
             EnsureLens(inner.width, inner.color);
 
-            // The outer glow: ready 22 at .35, Ultimate ready 30 at .45 (both times the bloom), Ultimate suppressed 12 cold at .4 round the ring.
+            // The outer glow (OuterGlowOf): ready, the ready Ultimate and the suppressed Ultimate (round the ring).
             if (readyUltimate || ready || (suppressed && _ultimate)) {
-                float radius = r;
-                int size;
-                Color glow;
-                if (suppressed) { size = 12; glow = new Color(ColdGlowColor, 0.4f); radius = r + UltimateRingOutset; }
-                else if (readyUltimate) { size = 30; glow = new Color(ResGlowColor, 0.45f * _bloomGlow); }
-                else { size = 22; glow = new Color(UIPalette.Accent, Mathf.Min(1f, 0.35f * _bloomGlow)); }
+                float radius = suppressed ? r + UltimateRingOutset : r;
+                (int size, Color glow) = OuterGlowOf(readyUltimate, suppressed, _bloomGlow);
                 if (glow.A > 0f) {
                     int corner = Mathf.RoundToInt(radius);
                     _glowBox.CornerRadiusTopLeft = _glowBox.CornerRadiusTopRight = corner;
@@ -458,6 +454,18 @@ namespace FTT.UI.Pulp {
             RenderingServer.CanvasItemAddTriangleArray(GetCanvasItem(), _glowIndices, _glowPoints, _glowColors);
             Color edge = suppressed ? UIPalette.UnboundCold : readyUltimate ? UIPalette.Res : ready ? UIPalette.EdgeHi : UIPalette.Edge;
             DrawArc(centre, r + EdgeWidth / 2f, 0f, Mathf.Tau, 64, edge, EdgeWidth, true);
+        }
+
+        /// <summary>
+        /// The lens's outer glow (UI_SPEC_GLASS 3.4.2) as a <c>StyleBoxFlat</c> shadow: ready 22 at .35, the ready Ultimate 30
+        /// at .45 (both times the bloom), the suppressed Ultimate 12 cold round its ring at .2: the spec's 0 0 12 rgba(cold, .4)
+        /// is a CSS blur, which starts at half its colour at the edge, and a Godot shadow starts at its full colour, so the .4
+        /// read about twice as heavy as rec_05 (TG-CLOSE, TG-HUDS kit gap 4).
+        /// </summary>
+        public static (int Size, Color Color) OuterGlowOf(bool readyUltimate, bool suppressed, float bloomGlow = 1f) {
+            if (suppressed) return (12, new Color(ColdGlowColor, 0.2f));
+            if (readyUltimate) return (30, new Color(ResGlowColor, 0.45f * bloomGlow));
+            return (22, new Color(UIPalette.Accent, Mathf.Min(1f, 0.35f * bloomGlow)));
         }
 
         /// <summary>The art, inset 9 % and clipped to the lens circle (a polygon with UVs; the shader sets saturation and brightness).</summary>

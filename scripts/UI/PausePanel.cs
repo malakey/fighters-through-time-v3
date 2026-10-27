@@ -98,6 +98,7 @@ namespace FTT.UI {
         /// <paramref name="dimAlpha"/>. The panel's position is its container's again on the container's next sort.
         /// </summary>
         public void StopAppear(CanvasItem dim = null, float dimAlpha = PulpScreenKit.ScrimAlpha) {
+            PulpMotion.Settle(this);   // the rise's offset goes too, not only its tween (TG-CLOSE)
             KillTweens();
             Modulate = new Color(Modulate.R, Modulate.G, Modulate.B, 1f);
             if (dim != null && GodotObject.IsInstanceValid(dim)) {

@@ -442,9 +442,11 @@ public class FighterHudTopBandTests {
                     Near(issues, at + " lens pitch", lenses[1].GetGlobalRect().Position.X - lenses[0].GetGlobalRect().Position.X, 74f * scale);
                     Near(issues, at + " lens to badge", chips[0].GetGlobalRect().Position.X - lenses[2].GetGlobalRect().End.X, 50f * scale);
                     Near(issues, at + " badge gap", chips[1].GetGlobalRect().Position.X - chips[0].GetGlobalRect().End.X, 18f * scale);
-                    // The badge is drawn from its control's top: 40 tall, 7 below the row's top (4L: the damage badge at y 199).
-                    Near(issues, at + " badge top", chips[0].GetGlobalRect().Position.Y, lenses[0].GetGlobalRect().Position.Y + 7f * scale);
-                    Near(issues, at + " badge height", chips[0].GetGlobalRect().Size.Y, 40f * scale);
+                    // The badge is drawn 40 tall, 7 below the row's top (4L: the damage badge at y 199). TG-CLOSE: the chip fills
+                    // the row's height and centres its badge itself (BadgeTop), so the drawn badge is measured, not the chip.
+                    Near(issues, at + " badge top", chips[0].GetGlobalRect().Position.Y + chips[0].BadgeTop * scale, lenses[0].GetGlobalRect().Position.Y + 7f * scale);
+                    Near(issues, at + " badge height", chips[0].BadgeSize * scale, 40f * scale);
+                    Near(issues, at + " badge row", chips[0].GetGlobalRect().Size.Y, row.GetGlobalRect().Size.Y);
 
                     var names = new List<string>(rects.Keys);
                     foreach (string name in names) {

@@ -2,8 +2,8 @@ using Godot;
 
 namespace FTT.UI {
 
-    /// <summary>The not-yet flash's shape: the 2 px frame over a slot, or (glass) the 2 px circle around a lens.</summary>
-    public enum NotYetShape { Frame, Circle }
+    /// <summary>The not-yet flash's shape: the 2 px frame over a slot, or (glass) the 2 px circle around a lens or the frame leaning with a tube.</summary>
+    public enum NotYetShape { Frame, Circle, Tube }
 
     /// <summary>
     /// D10 (user direction 2026-10-11, ledger <c>USER-NOT-YET-FLASH</c>): the
@@ -30,11 +30,13 @@ namespace FTT.UI {
     ///
     /// <para><b>Glass (TG-WIDGETS step 2).</b> The shape has a second form,
     /// <see cref="NotYetShape.Circle"/>: a contracting 2 px <c>danger</c> circle
-    /// around a lens (UI_SPEC_GLASS 3.4.2), beside the frame. A
+    /// around a lens (UI_SPEC_GLASS 3.4.2), beside the frame, and (TG-CLOSE) a
+    /// third, <see cref="NotYetShape.Tube"/>: a contracting 2 px <c>danger</c>
+    /// frame that leans with a glass tube (its run, mirrored with a P2 tube). A
     /// <see cref="ProgressBar"/> tint target that wears a glass tube
-    /// (<c>PulpBarDecor</c>) is tinted as before: the tube hides the bar's own
-    /// drawing with a material and follows the bar's <c>SelfModulate</c>, so the
-    /// tint shows on the tube.</para>
+    /// (<c>PulpBarDecor</c>) is tinted as before: the bar draws nothing of its
+    /// own and the tube follows its <c>SelfModulate</c>, so the tint shows on
+    /// the tube.</para>
     /// </summary>
     public static partial class NotYetFlash {
 
@@ -52,6 +54,9 @@ namespace FTT.UI {
 
         /// <summary>Node name of the circle child (<see cref="NotYetShape.Circle"/>), created once per host and reused.</summary>
         public const string CircleName = "NotYetCircle";
+
+        /// <summary>Node name of the tube frame child (<see cref="NotYetShape.Tube"/>), created once per host and reused.</summary>
+        public const string TubeName = "NotYetTube";
 
         /// <summary>The circle's stroke width, and how far its centre line sits outside the lens's own edge.</summary>
         public const float CircleStroke = 2f, CircleOutset = 2.5f;
@@ -90,6 +95,10 @@ namespace FTT.UI {
                 PlayCircle(frameHost);
                 return;
             }
+            if (shape == NotYetShape.Tube) {
+                PlayTube(frameHost);
+                return;
+            }
             Panel frame = EnsureFrame(frameHost);
             KillRunning(frame, FrameTweenMeta);
             frame.PivotOffset = frameHost.Size / 2f;
@@ -107,6 +116,12 @@ namespace FTT.UI {
         /// <summary>The host's frame child, or null before the first flash. Test seam.</summary>
         public static Panel FrameOf(Control frameHost) =>
             frameHost?.GetNodeOrNull<Panel>(FrameName);
+
+        /// <summary>The host's tube frame child, or null before the first tube flash. Test seam.</summary>
+        public static Control TubeOf(Control frameHost) => frameHost?.GetNodeOrNull<Control>(TubeName);
+
+        /// <summary>True when the host's tube frame leans "\" (a mirrored tube). Test seam.</summary>
+        public static bool TubeLeansMirrored(Control frameHost) => TubeOf(frameHost) is FlashTube tube && tube.Mirrored;
 
         /// <summary>The host's circle child, or null before the first circle flash. Test seam.</summary>
         public static Control CircleOf(Control frameHost) =>
@@ -131,6 +146,56 @@ namespace FTT.UI {
             contract.TweenProperty(circle, "modulate:a", 0f, Seconds);
             contract.Chain().TweenCallback(Callable.From(() => HideFrame(circle)));
             circle.SetMeta(FrameTweenMeta, contract);
+        }
+
+        // TG-CLOSE (TG-HUDF kit gap 4): a glass tube's refusal, a 2 px danger frame leaning with the tube (its run, mirrored with
+        // a P2 tube), just outside it, contracting and fading like the circle.
+        private static void PlayTube(Control host) {
+            if (TubeOf(host) is not FlashTube tube) {
+                tube = new FlashTube { Name = TubeName, MouseFilter = Control.MouseFilterEnum.Ignore, FocusMode = Control.FocusModeEnum.None, Visible = false };
+                host.AddChild(tube);
+                tube.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+            }
+            var decor = host is ProgressBar bar ? FTT.UI.Pulp.PulpBarDecor.Of(bar) : null;
+            tube.Run = decor?.Run ?? FTT.UI.Pulp.PulpBarDecor.TubeRun;
+            tube.Mirrored = decor?.Mirrored ?? false;
+            KillRunning(tube, FrameTweenMeta);
+            tube.PivotOffset = host.Size / 2f;
+            tube.Scale = new Vector2(StartScale, StartScale);
+            tube.Modulate = Colors.White;
+            tube.Visible = true;
+            tube.QueueRedraw();
+            Tween contract = tube.CreateTween();
+            contract.SetParallel(true);
+            contract.TweenProperty(tube, "scale", Vector2.One, Seconds);
+            contract.TweenProperty(tube, "modulate:a", 0f, Seconds);
+            contract.Chain().TweenCallback(Callable.From(() => HideFrame(tube)));
+            tube.SetMeta(FrameTweenMeta, contract);
+        }
+
+        // The tube frame's outline, cached per size, run and lean; the draw allocates nothing.
+        private sealed partial class FlashTube : Control {
+            private readonly Vector2[] _corners = new Vector2[4];
+            private readonly Vector2[] _outline = new Vector2[5];
+            private Vector2 _builtSize = new(-1f, -1f);
+            private float _builtRun = -1f;
+            private bool _builtMirrored;
+            public float Run { get; set; } = FTT.UI.Pulp.PulpBarDecor.TubeRun;
+            public bool Mirrored { get; set; }
+
+            public override void _Draw() {
+                if (Size != _builtSize || !Mathf.IsEqualApprox(Run, _builtRun) || Mirrored != _builtMirrored) {
+                    _builtSize = Size;
+                    _builtRun = Run;
+                    _builtMirrored = Mirrored;
+                    // Grown CircleOutset round the tube, its run scaled with the height so the slanted ends stay parallel.
+                    Rect2 box = new Rect2(Vector2.Zero, Size).Grow(CircleOutset);
+                    FTT.UI.Pulp.GlassGeometry.Parallelogram(box, Run * box.Size.Y / Mathf.Max(1f, Size.Y), Mirrored, _corners);
+                    for (int i = 0; i < 4; i++) _outline[i] = _corners[i];
+                    _outline[4] = _corners[0];
+                }
+                DrawPolyline(_outline, UIPalette.Danger, CircleStroke, true);
+            }
         }
 
         // A 2 px danger circle just outside the host's own circle (a lens is as wide as its control).

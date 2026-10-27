@@ -55,4 +55,39 @@ public class PausePanelTests {
             host.Free();
         }
     }
+
+    /// <summary>
+    /// TG-CLOSE (TG-PAUSE kit gap 6): stopping the appear mid-rise settles the panel on its slot at full opacity, through the
+    /// motion's public stop-and-settle (PulpMotion.Settle); killing the tween alone left the rise's offset in place until the
+    /// next fade-rise.
+    /// </summary>
+    [TestCase]
+    public async Task StoppingTheAppearMidRiseLeavesThePanelOnItsSlot() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        bool reduced = FTT.Core.ComfortSettings.ReducedTemporalEffects;
+        var host = new Control { Name = "PausePanelSettleHost", Size = new Vector2(1920f, 1080f) };
+        tree.Root.AddChild(host);
+        try {
+            FTT.Core.ComfortSettings.Apply(false);
+            var panel = new PausePanel { Name = "Panel" };
+            UIPalette.ApplyTheme(panel);
+            panel.AddChild(new Control { CustomMinimumSize = new Vector2(400f, 200f) });
+            host.AddChild(panel);
+            var slot = new Vector2(300f, 200f);
+            panel.Position = slot;
+            await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+            panel.PlayAppear();
+            for (int i = 0; i < 3; i++) await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+            AssertThat(panel.Position.Y > slot.Y + 1f).OverrideFailureMessage($"Harness: the panel is not mid-rise ({panel.Position})").IsTrue();
+            panel.StopAppear();
+            AssertThat(panel.Position.IsEqualApprox(slot)).OverrideFailureMessage($"stopped mid-rise the panel rests at {panel.Position}, not its slot {slot}").IsTrue();
+            AssertThat(panel.Modulate.A).IsEqual(1f);
+            for (int i = 0; i < 20; i++) await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+            AssertThat(panel.Position.IsEqualApprox(slot)).OverrideFailureMessage($"the panel moved to {panel.Position} after the stop").IsTrue();
+        } finally {
+            FTT.Core.ComfortSettings.Apply(reduced);
+            host.GetParent()?.RemoveChild(host);
+            host.Free();
+        }
+    }
 }
