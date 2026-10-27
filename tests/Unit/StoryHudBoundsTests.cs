@@ -64,6 +64,16 @@ public class StoryHudBoundsTests {
                 if (title.End.X > dust.Position.X && title.End.Y > dust.Position.Y && title.Position.Y < dust.End.Y)
                     problems.Add($"{scale}: title row overlaps the dust plate");
 
+                // UI_SPEC_GLASS 9.2: the checkpoint toast at the top centre (y 140) stays in the free band between the
+                // clusters, so it never covers one (at 1.4 the screen's centre falls inside the left stack).
+                bus.RaiseCheckpointReached("story_hud_bounds_toast");
+                await Frames(2);
+                Rect2 toast = Bounds(hud.GetNode<Control>("SafeArea/CheckpointToast"));
+                if (!Frame.Encloses(toast)) problems.Add($"{scale}: checkpoint toast {toast} outside the frame");
+                if (toast.Intersects(left)) problems.Add($"{scale}: checkpoint toast overlaps the left column ({toast} vs {left})");
+                if (toast.Intersects(dust)) problems.Add($"{scale}: checkpoint toast overlaps the dust plate");
+                if (toast.Intersects(dial)) problems.Add($"{scale}: checkpoint toast overlaps the dial");
+
                 // Boss frame: the bar sits between the clusters; the title row is hidden meanwhile.
                 hud.ShowBossBar("boss_archive_prime_name", 640, 1000, new[] { 0.5f });
                 await Frames(3);

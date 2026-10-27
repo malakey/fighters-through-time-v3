@@ -612,6 +612,10 @@ namespace FTT.UI {
             RefreshBossTexts();
             LayoutBossPanel();
             LayoutIntroCard();
+            if (_checkpointToast != null && _checkpointToast.Visible) {
+                _checkpointToast.Text = Tr("hud_checkpoint_reached");
+                PlaceCheckpointToast();
+            }
         }
 
         private void OnAbilitySlotLockChanged(AbilitySlotLockPayload payload) {
@@ -916,6 +920,7 @@ namespace FTT.UI {
             if (_checkpointToast == null) return;
             _checkpointToast.Text = Tr("hud_checkpoint_reached");
             _checkpointToast.Visible = true;
+            PlaceCheckpointToast();
             _checkpointToast.Modulate = Colors.White;
             _checkpointToastTimer = PulpMotionRules.PanelInSeconds + ToastHoldSeconds + ToastFadeSeconds;
             if (_checkpointToast.IsInsideTree()) PulpMotion.PopIn(_checkpointToast);

@@ -697,6 +697,23 @@ namespace FTT.UI {
             _fitScale = scale;
             LayoutBossPanel();
             LayoutIntroCard();
+            if (_checkpointToast != null && _checkpointToast.Visible) PlaceCheckpointToast();
+        }
+
+        /// <summary>
+        /// UI_SPEC_GLASS 9.2 puts the checkpoint toast at the top centre (y 140). It keeps to the free band between the
+        /// left stack and the right cluster (the boss bar's band, 24 px from each) and leaves the centre only when the
+        /// centre would put it over a cluster: at UI scale 1.4 the screen's centre falls inside the left stack.
+        /// </summary>
+        private void PlaceCheckpointToast() {
+            if (_checkpointToast == null) return;
+            float canvas = _root != null && _root.Size.X > 1f ? _root.Size.X : 1920f;
+            float width = _checkpointToast.GetCombinedMinimumSize().X;
+            float bandLeft = LeftClusterRight + BossGap, bandRight = canvas - DustPlateReach - BossGap;
+            float left = Mathf.Max(bandLeft, Mathf.Min(canvas / 2f - width / 2f, bandRight - width));
+            // The toast is anchored at the canvas's centre line (anchors 0.5), so its offsets are measured from it.
+            _checkpointToast.OffsetLeft = left - canvas / 2f;
+            _checkpointToast.OffsetRight = left - canvas / 2f + width;
         }
 
         // === Motion =============================================================
