@@ -675,4 +675,57 @@ public class CharacterSelectCardTests {
         AssertThat(fits[0]).IsEqual(280f);
         AssertThat(fits[2]).IsEqual(280f);
     }
+
+    /// <summary>TG-CLOSE Codex review 3 (follow-up): asymmetric oversized labels never squeeze a button under its minimum.</summary>
+    [TestCase]
+    public void TheFooterWidthsKeepEveryButtonItsMinimumWhenOneLabelIsOversized() {
+        float[] paddings = { 82f, 82f, 82f };
+        float[] labels = { 600f, 600f, 40f };
+        float[] widths = CharacterSelectScreen.FooterWidths(280f, paddings, (i, s) => labels[i], 24, 18);
+        float sum = 0f;
+        for (int i = 0; i < widths.Length; i++) {
+            sum += widths[i];
+            if (widths[i] < paddings[i] + CharacterSelectScreen.FooterSlack) AssertThat(widths[i]).OverrideFailureMessage($"button {i} is {widths[i]}, under its minimum").IsGreaterEqual(paddings[i] + CharacterSelectScreen.FooterSlack);
+        }
+        AssertThat(sum <= 840f).OverrideFailureMessage($"sum {sum} over the 840 budget").IsTrue();
+    }
+
+    /// <summary>The real select with long, asymmetric footer labels: the row stays between the side panels, apart.</summary>
+    [TestCase]
+    public async Task OversizedAsymmetricFooterLabelsStayBetweenTheSidePanelsAtBothUiScales() {
+        float saved = UIPalette.AppliedUiScale;
+        var problems = new List<string>();
+        try {
+            foreach (float scale in new[] { 1f, 1.4f }) {
+                UIPalette.ApplyUiScale(scale);
+                CharacterSelectScreen screen = Open(out Node host);
+                try {
+                    await Frames(screen, 4);
+                    string[] names = { "MoveListButton", "SystemsCardButton", "BackButton" };
+                    string[] longText = { "A VERY LONG MOVE LIST LABEL THAT CANNOT FIT AT ALL", "ANOTHER EXTREMELY LONG SYSTEMS CARD LABEL HERE", "OK" };
+                    for (int i = 0; i < 3; i++) screen.GetNode<Button>(SelectRoot + "ButtonRow/" + names[i]).Text = longText[i];
+                    // A label change does not queue a layout by itself (a locale change does), so ask for the one a resize runs.
+                    screen.GetNode<Control>(SelectRoot + "PlayersRow").EmitSignal(Control.SignalName.Resized);
+                    await Frames(screen, 6);
+                    Rect2 left = screen.GetNode<Control>(SelectRoot + "PlayersRow/P1Panel").GetGlobalRect();
+                    Rect2 right = screen.GetNode<Control>(SelectRoot + "PlayersRow/P2Panel").GetGlobalRect();
+                    Rect2? previous = null;
+                    foreach (string name in names) {
+                        Rect2 rect = screen.GetNode<Button>(SelectRoot + "ButtonRow/" + name).GetGlobalRect();
+                        if (rect.Position.X < left.End.X || rect.End.X > right.Position.X) problems.Add($"{scale}: {name} {rect} leaves the row ({left.End.X} to {right.Position.X})");
+                        if (previous is Rect2 before) {
+                            if (rect.Position.X < before.End.X) problems.Add($"{scale}: {name} overlaps its neighbour");
+                            else if (rect.Position.X - before.End.X < PulpScreenKit.FocusRowGap - 0.5f) problems.Add($"{scale}: {name} is {rect.Position.X - before.End.X} px from its neighbour, under {PulpScreenKit.FocusRowGap}");
+                        }
+                        previous = rect;
+                    }
+                } finally {
+                    Teardown(host);
+                }
+            }
+        } finally {
+            UIPalette.ApplyUiScale(saved);
+        }
+        if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
+    }
 }
