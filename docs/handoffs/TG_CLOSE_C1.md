@@ -313,6 +313,7 @@ to rule on changed). `tg/close` fast-forwarded to the integration head `f072bd6c
 | `76380721` | Under Reduced Temporal Effects the damage tracker fades out over 200 ms |
 | `4c1823aa` | Two stale comments (`GameManager`'s screen dissolve, the `credits_140` capture) |
 | `6a16b6f7` | The `pause_fighter` capture sets its two fighters (diagnostics only) |
+| `04fac76a` | A `menu_level_select_140` capture target (diagnostics only) |
 
 1. **Fighter pause Move List rows** (`LocalFighterPause.FormatMoveListLabel`). Both rows name the fighter by the select
    tiles' short name, `character_<id>_card_name` ("Move List — Einstein" ... "Move List — Tubman"), falling back to the
@@ -339,7 +340,8 @@ to rule on changed). `tg/close` fast-forwarded to the integration head `f072bd6c
    CHRONAL INTEGRATION" and "15  THE MERIDIAN FOUNDING" have no short form (no dash) and need about 335 and 353 px at
    the compact chevron's 18 px floor (the tracking does not shrink) against 333 px of label room in a quarter-width tile.
    The grid is three columns of six rows instead (`MainMenu.LevelColumns`, the scene's `Grid.columns`), where every tile
-   reads whole at its role size; the tile width rule is unchanged. Checked at 1.0, as asked; 1.4 has no capture target.
+   reads whole at its role size; the tile width rule is unchanged. The test checks 1.0, as asked; the new
+   `menu_level_select_140` capture shows 1.4, where every tile reads whole too, the long names shrunk in their tiles.
 6. **SpinBox arrows** (UI_SPEC_GLASS 6.2: "arrows = the chevron_down icon"). Through the art pipeline and the generator:
    `build_glass_images.py` writes `icons/chevron_up_18.png`, the OptionButton arrow's exact vertical flip from the same
    bake (catalogued as `glass_spin_up`; every other kit output regenerates byte for byte), and the theme's SpinBox
@@ -385,7 +387,8 @@ and the `.uid` sidecars of the two new scripts are committed; the regenerated `l
 **Captures** (windowed, under the lock) overwrote their files in `D:\Projects\ftt-scratch\tg-captures\final\`:
 `pause_fighter`, `pause_fighter_ui14` (now Shakespeare against Mozart), `menu_slots`, `menu_slots_140`,
 `hudf_sudden_death`, `hudf_sudden_death_140`, `select_holodeck`, `select_holodeck_140`, `select_holodeck_frontend`,
-`select_stage`, `select_stage_140`, `boot_first_run`, `boot_first_run_ui14`, `menu_level_select`, `theme_controls`, and
+`select_stage`, `select_stage_140`, `boot_first_run`, `boot_first_run_ui14`, `menu_level_select`, the new
+`menu_level_select_140`, `theme_controls`, and
 `huds_calm`, `huds_stress`, `hudf_versus` as a check on the tracker change (pixel-identical but for 2 px of
 `huds_stress`'s Time Freeze ring arc). `index.txt` names the re-captured targets; `final\compare\` (rec 18, crops 54,
 pulp 76) and the gallery thumbnails in `D:\Projects\ftt-scratch\tg-gallery\` were regenerated (`gallery.html` unchanged).
