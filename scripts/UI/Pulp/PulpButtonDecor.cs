@@ -866,6 +866,13 @@ namespace FTT.UI.Pulp {
             return Mathf.Ceil(RequiredFixedWidth(button, reservePrompt, UiScaleFactor) + label);
         }
 
+        /// <summary>A button's width with no label and no badge: its paddings at the UI scale, and an icon with its separation.</summary>
+        public static float LabelPaddingWidth(Button button) => button == null ? 0f : RequiredFixedWidth(button, false, UiScaleFactor);
+
+        /// <summary>The width a button's drawn (upper-case) label takes on one line at <paramref name="size"/> px.</summary>
+        public static float DrawnLabelWidth(Button button, int size) =>
+            button == null ? 0f : MeasureWidth(ToDrawnText(button.Tr(button.Text)), button.GetThemeFont(FontName), size);
+
         // Everything a row's width holds but the label: its paddings at the UI scale, an icon and its separation, and the
         // badge reserve when asked.
         private static float RequiredFixedWidth(Button button, bool reservePrompt, float scale) {

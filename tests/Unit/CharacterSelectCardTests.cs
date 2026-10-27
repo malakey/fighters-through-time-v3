@@ -251,9 +251,8 @@ public class CharacterSelectCardTests {
             // The footer's buttons stay between the side panels, below the grid and on the screen.
             foreach (string name in new[] { "MoveListButton", "SystemsCardButton", "BackButton" }) {
                 // TG-CLOSE: the footer wears the compact footer variation (no local box), and its labels shrink to 4.2's
-                // 18 px floor at any scale (a 20 px floor scaled to 28 at 1.4): never below it, trimmed only when even 18
-                // px does not fit, so MOVE LIST and BACK read whole at 1.4. (SYSTEMS CARD needs about 178 px at 18 px and
-                // the 280 px button leaves 165 at 1.4, so it still ends in an ellipsis there: an open question, recorded.)
+                // 18 px floor at any scale (a 20 px floor scaled to 28 at 1.4): never below it. Since the fix step the row
+                // shares its width by need at 1.4, so every label, SYSTEMS CARD's too, reads whole there.
                 var footerButton = screen.GetNode<Button>(SelectRoot + "ButtonRow/" + name);
                 if (footerButton.ThemeTypeVariation.ToString() != UIPalette.Variations.PulpButtonCompactFooter) problems.Add($"{name} is {footerButton.ThemeTypeVariation}");
                 if (footerButton.HasThemeStyleboxOverride("normal")) problems.Add($"{name} carries its own normal box");
@@ -261,7 +260,7 @@ public class CharacterSelectCardTests {
                     if (child is not PulpButtonDecor footerDecor) continue;
                     if (footerDecor.DrawnFontSize < UIPalette.MinLabelFontSize) problems.Add($"{name}'s label draws at {footerDecor.DrawnFontSize} px");
                     if (footerDecor.LabelIsTrimmed && footerDecor.DrawnFontSize > UIPalette.MinLabelFontSize) problems.Add($"{name}'s label is trimmed at {footerDecor.DrawnFontSize} px, above the 18 px floor");
-                    if (name != "SystemsCardButton" && footerDecor.LabelIsTrimmed) problems.Add($"{name}'s label is trimmed at 1.4");
+                    if (footerDecor.LabelIsTrimmed) problems.Add($"{name}'s label is trimmed at 1.4");
                 }
                 Rect2 button = screen.GetNode<Control>(SelectRoot + "ButtonRow/" + name).GetGlobalRect();
                 if (button.Position.X < CharacterSelectScreen.SideMargin + CharacterSelectScreen.SideWidth
@@ -273,6 +272,51 @@ public class CharacterSelectCardTests {
             UIPalette.ApplyUiScale(saved);
             if (host != null) Teardown(host);
         }
+    }
+
+    /// <summary>
+    /// TG-CLOSE fix step (the orchestrator's ruling on C1's question 2): every footer label reads whole at UI scale 1.0 and
+    /// 1.4, never under the 18 px compact floor, its button inside the row between the two side panels, the buttons the
+    /// focus-row separation apart. At 1.4 the three 280 px buttons cut "SYSTEMS CARD" (about 178 px at 18 px against the
+    /// 165 a 280 px button keeps); the row now shares its width by the labels' needs there.
+    /// </summary>
+    [TestCase]
+    public async Task EveryFooterLabelReadsWholeBetweenTheSidePanelsAtBothUiScales() {
+        float saved = UIPalette.AppliedUiScale;
+        var problems = new List<string>();
+        try {
+            foreach (float scale in new[] { 1f, 1.4f }) {
+                UIPalette.ApplyUiScale(scale);
+                CharacterSelectScreen screen = Open(out Node host);
+                try {
+                    await Frames(screen, 4);
+                    Rect2 left = screen.GetNode<Control>(SelectRoot + "PlayersRow/P1Panel").GetGlobalRect();
+                    Rect2 right = screen.GetNode<Control>(SelectRoot + "PlayersRow/P2Panel").GetGlobalRect();
+                    Rect2? previous = null;
+                    foreach (string name in new[] { "MoveListButton", "SystemsCardButton", "BackButton" }) {
+                        var button = screen.GetNode<Button>(SelectRoot + "ButtonRow/" + name);
+                        PulpButtonDecor decor = null;
+                        foreach (Node child in button.GetChildren()) if (child is PulpButtonDecor found) decor = found;
+                        if (decor == null) { problems.Add($"{scale}: {name} has no decor"); continue; }
+                        if (decor.LabelIsTrimmed) problems.Add($"{scale}: {name}'s label is trimmed at {decor.DrawnFontSize} px");
+                        if (decor.DrawnFontSize < UIPalette.MinLabelFontSize) problems.Add($"{scale}: {name}'s label draws at {decor.DrawnFontSize} px");
+                        Rect2 rect = button.GetGlobalRect();
+                        if (rect.Position.X < left.End.X || rect.End.X > right.Position.X) {
+                            problems.Add($"{scale}: {name} {rect} leaves the row between the side panels ({left.End.X} to {right.Position.X})");
+                        }
+                        if (previous is Rect2 before && rect.Position.X - before.End.X < PulpScreenKit.FocusRowGap - 0.5f) {
+                            problems.Add($"{scale}: {name} is {rect.Position.X - before.End.X} px from its neighbour, under the focus row's {PulpScreenKit.FocusRowGap}");
+                        }
+                        previous = rect;
+                    }
+                } finally {
+                    Teardown(host);
+                }
+            }
+        } finally {
+            UIPalette.ApplyUiScale(saved);
+        }
+        if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
     }
 
     [TestCase]

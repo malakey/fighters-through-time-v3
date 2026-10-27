@@ -675,6 +675,7 @@ namespace FTT.UI {
             }
             Place(_hint, promptTop - gap - hintH, hintH);
             Place(_buttonRow, footerTop, footerH);
+            FitFooter();
 
             // The countdown (T59) centred between the Random tile and the footer, or under the title when they leave no room.
             float countH = _countdownLabel.GetMinimumSize().Y;
@@ -740,15 +741,19 @@ namespace FTT.UI {
             // The footer (P1): three compact chevrons 280 wide, 34 px apart, labels shrinking to fit (the compact floor is
             // 4.2's 18 px at every scale), no prompt badge (D6). They wear the compact footer chevron, whose label runs 30 px
             // short of the right edge rather than the compact plate's 40, as the mock's does (TG-CLOSE folded the local box).
-            var footer = new List<Button>();
-            foreach (string name in new[] { "MoveListButton", "SystemsCardButton", "BackButton" }) {
-                Button button = GetNode<Button>(SelectRoot + "ButtonRow/" + name);
+            // Their widths are FitFooter's (the layout pass): 280 each while every label reads whole in one, else shared by need.
+            _footerButtons = new Button[3];
+            string[] footerNames = { "MoveListButton", "SystemsCardButton", "BackButton" };
+            for (int i = 0; i < footerNames.Length; i++) {
+                Button button = GetNode<Button>(SelectRoot + "ButtonRow/" + footerNames[i]);
                 button.ThemeTypeVariation = UIPalette.Variations.PulpButtonCompactFooter;
                 PulpButtonDecor decor = PulpButtonDecor.Apply(button, compact: true);
                 decor.ShowPrompt = false;
-                footer.Add(button);
+                // The decor draws the label, so the button's own (hidden) glyphs must not widen it.
+                button.ClipText = true;
+                _footerButtons[i] = button;
             }
-            PulpButtonDecor.ApplyStackWidth(footer, FooterButtonWidth, FooterButtonWidth, reservePrompt: false);
+            FitFooter();
             PulpScreenKit.SeparateFocusRow((BoxContainer)_buttonRow);
 
             _promptBar = new PulpPromptBar { Name = "PromptBar" };
@@ -772,6 +777,66 @@ namespace FTT.UI {
 
         /// <summary>The footer buttons' width (plan 0.4 P1: 280 so three fit 34 px apart between the side panels).</summary>
         public const float FooterButtonWidth = 280f;
+
+        /// <summary>The room a shared-by-need footer button keeps past its label at the shared size, so the decor's own fit lands on it.</summary>
+        public const float FooterSlack = 2f;
+
+        private Button[] _footerButtons;
+
+        /// <summary>
+        /// TG-CLOSE fix step (the orchestrator's ruling on C1's question 2): the footer's widths. The buttons keep P1's
+        /// shared 280 while every label reads whole in one at the compact floor or above (UI scale 1.0, as the mock). Else
+        /// (1.4, where "SYSTEMS CARD" needs about 178 px at 18 px and a 280 px button keeps 165) they share the same 3 x 280
+        /// by need: every label at the largest one size, from the role's down to the floor, at which all of them fit together,
+        /// each button as wide as its paddings and its label at that size (and the slack). So the row never grows past the
+        /// 908 px the spec gives it between the side panels, BACK takes what it needs, and no label is cut. Pure: the
+        /// paddings and the label widths come from the decor (<see cref="PulpButtonDecor.LabelPaddingWidth"/>,
+        /// <see cref="PulpButtonDecor.DrawnLabelWidth"/>).
+        /// </summary>
+        internal static float[] FooterWidths(float shared, float[] paddings, System.Func<int, int, float> labelWidth, int size, int floor) {
+            int count = paddings.Length;
+            var widths = new float[count];
+            bool wholeInShared = true;
+            for (int i = 0; i < count; i++) {
+                if (paddings[i] + labelWidth(i, floor) + FooterSlack > shared) wholeInShared = false;
+            }
+            if (wholeInShared) {
+                for (int i = 0; i < count; i++) widths[i] = shared;
+                return widths;
+            }
+            // Each width is rounded up, so the shared total keeps a pixel per button for it.
+            float budget = shared * count - count;
+            int fitted = Mathf.Max(size, floor);
+            for (; fitted > floor; fitted--) {
+                float total = 0f;
+                for (int i = 0; i < count; i++) total += paddings[i] + labelWidth(i, fitted) + FooterSlack;
+                if (total <= budget) break;
+            }
+            for (int i = 0; i < count; i++) widths[i] = Mathf.Ceil(paddings[i] + labelWidth(i, fitted) + FooterSlack);
+            return widths;
+        }
+
+        // Writes the footer's widths (FooterWidths) from the buttons' current theme size and the UI scale; runs in the
+        // layout pass, so a UI-scale or locale change that resizes the screen's text sizes the footer again.
+        private void FitFooter() {
+            if (_footerButtons == null) return;
+            int count = _footerButtons.Length;
+            var paddings = new float[count];
+            int size = int.MaxValue;
+            for (int i = 0; i < count; i++) {
+                Button button = _footerButtons[i];
+                if (button == null || !IsInstanceValid(button)) return;
+                paddings[i] = PulpButtonDecor.LabelPaddingWidth(button);
+                size = Mathf.Min(size, button.GetThemeFontSize("font_size"));
+            }
+            Button[] buttons = _footerButtons;
+            float[] widths = FooterWidths(FooterButtonWidth, paddings, (i, s) => PulpButtonDecor.DrawnLabelWidth(buttons[i], s),
+                size, PulpButtonDecor.ShrinkFloorFor(compact: true));
+            for (int i = 0; i < count; i++) {
+                Button button = _footerButtons[i];
+                if (!Mathf.IsEqualApprox(button.CustomMinimumSize.X, widths[i])) button.CustomMinimumSize = new Vector2(widths[i], button.CustomMinimumSize.Y);
+            }
+        }
 
         // === The stage phase (9.2) ========================================================
 
