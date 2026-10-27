@@ -381,6 +381,10 @@ public class PulpButtonDecorTests {
     [TestCase]
     public void AStackSharesItsWidestRequiredWidthUpToItsCap() {
         var stack = new List<Button>();
+        // D6 as drawn reserves the pad ring (16 + 36); since TG-CLOSE the reserve is the current device's badge, so this
+        // pins the pad (the keyboard's key-cap reserve is TheBadgeReserveIsTheCurrentDevicesBadge...'s).
+        PromptDevice? device = PulpPromptGlyphs.DeviceOverrideForTesting;
+        PulpPromptGlyphs.DeviceOverrideForTesting = PromptDevice.Pad;
         try {
             foreach (string key in new[] { "menu_settings", "menu_calibration_drills", "menu_quit" }) {
                 Button row = BuildButton();
@@ -427,6 +431,7 @@ public class PulpButtonDecorTests {
             AssertThat(quickDecor.DrawnFontSize < quick.GetThemeFontSize("font_size")).IsTrue();
             AssertThat(quickDecor.DrawnFontSize >= PulpButtonDecor.ShrinkFloorFor(false)).IsTrue();
         } finally {
+            PulpPromptGlyphs.DeviceOverrideForTesting = device;
             foreach (Button row in stack) row.Free();
         }
     }
@@ -709,6 +714,99 @@ public class PulpButtonDecorTests {
             UIPalette.ApplyUiScale(original);
             host.GetParent()?.RemoveChild(host);
             host.Free();
+        }
+    }
+
+    private static async Task WaitFrames(int count) {
+        var tree = (SceneTree)Engine.GetMainLoop();
+        for (int i = 0; i < count; i++) await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+    }
+
+    /// <summary>
+    /// TG-CLOSE (TG-PAUSE kit gap 1): the grow pass cached its word fit on the text, the button's width, the font size and
+    /// the UI scale, but not on the badge it reserves, so a badge that changed width afterwards (the keyboard key-cap
+    /// settling wider, a device switch) left the longest word cut under it until something toggled GrowToFit (the confirm
+    /// modal's workaround, now removed). A word that cannot wrap must still fit beside the badge the row shows.
+    /// </summary>
+    [TestCase]
+    public async Task AGrowToFitRowRemeasuresItsLongestWordWhenItsBadgeChangesWidth() {
+        PromptDevice? device = PulpPromptGlyphs.DeviceOverrideForTesting;
+        PulpPromptGlyphs.DeviceOverrideForTesting = PromptDevice.Pad;
+        Button button = BuildButton(variation: UIPalette.Variations.PulpButtonCompact);
+        try {
+            button.AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled;
+            button.Text = "Calibration";            // one word: it cannot wrap, so the row must widen to hold it
+            button.CustomMinimumSize = new Vector2(260f, 58f);
+            button.Size = new Vector2(260f, 58f);
+            PulpButtonDecor decor = PulpButtonDecor.Apply(button, compact: true);
+            decor.GrowToFit = true;
+            button.GrabFocus();
+            decor.Refresh();
+            await WaitFrames(3);
+            AssertThat(decor.BadgeDevice).IsEqual(PromptDevice.Pad);
+            AssertThat(decor.LabelAvailableWidth + 0.5f >= decor.DrawnTextWidth)
+                .OverrideFailureMessage($"Harness: on a pad the word ({decor.DrawnTextWidth}) does not fit ({decor.LabelAvailableWidth})").IsTrue();
+            float padWidth = button.Size.X;
+            // The keyboard's key-cap is wider than the pad ring: the row must widen again, with no GrowToFit toggle.
+            PulpPromptGlyphs.DeviceOverrideForTesting = PromptDevice.Keyboard;
+            decor.Refresh();
+            await WaitFrames(3);
+            AssertThat(decor.BadgeDevice).IsEqual(PromptDevice.Keyboard);
+            AssertThat(decor.Badge.Size.X > PulpButtonDecor.BadgeSize).OverrideFailureMessage("Harness: the key-cap is no wider than the ring").IsTrue();
+            AssertThat(decor.LabelAvailableWidth + 0.5f >= decor.DrawnTextWidth)
+                .OverrideFailureMessage($"beside the key-cap the word ({decor.DrawnTextWidth} px) has {decor.LabelAvailableWidth} px").IsTrue();
+            AssertThat(button.Size.X > padWidth).OverrideFailureMessage($"the row stayed {button.Size.X} px wide").IsTrue();
+        } finally {
+            PulpPromptGlyphs.DeviceOverrideForTesting = device;
+            button.Free();
+        }
+    }
+
+    /// <summary>
+    /// TG-CLOSE (the orchestrator's ruling superseding TG-WIDGETS ruling 1): the badge reserve a row sizes itself with is the
+    /// current device's real badge, the pad ring's 36 + 16 or the keyboard's confirm key-cap and its gap (a fixed 52 cut a
+    /// keyboard label: "DON'T ASK AGA..."), and a bound D6 stack runs again when the device changes.
+    /// </summary>
+    [TestCase]
+    public async Task TheBadgeReserveIsTheCurrentDevicesBadgeAndABoundStackRerunsOnADeviceChange() {
+        PromptDevice? device = PulpPromptGlyphs.DeviceOverrideForTesting;
+        PulpPromptGlyphs.DeviceOverrideForTesting = PromptDevice.Pad;
+        Button resume = BuildButton();
+        Button settings = BuildButton();
+        try {
+            resume.AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled;
+            settings.AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled;
+            resume.Text = "Resume";
+            settings.Text = "Settings";
+            PulpButtonDecor resumeDecor = PulpButtonDecor.Apply(resume);
+            PulpButtonDecor settingsDecor = PulpButtonDecor.Apply(settings);
+            float bare = PulpButtonDecor.RequiredWidth(settings, reservePrompt: false);
+            float scale = PulpButtonDecor.UiScaleFactor;
+            AssertThat(Mathf.Abs(PulpButtonDecor.RequiredWidth(settings) - bare - PulpButtonDecor.BadgeReserve * scale) <= 1f)
+                .OverrideFailureMessage("on a pad the reserve is the ring and its gap, 52").IsTrue();
+            float padStack = PulpButtonDecor.ApplyStackWidth(new[] { resume, settings }, 200f, 1600f);
+
+            PulpPromptGlyphs.DeviceOverrideForTesting = PromptDevice.Keyboard;
+            settings.GrabFocus();
+            settingsDecor.Refresh();
+            resumeDecor.Refresh();
+            await WaitFrames(3);
+            float keyReserve = settingsDecor.Badge.Size.X + PulpButtonDecor.BadgeGap * scale;
+            AssertThat(keyReserve > PulpButtonDecor.BadgeReserve * scale + 4f).OverrideFailureMessage("Harness: the key-cap is no wider than the ring").IsTrue();
+            AssertThat(Mathf.Abs(PulpButtonDecor.RequiredWidth(settings) - bare - keyReserve) <= 1f)
+                .OverrideFailureMessage($"on a keyboard the reserve is {PulpButtonDecor.RequiredWidth(settings) - bare}, not the key-cap's {keyReserve}").IsTrue();
+            // The bound stack ran again with the key-cap's reserve, and runs again back on the pad.
+            AssertThat(resume.CustomMinimumSize.X > padStack + 4f && Mathf.IsEqualApprox(resume.CustomMinimumSize.X, settings.CustomMinimumSize.X))
+                .OverrideFailureMessage($"the stack stayed {resume.CustomMinimumSize.X} px (pad {padStack})").IsTrue();
+            PulpPromptGlyphs.DeviceOverrideForTesting = PromptDevice.Pad;
+            settingsDecor.Refresh();
+            await WaitFrames(3);
+            AssertThat(Mathf.Abs(resume.CustomMinimumSize.X - padStack) <= 1f)
+                .OverrideFailureMessage($"back on the pad the stack is {resume.CustomMinimumSize.X}, not {padStack}").IsTrue();
+        } finally {
+            PulpPromptGlyphs.DeviceOverrideForTesting = device;
+            resume.Free();
+            settings.Free();
         }
     }
 }

@@ -94,6 +94,7 @@ namespace FTT.UI.Pulp {
         private float _wordMinWidth;
         private int _growFontSize;
         private string _growText;
+        private float _growBadge = -1f;
         private float _growWidth = -1f, _growScale = -1f;
 
         // The label's cached layout (rebuilt only when its inputs change).
@@ -420,8 +421,11 @@ namespace FTT.UI.Pulp {
 
             PromptDevice device = PulpPromptGlyphs.CurrentDevice();
             if (device != _badgeDevice || !Mathf.IsEqualApprox(_badgeScale, _scale)) {
+                bool deviceChanged = device != _badgeDevice;
                 _badgeDevice = device;
                 BuildBadge(device);
+                // TG-CLOSE: a bound D6 stack reserves the current device's badge, so it runs again on a device change.
+                if (deviceChanged) _stackRule?.Queue();
             }
             _badge.Visible = _showPrompt && _button.HasFocus() && !_button.Disabled;
             LayoutBadge();
@@ -485,13 +489,17 @@ namespace FTT.UI.Pulp {
             return _autoWidth;
         }
 
-        // Recomputes the wrapped line count only when the text, width, font size or UI scale changed.
+        // Recomputes the wrapped line count only when the text, width, font size, UI scale or the badge it reserves changed.
+        // TG-CLOSE (TG-PAUSE kit gap 1): the badge's width is in the key, and a new badge width starts the word fit afresh,
+        // so a key-cap that settles wider (or a device switch) never leaves the longest word cut under it.
         private void GrowToLines() {
             if (!_button.IsInsideTree() || !_glyphsHidden || !_uppercase) return;
             int fontSize = _button.GetThemeFontSize(FontSizeName);
+            float badge = ReservedBadgeWidth();
             if (_growText == _drawn && Mathf.IsEqualApprox(_growWidth, _button.Size.X) && _growFontSize == fontSize
-                && Mathf.IsEqualApprox(_growScale, _scale)) return;
-            if (fontSize != _growFontSize) _wordMinWidth = 0f;
+                && Mathf.IsEqualApprox(_growScale, _scale) && Mathf.IsEqualApprox(_growBadge, badge)) return;
+            if (fontSize != _growFontSize || !Mathf.IsEqualApprox(_growBadge, badge)) _wordMinWidth = 0f;
+            _growBadge = badge;
             _growText = _drawn;
             _growWidth = _button.Size.X;
             _growFontSize = fontSize;
@@ -663,11 +671,13 @@ namespace FTT.UI.Pulp {
             float right = RightPadding();
             bool badgeShown = _badge != null && _badge.Visible;
             if (_showPrompt && (badgeShown || reserveBadge || _growToFit)) {
-                float badgeWidth = _badge != null && _badge.Size.X > 0f ? _badge.Size.X : BadgeSize * _scale;
-                right += badgeWidth + BadgeGap * _scale;
+                right += ReservedBadgeWidth() + BadgeGap * _scale;
             }
             return _button.Size.X - right;
         }
+
+        // The badge the label leaves room for: as laid out, else the pad ring's size.
+        private float ReservedBadgeWidth() => _badge != null && _badge.Size.X > 0f ? _badge.Size.X : BadgeSize * _scale;
 
         private bool IsMultiLine => _button.AutowrapMode != TextServer.AutowrapMode.Off || _drawn.Contains('\n') || _growToFit;
 
@@ -862,7 +872,21 @@ namespace FTT.UI.Pulp {
             StyleBox box = button.GetThemeStylebox(NormalName);
             float paddings = ((box?.GetContentMargin(Side.Left) ?? 0f) + (box?.GetContentMargin(Side.Right) ?? 0f)) * scale;
             float icon = button.Icon != null ? button.Icon.GetWidth() + button.GetThemeConstant(HSeparationName) : 0f;
-            return paddings + icon + (reservePrompt ? BadgeReserve * scale : 0f);
+            return paddings + icon + (reservePrompt ? BadgeReserveFor(button, scale) : 0f);
+        }
+
+        /// <summary>
+        /// The badge and its gap a row reserves on the current device (TG-CLOSE, superseding the fixed 52 of TG-WIDGETS ruling
+        /// 1): the pad ring's 36 + 16, or the keyboard's confirm key-cap (its own width, at least 34) + 16, at the UI scale. A
+        /// bound stack and an auto-sized row run again when the device changes.
+        /// </summary>
+        public static float BadgeReserveFor(Control context, float scale) {
+            if (PulpPromptGlyphs.CurrentDevice() == PromptDevice.Pad || context == null) return BadgeReserve * scale;
+            string key = PulpPromptGlyphs.LabelFor("ui_accept", PromptDevice.Keyboard);
+            Font font = context.GetThemeFont(FontName, UIPalette.LabelRoles.PromptKey);
+            int size = context.GetThemeFontSize(FontSizeName, UIPalette.LabelRoles.PromptKey);
+            float cap = Mathf.Max(PulpPromptGlyphs.KeyCapMinWidth, 2f * PulpPromptGlyphs.KeyCapPadding + MeasureWidth(key, font, size));
+            return cap + BadgeGap * scale;
         }
 
         /// <summary>
