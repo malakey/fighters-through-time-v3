@@ -185,7 +185,7 @@ namespace FTT.Diagnostics {
             sliders.AddChild(new HSlider { Value = 100, CustomMinimumSize = new Vector2(360, 44) });
             right.AddChild(new HSeparator());
 
-            right.AddChild(Heading("Bars: default, then the glass tubes on HP 30, HP 44, Ultimate 16, stat 14, boss"));
+            right.AddChild(Heading("Bars: default, then the five tubes"));
             right.AddChild(new ProgressBar { Value = 64, CustomMinimumSize = new Vector2(420, 24), ShowPercentage = false });
             AddTubes(right, 760f);
 
@@ -314,7 +314,7 @@ namespace FTT.Diagnostics {
             var right = new VBoxContainer { Name = "Tubes", CustomMinimumSize = new Vector2(560, 0) };
             right.AddThemeConstantOverride("separation", 20);
             columns.AddChild(right);
-            right.AddChild(Heading("Bars: the glass tubes (the bar variations are value carriers that draw nothing)"));
+            right.AddChild(Heading("Bars: the glass tubes"));
             AddTubes(right, 540f);
             right.AddChild(Heading("Halos S and L on bright art"));
             PanelContainer art = Backing("HaloArt", scene: true);
