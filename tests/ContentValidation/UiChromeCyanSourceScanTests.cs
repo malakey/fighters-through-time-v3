@@ -17,7 +17,8 @@ namespace FTT.Tests.ContentValidation;
 /// <c>UIPalette.Cyan</c> / <c>CyanDim</c> constants, or on a cyan colour literal,
 /// anywhere under <c>scripts/UI/</c> or in the UI and menu scenes, unless the
 /// file is on <see cref="Allowed"/> with a reason. Pure C#: the sources are read
-/// with <c>System.IO</c> from the path this file was compiled from.
+/// with <c>System.IO</c> from the path this file was compiled from. TG-CLOSE: the
+/// allow-list cannot go stale either; an entry whose file no longer names cyan fails.
 /// </summary>
 [TestSuite]
 public class UiChromeCyanSourceScanTests {
@@ -48,12 +49,7 @@ public class UiChromeCyanSourceScanTests {
         foreach (string path in files) {
             string rel = Path.GetRelativePath(root, path).Replace('\\', '/');
             if (Allowed.ContainsKey(rel)) continue;
-            int line = 0;
-            foreach (string raw in File.ReadAllLines(path)) {
-                line++;
-                string text = path.EndsWith(".cs") ? StripLineComment(raw) : raw;
-                if (FindsCyan(text)) offenders.Add(rel + ":" + line + " " + text.Trim());
-            }
+            foreach ((int line, string text) in CyanSites(path)) offenders.Add(rel + ":" + line + " " + text);
         }
         if (offenders.Count > 0) {
             AssertThat("chrome cyan sites: " + string.Join(" | ", offenders)).IsEqual("chrome cyan sites: ");
@@ -62,6 +58,24 @@ public class UiChromeCyanSourceScanTests {
         foreach (string allowed in Allowed.Keys) {
             AssertThat(File.Exists(Path.Combine(root, allowed)))
                 .OverrideFailureMessage("The allow-list names a missing file: " + allowed).IsTrue();
+        }
+    }
+
+    /// <summary>
+    /// TG-CLOSE: every allow-listed file exists and still names cyan (a read or a literal outside a comment), so the entry
+    /// of a file whose last cyan site went must go too (TG-SCREENS had to drop <c>ResonanceEdgeLayer.cs</c>'s by hand).
+    /// </summary>
+    [TestCase]
+    public void EveryAllowListedFileStillNeedsItsEntry() {
+        string root = RepositoryRoot();
+        var stale = new List<string>();
+        foreach (string rel in Allowed.Keys) {
+            string path = Path.Combine(root, rel);
+            if (!File.Exists(path)) stale.Add(rel + " (missing)");
+            else if (CyanSites(path).Count == 0) stale.Add(rel + " (names no cyan)");
+        }
+        if (stale.Count > 0) {
+            AssertThat("stale allow-list entries: " + string.Join(" | ", stale)).IsEqual("stale allow-list entries: ");
         }
     }
 
@@ -84,6 +98,18 @@ public class UiChromeCyanSourceScanTests {
             if (r <= 0.30 && g >= 0.50 && b >= 0.50 && g - r >= 0.35 && System.Math.Abs(g - b) <= 0.25) return true;
         }
         return false;
+    }
+
+    /// <summary>Every line of <paramref name="path"/> that names cyan (a C# file's line comments ignored).</summary>
+    private static List<(int Line, string Text)> CyanSites(string path) {
+        var sites = new List<(int, string)>();
+        int line = 0;
+        foreach (string raw in File.ReadAllLines(path)) {
+            line++;
+            string text = path.EndsWith(".cs") ? StripLineComment(raw) : raw;
+            if (FindsCyan(text)) sites.Add((line, text.Trim()));
+        }
+        return sites;
     }
 
     private static double Parse(string s) => double.Parse(s, CultureInfo.InvariantCulture);
