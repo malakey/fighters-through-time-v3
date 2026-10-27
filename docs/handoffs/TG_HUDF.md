@@ -3,8 +3,8 @@
 Temporal Glass rebuild (`docs/UI_GLASS_2026-10-26_PLAN.md` section 2.10, Phase B group 2). Look authority:
 `UI_SPEC_GLASS.md` 3.4, 4.5 and 10.2 (section numbers below are the spec's) and the render `rec_06_fighter-hud.png`.
 Branch `tg/hudf`, worktree `D:\Projects\ftt-wt\tg-hudf`, cut from `main` at `f086f3e0` (3720). Code commit
-`11a3e97d`; `main` (`67a891d9`, TG-MENU and TG-SCREENS, 3722) merged at `5250aff1` with no conflict; this handoff in
-the next commit. Presentation only: nothing under `scripts/FighterSim/` or `scripts/Core/` changed, no theme, palette,
+`11a3e97d`; `main` merged twice with no conflict: `67a891d9` (TG-MENU, TG-SCREENS, 3722) at `5250aff1`, then
+`4761fc1e` (TG-PAUSE, 3724) at `fe6a4c77`. Presentation only: nothing under `scripts/FighterSim/` or `scripts/Core/` changed, no theme, palette,
 widget, save, protocol or component change, no `KLOTHO_DET002`, no new translation key.
 
 ## What shipped
@@ -47,7 +47,7 @@ Looked at without a reference: `hudf_140` (corners pinned, tubes 554 px and 24 p
 
 ## Tests: delta +2
 
-`[TestCase]` attribute count: 3720 -> **3722** on the branch (`11a3e97d`), **3724** after merging `main` (3722 + 2). The plan's declared +2, exactly.
+`[TestCase]` attribute count: 3720 -> **3722** on the branch (`11a3e97d`), **3726** after merging `main` at `4761fc1e` (3724 + 2). The plan's declared +2, exactly.
 
 - `FighterHudTopBandTests` 3 -> 5 (+2):
   - updated: `ThePulpWidgetsExistAtTheirSpecSizesAndFollowTheComponents` -> `TheGlassWidgetsExistAtTheirSpecSizesAndFollowTheComponents` (portrait frame 110; tubes 510 x 44 / 390 x 16 with their decor style and mirroring; no `FullGradient`; the name and P tag roles; the slot shape in the owner colour; lenses 54 with scene key labels; badges 40; the Defy icon 32; held / lost stars and charged / spent pips by icon, tint and alpha; the Ultimate's meter and full gradients; the value 14 px inside and "/max" at 0.78; the echo band; a cooling lens; the not-yet circle round the lens's ring; a status badge);
@@ -78,6 +78,7 @@ Mutation runs (harness `D:\Projects\ftt-scratch\tg-hudf\mutate.py`, driver `mutr
 - Headless project load (`--headless --quit`): exit 0, no error, before and after the merge.
 - Before the merge: `FighterHud|FighterMatchPresentation|StockDisplayMode` 47 / 47; the UI filter plus the suites that attach this HUD through the driver 848 / 848.
 - After the merge (`5250aff1`): the UI filter (3.2) plus `StockDisplayMode`, `InfluenceMeterSource`, `FighterDebugOverlay`, `FighterPresentationSync`, `FighterBlockSpark`, `FighterWallBounce`, `FighterMatchFlow`, `FighterMatchSeed`, `FeelPassSim`, `AbilityVisualPresentation`, `FighterAudioRules`, `FighterLockoutRefusal`, `PlaceholderCueAsset`, `SceneSmoke`: **850 / 850** in 25 s (the UI filter's share 736). Reconciled method by method from the TRX (`D:\Projects\ftt-scratch\tg-hudf\trx\`) against the `[TestCase]` attributes the filter selects: 850 = 850 (VSTest's `~` is case-insensitive, so "Discards", "Reloading" and "SettingStatus" join through "Card", "Loading" and "Settings").
+- After the second merge (`fe6a4c77`, TG-PAUSE): build 0 errors and the two known warnings, load check exit 0, the same filter **852 / 852** in 27 s (the UI filter's share 738), reconciled method by method from the TRX: 852 = 852. `hudf_versus`, `hudf_140` and `hudf_sudden_death_140` re-captured there are pixel-identical to the gallery.
 - `.import` and `default_bus_layout.tres` churn reverted, not committed.
 
 ## Provisional values and agent choices
