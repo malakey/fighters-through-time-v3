@@ -53,6 +53,9 @@ namespace FTT.UI.Pulp {
         private bool _low;
         private float[] _notches = Array.Empty<float>();
         private Tween _lagTween;
+        private float _trackerAlpha = 1f;
+        // The tracker tween's two callbacks, made once (a hit starts a tween; it does not allocate a closure each time).
+        private Action<float> _applyLag, _fadeTracker;
         private double _clock;
 
         /// <summary>The spec's resonance glow, rgb(242, 204, 77): the full meter's glow and a ready lens's.</summary>
@@ -131,7 +134,9 @@ namespace FTT.UI.Pulp {
 
         /// <summary>
         /// The HP damage tracker (MOT-A row 7): a rise sets <see cref="LagValue"/> at once; a drop holds, then drains through
-        /// <c>PulpMotion.TrackerDrop</c> (a fade under Reduced Temporal Effects).
+        /// <c>PulpMotion.TrackerDrop</c>. Under Reduced Temporal Effects the row's fallback: "tracker fades out over 200 ms
+        /// instead of draining" (TG-CLOSE polish; it used to sit for 0.2 s and then snap): the tracker keeps its extent while
+        /// <see cref="TrackerAlpha"/> falls to 0, then it goes to the fill and its alpha comes back for the next hit.
         /// </summary>
         public void DropLagTo(float target) {
             StopLag();
@@ -139,7 +144,18 @@ namespace FTT.UI.Pulp {
                 LagValue = target;
                 return;
             }
-            _lagTween = PulpMotion.TrackerDrop(this, _lagValue, target, v => LagValue = v);
+            _applyLag ??= v => LagValue = v;
+            _fadeTracker ??= a => TrackerAlpha = a;
+            _lagTween = PulpMotion.TrackerDrop(this, _lagValue, target, _applyLag, _fadeTracker);
+        }
+
+        /// <summary>
+        /// The damage tracker's opacity, 0 to 1 (a multiplier on its colour): 1 but for the Reduced Temporal Effects fade of
+        /// MOT-A row 7, which runs it to 0 before the tracker goes to the fill.
+        /// </summary>
+        public float TrackerAlpha {
+            get => _trackerAlpha;
+            private set { if (_trackerAlpha == value) return; _trackerAlpha = value; Invalidate(); }
         }
 
         /// <summary>
@@ -153,9 +169,11 @@ namespace FTT.UI.Pulp {
             LagValue = value;
         }
 
+        // Also ends a Reduced Temporal Effects fade part way: the next tracker shows at full strength.
         private void StopLag() {
             if (_lagTween != null && _lagTween.IsValid()) _lagTween.Kill();
             _lagTween = null;
+            TrackerAlpha = 1f;
         }
 
         public override void _EnterTree() {
@@ -218,6 +236,7 @@ namespace FTT.UI.Pulp {
         public Color[] EdgeColors { get { EnsureGeometry(); return _outer.Colors; } }
         public Vector2[] InnerPolygon { get { EnsureGeometry(); return _inner.Points; } }
         public Vector2[] TrackerPolygon { get { EnsureGeometry(); return _tracker.Points; } }
+        public Color[] TrackerColors { get { EnsureGeometry(); return _tracker.Colors; } }
         public Vector2[] EchoPolygon { get { EnsureGeometry(); return _echo.Points; } }
         public Vector2[] FillPolygon { get { EnsureGeometry(); return _fill.Points; } }
         public Color[] FillColors { get { EnsureGeometry(); return _fill.Colors; } }
@@ -331,7 +350,8 @@ namespace FTT.UI.Pulp {
             // The tracker (behind the fill, so it shows between the fill and the lag) and the Rally echo band.
             if (f.Lag > f.Value) {
                 Slab(anchoredX, X(f.Lag), _tracker);
-                _tracker.Fill(boss ? UIPalette.BossTracker : TrackerColor);
+                Color tracker = boss ? UIPalette.BossTracker : TrackerColor;
+                _tracker.Fill(new Color(tracker, tracker.A * _trackerAlpha));
             } else {
                 _tracker.Clear();
             }
