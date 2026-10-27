@@ -4,27 +4,30 @@ using Godot;
 namespace FTT.UI {
 
     /// <summary>
-    /// UR-PAUSE's half of <see cref="PulpScreenKit"/> (the class is partial; UR-SCREENS' members are in
-    /// <c>PulpScreenKit.cs</c>): the scrim, the 560 x 64 banner rows of the PAUSE-A list, the bottom-centre prompt
-    /// bar and the two pure helpers the pause tag and status strip use. Nothing here sets a font size or builds a
-    /// scripted StyleBox.
+    /// The pause family's half of <see cref="PulpScreenKit"/> (the class is partial; the rest is in
+    /// <c>PulpScreenKit.cs</c>): the dim, the 560 x 64 chevron rows of the PAUSE-A list, the bottom-centre prompt bar and the
+    /// two pure helpers the pause tag and status strip use. Nothing here sets a font size or builds a scripted StyleBox.
     /// </summary>
     public static partial class PulpScreenKit {
 
-        /// <summary>UI_SPEC 4.3: pause rows are 560 wide and 64 tall (the 64 px plate of <c>TemporalGlassButton</c>).</summary>
+        /// <summary>UI_SPEC_GLASS 3.2, 4.3: pause rows are 560 wide and 64 tall (the <c>TemporalGlassButton</c> chevron).</summary>
         public const float PauseButtonWidth = 560f;
         public const float PauseButtonHeight = 64f;
 
-        /// <summary>The scrim's own alpha: the theme's 0.85 scrim x 0.7 reads as the mock's 0.58 dim over the world.</summary>
+        /// <summary>
+        /// The dim's own alpha: <c>ScrimPanel</c> paints <c>UIPalette.ScrimFill</c> (3, 5, 14) opaque and every user
+        /// multiplies it by this, which gives the build's pause dim rgba(3, 5, 14, .70) (UI_SPEC_GLASS 1.4, the theme's
+        /// self-alpha contract).
+        /// </summary>
         public const float ScrimAlpha = 0.7f;
 
-        /// <summary>Prompt bar bottom margin when centred (UI_SPEC 4.3: y 1012 of 1080, a 34 px glyph row).</summary>
+        /// <summary>Prompt bar bottom margin when centred (UI_SPEC_GLASS 4.3: y 1012 of 1080, a 34 px glyph row).</summary>
         public const float PromptBottomMargin = 34f;
 
-        /// <summary>The spec starts the row label at x + 64, clear of the marker; the 64 px plate's own margin is 54.</summary>
-        public const float RowLabelInset = 64f;
+        /// <summary>The chevron's label starts at x + 58 (UI_SPEC_GLASS 3.2), which is the theme's own left padding.</summary>
+        public const float RowLabelInset = 58f;
 
-        /// <summary>A full-rect translucent scrim that swallows the mouse.</summary>
+        /// <summary>A full-rect pause dim (the <c>ScrimPanel</c> at <see cref="ScrimAlpha"/>) that swallows the mouse.</summary>
         public static PanelContainer MakeScrim(string name = "Shade") {
             var scrim = new PanelContainer {
                 Name = name,
@@ -36,7 +39,7 @@ namespace FTT.UI {
             return scrim;
         }
 
-        /// <summary>A pause row: the banner plate at 560 x 64 with the marker, the focus pose and the prompt badge.</summary>
+        /// <summary>A pause row: the 560 x 64 chevron with the diamond marker, the focus pose and the prompt badge.</summary>
         public static Button StylePauseButton(Button button, float width = PauseButtonWidth) {
             button.ThemeTypeVariation = UIPalette.Variations.TemporalGlassButton;
             button.CustomMinimumSize = new Vector2(width, PauseButtonHeight);
@@ -45,13 +48,20 @@ namespace FTT.UI {
             return button;
         }
 
-        private static readonly string[] ButtonBoxes = { "normal", "hover", "pressed", "hover_pressed", "focus", "disabled" };
+        private static readonly string[] ButtonBoxes = { "normal", "hover", "pressed", "hover_pressed", "focus", "disabled", "selected" };
 
+        // Keeps the label at RowLabelInset. The glass theme already pads 58, so this writes nothing there; when it must, it
+        // copies the box the button really draws: its own override, else the shared theme's box for its variation. The
+        // theme is read directly, not through the button, because a row styled before its screen is in the tree (the
+        // Fighter pause builds its rows so) resolves the engine's default box there, and copying that would freeze it.
         private static void PadLabel(Button button) {
             Theme theme = UIPalette.LoadTheme();
             string variation = button.ThemeTypeVariation.ToString();
             foreach (string box in ButtonBoxes) {
-                if (!theme.HasStylebox(box, variation) || theme.GetStylebox(box, variation).Duplicate() is not StyleBoxTexture own) continue;
+                StyleBox current = button.HasThemeStyleboxOverride(box) ? button.GetThemeStylebox(box)
+                    : theme != null && theme.HasStylebox(box, variation) ? theme.GetStylebox(box, variation) : null;
+                if (current == null || Mathf.IsEqualApprox(current.GetContentMargin(Side.Left), RowLabelInset)) continue;
+                if (current.Duplicate() is not StyleBox own) continue;
                 own.ContentMarginLeft = RowLabelInset;
                 button.AddThemeStyleboxOverride(box, own);
             }

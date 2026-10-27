@@ -6,29 +6,62 @@ using Godot;
 namespace FTT.UI.Pulp {
 
     /// <summary>
-    /// UR-WIDGETS. Decorates a banner button with the pulp marker, the MOT-B focus pose, the prompt badge on
-    /// the focused row and the paper "selected" look (UI_SPEC 3.2). Call <see cref="Apply"/> once per button
-    /// (a second call returns the existing decor). The decor and its marker / badge are children of the
-    /// button, so the focus pose carries them along.
+    /// TG-WIDGETS (BTN-A, UI_SPEC_GLASS 3.2; first written by UR-WIDGETS for the pulp banner). Decorates a chevron button
+    /// with the diamond marker (<see cref="GlassMarker"/>), the MOT-A focus pose, the prompt badge on the focused row, the
+    /// upper-case label and the selected look. Call <see cref="Apply"/> once per button (a second call returns the existing
+    /// decor). The decor and its marker / badge / label layer are children of the button, so the focus pose carries them.
+    ///
+    /// <list type="bullet">
+    /// <item>Label: <c>Tr(Text)</c> drawn upper-case in the button's own theme font, from the left padding (58, compact 52)
+    /// to the right one (54, compact 40); colours per state from the theme (normal <c>ink2</c>, focus / hover / pressed white,
+    /// disabled <c>ink3</c>), selected <c>ink</c>. A label too long shrinks (floors 26 / 20 px at 100 %), then ellipsizes;
+    /// a multi-line or <see cref="GrowToFit"/> label wraps instead. <c>Button.Text</c> stays the raw key.</item>
+    /// <item>Prompt badge: a 36 px ring with the confirm glyph (or a key-cap) in the label colour, at the label's right end,
+    /// on the focused row only (<see cref="ShowPrompt"/> turns it off for footers, 3.2 D6).</item>
+    /// <item>Hover is focus (AC8): the mouse entering a visible, enabled, focusable button gives it focus.</item>
+    /// <item>UI scale (6.7 item 8): the button's design height, the paddings the label is drawn at, the marker and the badge
+    /// grow with the UI scale; the width is the screen's (the <see cref="ApplyStackWidth"/> rule).</item>
+    /// </list>
+    /// Nothing polls per frame: the button's own redraw (its state, text or size changed) queues one refresh, and the label's
+    /// text layout is cached until its text, font, size or width changes.
     /// </summary>
     public partial class PulpButtonDecor : Node {
 
         /// <summary>The marker's look in one state.</summary>
         public enum MarkerState { Normal, Focus, Selected, Pressed, Disabled }
 
-        public static readonly Color MarkerSelectedTint = new(0xE0 / 255f, 0x41 / 255f, 0x2F / 255f);
-        public static readonly Color MarkerDisabledTint = new(0x4A / 255f, 0x43 / 255f, 0x33 / 255f);
+        /// <summary>The selected marker: filled and outlined <c>accent</c>.</summary>
+        public static readonly Color MarkerSelectedTint = UIPalette.Accent;
+        /// <summary>The disabled marker: the <c>edge</c> outline, dashed, at .5 opacity.</summary>
+        public static readonly Color MarkerDisabledTint = new(UIPalette.Edge, UIPalette.Edge.A * 0.5f);
 
-        private const float BadgeEdgeInset = 30f;
-        private const float PadBadgeSize = 36f;
+        /// <summary>The marker's centre from the button's left (3.2: x + 31, compact x + 29).</summary>
+        public const float MarkerCentreX = 31f, CompactMarkerCentreX = 29f;
+        /// <summary>The prompt badge's size and the gap before it (3.2: the D6 rule reserves 16 + 36).</summary>
+        public const float BadgeSize = 36f, BadgeGap = 16f;
+        /// <summary>The badge and its gap: what a label leaves free on a row that can show the prompt.</summary>
+        public const float BadgeReserve = BadgeSize + BadgeGap;
+        /// <summary>The shrink-to-fit floors at 100 % (3.2: T10 26 px, T11 20 px), scaled with the UI scale, never under 18.</summary>
+        public const float ShrinkFloor = 26f, CompactShrinkFloor = 20f;
+
+        private static readonly StringName FontName = "font", FontSizeName = "font_size", NormalName = "normal";
+        private static readonly StringName HoverName = "hover", SelectedName = "selected", HSeparationName = "h_separation";
+        private static readonly StringName OutlineSizeName = "outline_size";
 
         private Button _button;
         private bool _compact;
-        private PulpIcon _marker;
+        private GlassMarker _marker;
         private Control _badge;
+        private GlassPromptRing _badgeRing;
+        private Label _badgeLabel;
         private bool _selected;
         private PromptDevice _badgeDevice;
+        private float _badgeScale = -1f;
+        private Color _badgeColor;
+        private bool _showPrompt = true;
         private bool _hooked;
+        private bool _refreshQueued;
+        private bool _layoutDirty;
         private bool _hasSavedNormal, _hasSavedHover;
         private StyleBox _savedNormal, _savedHover;
         private readonly Dictionary<string, Color?> _savedColors = new();
@@ -36,14 +69,33 @@ namespace FTT.UI.Pulp {
         private bool _glyphsHidden;
         private readonly Dictionary<string, (Color Color, bool HadOverride)> _original = new();
         private LabelLayer _labelLayer;
-        private string _lastText = "";
-        private float _lastWidth;
+        private string _sourceText;
+        private string _drawn = "";
+        private bool _lastDisabled;
+        private float _lastWidth = -1f;
+        private float _scale = 1f;
+
+        // Size: the design minimum size (as the screen set it), what the decor last wrote, and the grow-to-fit extras.
+        private Vector2 _design;
+        private Vector2 _written;
+        private bool _hasWritten;
         private bool _growToFit;
-        private float _baseMinHeight;
-        private float _baseMinWidth;
+        private float _grownHeight;
         private float _wordMinWidth;
         private int _growFontSize;
-        private string _growKey = "";
+        private string _growText;
+        private float _growWidth = -1f, _growScale = -1f;
+
+        // The label's cached layout (rebuilt only when its inputs change).
+        private readonly TextLine _line = new();
+        private readonly TextParagraph _paragraph = new();
+        private string _layoutText;
+        private Font _layoutFont;
+        private int _layoutSize = -1, _layoutFitted = -1, _layoutMaxLines = -1;
+        private float _layoutWidth = -1f, _layoutFitWidth = -1f;
+        private HorizontalAlignment _layoutAlign;
+        private bool _layoutMulti;
+        private bool _layoutTrimmed;
 
         private static readonly string[] HideSlots = {
             "font_color", "font_hover_color", "font_focus_color", "font_pressed_color", "font_hover_pressed_color",
@@ -55,29 +107,35 @@ namespace FTT.UI.Pulp {
         };
 
         /// <summary>
-        /// UR-POLISH. When true a label too long for one line wraps instead of ending in an ellipsis, and the button grows
-        /// its minimum height to hold the lines. The wrap always leaves room for the focused row's prompt badge, so the
-        /// button does not change height as focus moves. Off by default: menu rows are authored to fit one line.
+        /// UR-POLISH. When true a label too long for one line wraps instead of shrinking, and the button grows its minimum
+        /// height to hold the lines. The wrap always leaves room for the focused row's prompt badge, so the button does not
+        /// change height as focus moves. Off by default: menu rows are authored to fit one line.
         /// </summary>
         public bool GrowToFit {
             get => _growToFit;
             set {
                 if (_growToFit == value || _button == null) return;
                 _growToFit = value;
-                if (value) { _baseMinHeight = _button.CustomMinimumSize.Y; _baseMinWidth = _button.CustomMinimumSize.X; }
-                else _button.CustomMinimumSize = new Vector2(_baseMinWidth, _baseMinHeight);
-                _growKey = "";
+                _growText = null;
+                _grownHeight = 0f;
+                _wordMinWidth = 0f;
                 Refresh();
             }
         }
 
-        /// <summary>The marker icon (tint and shadow follow the state).</summary>
+        /// <summary>The diamond marker (a <see cref="GlassMarker"/>; its tint is the state's main colour).</summary>
         public PulpIcon Marker => _marker;
         /// <summary>The prompt badge control; visible only while the button has focus.</summary>
         public Control Badge => _badge;
         /// <summary>The device family the badge currently shows.</summary>
         public PromptDevice BadgeDevice => _badgeDevice;
         public Button Button => _button;
+
+        /// <summary>Whether the focused row shows its prompt badge (3.2; compact footers set it off, D6).</summary>
+        public bool ShowPrompt {
+            get => _showPrompt;
+            set { if (_showPrompt == value) return; _showPrompt = value; InvalidateLayout(); Refresh(); }
+        }
 
         /// <summary>True while the decor draws the upper-cased label and hides the button's own glyphs.</summary>
         public bool Uppercase {
@@ -93,11 +151,31 @@ namespace FTT.UI.Pulp {
         /// <summary>The string the decor draws: the translated button text, upper-cased for the current locale.</summary>
         public string DrawnText => _button == null ? "" : ToDrawnText(_button.Tr(_button.Text));
 
-        /// <summary>The colour the label draws in right now (ink-dark when selected, else the theme colour of the state).</summary>
+        /// <summary>The colour the label draws in right now (<c>ink</c> when selected, else the theme colour of the state).</summary>
         public Color CurrentLabelColor => LabelColorNow();
 
-        /// <summary>The right limit (from the button's left) the label may reach: the right content margin, or the badge's room on the focused row.</summary>
+        /// <summary>The right limit (from the button's left) the label may reach: the right padding, or the badge's room on the focused row.</summary>
         public float LabelRightLimit => LabelLimit();
+
+        /// <summary>The font size the single-line label draws at (shrunk to fit, never under its floor); the theme size for a wrapping label.</summary>
+        public int DrawnFontSize {
+            get {
+                if (_button == null) return 0;
+                EnsureLayout();
+                return _layoutMulti ? _layoutSize : _layoutFitted;
+            }
+        }
+
+        /// <summary>How many times the label's text layout was rebuilt (a redraw without a change rebuilds nothing).</summary>
+        public int LayoutBuilds { get; private set; }
+
+        /// <summary>The UI scale the decor applies to heights, paddings, the marker and the badge (the shared theme's applied scale).</summary>
+        public static float UiScaleFactor =>
+            Mathf.Clamp(UIPalette.AppliedUiScale, GlobalSaveData.MinUiScale, GlobalSaveData.MaxUiScale);
+
+        /// <summary>The shrink floor for a chevron (26 px, compact 20) at the current UI scale, never under the 18 px floor.</summary>
+        public static int ShrinkFloorFor(bool compact) =>
+            Mathf.Max(UIPalette.MinLabelFontSize, Mathf.RoundToInt((compact ? CompactShrinkFloor : ShrinkFloor) * UiScaleFactor));
 
         /// <summary>Which theme colour slot the label uses for a state (disabled, pressed, hover, focus, normal); selected is handled apart.</summary>
         public static string LabelColorSlot(bool disabled, BaseButton.DrawMode mode, bool focused) {
@@ -114,7 +192,7 @@ namespace FTT.UI.Pulp {
         public static string ToDrawnText(string text) =>
             TextServerManager.GetPrimaryInterface().StringToUpper(text ?? "", TranslationServer.GetLocale());
 
-        /// <summary>True while the paper selected plate is shown. In ToggleMode it follows <c>ButtonPressed</c>.</summary>
+        /// <summary>True while the selected look is shown (the theme's <c>selected</c> chevron). In ToggleMode it follows <c>ButtonPressed</c>.</summary>
         public bool Selected {
             get => _selected;
             set {
@@ -127,9 +205,9 @@ namespace FTT.UI.Pulp {
 
         /// <summary>
         /// Decorates <paramref name="button"/>; a second call returns the decor already on it. <paramref name="alignLeft"/>
-        /// left-aligns the label (the spec puts it at x + 64) so screens need not. <paramref name="uppercase"/> (the
-        /// spec renders banner labels upper-case) hides the button's own glyphs and draws the translated label
-        /// upper-cased in the decor; <c>Button.Text</c> stays the raw translation key.
+        /// left-aligns the label (the spec puts it at x + 58) so screens need not. <paramref name="uppercase"/> (Direction A
+        /// renders every label upper-case) hides the button's own glyphs and draws the translated label upper-cased in the
+        /// decor; <c>Button.Text</c> stays the raw translation key.
         /// </summary>
         public static PulpButtonDecor Apply(Button button, bool compact = false, bool alignLeft = true, bool uppercase = true) {
             for (int i = 0, n = button.GetChildCount(); i < n; i++) {
@@ -148,24 +226,36 @@ namespace FTT.UI.Pulp {
             return decor;
         }
 
-        /// <summary>The marker state for a button's observable state (disabled, selected, held, focused or hovered).</summary>
+        /// <summary>
+        /// The marker state for a button's observable state. Disabled and selected win; a focused (or hovered) row shows
+        /// the focus diamond even while pressed (3.2: pressed keeps the underlying state); a held unfocused row is Pressed.
+        /// </summary>
         public static MarkerState ComputeMarkerState(bool disabled, bool selected, bool held, bool focusOrHover) {
             if (disabled) return MarkerState.Disabled;
             if (selected) return MarkerState.Selected;
-            if (held) return MarkerState.Pressed;
-            return focusOrHover ? MarkerState.Focus : MarkerState.Normal;
+            if (focusOrHover) return MarkerState.Focus;
+            return held ? MarkerState.Pressed : MarkerState.Normal;
         }
 
-        /// <summary>The marker tint for <paramref name="state"/>.</summary>
+        /// <summary>The marker's main colour for <paramref name="state"/>: its outline, or its fill when filled.</summary>
         public static Color MarkerTint(MarkerState state) => state switch {
-            MarkerState.Focus => UIPalette.LabelDark,
+            MarkerState.Focus => UIPalette.Focus,
             MarkerState.Selected => MarkerSelectedTint,
             MarkerState.Disabled => MarkerDisabledTint,
-            _ => UIPalette.Ink3
+            _ => UIPalette.Edge
         };
 
-        /// <summary>True when the marker keeps its drop shadow in <paramref name="state"/> (none on a focused or disabled row).</summary>
-        public static bool MarkerHasShadow(MarkerState state) => state is not (MarkerState.Focus or MarkerState.Disabled);
+        /// <summary>True when the marker draws its 16 px glow and 4 px ring (focus only).</summary>
+        public static bool MarkerHasShadow(MarkerState state) => state == MarkerState.Focus;
+
+        /// <summary>True when the diamond is filled (focus with <c>focus</c>, selected with <c>accent</c>).</summary>
+        public static bool MarkerFilled(MarkerState state) => state is MarkerState.Focus or MarkerState.Selected;
+
+        /// <summary>The diamond's 1.5 px outline colour: white when focused, else the state's tint.</summary>
+        public static Color MarkerOutline(MarkerState state) => state == MarkerState.Focus ? Colors.White : MarkerTint(state);
+
+        /// <summary>True when the outline is dashed (disabled).</summary>
+        public static bool MarkerDashed(MarkerState state) => state == MarkerState.Disabled;
 
         private void Build() {
             _button.ClipContents = false;
@@ -173,7 +263,7 @@ namespace FTT.UI.Pulp {
             for (int i = 0, n = _button.GetChildCount(); i < n; i++) if (_button.GetChild(i) is FocusPose pose) existingPose = pose;
             if (existingPose == null) FocusPose.Attach(_button);
 
-            _marker = new PulpIcon { Name = "Marker", IconName = "marker", Tint = UIPalette.Ink3 };
+            _marker = new GlassMarker { Name = "Marker" };
             _button.AddChild(_marker);
             _labelLayer = new LabelLayer(this) { Name = "UpperLabel", MouseFilter = Control.MouseFilterEnum.Ignore };
             _labelLayer.SetAnchorsPreset(Control.LayoutPreset.FullRect);
@@ -184,7 +274,9 @@ namespace FTT.UI.Pulp {
 
             if (_button.ToggleMode) _selected = _button.ButtonPressed;
             _badgeDevice = PulpPromptGlyphs.CurrentDevice();
+            _scale = UiScaleFactor;
             BuildBadge(_badgeDevice);
+            _design = _button.CustomMinimumSize;
             if (_selected) ApplySelectedLook();
         }
 
@@ -193,15 +285,15 @@ namespace FTT.UI.Pulp {
             _hooked = true;
             _button.FocusEntered += OnStateChanged;
             _button.FocusExited += OnStateChanged;
-            _button.MouseEntered += OnStateChanged;
+            _button.MouseEntered += OnMouseEntered;
             _button.MouseExited += OnStateChanged;
             _button.ButtonDown += OnStateChanged;
             _button.ButtonUp += OnStateChanged;
             _button.Toggled += OnToggled;
             _button.Resized += OnStateChanged;
             _button.VisibilityChanged += OnStateChanged;
+            _button.Draw += OnButtonDraw;
             if (InputManager.Instance != null) InputManager.Instance.DeviceAssigned += OnDeviceAssigned;
-            SetProcess(_button.IsVisibleInTree());
             Refresh();
         }
 
@@ -211,97 +303,141 @@ namespace FTT.UI.Pulp {
             if (GodotObject.IsInstanceValid(_button)) {
                 _button.FocusEntered -= OnStateChanged;
                 _button.FocusExited -= OnStateChanged;
-                _button.MouseEntered -= OnStateChanged;
+                _button.MouseEntered -= OnMouseEntered;
                 _button.MouseExited -= OnStateChanged;
                 _button.ButtonDown -= OnStateChanged;
                 _button.ButtonUp -= OnStateChanged;
                 _button.Toggled -= OnToggled;
                 _button.Resized -= OnStateChanged;
                 _button.VisibilityChanged -= OnStateChanged;
+                _button.Draw -= OnButtonDraw;
             }
             if (InputManager.Instance != null) InputManager.Instance.DeviceAssigned -= OnDeviceAssigned;
         }
 
-        public override void _Process(double delta) {
-            // The Disabled flag has no signal: poll it, and re-check the cheap state only when it moved.
-            if (_button == null) return;
-            if (_growToFit) GrowToLines();
-            if (_lastDisabled != _button.Disabled || _lastText != _button.Text || _lastWidth != _button.Size.X) {
-                _lastText = _button.Text;
-                _lastWidth = _button.Size.X;
-                Refresh();
+        private void OnStateChanged() => Refresh();
+        private void OnDeviceAssigned(int slot, int device) => Refresh();
+
+        // Hover is focus (UI_SPEC_GLASS AC8): a hovered chevron reads exactly as a focused one.
+        private void OnMouseEntered() {
+            if (_button != null && _button.IsVisibleInTree() && !_button.Disabled
+                && _button.FocusMode != Control.FocusModeEnum.None && !_button.HasFocus()) {
+                _button.GrabFocus();
             }
-        }
-
-        private bool _lastDisabled;
-
-        private void OnStateChanged() {
-            // A button on a hidden screen needs no per-frame poll of Disabled / Text / width.
-            if (_button != null && GodotObject.IsInstanceValid(_button)) SetProcess(_button.IsVisibleInTree());
             Refresh();
         }
-        private void OnDeviceAssigned(int slot, int device) => Refresh();
 
         private void OnToggled(bool pressed) {
             if (_button.ToggleMode) Selected = pressed;
             Refresh();
         }
 
-        // Recomputes the wrapped line count only when the text, width, font size or UI scale changed (the key), so the
-        // per-frame poll allocates nothing while the label is steady.
+        // The button redrew: its disabled flag, text or width may have changed (none has a signal). Refresh once, after the
+        // draw (a refresh may write the minimum size, which must not happen while the button records its draw).
+        private void OnButtonDraw() {
+            if (_button == null) return;
+            if (_button.Disabled == _lastDisabled && Mathf.IsEqualApprox(_button.Size.X, _lastWidth) && _button.Text == _sourceText) return;
+            QueueRefresh();
+        }
+
+        /// <summary>Queues one deferred <see cref="Refresh"/> (a theme or translation change, or the button's own redraw).</summary>
+        internal void QueueRefresh() {
+            if (_refreshQueued) return;
+            _refreshQueued = true;
+            Callable.From(RefreshQueued).CallDeferred();
+        }
+
+        private void RefreshQueued() {
+            _refreshQueued = false;
+            if (!IsInstanceValid(this) || _button == null || !IsInstanceValid(_button)) return;
+            Refresh();
+            // A theme or locale change can change the stack's widest label: the bound D6 rule runs again, once.
+            if (_layoutDirty) { _layoutDirty = false; _stackRule?.Queue(); }
+        }
+
+        /// <summary>Recomputes the marker, the badge, the label and the minimum size from the button's current state.</summary>
+        public void Refresh() {
+            if (_button == null || !GodotObject.IsInstanceValid(_button) || _marker == null) return;
+            _lastDisabled = _button.Disabled;
+            _lastWidth = _button.Size.X;
+            string text = _button.Text;
+            if (text != _sourceText) {
+                _sourceText = text;
+                _drawn = ToDrawnText(_button.Tr(text));
+                InvalidateLayout();
+            }
+            if (_button.IsInsideTree() && !_glyphsHidden && _uppercase) ApplyGlyphHiding();
+            float scale = UiScaleFactor;
+            if (!Mathf.IsEqualApprox(scale, _scale)) { _scale = scale; InvalidateLayout(); }
+
+            BaseButton.DrawMode mode = _button.GetDrawMode();
+            bool held = mode is BaseButton.DrawMode.Pressed or BaseButton.DrawMode.HoverPressed && !_button.ToggleMode;
+            bool focusOrHover = _button.HasFocus() || mode is BaseButton.DrawMode.Hover or BaseButton.DrawMode.HoverPressed;
+            _marker.State = ComputeMarkerState(_button.Disabled, _selected, held, focusOrHover);
+            _marker.MarkerScale = _scale;
+            float diagonal = _marker.Diagonal;
+            _marker.Size = new Vector2(diagonal, diagonal);
+            float centreX = (_compact ? CompactMarkerCentreX : MarkerCentreX) * _scale;
+            _marker.Position = new Vector2(centreX - diagonal / 2f, (_button.Size.Y - diagonal) / 2f);
+
+            PromptDevice device = PulpPromptGlyphs.CurrentDevice();
+            if (device != _badgeDevice || !Mathf.IsEqualApprox(_badgeScale, _scale)) {
+                _badgeDevice = device;
+                BuildBadge(device);
+            }
+            _badge.Visible = _showPrompt && _button.HasFocus() && !_button.Disabled;
+            LayoutBadge();
+            if (_growToFit) GrowToLines();
+            ApplyMinimumSize();
+            _labelLayer?.QueueRedraw();
+        }
+
+        // ---- The size (design height x UI scale, grown lines) ----
+
+        private void ApplyMinimumSize() {
+            Vector2 current = _button.CustomMinimumSize;
+            // A size the decor did not write is the screen's new design size (in 100 % units), axis by axis: a stack that
+            // sets only the width (ApplyStackWidth) keeps the design height the decor scales.
+            if (!_hasWritten || !Mathf.IsEqualApprox(current.X, _written.X)) _design.X = current.X;
+            if (!_hasWritten || !Mathf.IsEqualApprox(current.Y, _written.Y)) _design.Y = current.Y;
+            float width = _design.X, height = _design.Y > 0f ? _design.Y * _scale : 0f;
+            if (_growToFit) {
+                width = Mathf.Max(width, _wordMinWidth);
+                height = Mathf.Max(height, _grownHeight);
+            }
+            var want = new Vector2(width, height);
+            _written = want;
+            _hasWritten = true;
+            if (current != want) _button.CustomMinimumSize = want;
+        }
+
+        // Recomputes the wrapped line count only when the text, width, font size or UI scale changed.
         private void GrowToLines() {
-            if (!_button.IsInsideTree() || !_button.IsVisibleInTree() || !_glyphsHidden || !_uppercase) return;
-            string key = _button.Text + "|" + _button.Size.X + "|" + _button.GetThemeFontSize("font_size") + "|" + _button.Tr(_button.Text);
-            if (key == _growKey) return;
-            _growKey = key;
-            TextParagraph paragraph = BuildParagraph(DrawnText, LabelAvailableWidthReserved());
+            if (!_button.IsInsideTree() || !_glyphsHidden || !_uppercase) return;
+            int fontSize = _button.GetThemeFontSize(FontSizeName);
+            if (_growText == _drawn && Mathf.IsEqualApprox(_growWidth, _button.Size.X) && _growFontSize == fontSize
+                && Mathf.IsEqualApprox(_growScale, _scale)) return;
+            if (fontSize != _growFontSize) _wordMinWidth = 0f;
+            _growText = _drawn;
+            _growWidth = _button.Size.X;
+            _growFontSize = fontSize;
+            _growScale = _scale;
+            float room = LabelAvailableWidthReserved();
+            TextParagraph paragraph = BuildParagraph(_drawn, room);
             int lines = Mathf.Max(1, paragraph.GetLineCount());
-            StyleBox box = _button.GetThemeStylebox("normal");
-            float chrome = (box?.GetContentMargin(Side.Top) ?? 0f) + (box?.GetContentMargin(Side.Bottom) ?? 0f);
+            StyleBox box = _button.GetThemeStylebox(NormalName);
+            float chrome = ((box?.GetContentMargin(Side.Top) ?? 0f) + (box?.GetContentMargin(Side.Bottom) ?? 0f)) * _scale;
             float needed = Mathf.Ceil(chrome + lines * Mathf.Max(1f, paragraph.GetLineSize(0).Y) + 2f);
-            float height = Mathf.Max(_baseMinHeight, lines > 1 ? needed : 0f);
+            _grownHeight = lines > 1 ? needed : 0f;
             // A single word wider than the line cannot wrap: widen the button by the shortfall (a word never breaks).
             float widest = 0f;
             for (int i = 0; i < paragraph.GetLineCount(); i++) widest = Mathf.Max(widest, paragraph.GetLineWidth(i));
-            float room = LabelAvailableWidthReserved();
-            int fontSize = _button.GetThemeFontSize("font_size");
-            if (fontSize != _growFontSize) { _growFontSize = fontSize; _wordMinWidth = 0f; }
             if (widest > room + 0.5f) _wordMinWidth = Mathf.Max(_wordMinWidth, _button.Size.X + (widest - room) + 2f);
-            float width = Mathf.Max(_baseMinWidth, _wordMinWidth);
-            if (!Mathf.IsEqualApprox(_button.CustomMinimumSize.Y, height) || !Mathf.IsEqualApprox(_button.CustomMinimumSize.X, width)) {
-                _button.CustomMinimumSize = new Vector2(width, height);
-                _growKey = "";
-            }
         }
 
         private float LabelAvailableWidthReserved() => Mathf.Max(1f, LabelLimit(true) - LabelLeft());
 
-        /// <summary>Recomputes the marker, the badge and the layout from the button's current state.</summary>
-        public void Refresh() {
-            if (_button == null || !GodotObject.IsInstanceValid(_button) || _marker == null) return;
-            _lastDisabled = _button.Disabled;
-            if (_button.IsInsideTree() && !_glyphsHidden && _uppercase) ApplyGlyphHiding();
-            _labelLayer?.QueueRedraw();
-            BaseButton.DrawMode mode = _button.GetDrawMode();
-            bool held = mode is BaseButton.DrawMode.Pressed or BaseButton.DrawMode.HoverPressed
-                && !_button.ToggleMode;
-            bool focusOrHover = _button.HasFocus() || mode is BaseButton.DrawMode.Hover or BaseButton.DrawMode.HoverPressed;
-            MarkerState state = ComputeMarkerState(_button.Disabled, _selected, held, focusOrHover);
-            _marker.Tint = MarkerTint(state);
-            _marker.ShadowEnabled = MarkerHasShadow(state);
-
-            Vector2 markerSize = _compact ? new Vector2(16f, 22f) : new Vector2(20f, 28f);
-            _marker.Size = markerSize;
-            _marker.Position = new Vector2(_compact ? 20f : 26f, Mathf.Round((_button.Size.Y - markerSize.Y) / 2f));
-
-            PromptDevice device = PulpPromptGlyphs.CurrentDevice();
-            if (device != _badgeDevice) {
-                _badgeDevice = device;
-                BuildBadge(device);
-            }
-            _badge.Visible = _button.HasFocus() && !_button.Disabled;
-            LayoutBadge();
-        }
+        // ---- The prompt badge ----
 
         private void BuildBadge(PromptDevice device) {
             for (int i = _badge.GetChildCount() - 1; i >= 0; i--) {
@@ -309,32 +445,49 @@ namespace FTT.UI.Pulp {
                 _badge.RemoveChild(child);
                 child.QueueFree();
             }
+            _badgeScale = _scale;
+            _badgeRing = null;
+            _badgeLabel = null;
+            _badgeColor = new Color(0f, 0f, 0f, 0f);
             string text = PulpPromptGlyphs.LabelFor("ui_accept", device);
+            Color color = _button != null ? LabelColorNow() : Colors.White;
             if (device == PromptDevice.Pad) {
-                var disc = new PulpIcon { Name = "Disc", IconName = "prompt_circle", Tint = UIPalette.LabelDark, Flat = true };
-                disc.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-                _badge.AddChild(disc);
-                _badge.AddChild(PulpPromptGlyphs.CreateLetter(text, UIPalette.LabelRoles.PromptKey, UIPalette.LabelDark));
+                _badgeRing = new GlassPromptRing { Name = "Disc", RingColor = color };
+                _badgeRing.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+                _badge.AddChild(_badgeRing);
+                _badgeLabel = PulpPromptGlyphs.CreateLetter(text, UIPalette.LabelRoles.PromptKey, color);
+                _badge.AddChild(_badgeLabel);
             } else {
-                _badge.AddChild(PulpPromptGlyphs.CreateKeyCap(text, UIPalette.LabelRoles.PromptKey, UIPalette.PromptCream, 34f, out _));
+                _badge.AddChild(PulpPromptGlyphs.CreateKeyCap(text, UIPalette.LabelRoles.PromptKey, color, BadgeSize * _scale, out _badgeLabel));
             }
         }
 
         private void LayoutBadge() {
             if (_badge.GetChildCount() == 0) return;
+            float right = RightPadding();
             Vector2 size;
             if (_badgeDevice == PromptDevice.Pad) {
-                size = new Vector2(PadBadgeSize, PadBadgeSize);
+                size = new Vector2(BadgeSize, BadgeSize) * _scale;
                 _badge.Size = size;
-                _badge.Position = new Vector2(_button.Size.X - BadgeEdgeInset - size.X, Mathf.Round((_button.Size.Y - size.Y) / 2f));
             } else {
                 var cap = (Control)_badge.GetChild(0);
                 size = cap.GetCombinedMinimumSize();
                 cap.Position = Vector2.Zero;
                 cap.Size = size;
                 _badge.Size = size;
-                // The cap's art extends 2 px outside its rect, so the pill's right edge is at the inset.
-                _badge.Position = new Vector2(_button.Size.X - BadgeEdgeInset - size.X, Mathf.Round((_button.Size.Y - size.Y) / 2f));
+            }
+            // The badge sits at the label's right end (3.2: x + W - 90 to x + W - 54 on a menu row).
+            _badge.Position = new Vector2(_button.Size.X - right - size.X, Mathf.Round((_button.Size.Y - size.Y) / 2f));
+            if (_badge.Visible) {
+                Color color = LabelColorNow();
+                if (color == _badgeColor) return;
+                _badgeColor = color;
+                if (_badgeRing != null) _badgeRing.RingColor = color;
+                _badgeLabel?.AddThemeColorOverride("font_color", color);
+                if (_badgeDevice == PromptDevice.Keyboard && _badge.GetChild(0) is PanelContainer keyCap
+                    && keyCap.GetThemeStylebox("panel") is StyleBoxFlat border) {
+                    border.BorderColor = color;
+                }
             }
         }
 
@@ -342,7 +495,7 @@ namespace FTT.UI.Pulp {
             if (what == NotificationPredelete && _glyphsHidden && _button != null && GodotObject.IsInstanceValid(_button)) RestoreGlyphs();
         }
 
-        // ---- the upper-case label ----
+        // ---- The upper-case label ----
 
         private void ApplyGlyphHiding() {
             if (_button == null) return;
@@ -378,14 +531,14 @@ namespace FTT.UI.Pulp {
             _original.TryGetValue(slot, out var entry) ? entry.Color : _button.GetThemeColor(slot);
 
         private Color LabelColorNow() {
-            if (_selected) return UIPalette.LabelDark;
+            if (_selected) return UIPalette.Ink;
             string slot = LabelColorSlot(_button.Disabled, _button.GetDrawMode(), _button.HasFocus());
             return OriginalColor(slot);
         }
 
         private TextParagraph BuildParagraph(string text, float width) {
             var paragraph = new TextParagraph();
-            paragraph.AddString(text, _button.GetThemeFont("font"), _button.GetThemeFontSize("font_size"));
+            paragraph.AddString(text, _button.GetThemeFont(FontName), _button.GetThemeFontSize(FontSizeName));
             paragraph.Width = width;
             paragraph.Alignment = _button.Alignment;
             paragraph.BreakFlags = TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound;
@@ -406,44 +559,136 @@ namespace FTT.UI.Pulp {
         }
 
         private float LabelLeft() {
-            float left = _button.GetThemeStylebox("normal")?.GetContentMargin(Side.Left) ?? 0f;
+            float left = (_button.GetThemeStylebox(NormalName)?.GetContentMargin(Side.Left) ?? 0f) * _scale;
             Texture2D icon = _button.Icon;
-            if (icon != null) left += icon.GetWidth() + _button.GetThemeConstant("h_separation");
+            if (icon != null) left += icon.GetWidth() + _button.GetThemeConstant(HSeparationName);
             return left;
         }
 
-        /// <summary>The width the label may use: from the left content margin (and icon) to <see cref="LabelRightLimit"/>.</summary>
+        private float RightPadding() => (_button.GetThemeStylebox(NormalName)?.GetContentMargin(Side.Right) ?? 0f) * _scale;
+
+        /// <summary>The width the label may use: from the left padding (and icon) to <see cref="LabelRightLimit"/>.</summary>
         public float LabelAvailableWidth => Mathf.Max(1f, LabelLimit() - LabelLeft());
 
-        /// <summary>True when the label as drawn ends in an ellipsis: too wide for its single line, or more wrapped lines than the button's height holds.</summary>
+        /// <summary>True when the label as drawn ends in an ellipsis: still too wide at its shrink floor, or more wrapped lines than the button's height holds.</summary>
         public bool LabelIsTrimmed {
             get {
                 if (_button == null || !_uppercase) return false;
-                bool multi = _button.AutowrapMode != TextServer.AutowrapMode.Off || DrawnText.Contains((char)10) || _growToFit;
-                if (!multi) return DrawnTextWidth > LabelAvailableWidth + 0.5f;
-                StyleBox box = _button.GetThemeStylebox("normal");
-                float avail = _button.Size.Y - (box?.GetContentMargin(Side.Top) ?? 0f) - (box?.GetContentMargin(Side.Bottom) ?? 0f);
-                TextParagraph paragraph = BuildParagraph(DrawnText, LabelAvailableWidth);
-                int maxLines = Mathf.Max(1, Mathf.FloorToInt((avail + 1f) / Mathf.Max(1f, paragraph.GetLineSize(0).Y)));
-                return paragraph.GetLineCount() > maxLines;
+                EnsureLayout();
+                return _layoutTrimmed;
             }
         }
 
-        /// <summary>The width the whole upper-cased label would take on one line, in the button's own font and size.</summary>
-        public float DrawnTextWidth {
-            get {
-                var line = new TextLine();
-                line.AddString(DrawnText, _button.GetThemeFont("font"), _button.GetThemeFontSize("font_size"));
-                return line.GetSize().X;
-            }
-        }
+        /// <summary>The width the whole upper-cased label would take on one line at the theme font size.</summary>
+        public float DrawnTextWidth => MeasureWidth(DrawnText, _button.GetThemeFont(FontName), _button.GetThemeFontSize(FontSizeName));
+
+        private static float MeasureWidth(string text, Font font, int size) =>
+            font == null ? 0f : font.GetStringSize(text ?? "", HorizontalAlignment.Left, -1f, size).X;
 
         private float LabelLimit(bool reserveBadge = false) {
-            float right = _button.GetThemeStylebox("normal")?.GetContentMargin(Side.Right) ?? 0f;
-            if (_badge != null && (_badge.Visible || ((reserveBadge || _growToFit) && _badge.Size.X > 0f))) {
-                right = Mathf.Max(right, _button.Size.X - _badge.Position.X + 6f);
+            float right = RightPadding();
+            bool badgeShown = _badge != null && _badge.Visible;
+            if (_showPrompt && (badgeShown || reserveBadge || _growToFit)) {
+                float badgeWidth = _badge != null && _badge.Size.X > 0f ? _badge.Size.X : BadgeSize * _scale;
+                right += badgeWidth + BadgeGap * _scale;
             }
             return _button.Size.X - right;
+        }
+
+        private bool IsMultiLine => _button.AutowrapMode != TextServer.AutowrapMode.Off || _drawn.Contains('\n') || _growToFit;
+
+        private void InvalidateLayout() {
+            _layoutText = null;
+            _layoutFont = null;
+        }
+
+        // Builds the cached TextLine or TextParagraph for the current text, font, size and width; nothing when unchanged.
+        private void EnsureLayout() {
+            if (_button == null) return;
+            if (_sourceText == null) { _sourceText = _button.Text; _drawn = ToDrawnText(_button.Tr(_sourceText)); }
+            Font font = _button.GetThemeFont(FontName);
+            int size = _button.GetThemeFontSize(FontSizeName);
+            float left = LabelLeft();
+            float width = Mathf.Max(1f, LabelLimit() - left);
+            float fitWidth = Mathf.Max(1f, LabelLimit(_showPrompt && _button.FocusMode != Control.FocusModeEnum.None) - left);
+            bool multi = IsMultiLine;
+            StyleBox box = _button.GetThemeStylebox(NormalName);
+            float availHeight = _button.Size.Y - ((box?.GetContentMargin(Side.Top) ?? 0f) + (box?.GetContentMargin(Side.Bottom) ?? 0f)) * _scale;
+            if (ReferenceEquals(_layoutText, _drawn) && ReferenceEquals(_layoutFont, font) && _layoutSize == size
+                && Mathf.IsEqualApprox(_layoutWidth, width) && Mathf.IsEqualApprox(_layoutFitWidth, fitWidth)
+                && _layoutAlign == _button.Alignment && _layoutMulti == multi) {
+                return;
+            }
+            LayoutBuilds++;
+            _layoutText = _drawn;
+            _layoutFont = font;
+            _layoutSize = size;
+            _layoutWidth = width;
+            _layoutFitWidth = fitWidth;
+            _layoutAlign = _button.Alignment;
+            _layoutMulti = multi;
+            if (multi) {
+                _paragraph.Clear();
+                _paragraph.AddString(_drawn, font, size);
+                _paragraph.Width = width;
+                _paragraph.Alignment = _button.Alignment;
+                _paragraph.BreakFlags = TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound;
+                _paragraph.MaxLinesVisible = -1;
+                _paragraph.TextOverrunBehavior = TextServer.OverrunBehavior.NoTrimming;
+                float lineHeight = Mathf.Max(1f, _paragraph.GetLineSize(0).Y);
+                _layoutMaxLines = Mathf.Max(1, Mathf.FloorToInt((availHeight + 1f) / lineHeight));
+                _layoutTrimmed = _paragraph.GetLineCount() > _layoutMaxLines;
+                if (_layoutTrimmed) {
+                    _paragraph.MaxLinesVisible = _layoutMaxLines;
+                    _paragraph.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+                }
+                _layoutFitted = size;
+                return;
+            }
+            // One line: shrink toward the floor until it fits the room left with the badge reserved (so the label does
+            // not change size as focus moves), then ellipsize at the current room.
+            int fitted = FittedSize(_drawn, font, size, fitWidth, ShrinkFloorFor(_compact));
+            _layoutFitted = fitted;
+            _line.Clear();
+            _line.AddString(_drawn, font, fitted);
+            _line.Width = width;
+            _line.Alignment = _button.Alignment;
+            _line.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+            _layoutTrimmed = MeasureWidth(_drawn, font, fitted) > width + 0.5f;
+        }
+
+        /// <summary>The largest size from <paramref name="size"/> down to <paramref name="floor"/> at which <paramref name="text"/> fits <paramref name="width"/>.</summary>
+        private static int FittedSize(string text, Font font, int size, float width, int floor) {
+            if (font == null || size <= floor || MeasureWidth(text, font, size) <= width) return size;
+            float natural = MeasureWidth(text, font, size);
+            int guess = Mathf.Clamp(Mathf.FloorToInt(size * width / Mathf.Max(1f, natural)), floor, size);
+            while (guess > floor && MeasureWidth(text, font, guess) > width) guess--;
+            while (guess + 1 < size && MeasureWidth(text, font, guess + 1) <= width) guess++;
+            return guess;
+        }
+
+        private void DrawLabel(CanvasItem layer) {
+            if (string.IsNullOrEmpty(_sourceText) || !_uppercase || !_glyphsHidden) return;
+            EnsureLayout();
+            StyleBox box = _button.GetThemeStylebox(NormalName);
+            float top = (box?.GetContentMargin(Side.Top) ?? 0f) * _scale;
+            float bottom = (box?.GetContentMargin(Side.Bottom) ?? 0f) * _scale;
+            float availHeight = _button.Size.Y - top - bottom;
+            float left = LabelLeft();
+            Color color = LabelColorNow();
+            Color outlineColor = OriginalColor("font_outline_color");
+            int outline = _button.GetThemeConstant(OutlineSizeName);
+            Rid canvas = layer.GetCanvasItem();
+            if (_layoutMulti) {
+                float height = Mathf.Min(_paragraph.GetSize().Y, availHeight + 1f);
+                var pos = new Vector2(left, top + (availHeight - height) / 2f);
+                if (outline > 0 && outlineColor.A > 0f) _paragraph.DrawOutline(canvas, pos, outline, outlineColor);
+                _paragraph.Draw(canvas, pos, color);
+            } else {
+                var pos = new Vector2(left, top + (availHeight - _line.GetSize().Y) / 2f);
+                if (outline > 0 && outlineColor.A > 0f) _line.DrawOutline(canvas, pos, outline, outlineColor);
+                _line.Draw(canvas, pos, color);
+            }
         }
 
         private partial class LabelLayer : Control {
@@ -451,76 +696,46 @@ namespace FTT.UI.Pulp {
             public LabelLayer(PulpButtonDecor owner) { _owner = owner; }
 
             public override void _Notification(int what) {
-                if (what == NotificationThemeChanged || what == NotificationTranslationChanged) QueueRedraw();
+                // A theme change (the UI scale) or a locale change reaches the label layer: refresh once it has propagated.
+                if (what == NotificationThemeChanged || what == NotificationTranslationChanged) {
+                    if (what == NotificationTranslationChanged) _owner._sourceText = null;
+                    _owner.InvalidateLayout();
+                    _owner._layoutDirty = true;
+                    _owner.QueueRefresh();
+                    QueueRedraw();
+                }
             }
 
             public override void _Draw() {
-                Button button = _owner._button;
-                if (button == null || !_owner._uppercase || !_owner._glyphsHidden || string.IsNullOrEmpty(button.Text)) return;
-                string text = _owner.DrawnText;
-                Font font = button.GetThemeFont("font");
-                int fontSize = button.GetThemeFontSize("font_size");
-                StyleBox box = button.GetThemeStylebox("normal");
-                float left = _owner.LabelLeft();
-                float top = box?.GetContentMargin(Side.Top) ?? 0f;
-                float bottom = box?.GetContentMargin(Side.Bottom) ?? 0f;
-                float limit = _owner.LabelLimit();
-                float width = Mathf.Max(1f, limit - left);
-                float availHeight = button.Size.Y - top - bottom;
-                Color color = _owner.LabelColorNow();
-                Color outlineColor = _owner.OriginalColor("font_outline_color");
-                int outline = button.GetThemeConstant("outline_size");
-                Rid canvas = GetCanvasItem();
-                bool multi = button.AutowrapMode != TextServer.AutowrapMode.Off || text.Contains('\n') || _owner._growToFit;
-                if (multi) {
-                    TextParagraph paragraph = _owner.BuildParagraph(text, width);
-                    float lineHeight = Mathf.Max(1f, paragraph.GetLineSize(0).Y);
-                    int maxLines = Mathf.Max(1, Mathf.FloorToInt((availHeight + 1f) / lineHeight));
-                    if (paragraph.GetLineCount() > maxLines) {
-                        paragraph.MaxLinesVisible = maxLines;
-                        paragraph.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
-                    }
-                    float height = Mathf.Min(paragraph.GetSize().Y, availHeight + 1f);
-                    Vector2 pos = new(left, top + (availHeight - height) / 2f);
-                    if (outline > 0 && outlineColor.A > 0f) paragraph.DrawOutline(canvas, pos, outline, outlineColor);
-                    paragraph.Draw(canvas, pos, color);
-                } else {
-                    var line = new TextLine();
-                    line.AddString(text, font, fontSize);
-                    line.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
-                    line.Width = width;
-                    line.Alignment = button.Alignment;
-                    Vector2 pos = new(left, top + (availHeight - line.GetSize().Y) / 2f);
-                    if (outline > 0 && outlineColor.A > 0f) line.DrawOutline(canvas, pos, outline, outlineColor);
-                    line.Draw(canvas, pos, color);
-                }
+                if (_owner._button == null) return;
+                _owner.DrawLabel(this);
             }
         }
 
-        // ---- the selected (paper) look ----
+        // ---- The selected look ----
 
         private void ApplySelectedLook() {
             if (_button == null) return;
             if (_selected) {
-                _hasSavedNormal = _button.HasThemeStyleboxOverride("normal");
-                _savedNormal = _hasSavedNormal ? _button.GetThemeStylebox("normal") : null;
-                _hasSavedHover = _button.HasThemeStyleboxOverride("hover");
-                _savedHover = _hasSavedHover ? _button.GetThemeStylebox("hover") : null;
-                StyleBoxTexture plate = BuildSelectedPlate();
+                _hasSavedNormal = _button.HasThemeStyleboxOverride(NormalName);
+                _savedNormal = _hasSavedNormal ? _button.GetThemeStylebox(NormalName) : null;
+                _hasSavedHover = _button.HasThemeStyleboxOverride(HoverName);
+                _savedHover = _hasSavedHover ? _button.GetThemeStylebox(HoverName) : null;
+                StyleBox plate = BuildSelectedPlate();
                 if (plate != null) {
-                    _button.AddThemeStyleboxOverride("normal", plate);
-                    _button.AddThemeStyleboxOverride("hover", plate);
+                    _button.AddThemeStyleboxOverride(NormalName, plate);
+                    _button.AddThemeStyleboxOverride(HoverName, plate);
                 }
                 _savedColors.Clear();
                 if (!_uppercase) {
                     foreach (string slot in FontColorSlots) {
                         _savedColors[slot] = _button.HasThemeColorOverride(slot) ? _button.GetThemeColor(slot) : null;
-                        _button.AddThemeColorOverride(slot, UIPalette.LabelDark);
+                        _button.AddThemeColorOverride(slot, UIPalette.Ink);
                     }
                 }
             } else {
-                Restore("normal", _hasSavedNormal, _savedNormal);
-                Restore("hover", _hasSavedHover, _savedHover);
+                Restore(NormalName, _hasSavedNormal, _savedNormal);
+                Restore(HoverName, _hasSavedHover, _savedHover);
                 foreach (var pair in _savedColors) {
                     if (pair.Value.HasValue) _button.AddThemeColorOverride(pair.Key, pair.Value.Value);
                     else _button.RemoveThemeColorOverride(pair.Key);
@@ -529,23 +744,25 @@ namespace FTT.UI.Pulp {
             }
         }
 
-        private void Restore(string slot, bool had, StyleBox saved) {
+        private void Restore(StringName slot, bool had, StyleBox saved) {
             if (had && saved != null) _button.AddThemeStyleboxOverride(slot, saved);
             else _button.RemoveThemeStyleboxOverride(slot);
         }
 
-        /// <summary>The selected plate height for a button variation: 80 PulpButton, 64 TemporalGlassButton, else 58.</summary>
+        /// <summary>Legacy (the pulp paper plates' heights by variation); the glass selected look is the theme's own box.</summary>
         public static int SelectedPlateHeight(string variation) => variation switch {
             UIPalette.Variations.PulpButton => 80,
             UIPalette.Variations.TemporalGlassButton => 64,
             _ => 58
         };
 
-        private StyleBoxTexture BuildSelectedPlate() {
-            StyleBoxTexture plate = PulpKit.Plate("btn_selected_h" + SelectedPlateHeight(_button.ThemeTypeVariation));
+        // The theme's selected chevron (TG-THEME: every chevron variation carries styles/selected = glass_btn_selected),
+        // else the kit's plate with the normal box's paddings.
+        private StyleBox BuildSelectedPlate() {
+            if (_button.HasThemeStylebox(SelectedName)) return _button.GetThemeStylebox(SelectedName);
+            StyleBoxTexture plate = PulpKit.Plate("glass_btn_selected");
             if (plate == null) return null;
-            // Keep the label where the theme put it.
-            StyleBox current = _button.GetThemeStylebox("normal");
+            StyleBox current = _button.GetThemeStylebox(NormalName);
             if (current != null) {
                 plate.ContentMarginLeft = current.GetContentMargin(Side.Left);
                 plate.ContentMarginTop = current.GetContentMargin(Side.Top);
@@ -553,6 +770,92 @@ namespace FTT.UI.Pulp {
                 plate.ContentMarginBottom = current.GetContentMargin(Side.Bottom);
             }
             return plate;
+        }
+
+        // ---- The stack width rule (UI_SPEC_GLASS 3.2, D6) ----
+
+        /// <summary>
+        /// The width a chevron needs for its label on one line at the theme size: its paddings (at the UI scale), the label,
+        /// and when <paramref name="reservePrompt"/> the badge and its gap: <c>58 + label + 16 + 36 + 54</c> (compact
+        /// <c>52 + label + 40</c> with no prompt). "CALIBRATION DRILLS" at Cinzel 700 34 px needs about 636.
+        /// </summary>
+        public static float RequiredWidth(Button button, bool reservePrompt = true) {
+            if (button == null) return 0f;
+            float scale = UiScaleFactor;
+            StyleBox box = button.GetThemeStylebox(NormalName);
+            float paddings = ((box?.GetContentMargin(Side.Left) ?? 0f) + (box?.GetContentMargin(Side.Right) ?? 0f)) * scale;
+            float label = MeasureWidth(ToDrawnText(button.Tr(button.Text)), button.GetThemeFont(FontName), button.GetThemeFontSize(FontSizeName));
+            float prompt = reservePrompt ? BadgeReserve * scale : 0f;
+            return Mathf.Ceil(paddings + label + prompt);
+        }
+
+        /// <summary>
+        /// The D6 rule: every button of one stack shares the widest <see cref="RequiredWidth"/>, at least
+        /// <paramref name="minWidth"/> (menu and pause 560, compact 290) and at most <paramref name="cap"/> (700 for menu
+        /// stacks); a label still too long then shrinks and ellipsizes in its decor. Writes each button's minimum width
+        /// (its height is kept), sets <c>ClipText</c> so the button's own hidden glyphs cannot widen it past the cap, and
+        /// returns the shared width.
+        ///
+        /// <para>The rule stays bound to the stack's decorated buttons: after a theme change reaches them (entering the
+        /// tree, a UI-scale change) or a locale change, it runs again once, deferred. So a stack built before its screen is
+        /// in the tree (its theme does not resolve yet, and the first width is only the minimum) or rescaled later still
+        /// gets its D6 width. <paramref name="minWidth"/> and <paramref name="cap"/> are not scaled; a later call replaces
+        /// the binding.</para>
+        /// </summary>
+        public static float ApplyStackWidth(IReadOnlyList<Button> stack, float minWidth, float cap = float.PositiveInfinity, bool reservePrompt = true) {
+            if (stack == null || stack.Count == 0) return 0f;
+            var rule = new StackWidthRule(stack, minWidth, cap, reservePrompt);
+            foreach (Button button in rule.Buttons) {
+                if (button == null || !IsInstanceValid(button)) continue;
+                for (int i = 0, n = button.GetChildCount(); i < n; i++) {
+                    if (button.GetChild(i) is PulpButtonDecor decor) decor._stackRule = rule;
+                }
+            }
+            return rule.Apply();
+        }
+
+        private StackWidthRule _stackRule;
+
+        /// <summary>One stack's D6 binding, shared by its decors; a theme or locale change queues one deferred pass.</summary>
+        private sealed class StackWidthRule {
+            public readonly Button[] Buttons;
+            private readonly float _min, _cap;
+            private readonly bool _reserve;
+            private bool _queued;
+
+            public StackWidthRule(IReadOnlyList<Button> stack, float min, float cap, bool reserve) {
+                Buttons = new Button[stack.Count];
+                for (int i = 0; i < stack.Count; i++) Buttons[i] = stack[i];
+                _min = min;
+                _cap = cap;
+                _reserve = reserve;
+            }
+
+            public float Apply() {
+                float width = _min;
+                foreach (Button button in Buttons) {
+                    if (button != null && IsInstanceValid(button) && button.Visible) width = Mathf.Max(width, RequiredWidth(button, _reserve));
+                }
+                width = Mathf.Min(width, Mathf.Max(_min, _cap));
+                foreach (Button button in Buttons) {
+                    if (button == null || !IsInstanceValid(button)) continue;
+                    // The decor draws the label, so the button's own (hidden) glyphs must not widen it past the cap.
+                    button.ClipText = true;
+                    if (!Mathf.IsEqualApprox(button.CustomMinimumSize.X, width)) button.CustomMinimumSize = new Vector2(width, button.CustomMinimumSize.Y);
+                }
+                return width;
+            }
+
+            public void Queue() {
+                if (_queued) return;
+                _queued = true;
+                Callable.From(Run).CallDeferred();
+            }
+
+            private void Run() {
+                _queued = false;
+                Apply();
+            }
         }
     }
 }

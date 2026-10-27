@@ -5,11 +5,12 @@ using Godot;
 namespace FTT.UI.Pulp {
 
     /// <summary>
-    /// UR-WIDGETS. The bottom-right prompt row, for example "(A) SELECT  (B) BACK" (UI_SPEC 3.7): each pair
-    /// is a glyph, 10 px, then a caption, and pairs are 30 px apart. The glyph follows player 1's last-used
-    /// device: a 34 px pad circle with the button letter, or a key-cap pill with the key bound to the action.
-    /// Captions are Labels in the <c>PromptCaption</c> role whose <c>Text</c> is the raw translation key
-    /// (Godot auto-translates it; the role upper-cases it).
+    /// The prompt row, for example "(A) SELECT  (B) BACK" (UI_SPEC_GLASS 3.4.4, 3.8; TG-WIDGETS restyled the UR-WIDGETS
+    /// bar): each pair is a glyph, 10 px, then a caption, and pairs are 30 px apart. The glyph follows player 1's last-used
+    /// device: a 34 px circle with a 2 px ink border and the button letter in ink, or a key-cap of the same height
+    /// (corner radius 6, a 2 px border, at least 34 wide, 9 px padding) with the key bound to the action. Captions are
+    /// Labels in the <c>PromptCaption</c> role (T13, halo S) whose <c>Text</c> is the raw translation key (Godot
+    /// auto-translates it; the label upper-cases it).
     /// </summary>
     public partial class PulpPromptBar : HBoxContainer {
 
@@ -95,21 +96,15 @@ namespace FTT.UI.Pulp {
             }
         }
 
+        // UI_SPEC_GLASS 3.4.4: in a prompt bar the glyph is 34 px, its 2 px border and its letter in ink; the bar sits on
+        // the scene, so the letter carries the halo S like the captions.
         private static Control BuildGlyph(StringName action, PromptDevice device) {
             string text = PulpPromptGlyphs.LabelFor(action, device);
             if (device == PromptDevice.Pad) {
-                var circle = new Control {
-                    Name = "PadGlyph",
-                    CustomMinimumSize = new Vector2(GlyphHeight, GlyphHeight),
-                    MouseFilter = MouseFilterEnum.Ignore
-                };
-                var ring = new PulpIcon { Name = "Circle", IconName = "prompt_circle", Tint = UIPalette.PromptCream, ShadowEnabled = false };
-                ring.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-                circle.AddChild(ring);
-                circle.AddChild(PulpPromptGlyphs.CreateLetter(text, UIPalette.LabelRoles.PromptCaption, UIPalette.PromptCream));
-                return circle;
+                return PulpPromptGlyphs.CreatePadGlyph(text, UIPalette.LabelRoles.PromptKey, UIPalette.Ink, GlyphHeight, halo: true);
             }
-            PanelContainer cap = PulpPromptGlyphs.CreateKeyCap(text, UIPalette.LabelRoles.PromptCaption, UIPalette.PromptCream, GlyphHeight, out _);
+            PanelContainer cap = PulpPromptGlyphs.CreateKeyCap(text, UIPalette.LabelRoles.PromptKey, UIPalette.Ink, GlyphHeight, out Label label);
+            PulpPromptGlyphs.ApplyHaloS(label);
             cap.Name = "KeyGlyph";
             return cap;
         }

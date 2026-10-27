@@ -29,6 +29,13 @@ namespace FTT.UI.Motion {
         /// <summary>The pressed pose's scale about the centre.</summary>
         public float PressScale { get; set; } = PulpMotionRules.PressScale;
 
+        /// <summary>
+        /// TG-WIDGETS (additive). The focus and press-release tweens' curve, named so the focus row gap
+        /// (<c>PulpScreenKit.RequiredRowGap</c>) can sample the real pose, overshoot included (MOT-A row 1: Quad Out).
+        /// </summary>
+        public const Tween.TransitionType Transition = Tween.TransitionType.Quad;
+        public const Tween.EaseType Ease = Tween.EaseType.Out;
+
         private Control _host;
         private Control _target;
         private Tween _tween;
@@ -152,7 +159,7 @@ namespace FTT.UI.Motion {
             }
             _pressTween = PulpMotion.NewTween(this);
             _pressTween.TweenMethod(Callable.From<float>(SetPress), _p, 0f, PulpMotionRules.PressReleaseSeconds)
-                .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+                .SetTrans(Transition).SetEase(Ease);
             _pressTween.TweenCallback(Callable.From(() => SetPress(0f)));
         }
 
@@ -173,7 +180,7 @@ namespace FTT.UI.Motion {
             float seconds = goal > _t ? PulpMotionRules.FocusInSeconds : PulpMotionRules.FocusOutSeconds;
             _tween = PulpMotion.NewTween(this);
             _tween.TweenMethod(Callable.From<float>(Apply), _t, goal, seconds)
-                .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+                .SetTrans(Transition).SetEase(Ease);
             _tween.TweenCallback(Callable.From(() => Settle(goal)));
         }
 

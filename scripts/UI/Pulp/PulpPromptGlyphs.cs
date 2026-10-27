@@ -7,9 +7,10 @@ namespace FTT.UI.Pulp {
     public enum PromptDevice { Keyboard, Pad }
 
     /// <summary>
-    /// UR-WIDGETS. The one place the pulp prompt widgets (the button badge and the prompt bar) decide which
-    /// device to draw and what its glyph says. Player 1's last-used device comes from
-    /// <see cref="InputManager"/>; tests force it through <see cref="DeviceOverrideForTesting"/>.
+    /// The one place the prompt widgets (the button badge and the prompt bar) decide which device to draw and what its
+    /// glyph says, and build the glass glyphs (UI_SPEC_GLASS 3.4.4: a ringed letter for a pad, a key-cap for a keyboard).
+    /// Player 1's last-used device comes from <see cref="InputManager"/>; tests force it through
+    /// <see cref="DeviceOverrideForTesting"/>.
     /// </summary>
     public static class PulpPromptGlyphs {
 
@@ -61,23 +62,29 @@ namespace FTT.UI.Pulp {
         public static string LabelFor(StringName action, PromptDevice device) =>
             device == PromptDevice.Pad ? PadLabelFor(action) : KeyLabelFor(action);
 
+        /// <summary>Legacy: the pulp key-cap's texture (the glass key-cap is drawn as a rounded outline instead).</summary>
         public const string KeyCapPath = "res://assets/sprites/ui/pulp/keycap.png";
 
+        /// <summary>The glass key-cap (UI_SPEC_GLASS 3.4.4): corner radius 6, a 2 px border, minimum width 34, padding 9.</summary>
+        public const int KeyCapRadius = 6, KeyCapBorder = 2;
+        public const float KeyCapMinWidth = 34f, KeyCapPadding = 9f;
+
         /// <summary>
-        /// A key-cap pill (UI_SPEC 3.7, keyboard / mouse): the kit's 9-slice <c>keycap.png</c> as a panel that
-        /// grows with its label. <paramref name="label"/> is the live Label in <paramref name="role"/>.
+        /// A key-cap (UI_SPEC_GLASS 3.4.4, keyboard / mouse; AC22): a rounded outline of the glyph's height, corner radius
+        /// 6, a 2 px border in <paramref name="textColor"/>, at least 34 wide with 9 px of padding, growing with its label.
+        /// <paramref name="label"/> is the live Label in <paramref name="role"/>.
         /// </summary>
         internal static PanelContainer CreateKeyCap(string text, string role, Color textColor, float pillHeight, out Label label) {
-            var plate = new StyleBoxTexture {
-                Texture = GD.Load<Texture2D>(KeyCapPath),
-                TextureMarginLeft = 21, TextureMarginTop = 19, TextureMarginRight = 21, TextureMarginBottom = 19,
-                ExpandMarginLeft = 2, ExpandMarginTop = 2, ExpandMarginRight = 2, ExpandMarginBottom = 2,
-                ContentMarginLeft = 10, ContentMarginRight = 10, ContentMarginTop = 0, ContentMarginBottom = 0
+            var plate = new StyleBoxFlat {
+                DrawCenter = false, BgColor = new Color(0f, 0f, 0f, 0f), BorderColor = textColor, AntiAliasing = true,
+                ContentMarginLeft = KeyCapPadding, ContentMarginRight = KeyCapPadding, ContentMarginTop = 0, ContentMarginBottom = 0
             };
+            plate.SetBorderWidthAll(KeyCapBorder);
+            plate.SetCornerRadiusAll(KeyCapRadius);
             var cap = new PanelContainer {
                 Name = "KeyCap",
                 MouseFilter = Control.MouseFilterEnum.Ignore,
-                CustomMinimumSize = new Vector2(44f, pillHeight)
+                CustomMinimumSize = new Vector2(KeyCapMinWidth, pillHeight)
             };
             cap.AddThemeStyleboxOverride("panel", plate);
             label = new Label {
@@ -108,6 +115,37 @@ namespace FTT.UI.Pulp {
             letter.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
             letter.AddThemeColorOverride("font_color", color);
             return letter;
+        }
+
+        /// <summary>
+        /// The pad glyph (UI_SPEC_GLASS 3.4.4): a <paramref name="size"/> px circle with a 2 px border in
+        /// <paramref name="color"/> (<see cref="GlassPromptRing"/>, named <c>Circle</c>) and the live letter
+        /// (<see cref="CreateLetter"/>) centred on it. <paramref name="halo"/> gives the letter the scene halo S (a glyph
+        /// over art, the prompt bar).
+        /// </summary>
+        internal static Control CreatePadGlyph(string text, string role, Color color, float size, bool halo) {
+            var glyph = new Control {
+                Name = "PadGlyph",
+                CustomMinimumSize = new Vector2(size, size),
+                MouseFilter = Control.MouseFilterEnum.Ignore
+            };
+            var ring = new GlassPromptRing { Name = "Circle", RingColor = color };
+            ring.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+            glyph.AddChild(ring);
+            Label letter = CreateLetter(text, role, color);
+            if (halo) ApplyHaloS(letter);
+            glyph.AddChild(letter);
+            return glyph;
+        }
+
+        /// <summary>The scene halo S on a label (UI_SPEC_GLASS 2.4), for a role the theme draws as plate text.</summary>
+        internal static void ApplyHaloS(Label label) {
+            label.AddThemeConstantOverride("outline_size", UIPalette.HaloSOutline);
+            label.AddThemeColorOverride("font_outline_color", UIPalette.HaloOutlineS);
+            label.AddThemeConstantOverride("shadow_offset_x", 0);
+            label.AddThemeConstantOverride("shadow_offset_y", UIPalette.HaloSShadowOffsetY);
+            label.AddThemeConstantOverride("shadow_outline_size", UIPalette.HaloSShadowOutline);
+            label.AddThemeColorOverride("font_shadow_color", UIPalette.HaloShadowS);
         }
     }
 }

@@ -3,19 +3,24 @@ using Godot;
 namespace FTT.UI.Pulp {
 
     /// <summary>
-    /// UR-WIDGETS. A panel with its title tag (UI_SPEC 3.1): the first non-tag child is the panel and fills the
-    /// rect; the tag sits on top of it at the padding box's (-14, -24), rotated -1.2 degrees, as a
-    /// <c>PanelTagPlate</c> holding an upper-case <c>PanelTag</c> label whose <c>Text</c> is the raw key. The
-    /// minimum size is the panel's, so it lives inside any box container. An empty <see cref="TagKey"/> hides the tag.
+    /// A panel with its title tag (UI_SPEC_GLASS 3.1, G2): the first non-tag child is the panel and fills the rect; the tag
+    /// sits on top of it at the panel's (26, -11) with no tilt, a <c>PanelTagPlate</c> holding an upper-case
+    /// <c>PanelTag</c> label whose <c>Text</c> is the raw key. The minimum size is the panel's, so it lives inside any box
+    /// container. An empty <see cref="TagKey"/> hides the tag. A theme change re-places the tag once it has reached the
+    /// tag's label (one coalesced deferred placement), so the clamp never measures a stale font size.
     /// </summary>
     public partial class PulpTaggedPanel : Container {
 
-        public static readonly Vector2 TagOffset = new(-14f, -24f);
-        public const float PaddingBoxInset = 3f;
-        public const float TagDegrees = -1.2f;
+        /// <summary>The tag's offset from the panel's top-left corner (3.1: chamfer 18 + 8, -11).</summary>
+        public static readonly Vector2 TagOffset = PulpTagPlate.PanelCornerOffset;
+        /// <summary>Legacy (the pulp plate's 3 px border); the glass slab's corner is the panel's own, so 0.</summary>
+        public const float PaddingBoxInset = 0f;
+        /// <summary>The glass tag is not tilted (the pulp tag leaned -1.2 degrees).</summary>
+        public const float TagDegrees = 0f;
 
         private readonly PanelContainer _tag;
         private readonly Label _tagLabel;
+        private bool _placeQueued;
 
         public PulpTaggedPanel() {
             Name = "PulpTaggedPanel";
@@ -48,15 +53,30 @@ namespace FTT.UI.Pulp {
 
         public override Vector2 _GetMinimumSize() => Panel?.GetCombinedMinimumSize() ?? Vector2.Zero;
 
+        private void PlaceTag() =>
+            PulpTagPlate.Place(_tag, new Vector2(PaddingBoxInset, PaddingBoxInset) + TagOffset, Size.X - PulpTagPlate.RightMargin);
+
         public override void _Notification(int what) {
             if (what == NotificationSortChildren) {
                 Control panel = Panel;
                 if (panel != null) FitChildInRect(panel, new Rect2(Vector2.Zero, Size));
-                PulpTagPlate.Place(_tag, new Vector2(PaddingBoxInset, PaddingBoxInset) + TagOffset,
-                    Size.X - PulpTagPlate.RightMargin);
+                PlaceTag();
             } else if (what == NotificationThemeChanged) {
+                // The change reaches this container before the tag's label: place once it has propagated.
                 QueueSort();
+                QueuePlace();
             }
+        }
+
+        private void QueuePlace() {
+            if (_placeQueued) return;
+            _placeQueued = true;
+            Callable.From(PlaceQueued).CallDeferred();
+        }
+
+        private void PlaceQueued() {
+            _placeQueued = false;
+            if (IsInstanceValid(this) && IsInsideTree()) PlaceTag();
         }
     }
 }
