@@ -74,8 +74,10 @@ public class UnusedTranslationKeyTests {
         // Package 13 W3 (S07/S48): the whole-line acceptance and farewell families.
         ("hero_accept_line_", "scripts/Core/DialogueTokens.cs", "$\"hero_accept_line_{heroID}\""),
         ("hero_farewell_line_", "scripts/Core/DialogueTokens.cs", "$\"hero_farewell_line_{heroID}\""),
-        // UR-SELECT (2026-10-26): the trading cards' life dates and short names, built from the roster ID.
-        ("character_", "scripts/UI/CharacterSelectScreen.Cards.cs", "$\"character_{_characterIDs[index]}_dates\"")
+        // TG-SELECT (2026-10-27): the glass tiles' short names, built from the roster ID (UR-SELECT's card names). The
+        // nine character_<id>_dates rows the pulp cards showed are no longer built (UI_SPEC_GLASS T36 retired; the plan keeps
+        // the rows in en.csv) and stay exempt only through this prefix.
+        ("character_", "scripts/UI/CharacterSelectScreen.Cards.cs", "$\"character_{id}_card_name\"")
     };
 
     /// <summary>
@@ -113,7 +115,11 @@ public class UnusedTranslationKeyTests {
         // as an NPC; in the N03 hero-is-Cleopatra branch she is the player and
         // renders through speaker_player. The key is retained per the plan's
         // legacy-identifier rule rather than deleted.
-        "speaker_cleopatra"
+        "speaker_cleopatra",
+        // TG-SELECT (2026-10-27). The pulp Random card's mystery line; CARD-A's Random tile shows
+        // "?" and the random word only (UI_SPEC_GLASS 3.7, T36 retired). Kept in en.csv as the plan
+        // directs (2.8); its deletion is the orchestrator's.
+        "fighter_random_mystery"
         // Package 12 W5 recorded fighter_local_human, fighter_cpu_selection,
         // fighter_pick_cpu_prompt and fighter_hud_cooldown_ultimate here (the
         // Local Versus select lost its CPU flow and the Ultimate cooldown plate
@@ -132,11 +138,12 @@ public class UnusedTranslationKeyTests {
     /// the Package 11 Phase C closeout, which moved those three onto
     /// <see cref="DynamicKeyPrefixes"/> now that their resolver has shipped; 12 → 16
     /// with Package 12 W5's Versus CPU split and M25 cooldown rework; 16 → 12 at the
-    /// Package 12 Phase C closeout, which deleted those four keys).
+    /// Package 12 Phase C closeout, which deleted those four keys; 12 → 13 with TG-SELECT's
+    /// glass select, which no longer shows <c>fighter_random_mystery</c>).
     /// Informational
     /// alongside the roster rule above: if both ever disagree, the roster is the
     /// authority.</summary>
-    private const int RecordedOrphanCeiling = 12;
+    private const int RecordedOrphanCeiling = 13;
 
     [TestCase]
     public void NoTranslationKeyGoesUnusedBeyondTheRecordedOrphans() {

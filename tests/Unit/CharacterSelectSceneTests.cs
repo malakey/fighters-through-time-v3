@@ -30,11 +30,11 @@ namespace FTT.Tests.Unit;
 public class CharacterSelectSceneTests {
 
     private const string ScenePath = "res://scenes/menus/CharacterSelect.tscn";
-    // UR-SELECT: the name and stat line live inside each player's paper card.
-    private const string P1NamePath = "SelectPhase/Root/PlayersRow/P1Panel/P1Card/Paper/Inset/Col/NameBox/P1Name";
-    private const string P1StatsPath = "SelectPhase/Root/PlayersRow/P1Panel/P1Card/Paper/Inset/Col/P1Stats";
-    private const string P2NamePath = "SelectPhase/Root/PlayersRow/P2Panel/P2Card/Paper/Inset/Col/NameBox/P2Name";
-    private const string P2StatsPath = "SelectPhase/Root/PlayersRow/P2Panel/P2Card/Paper/Inset/Col/P2Stats";
+    // TG-SELECT (CARD-A): the hero name sits in each player's side head, the hidden stat line in the glass stat panel.
+    private const string P1NamePath = "SelectPhase/Root/PlayersRow/P1Panel/NameBox/P1Name";
+    private const string P1StatsPath = "SelectPhase/Root/PlayersRow/P1Panel/P1Card/Col/P1Stats";
+    private const string P2NamePath = "SelectPhase/Root/PlayersRow/P2Panel/NameBox/P2Name";
+    private const string P2StatsPath = "SelectPhase/Root/PlayersRow/P2Panel/P2Card/Col/P2Stats";
     private const string SelectRoot = "SelectPhase/Root/";
     private const string StageRoot = "StagePhase/Root/";
 
@@ -114,26 +114,27 @@ public class CharacterSelectSceneTests {
                 AssertThat(nameLabel.MouseFilter)
                     .OverrideFailureMessage($"Tile {index} name intercepts tile input")
                     .IsEqual(Control.MouseFilterEnum.Ignore);
-                var portrait = tile.FindChild("Portrait", true, false) as TextureRect;
-                AssertObject(portrait)
-                    .OverrideFailureMessage($"Tile {index} has no portrait")
+                // TG-SELECT: the glass tile decor draws the portrait in its window (UI_SPEC_GLASS 3.7) and never takes input.
+                var decor = tile.GetNodeOrNull<FTT.UI.Pulp.GlassTileDecor>(FTT.UI.Pulp.GlassTileDecor.NodeName);
+                AssertObject(decor)
+                    .OverrideFailureMessage($"Tile {index} has no glass tile decor")
                     .IsNotNull();
+                AssertThat(decor.MouseFilter)
+                    .OverrideFailureMessage($"Tile {index} decor intercepts tile input")
+                    .IsEqual(Control.MouseFilterEnum.Ignore);
                 if (random) {
-                    // G15a: a silhouette placeholder until Package 10 art.
-                    AssertThat(tile.FindChild("Silhouette", true, false) is ColorRect)
-                        .OverrideFailureMessage("The Random tile has no silhouette placeholder.")
+                    // G15a: no portrait; the glass Random tile shows "?" and the random word.
+                    AssertObject(decor.Portrait)
+                        .OverrideFailureMessage("The Random tile shows a portrait.")
+                        .IsNull();
+                    AssertThat((tile.FindChild("RandomMark", true, false) as Label)?.Text == "?")
+                        .OverrideFailureMessage("The Random tile has no question mark.")
                         .IsTrue();
                 } else {
-                    AssertObject(portrait.Texture)
+                    AssertObject(decor.Portrait)
                         .OverrideFailureMessage($"Tile {index} portrait texture is missing")
                         .IsNotNull();
                 }
-                AssertThat(portrait.Size)
-                    .OverrideFailureMessage($"Tile {index} portrait does not have the card's 132 % photo layer")
-                    .IsEqual(CharacterSelectScreen.CardPortraitSize);
-                AssertThat(portrait.MouseFilter)
-                    .OverrideFailureMessage($"Tile {index} portrait intercepts tile input")
-                    .IsEqual(Control.MouseFilterEnum.Ignore);
                 // Tiles are driven by the per-player polled cursors (and mouse
                 // clicks), never by global focus navigation: any device can steer
                 // focus, which would let Player 2's pad move Player 1's token.
@@ -209,7 +210,8 @@ public class CharacterSelectSceneTests {
                 .OverrideFailureMessage("The time-limit editor is not reachable by focus.").IsTrue();
             AssertThat(stageChain.Contains(screen.GetNode<CheckButton>(StageRoot + "RulesRow/StageHazards")))
                 .OverrideFailureMessage("The hazard toggle is not reachable by focus.").IsTrue();
-            AssertThat(screen.GetNode<OptionButton>(StageRoot + "StageRow/StageSelect").HasFocus()).IsTrue();
+            // TG-SELECT (UI_SPEC_GLASS 9.2): Fight, the stage phase's primary action, is focused first.
+            AssertThat(screen.GetNode<Button>(StageRoot + "StageButtonRow/FightButton").HasFocus()).IsTrue();
         } finally {
             Teardown(host);
         }
