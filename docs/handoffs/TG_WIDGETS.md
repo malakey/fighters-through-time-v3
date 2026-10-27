@@ -366,3 +366,54 @@ meter beside its HUD; the lens over a busy level background.
 - AGENTS.md, the UI section's pulp-redesign bullet, after step 1's widgets sentence: "TG-WIDGETS step 2 (2026-10-27) made the gauges glass: `PulpBarDecor` the GAUGE-A tube drawn in code over a `ProgressBar` that stays the value carrier (the tracker, the Rally echo band, the vertex-gradient fill with a vertical moving end, the cap, the ticks, the low pulse, the full-meter glow, the boss edge and notches; `FillMode` `EndToBegin` mirrors it for P2), which hides the bar's own drawing with `ui_hide_self.gdshader` and follows the bar's `SelfModulate` (the HUDs' flash channel); `PulpAbilitySlot` the lens (the 9 % inset art clipped to the circle, the readiness ring outside it, the Ultimate's 92 lens in a 110 box with the meter arc and the looping ready ring, the lock overlays, one bloom on ready); `PulpStatusChip` the G7 badge with its 3 px duration ring and the G8 empty ring; `RadialProgress` gains `GradientMode` (its old modes and the #3A3144 default track unchanged); `NotYetFlash` gains the circle shape. `pulp_bar_layers.gdshader` is deleted. A decorated button no screen sizes takes its width from its drawn label (ruling 5)."
 - AGENTS.md repository map, `assets/shaders/`: drop `pulp_bar_layers`, add `ui_hide_self`.
 - Ledger, under the glass section: `PROVISIONAL-UI-GLASS-WIDGETS` gains deviations 1-8 of step 2 and questions 1-4 above; Codex review 1 of Phase A: findings 1-4 closed by `aa7ee210`.
+
+## Fix step (2026-10-27): the lens's centre number is scaled once
+
+Plan standing decision 9: a widget bug found in Phase B comes back to TG-WIDGETS. `main` (`4761fc1e`: TG-MENU,
+TG-SCREENS and TG-PAUSE merged, 3724) was merged into `tg/widgets` first (a fast-forward). Commit `92f29657`, then this
+section.
+
+### The bug (found by TG-HUDF, `hudf_140.png`)
+
+`PulpAbilitySlot.Relayout` read the `SlotNumber` font size from the shared theme (`UIPalette.LoadTheme()`), which
+`UIPalette.ApplyUiScale` has already grown. Both HUDs give their roots an unscaled copy of the theme
+(`UIPalette.NewUnscaledTheme()`) and magnify the whole layout through `UiScaleBinder` instead, so a lens in a HUD was
+scaled twice: at UI scale 1.4 its number was 38 px (`CenterFontSize(74, 27)`) under a 1.4x root, 53 px on screen,
+against 27 px (37.8 on screen).
+
+### The fix
+
+`PulpAbilitySlot.SlotNumberSizeInContext` (new, public, read-only) resolves the `SlotNumber` size the way a `Label`
+under the lens would: through the nearest ancestor's theme (in a HUD, the unscaled copy; on a screen that wears the
+shared theme, the scaled size), else the authored 19 (`SlotNumberBaseSize`) when nothing resolves it (outside the
+tree). `Relayout` passes it to `CenterFontSize`, so the UI scale reaches the number exactly once in either context. The
+lookup uses a static `StringName`; `Relayout` runs on a layout or theme change, never in a draw. Every public member is
+kept. The number re-lays itself out on the theme change a HUD's root theme or the shared theme's rescale already sends.
+
+### The other widgets, checked
+
+- **The decor's label** (`PulpButtonDecor`): drawn at the button's own resolved font size (`_button.GetThemeFontSize`), so it is scaled once in any context. Its geometry (paddings, heights, the marker, the badge, the shrink floor) follows `UIPalette.AppliedUiScale`, which is right on every screen that uses it; no decorated button sits under a `UiScaleBinder` root today (the HUDs have none). Under one, that geometry would be scaled twice. Not changed: there is no instance, and a context-aware scale would need the authored sizes, which only `UIPalette` (outside `scripts/UI/Pulp/`) holds.
+- **The tube's values** (`PulpBarDecor`): the tube draws no text; the HP and meter values are the HUDs' own labels, which resolve their roles through the HUD's unscaled theme.
+- **The chip's text** (`PulpStatusChip`), the lens's key label and READY, the panel tags (`PulpTagPlate` measures with the label's own size), `TitleGradient`: all `Label`s resolving their roles in their own context. Scaled once.
+
+### Test delta
+
+`PulpAbilitySlotTests` 6 -> 7 (+1): `TheCentreNumberIsScaledOnceInAScaledHudAndOnAThemeScaledScreen`. At UI scale 1.4
+(the saved setting and the shared theme both) it builds a HUD root the way StoryHUD and FighterHUD do (an unscaled theme
+copy, then `UiScaleBinder.Apply`) holding a 74 lens and a 44 chip, and a screen on the shared theme holding a 56 lens,
+and checks what is drawn (the font size times the canvas scale): the HUD lens's number about 0.36 x 74 x 1.4 = 37.3,
+the HUD lens's key label and the chip's name at their authored sizes x 1.4, and the screen lens's number about
+0.36 x 56 x 1.4 = 28.2. Against `4761fc1e`'s lens it fails with "the HUD lens's number draws at 53.2 px, not about
+37.3" (log `D:\Projects\ftt-scratch\tg-widgets\mut\fix-before.log`); the other three checks pass on both.
+
+`[TestCase]` count on this branch 3724 -> **3725**; with TG-HUDF's 3726 merged first, **3727**.
+
+### Runs (the lock held for every launch)
+
+- UI filter: **737 / 737** with the fix. The extra screen suites: **206 / 206**. `dotnet build`: 0 errors.
+- Captures, before and after, `D:\Projects\ftt-scratch\tg-captures\widgets-fix\`: main's `huds_140` and `hudf_140` set only the saved setting (the binder) and leave the shared theme at 1.0, so they show no difference. A scratch probe (`fixprobe_huds_140_theme`: `huds_140` with the shared theme at 1.4 too, as the game runs; not committed) shows the Story HUD's "40%" and "9.8" filling their lenses before and at the lens's 0.36 after, with DEFY, ULT, S1 and the other labels unchanged (`fixprobe_abilities__before_above_after.png`).
+
+### For the orchestrator
+
+1. The HUD capture targets on `main` (`huds_140`, `huds_boss_140`, `hudf_140`) scale only the saved setting, not the shared theme, so they cannot show a double-scaling bug like this one. TG-HUDF's branch already scales both in its `HudfSetScale` (which is how its `hudf_140` showed the bug); `huds_140` and `huds_boss_140` (TG-HUDS's) may want `UIPalette.ApplyUiScale(1.4f)` too.
+2. The decor's latent case above (a decorated button under a `UiScaleBinder` root) is recorded, not fixed.

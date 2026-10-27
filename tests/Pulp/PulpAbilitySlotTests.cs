@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using FTT.Core;
 using FTT.UI;
@@ -254,5 +255,67 @@ public class PulpAbilitySlotTests {
             slot.Free();
             reduced.Free();
         }
+    }
+
+    /// <summary>
+    /// TG-WIDGETS fix step (TG-HUDF found it at UI scale 1.4): the centre number is scaled exactly once. A HUD gives its root
+    /// an unscaled theme copy and magnifies its whole layout through <see cref="UiScaleBinder"/>, so a lens there must
+    /// resolve its size in that copy, not in the shared theme the UI scale has already grown; a lens on a screen that wears
+    /// the shared theme takes the theme's scale. The key label and the chip's name, which resolve their roles through their
+    /// own context, are checked beside it.
+    /// </summary>
+    [TestCase]
+    public async Task TheCentreNumberIsScaledOnceInAScaledHudAndOnAThemeScaledScreen() {
+        const float Scale = 1.4f;
+        GlobalSaveData global = SaveManager.Instance?.GlobalData;
+        float savedSetting = global?.UiScale ?? 1f;
+        float savedTheme = UIPalette.AppliedUiScale;
+        Control hud = null, screen = null;
+        var problems = new List<string>();
+        try {
+            if (global != null) global.UiScale = Scale;
+            UIPalette.ApplyUiScale(Scale);
+            // The HUD as StoryHUD and FighterHUD build it: an unscaled theme copy on a full-rect root the binder magnifies.
+            hud = new Control { Name = "HudRoot", Theme = UIPalette.NewUnscaledTheme() };
+            Tree.Root.AddChild(hud);
+            hud.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+            new UiScaleBinder().Apply(hud, force: true);
+            if (global == null) hud.Scale = new Vector2(Scale, Scale);   // no save loaded: the binder's transform by hand
+            AssertThat(hud.Scale).IsEqual(new Vector2(Scale, Scale));
+            var lens = new PulpAbilitySlot {
+                SlotSize = 74f, State = PulpSlotState.Cooling, Progress = 0.5f, SecondsRemaining = 3f, KeyText = "hud_slot_special1"
+            };
+            var chip = new PulpStatusChip {
+                BadgeSize = 44f, Kind = PulpChipKind.Damage, GlyphName = "venom", Remaining = 0.5f, NameText = "status_venom", TimeText = "4s"
+            };
+            hud.AddChild(lens);
+            hud.AddChild(chip);
+            // A screen on the shared, scale-mutated theme with no layout scale (the select screen's cards).
+            screen = new Control { Name = "ThemeScaledScreen" };
+            UIPalette.ApplyTheme(screen);
+            Tree.Root.AddChild(screen);
+            var card = new PulpAbilitySlot { SlotSize = 56f, State = PulpSlotState.Cooling, Progress = 0.5f, SecondsRemaining = 3f };
+            screen.AddChild(card);
+            await Frames(3);
+
+            Theme unscaled = hud.Theme;
+            // What the eye sees: the label's font size times the canvas scale above it.
+            static float Drawn(Label label) => label.GetThemeFontSize("font_size") * label.GetGlobalTransform().Scale.Y;
+            void Expect(string what, float drawn, float want) {
+                if (Mathf.Abs(drawn - want) > 1.5f) problems.Add($"{what} draws at {drawn:0.0} px, not about {want:0.0}");
+            }
+            Expect("the HUD lens's number", Drawn(lens.CenterLabel), PulpAbilitySlot.CenterShare * 74f * Scale);
+            Expect("the HUD lens's key label", Drawn((Label)lens.KeyTag),
+                unscaled.GetFontSize("font_size", UIPalette.LabelRoles.SlotKeyTag) * Scale);
+            Expect("the HUD chip's name", Drawn(chip.TextColumn.GetNode<Label>("StatusName")),
+                unscaled.GetFontSize("font_size", UIPalette.LabelRoles.StatusName) * Scale);
+            Expect("the screen lens's number", Drawn(card.CenterLabel), PulpAbilitySlot.CenterShare * 56f * Scale);
+        } finally {
+            hud?.Free();
+            screen?.Free();
+            UIPalette.ApplyUiScale(savedTheme);
+            if (global != null) global.UiScale = savedSetting;
+        }
+        if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
     }
 }
