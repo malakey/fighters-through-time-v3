@@ -107,4 +107,37 @@ public class PulpToggleDecorTests {
             host.Free();
         }
     }
+
+    /// <summary>
+    /// TG-CLOSE capture finding: a toggle skinned while hidden (the select's stage phase) kept its row label at the height
+    /// its autowrap gave it at zero width (one glyph a line, some 380 px), so once shown the line drew 170 px under the
+    /// track, below the next row. Shown, the label sits on the button's own row, its line level with the track.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task AToggleSkinnedWhileHiddenLaysItsRowLabelOnItsRowWhenShown() {
+        var tree = (SceneTree)Engine.GetMainLoop();
+        var host = new Control { Name = "HiddenToggleHost", Size = new Vector2(1600f, 400f), Visible = false };
+        FTT.UI.UIPalette.ApplyTheme(host);
+        tree.Root.AddChild(host);
+        try {
+            var row = new HBoxContainer { Name = "RulesRow", Size = new Vector2(1400f, 52f) };
+            host.AddChild(row);
+            var toggle = new CheckButton { Text = "fighter_meter_pickups", CustomMinimumSize = new Vector2(682f, 52f) };
+            row.AddChild(toggle);
+            PulpToggleDecor.Apply(toggle);
+            for (int i = 0; i < 3; i++) await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+            host.Visible = true;
+            for (int i = 0; i < 4; i++) await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+            Label label = toggle.GetNode<Label>(PulpToggleDecor.RowLabelName);
+            Rect2 track = PulpToggleDecor.TrackRect(toggle.Size);
+            AssertThat(label.Position.Y).OverrideFailureMessage($"the row label starts at y {label.Position.Y}").IsEqual(0f);
+            AssertThat(Mathf.Abs(label.Size.Y - toggle.Size.Y) < 0.5f)
+                .OverrideFailureMessage($"the row label is {label.Size.Y} tall on a {toggle.Size.Y} px row").IsTrue();
+            AssertThat(Mathf.Abs(label.Size.Y / 2f - track.GetCenter().Y) < 1f)
+                .OverrideFailureMessage($"the row label's line centre {label.Size.Y / 2f} is not level with the track's {track.GetCenter().Y}").IsTrue();
+        } finally {
+            host.GetParent()?.RemoveChild(host);
+            host.Free();
+        }
+    }
 }

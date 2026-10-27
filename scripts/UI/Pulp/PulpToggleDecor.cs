@@ -162,6 +162,11 @@ namespace FTT.UI.Pulp {
             var rect = new Rect2(0f, 0f, Mathf.Max(0f, track.Position.X - SettingsRowLayout.SpecItemGap * Scale), _button.Size.Y);
             if (_rowLabel.Position != rect.Position || _rowLabel.Size != rect.Size) {
                 _rowLabel.Position = rect.Position;
+                // The wrap width first, then a fresh minimum: a size is clamped to the label's cached minimum height, which
+                // a label first laid out at zero width (skinned while hidden) took at a glyph a line, some 400 px; a Label
+                // re-wraps on a resize but does not drop that cache by itself.
+                _rowLabel.Size = new Vector2(rect.Size.X, _rowLabel.Size.Y);
+                _rowLabel.UpdateMinimumSize();
                 _rowLabel.Size = rect.Size;
             }
         }
