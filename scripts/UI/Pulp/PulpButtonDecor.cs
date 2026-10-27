@@ -79,6 +79,7 @@ namespace FTT.UI.Pulp {
         private string _drawn = "";
         private bool _lastDisabled;
         private float _lastWidth = -1f;
+        private BaseButton.DrawMode _lastMode;
         private float _scale = 1f;
 
         // Size: the design minimum size (as the screen set it), what the decor last wrote, and the grow-to-fit extras.
@@ -98,7 +99,7 @@ namespace FTT.UI.Pulp {
         private string _layoutText;
         private Font _layoutFont;
         private int _layoutSize = -1, _layoutFitted = -1, _layoutMaxLines = -1;
-        private float _layoutWidth = -1f, _layoutFitWidth = -1f;
+        private float _layoutWidth = -1f, _layoutFitWidth = -1f, _layoutHeight = -1f;
         private HorizontalAlignment _layoutAlign;
         private bool _layoutMulti;
         private bool _layoutTrimmed;
@@ -328,13 +329,32 @@ namespace FTT.UI.Pulp {
         private void OnStateChanged() => Refresh();
         private void OnDeviceAssigned(int slot, int device) => Refresh();
 
-        // Hover is focus (UI_SPEC_GLASS AC8): a hovered chevron reads exactly as a focused one.
+        // Hover is focus (UI_SPEC_GLASS AC8): a hovered chevron reads exactly as a focused one. Not while a text field or an
+        // open list holds the keyboard (Codex review 1, finding 2): the row then shows the hover look and the badge stays
+        // with the focus, so typing and Enter still reach the field.
         private void OnMouseEntered() {
             if (_button != null && _button.IsVisibleInTree() && !_button.Disabled
-                && _button.FocusMode != Control.FocusModeEnum.None && !_button.HasFocus()) {
+                && _button.FocusMode != Control.FocusModeEnum.None && !_button.HasFocus() && !KeyboardIsHeld(_button)) {
                 _button.GrabFocus();
             }
             Refresh();
+        }
+
+        /// <summary>
+        /// True when the control that has the keyboard must keep it against hover: an editable text field
+        /// (<see cref="LineEdit"/>, <see cref="TextEdit"/>) or a control whose list is open (an <see cref="OptionButton"/>
+        /// or <see cref="MenuButton"/> popup). Hover then draws its look without taking focus.
+        /// </summary>
+        public static bool KeyboardIsHeld(Control hovered) {
+            Control owner = hovered?.GetViewport()?.GuiGetFocusOwner();
+            return owner switch {
+                null => false,
+                LineEdit line => line.Editable,
+                TextEdit text => text.Editable,
+                OptionButton option => option.GetPopup().Visible,
+                MenuButton menu => menu.GetPopup().Visible,
+                _ => false
+            };
         }
 
         private void OnToggled(bool pressed) {
@@ -346,7 +366,10 @@ namespace FTT.UI.Pulp {
         // draw (a refresh may write the minimum size, which must not happen while the button records its draw).
         private void OnButtonDraw() {
             if (_button == null) return;
-            if (_button.Disabled == _lastDisabled && Mathf.IsEqualApprox(_button.Size.X, _lastWidth) && _button.Text == _sourceText) return;
+            // The hover state is set after the mouse signals run (the engine raises mouse_entered before the button marks
+            // itself hovered), so the redraw that follows is where a hover look without focus is first readable.
+            if (_button.Disabled == _lastDisabled && Mathf.IsEqualApprox(_button.Size.X, _lastWidth) && _button.Text == _sourceText
+                && _button.GetDrawMode() == _lastMode) return;
             QueueRefresh();
         }
 
@@ -370,6 +393,7 @@ namespace FTT.UI.Pulp {
             if (_button == null || !GodotObject.IsInstanceValid(_button) || _marker == null) return;
             _lastDisabled = _button.Disabled;
             _lastWidth = _button.Size.X;
+            _lastMode = _button.GetDrawMode();
             string text = _button.Text;
             if (text != _sourceText) {
                 _sourceText = text;
@@ -660,9 +684,11 @@ namespace FTT.UI.Pulp {
             bool multi = IsMultiLine;
             StyleBox box = _button.GetThemeStylebox(NormalName);
             float availHeight = _button.Size.Y - ((box?.GetContentMargin(Side.Top) ?? 0f) + (box?.GetContentMargin(Side.Bottom) ?? 0f)) * _scale;
+            // The height counts only for a wrapping label, where it decides how many lines show (Codex review 1, finding 3).
+            float height = multi ? availHeight : -1f;
             if (ReferenceEquals(_layoutText, _drawn) && ReferenceEquals(_layoutFont, font) && _layoutSize == size
                 && Mathf.IsEqualApprox(_layoutWidth, width) && Mathf.IsEqualApprox(_layoutFitWidth, fitWidth)
-                && _layoutAlign == _button.Alignment && _layoutMulti == multi) {
+                && Mathf.IsEqualApprox(_layoutHeight, height) && _layoutAlign == _button.Alignment && _layoutMulti == multi) {
                 return;
             }
             LayoutBuilds++;
@@ -671,6 +697,7 @@ namespace FTT.UI.Pulp {
             _layoutSize = size;
             _layoutWidth = width;
             _layoutFitWidth = fitWidth;
+            _layoutHeight = height;
             _layoutAlign = _button.Alignment;
             _layoutMulti = multi;
             if (multi) {

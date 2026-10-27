@@ -176,10 +176,13 @@ namespace FTT.UI {
         /// standing up the StoryManager autoload and playing a level through.
         /// </summary>
         public void ShowResults(string levelTitleKey, int dustEarned, float completionSeconds, int rewindsUsed) {
-            // UR-SCREENS: the level's name rides the panel tag, the title is the stamp.
-            if (_titleLabel != null) _titleLabel.Text = Tr("results_level_complete");
+            // The level's short name rides the panel tag (UR-POLISH2's rule); the title is the T03 heading.
+            if (_titleLabel != null) {
+                _titleLabel.Text = Tr("results_level_complete");
+                _titleFlourishes?.Refresh();
+            }
             if (_panel != null) PulpScreenKit.AddTag(_panel, PulpScreenKit.ShortTitle(Tr(levelTitleKey)));
-            if (_dustLabel != null) _dustLabel.Text = string.Format(Tr("results_dust_earned"), dustEarned);
+            SetRow(_dustLabel, "results_dust_earned", dustEarned);
             SetLineVisible(_dustMobsLabel, false);
             SetLineVisible(_dustExtractorsLabel, false);
             SetLineVisible(_dustBossLabel, false);
@@ -187,14 +190,17 @@ namespace FTT.UI {
             SetLineVisible(_dustCarriedLabel, false);
             SetLineVisible(_dustLossesLabel, false);
             SetLineVisible(_dustTierBonusLabel, false);
-            if (_timeLabel != null) {
-                _timeLabel.Text = string.Format(
-                    Tr("results_completion_time"), FTT.Core.StoryManager.FormatDuration(completionSeconds));
-            }
-            if (_rewindsLabel != null) {
-                _rewindsLabel.Text = string.Format(Tr("results_rewinds_used"), Mathf.Max(0, rewindsUsed));
-            }
+            SetRow(_timeLabel, "results_completion_time", FTT.Core.StoryManager.FormatDuration(completionSeconds));
+            SetRow(_rewindsLabel, "results_rewinds_used", Mathf.Max(0, rewindsUsed));
             ShowTimelineLines();
+        }
+
+        /// <summary>Writes a results line through its row: the line's own text is the whole formatted string.</summary>
+        private void SetRow(Label line, string translationKey, params object[] args) {
+            if (line == null) return;
+            ResultRow row = ResultRow.Attach(line);
+            if (row != null) row.SetText(Tr(translationKey), args);
+            else line.Text = string.Format(Tr(translationKey), args);
         }
 
         /// <summary>
@@ -226,20 +232,18 @@ namespace FTT.UI {
             }
             float integrity = story.LastLevelIntegrityPercent;
             if (_integrityLabel != null) {
-                _integrityLabel.Text = string.Format(
-                    Tr("results_integrity"),
-                    Mathf.FloorToInt(integrity),
-                    Tr(FTT.Core.TimelineIntegrityRules.TierKey(integrity)));
+                SetRow(_integrityLabel, "results_integrity",
+                    Mathf.FloorToInt(integrity), Tr(FTT.Core.TimelineIntegrityRules.TierKey(integrity)));
                 _integrityLabel.Visible = true;
             }
             if (_secretsLabel == null) return;
-            _secretsLabel.Text = string.Format(Tr("results_secrets"), story.LastLevelSecretsFound, 1);
+            SetRow(_secretsLabel, "results_secrets", story.LastLevelSecretsFound, 1);
             _secretsLabel.Visible = true;
         }
 
         private void SetItemizedLine(Label label, string translationKey, int amount) {
             if (label == null) return;
-            label.Text = string.Format(Tr(translationKey), amount);
+            SetRow(label, translationKey, amount);
             label.Visible = true;
         }
 
@@ -271,37 +275,63 @@ namespace FTT.UI {
                 _integrityLabel = AppendResultLine(layout, "IntegrityLine");
                 _secretsLabel = AppendResultLine(layout, "SecretsLine");
                 _resonanceRestoredLabel = AppendResultLine(layout, "ResonanceRestoredLine");
-                _resonanceRestoredLabel.ThemeTypeVariation = UIPalette.LabelRoles.ObjectiveLine;
+                // The beat is a state line in Resonance bright (T25's face, res2), centred: not a row.
+                _resonanceRestoredLabel.ThemeTypeVariation = UIPalette.LabelRoles.StateLabel;
+                _resonanceRestoredLabel.HorizontalAlignment = HorizontalAlignment.Center;
+                _resonanceRestoredLabel.Uppercase = true;
+                _resonanceRestoredLabel.AddThemeColorOverride("font_color", UIPalette.Res2);
                 // No RatingLine: V7.6 ruling 2.A retires the Chronal Rating.
+                // UI_SPEC_GLASS 9.2: the dust categories, a 1 px edge-dim rule, the dust total in res, then the run
+                // statistics and the restored-Resonance beat above the one chevron.
+                _totalRule = new HSeparator { Name = "TotalRule", MouseFilter = Control.MouseFilterEnum.Ignore };
+                layout.AddChild(_totalRule);
+                var statsGap = new Control { Name = "StatsGap", CustomMinimumSize = new Vector2(0f, 6f), MouseFilter = Control.MouseFilterEnum.Ignore };
+                layout.AddChild(statsGap);
+                Order(layout, _titleLabel, _dustMobsLabel, _dustExtractorsLabel, _dustBossLabel, _dustOptionalLabel,
+                    _dustCarriedLabel, _dustTierBonusLabel, _dustLossesLabel, _totalRule, _dustLabel, statsGap,
+                    _integrityLabel, _secretsLabel, _timeLabel, _rewindsLabel, _resonanceRestoredLabel, _returnButton);
             }
-            DressPulp();
-            // The dust ledger reads together: total, categories, then the run statistics.
-            if (_dustLabel != null && _dustLabel.GetParent() is Container ledger) {
-                int at = _dustLabel.GetIndex();
-                foreach (Label line in new[] { _dustMobsLabel, _dustExtractorsLabel, _dustBossLabel,
-                             _dustOptionalLabel, _dustCarriedLabel, _dustTierBonusLabel, _dustLossesLabel }) {
-                    if (line != null) ledger.MoveChild(line, ++at);
-                }
+            DressGlass();
+        }
+
+        private HSeparator _totalRule;
+        private TitleFlourishes _titleFlourishes;
+
+        /// <summary>Moves <paramref name="nodes"/> (skipping the missing) to consecutive slots of <paramref name="layout"/>, in order.</summary>
+        private static void Order(Container layout, params Node[] nodes) {
+            int at = 0;
+            foreach (Node node in nodes) {
+                if (node == null || node.GetParent() != layout) continue;
+                layout.MoveChild(node, at++);
             }
         }
 
         /// <summary>
-        /// UR-SCREENS: the pulp dressing around the authored labels. Every text stays one string on its
-        /// own Label (the results tests read them); the dust lines get the kit's dust icon at the left,
-        /// the statistics read as a left-aligned ledger, and the Return button is a banner button.
+        /// TG-SCREENS (UI_SPEC_GLASS 9.2, level results): an overlay over the finished level. The .70 dim, one 880 px glass
+        /// slab with the sheen, the 14 px button inset and the short-title tag; the T03 title between flourishes inside the
+        /// slab; every statistic a results row (caption left, tabular value right) over its line, whose own text stays the
+        /// one formatted string the results tests read; the dust total's value in res; one focused chevron with the D6 width
+        /// (prompt reserved) that wraps rather than trims (UR-POLISH); the prompt bar bottom-centre; no streak (plan 0.4 P3).
         /// </summary>
-        private void DressPulp() {
-            if (_panel != null) PulpScreenKit.DressPanel(_panel, buttonInset: true);
-            PulpScreenKit.AddLeadingIcon(_dustLabel, "dust", UIPalette.Res, 34f);
-            foreach (Label line in new[] { _dustMobsLabel, _dustExtractorsLabel, _dustBossLabel,
-                         _dustOptionalLabel, _dustCarriedLabel, _dustTierBonusLabel }) {
-                PulpScreenKit.AddLeadingIcon(line, "dust", UIPalette.Res, 24f);
+        private void DressGlass() {
+            if (_shade is ColorRect dim) dim.Color = UIPalette.PauseDim;
+            if (_panel != null) {
+                PulpScreenKit.DressPanel(_panel, buttonInset: true);
+                MenuSafeAreaFit.Attach(_panel, GlassScreenDressing.ScaledOverlayPromptClearance);
             }
-            PulpScreenKit.AddLeadingIcon(_dustLossesLabel, "dust", UIPalette.Ink3, 24f);
+            if (_titleLabel != null) _titleFlourishes = GlassScreenDressing.FlankTitle(_titleLabel);
+            foreach (Label line in new[] { _dustMobsLabel, _dustExtractorsLabel, _dustBossLabel, _dustOptionalLabel,
+                         _dustCarriedLabel, _dustTierBonusLabel, _dustLossesLabel, _dustLabel, _integrityLabel,
+                         _secretsLabel, _timeLabel, _rewindsLabel }) {
+                ResultRow.Attach(line);
+            }
+            ResultRow.Attach(_dustLabel)?.SetValueColor(UIPalette.Res);
             if (_returnButton != null) {
                 PulpButtonDecor.Apply(_returnButton).GrowToFit = true;
-                if (_shade != null) PulpScreenKit.AddPromptBar(_shade, ("ui_accept", "ui_prompt_select"));
+                PulpButtonDecor.ApplyStackWidth(new[] { _returnButton }, 560f, GlassScreenDressing.ScaledStackCap(700f));
+                if (_shade != null) GlassScreenDressing.AddOverlayPromptBar(_shade, ("ui_accept", "ui_prompt_select"));
             }
+            if (_panel != null) GlassScreenDressing.FadeIn(_panel);
         }
 
         // === Package 11 A5: the V7.5 "Resonance Restored" beat ==============
@@ -354,10 +384,8 @@ namespace FTT.UI {
         }
 
         private Label AppendResultLine(Container layout, string name) {
-            var label = new Label { Name = name, Visible = false };
-            // UR-SCREENS: the dust and statistics lines are a left-aligned ledger; the small-numeral role
-            // is for the dust amounts, the others keep the body face.
-            if (name.StartsWith("Dust")) label.ThemeTypeVariation = UIPalette.LabelRoles.HudNumeralSmall;
+            // Results rows take the value's role (TG-SCREENS: the row draws a caption and a value over it).
+            var label = new Label { Name = name, Visible = false, ThemeTypeVariation = UIPalette.LabelRoles.SettingsRowValue };
             layout.AddChild(label);
             if (_returnButton != null && _returnButton.GetParent() == layout) {
                 layout.MoveChild(label, _returnButton.GetIndex());

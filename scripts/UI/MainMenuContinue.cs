@@ -6,8 +6,8 @@ using FTT.Environment;
 namespace FTT.UI {
 
     /// <summary>
-    /// UR-MENU. The pure rules behind the pulp cover's Continue sticker (UI_SPEC 3.7): which save is the
-    /// "most recent", and the chapter number and short place name printed on the sticker. No scene access.
+    /// UR-MENU, kept by TG-MENU. The pure rules behind the main menu's Continue card (UI_SPEC_GLASS 3.8, ruling R5): which
+    /// save is the "most recent", its chapter number, its short place name and its difficulty's key. No scene access.
     /// </summary>
     public static class MainMenuContinue {
 
@@ -49,6 +49,13 @@ namespace FTT.UI {
 
         /// <summary>The chapter number: the level's campaign number, 0 to 15.</summary>
         public static int ChapterNumber(StorySaveData save) => (int)LevelOf(save);
+
+        /// <summary>The translation key of a difficulty's name (<c>difficulty_easy</c>, <c>_normal</c>, <c>_hard</c>).</summary>
+        public static string DifficultyKey(Difficulty difficulty) => difficulty switch {
+            Difficulty.Easy => "difficulty_easy",
+            Difficulty.Hard => "difficulty_hard",
+            _ => "difficulty_normal"
+        };
 
         /// <summary>The translation key of the level's hub mission name.</summary>
         public static string PlaceKey(StorySaveData save) => HubWorldController.CampaignLevelNameKey(LevelOf(save));

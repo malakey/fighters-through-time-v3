@@ -6,7 +6,7 @@ using static GdUnit4.Assertions;
 
 namespace FTT.Tests.Pulp;
 
-/// <summary>UR-WIDGETS step 2. The status chip: colours, ring share, the empty slot and the stable size.</summary>
+/// <summary>The status chip (TG-WIDGETS step 2: the G7 badge; first written by UR-WIDGETS): colours, the ring, the empty G8 slot and the stable size.</summary>
 [TestSuite]
 [RequireGodotRuntime]
 public class PulpStatusChipTests {
@@ -20,6 +20,12 @@ public class PulpStatusChipTests {
         AssertThat(PulpStatusChip.RingFraction(false, true, 4f)).IsEqual(1f);
         AssertThat(PulpStatusChip.RingFraction(true, true, 0.5f)).IsEqual(0f);
         AssertThat(PulpStatusChip.RingFraction(false, false, 0.5f)).IsEqual(0f);
+        // 3.4.3: a 3 px duration ring with its outer edge 5 px outside the badge (44 -> 54, 40 -> 50).
+        AssertThat(PulpStatusChip.RingWidth).IsEqual(3f);
+        AssertThat(PulpStatusChip.RingRadius(44f) + PulpStatusChip.RingWidth / 2f).IsEqual(27f);
+        AssertThat(PulpStatusChip.RingRadius(40f) + PulpStatusChip.RingWidth / 2f).IsEqual(25f);
+        // G8: the empty slot's ring is edge-dim.
+        AssertThat(PulpStatusChip.EmptyRingColor).IsEqual(UIPalette.EdgeDim);
     }
 
     [TestCase]
@@ -35,6 +41,10 @@ public class PulpStatusChipTests {
             AssertThat(empty.Glyph.Visible).IsFalse();
             AssertThat(full.Glyph.Visible).IsTrue();
             AssertThat(full.Glyph.Size.X.ToString("0.00") + "|" + full.Glyph.Position.X.ToString("0.00")).IsEqual("27.28|8.36");
+            // The glyph at 62 % is a glass icon in the bold weight (under 30 px) and the status colour.
+            AssertThat(full.Glyph.GlassName).IsEqual("venom");
+            AssertThat(full.Glyph.DrawsBold).IsTrue();
+            AssertThat(full.Glyph.Tint).IsEqual(UIPalette.StatusDamage);
             AssertThat(empty.TextColumn.Modulate.A).IsEqual(0.35f);
             AssertThat(full.TextColumn.Modulate.A).IsEqual(1f);
             AssertThat(full.MouseFilter).IsEqual(Control.MouseFilterEnum.Ignore);

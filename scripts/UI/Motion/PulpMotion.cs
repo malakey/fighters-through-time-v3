@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using FTT.Core;
 using Godot;
 
@@ -27,6 +28,10 @@ namespace FTT.UI.Motion {
     /// with <see cref="Tween.TweenPauseMode.Process"/>, so a pause menu or a gameplay-pausing dialogue never freezes
     /// a half-played motion. A rise or sink moves the panel by its position and survives a container sort (it re-bases
     /// on the slot the container gives it), and always ends on the exact resting position.</para>
+    ///
+    /// <para>One motion owns a panel at a time (TG-WIDGETS, Codex review 1 finding 1): <see cref="PopIn"/> and
+    /// <see cref="PopOut"/> first stop the panel's running fade-rise or fade-sink and put it back on its resting position,
+    /// so a panel re-opened, or closed, mid-motion never takes the other motion's offset for its slot.</para>
     /// </summary>
     public static class PulpMotion {
 
@@ -46,12 +51,13 @@ namespace FTT.UI.Motion {
         /// rise and no band. Returns the tween (never null) so a caller can await or kill it.
         /// </summary>
         public static Tween PopIn(Control panel) {
+            TakeOver(panel);
             Tween tween = NewTween(panel);
             panel.Scale = Vector2.One;
             panel.Modulate = WithAlpha(panel.Modulate, 0f);
             if (Reduced) {
                 tween.TweenProperty(panel, "modulate:a", 1f, PulpMotionRules.PanelFadeSeconds);
-                return tween;
+                return Own(panel, tween, null);
             }
             var rise = new OffsetDriver(panel, PulpMotionRules.PanelRiseAt);
             rise.Apply(0f);
@@ -63,7 +69,7 @@ namespace FTT.UI.Motion {
             for (int i = 0, n = panel.GetChildCount(); i < n; i++) {
                 if (panel.GetChild(i) is IPanelLightBand band) band.PlayLightBand(PulpMotionRules.PanelBandSeconds);
             }
-            return tween;
+            return Own(panel, tween, rise);
         }
 
         /// <summary>
@@ -71,10 +77,11 @@ namespace FTT.UI.Motion {
         /// back on its resting position. Under Reduced Temporal Effects a 0.12 s alpha fade.
         /// </summary>
         public static Tween PopOut(Control panel) {
+            TakeOver(panel);
             Tween tween = NewTween(panel);
             if (Reduced) {
                 tween.TweenProperty(panel, "modulate:a", 0f, PulpMotionRules.PanelFadeOutSeconds);
-                return tween;
+                return Own(panel, tween, null);
             }
             var sink = new OffsetDriver(panel, SinkAt);
             tween.SetParallel(true);
@@ -82,7 +89,44 @@ namespace FTT.UI.Motion {
                 .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
             tween.TweenMethod(Callable.From<float>(sink.Apply), 0f, 1f, PulpMotionRules.PanelOutSeconds);
             tween.Chain().TweenCallback(Callable.From(sink.Settle));
+            return Own(panel, tween, sink);
+        }
+
+        // The panel motion each panel is running (by instance id): its tween and, unless Reduced, its offset driver.
+        private sealed class PanelMotion {
+            public Tween Tween;
+            public OffsetDriver Driver;
+        }
+
+        private static readonly Dictionary<ulong, PanelMotion> Running = new();
+        private static readonly List<ulong> Stale = new();
+
+        // Stops the panel's running motion, if any, and puts it back on its resting position (its laid-out slot when a
+        // container moved it meanwhile), before a new motion reads that position as its base.
+        private static void TakeOver(Control panel) {
+            if (!Running.Remove(panel.GetInstanceId(), out PanelMotion previous)) return;
+            if (previous.Tween.IsValid()) previous.Tween.Kill();
+            previous.Driver?.Settle();
+        }
+
+        private static Tween Own(Control panel, Tween tween, OffsetDriver driver) {
+            ulong id = panel.GetInstanceId();
+            var motion = new PanelMotion { Tween = tween, Driver = driver };
+            if (Running.Count > 16) Purge();
+            Running[id] = motion;
+            tween.Chain().TweenCallback(Callable.From(() => {
+                if (Running.TryGetValue(id, out PanelMotion current) && ReferenceEquals(current, motion)) Running.Remove(id);
+            }));
             return tween;
+        }
+
+        // A panel freed mid-motion kills its tween without the closing callback: drop such entries now and then.
+        private static void Purge() {
+            Stale.Clear();
+            foreach (KeyValuePair<ulong, PanelMotion> entry in Running) {
+                if (!entry.Value.Tween.IsValid()) Stale.Add(entry.Key);
+            }
+            foreach (ulong id in Stale) Running.Remove(id);
         }
 
         private static float SinkAt(float progress) => PulpMotionRules.PanelSinkPixels * progress * progress;

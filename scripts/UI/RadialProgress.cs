@@ -2,6 +2,9 @@ using Godot;
 
 namespace FTT.UI {
 
+    /// <summary>How a <see cref="RadialProgress"/> ring colours its filled arc (TG-WIDGETS step 2, additive).</summary>
+    public enum RadialGradientMode { None, Arc, Loop }
+
     /// <summary>
     /// Package 11 A8. A small circular fill indicator, drawn rather than themed.
     ///
@@ -18,12 +21,24 @@ namespace FTT.UI {
     /// by whichever surface owns the authoritative value — which is what lets a
     /// status radial stop dead during Time Freeze instead of counting down a
     /// clock that is not running (F24).</para>
+    ///
+    /// <para>TG-WIDGETS step 2 (additive only): <see cref="GradientMode"/> colours the
+    /// filled arc from <see cref="FillColor"/> to <see cref="FillColorEnd"/> (the glass
+    /// lens's Ultimate ring), or loops it round the whole ring (its ready ring). The
+    /// existing modes and defaults are unchanged; the default track is written out as
+    /// the pulp <c>TrackBackground</c> value so the world-space channel displays
+    /// (<c>RestorationFont</c>, <c>ResonanceHoldNode</c>) never follow a palette change.</para>
     /// </summary>
     public partial class RadialProgress : Control {
 
+        /// <summary>The default track: #3A3144, the pulp <c>TrackBackground</c> this widget has always drawn.</summary>
+        public static readonly Color DefaultTrackColor = new(0x3A / 255f, 0x31 / 255f, 0x44 / 255f);
+
         private float _fraction = 1f;
         private Color _fillColor = UIPalette.Res2;
-        private Color _trackColor = UIPalette.TrackBackground;
+        private Color _trackColor = DefaultTrackColor;
+        private Color _fillColorEnd = UIPalette.Res2;
+        private RadialGradientMode _gradientMode = RadialGradientMode.None;
 
         /// <summary>
         /// UR-HUDS: draw a filled pie (the Integrity dial's wedge) instead of a ring. The track is the
@@ -85,6 +100,28 @@ namespace FTT.UI {
             }
         }
 
+        /// <summary>How the filled arc is coloured (ring mode only): flat, along the arc, or looped round the ring.</summary>
+        public RadialGradientMode GradientMode {
+            get => _gradientMode;
+            set { if (_gradientMode == value) return; _gradientMode = value; QueueRedraw(); }
+        }
+
+        /// <summary>The gradient's other colour: at the arc's end (<see cref="RadialGradientMode.Arc"/>) or half way round (<see cref="RadialGradientMode.Loop"/>).</summary>
+        public Color FillColorEnd {
+            get => _fillColorEnd;
+            set { if (_fillColorEnd == value) return; _fillColorEnd = value; QueueRedraw(); }
+        }
+
+        /// <summary>The filled arc's colour at <paramref name="t"/> of the arc (0 at 12 o'clock) for a gradient mode.</summary>
+        public static Color GradientColorAt(RadialGradientMode mode, Color from, Color to, float t) {
+            t = Mathf.Clamp(t, 0f, 1f);
+            return mode switch {
+                RadialGradientMode.Arc => from.Lerp(to, t),
+                RadialGradientMode.Loop => t <= 0.5f ? from.Lerp(to, t * 2f) : to.Lerp(from, (t - 0.5f) * 2f),
+                _ => from
+            };
+        }
+
         public override void _Ready() {
             MouseFilter = MouseFilterEnum.Ignore;
             QueueRedraw();
@@ -101,8 +138,32 @@ namespace FTT.UI {
             const float start = -Mathf.Pi * 0.5f;
             DrawArc(centre, radius, start, start + Mathf.Tau, Segments, _trackColor, Thickness, antialiased: true);
             if (_fraction <= 0f) return;
+            if (_gradientMode != RadialGradientMode.None) {
+                DrawGradientArc(centre, radius, start);
+                return;
+            }
             DrawArc(centre, radius, start, start + Mathf.Tau * _fraction, Segments, _fillColor, Thickness,
                 antialiased: true);
+        }
+
+        // Per-point colours along the filled arc; one buffer pair per point count, so a redraw allocates nothing.
+        private readonly System.Collections.Generic.Dictionary<int, (Vector2[] Points, Color[] Colors)> _arcBuffers = new();
+
+        private void DrawGradientArc(Vector2 centre, float radius, float start) {
+            int count = Mathf.Max(2, Mathf.CeilToInt(Mathf.Max(Segments, 48) * _fraction) + 1);
+            if (!_arcBuffers.TryGetValue(count, out (Vector2[] Points, Color[] Colors) buffer)) {
+                buffer = (new Vector2[count], new Color[count]);
+                _arcBuffers[count] = buffer;
+            }
+            for (int i = 0; i < count; i++) {
+                float u = i / (float)(count - 1);
+                float angle = start + Mathf.Tau * _fraction * u;
+                buffer.Points[i] = centre + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
+                // Arc: along the drawn arc; Loop: by the position round the whole ring.
+                float t = _gradientMode == RadialGradientMode.Loop ? u * _fraction : u;
+                buffer.Colors[i] = GradientColorAt(_gradientMode, _fillColor, _fillColorEnd, t);
+            }
+            DrawPolylineColors(buffer.Points, buffer.Colors, Thickness, antialiased: true);
         }
 
         private Vector2[] _pieBuffer;

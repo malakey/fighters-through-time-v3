@@ -36,93 +36,75 @@ mouse_filter = 2
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="Title" type="Label" parent="Select/Root"]
-layout_mode = 2
-theme_type_variation = &"TitleLabel"
-text = "drill_picker_title"
-uppercase = true
-horizontal_alignment = 1
-
 [node name="Hint" type="Label" parent="Select/Root"]
-custom_minimum_size = Vector2(720, 0)
+custom_minimum_size = Vector2(760, 0)
 layout_mode = 2
-theme_type_variation = &"StatusLine"
+theme_type_variation = &"HintLine"
 text = "drill_picker_hint"
 horizontal_alignment = 1
 autowrap_mode = 3
 
 [node name="Grid" type="GridContainer" parent="Select/Root"]
 layout_mode = 2
-theme_override_constants/h_separation = 12
-theme_override_constants/v_separation = 12
+size_flags_horizontal = 4
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 16
 columns = 3
 
 [node name="CharacterButton0" type="Button" parent="Select/Root/Grid"]
-custom_minimum_size = Vector2(190, 140)
+custom_minimum_size = Vector2(164, 164)
 layout_mode = 2
-expand_icon = true
-vertical_icon_alignment = 0
 
 [node name="CharacterButton1" type="Button" parent="Select/Root/Grid"]
-custom_minimum_size = Vector2(190, 140)
+custom_minimum_size = Vector2(164, 164)
 layout_mode = 2
-expand_icon = true
-vertical_icon_alignment = 0
 
 [node name="CharacterButton2" type="Button" parent="Select/Root/Grid"]
-custom_minimum_size = Vector2(190, 140)
+custom_minimum_size = Vector2(164, 164)
 layout_mode = 2
-expand_icon = true
-vertical_icon_alignment = 0
 
 [node name="CharacterButton3" type="Button" parent="Select/Root/Grid"]
-custom_minimum_size = Vector2(190, 140)
+custom_minimum_size = Vector2(164, 164)
 layout_mode = 2
-expand_icon = true
-vertical_icon_alignment = 0
 
 [node name="CharacterButton4" type="Button" parent="Select/Root/Grid"]
-custom_minimum_size = Vector2(190, 140)
+custom_minimum_size = Vector2(164, 164)
 layout_mode = 2
-expand_icon = true
-vertical_icon_alignment = 0
 
 [node name="CharacterButton5" type="Button" parent="Select/Root/Grid"]
-custom_minimum_size = Vector2(190, 140)
+custom_minimum_size = Vector2(164, 164)
 layout_mode = 2
-expand_icon = true
-vertical_icon_alignment = 0
 
 [node name="CharacterButton6" type="Button" parent="Select/Root/Grid"]
-custom_minimum_size = Vector2(190, 140)
+custom_minimum_size = Vector2(164, 164)
 layout_mode = 2
-expand_icon = true
-vertical_icon_alignment = 0
 
 [node name="CharacterButton7" type="Button" parent="Select/Root/Grid"]
-custom_minimum_size = Vector2(190, 140)
+custom_minimum_size = Vector2(164, 164)
 layout_mode = 2
-expand_icon = true
-vertical_icon_alignment = 0
 
 [node name="CharacterButton8" type="Button" parent="Select/Root/Grid"]
-custom_minimum_size = Vector2(190, 140)
+custom_minimum_size = Vector2(164, 164)
 layout_mode = 2
-expand_icon = true
-vertical_icon_alignment = 0
 
-[node name="Preview" type="VBoxContainer" parent="Select/Root"]
-custom_minimum_size = Vector2(620, 0)
+[node name="PreviewPanel" type="PanelContainer" parent="Select/Root"]
+custom_minimum_size = Vector2(720, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+
+[node name="Preview" type="VBoxContainer" parent="Select/Root/PreviewPanel"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="PreviewName" type="Label" parent="Select/Root/Preview"]
+[node name="PreviewName" type="Label" parent="Select/Root/PreviewPanel/Preview"]
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
 horizontal_alignment = 1
+uppercase = true
 
-[node name="PreviewStats" type="Label" parent="Select/Root/Preview"]
-custom_minimum_size = Vector2(620, 0)
+[node name="PreviewStats" type="Label" parent="Select/Root/PreviewPanel/Preview"]
+custom_minimum_size = Vector2(660, 0)
 layout_mode = 2
 theme_type_variation = &"StatusLine"
 horizontal_alignment = 1
@@ -130,23 +112,23 @@ autowrap_mode = 3
 
 [node name="ButtonRow" type="HBoxContainer" parent="Select/Root"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 34
 alignment = 1
 
 [node name="MoveListButton" type="Button" parent="Select/Root/ButtonRow"]
-custom_minimum_size = Vector2(300, 58)
+custom_minimum_size = Vector2(0, 58)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 text = "movelist_title"
 
 [node name="SystemsCardButton" type="Button" parent="Select/Root/ButtonRow"]
-custom_minimum_size = Vector2(300, 58)
+custom_minimum_size = Vector2(0, 58)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 text = "systems_card_title"
 
 [node name="BackButton" type="Button" parent="Select/Root/ButtonRow"]
-custom_minimum_size = Vector2(240, 58)
+custom_minimum_size = Vector2(0, 58)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 text = "common_back"

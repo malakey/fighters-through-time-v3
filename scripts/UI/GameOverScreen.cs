@@ -64,12 +64,46 @@ namespace FTT.UI {
             // which is a fallback and not a design.
             Control layout = root.GetNodeOrNull<Control>("Center/Panel/Layout");
             if (layout != null) _focusChain = FocusChainBuilder.Apply(layout);
+            DressGlass(root, layout);
+        }
 
-            // UR-SCREENS: the pulp dressing (banner buttons, halftone corner, prompt bar).
-            if (root.GetNodeOrNull<PanelContainer>("Center/Panel") is { } panel) PulpScreenKit.DressPanel(panel, buttonInset: true);
-            if (RestartButton != null) FTT.UI.Pulp.PulpButtonDecor.Apply(RestartButton);
-            if (QuitButton != null) FTT.UI.Pulp.PulpButtonDecor.Apply(QuitButton);
-            PulpScreenKit.AddPromptBar(root, ("ui_accept", "ui_prompt_select"));
+        /// <summary>The cold rule's diamond and rules (the Severed's light, UI_SPEC_GLASS 9.2 agent choice).</summary>
+        public static readonly Color ColdRule = UIPalette.UnboundCold;
+
+        /// <summary>
+        /// TG-SCREENS (UI_SPEC_GLASS 9.2, Game Over: Smothered): the stronger .82 dim, a 760 px glass slab with the sheen and
+        /// the 14 px stack inset, the T04 title, a 1 px cold rule with a cold diamond under it, the body in ink2, the
+        /// deposited-dust notice in res2, the two chevrons stacked at their D6 width with Restart focused, and the prompt bar
+        /// bottom-centre. An overlay: no screen streak.
+        /// </summary>
+        private void DressGlass(Control root, Control layout) {
+            if (root is ColorRect dim) dim.Color = UIPalette.GameOverDim;
+            if (root.GetNodeOrNull<PanelContainer>("Center/Panel") is { } panel) {
+                PulpScreenKit.DressPanel(panel, buttonInset: true);
+                MenuSafeAreaFit.Attach(panel, GlassScreenDressing.ScaledOverlayPromptClearance);
+                GlassScreenDressing.FadeIn(panel);
+            }
+            if (layout != null && layout.GetNodeOrNull<Label>("Title") is { } title) {
+                var rule = FTT.UI.Pulp.GlassFlourish.Create(FTT.UI.Pulp.GlassFlourish.FlourishShape.RuleDiamondRule, 0f, FTT.UI.Pulp.GlassFlourish.MenuGap);
+                rule.Name = "ColdRule";
+                rule.RuleColor = ColdRule;
+                rule.DiamondTint = ColdRule;
+                rule.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+                rule.MouseFilter = Control.MouseFilterEnum.Ignore;
+                layout.AddChild(rule);
+                layout.MoveChild(rule, title.GetIndex() + 1);
+            }
+            layout?.GetNodeOrNull<Label>("Body")?.AddThemeColorOverride("font_color", UIPalette.Ink2);
+            layout?.GetNodeOrNull<Label>("DustNotice")?.AddThemeColorOverride("font_color", UIPalette.Res2);
+            var stack = new System.Collections.Generic.List<Button>();
+            foreach (Button button in new[] { RestartButton, QuitButton }) {
+                if (button == null) continue;
+                FTT.UI.Pulp.PulpButtonDecor.Apply(button);
+                stack.Add(button);
+            }
+            // D6 (UI_SPEC_GLASS 3.2): the stack shares its widest required width (prompt reserved), at least 560, inside the slab.
+            FTT.UI.Pulp.PulpButtonDecor.ApplyStackWidth(stack, 560f, GlassScreenDressing.ScaledStackCap(680f));
+            GlassScreenDressing.AddOverlayPromptBar(root, ("ui_accept", "ui_prompt_select"));
         }
 
         public override void _ExitTree() {
