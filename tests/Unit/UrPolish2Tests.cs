@@ -371,7 +371,8 @@ public class UrPolish2Tests {
                     var name = hud.GetNode<Label>("SafeArea/BossPanel/BossName");
                     var tab = hud.GetNode<Control>("SafeArea/BossPanel/BossPhaseTab");
                     var bar = hud.GetNode<Control>("SafeArea/BossPanel/BossBar");
-                    // The name tilts -1 degree about its top-left, so its right end rises a little above the panel.
+                    // TG-HUDS (BOSS-A, UI_SPEC_GLASS 3.6 D11): the name (T30, no tilt) shrinks toward its 22.8 px floor
+                    // beside the plain PHASE label; if it still does not fit, the label drops under it.
                     Rect2 n = Bounds(name), t = Bounds(tab), b = Bounds(bar), p = Bounds(panel).Grow(16f * scale);
                     string tag = $"{scale}/{key}";
                     if (n.Intersects(t)) problems.Add($"{tag}: name {n} overlaps tab {t}");
@@ -379,7 +380,12 @@ public class UrPolish2Tests {
                     if (t.Intersects(b)) problems.Add($"{tag}: tab {t} overlaps the bar {b}");
                     if (!p.Encloses(n)) problems.Add($"{tag}: name {n} outside panel {p}");
                     if (!p.Encloses(t)) problems.Add($"{tag}: tab {t} outside panel {p}");
-                    if (name.Scale.X < 0.5f - 0.001f) problems.Add($"{tag}: name scale {name.Scale.X} below its floor");
+                    float floor = StoryHUD.BossNameFloorScale(scale);
+                    if (name.Scale.X < floor - 0.001f) problems.Add($"{tag}: name scale {name.Scale.X} below its floor {floor}");
+                    if (name.Scale.X * StoryHUD.BossNameSize * scale < StoryHUD.BossNameFloorPixels - 0.01f)
+                        problems.Add($"{tag}: name drawn under {StoryHUD.BossNameFloorPixels} px");
+                    // At 100 % every name keeps the phase label beside it (only the longest shrinks, to about 36.6 px).
+                    if (Mathf.IsEqualApprox(scale, 1f) && hud.BossPhaseDropped) problems.Add($"{tag}: phase label dropped at 100 %");
                     if (name.ClipText) ellipsized.Add(tag);
                 }
                 hud.QueueFree();

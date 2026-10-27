@@ -35,6 +35,22 @@ namespace FTT.UI {
 
         private Control _root;
 
+        // TG-PAUSE: the glass skin's parts.
+        private PausePanel _panel;
+        private Control _shade;
+        private Control _promptBar;
+        private readonly Dictionary<Godot.Range, Label> _valueLabels = new();
+        private Button _listeningSlot;
+
+        /// <summary>
+        /// One dim (UI_SPEC_GLASS 9.2): opened from a pause menu the screen sits on the pause's dim and draws none of its own;
+        /// opened from the main menu or the hub it brings its 0.70 dim. Default false.
+        /// </summary>
+        public bool UsesHostDim { get; set; }
+
+        /// <summary>The screen's glass slab. Test surface.</summary>
+        internal PausePanel Panel => _panel;
+
         // Audio
         private HSlider _masterSlider;
         private HSlider _musicSlider;
@@ -153,31 +169,112 @@ namespace FTT.UI {
             PopulateDropdowns();
             WireSignals();
             BuildControlsTab();
-            ApplyPulpWidgets();
+            ApplyGlassWidgets();
         }
 
         /// <summary>
-        /// UR-PAUSE: skins the scene's switches as the pulp toggle track and the Back row as a banner button. The
-        /// remap rows built in code (<see cref="BuildControlsTab"/>) skin their own toggles as they are made.
+        /// TG-PAUSE (UI_SPEC_GLASS 3.3, 9.2): a centred glass slab (the screen's own 0.70 dim unless it sits on a host's)
+        /// with the sheen, kept on screen at UI scale 1.4; every switch a glass toggle whose row label is drawn upper-case
+        /// in the label column; every slider with its value column and the glass field's focus look; the Back and Reset All
+        /// buttons compact chevrons; the tab strip upper-case; the bottom-centre prompt bar.
         /// </summary>
-        private void ApplyPulpWidgets() {
+        private void ApplyGlassWidgets() {
             if (_root == null) return;
+            _shade = _root.GetNodeOrNull<Control>("Shade");
+            _panel = _root.GetNodeOrNull<PausePanel>("Margin/Panel");
+            if (_panel != null) {
+                PulpScreenKit.DressPanel(_panel, sheen: true, buttonInset: false);
+                MenuSafeAreaFit.Attach(_panel, GlassScreenDressing.OverlayPromptClearance);
+            }
             var found = _root.FindChildren("*", "CheckButton", true, false);
             using (found.AsDisposable()) {
                 foreach (Node node in found) if (node is CheckButton toggle) SkinToggle(toggle);
             }
             if (_root.GetNodeOrNull<Button>("Margin/Panel/Body/Footer/BackButton") is { } back) {
-                PulpScreenKit.StylePauseButton(back, 320f);
+                Pulp.PulpButtonDecor.Apply(back, compact: true).ShowPrompt = false;
+                Pulp.PulpButtonDecor.ApplyStackWidth(new[] { back }, CompactButtonMinWidth, reservePrompt: false);
+            }
+            if (_tabs.GetNodeOrNull<Button>("Controls/Scroll/Content/ResetAllButton") is { } resetAll) {
+                Pulp.PulpButtonDecor.Apply(resetAll, compact: true).ShowPrompt = false;
+                Pulp.PulpButtonDecor.ApplyStackWidth(new[] { resetAll }, CompactButtonMinWidth, reservePrompt: false);
+            }
+            QuietTabPanel();
+            foreach (KeyValuePair<Godot.Range, Label> pair in _valueLabels) GiveSliderTheFieldFocus(pair.Key);
+            RefreshValueLabels();
+            _promptBar = PulpScreenKit.AddBottomPromptBar(_root, "common_back");
+        }
+
+        /// <summary>The D6 floor of a compact chevron (3.2: 290).</summary>
+        public const float CompactButtonMinWidth = 290f;
+
+        /// <summary>A shortcut toggle on the Controls tab: its label column, the gap and the 132 px track.</summary>
+        private const float ShortcutToggleWidth = 440f;
+
+        /// <summary>A toggle row's label: the <c>RowLabel</c> child drawn in the label column (UI_SPEC_GLASS 3.3, T52).</summary>
+        public const string ToggleRowLabelName = SettingsRowLayout.RowLabelName;
+
+        private static readonly string[] ToggleTextColorSlots = {
+            "font_color", "font_hover_color", "font_focus_color", "font_pressed_color", "font_hover_pressed_color",
+            "font_disabled_color"
+        };
+
+        /// <summary>
+        /// A settings switch (3.3): the glass toggle track at the button's right end, and the row's label drawn upper-case in
+        /// the label column by a <c>RowLabel</c> child (T52) while the button's own text, which tests and the focus chain
+        /// read, stays as it is and draws nothing. A row inside a <see cref="SettingsRowLayout"/> takes the layout's width;
+        /// any other row (the shortcut grid) takes <paramref name="width"/>.
+        /// </summary>
+        internal static void SkinToggle(CheckButton toggle, float width = 0f) {
+            if (width > 0f) toggle.CustomMinimumSize = new Vector2(width, toggle.CustomMinimumSize.Y);
+            Pulp.PulpToggleDecor.Apply(toggle);
+            foreach (string slot in ToggleTextColorSlots) toggle.AddThemeColorOverride(slot, new Color(0f, 0f, 0f, 0f));
+            if (toggle.GetNodeOrNull<Label>(ToggleRowLabelName) is not { } label) {
+                label = new Label {
+                    Name = ToggleRowLabelName,
+                    Uppercase = true,
+                    AutowrapMode = TextServer.AutowrapMode.WordSmart,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    MouseFilter = Control.MouseFilterEnum.Ignore,
+                    ThemeTypeVariation = UIPalette.LabelRoles.SettingsRowLabel
+                };
+                toggle.AddChild(label);
+            }
+            label.Text = toggle.Text;
+            if (toggle.GetParent() is not SettingsRowLayout) {
+                // Outside the row layout the label column is the button's width less the gap and the track.
+                label.AnchorTop = 0f;
+                label.AnchorBottom = 1f;
+                label.OffsetLeft = 0f;
+                label.OffsetRight = Mathf.Max(0f, toggle.CustomMinimumSize.X - SettingsRowLayout.SpecItemGap - Pulp.PulpToggleDecor.TrackWidth);
+                label.OffsetTop = 0f;
+                label.OffsetBottom = 0f;
             }
         }
 
-        private const float ToggleRowWidth = 560f;
+        /// <summary>
+        /// The TabContainer's inner panel stands down to a quiet frame with a tighter padding, so the rows sit close under
+        /// the tab strip (a scene-local copy of the theme's own box; the shared theme is untouched).
+        /// </summary>
+        private void QuietTabPanel() {
+            if (_tabs?.GetThemeStylebox("panel") is not StyleBox box) return;
+            if (box.Duplicate() is not StyleBox own) return;
+            own.ContentMarginLeft = TabPanelPadding;
+            own.ContentMarginRight = TabPanelPadding;
+            own.ContentMarginTop = TabPanelPaddingTop;
+            own.ContentMarginBottom = TabPanelPaddingTop;
+            _tabs.AddThemeStyleboxOverride("panel", own);
+        }
 
-        private const float ShortcutToggleWidth = 360f;
+        private const float TabPanelPadding = 24f, TabPanelPaddingTop = 14f;
 
-        private static void SkinToggle(CheckButton toggle, float width = ToggleRowWidth) {
-            toggle.CustomMinimumSize = new Vector2(width, toggle.CustomMinimumSize.Y);
-            Pulp.PulpToggleDecor.Apply(toggle);
+        /// <summary>
+        /// A slider has no focus look in the glass theme (a kit gap): it borrows the glass field's focus overlay (the lit edge
+        /// and the 14 px glow), so a pad player sees which slider the stick moves.
+        /// </summary>
+        private static void GiveSliderTheFieldFocus(Control slider) {
+            Theme theme = UIPalette.LoadTheme();
+            if (theme == null || !theme.HasStylebox("focus", UIPalette.Variations.GlassField)) return;
+            slider.AddThemeStyleboxOverride("focus", theme.GetStylebox("focus", UIPalette.Variations.GlassField));
         }
 
         /// <summary>
@@ -228,9 +325,32 @@ namespace FTT.UI {
             _actionRows = _tabs.GetNode<VBoxContainer>("Controls/Scroll/Content/ActionRows");
             _shortcutRows = _tabs.GetNode<GridContainer>("Controls/Scroll/Content/ShortcutRows");
             _controlsStatus = _tabs.GetNode<Label>("Controls/Status");
+
+            // TG-PAUSE (3.3): each slider's value column, beside it in the scene ("<Name>Slider" then "<Name>Value").
+            _valueLabels.Clear();
+            foreach (HSlider slider in new[] {
+                         _masterSlider, _musicSlider, _sfxSlider, _uiSlider, _hudOpacitySlider, _screenShakeSlider,
+                         _uiScaleSlider, _deadzoneSlider, _downThresholdSlider, _hapticSlider }) {
+                if (slider == null) continue;
+                string valueName = slider.Name.ToString().Replace("Slider", "Value");
+                if (slider.GetParent()?.GetNodeOrNull<Label>(valueName) is { } value) _valueLabels[slider] = value;
+            }
+        }
+
+        /// <summary>The value column's text for a slider (3.3, T53): its value as a whole percentage (hud_percent).</summary>
+        public static string FormatSliderValue(double value) =>
+            string.Format(TranslationServer.Translate("hud_percent"), Mathf.RoundToInt((float)value * 100f));
+
+        private void RefreshValueLabels() {
+            foreach (KeyValuePair<Godot.Range, Label> pair in _valueLabels) {
+                if (IsInstanceValid(pair.Value)) pair.Value.Text = FormatSliderValue(pair.Key.Value);
+            }
         }
 
         private HSlider Slider(string path) => _tabs.GetNode<HSlider>(path);
+
+        /// <summary>A tab's title: its translation, upper-cased for the current locale (T55).</summary>
+        public static string TabTitle(string key) => Pulp.PulpButtonDecor.ToDrawnText(TranslationServer.Translate(key));
 
         private void LocalizeStaticText() {
             _root.GetNode<Label>("Margin/Panel/Body/Title").Text = Tr("menu_settings").ToUpperInvariant();
@@ -238,8 +358,9 @@ namespace FTT.UI {
 
             // TabContainer renders the child node names unless the titles are set
             // explicitly, which is why the tabs used to read as raw English.
+            // TG-PAUSE (3.3, T55): tab labels are upper case (a tab title is resolved text, set here, not a raw key).
             for (int index = 0; index < TabTitleKeys.Length && index < _tabs.GetTabCount(); index++) {
-                _tabs.SetTabTitle(index, Tr(TabTitleKeys[index]));
+                _tabs.SetTabTitle(index, TabTitle(TabTitleKeys[index]));
             }
 
             _tabs.GetNode<Label>("Audio/MasterLabel").Text = Tr("settings_master_volume");
@@ -399,6 +520,12 @@ namespace FTT.UI {
             _tabs.TabChanged += _ => {
                 if (Visible) RebuildFocusChain();
             };
+
+            // TG-PAUSE (3.3): a slider's value column follows it live.
+            foreach (KeyValuePair<Godot.Range, Label> pair in _valueLabels) {
+                Label value = pair.Value;
+                pair.Key.ValueChanged += v => value.Text = FormatSliderValue(v);
+            }
         }
 
         /// <summary>
@@ -447,12 +574,17 @@ namespace FTT.UI {
             // than rendering a broken row.
             foreach (string action in InputBindingService.BindableActions()) {
                 string capturedAction = action;
-                var row = new HBoxContainer { Name = $"Row_{action}" };
-                row.AddThemeConstantOverride("separation", 8);
+                // TG-PAUSE (9.2, 3.3): a 62 px settings row: the action label (T52), a keyboard and a gamepad binding cell
+                // (44 px glass fields), and the Unbind and Reset compact chevrons, the columns kept by ApplyColumnWidths.
+                var row = new HBoxContainer { Name = $"Row_{action}", CustomMinimumSize = new Vector2(0f, ControlsRowHeight) };
+                row.AddThemeConstantOverride("separation", ControlsColumnGap);
 
                 var label = new Label {
                     Text = ActionLabel(action),
                     CustomMinimumSize = new Vector2(LabelColumnWidth, 0),
+                    Uppercase = true,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    ThemeTypeVariation = UIPalette.LabelRoles.SettingsRowLabel,
                     ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis
                 };
                 row.AddChild(label);
@@ -470,19 +602,17 @@ namespace FTT.UI {
                 // C01c: an explicit Unbound is a real choice, distinct from "no
                 // override, inherit the default". Without a control for it the
                 // player could never reach the state the save format now stores.
-                var unbind = new Button {
-                    Text = Tr("controls_unbind"), CustomMinimumSize = new Vector2(UnbindColumnWidth, 42)
-                };
+                var unbind = NewRowChevron(Tr("controls_unbind"), UnbindColumnWidth);
                 unbind.Pressed += () => UnbindSlot(capturedAction, InputDeviceKind.Keyboard);
                 row.AddChild(unbind);
                 _unbindButtons[action] = unbind;
 
-                var reset = new Button {
-                    Text = Tr("controls_reset_action"), CustomMinimumSize = new Vector2(ResetColumnWidth, 42)
-                };
+                var reset = NewRowChevron(Tr("controls_reset_action"), ResetColumnWidth);
                 reset.Pressed += () => ResetSingleAction(capturedAction);
                 row.AddChild(reset);
 
+                // A focused chevron slides 14 px and glows: the row keeps the derived focus gap between its buttons.
+                PulpScreenKit.SeparateFocusRow(row);
                 _actionRows.AddChild(row);
             }
 
@@ -493,12 +623,30 @@ namespace FTT.UI {
 
         // The Controls table's column widths: fixed, so a long binding ("Pad Axis 0-, Pad Button 13") clips with an
         // ellipsis (its tooltip carries the whole text) instead of pushing its row's other columns out of line.
-        internal const float LabelColumnWidth = 300f, KeyboardColumnWidth = 260f, PadColumnWidth = 340f, UnbindColumnWidth = 140f, ResetColumnWidth = 140f;
+        internal const float LabelColumnWidth = 300f, KeyboardColumnWidth = 260f, PadColumnWidth = 340f, UnbindColumnWidth = 200f, ResetColumnWidth = 200f;
+
+        /// <summary>A remap row (UI_SPEC_GLASS 3.3: 62 tall), its cells 12 apart; a binding cell is a 44 px glass field.</summary>
+        internal const float ControlsRowHeight = 62f, BindingCellHeight = 44f;
+        internal const int ControlsColumnGap = 12;
 
         private static Button NewSlotButton(float width) => new Button {
-            CustomMinimumSize = new Vector2(width, 42), SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin,
+            CustomMinimumSize = new Vector2(width, BindingCellHeight), SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin,
+            SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
             ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis
         };
+
+        /// <summary>The Unbind and Reset buttons of a remap row: compact chevrons with no badge (3.3, the binding cell).</summary>
+        private static Button NewRowChevron(string text, float width) {
+            var button = new Button {
+                Text = text,
+                CustomMinimumSize = new Vector2(width, ConfirmModal.ModalButtonHeight),
+                SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin,
+                SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
+                ThemeTypeVariation = UIPalette.Variations.PulpButtonCompact
+            };
+            Pulp.PulpButtonDecor.Apply(button, compact: true).ShowPrompt = false;
+            return button;
+        }
 
         /// <summary>
         /// C01c's preset shortcuts. Their action recipes are FIXED — there is no
@@ -530,7 +678,7 @@ namespace FTT.UI {
                     toggle.Toggled += on => {
                         _workingBindings.SetShortcutEnabled(capturedRecipe.Action, capturedKind, on);
                         RefreshBindingLabels();
-                        _controlsStatus.Text = ReachabilityWarning() ?? "";
+                        SetStatus(ReachabilityWarning() ?? "");
                     };
                     SkinToggle(toggle, ShortcutToggleWidth);
                     row.AddChild(toggle);
@@ -538,7 +686,12 @@ namespace FTT.UI {
                     // The chord's CURRENT buttons, not a hard-coded "LB+RB": C01c
                     // is explicit that such a label describes defaults, and a
                     // remapped component must be reflected here.
-                    row.AddChild(new Label { Text = DescribeRecipe(recipe, deviceKind) });
+                    row.AddChild(new Label {
+                        Text = DescribeRecipe(recipe, deviceKind),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        ThemeTypeVariation = UIPalette.LabelRoles.BodySmallLabel
+                    });
+                    row.CustomMinimumSize = new Vector2(0f, ControlsRowHeight);
                     _shortcutRows.AddChild(row);
                 }
             }
@@ -570,7 +723,7 @@ namespace FTT.UI {
             CancelListening();
             _workingBindings.SetUnbound(action, deviceKind, unbound: true);
             RefreshBindingLabels();
-            _controlsStatus.Text = ReachabilityWarning() ?? Tr("controls_unbound_done");
+            SetStatus(ReachabilityWarning() ?? Tr("controls_unbound_done"));
         }
 
         /// <summary>
@@ -586,6 +739,7 @@ namespace FTT.UI {
         }
 
         private void RefreshBindingLabels() {
+            if (!IsListening) SetListeningCell(null);
             foreach (string action in InputBindingService.BindableActions()) {
                 IReadOnlyList<InputBindingEvent> events = _workingBindings.For(action);
                 if (_keyboardSlots.TryGetValue(action, out Button keyboardSlot) && IsInstanceValid(keyboardSlot)) {
@@ -617,17 +771,16 @@ namespace FTT.UI {
             if (_actionRows == null) return;
             _columnScale = UIPalette.AppliedUiScale;
             float[] width = { LabelColumnWidth, KeyboardColumnWidth, PadColumnWidth, UnbindColumnWidth, ResetColumnWidth };
-            float[] cap = { 380f, 360f, 520f, 200f, 200f };
+            // TG-PAUSE: the caps grow with the UI scale (the labels are T52 capitals and the last two columns chevrons now,
+            // both wider than the pulp cells); MenuSafeAreaFit keeps the whole slab on screen at 1.4.
+            float capScale = Mathf.Max(1f, _columnScale);
+            float[] cap = { 440f * capScale, 360f * capScale, 520f * capScale, 260f * capScale, 260f * capScale };
             int rows = _actionRows.GetChildCount();
             for (int r = 0; r < rows; r++) {
                 if (_actionRows.GetChild(r) is not HBoxContainer row) continue;
                 for (int c = 0; c < 5 && c < row.GetChildCount(); c++) {
                     if (row.GetChild(c) is not Control cell) continue;
-                    string text = cell is Label l ? l.Text : cell is Button b ? b.Text : "";
-                    Font font = cell.GetThemeFont("font");
-                    float chrome = (cell.GetThemeStylebox("normal")?.GetMinimumSize().X ?? 0f) + 28f;
-                    float measured = font.GetStringSize(text, HorizontalAlignment.Left, -1f, cell.GetThemeFontSize("font_size")).X + chrome;
-                    width[c] = Mathf.Max(width[c], Mathf.Min(measured, cap[c]));
+                    width[c] = Mathf.Max(width[c], Mathf.Min(MeasureCell(cell), cap[c]));
                 }
             }
             for (int r = 0; r < rows; r++) {
@@ -636,6 +789,22 @@ namespace FTT.UI {
                     if (row.GetChild(c) is Control cell) cell.CustomMinimumSize = new Vector2(width[c], cell.CustomMinimumSize.Y);
                 }
             }
+        }
+
+        /// <summary>
+        /// The width a Controls cell needs for its text whole: a decorated chevron its decor's own required width (the
+        /// upper-case label at the UI scale, no badge); a label its text as drawn (upper-cased when the label draws capitals);
+        /// a field its text and plate, plus the cell's 28 px air.
+        /// </summary>
+        private static float MeasureCell(Control cell) {
+            if (cell is Button decorated && decorated.GetNodeOrNull<Pulp.PulpButtonDecor>("PulpButtonDecor") != null) {
+                return Pulp.PulpButtonDecor.RequiredWidth(decorated, reservePrompt: false);
+            }
+            string text = cell is Label l ? (l.Uppercase ? Pulp.PulpButtonDecor.ToDrawnText(l.Text) : l.Text)
+                : cell is Button b ? b.Text : "";
+            Font font = cell.GetThemeFont("font");
+            float chrome = (cell.GetThemeStylebox("normal")?.GetMinimumSize().X ?? 0f) + 28f;
+            return font.GetStringSize(text, HorizontalAlignment.Left, -1f, cell.GetThemeFontSize("font_size")).X + chrome;
         }
 
         /// <summary>
@@ -659,16 +828,42 @@ namespace FTT.UI {
             _listeningDeviceKind = deviceKind;
             Button slot = deviceKind == InputDeviceKind.Keyboard ? _keyboardSlots[action] : _joypadSlots[action];
             slot.Text = Tr("controls_listening");
-            _controlsStatus.Text = Tr(deviceKind == InputDeviceKind.Keyboard
+            // UI_SPEC_GLASS 3.3 (the binding cell): while listening the cell keeps its focus look and reads in res2, steady.
+            SetListeningCell(slot);
+            SetStatus(Tr(deviceKind == InputDeviceKind.Keyboard
                 ? "controls_listening_keyboard"
-                : "controls_listening_joypad");
+                : "controls_listening_joypad"), UIPalette.Res2);
         }
 
         private void CancelListening() {
             if (!IsListening) return;
             _listeningAction = "";
-            if (_controlsStatus != null) _controlsStatus.Text = "";
+            if (_controlsStatus != null) SetStatus("");
             RefreshBindingLabels();
+        }
+
+        private static readonly string[] CellTextColorSlots = {
+            "font_color", "font_hover_color", "font_focus_color", "font_pressed_color", "font_hover_pressed_color"
+        };
+
+        /// <summary>Marks <paramref name="slot"/> as the listening cell (its text in res2); null clears the mark.</summary>
+        private void SetListeningCell(Button slot) {
+            if (_listeningSlot != null && IsInstanceValid(_listeningSlot)) {
+                foreach (string name in CellTextColorSlots) _listeningSlot.RemoveThemeColorOverride(name);
+            }
+            _listeningSlot = slot;
+            if (slot == null) return;
+            foreach (string name in CellTextColorSlots) slot.AddThemeColorOverride(name, UIPalette.Res2);
+        }
+
+        /// <summary>
+        /// The Controls status line (3.3): listening in res2, a refused conflict in danger, anything else in the role's ink2.
+        /// </summary>
+        private void SetStatus(string text, Color? color = null) {
+            if (_controlsStatus == null) return;
+            _controlsStatus.Text = text ?? "";
+            if (color.HasValue) _controlsStatus.AddThemeColorOverride("font_color", color.Value);
+            else _controlsStatus.RemoveThemeColorOverride("font_color");
         }
 
         public override void _Input(InputEvent @event) {
@@ -724,8 +919,8 @@ namespace FTT.UI {
             if (conflict.Length > 0) {
                 _listeningAction = "";
                 RefreshBindingLabels();
-                _controlsStatus.Text = string.Format(
-                    Tr("controls_conflict"), Tr(InputManager.ActionLabelKey(conflict)));
+                SetStatus(string.Format(
+                    Tr("controls_conflict"), Tr(InputManager.ActionLabelKey(conflict))), UIPalette.Danger);
                 return;
             }
 
@@ -743,7 +938,7 @@ namespace FTT.UI {
 
             _listeningAction = "";
             RefreshBindingLabels();
-            _controlsStatus.Text = ReachabilityWarning() ?? Tr("controls_rebound");
+            SetStatus(ReachabilityWarning() ?? Tr("controls_rebound"));
         }
 
         /// <summary>
@@ -759,7 +954,7 @@ namespace FTT.UI {
             foreach (InputDeviceKind deviceKind in DeviceKinds) _workingBindings.ResetSlot(action, deviceKind);
             RefreshBindingLabels();
             BuildShortcutRows();
-            _controlsStatus.Text = Tr("controls_reset_action_done");
+            SetStatus(Tr("controls_reset_action_done"));
         }
 
         private void OnResetAllBindings() {
@@ -770,7 +965,7 @@ namespace FTT.UI {
             _workingBindings = InputBindingService.CaptureEffective();
             RefreshBindingLabels();
             BuildShortcutRows();
-            _controlsStatus.Text = Tr("controls_reset_all_done");
+            SetStatus(Tr("controls_reset_all_done"));
         }
 
         // ------------------------------------------------------------------
@@ -801,7 +996,10 @@ namespace FTT.UI {
             LoadSettings();
             BuildControlsTab();
             Visible = true;
+            if (_shade != null) _shade.Visible = !UsesHostDim;
             RebuildFocusChain();
+            // MOT-A row 4: the slab fades and rises (its own dim fading in with it unless it sits on a host's).
+            _panel?.PlayAppear(UsesHostDim ? null : _shade);
         }
 
         public override void _UnhandledInput(InputEvent @event) {
@@ -824,6 +1022,7 @@ namespace FTT.UI {
             CancelListening();
             SaveSettings();
             Visible = false;
+            _panel?.StopAppear(UsesHostDim ? null : _shade);
             Closed?.Invoke();
         }
 
@@ -862,6 +1061,7 @@ namespace FTT.UI {
             _workingStickProfiles = CloneProfiles(data.StickProfiles);
             PopulateStickDevices();
             ShowStickProfile();
+            RefreshValueLabels();
         }
 
         private void SaveSettings() {

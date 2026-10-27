@@ -52,33 +52,61 @@ namespace FTT.UI {
             return presenter;
         }
 
+        /// <summary>UI_SPEC_GLASS 9.2: the plate hangs top-centre at y 140, at most 900 wide, its height the text's.</summary>
+        public const float PlateTop = 140f, PlateMaxWidth = 900f;
+
+        /// <summary>
+        /// The plate's padding: 12 after the tag's 2 px left bar, 14 plus the 8 px slant on the right (3.0 G2, 3.3 the tag),
+        /// and 10 above and below the line.
+        /// </summary>
+        public const float PadLeft = 14f, PadRight = 22f, PadVertical = 10f;
+
+        /// <summary>The G2 slant: the right end runs 8 px back towards the bottom.</summary>
+        public const float SlantRun = 8f;
+
+        /// <summary>The plate's tag wash and its dark base. Test surface.</summary>
+        internal PanelContainer Wash => _wash;
+        internal Control PlateBase => _base;
+
+        private PanelContainer _wash;
+        private StyleBox _washBox;
+        private TooltipPlateBase _base;
+
         public override void _Ready() {
             Layer = 40;
             ProcessMode = ProcessModeEnum.Pausable;
+            // TG-PAUSE (UI_SPEC_GLASS 9.2): a glass tag-style plate, the G2 body (the 2 px edge-hi bar, the 90 degree gold
+            // wash, the right end slanted 8 px), Outfit 400 22 in ink, fading and rising in. Under the wash lies the glass
+            // slab's dark fill in the same shape, so the line stays legible over a bright level (the spec draws the G2 body
+            // alone, which is a tag meant to straddle a dark panel).
             _panel = new PanelContainer {
                 Name = "TooltipPanel",
                 Visible = false,
-                MouseFilter = Control.MouseFilterEnum.Ignore,
-                ThemeTypeVariation = UIPalette.Variations.InkPanel,
-                CustomMinimumSize = new Vector2(800, 0)
+                MouseFilter = Control.MouseFilterEnum.Ignore
             };
             // FU-MENU: top-centre anchors growing both ways, not a fixed (560, 150).
             _panel.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
-            _panel.OffsetLeft = -400f;
-            _panel.OffsetRight = 400f;
-            _panel.OffsetTop = 150f;
-            _panel.OffsetBottom = 150f;
+            _panel.OffsetLeft = 0f;
+            _panel.OffsetRight = 0f;
+            _panel.OffsetTop = PlateTop;
+            _panel.OffsetBottom = PlateTop;
             _panel.GrowHorizontal = Control.GrowDirection.Both;
             _panel.GrowVertical = Control.GrowDirection.End;
             UIPalette.ApplyTheme(_panel);
+            _panel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+            _base = new TooltipPlateBase { Name = "TooltipBase", MouseFilter = Control.MouseFilterEnum.Ignore };
+            _panel.AddChild(_base);
+            _wash = new PanelContainer { Name = "TooltipWash", MouseFilter = Control.MouseFilterEnum.Ignore };
+            _washBox = WashBox();
+            if (_washBox != null) _wash.AddThemeStyleboxOverride("panel", _washBox);
+            _panel.AddChild(_wash);
             _label = new Label {
                 Name = "TooltipText",
-                AutowrapMode = TextServer.AutowrapMode.WordSmart,
-                ThemeTypeVariation = UIPalette.LabelRoles.HintLine,
+                ThemeTypeVariation = UIPalette.LabelRoles.BodySmallLabel,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                CustomMinimumSize = new Vector2(760, 0)
+                VerticalAlignment = VerticalAlignment.Center
             };
-            _panel.AddChild(_label);
+            _wash.AddChild(_label);
             AddChild(_panel);
 
             if (EventBus.Instance != null) {
@@ -118,8 +146,83 @@ namespace FTT.UI {
         private void Show(string tooltipID) {
             ShowingTooltipID = tooltipID;
             _remaining = DisplaySeconds;
-            if (_label != null) _label.Text = FirstUseTooltips.KeyFor(tooltipID);
-            if (_panel != null) _panel.Visible = true;
+            Present(FirstUseTooltips.KeyFor(tooltipID));
+        }
+
+        /// <summary>
+        /// Shows <paramref name="text"/> (a key, or a line) through the plate's real fit and appear path, outside the slot's
+        /// ledger and timer. Capture and test seam.
+        /// </summary>
+        internal void PresentForPreview(string text) => Present(text);
+
+        private void Present(string text) {
+            if (_label == null || _panel == null) return;
+            _label.Text = text;
+            FitPlate();
+            _panel.Visible = true;
+            // MOT-A row 4: fade and rise in; under Reduced Temporal Effects a 150 ms fade (PulpMotion reads the comfort setting).
+            _appear?.Kill();
+            _appear = _panel.IsInsideTree() ? FTT.UI.Motion.PulpMotion.PopIn(_panel) : null;
+        }
+
+        private Tween _appear;
+
+        /// <summary>
+        /// Sizes the plate to its line: the line on one row while it fits inside <see cref="PlateMaxWidth"/> less the padding,
+        /// else wrapped at that width (9.2: "height to content, max 900 wide"). Every metric grows with the UI scale. The plate
+        /// is re-centred on its anchor each time, because the rise of the previous showing wrote its offsets.
+        /// </summary>
+        private void FitPlate() {
+            float s = Pulp.PulpButtonDecor.UiScaleFactor;
+            if (_washBox != null) {
+                _washBox.ContentMarginLeft = PadLeft * s;
+                _washBox.ContentMarginRight = PadRight * s;
+                _washBox.ContentMarginTop = PadVertical * s;
+                _washBox.ContentMarginBottom = PadVertical * s;
+            }
+            float room = (PlateMaxWidth - PadLeft - PadRight) * s;
+            _label.AutowrapMode = TextServer.AutowrapMode.Off;
+            _label.CustomMinimumSize = Vector2.Zero;
+            if (_label.GetCombinedMinimumSize().X > room) {
+                _label.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+                _label.CustomMinimumSize = new Vector2(room, 0f);
+                // Wrap at the final width now, so the plate's height is right before the rise records its position.
+                _label.Size = new Vector2(room, 0f);
+            }
+            _panel.OffsetLeft = 0f;
+            _panel.OffsetRight = 0f;
+            _panel.OffsetTop = PlateTop * s;
+            _panel.OffsetBottom = PlateTop * s;
+        }
+
+        /// <summary>The glass tag's own nine-slice (the theme's <c>PanelTagPlate</c>), a copy the plate pads for itself.</summary>
+        private static StyleBox WashBox() {
+            Theme theme = UIPalette.LoadTheme();
+            if (theme == null || !theme.HasStylebox("panel", UIPalette.Variations.PanelTagPlate)) return null;
+            return theme.GetStylebox("panel", UIPalette.Variations.PanelTagPlate).Duplicate() as StyleBox;
+        }
+
+        /// <summary>
+        /// The dark base under the tag wash: the glass slab's fill in the G2 shape (the right end slanted <see cref="SlantRun"/>
+        /// px back towards the bottom). The four corners are rewritten only when the plate is resized; the draw allocates nothing.
+        /// </summary>
+        private sealed partial class TooltipPlateBase : Control {
+            private readonly Vector2[] _corners = new Vector2[4];
+
+            public override void _Notification(int what) {
+                if ((long)what != NotificationResized) return;
+                Vector2 size = Size;
+                _corners[0] = Vector2.Zero;
+                _corners[1] = new Vector2(size.X, 0f);
+                _corners[2] = new Vector2(Mathf.Max(0f, size.X - SlantRun), size.Y);
+                _corners[3] = new Vector2(0f, size.Y);
+                QueueRedraw();
+            }
+
+            public override void _Draw() {
+                if (Size.X <= SlantRun || Size.Y <= 0f) return;
+                DrawColoredPolygon(_corners, UIPalette.GlassFillMid);
+            }
         }
 
         public override void _Process(double delta) {

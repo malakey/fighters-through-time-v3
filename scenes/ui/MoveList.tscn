@@ -32,7 +32,7 @@ grow_vertical = 2
 mouse_filter = 2
 
 [node name="Panel" type="PanelContainer" parent="Center"]
-custom_minimum_size = Vector2(900, 0)
+custom_minimum_size = Vector2(1240, 900)
 layout_mode = 2
 theme_type_variation = &"InkPanel"
 script = ExtResource("2_panel")
@@ -43,10 +43,10 @@ theme_override_constants/separation = 36
 
 [node name="Header" type="HBoxContainer" parent="Center/Panel/Layout"]
 layout_mode = 2
-theme_override_constants/separation = 16
+theme_override_constants/separation = 22
 
 [node name="Portrait" type="TextureRect" parent="Center/Panel/Layout/Header"]
-custom_minimum_size = Vector2(96, 96)
+visible = false
 layout_mode = 2
 expand_mode = 1
 stretch_mode = 5
@@ -54,37 +54,44 @@ stretch_mode = 5
 [node name="HeaderText" type="VBoxContainer" parent="Center/Panel/Layout/Header"]
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_override_constants/separation = 4
 
 [node name="CharacterName" type="Label" parent="Center/Panel/Layout/Header/HeaderText"]
 layout_mode = 2
 theme_type_variation = &"TitleLabel"
+uppercase = true
 
 [node name="Archetype" type="Label" parent="Center/Panel/Layout/Header/HeaderText"]
+visible = false
 layout_mode = 2
-theme_type_variation = &"SmallLabel"
+theme_type_variation = &"CaptionLabel"
+uppercase = true
 
 [node name="Scroll" type="ScrollContainer" parent="Center/Panel/Layout"]
-custom_minimum_size = Vector2(840, 540)
+custom_minimum_size = Vector2(1184, 560)
 layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
 
 [node name="Sections" type="VBoxContainer" parent="Center/Panel/Layout/Scroll"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 8
+theme_override_constants/separation = 10
 
 [node name="FooterRow" type="HBoxContainer" parent="Center/Panel/Layout"]
 layout_mode = 2
-theme_override_constants/separation = 24
+theme_override_constants/separation = 34
 alignment = 1
 
 [node name="SystemsCardButton" type="Button" parent="Center/Panel/Layout/FooterRow"]
-custom_minimum_size = Vector2(400, 64)
+custom_minimum_size = Vector2(290, 58)
 layout_mode = 2
-theme_type_variation = &"TemporalGlassButton"
+theme_type_variation = &"PulpButtonCompact"
 text = "systems_card_title"
 
 [node name="CloseButton" type="Button" parent="Center/Panel/Layout/FooterRow"]
-custom_minimum_size = Vector2(280, 64)
+custom_minimum_size = Vector2(290, 58)
 layout_mode = 2
-theme_type_variation = &"TemporalGlassButton"
+theme_type_variation = &"PulpButtonCompact"
 text = "common_back"

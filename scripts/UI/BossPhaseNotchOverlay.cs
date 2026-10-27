@@ -23,8 +23,10 @@ namespace FTT.UI {
         private const float NotchWidth = 3f;
 
         /// <summary>
-        /// UR-HUDS: false when a <c>PulpBarDecor</c> on the bar draws the (6 px, black) notches itself; this
-        /// overlay then only keeps the crossed count and shows the phase-change flash as a gold wash.
+        /// False when the glass boss tube (<c>PulpBarDecor</c>, BOSS-A) draws the notches itself (the white line with its
+        /// gold diamond). This overlay then only keeps the thresholds, the crossed count and the transition timer, and draws
+        /// nothing: the glass notches are static (UI_SPEC_GLASS MOT-A row 16) and the phase change is presented by the
+        /// HUD's phase label cross-fade. TG-HUDS removed the pulp gold wash it used to draw here.
         /// </summary>
         public bool DrawNotches { get; set; } = true;
 
@@ -84,9 +86,11 @@ namespace FTT.UI {
             }
             // A short, decaying brighten rather than a blink: the bar has to stay
             // readable through the transition, which is exactly when the player is
-            // looking at it.
+            // looking at it. With the glass tube drawing the notches there is nothing
+            // to brighten here (the notches are static; the HUD cross-fades the label).
+            if (!DrawNotches) return;
             float strength = _flashTimer / FlashSeconds;
-            if (DrawNotches) Modulate = Colors.White.Lerp(UIPalette.GoldBright, strength);
+            Modulate = Colors.White.Lerp(UIPalette.GoldBright, strength);
             QueueRedraw();
         }
 
@@ -94,15 +98,7 @@ namespace FTT.UI {
             float width = Size.X;
             float height = Size.Y;
             if (width <= 0f || height <= 0f) return;
-            if (!DrawNotches) {
-                if (_flashTimer > 0f) {
-                    Color wash = UIPalette.GoldBright;
-                    wash.A = 0.5f * _flashTimer / FlashSeconds;
-                    DrawRect(new Rect2(0f, 0f, width, height), wash);
-                }
-                return;
-            }
-            if (_positions.Count == 0) return;
+            if (!DrawNotches || _positions.Count == 0) return;
 
             for (int index = 0; index < _positions.Count; index++) {
                 float x = _positions[index] * width;

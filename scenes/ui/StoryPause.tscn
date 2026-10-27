@@ -38,7 +38,7 @@ mouse_filter = 2
 
 [node name="Panel" type="PanelContainer" parent="Root/Center"]
 layout_mode = 2
-theme_type_variation = &"InkPanel"
+theme_type_variation = &"GlassPanelPause"
 script = ExtResource("3_panel")
 
 [node name="Layout" type="VBoxContainer" parent="Root/Center/Panel"]
@@ -56,6 +56,11 @@ layout_mode = 2
 theme_type_variation = &"StatusLine"
 uppercase = true
 horizontal_alignment = 1
+
+[node name="ListGap" type="Control" parent="Root/Center/Panel/Layout"]
+custom_minimum_size = Vector2(0, 6)
+layout_mode = 2
+mouse_filter = 2
 
 [node name="ControllerNotice" type="Label" parent="Root/Center/Panel/Layout"]
 visible = false

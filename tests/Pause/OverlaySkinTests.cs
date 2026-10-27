@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using FTT.UI;
 using FTT.UI.Pulp;
 using GdUnit4;
@@ -25,8 +26,10 @@ public class OverlaySkinTests {
         Tree.Paused = false;
     }
 
+    // A kit widget's own text (a button decor's label and badge, the toggle's ON / OFF, the prompt bar's key-caps) is the
+    // widget's to colour.
     private static bool InsideButton(Node node) {
-        for (Node up = node.GetParent(); up != null; up = up.GetParent()) if (up is BaseButton) return true;
+        for (Node up = node.GetParent(); up != null; up = up.GetParent()) if (up is BaseButton or PulpPromptBar) return true;
         return false;
     }
 
@@ -116,7 +119,7 @@ public class OverlaySkinTests {
             AssertThat(roundel.Diameter).IsEqual(DialogueTheme.PortraitSize);
             var caret = dialogue.GetNodeOrNull<PulpIcon>("CaretHost/AdvanceCaret");
             AssertObject(caret).OverrideFailureMessage("The advance caret is missing.").IsNotNull();
-            AssertThat(caret.IconName).IsEqual("hourglass");
+            AssertThat(caret.IconName).IsEqual("hourglass_caret");   // TG-PAUSE: the solid caret (UI_SPEC_GLASS 3.9)
             AssertThat(caret.Visible).IsFalse();
 
             AssertThat(dialogue.StartSequence("level_08.postboss")).IsTrue();
@@ -148,10 +151,103 @@ public class OverlaySkinTests {
             Collect(log, labels);
             Label speaker = labels.Find(l => l.Name == "Speaker");
             AssertObject(speaker).IsNotNull();
-            AssertThat(speaker.ThemeTypeVariation.ToString()).IsEqual(UIPalette.LabelRoles.SpeakerName);
+            // TG-PAUSE (9.2): the log's speaker is Cinzel 700 22 in accent, the HeroName role (SpeakerName is the box's T50).
+            AssertThat(speaker.ThemeTypeVariation.ToString()).IsEqual(UIPalette.LabelRoles.HeroName);
         } finally {
             DialogueLog.Clear();
             Free(log);
+        }
+    }
+
+    private static bool Same(GodotObject a, GodotObject b) => a != null && b != null && a.GetInstanceId() == b.GetInstanceId();
+
+    private static async Task Frames(int count) {
+        for (int i = 0; i < count; i++) await Tree.ToSignal(Tree, SceneTree.SignalName.ProcessFrame);
+    }
+
+    /// <summary>
+    /// TG-PAUSE (UI_SPEC_GLASS 3.3, 9.2): Settings wears the glass parts. The tab titles are drawn upper-case on the
+    /// theme's glass tabs; every option button is a glass field at least 300 x 44; every slider is 360 wide with the glass
+    /// field's focus look and its value in the 90 px T53 column, all three on one centre line; a toggle row is 62 tall; the
+    /// Audio, Display and Gameplay rows scroll inside their tab behind the glass scroll bar, which keeps a focused row in
+    /// view, as the Controls remap list scrolls behind it.
+    /// </summary>
+    [TestCase]
+    public async Task SettingsTabsFieldsSlidersAndScrollBarsWearTheGlassLooks() {
+        var settings = new SettingsMenu { Name = "SettingsGlass" };
+        Tree.Root.AddChild(settings);
+        try {
+            settings.Show();
+            await Frames(3);
+            Theme theme = UIPalette.LoadTheme();
+            TabContainer tabs = settings.Tabs;
+            string[] titleKeys = { "settings_tab_audio", "settings_tab_display", "settings_tab_gameplay", "settings_tab_controls" };
+            for (int index = 0; index < titleKeys.Length; index++) {
+                string title = tabs.GetTabTitle(index);
+                AssertThat(title).IsEqual(SettingsMenu.TabTitle(titleKeys[index]));
+                AssertThat(title).IsEqual(title.ToUpperInvariant());
+            }
+            AssertThat(tabs.GetThemeStylebox("tab_selected").GetInstanceId()).IsEqual(theme.GetStylebox("tab_selected", "TabContainer").GetInstanceId());
+            AssertThat(tabs.GetThemeStylebox("tab_unselected").GetInstanceId()).IsEqual(theme.GetStylebox("tab_unselected", "TabContainer").GetInstanceId());
+
+            var issues = new List<string>();
+            for (int index = 0; index < 3; index++) {
+                tabs.CurrentTab = index;
+                await Frames(3);
+                var layout = tabs.GetChild(index) as SettingsRowLayout;
+                if (layout == null) { issues.Add($"tab {index} is not a settings row layout"); continue; }
+                if (!layout.Scrolls || layout.ScrollBar == null) issues.Add($"{layout.Name} does not scroll");
+                else if (!Same(layout.ScrollBar.GetThemeStylebox("scroll"), theme.GetStylebox("scroll", "VScrollBar"))) {
+                    issues.Add($"{layout.Name}'s scroll bar is not the glass bar");
+                }
+                var fields = new List<OptionButton>();
+                Collect(layout, fields);
+                foreach (OptionButton field in fields) {
+                    if (!Same(field.GetThemeStylebox("normal"), theme.GetStylebox("normal", "OptionButton"))) issues.Add(field.Name + " is not a glass field");
+                    if (field.Size.X < 300f - 0.5f || field.Size.Y < 44f - 0.5f) issues.Add($"{field.Name} is {field.Size}");
+                }
+                var sliders = new List<HSlider>();
+                Collect(layout, sliders);
+                foreach (HSlider slider in sliders) {
+                    if (!Mathf.IsEqualApprox(slider.Size.X, 360f)) issues.Add($"{slider.Name} is {slider.Size.X} wide");
+                    if (!Same(slider.GetThemeStylebox("focus"), theme.GetStylebox("focus", "GlassField"))) issues.Add(slider.Name + " has no glass focus look");
+                    var value = slider.GetParent().GetNodeOrNull<Label>(slider.Name.ToString().Replace("Slider", "Value"));
+                    if (value == null) { issues.Add(slider.Name + " has no value column"); continue; }
+                    if (value.ThemeTypeVariation != UIPalette.LabelRoles.SettingsRowValue) issues.Add(value.Name + " is not T53");
+                    if (value.Text != SettingsMenu.FormatSliderValue(slider.Value)) issues.Add($"{value.Name} reads '{value.Text}'");
+                    if (!Mathf.IsEqualApprox(value.Size.X, 90f)) issues.Add($"{value.Name} is {value.Size.X} wide");
+                    // One row: the label, the slider and the value share a centre line.
+                    var label = slider.GetParent().GetNodeOrNull<Label>(slider.Name.ToString().Replace("Slider", "Label"));
+                    float centre = slider.Position.Y + slider.Size.Y / 2f;
+                    if (label != null && Mathf.Abs(label.Position.Y + label.Size.Y / 2f - centre) > 1f) issues.Add(label.Name + " is off its row");
+                    if (Mathf.Abs(value.Position.Y + value.Size.Y / 2f - centre) > 1f) issues.Add(value.Name + " is off its row");
+                }
+                var toggles = new List<CheckButton>();
+                Collect(layout, toggles);
+                foreach (CheckButton toggle in toggles) {
+                    if (!Mathf.IsEqualApprox(toggle.Size.Y, SettingsRowLayout.SpecRowHeight)) issues.Add($"{toggle.Name}'s row is {toggle.Size.Y} tall");
+                }
+            }
+            if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+
+            // The Gameplay rows run past their tab at 100 %: focusing the last one scrolls it fully into view.
+            tabs.CurrentTab = 2;
+            await Frames(3);
+            var gameplay = tabs.GetNode<SettingsRowLayout>("Gameplay");
+            AssertThat(gameplay.ScrollBar.Visible).OverrideFailureMessage("The Gameplay rows fit; nothing to scroll.").IsTrue();
+            AssertThat(gameplay.ScrollOffset).IsEqual(0f);
+            var last = tabs.GetNode<Control>("Gameplay/CrashReportsRow/CrashReportsDropdown");
+            last.GrabFocus();
+            await Frames(3);
+            AssertThat(gameplay.ScrollOffset).IsGreater(0f);
+            Rect2 view = gameplay.GetGlobalRect();
+            AssertThat(last.GetGlobalRect().End.Y <= view.End.Y + 1f).OverrideFailureMessage("The focused row is still below the tab.").IsTrue();
+            AssertThat(last.GetGlobalRect().Position.Y >= view.Position.Y - 1f).IsTrue();
+
+            ScrollContainer remaps = tabs.GetNode<ScrollContainer>("Controls/Scroll");
+            AssertThat(Same(remaps.GetVScrollBar().GetThemeStylebox("scroll"), theme.GetStylebox("scroll", "VScrollBar"))).IsTrue();
+        } finally {
+            Free(settings);
         }
     }
 }

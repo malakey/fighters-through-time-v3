@@ -264,8 +264,11 @@ public class StoryHudPresentationTests {
     /// <summary>
     /// D10 (2026-10-11, ledger <c>USER-NOT-YET-FLASH</c>): a lockout refusal
     /// flashes the refused slot — a red <c>SelfModulate</c> tint plus a
-    /// contracting frame, the shape channel HUD_CONTRACT's "never colour alone"
-    /// asks for — on the hero's HUD only. <c>Modulate</c> is left alone.
+    /// contracting shape, the channel HUD_CONTRACT's "never colour alone"
+    /// asks for — on the hero's HUD only. <c>Modulate</c> is left alone. Since
+    /// the Temporal Glass rebuild (TG-HUDS; TG-WIDGETS step 2 ruling 3) the shape
+    /// is the 2 px danger circle round the lens's readiness ring and the tint
+    /// target is the lens, for the Specials and the Ultimate alike.
     /// </summary>
     [TestCase]
     public void ANotYetRefusalFlashesTheMatchingSlotForTheHeroOnly() {
@@ -276,49 +279,49 @@ public class StoryHudPresentationTests {
             AssertObject(bus).IsNotNull();
             const string Row = "SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/CooldownRow";
             var slotOne = hud.GetNode<Label>($"{Row}/Cooldown1_Icon");
-            var slotTwo = hud.GetNode<Label>($"{Row}/Cooldown2_Icon");
             var meterHost = hud.GetNode<Control>("SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/MeterRow/UltimateMeter_BG");
-            var meterFill = hud.GetNode<Control>("SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/MeterRow/UltimateMeter_BG/UltimateMeter_Fill");
-            Color slotOneModulate = slotOne.Modulate;
+            FTT.UI.Pulp.PulpAbilitySlot lensOne = hud.SlotWidgets[0], lensTwo = hud.SlotWidgets[1], ult = hud.UltimateSlotWidget;
+            Color lensOneModulate = lensOne.Modulate;
 
             bus.RaiseAbilityLockoutRefused(new AbilityLockoutRefusedPayload {
                 PlayerIndex = 0, Slot = AbilitySlot.Special1
             });
-            AssertThat(slotOne.SelfModulate == Colors.White)
-                .OverrideFailureMessage("The refused slot's icon is tinted.")
+            AssertThat(lensOne.SelfModulate == Colors.White)
+                .OverrideFailureMessage("The refused slot's lens is tinted.")
                 .IsFalse();
-            AssertThat(slotOne.SelfModulate).IsEqual(NotYetFlash.Tint);
-            Panel frame = NotYetFlash.FrameOf(slotOne);
-            AssertObject(frame).IsNotNull();
-            AssertThat(frame.Visible).OverrideFailureMessage("The frame is the non-colour channel.").IsTrue();
-            AssertThat(frame.Scale == new Vector2(NotYetFlash.StartScale, NotYetFlash.StartScale))
-                .OverrideFailureMessage("The frame appears enlarged and contracts.")
+            AssertThat(lensOne.SelfModulate).IsEqual(NotYetFlash.Tint);
+            Control circle = NotYetFlash.CircleOf(lensOne.Ring);
+            AssertObject(circle).IsNotNull();
+            AssertThat(circle.Visible).OverrideFailureMessage("The circle is the non-colour channel.").IsTrue();
+            AssertThat(circle.Scale == new Vector2(NotYetFlash.StartScale, NotYetFlash.StartScale))
+                .OverrideFailureMessage("The circle appears enlarged and contracts.")
                 .IsTrue();
-            AssertThat(slotOne.Modulate).OverrideFailureMessage("Modulate belongs to other writers.").IsEqual(slotOneModulate);
-            AssertObject(NotYetFlash.FrameOf(slotTwo)).IsNull();
-            AssertThat(slotTwo.SelfModulate).IsEqual(Colors.White);
+            AssertThat(lensOne.Modulate).OverrideFailureMessage("Modulate belongs to other writers.").IsEqual(lensOneModulate);
+            AssertObject(NotYetFlash.FrameOf(slotOne)).OverrideFailureMessage("The glass flash draws no pulp frame.").IsNull();
+            AssertObject(NotYetFlash.CircleOf(lensTwo.Ring)).IsNull();
+            AssertThat(lensTwo.SelfModulate).IsEqual(Colors.White);
 
             // The Mirror clone (index 1) raises the event too; the hero's HUD ignores it.
             bus.RaiseAbilityLockoutRefused(new AbilityLockoutRefusedPayload {
                 PlayerIndex = 1, Slot = AbilitySlot.Special2
             });
-            AssertObject(NotYetFlash.FrameOf(slotTwo)).IsNull();
-            AssertThat(slotTwo.SelfModulate).IsEqual(Colors.White);
+            AssertObject(NotYetFlash.CircleOf(lensTwo.Ring)).IsNull();
+            AssertThat(lensTwo.SelfModulate).IsEqual(Colors.White);
             bus.RaiseAbilityLockoutRefused(new AbilityLockoutRefusedPayload {
                 PlayerIndex = 1, Slot = AbilitySlot.Ultimate
             });
-            AssertObject(NotYetFlash.FrameOf(meterHost)).IsNull();
+            AssertObject(NotYetFlash.CircleOf(ult.Ring)).IsNull();
 
-            // The Ultimate: the fill (the drawn RadialProgress) takes the tint,
-            // the plain BG hosts the frame.
+            // The Ultimate: the lens takes the tint, the circle goes round its 110 px ring.
             bus.RaiseAbilityLockoutRefused(new AbilityLockoutRefusedPayload {
                 PlayerIndex = 0, Slot = AbilitySlot.Ultimate
             });
-            AssertThat(meterFill.SelfModulate).IsEqual(NotYetFlash.Tint);
-            Panel meterFrame = NotYetFlash.FrameOf(meterHost);
-            AssertObject(meterFrame).IsNotNull();
-            AssertThat(meterFrame.Visible).IsTrue();
-            AssertThat(meterFrame.GetParent() == meterHost).IsTrue();
+            AssertThat(ult.SelfModulate).IsEqual(NotYetFlash.Tint);
+            Control ultCircle = NotYetFlash.CircleOf(ult.Ring);
+            AssertObject(ultCircle).IsNotNull();
+            AssertThat(ultCircle.Visible).IsTrue();
+            AssertThat(ultCircle.GetParent() == ult.Ring).IsTrue();
+            AssertObject(NotYetFlash.FrameOf(meterHost)).IsNull();
         } finally {
             host.Free();
         }

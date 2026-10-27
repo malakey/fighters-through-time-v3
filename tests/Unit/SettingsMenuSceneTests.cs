@@ -46,14 +46,16 @@ public class SettingsMenuSceneTests {
         var host = NewHost("SettingsLocalizationHost");
         try {
             SettingsMenu menu = OpenMenu(host);
+            // TG-PAUSE: the glass tabs draw their titles upper-case (UI_SPEC_GLASS 3.3, T55).
             string[] expected = {
-                TranslationServer.Translate("settings_tab_audio").ToString(),
-                TranslationServer.Translate("settings_tab_display").ToString(),
-                TranslationServer.Translate("settings_tab_gameplay").ToString(),
-                TranslationServer.Translate("settings_tab_controls").ToString()
+                TranslationServer.Translate("settings_tab_audio").ToString().ToUpperInvariant(),
+                TranslationServer.Translate("settings_tab_display").ToString().ToUpperInvariant(),
+                TranslationServer.Translate("settings_tab_gameplay").ToString().ToUpperInvariant(),
+                TranslationServer.Translate("settings_tab_controls").ToString().ToUpperInvariant()
             };
             for (int index = 0; index < expected.Length; index++) {
                 AssertThat(menu.Tabs.GetTabTitle(index)).IsEqual(expected[index]);
+                AssertThat(menu.Tabs.GetTabTitle(index)).IsNotEqual(menu.Tabs.GetChild(index).Name.ToString());
             }
 
             var hint = menu.Tabs.GetNode<Label>("Controls/Hint");
@@ -75,7 +77,7 @@ public class SettingsMenuSceneTests {
             SettingsMenu menu = OpenMenu(host);
             // The old Gameplay tab carried a difficulty OptionButton that nothing
             // ever read or persisted; campaign difficulty is chosen per save slot.
-            var gameplay = menu.Tabs.GetNode<VBoxContainer>("Gameplay");
+            var gameplay = menu.Tabs.GetNode<Container>("Gameplay");   // TG-PAUSE: a SettingsRowLayout
             Godot.Collections.Array<Node> children = gameplay.GetChildren();
             using var lifetime = children.AsDisposable();
             AssertThat(children.Any(child => child is OptionButton)).IsFalse();

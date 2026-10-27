@@ -216,23 +216,26 @@ public class FighterHudSceneTests {
     public void PlayerPanelsAnchorToTheTopAndTheClockStaysTopCenter() {
         // UR-HUDF (HUD-F2 "top versus bars", UI_SPEC 4.5): both clusters hang from the TOP
         // corners (margin 36 / 22), replacing M-29's bottom anchors (design :2617); the match
-        // timer stays top-centre. The fill-mode and clock checks are unchanged.
+        // timer stays top-centre. TG-HUDF (UI_SPEC_GLASS 4.5): the margins are screen pixels at
+        // every UI scale, so the offsets are the margins divided by the HUD's scale (36 / 22 at
+        // 1.0). The fill-mode and clock checks are unchanged.
         FighterHUD hud = Mount();
         try {
             var one = hud.GetNode<Control>("SafeArea/P1_Status");
             var two = hud.GetNode<Control>("SafeArea/P2_Status");
+            float scale = UIPalette.CurrentUiScale;
 
             AssertFloat(one.AnchorTop).IsEqual(0f);
             AssertFloat(one.AnchorBottom).IsEqual(0f);
             AssertFloat(one.AnchorLeft).IsEqual(0f);
-            AssertFloat(one.OffsetTop).IsEqual(22f);
-            AssertFloat(one.OffsetLeft).IsEqual(36f);
+            AssertFloat(one.OffsetTop * scale).IsEqualApprox(22f, 0.01f);
+            AssertFloat(one.OffsetLeft * scale).IsEqualApprox(36f, 0.01f);
 
             AssertFloat(two.AnchorTop).IsEqual(0f);
             AssertFloat(two.AnchorBottom).IsEqual(0f);
             AssertFloat(two.AnchorLeft).IsEqual(1f);
             AssertFloat(two.AnchorRight).IsEqual(1f);
-            AssertFloat(two.OffsetRight).IsEqual(-36f);
+            AssertFloat(two.OffsetRight * scale).IsEqualApprox(-36f, 0.01f);
 
             // HP fills stay anchored at the outer edges (plan item 14, Q2): P2's bar still
             // fills end-to-begin (fill_mode = 1), as does its meter.
