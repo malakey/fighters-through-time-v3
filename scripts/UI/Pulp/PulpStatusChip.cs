@@ -6,17 +6,22 @@ namespace FTT.UI.Pulp {
     public enum PulpChipKind { Damage, Control, Suppression }
 
     /// <summary>
-    /// UR-WIDGETS. The GAUGE-B status chip (UI_SPEC 3.3.3): a 44 (Story) or 40 (Fighter) badge disc with an ink
-    /// ring and a (3, 4) shadow drawn in code, a glyph at 62 %, a 5 px duration ring over the remaining share,
-    /// and an optional name / time column 12 px to the right. An empty (reserved) slot draws a dashed ring, no
-    /// glyph and the text column at 0.35 opacity, and keeps its size. The owner writes every value.
+    /// TG-WIDGETS (G7 badge, UI_SPEC_GLASS 3.4.3; first written by UR-WIDGETS as the GAUGE-B chip). A 44 (Story) or 40
+    /// (Fighter) glass badge: the radial badge fill (<c>glass_badge_radial</c>) with its 14 px glow and a 1.5 px gold edge just
+    /// outside it, the status glyph at 62 % in the bold weight (below 30 px) and the status colour, a 3 px duration ring with
+    /// its outer edge 5 px outside the badge over the remaining share, and an optional name / time column 12 px to the
+    /// right. An empty (reserved) slot draws G8: a 1.5 px <c>edge-dim</c> ring, no fill, no glyph, the text column at 0.35
+    /// opacity; it keeps its size. The owner writes every value; the badge geometry is built once per size.
     /// </summary>
     public partial class PulpStatusChip : Control {
 
         public const float TextGap = 12f;
         public const float ColumnGap = 4f;
-        public const float RingWidth = 5f;
-        private static readonly Color DashColor = new(1f, 243f / 255f, 216f / 255f, 0.8f);
+        /// <summary>The duration ring's width (3 px) and how far its outer edge sits outside the badge (5 px: 44 -> 54).</summary>
+        public const float RingWidth = 3f, RingOutset = 5f;
+        public const float GlyphShare = 0.62f;
+        private const int CircleSegments = 48;
+        private static readonly Color BadgeGlow = new(UIPalette.Accent, 0.12f);
 
         private float _badge = 44f;
         private PulpChipKind _kind = PulpChipKind.Damage;
@@ -30,11 +35,17 @@ namespace FTT.UI.Pulp {
         private readonly VBoxContainer _column;
         private readonly Label _name;
         private readonly Label _time;
+        private readonly StyleBoxFlat _glowBox = new() { DrawCenter = false, CornerDetail = 16, ShadowSize = 14 };
+        private readonly Vector2[] _disc = new Vector2[CircleSegments];
+        private readonly Vector2[] _discUvs = new Vector2[CircleSegments];
+        private readonly Color[] _discColors = new Color[CircleSegments];
+        private float _builtBadge = -1f;
 
         public PulpStatusChip() {
             Name = "PulpStatusChip";
             MouseFilter = MouseFilterEnum.Ignore;
             TextureFilter = TextureFilterEnum.LinearWithMipmaps;
+            _glowBox.ShadowColor = BadgeGlow;
             _glyph = new PulpIcon { Name = "Glyph", IconName = _glyphName };
             AddChild(_glyph);
             _column = new VBoxContainer { Name = "Column", MouseFilter = MouseFilterEnum.Ignore };
@@ -57,6 +68,12 @@ namespace FTT.UI.Pulp {
         /// <summary>The share of the ring that is drawn (0 when the chip is empty or has no ring).</summary>
         public static float RingFraction(bool empty, bool showRing, float remaining) =>
             empty || !showRing ? 0f : Mathf.Clamp(remaining, 0f, 1f);
+
+        /// <summary>The duration ring's centre-line radius for a badge: its outer edge <see cref="RingOutset"/> outside (44 -> 25.5).</summary>
+        public static float RingRadius(float badge) => badge / 2f + RingOutset - RingWidth / 2f;
+
+        /// <summary>The empty slot's ring (G8): <c>edge-dim</c>, 1.5 px, just outside the badge.</summary>
+        public static Color EmptyRingColor => UIPalette.EdgeDim;
 
         /// <summary>44 (Story) or 40 (Fighter).</summary>
         public float BadgeSize { get => _badge; set { _badge = value; Layout(); } }
@@ -81,7 +98,7 @@ namespace FTT.UI.Pulp {
 
         private void Layout() {
             if (_glyph == null || _column == null) return;
-            float glyphSize = _badge * 0.62f;
+            float glyphSize = _badge * GlyphShare;
             _glyph.Size = new Vector2(glyphSize, glyphSize);
             _glyph.Position = Vector2.One * ((_badge - glyphSize) / 2f);
             _glyph.IconName = _glyphName;
@@ -102,27 +119,33 @@ namespace FTT.UI.Pulp {
 
         public override void _Ready() => CallDeferred(nameof(Layout));
 
+        private void EnsureDisc() {
+            if (Mathf.IsEqualApprox(_badge, _builtBadge)) return;
+            _builtBadge = _badge;
+            var box = new Rect2(Vector2.Zero, new Vector2(_badge, _badge));
+            GlassGeometry.Circle(box.GetCenter(), _badge / 2f, CircleSegments, box, _disc, _discUvs);
+            for (int i = 0; i < CircleSegments; i++) _discColors[i] = Colors.White;
+        }
+
         public override void _Draw() {
             float radius = _badge / 2f;
             var center = new Vector2(radius, radius);
             if (_empty) {
-                DrawCircle(center, radius, new Color(0f, 0f, 0f, 0.16f));
-                const int dashes = 16;
-                for (int i = 0; i < dashes; i++) {
-                    float a0 = i * Mathf.Tau / dashes;
-                    DrawArc(center, radius - 1.5f, a0, a0 + Mathf.Tau / dashes * 0.55f, 6, DashColor, 3f, true);
-                }
+                DrawArc(center, radius + GlassGeometry.EdgeWidth / 2f, 0f, Mathf.Tau, 64, EmptyRingColor, GlassGeometry.EdgeWidth, true);
                 return;
             }
-            DrawCircle(center + new Vector2(3f, 4f), radius, Colors.Black);
-            Texture2D disc = PulpKit.Texture("badge_disc");
-            if (disc != null) DrawTextureRect(disc, new Rect2(Vector2.Zero, new Vector2(_badge, _badge)), false);
-            DrawArc(center, radius - 1.5f, 0f, Mathf.Tau, 64, Colors.Black, 3f, true);
+            EnsureDisc();
+            int corner = Mathf.RoundToInt(radius);
+            _glowBox.CornerRadiusTopLeft = _glowBox.CornerRadiusTopRight = corner;
+            _glowBox.CornerRadiusBottomLeft = _glowBox.CornerRadiusBottomRight = corner;
+            DrawStyleBox(_glowBox, new Rect2(Vector2.Zero, new Vector2(_badge, _badge)));
+            Texture2D fill = PulpKit.Texture("glass_badge_radial");
+            if (fill != null) DrawPolygon(_disc, _discColors, _discUvs, fill);
+            else DrawColoredPolygon(_disc, UIPalette.BadgeFill);
+            DrawArc(center, radius + GlassGeometry.EdgeWidth / 2f, 0f, Mathf.Tau, 64, UIPalette.Edge, GlassGeometry.EdgeWidth, true);
             float fraction = RingFraction(_empty, _showRing, _remaining);
             if (fraction > 0f) {
-                // Inset -1 px, 5 px wide: the ring's outer edge is one pixel outside the badge.
-                float ringRadius = radius + 1f - RingWidth / 2f;
-                DrawArc(center, ringRadius, -Mathf.Pi / 2f, -Mathf.Pi / 2f + fraction * Mathf.Tau, 64, GlyphColor(_kind), RingWidth, true);
+                DrawArc(center, RingRadius(_badge), -Mathf.Pi / 2f, -Mathf.Pi / 2f + fraction * Mathf.Tau, 64, GlyphColor(_kind), RingWidth, true);
             }
         }
     }

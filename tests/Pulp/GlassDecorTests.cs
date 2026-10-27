@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using FTT.Combat;
+using FTT.Core;
 using FTT.UI;
 using FTT.UI.Pulp;
 using GdUnit4;
@@ -183,6 +185,58 @@ public class GlassDecorTests {
             host.Free();
             System.GC.KeepAlive(hold);
         }
+    }
+
+    /// <summary>
+    /// Codex review 1, finding 4: an owned select tile reads the owner colours from the active player-slot palette, so a
+    /// palette change recolours its edge (and glow) on the same instance, as a tile built fresh under that palette.
+    /// </summary>
+    [TestCase]
+    public async Task AnOwnedTileTakesTheNewOwnerColoursWhenThePlayerSlotPaletteChanges() {
+        GlobalSaveData data = SaveManager.Instance?.GlobalData;
+        if (data == null) AssertThat("GlobalData is missing").IsEqual("");
+        int saved = data.PlayerSlotPalette;
+        var host = new Control { Name = "PaletteHost", Size = new Vector2(800f, 400f) };
+        UIPalette.ApplyTheme(host);
+        Tree.Root.AddChild(host);
+        var problems = new List<string>();
+        try {
+            data.PlayerSlotPalette = (int)PlayerSlotPalette.Default;
+            var tileHost = new Control { Size = new Vector2(164f, 164f) };
+            host.AddChild(tileHost);
+            GlassTileDecor tile = GlassTileDecor.Attach(tileHost);
+            tile.Owners = GlassTileDecor.OwnerP1;
+            await Frames(2);
+            Color[] before = (Color[])tile.EdgeColors.Clone();
+            int other = -1;
+            for (int p = 0; p < PlayerSlotPalettes.Count; p++) {
+                if (!PlayerSlotPalettes.SlotColor((PlayerSlotPalette)p, 0).IsEqualApprox(PlayerSlotPalettes.SlotColor(PlayerSlotPalette.Default, 0))) {
+                    other = p;
+                    break;
+                }
+            }
+            AssertThat(other >= 0).OverrideFailureMessage("Harness: no palette gives player 1 another colour").IsTrue();
+            data.PlayerSlotPalette = other;
+            tile.QueueRedraw();
+            await Frames(2);
+            var freshHost = new Control { Size = new Vector2(164f, 164f), Position = new Vector2(300f, 0f) };
+            host.AddChild(freshHost);
+            GlassTileDecor fresh = GlassTileDecor.Attach(freshHost);
+            fresh.Owners = GlassTileDecor.OwnerP1;
+            await Frames(2);
+            Color[] after = tile.EdgeColors, expected = fresh.EdgeColors;
+            for (int i = 0; i < after.Length; i++) {
+                if (!after[i].IsEqualApprox(expected[i])) problems.Add($"vertex {i} is {after[i]}, a fresh tile draws {expected[i]}");
+            }
+            bool changed = false;
+            for (int i = 0; i < after.Length; i++) changed |= !after[i].IsEqualApprox(before[i]);
+            if (!changed) problems.Add("the edge kept the old palette's colours");
+        } finally {
+            data.PlayerSlotPalette = saved;
+            host.GetParent()?.RemoveChild(host);
+            host.Free();
+        }
+        if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
     }
 
     [TestCase]

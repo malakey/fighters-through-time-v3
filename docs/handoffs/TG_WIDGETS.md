@@ -202,3 +202,167 @@ real select and menu screens.
 - AGENTS.md, the UI section's pulp-redesign bullet, the widgets sentence, to replace "PulpIcon (three-layer ICN-B icons ...)", "HalftoneCorner" and "PulpPortraitRoundel": "Since the 2026-10-27 Temporal Glass rebuild (TG-WIDGETS) the widgets draw glass: `PulpButtonDecor` the BTN-A chevron row (the diamond `GlassMarker`, the focused row's prompt badge, the `selected` chevron, shrink then ellipsis, hover takes focus) with the D6 stack width (`ApplyStackWidth`, bound to the tree, the UI scale and the locale), `PulpIcon` the ICN-A glass icons (bold below 30 px; legacy names through aliases or the frozen pulp layers), `GlassSheen` / `ScreenStreak` / `GlassFlourish` / `TitleGradient` / `GlassTileDecor` the panel sheen, the screen streak, the flourish, the title gradient and the select tile, `PulpPortraitRoundel` the G5 chamfered frame, `PulpToggleDecor` the G13 toggle; `HalftoneCorner`, `halftone_corner.gdshader` and `ui_circle_mask.gdshader` are deleted. `PulpScreenKit.FocusRowGap` is derived from the theme's focus and state boxes and the real focus pose (30, floored at 34)."
 - AGENTS.md repository map, `assets/shaders/`: drop `halftone_corner` and `ui_circle_mask`, add `ui_title_gradient`.
 - Ledger, under the glass section: `PROVISIONAL-UI-GLASS-WIDGETS` (deviations 4-8 and questions 1, 3, 5 above), and `REVIEW-UI-PULP-CODEX-3` findings 1 and 2 closed by `aff5f2d7`.
+
+## Step 2 (2026-10-27)
+
+Step 2 is, in the orchestrator's order: ruling 5 (its own commit, sent ahead), Codex review 1's four findings, then the
+gauges (plan section 2.5). `main` (`8612b571`) was merged into `tg/widgets` first (a fast-forward). Commits:
+`aec29b3b` ruling 5 (3711), `aa7ee210` review 1 (3715), `ad12f9b3` the gauges (3720), `cb5ffa80` a legacy constant
+kept (deviation 9 below), and this handoff.
+
+### Ruling 5: the decor widens a row no screen sized (`aec29b3b`)
+
+A decorated button that is not in a D6 stack, has no width of its own (`CustomMinimumSize.X` 0 when the decor first
+sees it), draws its label upper-case on one line and is not clipped (`ClipText` off, no overrun) now gets its minimum
+width from the decor: the left and right paddings and the badge reserve (52, when the row can show a prompt) times the
+UI scale, plus the icon and its separation, plus the drawn label's width, rounded up (`AutoWidth`, cached on the drawn
+text, font, size and fixed part). It follows a theme change (the UI scale), a locale change, a text change (the
+button's redraw) and the button's own `minimum_size_changed`, deferred; it writes only a changed size, so the resize it
+causes refreshes to the same value and nothing loops. A width the screen sets later wins (it becomes the design width).
+**This supersedes step 1's first API note and question 5**: Phase B does not have to size a decorated row.
+
+Limitation: a screen that sets a row's width back to 0 does not always reach the decor, because Godot raises
+`minimum_size_changed` only when the combined minimum changes; call `decor.Refresh()` after doing that.
+
+Tests +2 (`PulpButtonDecorTests` 14 -> 16): `AnUnsizedRowWidensToItsDrawnLabelAndFollowsItsTextAndTheUiScaleWithoutALoop`
+and `ARowWithTheScreensWidthAStacksWidthAWrapOrAClipKeepsThatWidth`. Both fail on `8612b571`'s decor ("'616' but is
+'0'", log `D:\Projects\ftt-scratch\tg-widgets\mut\r5-before.log`).
+
+### Codex review 1 (`aa7ee210`), +4
+
+| Finding | Fix | Test (seen failing against `8612b571`'s sources) |
+|---|---|---|
+| 1, major: `PulpMotion`'s offset driver and `PopIn` let a re-open or a close mid-motion stack a second tween on the same panel, which then ended off its slot | `PopIn` / `PopOut` first take the panel over (`TakeOver`: kill its running tween, settle its driver on the slot) and register the new one (`Own`, removed when it finishes; the registry is purged past 16) | `PulpMotionTests.APanelReopenedOrClosedMidMotionEndsExactlyOnItsSlot` (+1): "'(100, 200)' but is '(100, 416.11)'" |
+| 2, major: hover-is-focus took the keyboard from an active text field | `PulpButtonDecor.KeyboardIsHeld(control)` (the focus owner is an editable `LineEdit` / `TextEdit`, or an `OptionButton` / `MenuButton` with its list open) stops hover taking focus, in the decor and in `GlassTileDecor`; the row and the tile then show their hover look without the focus | `PulpButtonDecorTests.HoverLeavesTheKeyboardWithATextFieldOnARowAndATile` (+1): "hovering the row took the keyboard from Address" |
+| 3, minor: the paragraph cache key left out the available height | the key has it (`_layoutHeight`, multi-line rows only) | `PulpButtonDecorTests.AWrappingLabelShowsMoreOrFewerLinesWhenOnlyItsButtonsHeightChanges` (+1): "the shorter button keeps showing every line" |
+| 4, minor: `GlassTileDecor` kept its owner colours after a slot-palette change | its geometry cache keys on the P1 / P2 colours it built with | `GlassDecorTests.AnOwnedTileTakesTheNewOwnerColoursWhenThePlayerSlotPaletteChanges` (+1): "the edge kept the old palette's colours" (every edge vertex listed) |
+
+Log `D:\Projects\ftt-scratch\tg-widgets\mut\review1-before.log` (the four sources of `8612b571` with the new tests: 6 of
+35 failed, the four above and the two ruling-5 cases). A harness note: Godot 4.7 does not raise `mouse_entered` for a
+scripted `Notification(NotificationMouseEnter)`, so the hover cases emit the signal and the notification themselves.
+
+### What shipped (the gauges, `ad12f9b3`)
+
+| File | Change |
+|---|---|
+| `scripts/UI/Pulp/PulpBarDecor.cs` | GAUGE-A (3.4.1, 3.6): the whole tube drawn in code as polygons clipped to the inner parallelogram. The outer parallelogram (run 12, boss 16, leaning "/") in `edge` (boss: the 110 degree gradient, `BossEdge` .95 to .25 at .40 to white .5), the inner one inset 1.5 on run 11 (15) with the 180 degree track gradient, the tube's glow (10, boss 12) as a skewed flat box. The tracker to `LagValue`; the Rally echo band from the fill's end to `EchoValue`, inset 22 % of the inner height, white to `echo` with a 3 px halo; the fill a vertex gradient from the anchored end (on the slant) to a vertical moving end (Hp: `hp2` to `hp`, or a darker tint to the bar's fill colour for `TintFill`; Low: `boss2` to `danger`; Meter: `meter` to `meter2`, full: `res` to `res2`; Stat: `accent` to `accent2`; Boss: `boss2` to `boss`); the top-46 % highlight; the 3 px white cap with its two-sided glow (none on Stat or Boss); the ten 1 px decile ticks (none on Boss); the 7 px low pulse (0.5 Hz, steady under Reduced) and the 14 px full-meter glow; the boss notches (a 2 px white line from 8 above to 14 below, its glow, a 12 px accent diamond 16 below; at most four). `FillMode` `EndToBegin` mirrors all of it (R6). Geometry is rebuilt only when a value, the size, the style, the fill colour or the direction changes (`GeometryBuilds`); a draw allocates nothing. The bar's own drawing is hidden by a material and the tube follows the bar's `SelfModulate` (deviation 1). |
+| `assets/shaders/ui_hide_self.gdshader` (new, with its `.uid`) | `COLOR.a = 0.0`: the one shared material that hides a decorated bar's own drawing; children do not use a parent's material, so the tube, the value labels and the not-yet frame draw as usual. `UiShaderModulationScanTests` discovers it and passes (it adjusts `COLOR` in place). |
+| `assets/shaders/pulp_bar_layers.gdshader` | Deleted, with its `.uid` (nothing else loaded it). |
+| `scripts/UI/Pulp/PulpAbilitySlot.cs` | The lens (3.4.2): the art inset 9 % and clipped to the lens circle (a polygon with UVs, through the `ui_desaturate` material for saturation and brightness), the `glass_lens_radial` fill, the 1.5 px edge, the outer and inner glows (ready: the resonance glow; suppressed: the Severed cold), the cooldown sweep (`SweepShade`, clockwise from 12), the readiness ring outside the lens (small: 3 px, outer edge 6 px out, so 74 -> 86, 54 -> 66, 56 -> 68; the Ultimate: 5 px, 9 px out, the 92 lens in a 110 box), on an `accent` .16 track; the Ultimate's charging arc a `meter` to `meter2` gradient and its ready ring a looping `res2` / `res` / `res2` gradient with READY; the lock overlays (`lock_dormant`, `lock_suppressed`) inset 16 %; the centre number at 0.36 x the lens following the theme's `SlotNumber` size (19 / 27 / 33); the key label 9 px under the lens; one bloom on entering ready (MOT-A row 10, none under Reduced). |
+| `scripts/UI/Pulp/PulpStatusChip.cs` | G7 (3.4.3): the `glass_badge_radial` disc with a 14 px `accent` .12 glow and a 1.5 px `edge` ring, the glyph at 62 % (bold below 30 px) in the status colour, a 3 px duration ring with its outer edge 5 px outside the badge (44 -> 54, 40 -> 50); G8 (empty): a 1.5 px `edge-dim` ring and the text at .35. |
+| `scripts/UI/RadialProgress.cs` | Additive: `GradientMode` (`None`, the default, with every existing mode unchanged; `Arc`, the filled arc from `FillColor` to `FillColorEnd`; `Loop`, by position round the whole ring), `FillColorEnd`, the pure `GradientColorAt`; the default track written out as `DefaultTrackColor` #3A3144, the pulp `TrackBackground`, so the world-space Restoration Font and Resonance Hold rings never follow a palette change (ruling). |
+| `scripts/UI/NotYetFlash.cs` | Additive: `NotYetShape { Frame, Circle }` and `Play(host, tint, shape)`; the circle is a 2 px `danger` ring 2.5 px outside the host's own circle, contracting from 1.35x and fading over the same 0.25 s (`CircleOf`, `CircleName`, `CircleStroke`, `CircleOutset`). `Play(host, tint)` is unchanged (the frame). |
+| Captures | `UiCaptureTargets.WidgetsGauges.cs`: `widgets_gauges`, `widgets_slots`, `widgets_chips` rewritten; `widgets_notyet` new; `widgets_roundel`, `widgets_tagged_panel`, `widgets_toggles` kept. |
+
+### API for Phase B (TG-HUDS, TG-HUDF, TG-SELECT)
+
+```csharp
+// Tubes (GAUGE-A). The ProgressBar stays the value carrier: Value / MinValue / MaxValue, FillMode (EndToBegin mirrors
+// the tube for P2, R6), the fill StyleBoxFlat's bg_color (the HP tint; FighterHUD.TintFill keeps working) and its
+// SelfModulate (the flash channel: PulpMotion.HitFlash, NotYetFlash), which the tube follows. Attach once.
+PulpBarDecor hp = PulpBarDecor.Attach(hpBar);                            // PulpBarStyle.Hp
+PulpBarDecor meter = PulpBarDecor.Attach(meterBar, PulpBarStyle.Meter);  // full at the max: res -> res2 and the glow
+PulpBarDecor stat = PulpBarDecor.Attach(statBar, PulpBarStyle.Stat);     // no glow
+PulpBarDecor boss = PulpBarDecor.Attach(bossBar, PulpBarStyle.Boss);     // run 16, no cap, no ticks
+hp.LagValue = before;          // the damage tracker, in bar units; hp.DropLagTo(after) holds, then drains (MOT-A row 7)
+hp.EchoValue = hpNow + echo;   // the Rally echo band's end, in bar units
+hp.Low = lowHp;                // boss2 -> danger and the 7 px 0.5 Hz pulse (steady under Reduced)
+boss.PhaseNotches = new[] { 0.5f };   // at most four
+
+// Lenses (3.4.2).
+var lens = new PulpAbilitySlot { SlotSize = 74f };    // 74 Story, 54 Fighter, 56 select; Ultimate = true: 92 in a 110 box
+lens.Art = AbilityIconLibrary.Load(heroId, AbilitySlot.Special1);
+lens.KeyText = "hud_slot_special1";                    // a raw key, 9 px under the lens; KeyOverScene for the scene role
+lens.State = PulpSlotState.Cooling; lens.Progress = elapsedShare; lens.SecondsRemaining = seconds;
+lens.State = PulpSlotState.Charging; lens.Progress = meterShare;   // the Ultimate: the percent and the meter arc
+lens.State = PulpSlotState.Ready;                      // one bloom on entering (none under Reduced)
+lens.State = PulpSlotState.Dormant;                    // or Suppressed: lock_dormant / lock_suppressed
+NotYetFlash.Play(lens.Ring, lens, NotYetShape.Circle); // the glass not-yet: a danger circle round the ring
+
+// Status chips (G7, G8; 3.4.3).
+var chip = new PulpStatusChip { BadgeSize = 44f, Kind = PulpChipKind.Damage, GlyphName = "venom",
+    Remaining = share, NameText = "status_venom", TimeText = "4s" };   // Empty = true for G8; ShowText = false
+```
+
+Notes:
+
+- Read-only seams for tests: `PulpBarDecor.OuterPolygon`, `InnerPolygon`, `EdgeColors`, `TrackerPolygon`, `EchoPolygon`, `FillPolygon`, `FillColors`, `FillGradient`, `CapPolygon`, `TickPolygons`, `Run`, `Mirrored`, `GeometryBuilds`, `HideMaterial`; `PulpAbilitySlot.LensSize`, `LensOrigin`, `Ring`, `KeyTag`, `ReadyTag`, `CenterLabel`, `GlyphIcon`, `ArtNode`, `GeometryBuilds`, `Blooms`, `BloomGlow`, `Look`; `NotYetFlash.CircleOf`.
+- `PulpBarDecor.InnerRect()` and `Skew` are the pulp overlay's legacy reads, kept; the tube measures its own inset (`TubeInnerBox`).
+- `BossPhaseNotchOverlay` already stands down when a decor draws the notches (UR-HUDS); the glass notches are white with an accent diamond.
+
+### Deviations and why
+
+1. **The tube hides the bar with a material, not the bar's `SelfModulate`.** My first build hid the bar through its `SelfModulate` alpha and redirected the not-yet tint to the tube. The UI filter then failed `FighterHudSceneTests.ANotYetRefusalFlashesThatPlayersIconOrMeter` ("'(0.95, 0.25, 0.25, 1)' but is '(1, 1, 1, 0)'") and `FighterHudTopBandTests.TheHitFlashPlaysOnceASecondPerBar` ("'(1, 1, 1, 1)' but is '(1, 1, 1, 0)'"), log `D:\Projects\ftt-scratch\tg-widgets\s2-ui.log`: both HUDs use the bar's `SelfModulate` as their flash channel, and the hit flash would have gone silently invisible (it keeps the alpha it finds). Now the bar wears `ui_hide_self.gdshader`, its `SelfModulate` stays free, and the decor copies the bar's `SelfModulate` onto its own every frame (the decor runs `ProcessMode.Always`, so a flash the bar's tween finishes in a paused tree still reaches the tube; the low pulse still stops with the bar). `NotYetFlash` needs no redirect; the HUD tests pass unchanged; removing the decor restores the bar's material. TG-CLOSE can drop the material once the five bar variations are empty.
+2. **`PulpSlotLook.GlyphName` stays logical** ("dormant", "cross"), because `StoryHudPulpTests` reads it; the lens draws `LockIconFor(name)`: `lock_dormant`, `lock_suppressed`.
+3. **The Ultimate's box is 110** (the ring's outer diameter, 92 + 2 x 9), down from the pulp 116.
+4. **A dormant slot's key label is not dimmed** (`Look.KeyDim` false; agent choice, the spec names none).
+5. **`Blooms` counts started blooms**: none under Reduced Temporal Effects, where `PulpMotion.Bloom` returns no tween and the steady look shows at once.
+6. **The not-yet circle's host is the lens's `Ring`**, so the circle sits outside the ring; the tint target stays the caller's (the slot tints its own lens fill and edge, not its children). The HUDs choose their hosts in Phase B; today's HUDs still play the frame.
+7. **The suppressed glow and ring use `UIPalette.UnboundCold`** (0.2, 0.95, 1), 0.02 from the spec's #38F2FF: `UiChromeCyanSourceScanTests` rejects a cyan literal (my first build had one) and Suppression is the Severed's cold.
+8. **`PulpBarDecor.ResGlow`** (rgb 242, 204, 77) is the one statement of the spec's resonance glow, read by the full meter and the ready lens.
+9. **`PulpBarDecor.ShaderPath` is kept** (`cb5ffa80`) as a documented legacy constant naming the deleted shader, under the Phase A rule that no public widget member goes before TG-CLOSE; nothing reads it.
+
+### Test delta
+
+`[TestCase]` attribute count 3709 -> 3711 (ruling 5, +2) -> 3715 (review 1, +4) -> **3720** (the gauges, the plan's +5):
+
+- `PulpBarDecorTests` 3 -> 6 (+3): new `TheTubeLeansAndAMirroredBarMirrorsItsLeanAnchorGradientAndCap` (with the hiding material, the flash mirror and the restore on removal), `TheEchoBandRunsFromTheFillToHpPlusEchoInsetTwentyTwoPercent`, `TheBossTubeDrawsTheBossEdgeAndNoCapOrTicks`; updated `TheLowGlowPulsesAtHalfAHertzAndIsSteadyUnderReducedEffects` (was `TheLowGlowIsOffStaticWhenReducedAndASlowSineOtherwise`); unchanged `TheFractionsAreClampedToTheBarsRange`, `TheDecorOverlaysTheBarWithoutTouchingItsFill`.
+- `PulpAbilitySlotTests` 4 -> 6 (+2): new `TheReadinessRingSitsOutsideTheLensAtItsSpecWidth` (with the not-yet circle round the ring and a fresh `RadialProgress`'s #3A3144 track and `None` mode), `AReadyStateBloomsOnceAndARedrawWithoutAChangeRebuildsNothing`; updated `TheStateTableMatchesTheSpec`, `TheBuiltSlotShowsTheRightPartsPerState`; rewritten `TheCentreNumberAndTheArtInsetFollowTheSpec`; unchanged `TheCountdownTextDoesNotDependOnWhichValueFilledTheCacheFirst`.
+- `PulpStatusChipTests` 2, updated in place (the 3 px ring 5 px out, the G8 `edge-dim` ring; the glass glyph, its bold weight and its colour).
+- 3709 + 2 + 4 + 5 = **3720**. No other suite changed.
+
+### Runs (this worktree, the lock held for every launch)
+
+- UI filter: **732 / 732** at `ad12f9b3` (727 + 5; 727 / 727 at `aa7ee210`). The first step-2 run had three failures: the two Fighter HUD cases of deviation 1 and `UiChromeCyanSourceScanTests` on the lens's cold-glow literal (deviation 7).
+- The suites outside the UI filter that build a screen with these widgets (step 1's list): **205 / 205** at `ad12f9b3`.
+- `dotnet build --no-incremental`: 0 errors, the two known warnings (`CS8632`, `KLSG_ECS004`). Headless `--import`: exit 0, no error (it wrote `ui_hide_self.gdshader.uid`). Capture runs: no engine error. `.import` and `default_bus_layout.tres` churn reverted, not committed.
+- `cb5ffa80` adds only a constant; it was built, not re-run.
+
+### Fail evidence (every new, updated or rewritten case seen failing)
+
+- **Ruling 5 and review 1**: against `8612b571`'s sources, above.
+- **Deviation 1's two Fighter HUD cases** failed against the `SelfModulate` hiding (`s2-ui.log`) and pass against the material.
+- **Mutation runs on the gauge code** (17 mutations in four batches; the gauge suites, 14 cases; logs `D:\Projects\ftt-scratch\tg-widgets\mut\s2a.log` to `s2d.log`, the harness `mut\mutate2.py`):
+  - `s2a` (7 failed, 7 passed): the reduced glow pulsing ("'1' but is '0.206'"), the mirrored tube leaning "/" ("mirrored outer lacks (0, 0) | ..."), the echo inset .30 ("the band lacks (227.7, 7.44) | ..."), ticks on the boss tube ("'0' but is '10'"), the chip ring 4 px out ("'27' but is '26'"), the chip glyph in ink2 (the tint), the not-yet circle branch removed (`CircleOf` null).
+  - `s2b` (6 failed, 8 passed): Cooling's brightness .80 ("'0.72' but is '0.8'"), the art inset 10 % (60.68), the key gap 6 (the key label's y), the small ring 4 px out ("'(86, 86)' but is '(82, 82)'"), the lens rebuilt on every draw ("'2' but is '43'" builds), the tube not following the bar's `SelfModulate` ("'(0, 0, 0, 1)' but is '(1, 1, 1, 1)'").
+  - `s2c` (3 failed, 11 passed): a fresh ring's track `accent` (the #3A3144 check), the bar not hidden (`bar.Material == HideMaterial`), two blooms on one entry ("'1' but is '2'").
+  - `s2d` (1 failed, 13 passed): no restore when the decor leaves the bar (`bar.Material == null`).
+  - Every targeted case failed at its own assertion. The sources were restored from backups and checksum-verified (`mut\md5-s2-before.txt`) before the runs above.
+
+### Captures
+
+`D:\Projects\ftt-scratch\tg-captures\widgets\`, the windowed console build under the lock: `widgets_gauges` (every tube
+style both ways, low, echo, the meter charging / full / mirrored, the stat bar, the boss tube with a notch),
+`widgets_slots` (every state at 74, 54 and 56; the Ultimate charging, ready, suppressed and dormant),
+`widgets_notyet` (6 frames in: the circle round a 74 lens's ring and round the Ultimate, the frame on a 54 lens),
+`widgets_chips` (each kind at 44 and 40, G8, a chip without text), and `widgets_roundel` again. Side-by-sides and
+overlays from `py tools/ui_theme/compare_capture.py` sit beside them:
+
+| Capture | Crop | Result |
+|---|---|---|
+| `widgets_gauges` | `boss_bar__from_05_700_8` | The run-16 lean, the `boss2` to `boss` fill, the grey tracker, the dark track, the white notch line with the gold diamond 16 px below: a close match. |
+| `widgets_gauges` | `hud_fighter_p1__from_06_24_14` | The HP tube: the lean, the green gradient, the white cap at the fill's end, the red tracker, the gold edge and glow match. The mock has no echo band to compare. |
+| `widgets_slots` | `hud_story_left_column__from_04_20_14` | The Ultimate at 64 % (the gradient arc, the dimmed art, the number), S1 ready (the gold ring), S2 cooling ("2.4", the sweep, the arc), MOV: a close match; my ready glow is a little stronger than the mock's. |
+| `widgets_chips` | the same crop | The VENOM chip (skull in the damage colour, the partial ring, the disc and edge) and the empty G8 ring match. |
+
+The tubes show no pulp art under them (zoomed, `D:\Projects\ftt-scratch\tg-widgets\zoom_tube_story.png` and
+`zoom_tube_meter_p2.png`): the material hides the bar's own drawing in `gl_compatibility`.
+
+### Not seen
+
+The real HUDs and the select screen (Phase B); motion in flight (the bloom, the low pulse, the tracker drain, the
+not-yet contraction past one frame, the hit flash on a tube); Reduced Temporal Effects on screen; UI scale 1.4; a P2
+meter beside its HUD; the lens over a busy level background.
+
+### For the orchestrator
+
+1. **The hiding mechanism** (deviation 1): a shared material, with the tube following the bar's `SelfModulate`. Keep it, or have TG-CLOSE flip the five bar variations sooner and drop the material?
+2. **The hit flash on a tube** is the pulp one-frame black flash, now multiplying the whole tube (a black tube for a frame). MOT-A's glass hit flash may want something else; that is TG-HUDF's and TG-HUDS's call through `PulpMotion.HitFlash`.
+3. **The not-yet hosts**: should the HUDs play the circle round `lens.Ring` with the slot as the tint target (it reddens the lens fill, not the art)? Today's HUDs still play the frame; Phase B decides.
+4. **The Ultimate box is 110, not 116**: the Story and Fighter HUDs pass as they are, but their layouts are Phase B's to re-check.
+
+### Drafted text (not applied: AGENTS.md, CLAUDE.md and the ledger are the closeout's)
+
+- AGENTS.md, the UI section's pulp-redesign bullet, after step 1's widgets sentence: "TG-WIDGETS step 2 (2026-10-27) made the gauges glass: `PulpBarDecor` the GAUGE-A tube drawn in code over a `ProgressBar` that stays the value carrier (the tracker, the Rally echo band, the vertex-gradient fill with a vertical moving end, the cap, the ticks, the low pulse, the full-meter glow, the boss edge and notches; `FillMode` `EndToBegin` mirrors it for P2), which hides the bar's own drawing with `ui_hide_self.gdshader` and follows the bar's `SelfModulate` (the HUDs' flash channel); `PulpAbilitySlot` the lens (the 9 % inset art clipped to the circle, the readiness ring outside it, the Ultimate's 92 lens in a 110 box with the meter arc and the looping ready ring, the lock overlays, one bloom on ready); `PulpStatusChip` the G7 badge with its 3 px duration ring and the G8 empty ring; `RadialProgress` gains `GradientMode` (its old modes and the #3A3144 default track unchanged); `NotYetFlash` gains the circle shape. `pulp_bar_layers.gdshader` is deleted. A decorated button no screen sizes takes its width from its drawn label (ruling 5)."
+- AGENTS.md repository map, `assets/shaders/`: drop `pulp_bar_layers`, add `ui_hide_self`.
+- Ledger, under the glass section: `PROVISIONAL-UI-GLASS-WIDGETS` gains deviations 1-8 of step 2 and questions 1-4 above; Codex review 1 of Phase A: findings 1-4 closed by `aa7ee210`.
