@@ -39,21 +39,23 @@ namespace FTT.UI {
             MouseFilter = MouseFilterEnum.Stop;
             UIPalette.ApplyTheme(this);
 
+            // TG-SCREENS (UI_SPEC_GLASS 9.2: "as the confirm modal with two stacked chevron rows"): an overlay over the
+            // hub, the .70 dim, one 760 px glass slab, the title, the rows (the anchor, the full restart and Back) as
+            // stacked list chevrons at their D6 width, the prompt bar bottom-centre; no streak.
             var shade = new ColorRect {
                 Name = "Shade",
-                Color = UIPalette.Shade,
+                Color = UIPalette.PauseDim,
                 MouseFilter = MouseFilterEnum.Stop
             };
             shade.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
             AddChild(shade);
 
-            var panel = new PanelContainer { Name = "Panel", CustomMinimumSize = new Vector2(760f, 300f) };
-            panel.ThemeTypeVariation = UIPalette.Variations.InkPanel;
+            var panel = new PanelContainer { Name = "Panel", CustomMinimumSize = new Vector2(760f, 0f) };
             var center = new CenterContainer { Name = "Center", MouseFilter = MouseFilterEnum.Ignore };
             center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
             AddChild(center);
             center.AddChild(panel);
-            MenuSafeAreaFit.Attach(panel);
+            MenuSafeAreaFit.Attach(panel, GlassScreenDressing.ScaledOverlayPromptClearance);
 
             var layout = new VBoxContainer { Name = "Layout", Alignment = BoxContainer.AlignmentMode.Center };
             layout.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);
@@ -90,10 +92,14 @@ namespace FTT.UI {
 
             FocusChainBuilder.Apply(layout);
 
-            // UR-SCREENS: pulp dressing (halftone corner, banner buttons, prompt bar).
             PulpScreenKit.DressPanel(panel, buttonInset: true);
-            PulpScreenKit.DecorateButtons(layout);
-            PulpScreenKit.AddPromptBar(shade, ("ui_accept", "ui_prompt_select"), ("ui_cancel", "common_back"));
+            var rows = new System.Collections.Generic.List<Button> { anchor, full, cancel };
+            // The confirm modal's no-trim rule (9.2, UR-POLISH): a row too long for the capped width wraps onto a second
+            // line and grows, never ellipsizes ("Restart Level from Beginning" needs about 900 px on one line).
+            foreach (Button row in rows) FTT.UI.Pulp.PulpButtonDecor.Apply(row).GrowToFit = true;
+            FTT.UI.Pulp.PulpButtonDecor.ApplyStackWidth(rows, 560f, GlassScreenDressing.ScaledStackCap(680f));
+            GlassScreenDressing.AddOverlayPromptBar(shade, ("ui_accept", "ui_prompt_select"), ("ui_cancel", "common_back"));
+            GlassScreenDressing.FadeIn(panel);
         }
 
         private void OnFullRestartPressed() => _fullRestartConfirmation?.Open();
@@ -115,8 +121,9 @@ namespace FTT.UI {
         private static Button MakeButton(string name, string text) => new() {
             Name = name,
             Text = text,
-            ThemeTypeVariation = UIPalette.Variations.PulpButton,
-            CustomMinimumSize = new Vector2(640f, 80f)
+            ThemeTypeVariation = UIPalette.Variations.TemporalGlassButton,
+            CustomMinimumSize = new Vector2(0f, PulpScreenKit.PauseButtonHeight),
+            SizeFlagsHorizontal = SizeFlags.ShrinkCenter
         };
     }
 }

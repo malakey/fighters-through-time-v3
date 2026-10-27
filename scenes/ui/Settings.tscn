@@ -1,8 +1,9 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="1_theme"]
 [ext_resource type="Script" path="res://scripts/UI/PausePanel.cs" id="4_panel"]
 [ext_resource type="Script" path="res://scripts/UI/PlayerSlotPaletteRow.cs" id="3_p12w5_slot_palette"]
+[ext_resource type="Script" path="res://scripts/UI/SettingsRowLayout.cs" id="5_rows"]
 
 [node name="SettingsRoot" type="Control"]
 anchors_preset = 15
@@ -13,179 +14,236 @@ grow_vertical = 2
 mouse_filter = 0
 theme = ExtResource("1_theme")
 
-[node name="Backdrop" type="ColorRect" parent="."]
+[node name="Shade" type="PanelContainer" parent="."]
+self_modulate = Color(1, 1, 1, 0.7)
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.0196, 0.0275, 0.102, 0.97)
+theme_type_variation = &"ScrimPanel"
 
-[node name="Margin" type="MarginContainer" parent="."]
+[node name="Margin" type="CenterContainer" parent="."]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 200
-theme_override_constants/margin_top = 16
-theme_override_constants/margin_right = 200
-theme_override_constants/margin_bottom = 16
+mouse_filter = 2
 
 [node name="Panel" type="PanelContainer" parent="Margin"]
+custom_minimum_size = Vector2(1520, 860)
 layout_mode = 2
 theme_type_variation = &"InkPanel"
 script = ExtResource("4_panel")
 
 [node name="Body" type="VBoxContainer" parent="Margin/Panel"]
 layout_mode = 2
-theme_override_constants/separation = 4
+theme_override_constants/separation = 20
 
 [node name="Title" type="Label" parent="Margin/Panel/Body"]
 layout_mode = 2
 theme_type_variation = &"TitleLabel"
 horizontal_alignment = 1
+uppercase = true
 
 [node name="Tabs" type="TabContainer" parent="Margin/Panel/Body"]
 layout_mode = 2
 size_flags_vertical = 3
+theme_override_constants/tab_separation = 10
+use_hidden_tabs_for_min_size = true
 
-[node name="Audio" type="VBoxContainer" parent="Margin/Panel/Body/Tabs"]
+[node name="Audio" type="Container" parent="Margin/Panel/Body/Tabs"]
 layout_mode = 2
-theme_override_constants/separation = 6
+script = ExtResource("5_rows")
+Scrolls = true
 
 [node name="MasterLabel" type="Label" parent="Margin/Panel/Body/Tabs/Audio"]
 layout_mode = 2
+theme_type_variation = &"SettingsRowLabel"
+vertical_alignment = 1
+autowrap_mode = 3
+uppercase = true
 
 [node name="MasterSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Audio"]
 custom_minimum_size = Vector2(360, 44)
 layout_mode = 2
-size_flags_horizontal = 0
 max_value = 1.0
 step = 0.05
 value = 1.0
 
+[node name="MasterValue" type="Label" parent="Margin/Panel/Body/Tabs/Audio"]
+layout_mode = 2
+theme_type_variation = &"SettingsRowValue"
+horizontal_alignment = 2
+vertical_alignment = 1
+
 [node name="MasterMuteToggle" type="CheckButton" parent="Margin/Panel/Body/Tabs/Audio"]
 layout_mode = 2
-size_flags_horizontal = 0
 text = "settings_mute"
 
 [node name="MusicLabel" type="Label" parent="Margin/Panel/Body/Tabs/Audio"]
 layout_mode = 2
+theme_type_variation = &"SettingsRowLabel"
+vertical_alignment = 1
+autowrap_mode = 3
+uppercase = true
 
 [node name="MusicSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Audio"]
 custom_minimum_size = Vector2(360, 44)
 layout_mode = 2
-size_flags_horizontal = 0
 max_value = 1.0
 step = 0.05
 value = 0.8
 
+[node name="MusicValue" type="Label" parent="Margin/Panel/Body/Tabs/Audio"]
+layout_mode = 2
+theme_type_variation = &"SettingsRowValue"
+horizontal_alignment = 2
+vertical_alignment = 1
+
 [node name="MusicMuteToggle" type="CheckButton" parent="Margin/Panel/Body/Tabs/Audio"]
 layout_mode = 2
-size_flags_horizontal = 0
 text = "settings_mute"
 
 [node name="SfxLabel" type="Label" parent="Margin/Panel/Body/Tabs/Audio"]
 layout_mode = 2
+theme_type_variation = &"SettingsRowLabel"
+vertical_alignment = 1
+autowrap_mode = 3
+uppercase = true
 
 [node name="SfxSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Audio"]
 custom_minimum_size = Vector2(360, 44)
 layout_mode = 2
-size_flags_horizontal = 0
 max_value = 1.0
 step = 0.05
 value = 1.0
 
+[node name="SfxValue" type="Label" parent="Margin/Panel/Body/Tabs/Audio"]
+layout_mode = 2
+theme_type_variation = &"SettingsRowValue"
+horizontal_alignment = 2
+vertical_alignment = 1
+
 [node name="SfxMuteToggle" type="CheckButton" parent="Margin/Panel/Body/Tabs/Audio"]
 layout_mode = 2
-size_flags_horizontal = 0
 text = "settings_mute"
 
 [node name="UiLabel" type="Label" parent="Margin/Panel/Body/Tabs/Audio"]
 layout_mode = 2
+theme_type_variation = &"SettingsRowLabel"
+vertical_alignment = 1
+autowrap_mode = 3
+uppercase = true
 
 [node name="UiSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Audio"]
 custom_minimum_size = Vector2(360, 44)
 layout_mode = 2
-size_flags_horizontal = 0
 max_value = 1.0
 step = 0.05
 value = 1.0
 
+[node name="UiValue" type="Label" parent="Margin/Panel/Body/Tabs/Audio"]
+layout_mode = 2
+theme_type_variation = &"SettingsRowValue"
+horizontal_alignment = 2
+vertical_alignment = 1
+
 [node name="UiMuteToggle" type="CheckButton" parent="Margin/Panel/Body/Tabs/Audio"]
 layout_mode = 2
-size_flags_horizontal = 0
 text = "settings_mute"
 
 [node name="MuteWhenUnfocusedToggle" type="CheckButton" parent="Margin/Panel/Body/Tabs/Audio"]
 layout_mode = 2
-size_flags_horizontal = 0
 button_pressed = true
 text = "settings_mute_when_unfocused"
 
-[node name="Display" type="VBoxContainer" parent="Margin/Panel/Body/Tabs"]
+[node name="Display" type="Container" parent="Margin/Panel/Body/Tabs"]
 visible = false
 layout_mode = 2
-theme_override_constants/separation = 6
+script = ExtResource("5_rows")
+Scrolls = true
 
 [node name="ResolutionLabel" type="Label" parent="Margin/Panel/Body/Tabs/Display"]
 layout_mode = 2
+theme_type_variation = &"SettingsRowLabel"
+vertical_alignment = 1
+autowrap_mode = 3
+uppercase = true
 
 [node name="ResolutionDropdown" type="OptionButton" parent="Margin/Panel/Body/Tabs/Display"]
-custom_minimum_size = Vector2(280, 0)
+custom_minimum_size = Vector2(300, 44)
 layout_mode = 2
-size_flags_horizontal = 0
 
 [node name="WindowModeLabel" type="Label" parent="Margin/Panel/Body/Tabs/Display"]
 layout_mode = 2
+theme_type_variation = &"SettingsRowLabel"
+vertical_alignment = 1
+autowrap_mode = 3
+uppercase = true
 
 [node name="WindowModeDropdown" type="OptionButton" parent="Margin/Panel/Body/Tabs/Display"]
-custom_minimum_size = Vector2(280, 0)
+custom_minimum_size = Vector2(300, 44)
 layout_mode = 2
-size_flags_horizontal = 0
 
 [node name="VSyncToggle" type="CheckButton" parent="Margin/Panel/Body/Tabs/Display"]
 layout_mode = 2
-size_flags_horizontal = 0
 button_pressed = true
 
-[node name="Gameplay" type="VBoxContainer" parent="Margin/Panel/Body/Tabs"]
+[node name="Gameplay" type="Container" parent="Margin/Panel/Body/Tabs"]
 visible = false
 layout_mode = 2
-theme_override_constants/separation = 6
+script = ExtResource("5_rows")
+Scrolls = true
 
 [node name="DamageNumbersToggle" type="CheckButton" parent="Margin/Panel/Body/Tabs/Gameplay"]
 layout_mode = 2
-size_flags_horizontal = 0
 button_pressed = true
 
 [node name="HudOpacityLabel" type="Label" parent="Margin/Panel/Body/Tabs/Gameplay"]
 layout_mode = 2
+theme_type_variation = &"SettingsRowLabel"
+vertical_alignment = 1
+autowrap_mode = 3
+uppercase = true
 
 [node name="HudOpacitySlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Gameplay"]
 custom_minimum_size = Vector2(360, 44)
 layout_mode = 2
-size_flags_horizontal = 0
 min_value = 0.2
 max_value = 1.0
 step = 0.05
 value = 1.0
 
+[node name="HudOpacityValue" type="Label" parent="Margin/Panel/Body/Tabs/Gameplay"]
+layout_mode = 2
+theme_type_variation = &"SettingsRowValue"
+horizontal_alignment = 2
+vertical_alignment = 1
+
 [node name="ScreenShakeLabel" type="Label" parent="Margin/Panel/Body/Tabs/Gameplay"]
 layout_mode = 2
+theme_type_variation = &"SettingsRowLabel"
+vertical_alignment = 1
+autowrap_mode = 3
+uppercase = true
 
 [node name="ScreenShakeSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Gameplay"]
 custom_minimum_size = Vector2(360, 44)
 layout_mode = 2
-size_flags_horizontal = 0
 max_value = 1.0
 step = 0.05
 value = 1.0
 
+[node name="ScreenShakeValue" type="Label" parent="Margin/Panel/Body/Tabs/Gameplay"]
+layout_mode = 2
+theme_type_variation = &"SettingsRowValue"
+horizontal_alignment = 2
+vertical_alignment = 1
+
 [node name="ReducedEffectsToggle" type="CheckButton" parent="Margin/Panel/Body/Tabs/Gameplay"]
 layout_mode = 2
-size_flags_horizontal = 0
 
 [node name="ReducedEffectsHelp" type="Label" parent="Margin/Panel/Body/Tabs/Gameplay"]
 layout_mode = 2
@@ -194,50 +252,71 @@ autowrap_mode = 3
 
 [node name="UiScaleLabel" type="Label" parent="Margin/Panel/Body/Tabs/Gameplay"]
 layout_mode = 2
+theme_type_variation = &"SettingsRowLabel"
+vertical_alignment = 1
+autowrap_mode = 3
+uppercase = true
 
 [node name="UiScaleSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Gameplay"]
 custom_minimum_size = Vector2(360, 44)
 layout_mode = 2
-size_flags_horizontal = 0
 min_value = 0.9
 max_value = 1.4
 step = 0.05
 value = 1.0
 
+[node name="UiScaleValue" type="Label" parent="Margin/Panel/Body/Tabs/Gameplay"]
+layout_mode = 2
+theme_type_variation = &"SettingsRowValue"
+horizontal_alignment = 2
+vertical_alignment = 1
+
 [node name="PlayerSlotPaletteRow" type="HBoxContainer" parent="Margin/Panel/Body/Tabs/Gameplay"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 22
 script = ExtResource("3_p12w5_slot_palette")
 
 [node name="PaletteLabel" type="Label" parent="Margin/Panel/Body/Tabs/Gameplay/PlayerSlotPaletteRow"]
+custom_minimum_size = Vector2(360, 0)
 layout_mode = 2
+theme_type_variation = &"SettingsRowLabel"
 text = "settings_player_slot_palette"
 vertical_alignment = 1
+autowrap_mode = 3
+uppercase = true
 
 [node name="PaletteSelect" type="OptionButton" parent="Margin/Panel/Body/Tabs/Gameplay/PlayerSlotPaletteRow"]
-custom_minimum_size = Vector2(240, 36)
+custom_minimum_size = Vector2(300, 44)
 layout_mode = 2
+size_flags_vertical = 4
 
 [node name="TextSpeedRow" type="HBoxContainer" parent="Margin/Panel/Body/Tabs/Gameplay"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 22
 
 [node name="TextSpeedLabel" type="Label" parent="Margin/Panel/Body/Tabs/Gameplay/TextSpeedRow"]
-custom_minimum_size = Vector2(260, 0)
+custom_minimum_size = Vector2(360, 0)
 layout_mode = 2
+theme_type_variation = &"SettingsRowLabel"
 text = "settings_text_speed"
+vertical_alignment = 1
+autowrap_mode = 3
+uppercase = true
 
 [node name="TextSpeedDropdown" type="OptionButton" parent="Margin/Panel/Body/Tabs/Gameplay/TextSpeedRow"]
-custom_minimum_size = Vector2(220, 0)
+custom_minimum_size = Vector2(300, 44)
 layout_mode = 2
+size_flags_vertical = 4
 
 [node name="AboutSeparator" type="HSeparator" parent="Margin/Panel/Body/Tabs/Gameplay"]
+custom_minimum_size = Vector2(0, 16)
 layout_mode = 2
 
 [node name="AboutHeading" type="Label" parent="Margin/Panel/Body/Tabs/Gameplay"]
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
 text = "settings_about_heading"
+uppercase = true
 
 [node name="VersionLabel" type="Label" parent="Margin/Panel/Body/Tabs/Gameplay"]
 layout_mode = 2
@@ -251,115 +330,162 @@ autowrap_mode = 3
 
 [node name="CrashReportsRow" type="HBoxContainer" parent="Margin/Panel/Body/Tabs/Gameplay"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 22
 
 [node name="CrashReportsLabel" type="Label" parent="Margin/Panel/Body/Tabs/Gameplay/CrashReportsRow"]
-custom_minimum_size = Vector2(260, 0)
+custom_minimum_size = Vector2(360, 0)
 layout_mode = 2
+theme_type_variation = &"SettingsRowLabel"
 text = "settings_crash_reports"
+vertical_alignment = 1
+autowrap_mode = 3
+uppercase = true
 
 [node name="CrashReportsDropdown" type="OptionButton" parent="Margin/Panel/Body/Tabs/Gameplay/CrashReportsRow"]
-custom_minimum_size = Vector2(220, 0)
+custom_minimum_size = Vector2(300, 44)
 layout_mode = 2
+size_flags_vertical = 4
 
 [node name="OpenLogsButton" type="Button" parent="Margin/Panel/Body/Tabs/Gameplay/CrashReportsRow"]
-custom_minimum_size = Vector2(220, 0)
+custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
+size_flags_vertical = 4
 text = "settings_open_logs_folder"
 
 [node name="Controls" type="VBoxContainer" parent="Margin/Panel/Body/Tabs"]
 visible = false
 layout_mode = 2
-theme_override_constants/separation = 2
+theme_override_constants/separation = 6
 
 [node name="Hint" type="Label" parent="Margin/Panel/Body/Tabs/Controls"]
+custom_minimum_size = Vector2(1200, 0)
 layout_mode = 2
+theme_type_variation = &"SmallLabel"
 autowrap_mode = 3
 
-[node name="Options" type="GridContainer" parent="Margin/Panel/Body/Tabs/Controls"]
+[node name="Options" type="Container" parent="Margin/Panel/Body/Tabs/Controls"]
 layout_mode = 2
-theme_override_constants/h_separation = 16
-theme_override_constants/v_separation = 6
-columns = 4
+script = ExtResource("5_rows")
+Columns = 2
+LabelWidth = 330.0
+ControlWidth = 280.0
+FieldWidth = 280.0
+ValueWidth = 72.0
+ColumnGap = 40.0
 
 [node name="BlockModeLabel" type="Label" parent="Margin/Panel/Body/Tabs/Controls/Options"]
-custom_minimum_size = Vector2(260, 0)
 layout_mode = 2
+theme_type_variation = &"SettingsRowLabel"
 text = "settings_block_mode"
+vertical_alignment = 1
+autowrap_mode = 3
+uppercase = true
 
 [node name="BlockModeDropdown" type="OptionButton" parent="Margin/Panel/Body/Tabs/Controls/Options"]
-custom_minimum_size = Vector2(240, 0)
+custom_minimum_size = Vector2(280, 44)
 layout_mode = 2
-size_flags_horizontal = 0
 
 [node name="StickDeviceLabel" type="Label" parent="Margin/Panel/Body/Tabs/Controls/Options"]
 layout_mode = 2
+theme_type_variation = &"SettingsRowLabel"
 text = "settings_stick_device"
+vertical_alignment = 1
+autowrap_mode = 3
+uppercase = true
 
 [node name="StickDeviceDropdown" type="OptionButton" parent="Margin/Panel/Body/Tabs/Controls/Options"]
-custom_minimum_size = Vector2(240, 0)
+custom_minimum_size = Vector2(280, 44)
 layout_mode = 2
-size_flags_horizontal = 0
 
 [node name="DeadzoneLabel" type="Label" parent="Margin/Panel/Body/Tabs/Controls/Options"]
 layout_mode = 2
+theme_type_variation = &"SettingsRowLabel"
 text = "settings_stick_deadzone"
+vertical_alignment = 1
+autowrap_mode = 3
+uppercase = true
 
 [node name="DeadzoneSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Controls/Options"]
-custom_minimum_size = Vector2(360, 44)
+custom_minimum_size = Vector2(280, 44)
 layout_mode = 2
-size_flags_horizontal = 0
 max_value = 0.4
 step = 0.01
 value = 0.15
 
+[node name="DeadzoneValue" type="Label" parent="Margin/Panel/Body/Tabs/Controls/Options"]
+layout_mode = 2
+theme_type_variation = &"SettingsRowValue"
+horizontal_alignment = 2
+vertical_alignment = 1
+
 [node name="DownThresholdLabel" type="Label" parent="Margin/Panel/Body/Tabs/Controls/Options"]
 layout_mode = 2
+theme_type_variation = &"SettingsRowLabel"
 text = "settings_down_threshold"
+vertical_alignment = 1
+autowrap_mode = 3
+uppercase = true
 
 [node name="DownThresholdSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Controls/Options"]
-custom_minimum_size = Vector2(360, 44)
+custom_minimum_size = Vector2(280, 44)
 layout_mode = 2
-size_flags_horizontal = 0
 min_value = 0.2
 max_value = 0.9
 step = 0.05
 value = 0.5
 
+[node name="DownThresholdValue" type="Label" parent="Margin/Panel/Body/Tabs/Controls/Options"]
+layout_mode = 2
+theme_type_variation = &"SettingsRowValue"
+horizontal_alignment = 2
+vertical_alignment = 1
+
 [node name="HapticToggle" type="CheckButton" parent="Margin/Panel/Body/Tabs/Controls/Options"]
 layout_mode = 2
-size_flags_horizontal = 0
 button_pressed = true
 
 [node name="HapticSpacer" type="Control" parent="Margin/Panel/Body/Tabs/Controls/Options"]
+visible = false
 layout_mode = 2
 
 [node name="HapticLabel" type="Label" parent="Margin/Panel/Body/Tabs/Controls/Options"]
 layout_mode = 2
+theme_type_variation = &"SettingsRowLabel"
+vertical_alignment = 1
+autowrap_mode = 3
+uppercase = true
 
 [node name="HapticSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Controls/Options"]
-custom_minimum_size = Vector2(360, 44)
+custom_minimum_size = Vector2(280, 44)
 layout_mode = 2
-size_flags_horizontal = 0
 max_value = 1.0
 step = 0.05
 value = 0.7
 
+[node name="HapticValue" type="Label" parent="Margin/Panel/Body/Tabs/Controls/Options"]
+layout_mode = 2
+theme_type_variation = &"SettingsRowValue"
+horizontal_alignment = 2
+vertical_alignment = 1
+
 [node name="ReadOnlyInfo" type="Label" parent="Margin/Panel/Body/Tabs/Controls"]
+custom_minimum_size = Vector2(1200, 0)
 layout_mode = 2
 theme_type_variation = &"SmallLabel"
 autowrap_mode = 3
 
 [node name="Status" type="Label" parent="Margin/Panel/Body/Tabs/Controls"]
+custom_minimum_size = Vector2(1200, 0)
 layout_mode = 2
-theme_type_variation = &"HintLine"
+theme_type_variation = &"SmallLabel"
 autowrap_mode = 3
 
 [node name="Scroll" type="ScrollContainer" parent="Margin/Panel/Body/Tabs/Controls"]
-custom_minimum_size = Vector2(0, 120)
+custom_minimum_size = Vector2(0, 240)
 layout_mode = 2
 size_flags_vertical = 3
 follow_focus = true
+horizontal_scroll_mode = 0
 
 [node name="Content" type="VBoxContainer" parent="Margin/Panel/Body/Tabs/Controls/Scroll"]
 layout_mode = 2
@@ -369,29 +495,30 @@ theme_override_constants/separation = 6
 [node name="ActionRows" type="VBoxContainer" parent="Margin/Panel/Body/Tabs/Controls/Scroll/Content"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 4
+theme_override_constants/separation = 0
 
 [node name="ShortcutsHeading" type="Label" parent="Margin/Panel/Body/Tabs/Controls/Scroll/Content"]
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
+uppercase = true
 
 [node name="ShortcutRows" type="GridContainer" parent="Margin/Panel/Body/Tabs/Controls/Scroll/Content"]
 layout_mode = 2
-theme_override_constants/h_separation = 24
-theme_override_constants/v_separation = 2
+theme_override_constants/h_separation = 48
+theme_override_constants/v_separation = 0
 columns = 2
 
 [node name="ResetAllButton" type="Button" parent="Margin/Panel/Body/Tabs/Controls/Scroll/Content"]
-custom_minimum_size = Vector2(280, 58)
+custom_minimum_size = Vector2(290, 58)
 layout_mode = 2
 size_flags_horizontal = 0
 theme_type_variation = &"PulpButtonCompact"
 
 [node name="Footer" type="HBoxContainer" parent="Margin/Panel/Body"]
 layout_mode = 2
-alignment = 2
+alignment = 1
 
 [node name="BackButton" type="Button" parent="Margin/Panel/Body/Footer"]
-custom_minimum_size = Vector2(320, 64)
+custom_minimum_size = Vector2(290, 58)
 layout_mode = 2
-theme_type_variation = &"TemporalGlassButton"
+theme_type_variation = &"PulpButtonCompact"

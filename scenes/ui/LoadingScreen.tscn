@@ -2,7 +2,9 @@
 
 [ext_resource type="Script" path="res://scripts/UI/LoadingScreen.cs" id="1_script"]
 [ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="2_theme"]
-
+; Plain loading variant (TG-SCREENS, UI_SPEC_GLASS 9.2): the bg0 field, the screen streak, the 64 px hourglass in
+; accent2 centred with its glow breathing at 0.5 Hz (static under Reduced Temporal Effects) and the status caption.
+; The hourglass, its glow and the streak are added by LoadingScreen.cs into HourglassHost and Root.
 
 [node name="LoadingScreen" type="CanvasLayer"]
 layer = 100
@@ -34,17 +36,19 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="Plate" type="PanelContainer" parent="Root/Center"]
-custom_minimum_size = Vector2(520, 0)
+[node name="Stack" type="VBoxContainer" parent="Root/Center"]
 layout_mode = 2
-theme_type_variation = &"InkPanel"
+theme_override_constants/separation = 22
 
-[node name="Layout" type="VBoxContainer" parent="Root/Center/Plate"]
+[node name="HourglassHost" type="Control" parent="Root/Center/Stack"]
+custom_minimum_size = Vector2(64, 64)
 layout_mode = 2
-theme_override_constants/separation = 14
+size_flags_horizontal = 4
+mouse_filter = 2
 
-[node name="StatusLabel" type="Label" parent="Root/Center/Plate/Layout"]
+[node name="StatusLabel" type="Label" parent="Root/Center/Stack"]
 layout_mode = 2
-theme_type_variation = &"HeadingLabel"
+theme_type_variation = &"SceneCaption"
 text = "loading"
 horizontal_alignment = 1
+uppercase = true

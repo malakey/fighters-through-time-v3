@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using FTT.Core;
 using FTT.Environment;
+using FTT.UI.Motion;
 using FTT.UI.Pulp;
 using Godot;
 
@@ -22,6 +23,12 @@ namespace FTT.UI {
 
         private const float ChipMarginLeft = 12f, ChipMarginRight = 38f, ChipMarginTop = 8f, ChipMarginBottom = 8f;
 
+        /// <summary>The dim over the sub-screen art behind the grid (UI_SPEC_GLASS 9.2: "sub-screen art, dim .55").</summary>
+        public const float ArtDimAlpha = 0.55f;
+
+        /// <summary>The dormant glyph's size in the chip's top-right corner (where a named chip shows its tier).</summary>
+        public const float DormantGlyphSize = 24f;
+
         /// <summary>The authored scene this panel presents (Package 8 B4).</summary>
         public const string ScenePath = "res://scenes/ui/ResonanceGrid.tscn";
 
@@ -38,11 +45,11 @@ namespace FTT.UI {
         private Button _respecButton;
         private ResonanceNodeData _pendingNode;
         private int _focusedIndex;
-        private StyleBoxFlat _focusStyle;
-        private StyleBoxFlat _focusStylePaper;
-        private StyleBoxTexture _inkChip;
-        private StyleBoxTexture _paperChip;
+        // TG-SCREENS: a chip draws no box of its own (its glass tile is a GlassTileDecor behind it); this empty box only
+        // carries the text margins every state shares (12 left, 38 right for the corner mark, 8 top and bottom).
+        private StyleBoxEmpty _chipBox;
         private readonly Dictionary<string, ResonanceUnlockResult> _chipStates = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, GlassTileDecor> _tiles = new(StringComparer.Ordinal);
         private readonly List<ResonanceNodeData> _nodes = new();
         private readonly Dictionary<string, Button> _buttons = new(StringComparer.Ordinal);
         private Vector2 _chipSize = NodeChipSize;
@@ -102,21 +109,26 @@ namespace FTT.UI {
             closeButton.Pressed += Close;
             BuildRespecButton(closeButton);
 
-            // UR-SCREENS: pulp chips. Ink and paper plates from the kit by state, a gold focus ring.
-            _inkChip = PulpKit.Plate("panel_dark");
-            _paperChip = PulpKit.Plate("panel_paper");
-            foreach (StyleBoxTexture plate in new[] { _inkChip, _paperChip }) {
-                if (plate == null) continue;
-                plate.ContentMarginLeft = ChipMarginLeft; plate.ContentMarginRight = ChipMarginRight; // room for the tier mark
-                plate.ContentMarginTop = ChipMarginTop; plate.ContentMarginBottom = ChipMarginBottom;
-            }
-            _focusStyle = BuildFocusStyle(UIPalette.PlateFill);
-            _focusStylePaper = BuildFocusStyle(UIPalette.Paper);
+            // TG-SCREENS (UI_SPEC_GLASS 9.2): a full-screen menu. The sub-screen art under a .55 dim, one glass slab
+            // with the constellation tag, glass chips (the GlassTileDecor tile at chamfer 12, an edge per state) and the
+            // screen streak; the chip layout, separation and fit rules are UR-POLISH's, unchanged.
+            GlassScreenDressing.AddMenuArt(Root);
+            if (Root.GetNodeOrNull<ColorRect>("Shade") is { } shade) shade.Color = new Color(UIPalette.ScrimFill, ArtDimAlpha);
+            _chipBox = new StyleBoxEmpty {
+                ContentMarginLeft = ChipMarginLeft, ContentMarginRight = ChipMarginRight, // room for the corner mark
+                ContentMarginTop = ChipMarginTop, ContentMarginBottom = ChipMarginBottom
+            };
             if (Root.GetNodeOrNull<PanelContainer>("Center/Panel") is { } gridPanel) {
                 MenuSafeAreaFit.Attach(gridPanel, PromptBarClearance);
                 PulpScreenKit.DressPanel(gridPanel, "resonance_grid_tag");
             }
-            PulpButtonDecor.Apply(closeButton, compact: true).GrowToFit = true;
+            // The balance line: Outfit 500 20 in res (9.2); the nearest role is SmallLabel (500, 18), coloured res.
+            _balanceLabel.AddThemeColorOverride("font_color", UIPalette.Res);
+            PulpButtonDecor closeDecor = PulpButtonDecor.Apply(closeButton, compact: true);
+            closeDecor.GrowToFit = true;
+            closeDecor.ShowPrompt = false;
+            // D6 (UI_SPEC_GLASS 3.2): the compact row shares its widest required width, at least 290, with no prompt badge.
+            PulpButtonDecor.ApplyStackWidth(new[] { _respecButton, closeButton }, 290f, reservePrompt: false);
             PulpScreenKit.AddPromptBar(this, ("ui_accept", "ui_prompt_select"), ("ui_cancel", "common_back"));
 
             // The native ConfirmationDialog this replaces opened an OS-level window,
@@ -142,6 +154,11 @@ namespace FTT.UI {
             _respecConfirmation.Name = "RespecConfirmModal";
             _respecConfirmation.Confirmed += ConfirmRespec;
             AddChild(_respecConfirmation);
+            // The streak is a full-screen menu's (it draws at z 10); the two modals are overlays, which never show it,
+            // so they draw above it.
+            PulpScreenKit.AddScreenStreak(this);
+            _confirmation.ZIndex = ScreenStreak.StreakZ + 1;
+            _respecConfirmation.ZIndex = ScreenStreak.StreakZ + 1;
             LoadActiveGrid();
         }
 
@@ -166,17 +183,11 @@ namespace FTT.UI {
             closeButton.Reparent(row, false);
             row.AddChild(_respecButton);
             row.MoveChild(_respecButton, 0);
-            _respecButton.CustomMinimumSize = new Vector2(460f, 58f);
-            PulpButtonDecor.Apply(_respecButton, compact: true).GrowToFit = true;
+            _respecButton.CustomMinimumSize = new Vector2(0f, 58f);
+            PulpButtonDecor respecDecor = PulpButtonDecor.Apply(_respecButton, compact: true);
+            respecDecor.GrowToFit = true;
+            respecDecor.ShowPrompt = false;
             PulpScreenKit.SeparateFocusRow(row);
-        }
-
-        private static StyleBoxFlat BuildFocusStyle(Color fill) {
-            var style = new StyleBoxFlat { BgColor = fill, BorderColor = UIPalette.Accent };
-            style.SetBorderWidthAll(4);
-            style.SetContentMarginAll(10);
-            style.ContentMarginRight = 38f;
-            return style;
         }
 
         private void ShowRespecConfirmation() {
@@ -279,8 +290,23 @@ namespace FTT.UI {
                     SetFocusedIndex(index);
                     ActivateNode(node);
                 };
+                foreach (string slot in ChipBoxSlots) button.AddThemeStyleboxOverride(slot, _chipBox);
+                // The glass tile draws behind the chip's own text (the chip button draws only that text).
+                GlassTileDecor tile = GlassTileDecor.Attach(button, GlassTileDecor.ChipChamfer);
+                tile.ShowBehindParent = true;
+                _tiles[node.NodeID] = tile;
                 var mark = new ResonanceTierMark { Tier = node.Tier, Name = "TierMark" };
                 button.AddChild(mark);
+                PulpIcon dormant = PulpIcon.Create("dormant", UIPalette.Ink3, DormantGlyphSize);
+                dormant.Name = "DormantGlyph";
+                dormant.Visible = false;
+                button.AddChild(dormant);
+                dormant.AnchorLeft = 1f;
+                dormant.AnchorRight = 1f;
+                dormant.OffsetLeft = -10f - DormantGlyphSize;
+                dormant.OffsetRight = -10f;
+                dormant.OffsetTop = 8f;
+                dormant.OffsetBottom = 8f + DormantGlyphSize;
                 _nodeGrid.AddChild(button);
                 _buttons[node.NodeID] = button;
             }
@@ -443,21 +469,11 @@ namespace FTT.UI {
             }
         }
 
-        /// <summary>Placeholder unlock feedback: white flash and scale pulse.</summary>
-        private void PlayUnlockFlash(Button button) {
-            button.PivotOffset = button.Size / 2f;
-            Color settled = button.Modulate;
-            button.Modulate = new Color(2.2f, 2.2f, 2.2f);
-            button.Scale = new Vector2(1.12f, 1.12f);
-            Tween tween = CreateTween();
-            tween.SetParallel();
-            tween.TweenProperty(button, "modulate", settled, 0.45f)
-                .SetTrans(Tween.TransitionType.Cubic)
-                .SetEase(Tween.EaseType.Out);
-            tween.TweenProperty(button, "scale", Vector2.One, 0.3f)
-                .SetTrans(Tween.TransitionType.Back)
-                .SetEase(Tween.EaseType.Out);
-        }
+        /// <summary>
+        /// Unlock feedback (TG-SCREENS, MOT-A row 10): the chip's single 600 ms bloom, as an ability turning ready does; no
+        /// overshoot, no flash. Under Reduced Temporal Effects the chip simply shows its unlocked look.
+        /// </summary>
+        private static void PlayUnlockFlash(Button button) => PulpMotion.Bloom(button);
 
         private void Refresh() {
             if (_save == null || _grid == null) return;
@@ -469,13 +485,6 @@ namespace FTT.UI {
                 button.Text = NodeText(node, state);
                 button.TooltipText = BuildTooltip(node, state);
                 _chipStates[node.NodeID] = state;
-                // UR-SCREENS: state is a plate (paper when owned, ink otherwise) plus a dim for locked and
-                // dormant; the dormant node stays unnamed in its true position (V7.6).
-                button.Modulate = state switch {
-                    ResonanceUnlockResult.AbilityLocked => new Color(0.55f, 0.55f, 0.62f),
-                    ResonanceUnlockResult.Unlocked or ResonanceUnlockResult.AlreadyUnlocked => Colors.White,
-                    _ => new Color(0.78f, 0.78f, 0.84f)
-                };
             }
             ApplyChipStyles();
             RebuildEdges();
@@ -487,24 +496,45 @@ namespace FTT.UI {
             ApplyChipStyles();
         }
 
+        private static readonly string[] ChipBoxSlots = { "normal", "hover", "pressed", "hover_pressed", "focus", "disabled" };
+        private static readonly string[] ChipTextSlots = {
+            "font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color", "font_disabled_color"
+        };
+
+        /// <summary>
+        /// The glass chip's edge for a state (UI_SPEC_GLASS 9.2): unlocked the lit edge with the gold wash, available the
+        /// standard edge, locked and dormant the quiet edge. The chip the D-pad sits on wears the focus edge and glow.
+        /// </summary>
+        public static GlassTileDecor.TileEdge ChipEdgeFor(ResonanceUnlockResult state, bool focused) {
+            if (focused) return GlassTileDecor.TileEdge.Focus;
+            return state switch {
+                ResonanceUnlockResult.AlreadyUnlocked => GlassTileDecor.TileEdge.Lit,
+                ResonanceUnlockResult.Unlocked => GlassTileDecor.TileEdge.Standard,
+                _ => GlassTileDecor.TileEdge.Dim
+            };
+        }
+
+        /// <summary>The chip's text colour: ink when owned or available, ink2 when locked, ink3 for a dormant star; white on the focused chip unless dormant.</summary>
+        public static Color ChipTextFor(ResonanceUnlockResult state, bool focused) => state switch {
+            ResonanceUnlockResult.AbilityLocked => UIPalette.Ink3,
+            _ when focused => UIPalette.TextFocus,
+            ResonanceUnlockResult.AlreadyUnlocked or ResonanceUnlockResult.Unlocked => UIPalette.Ink,
+            _ => UIPalette.Ink2
+        };
+
         private void ApplyChipStyles() {
             for (int i = 0; i < _nodes.Count; i++) {
-                if (!_buttons.TryGetValue(_nodes[i].NodeID, out Button button)) continue;
-                _chipStates.TryGetValue(_nodes[i].NodeID, out ResonanceUnlockResult state);
-                bool paper = state == ResonanceUnlockResult.AlreadyUnlocked;
-                StyleBox box = i == _focusedIndex
-                    ? (paper ? _focusStylePaper : _focusStyle)
-                    : (paper ? _paperChip : _inkChip);
-                if (box != null) {
-                    foreach (string slot in new[] { "normal", "hover", "pressed", "focus", "disabled" }) {
-                        button.AddThemeStyleboxOverride(slot, box);
-                    }
-                }
-                Color text = paper ? UIPalette.PaperInk : UIPalette.Ink;
-                foreach (string slot in new[] { "font_color", "font_hover_color", "font_pressed_color",
-                             "font_focus_color", "font_hover_pressed_color", "font_disabled_color" }) {
-                    button.AddThemeColorOverride(slot, text);
-                }
+                string id = _nodes[i].NodeID;
+                if (!_buttons.TryGetValue(id, out Button button)) continue;
+                _chipStates.TryGetValue(id, out ResonanceUnlockResult state);
+                bool focused = i == _focusedIndex;
+                if (_tiles.TryGetValue(id, out GlassTileDecor tile)) tile.Edge = ChipEdgeFor(state, focused);
+                Color text = ChipTextFor(state, focused);
+                foreach (string slot in ChipTextSlots) button.AddThemeColorOverride(slot, text);
+                // A dormant star shows the dormant glyph where a named chip shows its tier (no name, no tier: V7.6).
+                bool dormant = state == ResonanceUnlockResult.AbilityLocked;
+                if (button.GetNodeOrNull<Control>("TierMark") is { } mark) mark.Visible = !dormant;
+                if (button.GetNodeOrNull<Control>("DormantGlyph") is { } glyph) glyph.Visible = dormant;
             }
         }
 

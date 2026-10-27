@@ -129,12 +129,13 @@ public class ConfirmModalTests {
     }
 
     /// <summary>
-    /// V7.3 UI-scale pass: the modal's title rides the HeadingLabel theme
-    /// variation instead of a font-size override, so it follows the
-    /// accessibility UI scale with the rest of the theme.
+    /// V7.3 UI-scale pass: the modal's title rides a theme Label variation
+    /// instead of a font-size override, so it follows the accessibility UI
+    /// scale with the rest of the theme. TG-PAUSE: the glass slab's panel
+    /// title (UI_SPEC_GLASS 9.1 item 2: Cinzel 900 36, the TitleLabel role).
     /// </summary>
     [TestCase]
-    public void TheTitleUsesTheHeadingVariationWithNoFontSizeOverride() {
+    public void TheTitleUsesThePanelTitleVariationWithNoFontSizeOverride() {
         var host = MakeHost();
         try {
             ConfirmModal modal = ConfirmModal.Create(
@@ -143,7 +144,7 @@ public class ConfirmModalTests {
             var title = modal.FindChild("Title", recursive: true, owned: false) as Label;
             AssertObject(title).IsNotNull();
             AssertThat(title.ThemeTypeVariation.ToString())
-                .IsEqual(UIPalette.HeadingLabelVariation);
+                .IsEqual(UIPalette.TitleLabelVariation);
             AssertThat(title.HasThemeFontSizeOverride("font_size"))
                 .OverrideFailureMessage("A font-size override freezes the title out of the UI scale.")
                 .IsFalse();

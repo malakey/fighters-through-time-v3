@@ -1,11 +1,11 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/UI/LoadingScreen.cs" id="1_script"]
 [ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="2_theme"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/pulp/burst_star.png" id="3_burst"]
-; Story portal variant (UR-SCREENS). The "rift" is a warm Warden portal slit: a gold halo and core over a
-; faded pulp starburst, inside an ink plate. TitleLabel is filled by LoadingScreen.Configure from the
-; destination campaign scene path.
+; Story portal variant (TG-SCREENS, UI_SPEC_GLASS 9.2): the bg0 field and the screen streak; the destination's title in
+; T03 between flourishes, centred around y 470 (TitleLabel, filled by LoadingScreen.Configure from the destination
+; campaign scene path; the flourishes are added around it in code); under it loading_rift in T51 (MenuTagline). The
+; status line is kept for the variant contract but not shown: the rift line already says what is happening.
 
 [node name="StoryLoading" type="CanvasLayer"]
 layer = 100
@@ -33,82 +33,35 @@ color = Color(0.0196, 0.0275, 0.102, 1)
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_bottom = -100.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="Plate" type="PanelContainer" parent="Root/Center"]
-custom_minimum_size = Vector2(800, 0)
+[node name="Stack" type="VBoxContainer" parent="Root/Center"]
 layout_mode = 2
-theme_type_variation = &"InkPanel"
+theme_override_constants/separation = 22
 
-[node name="Layout" type="VBoxContainer" parent="Root/Center/Plate"]
+[node name="TitleLabel" type="Label" parent="Root/Center/Stack"]
+custom_minimum_size = Vector2(1500, 0)
 layout_mode = 2
-theme_override_constants/separation = 18
-
-[node name="RiftFrame" type="Control" parent="Root/Center/Plate/Layout"]
-custom_minimum_size = Vector2(0, 210)
-layout_mode = 2
-
-[node name="RiftBurst" type="TextureRect" parent="Root/Center/Plate/Layout/RiftFrame"]
-modulate = Color(1, 1, 1, 0.28)
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -105.0
-offset_top = -105.0
-offset_right = 105.0
-offset_bottom = 105.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-texture = ExtResource("3_burst")
-expand_mode = 1
-stretch_mode = 5
-
-[node name="RiftCenter" type="CenterContainer" parent="Root/Center/Plate/Layout/RiftFrame"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-
-[node name="RiftHalo" type="ColorRect" parent="Root/Center/Plate/Layout/RiftFrame/RiftCenter"]
-custom_minimum_size = Vector2(60, 168)
-layout_mode = 2
-color = Color(0.98, 0.84, 0.38, 0.35)
-
-[node name="RiftCore" type="ColorRect" parent="Root/Center/Plate/Layout/RiftFrame/RiftCenter/RiftHalo"]
-anchors_preset = 15
-anchor_left = 0.5
-anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = -8.0
-offset_right = 8.0
-grow_horizontal = 2
-grow_vertical = 2
-color = Color(1, 0.94, 0.69, 1)
-
-[node name="TitleLabel" type="Label" parent="Root/Center/Plate/Layout"]
-custom_minimum_size = Vector2(740, 0)
-layout_mode = 2
-theme_type_variation = &"TitleLabel"
+theme_type_variation = &"BannerHeading"
 horizontal_alignment = 1
+vertical_alignment = 1
 autowrap_mode = 3
+uppercase = true
 
-[node name="RiftLabel" type="Label" parent="Root/Center/Plate/Layout"]
+[node name="RiftLabel" type="Label" parent="Root/Center/Stack"]
 layout_mode = 2
-theme_type_variation = &"ObjectiveLine"
+theme_type_variation = &"MenuTagline"
 text = "loading_rift"
 horizontal_alignment = 1
+uppercase = true
 
-[node name="StatusLabel" type="Label" parent="Root/Center/Plate/Layout"]
+[node name="StatusLabel" type="Label" parent="Root/Center/Stack"]
+visible = false
 layout_mode = 2
-theme_type_variation = &"StatusLine"
+theme_type_variation = &"SceneCaption"
 text = "loading"
 horizontal_alignment = 1
+uppercase = true

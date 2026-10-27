@@ -43,15 +43,23 @@ namespace FTT.UI {
         public const float BoxWidth = 1500f;
         public const float BoxBottomMargin = 40f;
 
-        /// <summary>The speaker roundel's diameter.</summary>
+        /// <summary>The speaker's G5 portrait frame (UI_SPEC_GLASS 3.9: 150).</summary>
         public const float PortraitSize = 150f;
 
-        /// <summary>The <c>hourglass</c> advance caret: 34 px, 26 px from the box's right edge and 18 px above its bottom.</summary>
+        /// <summary>
+        /// The solid <c>hourglass_caret</c> advance caret (3.9): 34 px in <c>res2</c>, 26 px from the box's right edge and
+        /// 18 px above its bottom.
+        /// </summary>
+        public const string CaretIcon = "hourglass_caret";
         public const float CaretSize = 34f;
         public const float CaretRight = 26f;
         public const float CaretBottom = 18f;
 
-        /// <summary>Gap between the roundel's disc and the emotion ring drawn around it.</summary>
+        /// <summary>3.9: the row (frame, the name-and-line column, the other speaker's frame) is 26 apart; the column 10.</summary>
+        public const int RowGap = 26;
+        public const int ColumnGap = 10;
+
+        /// <summary>Gap between the portrait frame and the emotion frame drawn around it.</summary>
         public const int RingInset = 4;
 
         // ---- Box animation ---------------------------------------------------
@@ -63,21 +71,26 @@ namespace FTT.UI {
         public const float BoxSlideDistance = 48f;
 
         /// <summary>
-        /// Builds the per-emotion ring that surrounds the portrait roundel: no fill, a border whose colour and width
-        /// change on every line (an authored resource mutated at runtime would be a shared cached instance every
-        /// other dialogue box also draws) and a corner radius that makes the box a circle.
+        /// Builds the per-emotion frame that surrounds the portrait: no fill, a border whose colour and width change on
+        /// every line (an authored resource mutated at runtime would be a shared cached instance every other dialogue box
+        /// also draws). TG-PAUSE: it follows the G5 frame's shape (a square cut at 22 % top-left and bottom-right, drawn as
+        /// 45 degree bevels with <c>corner_detail</c> 1) instead of the pulp build's circle.
         /// </summary>
         public static StyleBoxFlat CreatePortraitFrameStyle() {
             var box = new StyleBoxFlat {
                 BgColor = new Color(0f, 0f, 0f, 0f),
+                DrawCenter = false,
                 BorderColor = DialogueEmotionTreatment.Resolve(DialogueEmotion.Neutral).FrameColor,
                 ContentMarginLeft = RingInset,
                 ContentMarginTop = RingInset,
                 ContentMarginRight = RingInset,
-                ContentMarginBottom = RingInset
+                ContentMarginBottom = RingInset,
+                CornerDetail = 1,
+                AntiAliasing = true
             };
-            int radius = Mathf.CeilToInt(PortraitSize / 2f) + RingInset + 4;
-            box.SetCornerRadiusAll(radius);
+            int cut = Mathf.RoundToInt((PortraitSize + 2f * RingInset) * Pulp.PulpPortraitRoundel.ChamferShare);
+            box.CornerRadiusTopLeft = cut;
+            box.CornerRadiusBottomRight = cut;
             box.SetBorderWidthAll(DialogueEmotionTreatment.CalmFrameWidth);
             return box;
         }
