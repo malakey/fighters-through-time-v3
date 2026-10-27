@@ -254,16 +254,22 @@ namespace FTT.UI {
             AddSectionHeading("ComfortHeading", "first_run_card_comfort");
             var comfortRow = new HBoxContainer { Name = "ComfortRow" };
             comfortRow.AddThemeConstantOverride("separation", (int)SettingsRowLayout.SpecItemGap);
+            // The button keeps the setting's name as its text (a screen reader's name for it; clipped, so it never widens
+            // the button), but the card's heading above already says it: TG-CLOSE polish shows the name once and lets the
+            // toggle stand alone, with no row label of its own (the label repeated the heading and wrapped at 1.0).
             _rteToggle = new CheckButton {
                 Name = "ReducedEffectsToggle",
                 Text = "settings_reduced_temporal_effects",
+                ClipText = true,
                 ButtonPressed = ComfortSettings.ReducedTemporalEffects
             };
             _rteToggle.Toggled += on => ComfortSettings.Apply(on);
-            // The settings toggle row (3.3) in a row layout of its own, so the row is 62 tall and its label column 360 at
-            // every UI scale (the T52 label wraps to two lines at 1.0 and must not spill onto the copy below).
+            // The settings toggle (3.3) in a row layout of its own, so the row is 62 tall at every UI scale; with no row
+            // label, the label column and its gap are empty and the 132 px track starts under the heading.
             var toggleRow = new SettingsRowLayout {
                 Name = "ToggleRow",
+                LabelWidth = 0f,
+                ItemGap = 0f,
                 ControlWidth = Pulp.PulpToggleDecor.TrackWidth,
                 FieldWidth = Pulp.PulpToggleDecor.TrackWidth,
                 ValueWidth = 0f
@@ -271,6 +277,10 @@ namespace FTT.UI {
             comfortRow.AddChild(toggleRow);
             toggleRow.AddChild(_rteToggle);
             SettingsMenu.SkinToggle(_rteToggle);
+            if (_rteToggle.GetNodeOrNull<Label>(SettingsMenu.ToggleRowLabelName) is { } rowLabel) {
+                rowLabel.Visible = false;
+                rowLabel.AutowrapMode = TextServer.AutowrapMode.Off;
+            }
             _previewSwatch = new ColorRect {
                 Name = "PreviewSwatch",
                 CustomMinimumSize = new Vector2(160, 48),
