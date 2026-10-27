@@ -313,7 +313,7 @@ namespace FTT.UI {
                 };
                 panel.HpMax = new Label {
                     Name = "Max", MouseFilter = Control.MouseFilterEnum.Ignore,
-                    ThemeTypeVariation = UIPalette.LabelRoles.HudNumeralSmall,
+                    ThemeTypeVariation = UIPalette.LabelRoles.HudNumeralMaxScene,
                     SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
                     Modulate = new Color(1f, 1f, 1f, HpMaxAlpha)
                 };
@@ -350,13 +350,12 @@ namespace FTT.UI {
                 }
                 panel.SlotWidgets = widgets;
                 // The badges sit centred on the 54 px row (4.5, 4L: the damage badge at y 199).
+                // The chips fill the row's height and centre their badges themselves (TG-CLOSE folded the shrink-centring).
                 panel.DamageChip = new PulpStatusChip {
-                    Name = "DamageChip", BadgeSize = ChipBadge, Kind = PulpChipKind.Damage, Empty = true,
-                    SizeFlagsVertical = Control.SizeFlags.ShrinkCenter
+                    Name = "DamageChip", BadgeSize = ChipBadge, Kind = PulpChipKind.Damage, Empty = true
                 };
                 panel.ControlChip = new PulpStatusChip {
-                    Name = "ControlChip", BadgeSize = ChipBadge, Kind = PulpChipKind.Control, Empty = true,
-                    SizeFlagsVertical = Control.SizeFlags.ShrinkCenter
+                    Name = "ControlChip", BadgeSize = ChipBadge, Kind = PulpChipKind.Control, Empty = true
                 };
                 if (!mirrored) {
                     for (int slot = 0; slot < widgets.Length; slot++) {
@@ -687,7 +686,9 @@ namespace FTT.UI {
         /// MOT-A row 7 on an HP change. MOT-A has no hit flash (plan 0.4 P7): a drop jumps the fill and the numerals to
         /// the authoritative value while the damage tracker holds 0.5 s, then drains over 0.6 s (a fade under Reduced
         /// Temporal Effects); a rise (healing, the Rally reclaim) raises the fill over 0.2 s with the tracker riding it,
-        /// so no red ever shows on a heal. The first presentation and a new maximum jump with the tracker on the fill.
+        /// so no red ever shows on a heal. The first presentation and a new maximum jump with the tracker on the fill. A heal,
+        /// a first presentation and a new maximum stop a hold or drain the last hit started (<c>SnapLagTo</c>,
+        /// REVIEW-UI-GLASS-CODEX-2), or that drain would later write its old start back above the fill.
         /// </summary>
         private static void PresentHpChange(PlayerPanel panel, int hp, int maxHp) {
             bool first = panel.PresentedHP < 0;
@@ -698,7 +699,7 @@ namespace FTT.UI {
             if (healed) {
                 PulpBarDecor decor = panel.HpDecor;
                 ProgressBar bar = panel.HP;
-                if (decor != null && decor.LagValue > shown) decor.LagValue = shown;
+                decor?.SnapLagTo(Mathf.Min(decor.LagValue, shown));
                 panel.HealTween = PulpMotion.HealRise(bar, shown, hp, v => {
                     if (!GodotObject.IsInstanceValid(bar)) return;
                     bar.Value = v;
@@ -708,7 +709,7 @@ namespace FTT.UI {
             }
             panel.HP.Value = hp;
             if (panel.HpDecor == null) return;
-            if (first || maxHp != panel.PresentedMaxHP) panel.HpDecor.LagValue = hp;
+            if (first || maxHp != panel.PresentedMaxHP) panel.HpDecor.SnapLagTo(hp);
             else panel.HpDecor.DropLagTo(hp);
         }
 
@@ -1275,7 +1276,8 @@ namespace FTT.UI {
             if (panel == null || refused == FighterLockoutRefusal.None) return;
             if ((refused & FighterLockoutRefusal.SpecialOne) != 0) FlashCooldownIcon(panel, FighterCooldownSlot.SpecialOne);
             if ((refused & FighterLockoutRefusal.SpecialTwo) != 0) FlashCooldownIcon(panel, FighterCooldownSlot.SpecialTwo);
-            if ((refused & FighterLockoutRefusal.Ultimate) != 0) NotYetFlash.Play(panel.Meter, panel.Meter);
+            // The Ultimate tube's refusal is a frame leaning with the tube (TG-CLOSE; it was the rectangle round it).
+            if ((refused & FighterLockoutRefusal.Ultimate) != 0) NotYetFlash.Play(panel.Meter, panel.Meter, NotYetShape.Tube);
         }
 
         private static void FlashCooldownIcon(PlayerPanel panel, FighterCooldownSlot slot) {

@@ -51,4 +51,93 @@ public class PulpToggleDecorTests {
             button.Free();
         }
     }
+
+    /// <summary>
+    /// TG-CLOSE (TG-PAUSE kit gap 5, TG-SELECT kit gap 4): the toggle's track, knob, insets and glows follow the UI scale as the
+    /// chevrons' heights and paddings do (it drew a fixed 132 x 44 at every scale), and the toggle draws its own text as the
+    /// T52 settings-row label, upper case, in a RowLabel child while the button's own glyphs draw nothing (the Settings
+    /// rows had this through SettingsMenu.SkinToggle; the console's and the stage rules' toggles showed their mixed-case
+    /// text). In a Settings row the track still starts on the control column at UI scale 1.4.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task TheToggleFollowsTheUiScaleAndDrawsItsTextAsTheSettingsRowLabel() {
+        float saved = FTT.UI.UIPalette.AppliedUiScale;
+        var tree = (SceneTree)Engine.GetMainLoop();
+        var host = new Control { Name = "ToggleScaleHost", Size = new Vector2(1600f, 400f) };
+        FTT.UI.UIPalette.ApplyTheme(host);
+        tree.Root.AddChild(host);
+        try {
+            FTT.UI.UIPalette.ApplyUiScale(1.4f);
+            var loose = new CheckButton { Text = "fighter_meter_pickups", CustomMinimumSize = new Vector2(700f, 0f) };
+            host.AddChild(loose);
+            PulpToggleDecor decor = PulpToggleDecor.Apply(loose);
+            var layout = new FTT.UI.SettingsRowLayout { Name = "Rows", Position = new Vector2(0f, 120f), Size = new Vector2(1500f, 200f) };
+            host.AddChild(layout);
+            var row = new CheckButton { Name = "Row", Text = "settings_reduced_temporal_effects" };
+            layout.AddChild(row);
+            PulpToggleDecor rowDecor = PulpToggleDecor.Apply(row);
+            for (int i = 0; i < 4; i++) await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+            var problems = new System.Collections.Generic.List<string>();
+
+            Rect2 track = PulpToggleDecor.TrackRect(loose.Size);
+            if (!track.Size.IsEqualApprox(new Vector2(132f, 44f) * 1.4f)) problems.Add($"the track is {track.Size} at 1.4, not 184.8 x 61.6");
+            if (!Mathf.IsEqualApprox(PulpToggleDecor.KnobX(1f), (132f - 5f - 34f) * 1.4f)) problems.Add($"the knob's far stop is {PulpToggleDecor.KnobX(1f)}");
+            if (loose.GetCombinedMinimumSize().Y < 44f * 1.4f) problems.Add($"the toggle is {loose.GetCombinedMinimumSize().Y} px tall at 1.4");
+            Label label = loose.GetNodeOrNull<Label>(PulpToggleDecor.RowLabelName);
+            if (label == null) {
+                problems.Add("the toggle has no RowLabel");
+            } else {
+                if (label.ThemeTypeVariation.ToString() != FTT.UI.UIPalette.LabelRoles.SettingsRowLabel || !label.Uppercase) problems.Add("the RowLabel is not the upper-case T52 role");
+                if (label.Text != loose.Text) problems.Add($"the RowLabel reads {label.Text}");
+                if (label.Position.X + label.Size.X > track.Position.X - 1f) problems.Add("the RowLabel runs under the track");
+            }
+            foreach (string slot in new[] { "font_color", "font_focus_color", "font_hover_color", "font_pressed_color", "font_disabled_color" }) {
+                if (loose.GetThemeColor(slot).A > 0f) problems.Add($"the button's own {slot} still draws");
+            }
+            // In a Settings row the track starts on the control column: (label 360 + gap 22) x 1.4.
+            Rect2 rowTrack = PulpToggleDecor.TrackRect(row.Size);
+            if (Mathf.Abs(rowTrack.Position.X - (360f + 22f) * 1.4f) > 1f) problems.Add($"the row's track starts at {rowTrack.Position.X}, not the control column {(360f + 22f) * 1.4f}");
+            if (row.GetNodeOrNull<Label>(PulpToggleDecor.RowLabelName) == null) problems.Add("the row's toggle has no RowLabel");
+            if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
+            AssertObject(decor).IsNotNull();
+            AssertObject(rowDecor).IsNotNull();
+        } finally {
+            FTT.UI.UIPalette.ApplyUiScale(saved);
+            host.GetParent()?.RemoveChild(host);
+            host.Free();
+        }
+    }
+
+    /// <summary>
+    /// TG-CLOSE capture finding: a toggle skinned while hidden (the select's stage phase) kept its row label at the height
+    /// its autowrap gave it at zero width (one glyph a line, some 380 px), so once shown the line drew 170 px under the
+    /// track, below the next row. Shown, the label sits on the button's own row, its line level with the track.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task AToggleSkinnedWhileHiddenLaysItsRowLabelOnItsRowWhenShown() {
+        var tree = (SceneTree)Engine.GetMainLoop();
+        var host = new Control { Name = "HiddenToggleHost", Size = new Vector2(1600f, 400f), Visible = false };
+        FTT.UI.UIPalette.ApplyTheme(host);
+        tree.Root.AddChild(host);
+        try {
+            var row = new HBoxContainer { Name = "RulesRow", Size = new Vector2(1400f, 52f) };
+            host.AddChild(row);
+            var toggle = new CheckButton { Text = "fighter_meter_pickups", CustomMinimumSize = new Vector2(682f, 52f) };
+            row.AddChild(toggle);
+            PulpToggleDecor.Apply(toggle);
+            for (int i = 0; i < 3; i++) await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+            host.Visible = true;
+            for (int i = 0; i < 4; i++) await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+            Label label = toggle.GetNode<Label>(PulpToggleDecor.RowLabelName);
+            Rect2 track = PulpToggleDecor.TrackRect(toggle.Size);
+            AssertThat(label.Position.Y).OverrideFailureMessage($"the row label starts at y {label.Position.Y}").IsEqual(0f);
+            AssertThat(Mathf.Abs(label.Size.Y - toggle.Size.Y) < 0.5f)
+                .OverrideFailureMessage($"the row label is {label.Size.Y} tall on a {toggle.Size.Y} px row").IsTrue();
+            AssertThat(Mathf.Abs(label.Size.Y / 2f - track.GetCenter().Y) < 1f)
+                .OverrideFailureMessage($"the row label's line centre {label.Size.Y / 2f} is not level with the track's {track.GetCenter().Y}").IsTrue();
+        } finally {
+            host.GetParent()?.RemoveChild(host);
+            host.Free();
+        }
+    }
 }

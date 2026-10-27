@@ -1265,7 +1265,7 @@ holodeck_calibration_drills,Calibration Drills
 drill_picker_title,Calibration Drills
 drill_picker_hint,"Pick a legend to train with. Every kit here is the normalized Fighter loadout - no Resonance, no campaign progress, nothing to lose."
 drill_list_title,Calibration Drills
-drill_list_hint,"Six short lessons in the universal verbs. Each one is pass or fail, and you can retry as often as you like."
+drill_list_hint,"Five short lessons in the universal verbs. Each one is pass or fail, and you can retry as often as you like."
 drill_list_character,"Training as {0}"
 drill_progress,"Drill {0} of {1}"
 drill_retry,Retry
@@ -1676,15 +1676,6 @@ hud_percent,{0}%
 hud_rewind_count,×{0}
 hud_boss_phase,Phase {0}
 # UR SELECT
-character_einstein_dates,1879–1955
-character_joan_dates,c. 1412–1431
-character_leonardo_dates,1452–1519
-character_lincoln_dates,1809–1865
-character_cleopatra_dates,69–30 BC
-character_tesla_dates,1856–1943
-character_shakespeare_dates,1564–1616
-character_mozart_dates,1756–1791
-character_tubman_dates,c. 1822–1913
 character_einstein_card_name,Einstein
 character_joan_card_name,Joan
 character_leonardo_card_name,Leonardo
@@ -1699,7 +1690,6 @@ fighter_stat_speed,Speed
 fighter_stat_weight,Weight
 fighter_stats_card,"HP {0}  Speed {1:0.##}  Weight {2:0.##}  {3}"
 fighter_select_choosing,Hmm...
-fighter_random_mystery,Mystery fighter
 # UR MENU
 menu_cover_title_word,Fighters
 menu_cover_title_banner,Through Time

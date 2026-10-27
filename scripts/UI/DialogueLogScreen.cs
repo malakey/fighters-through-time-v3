@@ -88,7 +88,7 @@ namespace FTT.UI {
             };
             center.AddChild(_panel);
             PulpScreenKit.DressPanel(_panel, sheen: true, buttonInset: true);
-            MenuSafeAreaFit.Attach(_panel, GlassScreenDressing.OverlayPromptClearance);
+            MenuSafeAreaFit.AttachClearOfPromptBar(_panel, _root);
 
             var body = new VBoxContainer { Name = "Body" };
             body.AddThemeConstantOverride("separation", 16);
@@ -107,9 +107,8 @@ namespace FTT.UI {
                 Name = "EmptyLabel",
                 Text = "dialogue_log_empty",
                 HorizontalAlignment = HorizontalAlignment.Center,
-                ThemeTypeVariation = UIPalette.LabelRoles.BodySmallLabel
+                ThemeTypeVariation = UIPalette.LabelRoles.BodySmallDimLabel
             };
-            _emptyLabel.AddThemeColorOverride("font_color", UIPalette.Ink2);
             body.AddChild(_emptyLabel);
 
             _scroll = new ScrollContainer {
@@ -206,9 +205,8 @@ namespace FTT.UI {
                 Text = entry.Speaker ?? "",
                 AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled,
                 Uppercase = true,
-                ThemeTypeVariation = UIPalette.LabelRoles.HeroName
+                ThemeTypeVariation = UIPalette.LabelRoles.LogSpeaker
             };
-            speakerLabel.AddThemeColorOverride("font_color", UIPalette.Accent);
             column.AddChild(speakerLabel);
 
             var text = new Label {
@@ -217,7 +215,7 @@ namespace FTT.UI {
                 AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled,
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
-                ThemeTypeVariation = UIPalette.LabelRoles.BodyLabel
+                ThemeTypeVariation = UIPalette.LabelRoles.BodyCompactLabel
             };
             column.AddChild(text);
             return row;

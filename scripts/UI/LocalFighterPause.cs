@@ -241,7 +241,7 @@ namespace FTT.UI {
             panelCenter.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
             AddChild(panelCenter);
             panelCenter.AddChild(_panel);
-            MenuSafeAreaFit.Attach(_panel, GlassScreenDressing.OverlayPromptClearance);
+            MenuSafeAreaFit.AttachClearOfPromptBar(_panel, backdrop);
             PulpScreenKit.DressPanel(_pausePanel, sheen: true, buttonInset: true);
 
             var layout = new VBoxContainer { Name = "Layout" };

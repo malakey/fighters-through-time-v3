@@ -325,7 +325,6 @@ namespace FTT.UI {
                 GetNode<Button>(layout + "HardButton"),
                 FTT.Core.Difficulty.Hard, "difficulty_hard", "difficulty_hard_description");
             _difficultyDescription = GetNodeOrNull<Label>(layout + "Description");
-            _difficultyDescription?.AddThemeColorOverride("font_color", UIPalette.Ink2);
             ShowDifficultyDescription(_difficultyDescriptionKey);
             GetNode<Button>(layout + "BackButton").Pressed += GoBack;
         }

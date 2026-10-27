@@ -140,12 +140,12 @@ public class MainMenuCoverTests {
             AssertThat(card.FindValidFocusNeighbor(side) == card).OverrideFailureMessage("The card lets focus leave by " + side).IsTrue();
         }
         // Focused: the focus edge along its hairline with the glow, and the A prompt; it never slides (no focus pose).
-        var frame = card.GetNode<MainMenu.SlabFrame>("FocusFrame");
+        var frame = card.GetNode<SlabFrame>("FocusFrame");
         var badge = card.GetNode<Control>("PromptBadge");
         AssertThat(frame.Visible).IsFalse();
         card.GrabFocus();
         AssertThat(frame.Visible).IsTrue();
-        AssertThat(frame.Mode == MainMenu.SlabFrame.FrameMode.Focus).OverrideFailureMessage("The focused card's frame is " + frame.Mode).IsTrue();
+        AssertThat(frame.Mode == SlabFrame.FrameMode.Focus).OverrideFailureMessage("The focused card's frame is " + frame.Mode).IsTrue();
         AssertThat(badge.Visible).IsTrue();
         AssertThat(badge.GetChildCount()).IsEqual(1);
         bool posed = false;
@@ -363,7 +363,7 @@ public class MainMenuCoverTests {
             var panel = menu.GetNode<PanelContainer>(screen + "/Center/Panel");
             if (panel.GetNodeOrNull<GlassSheen>(GlassSheen.NodeName) == null) issues.Add(screen + " has no sheen");
             if (panel.GetNodeOrNull<PanelTagAnchor>(PulpScreenKit.TagAnchorName) is not { } tag || tag.TagLabel.Text.Length == 0) issues.Add(screen + " has no tag");
-            if (panel.GetNodeOrNull<Label>("Layout/Title")?.GetNodeOrNull<MainMenu.HeadingFlourishes>(MainMenu.HeadingFlourishes.NodeName) == null) {
+            if (panel.GetNodeOrNull<Label>("Layout/Title")?.GetNodeOrNull<TitleFlourishes>(TitleFlourishes.NodeName) == null) {
                 issues.Add(screen + "'s title has no flourishes");
             }
             foreach (Node node in menu.GetNode(screen).FindChildren("*", "Button", true, false)) {
@@ -375,11 +375,19 @@ public class MainMenuCoverTests {
                 else if (button.Name == "BackButton" && decor.ShowPrompt) issues.Add(screen + "'s Back shows a prompt (a compact footer, D6)");
             }
         }
+        // Open the slot screen (Story Mode). Its rows show SaveManager's slots (the screen reads them for display only; no
+        // slot row is pressed, so nothing loads or writes): TG-CLOSE folded the quiet empty slab into the theme, so an empty
+        // slot's slab wears GlassPanelEmpty and a filled one GlassPanelContinue, with no local panel box at 1.0.
+        menu.GetNode<Button>("RootScreen/Center/Panel/Layout/StoryButton").EmitSignal(BaseButton.SignalName.Pressed);
+        await Frames(2);
         for (int slot = 0; slot < 3; slot++) {
             var button = menu.GetNode<Button>($"SlotScreen/Center/Panel/Layout/SlotRow{slot}/SlotButton");
             var slab = button.GetNodeOrNull<PanelContainer>("Slab");
-            if (slab == null || slab.ThemeTypeVariation.ToString() != UIPalette.Variations.GlassPanelContinue) issues.Add("slot " + slot + " has no glass slab");
-            if (button.GetNodeOrNull<MainMenu.SlabFrame>("SlabFrame") == null) issues.Add("slot " + slot + " has no frame");
+            bool empty = SaveManager.Instance?.SaveSlots[slot] == null;
+            string slabVariation = empty ? UIPalette.Variations.GlassPanelEmpty : UIPalette.Variations.GlassPanelContinue;
+            if (slab == null || slab.ThemeTypeVariation.ToString() != slabVariation) issues.Add("slot " + slot + " (" + (empty ? "empty" : "filled") + ") wears " + slab?.ThemeTypeVariation + ", not " + slabVariation);
+            else if (slab.HasThemeStyleboxOverride("panel")) issues.Add("slot " + slot + " paints its own slab");
+            if (button.GetNodeOrNull<SlabFrame>("SlabFrame") == null) issues.Add("slot " + slot + " has no frame");
             if (button.CustomMinimumSize != new Vector2(MainMenu.SlotSlabWidth, MainMenu.SlotSlabHeight)) issues.Add("slot " + slot + " is " + button.CustomMinimumSize);
         }
         var grid = menu.GetNode<GridContainer>("CharacterScreen/Center/Panel/Layout/Body/Grid");
@@ -406,15 +414,19 @@ public class MainMenuCoverTests {
     [TestCase]
     public void TheSceneAndScriptsCarryNoPulpArtNoFontSizeOverrideAndNoChromeCyan() {
         string source = File.ReadAllText(ProjectSettings.GlobalizePath(ScenePath));
-        AssertThat(source.Contains("res://assets/sprites/ui/pulp/")).OverrideFailureMessage("The scene still references pulp art").IsFalse();
+        foreach (string retiredPath in FTT.Tests.ContentValidation.UiLegacyKitReferenceScanTests.RetiredPaths) {
+            AssertThat(source.Contains(retiredPath)).OverrideFailureMessage("The scene still references pulp art").IsFalse();
+        }
         AssertThat(source.Contains("theme_override_font_sizes")).OverrideFailureMessage("A font-size override survives").IsFalse();
         AssertThat(source.Contains("Color(0, 0.9, 0.9, 1)")).OverrideFailureMessage("A chrome cyan literal survives").IsFalse();
         AssertThat(source.Contains("type=\"StyleBoxTexture\"")).OverrideFailureMessage("The scene carries its own texture plate").IsFalse();
         AssertThat(source.Contains("temporal_glass_main_menu_background.png")).OverrideFailureMessage("The root lost its glass art").IsTrue();
         AssertThat(source.Contains("temporal_glass_submenu_background.png")).OverrideFailureMessage("The sub-screens lost their art").IsTrue();
-        // No retired pulp variation or role anywhere in the menu's scene or scripts (the closeout's purge relies on it).
-        string[] retired = { "CoverBannerPanel", "BannerPanel", "PaperPanel", "CardPlate", "BubblePlate", "StampPlate", "KeyTagPlate",
-            "SlotPlate", "CardDates", "BubbleText", "StarBadgeText", "ui/pulp/" };
+        // No retired pulp variation, role or kit path anywhere in the menu's scene or scripts (TG-CLOSE keeps the one retired
+        // list in UiLegacyKitReferenceScanTests, which also scans the whole repository).
+        var retired = new List<string>(FTT.Tests.ContentValidation.UiLegacyKitReferenceScanTests.RetiredVariations);
+        retired.AddRange(FTT.Tests.ContentValidation.UiLegacyKitReferenceScanTests.RetiredRoles);
+        retired.AddRange(FTT.Tests.ContentValidation.UiLegacyKitReferenceScanTests.RetiredPaths);
         foreach (string file in new[] { ScenePath, "res://scripts/UI/MainMenu.cs", "res://scripts/UI/MainMenu.Cover.cs",
                      "res://scripts/UI/MainMenu.SubScreens.cs" }) {
             string text = File.ReadAllText(ProjectSettings.GlobalizePath(file));

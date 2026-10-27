@@ -172,8 +172,12 @@ public class FighterHudSceneTests {
             AssertThat(twoMeter.SelfModulate).IsEqual(NotYetFlash.Tint);
             AssertObject(NotYetFlash.FrameOf(twoSpecialTwo)).IsNotNull();
             AssertThat(NotYetFlash.FrameOf(twoSpecialTwo).Visible).IsTrue();
-            AssertObject(NotYetFlash.FrameOf(twoMeter)).IsNotNull();
-            AssertThat(NotYetFlash.FrameOf(twoMeter).Visible).IsTrue();
+            // TG-CLOSE (TG-HUDF kit gap 4): the Ultimate tube's refusal draws a frame that leans with the tube (P2's
+            // mirrored, "\"), not the rectangle round it.
+            AssertObject(NotYetFlash.FrameOf(twoMeter)).IsNull();
+            AssertObject(NotYetFlash.TubeOf(twoMeter)).IsNotNull();
+            AssertThat(NotYetFlash.TubeOf(twoMeter).Visible).IsTrue();
+            AssertThat(NotYetFlash.TubeLeansMirrored(twoMeter)).IsTrue();
             AssertThat(twoSpecialTwo.Modulate)
                 .OverrideFailureMessage("The readiness alpha (Modulate) is not the flash's to touch.")
                 .IsEqual(readinessTwo);

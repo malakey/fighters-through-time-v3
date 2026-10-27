@@ -52,7 +52,12 @@ namespace FTT.UI {
             return presenter;
         }
 
-        /// <summary>UI_SPEC_GLASS 9.2: the plate hangs top-centre at y 140, at most 900 wide, its height the text's.</summary>
+        /// <summary>
+        /// UI_SPEC_GLASS 9.2: the plate hangs top-centre at y 140, at most 900 wide, its height the text's. TG-CLOSE: like the
+        /// checkpoint toast it keeps to the Story HUD's free band (<see cref="StoryHUD.FreeBand"/>), leaving the centre only
+        /// as far as a cluster needs and wrapping at the band's width when the band is narrower: centred, eight of the nine
+        /// lines covered the Vitals panel at 1.0 and all nine at 1.4 (the band is then about 508 px wide).
+        /// </summary>
         public const float PlateTop = 140f, PlateMaxWidth = 900f;
 
         /// <summary>
@@ -168,19 +173,28 @@ namespace FTT.UI {
         private Tween _appear;
 
         /// <summary>
-        /// Sizes the plate to its line: the line on one row while it fits inside <see cref="PlateMaxWidth"/> less the padding,
-        /// else wrapped at that width (9.2: "height to content, max 900 wide"). Every metric grows with the UI scale. The plate
-        /// is re-centred on its anchor each time, because the rise of the previous showing wrote its offsets.
+        /// Sizes the plate to its line: the line on one row while it fits inside <see cref="PlateMaxWidth"/> (or the HUD's free
+        /// band, when narrower) less the padding, else wrapped at that width (9.2: "height to content, max 900 wide"). Every
+        /// metric grows with the UI scale. The plate is placed on its anchor each time, because the rise of the previous
+        /// showing wrote its offsets: centred on the screen, moved into the free band only as far as needed.
         /// </summary>
         private void FitPlate() {
             float s = Pulp.PulpButtonDecor.UiScaleFactor;
+            float view = GetViewport()?.GetVisibleRect().Size.X ?? 1920f;
+            if (view <= 1f) view = 1920f;
+            // The band in the HUD's canvas (the HUD is magnified by its own scale setting), on screen.
+            float hud = Mathf.Max(0.01f, UiScaleBinder.CurrentSetting);
+            (float bandLeft, float bandRight) = StoryHUD.FreeBand(view / hud);
+            bandLeft *= hud;
+            bandRight *= hud;
+            float maxWidth = Mathf.Min(PlateMaxWidth * s, Mathf.Max(0f, bandRight - bandLeft));
             if (_washBox != null) {
                 _washBox.ContentMarginLeft = PadLeft * s;
                 _washBox.ContentMarginRight = PadRight * s;
                 _washBox.ContentMarginTop = PadVertical * s;
                 _washBox.ContentMarginBottom = PadVertical * s;
             }
-            float room = (PlateMaxWidth - PadLeft - PadRight) * s;
+            float room = Mathf.Max(1f, maxWidth - (PadLeft + PadRight) * s);
             _label.AutowrapMode = TextServer.AutowrapMode.Off;
             _label.CustomMinimumSize = Vector2.Zero;
             if (_label.GetCombinedMinimumSize().X > room) {
@@ -189,8 +203,11 @@ namespace FTT.UI {
                 // Wrap at the final width now, so the plate's height is right before the rise records its position.
                 _label.Size = new Vector2(room, 0f);
             }
-            _panel.OffsetLeft = 0f;
-            _panel.OffsetRight = 0f;
+            float width = _panel.GetCombinedMinimumSize().X;
+            float left = Mathf.Max(bandLeft, Mathf.Min(view / 2f - width / 2f, bandRight - width));
+            // The plate is anchored at the screen's centre line (anchors 0.5), so its offsets are measured from it.
+            _panel.OffsetLeft = left - view / 2f;
+            _panel.OffsetRight = left - view / 2f + width;
             _panel.OffsetTop = PlateTop * s;
             _panel.OffsetBottom = PlateTop * s;
         }

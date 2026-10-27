@@ -216,6 +216,52 @@ public class FighterHudTopBandTests {
         }
     }
 
+    /// <summary>
+    /// REVIEW-UI-GLASS-CODEX-2 (Codex review 2 of Phase B, major): a heal that lands while the damage tracker holds, or
+    /// while it drains, stops the tracker the hit started. Its drain writes through <c>LagValue</c> from its own start, so
+    /// a heal that only assigned the value let the old drain bring a damage band back above the healed fill, with no new
+    /// hit. Checked frame by frame past the end of the old hold and drain.
+    /// </summary>
+    [TestCase]
+    public async Task AHealDuringTheTrackersHoldOrDrainStopsItSoNoDamageBandReturns() {
+        bool reducedBefore = ComfortSettings.ReducedTemporalEffects;
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        try {
+            ComfortSettings.Apply(false);
+            await AtScale(1f, async hud => {
+                hud.ConfigurePlayer(0, null, 3, 3);
+                var bar = hud.GetNode<ProgressBar>("SafeArea/P1_Status/Body/Column/HPBar");
+                PulpBarDecor tube = PulpBarDecor.Of(bar);
+                var problems = new List<string>();
+                // The heal lands 0.1 s into the 0.5 s hold, then 0.75 s after the hit (inside the 0.6 s drain).
+                foreach ((string phase, int healAfterFrames) in new[] { ("hold", 6), ("drain", 45) }) {
+                    hud.ApplyPlayerState(0, State(hp: 100), Runtime(), TickRate);
+                    await Frames(tree, 20);
+                    if (Mathf.Abs(tube.LagValue - 100f) > 0.01f) problems.Add($"{phase}: the tracker starts at {tube.LagValue:0.##}, not 100");
+                    hud.ApplyPlayerState(0, State(hp: 50), Runtime(), TickRate);
+                    await Frames(tree, healAfterFrames);
+                    hud.ApplyPlayerState(0, State(hp: 60), Runtime(), TickRate);
+                    // 90 frames: past the end of the hit's hold and drain (1.1 s) whichever phase the heal landed in.
+                    bool reported = false;
+                    for (int frame = 0; frame < 90; frame++) {
+                        await Frames(tree, 1);
+                        if (!reported && tube.LagValue > (float)bar.Value + 0.01f) {
+                            reported = true;
+                            problems.Add($"{phase}: {frame + 1} frames after the heal the tracker is at {tube.LagValue:0.##}, "
+                                + $"above the fill at {bar.Value:0.##}");
+                        }
+                    }
+                    if (!Mathf.IsEqualApprox((float)bar.Value, 60f) || Mathf.Abs(tube.LagValue - 60f) > 0.01f) {
+                        problems.Add($"{phase}: the heal settles the fill at {bar.Value:0.##} and the tracker at {tube.LagValue:0.##}, not 60");
+                    }
+                }
+                if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
+            });
+        } finally {
+            ComfortSettings.Apply(reducedBefore);
+        }
+    }
+
     [TestCase]
     public async Task ThePlayerTwoBarsMirrorLeanAnchorGradientAndCap() {
         await AtScale(1f, async hud => {
@@ -396,9 +442,11 @@ public class FighterHudTopBandTests {
                     Near(issues, at + " lens pitch", lenses[1].GetGlobalRect().Position.X - lenses[0].GetGlobalRect().Position.X, 74f * scale);
                     Near(issues, at + " lens to badge", chips[0].GetGlobalRect().Position.X - lenses[2].GetGlobalRect().End.X, 50f * scale);
                     Near(issues, at + " badge gap", chips[1].GetGlobalRect().Position.X - chips[0].GetGlobalRect().End.X, 18f * scale);
-                    // The badge is drawn from its control's top: 40 tall, 7 below the row's top (4L: the damage badge at y 199).
-                    Near(issues, at + " badge top", chips[0].GetGlobalRect().Position.Y, lenses[0].GetGlobalRect().Position.Y + 7f * scale);
-                    Near(issues, at + " badge height", chips[0].GetGlobalRect().Size.Y, 40f * scale);
+                    // The badge is drawn 40 tall, 7 below the row's top (4L: the damage badge at y 199). TG-CLOSE: the chip fills
+                    // the row's height and centres its badge itself (BadgeTop), so the drawn badge is measured, not the chip.
+                    Near(issues, at + " badge top", chips[0].GetGlobalRect().Position.Y + chips[0].BadgeTop * scale, lenses[0].GetGlobalRect().Position.Y + 7f * scale);
+                    Near(issues, at + " badge height", chips[0].BadgeSize * scale, 40f * scale);
+                    Near(issues, at + " badge row", chips[0].GetGlobalRect().Size.Y, row.GetGlobalRect().Size.Y);
 
                     var names = new List<string>(rects.Keys);
                     foreach (string name in names) {

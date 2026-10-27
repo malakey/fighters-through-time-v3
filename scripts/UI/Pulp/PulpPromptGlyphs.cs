@@ -62,9 +62,6 @@ namespace FTT.UI.Pulp {
         public static string LabelFor(StringName action, PromptDevice device) =>
             device == PromptDevice.Pad ? PadLabelFor(action) : KeyLabelFor(action);
 
-        /// <summary>Legacy: the pulp key-cap's texture (the glass key-cap is drawn as a rounded outline instead).</summary>
-        public const string KeyCapPath = "res://assets/sprites/ui/pulp/keycap.png";
-
         /// <summary>The glass key-cap (UI_SPEC_GLASS 3.4.4): corner radius 6, a 2 px border, minimum width 34, padding 9.</summary>
         public const int KeyCapRadius = 6, KeyCapBorder = 2;
         public const float KeyCapMinWidth = 34f, KeyCapPadding = 9f;

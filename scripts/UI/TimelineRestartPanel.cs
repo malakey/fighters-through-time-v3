@@ -55,7 +55,7 @@ namespace FTT.UI {
             center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
             AddChild(center);
             center.AddChild(panel);
-            MenuSafeAreaFit.Attach(panel, GlassScreenDressing.ScaledOverlayPromptClearance);
+            MenuSafeAreaFit.AttachClearOfPromptBar(panel, shade);
 
             var layout = new VBoxContainer { Name = "Layout", Alignment = BoxContainer.AlignmentMode.Center };
             layout.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);
@@ -97,9 +97,9 @@ namespace FTT.UI {
             // The confirm modal's no-trim rule (9.2, UR-POLISH): a row too long for the capped width wraps onto a second
             // line and grows, never ellipsizes ("Restart Level from Beginning" needs about 900 px on one line).
             foreach (Button row in rows) FTT.UI.Pulp.PulpButtonDecor.Apply(row).GrowToFit = true;
-            FTT.UI.Pulp.PulpButtonDecor.ApplyStackWidth(rows, 560f, GlassScreenDressing.ScaledStackCap(680f));
-            GlassScreenDressing.AddOverlayPromptBar(shade, ("ui_accept", "ui_prompt_select"), ("ui_cancel", "common_back"));
-            GlassScreenDressing.FadeIn(panel);
+            FTT.UI.Pulp.PulpButtonDecor.ApplyStackWidth(rows, 560f, PulpScreenKit.ScaledStackCap(680f));
+            PulpScreenKit.AddOverlayPromptBar(shade, ("ui_accept", "ui_prompt_select"), ("ui_cancel", "common_back"));
+            PulpScreenKit.FadeIn(panel);
         }
 
         private void OnFullRestartPressed() => _fullRestartConfirmation?.Open();

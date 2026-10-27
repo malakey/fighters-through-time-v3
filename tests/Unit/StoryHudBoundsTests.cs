@@ -102,4 +102,58 @@ public class StoryHudBoundsTests {
         }
         if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
     }
+
+    /// <summary>
+    /// TG-CLOSE (the orchestrator's check of the first-use tooltip at y 140 against the clusters): the plate hangs at
+    /// 140 s, at most 900 s wide, and keeps to the free band between the left stack and the right cluster like the
+    /// checkpoint toast, so no tooltip covers the Vitals panel. Centred at the screen's middle, eight of the nine lines
+    /// ran over the Vitals panel at 1.0 and all nine at 1.4.
+    /// </summary>
+    [TestCase]
+    public async Task TheFirstUseTooltipKeepsToTheFreeBandAtTheThreeUiScales() {
+        SaveManager save = SaveManager.Instance;
+        AssertObject(save?.GlobalData).IsNotNull();
+        float original = save.GlobalData.UiScale;
+        float applied = UIPalette.AppliedUiScale;
+        var problems = new List<string>();
+        foreach (float scale in new[] { 0.9f, 1.0f, 1.4f }) {
+            SceneTree tree = (SceneTree)Engine.GetMainLoop();
+            var port = new SubViewport { Size = new Vector2I(1920, 1080), RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled };
+            tree.Root.AddChild(port);
+            try {
+                save.GlobalData.UiScale = scale;
+                UIPalette.ApplyUiScale(scale);
+                StoryHUD hud = StoryHUD.CreateDefault();
+                port.AddChild(hud);
+                hud.SetLevelTitle("campaign_level_orleans");
+                hud.SetObjective("florence_objective_reach_boss");
+                var presenter = new FirstUseTooltipPresenter { Name = "FirstUseTooltips" };
+                port.AddChild(presenter);
+                await Frames(4);
+                Rect2 title = Bounds(hud.GetNode<Control>("SafeArea/TopLeft"));
+                Rect2 left = Bounds(hud.GetNode<Control>("SafeArea/TopLeft_Panel"));
+                Rect2 dust = Bounds(hud.GetNode<Control>("SafeArea/TopRight_Panel/DustPlate"));
+                Rect2 dial = Bounds(hud.GetNode<Control>("SafeArea/TopRight_Panel/IntegrityClock"));
+                foreach (string id in FirstUseTooltips.All) {
+                    presenter.PresentForPreview(FirstUseTooltips.KeyFor(id));
+                    await Frames(20);   // past the appear (MOT-A row 4)
+                    Rect2 plate = Bounds(presenter.GetNode<Control>("TooltipPanel"));
+                    string at = $"{scale} {id}: plate {plate}";
+                    if (!Frame.Encloses(plate)) problems.Add($"{at} outside the frame");
+                    if (Mathf.Abs(plate.Position.Y - FirstUseTooltipPresenter.PlateTop * scale) > 1f) problems.Add($"{at} not at y {FirstUseTooltipPresenter.PlateTop * scale}");
+                    if (plate.Size.X > FirstUseTooltipPresenter.PlateMaxWidth * scale + 1f) problems.Add($"{at} wider than {FirstUseTooltipPresenter.PlateMaxWidth * scale}");
+                    if (plate.Intersects(left)) problems.Add($"{at} covers the left stack {left}");
+                    if (plate.Intersects(title)) problems.Add($"{at} covers the title row {title}");
+                    if (plate.Intersects(dust)) problems.Add($"{at} covers the dust plate {dust}");
+                    if (plate.Intersects(dial)) problems.Add($"{at} covers the dial {dial}");
+                }
+                hud.QueueFree();
+            } finally {
+                save.GlobalData.UiScale = original;
+                UIPalette.ApplyUiScale(applied);
+                port.Free();
+            }
+        }
+        if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
+    }
 }

@@ -224,8 +224,7 @@ namespace FTT.UI {
         public const string PromptBarName = "ScreenPromptBar";
 
         /// <summary>The tag's offset from the panel rectangle's corner (UI_SPEC_GLASS 3.1: chamfer 18 + 8, -11).</summary>
-        public static readonly Vector2 TagFromPanelCorner = PulpTaggedPanel.TagOffset
-            + new Vector2(PulpTaggedPanel.PaddingBoxInset, PulpTaggedPanel.PaddingBoxInset);
+        public static readonly Vector2 TagFromPanelCorner = PulpTaggedPanel.TagOffset;
 
         /// <summary>
         /// Draws the panel's title tag without wrapping the panel (so its node path and its parent are
@@ -297,20 +296,6 @@ namespace FTT.UI {
             bar.OffsetRight = -PromptRightMargin;
             bar.OffsetBottom = -PromptCornerBottomMargin;
             return bar;
-        }
-
-        /// <summary>
-        /// Keeps a long, wrapping button label clear of the focused row's prompt badge: every plate the
-        /// button draws gets its own copy with the right content margin raised by <paramref name="pixels"/>
-        /// (default: the badge and its gap, <see cref="PulpButtonDecor.BadgeReserve"/>).
-        /// </summary>
-        public static void ReserveBadgeSpace(Button button, float pixels = PulpButtonDecor.BadgeReserve) {
-            foreach (string state in new[] { "normal", "hover", "pressed", "focus", "disabled" }) {
-                if (button.GetThemeStylebox(state) is not StyleBox plate) continue;
-                var copy = (StyleBox)plate.Duplicate();
-                copy.ContentMarginRight = Mathf.Max(0f, plate.GetContentMargin(Side.Right)) + pixels;
-                button.AddThemeStyleboxOverride(state, copy);
-            }
         }
 
         /// <summary>Gives every <see cref="Button"/> under <paramref name="root"/> the chevron decor.</summary>

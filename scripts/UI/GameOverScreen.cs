@@ -80,8 +80,8 @@ namespace FTT.UI {
             if (root is ColorRect dim) dim.Color = UIPalette.GameOverDim;
             if (root.GetNodeOrNull<PanelContainer>("Center/Panel") is { } panel) {
                 PulpScreenKit.DressPanel(panel, buttonInset: true);
-                MenuSafeAreaFit.Attach(panel, GlassScreenDressing.ScaledOverlayPromptClearance);
-                GlassScreenDressing.FadeIn(panel);
+                MenuSafeAreaFit.AttachClearOfPromptBar(panel, root);
+                PulpScreenKit.FadeIn(panel);
             }
             if (layout != null && layout.GetNodeOrNull<Label>("Title") is { } title) {
                 var rule = FTT.UI.Pulp.GlassFlourish.Create(FTT.UI.Pulp.GlassFlourish.FlourishShape.RuleDiamondRule, 0f, FTT.UI.Pulp.GlassFlourish.MenuGap);
@@ -102,8 +102,8 @@ namespace FTT.UI {
                 stack.Add(button);
             }
             // D6 (UI_SPEC_GLASS 3.2): the stack shares its widest required width (prompt reserved), at least 560, inside the slab.
-            FTT.UI.Pulp.PulpButtonDecor.ApplyStackWidth(stack, 560f, GlassScreenDressing.ScaledStackCap(680f));
-            GlassScreenDressing.AddOverlayPromptBar(root, ("ui_accept", "ui_prompt_select"));
+            FTT.UI.Pulp.PulpButtonDecor.ApplyStackWidth(stack, 560f, PulpScreenKit.ScaledStackCap(680f));
+            PulpScreenKit.AddOverlayPromptBar(root, ("ui_accept", "ui_prompt_select"));
         }
 
         public override void _ExitTree() {

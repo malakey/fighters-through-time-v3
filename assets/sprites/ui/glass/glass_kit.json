@@ -1507,6 +1507,15 @@
   ],
   "type": "GradientTexture2D"
  },
+ "glass_option_arrow": {
+  "file": "icons/chevron_down_18.png",
+  "mipmaps": true,
+  "serves": "OptionButton arrow (3.3): chevron_down in the bold weight rasterized at its 18 px display size (an OptionButton draws its arrow at the texture's own size), its generic glow baked (sigma 2.5 x 18 / 64). Baked in ink2 / ink, so the theme's modulate_arrow, which tints it by the field's font colour, lands it on ink2 at rest (7.2), brighter when the field is lit and dimmer when disabled.",
+  "size": [
+   18,
+   18
+  ]
+ },
  "glass_panel": {
   "content_margins_hint_LTRB": [
    28,
@@ -1593,12 +1602,13 @@
   "type": "GradientTexture2D"
  },
  "glass_slider_grabber": {
+  "deviation": "canvas 44 x 44 (TG-ART drew 64 x 64): a Slider is as tall as its grabber icon, so the 64 px canvas made every Settings slider row 64 tall; at 44 the glow is clipped to the canvas, fading over its last 3 px, and a slider stands in a 44 px field like the option buttons (TG-CLOSE).",
   "file": "glass_slider_grabber.png",
   "mipmaps": true,
   "serves": "HSlider / VSlider grabber and grabber_highlight icon (3.3): the 31.7 px white diamond (a 28 px square rotated 45 degrees and scaled .8), its accent ring (3 px before the .8 scale, 2.4 px drawn) and the 16 px accent glow (sigma 6.4 drawn), centred. Not tinted.",
   "size": [
-   64,
-   64
+   44,
+   44
   ]
  },
  "glass_tab": {
@@ -1675,7 +1685,7 @@
   }
  },
  "glass_tab_hover": {
-  "deviation": "addition (not in 6.4): tab_hovered replaces the tab's style, so it needs the full look.",
+  "deviation": "addition (not in 6.4): tab_hovered replaces the tab's style, so it needs its own look. TG-ART drew it as the selected look plus the glow, which read as selected (orchestrator: a quieter hover).",
   "expand_margins_LTRB": [
    14,
    14,
@@ -1690,7 +1700,7 @@
    31,
    14
   ],
-  "serves": "G14 tab, hovered: the selected look plus the 14 px glow as one box (tab_hovered; AC8 hover = focus).",
+  "serves": "G14 tab, hovered (tab_hovered): the unselected tab lit, a fill of rgba(glow,.16) (TabHover) with the 14 px glow outside the shape at .30; its text turns white. Quieter than the selected tab, so a hovered tab never reads as the selected one (TG-CLOSE).",
   "size": [
    92,
    76

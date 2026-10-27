@@ -66,11 +66,11 @@ namespace FTT.UI {
         public static float MetricScale => PulpButtonDecor.UiScaleFactor;
 
         /// <summary>
-        /// The width a toggle row's check button takes: the label column and the gap (both grow with the UI scale), then the
-        /// 132 px track, which the toggle decor draws at a fixed size at the button's right end. So the track starts on the
-        /// control column, under the sliders and fields, at every scale.
+        /// The width a toggle row's check button takes: the label column, the gap and the 132 px track the toggle decor
+        /// draws at the button's right end, all at the UI scale (TG-CLOSE: the track follows the scale too). So the track
+        /// starts on the control column, under the sliders and fields, at every scale.
         /// </summary>
-        public float ToggleRowWidth => (LabelWidth + ItemGap) * MetricScale + PulpToggleDecor.TrackWidth;
+        public float ToggleRowWidth => (LabelWidth + ItemGap + PulpToggleDecor.TrackWidth) * MetricScale;
 
         public SettingsRowLayout() {
             MouseFilter = MouseFilterEnum.Pass;

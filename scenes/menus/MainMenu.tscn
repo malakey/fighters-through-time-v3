@@ -992,7 +992,7 @@ alignment = 0
 custom_minimum_size = Vector2(560, 56)
 layout_mode = 2
 auto_translate_mode = 2
-theme_type_variation = &"BodySmallLabel"
+theme_type_variation = &"DescriptionLabel"
 autowrap_mode = 3
 
 [node name="BackButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout"]

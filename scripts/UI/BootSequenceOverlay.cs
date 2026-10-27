@@ -202,7 +202,7 @@ namespace FTT.UI {
         private void BuildNotice() {
             _noticeElapsed = 0f;
             _content.AddChild(MakeTitle("NoticeTitle", "boot_photosensitivity_title"));
-            _content.AddChild(MakeLabel("NoticeBody", "boot_photosensitivity_body", UIPalette.LabelRoles.BodyLabel, wrap: true));
+            _content.AddChild(MakeLabel("NoticeBody", "boot_photosensitivity_body", UIPalette.LabelRoles.BodyCompactLabel, wrap: true));
             _noticeProgress = new ProgressBar {
                 Name = "NoticeProgress", MinValue = 0, MaxValue = 1, Value = 0, ShowPercentage = false,
                 CustomMinimumSize = new Vector2(0, 8)
@@ -248,7 +248,7 @@ namespace FTT.UI {
         private void BuildFirstRunSetup() {
             GlobalSaveData data = SaveManager.Instance?.GlobalData;
             _content.AddChild(MakeTitle("SetupTitle", "first_run_title"));
-            _content.AddChild(MakeLabel("SetupIntro", "first_run_intro", UIPalette.LabelRoles.BodySmallLabel, wrap: true, secondary: true));
+            _content.AddChild(MakeLabel("SetupIntro", "first_run_intro", UIPalette.LabelRoles.BodySmallDimLabel, wrap: true));
 
             // Card 1: Reduced Temporal Effects, with a live preview.
             AddSectionHeading("ComfortHeading", "first_run_card_comfort");
@@ -280,7 +280,7 @@ namespace FTT.UI {
             };
             comfortRow.AddChild(_previewSwatch);
             _content.AddChild(comfortRow);
-            _content.AddChild(MakeLabel("ComfortHelp", "first_run_comfort_preview", UIPalette.LabelRoles.BodySmallLabel, wrap: true, secondary: true));
+            _content.AddChild(MakeLabel("ComfortHelp", "first_run_comfort_preview", UIPalette.LabelRoles.BodySmallDimLabel, wrap: true));
 
             // Card 2: UI Scale, applied live to the shared theme (3.3: a 360 px glass slider).
             AddSectionHeading("ScaleHeading", "first_run_card_ui_scale");
@@ -411,7 +411,7 @@ namespace FTT.UI {
 
         private void BuildCrashPrompt() {
             _content.AddChild(MakeTitle("CrashTitle", "crash_prompt_title"));
-            _content.AddChild(MakeLabel("CrashBody", "crash_prompt_body", UIPalette.LabelRoles.BodyLabel, wrap: true));
+            _content.AddChild(MakeLabel("CrashBody", "crash_prompt_body", UIPalette.LabelRoles.BodyCompactLabel, wrap: true));
             AddFooterGap();
             var row = new HBoxContainer { Name = "Buttons", Alignment = BoxContainer.AlignmentMode.Center };
             row.AddChild(MakeButton("NeverButton", "crash_prompt_never", () => AnswerCrashPrompt(openFolder: false, never: true)));
@@ -470,10 +470,11 @@ namespace FTT.UI {
         };
 
         /// <summary>
-        /// Body copy (9.1 item 3): Outfit 400 in ink, or ink2 for <paramref name="secondary"/> copy, centred. A wrapping line
+        /// Body copy (9.1 item 3), centred, in the role it is given (secondary copy wears <c>BodySmallDimLabel</c>, ink2,
+        /// folded by TG-CLOSE in place of a colour override). A wrapping line
         /// takes the slab's full width from its container.
         /// </summary>
-        private static Label MakeLabel(string name, string key, string variation, bool wrap = false, bool secondary = false) {
+        private static Label MakeLabel(string name, string key, string variation, bool wrap = false) {
             var label = new Label {
                 Name = name,
                 Text = key,
@@ -481,7 +482,6 @@ namespace FTT.UI {
             };
             if (!string.IsNullOrEmpty(variation)) label.ThemeTypeVariation = variation;
             if (wrap) label.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-            if (secondary) label.AddThemeColorOverride("font_color", UIPalette.Ink2);
             return label;
         }
 

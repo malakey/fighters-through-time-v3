@@ -17,6 +17,12 @@ namespace FTT.UI {
     /// sorts them, so when the panel's parent is a container (the usual
     /// <c>CenterContainer</c>) the scale is written to that parent instead; it is a
     /// full-rect centring node, so the pivot at its centre is the screen centre.</para>
+    ///
+    /// <para>TG-CLOSE: a fit attached through <see cref="AttachClearOfPromptBar"/> also keeps the panel
+    /// <see cref="PromptGapPixels"/> clear of the screen's prompt bar (the kit's <see cref="PulpScreenKit.PromptBarName"/>
+    /// under the given host), measured from the bar's real top every time the bar is laid out: one rule for every
+    /// overlay and the Resonance grid, where TG-SCREENS kept a 56 px reserve scaled with the UI scale and TG-PAUSE an
+    /// unscaled one (the bar is 34 px at 1.0 and 35 at 1.4).</para>
     /// </summary>
     public partial class MenuSafeAreaFit : Node {
         public const string NodeName = "SafeAreaFit";
@@ -27,10 +33,34 @@ namespace FTT.UI {
         /// <summary>The smallest scale ever applied; below it the panel clips rather than shrinks.</summary>
         public const float MinScale = 0.5f;
 
+        /// <summary>The clear gap a panel keeps from the screen's prompt bar (TG-CLOSE).</summary>
+        public const float PromptGapPixels = 10f;
+
         private Control _target;
         private Control _scaled;
         private Viewport _viewport;
         private float _extraVertical;
+        private float _appliedExtra;
+        private Control _barHost;
+        private Control _bar;
+        private bool _applyQueued;
+
+        /// <summary>
+        /// Pure rule: the clear space a centred panel keeps above and below itself so its bottom edge stays
+        /// <see cref="PromptGapPixels"/> above a prompt bar whose top is at <paramref name="barTop"/> (the fit's own
+        /// <see cref="MarginPixels"/> counted in).
+        /// </summary>
+        public static float PromptClearance(float viewHeight, float barTop) =>
+            Mathf.Max(0f, viewHeight - barTop + PromptGapPixels - MarginPixels);
+
+        /// <summary>The clear space above and below the panel the last <see cref="Apply"/> used.</summary>
+        public float ExtraVertical => _appliedExtra;
+
+        /// <summary>The node whose prompt bar the panel clears (null: none).</summary>
+        public Control PromptBarHost => _barHost;
+
+        /// <summary>The panel this fit keeps on screen.</summary>
+        public Control Target => _target;
 
         /// <summary>Pure rule: the uniform scale (at most 1) that fits <paramref name="size"/> into <paramref name="view"/>.</summary>
         public static float ScaleFor(Vector2 size, Vector2 view, float extraVertical = 0f) {
@@ -51,8 +81,20 @@ namespace FTT.UI {
             // child order, which scripts and tests index into, is unchanged.
             Node home = panel.GetParent() ?? panel;
             if (home.GetNodeOrNull<MenuSafeAreaFit>(NodeName) is { } existing) return existing;
-            var fit = new MenuSafeAreaFit { Name = NodeName, _target = panel, _extraVertical = extraVertical };
+            var fit = new MenuSafeAreaFit { Name = NodeName, _target = panel, _extraVertical = extraVertical, _appliedExtra = extraVertical };
             home.AddChild(fit);
+            return fit;
+        }
+
+        /// <summary>
+        /// Attaches the fit (as <see cref="Attach"/>) so the panel also stays <see cref="PromptGapPixels"/> clear of the
+        /// prompt bar under <paramref name="barHost"/>, measured from the bar's top (the bar may be added after this call).
+        /// </summary>
+        public static MenuSafeAreaFit AttachClearOfPromptBar(Control panel, Control barHost) {
+            MenuSafeAreaFit fit = Attach(panel);
+            if (fit == null) return null;
+            fit._barHost = barHost;
+            fit.QueueApply();
             return fit;
         }
 
@@ -68,6 +110,7 @@ namespace FTT.UI {
             _target.VisibilityChanged += Apply;
             if (_viewport != null) _viewport.SizeChanged += Apply;
             Apply();
+            QueueApply();   // once more after the build that attached the fit, which may add the prompt bar after it
         }
 
         public override void _ExitTree() {
@@ -77,6 +120,7 @@ namespace FTT.UI {
                 _target.VisibilityChanged -= Apply;
             }
             if (_viewport != null && GodotObject.IsInstanceValid(_viewport)) _viewport.SizeChanged -= Apply;
+            UnhookBar();
             if (_scaled != null && GodotObject.IsInstanceValid(_scaled)) _scaled.Scale = Vector2.One;
             _target = null;
             _scaled = null;
@@ -88,10 +132,42 @@ namespace FTT.UI {
             if (_target == null || _scaled == null || !_target.IsInsideTree() || _viewport == null) return;
             Vector2 size = _target.GetCombinedMinimumSize();
             size = new Vector2(Mathf.Max(size.X, _target.Size.X), Mathf.Max(size.Y, _target.Size.Y));
-            float scale = ScaleFor(size, _viewport.GetVisibleRect().Size, _extraVertical);
+            Vector2 view = _viewport.GetVisibleRect().Size;
+            _appliedExtra = Mathf.Max(_extraVertical, PromptBarReserve(view.Y));
+            float scale = ScaleFor(size, view, _appliedExtra);
             _scaled.PivotOffset = _scaled.Size / 2f;
             Vector2 wanted = new(scale, scale);
             if (_scaled.Scale != wanted) _scaled.Scale = wanted;
+        }
+
+        private void QueueApply() {
+            if (_applyQueued) return;
+            _applyQueued = true;
+            Callable.From(() => {
+                _applyQueued = false;
+                if (GodotObject.IsInstanceValid(this)) Apply();
+            }).CallDeferred();
+        }
+
+        // The clearance the host's prompt bar needs, from its real top; follows the bar's layout (a key cap, a caption or
+        // the UI scale changing its height). Measured whether or not the bar shows, so a panel never jumps when a screen
+        // hides its bar under a child overlay.
+        private float PromptBarReserve(float viewHeight) {
+            if (_barHost == null || !GodotObject.IsInstanceValid(_barHost)) return 0f;
+            Control bar = _barHost.GetNodeOrNull<Control>(PulpScreenKit.PromptBarName);
+            if (!ReferenceEquals(bar, _bar)) {
+                UnhookBar();
+                _bar = bar;
+                if (_bar != null) _bar.ItemRectChanged += Apply;
+            }
+            if (_bar == null || _bar.Size.Y <= 0f) return 0f;
+            float top = (_bar.GetGlobalTransform() * new Rect2(Vector2.Zero, _bar.Size)).Position.Y;
+            return PromptClearance(viewHeight, top);
+        }
+
+        private void UnhookBar() {
+            if (_bar != null && GodotObject.IsInstanceValid(_bar)) _bar.ItemRectChanged -= Apply;
+            _bar = null;
         }
     }
 }

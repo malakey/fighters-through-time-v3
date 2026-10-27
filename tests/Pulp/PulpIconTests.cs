@@ -1,3 +1,4 @@
+using FTT.Tests.ContentValidation;
 using FTT.UI.Pulp;
 using GdUnit4;
 using Godot;
@@ -6,8 +7,8 @@ using static GdUnit4.Assertions;
 namespace FTT.Tests.Pulp;
 
 /// <summary>
-/// The icon widget (TG-WIDGETS, ICN-A): one white glass texture per glyph and weight, bold below 30 px, the legacy pulp
-/// names through their aliases or the frozen pulp fallback, and the never-throws rule for unknown names.
+/// The icon widget (TG-WIDGETS, ICN-A): one white glass texture per glyph and weight, bold below 30 px, the never-throws
+/// rule for unknown names, and (TG-CLOSE) the retired pulp names and transition aliases drawing nothing.
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
@@ -29,16 +30,20 @@ public class PulpIconTests {
         }
     }
 
+    /// <summary>TG-CLOSE rewrite of EveryLegacyPulpNameStillDrawsThroughGlassAnAliasOrThePulpFallback.</summary>
     [TestCase]
-    public void EveryLegacyPulpNameStillDrawsThroughGlassAnAliasOrThePulpFallback() {
-        AssertThat(PulpIcon.KitNames.Count).IsEqual(26);
-        foreach (string name in PulpIcon.KitNames) {
-            AssertThat(PulpIcon.Exists(name)).IsTrue();
-            bool glass = PulpIcon.ResolveGlass(name) != null;
-            bool pulp = PulpIcon.LoadLayers(name) != null;
-            if (!glass && !pulp) AssertThat($"legacy icon '{name}' would draw nothing").IsEqual("");
+    public void TheRetiredPulpOnlyNamesDrawNothingAndTheSharedNamesDrawGlass() {
+        var issues = new System.Collections.Generic.List<string>();
+        foreach (string name in UiLegacyKitReferenceScanTests.RetiredIconNames) {
+            if (PulpIcon.Exists(name) || PulpIcon.ResolveGlass(name) != null || PulpIcon.TextureFor(name, 46f) != null) {
+                issues.Add($"the retired icon name '{name}' still draws");
+            }
+            PulpIcon icon = PulpIcon.Create(name, Colors.White, 46f);
+            if (icon.GlassName != null) issues.Add($"a PulpIcon named '{name}' draws {icon.GlassName}");
+            icon.Free();
         }
-        // A name both kits have draws the glass texture (one tinted layer), not the pulp layers.
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+        // A name the pulp kit and the glass kit both had draws the glass texture.
         PulpIcon shield = PulpIcon.Create("shield", Colors.White, 30f);
         AssertThat(shield.GlassName).IsEqual("shield");
         shield.Free();
@@ -47,8 +52,8 @@ public class PulpIconTests {
     [TestCase]
     public void AnUnknownNameIsSafeAndDrawsNothing() {
         AssertThat(PulpIcon.Exists("no_such_icon")).IsFalse();
-        AssertObject(PulpIcon.LoadLayers("no_such_icon")).IsNull();
-        AssertObject(PulpIcon.LoadLayers(null)).IsNull();
+        AssertObject(PulpIcon.ResolveGlass(null)).IsNull();
+        AssertObject(PulpIcon.TextureFor(null, 40f)).IsNull();
         PulpIcon icon = PulpIcon.Create("no_such_icon", Colors.White, 40f);
         var root = ((SceneTree)Engine.GetMainLoop()).Root;
         root.AddChild(icon);
@@ -60,19 +65,16 @@ public class PulpIconTests {
         }
     }
 
+    /// <summary>TG-CLOSE rewrite of ALegacyNameResolvesThroughItsAlias: the aliases are gone, the glass names draw.</summary>
     [TestCase]
-    public void ALegacyNameResolvesThroughItsAlias() {
-        AssertThat(PulpIcon.ResolveGlass("anchor")).IsEqual("beacon_anchor");
-        AssertThat(PulpIcon.ResolveGlass("anchor_hollow")).IsEqual("beacon_anchor_hollow");
-        PulpIcon anchor = PulpIcon.Create("anchor", Colors.White, 46f);
-        AssertThat(anchor.IconName).IsEqual("anchor");
-        AssertThat(anchor.GlassName).IsEqual("beacon_anchor");
-        AssertThat(PulpIcon.TextureFor("anchor", 46f)).IsEqual(PulpKit.GlassIconTexture("beacon_anchor", false));
-        anchor.Free();
-        // A name with neither a glass icon nor an alias falls back to its pulp layers until the closeout.
-        foreach (string pulpOnly in new[] { "anchor_pip", "anchor_pip_cracked", "marker", "prompt_circle" }) {
-            AssertObject(PulpIcon.ResolveGlass(pulpOnly)).IsNull();
-            AssertObject(PulpIcon.LoadLayers(pulpOnly)).IsNotNull();
+    public void TheBeaconAnchorDrawsByItsGlassNamesWithNoAlias() {
+        foreach (string name in new[] { "beacon_anchor", "beacon_anchor_hollow" }) {
+            AssertThat(PulpIcon.ResolveGlass(name)).IsEqual(name);
+            PulpIcon anchor = PulpIcon.Create(name, Colors.White, 46f);
+            AssertThat(anchor.GlassName).IsEqual(name);
+            AssertThat(PulpIcon.TextureFor(name, 46f)).IsEqual(PulpKit.GlassIconTexture(name, false));
+            AssertThat(PulpIcon.TextureFor(name, 24f)).IsEqual(PulpKit.GlassIconTexture(name, true));
+            anchor.Free();
         }
     }
 

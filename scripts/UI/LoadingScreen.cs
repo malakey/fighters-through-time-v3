@@ -173,10 +173,10 @@ namespace FTT.UI {
             _stagePreview = FindControl<TextureRect>("StagePreview");
 
             if (GetNodeOrNull<Control>("Root") is { } root) PulpScreenKit.AddScreenStreak(root);
-            if (_titleLabel != null) _titleFlourishes = GlassScreenDressing.FlankTitle(_titleLabel);
+            if (_titleLabel != null) _titleFlourishes = TitleFlourishes.Attach(_titleLabel);
             if (FindControl<Label>("VersusLabel") is { } versus) {
                 TitleGradient.Attach(versus);
-                GlassScreenDressing.ApplySceneHalo(versus, large: true);
+                PulpScreenKit.ApplySceneHalo(versus, large: true);
             }
             if (_stageFrame is PanelContainer stageSlab) PulpScreenKit.DressPanel(stageSlab);
             DressVersusSide(0, _playerPortrait, "PlayerSlotRow");

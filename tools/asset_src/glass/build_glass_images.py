@@ -27,6 +27,7 @@ OUT = os.path.join(G.REPO, "assets", "sprites", "ui", "glass")
 WHITE = (255, 255, 255)
 FOCUS_GLOW_SIGMA = 7.0     # 0 0 14px rgba(glow,.55)
 FOCUS_GLOW_ALPHA = 0.55
+TAB_HOVER_GLOW_ALPHA = 0.30   # TG-CLOSE: the hovered tab's glow, quieter than the focus glow
 
 
 # ---- raster helpers --------------------------------------------------------------------------------------------
@@ -169,7 +170,10 @@ def build_tabs():
     save(crop(load("tab_normal"), G.TAB_BOX), "glass_tab.png", bg=G.GLOW)
     save(crop(selected, G.TAB_BOX), "glass_tab_selected.png", bg=G.GLOW)
     save(flat(glow * (1.0 - sil), G.GLOW), "glass_tab_focus.png", bg=G.GLOW)
-    save(over(selected, flat(glow, G.GLOW)), "glass_tab_hover.png", bg=G.GLOW)
+    # TG-CLOSE: the quieter hover, the unselected tab lit (fill rgba(glow,.16)) with the glow outside it at .30, so a
+    # hovered tab no longer reads as the selected one (TG-ART drew the selected look plus the glow).
+    quiet = glow_of(sil, FOCUS_GLOW_SIGMA, TAB_HOVER_GLOW_ALPHA)
+    save(over(load("tab_hover_fill"), flat(quiet * (1.0 - sil), G.GLOW)), "glass_tab_hover.png", bg=G.GLOW)
 
 
 def build_fields():
@@ -205,6 +209,20 @@ def build_icons():
             save(art, f"icons/{name}{suffix}.png", bg=colour)
 
 
+def build_option_arrow():
+    """TG-CLOSE: the OptionButton arrow, chevron_down's bold weight at its 18 px display size (an OptionButton draws its
+    arrow at the texture's size), with the generic icon glow scaled to 18 px. Baked in ink2 / ink: the theme tints it by
+    the field's font colour (modulate_arrow), which lands it on ink2 at rest."""
+    kind, s_reg, s_bold, strength, rgb = G.ICON_TABLE["chevron_down"][3]
+    art = load("icons/chevron_down_bold_18")
+    sigma = s_bold * 18.0 / 64.0
+    art = over(art, flat(strength * blur(art[..., 3], sigma) * window(art.shape[:2], 1.0), WHITE))
+    ink, ink2 = (0xF3, 0xF0, 0xE6), (0xC0, 0xBA, 0xA6)
+    tint = np.asarray([b / a for a, b in zip(ink, ink2)], dtype=np.float64)
+    art = np.concatenate([art[..., :3] * tint, art[..., 3:4]], axis=-1)
+    save(art, "icons/chevron_down_18.png", bg=tuple(round(255 * t) for t in tint))
+
+
 # ---- gradient resources (7.3) ----------------------------------------------------------------------------------
 
 def _fmt(v: float) -> str:
@@ -236,7 +254,7 @@ def build_gradients():
 def main():
     os.makedirs(OUT, exist_ok=True)
     for fn in (build_panel, build_tag, build_buttons, build_tabs, build_fields, build_grabber, build_diamonds,
-               build_icons, build_gradients):
+               build_icons, build_option_arrow, build_gradients):
         fn()
     print(f"wrote {len(WRITTEN)} files into {os.path.relpath(OUT, G.REPO)}")
 

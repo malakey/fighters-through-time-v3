@@ -317,9 +317,9 @@ namespace FTT.UI {
             if (_shade is ColorRect dim) dim.Color = UIPalette.PauseDim;
             if (_panel != null) {
                 PulpScreenKit.DressPanel(_panel, buttonInset: true);
-                MenuSafeAreaFit.Attach(_panel, GlassScreenDressing.ScaledOverlayPromptClearance);
+                MenuSafeAreaFit.AttachClearOfPromptBar(_panel, _shade);
             }
-            if (_titleLabel != null) _titleFlourishes = GlassScreenDressing.FlankTitle(_titleLabel);
+            if (_titleLabel != null) _titleFlourishes = TitleFlourishes.Attach(_titleLabel);
             foreach (Label line in new[] { _dustMobsLabel, _dustExtractorsLabel, _dustBossLabel, _dustOptionalLabel,
                          _dustCarriedLabel, _dustTierBonusLabel, _dustLossesLabel, _dustLabel, _integrityLabel,
                          _secretsLabel, _timeLabel, _rewindsLabel }) {
@@ -328,10 +328,10 @@ namespace FTT.UI {
             ResultRow.Attach(_dustLabel)?.SetValueColor(UIPalette.Res);
             if (_returnButton != null) {
                 PulpButtonDecor.Apply(_returnButton).GrowToFit = true;
-                PulpButtonDecor.ApplyStackWidth(new[] { _returnButton }, 560f, GlassScreenDressing.ScaledStackCap(700f));
-                if (_shade != null) GlassScreenDressing.AddOverlayPromptBar(_shade, ("ui_accept", "ui_prompt_select"));
+                PulpButtonDecor.ApplyStackWidth(new[] { _returnButton }, 560f, PulpScreenKit.ScaledStackCap(700f));
+                if (_shade != null) PulpScreenKit.AddOverlayPromptBar(_shade, ("ui_accept", "ui_prompt_select"));
             }
-            if (_panel != null) GlassScreenDressing.FadeIn(_panel);
+            if (_panel != null) PulpScreenKit.FadeIn(_panel);
         }
 
         // === Package 11 A5: the V7.5 "Resonance Restored" beat ==============

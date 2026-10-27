@@ -99,7 +99,7 @@ namespace FTT.UI {
             _panel = _root.GetNodeOrNull<PausePanel>("Center/Panel");
             if (_panel != null) {
                 PulpScreenKit.DressPanel(_panel, sheen: true, buttonInset: true);
-                MenuSafeAreaFit.Attach(_panel, GlassScreenDressing.OverlayPromptClearance);
+                MenuSafeAreaFit.AttachClearOfPromptBar(_panel, _root);
             }
             if (_portrait?.GetParent() is Control header) {
                 _portraitFrame = new Pulp.PulpPortraitRoundel { Name = "PortraitFrame", Diameter = PortraitSize };
@@ -354,9 +354,8 @@ namespace FTT.UI {
                 Text = text,
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
-                ThemeTypeVariation = UIPalette.LabelRoles.BodySmallLabel
+                ThemeTypeVariation = UIPalette.LabelRoles.BodySmallDimLabel
             };
-            row.AddThemeColorOverride("font_color", UIPalette.Ink2);
             _sections.AddChild(row);
         }
 
@@ -400,9 +399,8 @@ namespace FTT.UI {
             // 9.2: the slot name (Outfit 18, .16em, accent) over the ability name (Cinzel 700 24, ink).
             var slotLabel = new Label {
                 Name = "SlotName", Text = Tr(slotKey), Uppercase = true,
-                ThemeTypeVariation = UIPalette.LabelRoles.CaptionLabel
+                ThemeTypeVariation = UIPalette.LabelRoles.SlotCaption
             };
-            slotLabel.AddThemeColorOverride("font_color", UIPalette.Accent);
             body.AddChild(slotLabel);
 
             string abilityName = string.IsNullOrWhiteSpace(ability.DisplayNameKey)
@@ -423,9 +421,8 @@ namespace FTT.UI {
                     : string.Format(
                         Tr("movelist_ability_stats"), ability.BaseDamage, ability.CooldownDuration),
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
-                ThemeTypeVariation = UIPalette.LabelRoles.BodySmallLabel
+                ThemeTypeVariation = UIPalette.LabelRoles.BodySmallDimLabel
             };
-            stats.AddThemeColorOverride("font_color", UIPalette.Ink2);
             body.AddChild(stats);
             if (dormant) PulpScreenKit.AddLeadingIcon(stats, "dormant", UIPalette.Ink3, DormantGlyphSize);
 
@@ -434,9 +431,8 @@ namespace FTT.UI {
                     Name = "AbilityDescription",
                     Text = Tr(ability.DescriptionKey),
                     AutowrapMode = TextServer.AutowrapMode.WordSmart,
-                    ThemeTypeVariation = UIPalette.LabelRoles.BodySmallLabel
+                    ThemeTypeVariation = UIPalette.LabelRoles.BodySmallDimLabel
                 };
-                description.AddThemeColorOverride("font_color", UIPalette.Ink2);
                 body.AddChild(description);
             }
         }

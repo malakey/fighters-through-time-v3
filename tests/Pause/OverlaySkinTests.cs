@@ -151,8 +151,13 @@ public class OverlaySkinTests {
             Collect(log, labels);
             Label speaker = labels.Find(l => l.Name == "Speaker");
             AssertObject(speaker).IsNotNull();
-            // TG-PAUSE (9.2): the log's speaker is Cinzel 700 22 in accent, the HeroName role (SpeakerName is the box's T50).
-            AssertThat(speaker.ThemeTypeVariation.ToString()).IsEqual(UIPalette.LabelRoles.HeroName);
+            // 9.2: the log's speaker is Cinzel 700 22 in accent: TG-CLOSE's LogSpeaker role (TG-PAUSE recoloured HeroName);
+            // the line is Outfit 400 24, BodyCompactLabel; neither carries a colour override.
+            AssertThat(speaker.ThemeTypeVariation.ToString()).IsEqual(UIPalette.LabelRoles.LogSpeaker);
+            AssertThat(speaker.HasThemeColorOverride("font_color")).IsFalse();
+            Label line = labels.Find(l => l.Name == "Text");
+            AssertObject(line).IsNotNull();
+            AssertThat(line.ThemeTypeVariation.ToString()).IsEqual(UIPalette.LabelRoles.BodyCompactLabel);
         } finally {
             DialogueLog.Clear();
             Free(log);

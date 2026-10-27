@@ -189,7 +189,7 @@ public class CalibrationDrillsRouteTests {
     }
 
     [TestCase]
-    public void TheDrillListBuildsTheCatalogsSixDrillsAndIsFullyFocusAuthored() {
+    public void TheDrillListBuildsTheCatalogsDrillsAndIsFullyFocusAuthored() {
         (Node host, CalibrationDrillList list) = OpenList("DrillListShapeHost", CalibrationRoute.MainMenuScenePath);
         try {
             AssertThat(list.DrillButtons.Count).IsEqual(CalibrationDrillCatalog.Count);
@@ -203,7 +203,7 @@ public class CalibrationDrillsRouteTests {
             }
             if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
 
-            // Six drill rows plus Back and Exit Calibration.
+            // The catalog's drill rows (five since FU-ECHO) plus Back and Exit Calibration.
             AssertChainCovers(list.GetNode<Control>("List"), CalibrationDrillCatalog.Count + 2);
 
             // The character line resolves a name rather than leaking a raw key.

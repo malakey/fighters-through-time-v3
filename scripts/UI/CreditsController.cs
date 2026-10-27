@@ -152,9 +152,9 @@ namespace FTT.UI {
                     Name = $"CreditLine_{index}",
                     Text = Tr(line.Key),
                     HorizontalAlignment = HorizontalAlignment.Center,
-                    // The title stays on one line: its gradient spans one line box (a second line drew flat in the
-                    // gradient's last colour), so the 1100 px column widens to it, centred, when it is wider.
-                    AutowrapMode = line.Key == TitleKey ? TextServer.AutowrapMode.Off : TextServer.AutowrapMode.WordSmart,
+                    // Every line wraps in the 1100 px column, the title too: its gradient repeats on each of its lines
+                    // (TG-CLOSE; it stayed on one line and widened the column past the screen at 1.4).
+                    AutowrapMode = TextServer.AutowrapMode.WordSmart,
                     MouseFilter = Control.MouseFilterEnum.Ignore
                 };
                 // TG-SCREENS (UI_SPEC_GLASS 9.2): roles carry the size and colour, so the roll follows the accessibility
@@ -172,13 +172,13 @@ namespace FTT.UI {
 
         /// <summary>
         /// The role a credit line wears: the title at 78 px (<c>PauseTitle</c>, Cinzel 900, white under the gradient), the
-        /// end line in T03 (<c>BannerHeading</c>), the other headings in <c>HeadingLabel</c> (Cinzel 700 accent; the spec's
-        /// 30 px is a kit gap, the role is 26) and the names in <c>BodyLabel</c> (Outfit 400 26 ink).
+        /// end line in T03 (<c>BannerHeading</c>), the other headings in <c>CreditsHeading</c> (Cinzel 700 30 .13em accent,
+        /// 9.2; folded by TG-CLOSE, <c>HeadingLabel</c>'s 26 stood in) and the names in <c>BodyLabel</c> (Outfit 400 26 ink).
         /// </summary>
         public static string RoleFor(CreditLine line) => line.Key switch {
             TitleKey => UIPalette.LabelRoles.PauseTitle,
             EndKey => UIPalette.LabelRoles.BannerHeading,
-            _ => line.IsHeading ? UIPalette.LabelRoles.HeadingLabel : UIPalette.LabelRoles.BodyLabel
+            _ => line.IsHeading ? UIPalette.LabelRoles.CreditsHeading : UIPalette.LabelRoles.BodyLabel
         };
 
         private void ResolveOrBuildUI() {

@@ -27,12 +27,19 @@ namespace FTT.Tests.Unit;
 /// a MenuSafeAreaFit scale counts. The largest such panel of a surface must also
 /// be centred within 2 px unless the surface is on the explicit allow-list of
 /// deliberate layouts below.
+///
+/// TG-CLOSE: where a surface shows the kit's prompt bar (PulpScreenKit.PromptBarName),
+/// no panel but the bar's own ancestors comes within MenuSafeAreaFit.PromptGapPixels
+/// (10 px) of the bar's real rect, at both scales; and every overlay that clears a bar
+/// reserves exactly the clearance measured from that bar's top (one rule, where TG-SCREENS
+/// kept a scaled 56 px reserve and TG-PAUSE an unscaled one).
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
 public class MenuLayoutBoundsTests {
 
     private const float Tolerance = 1.5f;
+    private const int SettleFrames = 20;
     private const float CentreTolerance = 2f;
     private static readonly Rect2 Screen = new(0f, 0f, 1920f, 1080f);
 
@@ -40,6 +47,12 @@ public class MenuLayoutBoundsTests {
     private static readonly HashSet<string> LeftAligned = new() {
         "MainMenu/RootScreen",
         "FirstUseTooltip",
+    };
+
+    /// <summary>The surfaces whose safe-area fit reserves the room the prompt bar takes (TG-CLOSE).</summary>
+    private static readonly HashSet<string> ClearsPromptBar = new() {
+        "Settings", "MoveList", "SystemsCard", "ResonanceGrid", "GameOver", "LevelResults", "LocalFighterPause",
+        "StoryPause", "HolodeckConsole", "HolodeckConsoleFrontEnd", "TimelineRestart", "DialogueLog",
     };
 
     private sealed class Surface {
@@ -81,15 +94,16 @@ public class MenuLayoutBoundsTests {
                             host.AddChild(node);
                             surface.Open?.Invoke(node);
                             surface.SetState?.Invoke(node, state);
-                            await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
-                            await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
-                            await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+                            // Past the panel appear (MOT-A: 0.22 s at the fixed 60 fps), so a panel is measured on its slot,
+                            // not mid-rise (TG-CLOSE: the prompt-bar checks read the panel's bottom edge).
+                            for (int frame = 0; frame < SettleFrames; frame++) await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
                             string label = state.Length == 0 ? surface.Name : surface.Name + "/" + state;
                             Node target = surface.Target != null ? surface.Target(node) : host;
                             if (target == null) {
                                 issues.Add(label + "@" + scale + ": nothing to measure");
                             } else {
                                 Measure(target, label, scale, LeftAligned.Contains(label), issues);
+                                if (ClearsPromptBar.Contains(label)) MeasurePromptReserve(target, label, scale, issues);
                             }
                         } finally {
                             tree.Paused = wasPaused;
@@ -186,12 +200,63 @@ public class MenuLayoutBoundsTests {
             }
             if (r.Size.X * r.Size.Y > largest.Rect.Size.X * largest.Rect.Size.Y) largest = entry;
         }
+        if (FindPromptBar(target) is { } bar && bar.Size.Y > 0f) {
+            Rect2 barRect = bar.GetGlobalTransform() * new Rect2(Vector2.Zero, bar.Size);
+            foreach (var entry in panels) {
+                // The bar itself, what holds it or sits in it, and a full-screen dim or backdrop are not a slab.
+                if (entry.Panel == bar || entry.Panel.IsAncestorOf(bar) || bar.IsAncestorOf(entry.Panel)) continue;
+                if (entry.Rect.Size.X >= Screen.Size.X - Tolerance && entry.Rect.Size.Y >= Screen.Size.Y - Tolerance) continue;
+                if (entry.Rect.Intersects(barRect.Grow(MenuSafeAreaFit.PromptGapPixels - Tolerance))) {
+                    issues.Add(label + "@" + scale + ": " + entry.Panel.Name + " " + Fmt(entry.Rect) + " runs within "
+                        + MenuSafeAreaFit.PromptGapPixels + " px of the prompt bar " + Fmt(barRect));
+                }
+            }
+        }
         if (leftAligned) return;
         Vector2 centre = largest.Rect.GetCenter();
         if (Mathf.Abs(centre.X - Screen.GetCenter().X) > CentreTolerance
             || Mathf.Abs(centre.Y - Screen.GetCenter().Y) > CentreTolerance) {
             issues.Add(label + "@" + scale + ": " + largest.Panel.Name + " " + Fmt(largest.Rect) + " is off the screen centre");
         }
+    }
+
+    // The fit of the surface's open panel reserves exactly what its prompt bar's real top needs.
+    private static void MeasurePromptReserve(Node target, string label, float scale, List<string> issues) {
+        Control bar = FindPromptBar(target);
+        if (bar == null || bar.Size.Y <= 0f) {
+            issues.Add(label + "@" + scale + ": no prompt bar to clear");
+            return;
+        }
+        float barTop = (bar.GetGlobalTransform() * new Rect2(Vector2.Zero, bar.Size)).Position.Y;
+        float wanted = MenuSafeAreaFit.PromptClearance(Screen.Size.Y, barTop);
+        var fits = new List<MenuSafeAreaFit>();
+        CollectFits(target, fits);
+        if (fits.Count == 0) issues.Add(label + "@" + scale + ": no safe-area fit on the open panel");
+        foreach (MenuSafeAreaFit fit in fits) {
+            if (Mathf.Abs(fit.ExtraVertical - wanted) > 0.5f) {
+                issues.Add(label + "@" + scale + ": " + fit.Target.Name + " reserves " + fit.ExtraVertical.ToString("0.#")
+                    + " px, the prompt bar's top at " + barTop.ToString("0.#") + " needs " + wanted.ToString("0.#"));
+            }
+        }
+    }
+
+    private static void CollectFits(Node node, List<MenuSafeAreaFit> found) {
+        if (node is MenuSafeAreaFit fit && fit.Target != null && GodotObject.IsInstanceValid(fit.Target) && fit.Target.IsVisibleInTree()) {
+            found.Add(fit);
+        }
+        for (int index = 0; index < node.GetChildCount(); index++) CollectFits(node.GetChild(index), found);
+    }
+
+    private static Control FindPromptBar(Node node) {
+        if (node is CanvasLayer layer && !layer.Visible) return null;
+        if (node is Control control) {
+            if (!control.Visible) return null;
+            if (control.Name == PulpScreenKit.PromptBarName && control.IsVisibleInTree()) return control;
+        }
+        for (int index = 0; index < node.GetChildCount(); index++) {
+            if (FindPromptBar(node.GetChild(index)) is { } bar) return bar;
+        }
+        return null;
     }
 
     private static void Collect(Node node, List<(Control, Rect2)> found) {

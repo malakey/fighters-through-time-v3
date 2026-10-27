@@ -76,26 +76,11 @@ public class PulpMotionRulesTests {
         AssertThat(PulpMotionRules.BloomAt(0f) == (1f, 0f)).IsTrue();
         AssertThat(PulpMotionRules.BloomAt(PulpMotionRules.BloomSeconds) == (1f, 1f)).IsTrue();
         AssertThat(PulpMotionRules.BloomAt(PulpMotionRules.BloomSeconds + 2.3f) == (1f, 1f)).IsTrue();
-        // Nothing flashes faster than once a second: the slowest repeating cue (low HP) is a 2 s, 0.5 Hz breath,
-        // and the legacy hit flash stays rate-limited until the closeout deletes it.
+        // Nothing flashes faster than once a second: the slowest repeating cue (low HP) is a 2 s, 0.5 Hz breath, and
+        // MOT-A has no hit flash (plan 0.4 P7; the glass closeout deleted the pulp one with its limiter).
         AssertThat(PulpMotionRules.LowPulseSeconds >= 1f).IsTrue();
         AssertThat(PulpMotionRules.LowPulseAt(0f)).IsEqual(0f);
         AssertThat(Close(PulpMotionRules.LowPulseAt(PulpMotionRules.LowPulseSeconds / 2f), 1f)).IsTrue();
         AssertThat(Close(PulpMotionRules.LowPulseAt(PulpMotionRules.LowPulseSeconds), 0f)).IsTrue();
-        AssertThat(PulpMotionRules.HitFlashMinIntervalSeconds >= 1f).IsTrue();
-    }
-
-    [TestCase]
-    public void TheHitFlashLimiterAllowsOneFlashPerSecondPerBar() {
-        var bar = new HitFlashLimiter();
-        AssertThat(bar.TryFlash(10.0)).IsTrue();
-        AssertThat(bar.TryFlash(10.2)).IsFalse();     // a multi-hit string inside the window
-        AssertThat(bar.TryFlash(10.99)).IsFalse();
-        AssertThat(bar.TryFlash(11.0)).IsTrue();
-        // Limiters are per bar: another bar flashes independently.
-        var other = new HitFlashLimiter();
-        AssertThat(other.TryFlash(10.2)).IsTrue();
-        bar.Reset();
-        AssertThat(bar.TryFlash(11.1)).IsTrue();
     }
 }

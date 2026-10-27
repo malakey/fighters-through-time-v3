@@ -57,7 +57,7 @@ namespace FTT.UI {
             _panel = _root.GetNodeOrNull<PausePanel>("Center/Panel");
             if (_panel != null) {
                 PulpScreenKit.DressPanel(_panel, sheen: true, buttonInset: true);
-                MenuSafeAreaFit.Attach(_panel, GlassScreenDressing.OverlayPromptClearance);
+                MenuSafeAreaFit.AttachClearOfPromptBar(_panel, _root);
             }
             AddSectionRules(_root.GetNodeOrNull<Container>("Center/Panel/Layout/Scroll/Sections"));
             var close = _root.GetNodeOrNull<Button>("Center/Panel/Layout/FooterRow/CloseButton");

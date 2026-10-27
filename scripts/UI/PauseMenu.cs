@@ -271,7 +271,7 @@ namespace FTT.UI {
             PausePanel.TrimTitleBox(_menuPanel?.GetNodeOrNull<Label>("Layout/Title"));
             if (_menuPanel is PanelContainer panel) {
                 PulpScreenKit.DressPanel(panel, sheen: true, buttonInset: true);
-                MenuSafeAreaFit.Attach(panel, GlassScreenDressing.OverlayPromptClearance);
+                MenuSafeAreaFit.AttachClearOfPromptBar(panel, _root);
             }
             if (_root.GetNodeOrNull(PulpScreenKit.PromptBarName) == null) PulpScreenKit.AddBottomPromptBar(_root, "menu_resume");
             _promptBar = _root.GetNodeOrNull<Control>(PulpScreenKit.PromptBarName);

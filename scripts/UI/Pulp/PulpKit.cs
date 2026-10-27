@@ -5,36 +5,31 @@ using Godot;
 namespace FTT.UI.Pulp {
 
     /// <summary>
-    /// The UI kit reader ("Pulp" is the kit's legacy name). Reads two catalogs once: the Temporal Glass kit
-    /// <c>assets/sprites/ui/glass/glass_kit.json</c> (TG-ART) first, then the frozen pulp kit
-    /// <c>assets/sprites/ui/pulp/pulp_kit.json</c> (UR-ART), so every pulp stem keeps resolving until the
-    /// closeout retires it (plan <c>docs/UI_GLASS_2026-10-26_PLAN.md</c>, standing decision 10). Every glass stem
-    /// carries a glass prefix (<c>glass_</c>, <c>glass_ico_</c>, <c>hero_</c>), so no stem is in both. Nine-slice
-    /// <see cref="StyleBoxTexture"/>s are built from the catalog in code, the way
+    /// The UI kit reader ("Pulp" is the kit's legacy name). Reads the Temporal Glass kit's catalog
+    /// <c>assets/sprites/ui/glass/glass_kit.json</c> (TG-ART) once; every stem carries a glass prefix (<c>glass_</c>,
+    /// <c>glass_ico_</c>, <c>hero_</c>). The pulp kit and its fallback catalog were deleted by the glass closeout
+    /// (TG-CLOSE, 2026-10-27). Nine-slice <see cref="StyleBoxTexture"/>s are built from the catalog in code, the way
     /// <c>tools/ui_theme/build_ftt_theme.py</c> does for the theme; they are never loaded as scripted resources.
     /// </summary>
     public static class PulpKit {
 
-        /// <summary>The pulp kit's directory (a pulp stem's texture is <c>Directory + stem + ".png"</c>).</summary>
-        public const string Directory = "res://assets/sprites/ui/pulp/";
-        /// <summary>The glass kit's directory (a glass stem's texture is its catalog <c>file</c> under it).</summary>
+        /// <summary>The glass kit's directory (a stem's texture is its catalog <c>file</c> under it).</summary>
         public const string GlassDirectory = "res://assets/sprites/ui/glass/";
-        private const string JsonPath = Directory + "pulp_kit.json";
         private const string GlassJsonPath = GlassDirectory + "glass_kit.json";
 
         private static Dictionary<string, JsonElement> _kit;
         private static HashSet<string> _glass;
 
-        /// <summary>True when either catalog lists <paramref name="stem"/> (the glass one is read first).</summary>
+        /// <summary>True when the catalog lists <paramref name="stem"/>.</summary>
         public static bool TryEntry(string stem, out JsonElement entry) {
             EnsureLoaded();
             return _kit.TryGetValue(stem ?? "", out entry);
         }
 
-        /// <summary>True when either catalog lists <paramref name="stem"/>.</summary>
+        /// <summary>True when the catalog lists <paramref name="stem"/>.</summary>
         public static bool Has(string stem) => TryEntry(stem, out _);
 
-        /// <summary>True when <paramref name="stem"/> comes from the glass catalog.</summary>
+        /// <summary>True when <paramref name="stem"/> comes from the glass catalog (every catalog stem does).</summary>
         public static bool IsGlass(string stem) {
             EnsureLoaded();
             return stem != null && _glass.Contains(stem);
@@ -44,18 +39,12 @@ namespace FTT.UI.Pulp {
             if (_kit != null) return;
             _kit = new Dictionary<string, JsonElement>();
             _glass = new HashSet<string>();
-            Read(GlassJsonPath, glass: true);
-            Read(JsonPath, glass: false);
-        }
-
-        private static void Read(string path, bool glass) {
-            using FileAccess file = FileAccess.Open(path, FileAccess.ModeFlags.Read);
+            using FileAccess file = FileAccess.Open(GlassJsonPath, FileAccess.ModeFlags.Read);
             if (file == null) return;
             using JsonDocument doc = JsonDocument.Parse(file.GetAsText());
             foreach (JsonProperty property in doc.RootElement.EnumerateObject()) {
-                if (_kit.ContainsKey(property.Name)) continue;
                 _kit[property.Name] = property.Value.Clone();
-                if (glass) _glass.Add(property.Name);
+                _glass.Add(property.Name);
             }
         }
 
@@ -65,21 +54,22 @@ namespace FTT.UI.Pulp {
         private static readonly Dictionary<(string, bool), Texture2D> GlassIcons = new();
 
         /// <summary>
-        /// The res:// path <paramref name="stem"/>'s texture loads from: a glass stem's catalog <c>file</c> under
-        /// <see cref="GlassDirectory"/> (a PNG, or a <c>GradientTexture2D</c> .tres), else the pulp convention
-        /// <c>Directory + stem + ".png"</c>.
+        /// The res:// path <paramref name="stem"/>'s texture loads from: its catalog <c>file</c> under
+        /// <see cref="GlassDirectory"/> (a PNG, or a <c>GradientTexture2D</c> .tres); null for a stem the catalog lacks.
         /// </summary>
         public static string PathOf(string stem) {
             if (IsGlass(stem) && _kit[stem].TryGetProperty("file", out JsonElement file)) {
                 return GlassDirectory + file.GetString();
             }
-            return Directory + stem + ".png";
+            return null;
         }
 
         /// <summary>The texture of <paramref name="stem"/> (cached: the path string and the lookup are built once, so a draw path may call it every frame).</summary>
         public static Texture2D Texture(string stem) {
+            if (stem == null) return null;
             if (!Textures.TryGetValue(stem, out Texture2D texture)) {
-                texture = GD.Load<Texture2D>(PathOf(stem));
+                string path = PathOf(stem);
+                texture = path != null ? GD.Load<Texture2D>(path) : null;
                 if (texture != null) Textures[stem] = texture;
             }
             return texture;
@@ -123,7 +113,7 @@ namespace FTT.UI.Pulp {
                 plate.ExpandMarginLeft = expand[0]; plate.ExpandMarginTop = expand[1];
                 plate.ExpandMarginRight = expand[2]; plate.ExpandMarginBottom = expand[3];
             }
-            if (IsGlass(stem) && entry.TryGetProperty("axis_stretch", out JsonElement stretch) && stretch.GetString() == "tile") {
+            if (entry.TryGetProperty("axis_stretch", out JsonElement stretch) && stretch.GetString() == "tile") {
                 plate.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Tile;
             }
             return plate;

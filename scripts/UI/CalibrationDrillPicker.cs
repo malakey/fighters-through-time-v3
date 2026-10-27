@@ -111,15 +111,15 @@ namespace FTT.UI {
         /// under the heading at a large UI scale.
         /// </summary>
         private void DressGlass() {
-            GlassScreenDressing.AddMenuArt(this, index: 1);
-            GlassScreenDressing.AddScreenHeading(this, "drill_picker_title");
+            PulpScreenKit.AddMenuArt(this, index: 1);
+            PulpScreenKit.AddScreenHeading(this, "drill_picker_title");
             if (GetNodeOrNull<PanelContainer>(Root + "PreviewPanel") is { } preview) PulpScreenKit.DressPanel(preview);
             var footer = GetNode<HBoxContainer>(Root + "ButtonRow");
             System.Collections.Generic.List<Button> buttons = PulpScreenKit.ButtonsOf(footer);
             foreach (Button button in buttons) FTT.UI.Pulp.PulpButtonDecor.Apply(button, compact: true).ShowPrompt = false;
             FTT.UI.Pulp.PulpButtonDecor.ApplyStackWidth(buttons, 290f, reservePrompt: false);
             PulpScreenKit.SeparateFocusRow(footer);
-            MenuSafeAreaFit.Attach(GetNode<Control>(Root.TrimEnd('/')), GlassScreenDressing.ScaledHeadingReserve);
+            MenuSafeAreaFit.Attach(GetNode<Control>(Root.TrimEnd('/')), PulpScreenKit.ScaledHeadingReserve);
             PulpScreenKit.AddPromptBar(this, ("ui_accept", "ui_prompt_select"), ("ui_cancel", "common_back"));
             PulpScreenKit.AddScreenStreak(this);
         }

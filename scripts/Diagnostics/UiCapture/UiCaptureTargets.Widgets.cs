@@ -180,11 +180,6 @@ namespace FTT.Diagnostics {
             names.AddThemeConstantOverride("h_separation", 10);
             rows.AddChild(names);
             foreach (string name in PulpIcon.GlassNames) names.AddChild(new Label { Text = name, ThemeTypeVariation = UIPalette.SmallLabelVariation });
-            var legacy = new HBoxContainer();
-            legacy.AddThemeConstantOverride("separation", 24);
-            rows.AddChild(legacy);
-            legacy.AddChild(new Label { Text = "legacy: anchor (alias), anchor_hollow (alias), anchor_pip (pulp), marker (pulp)", ThemeTypeVariation = UIPalette.SmallLabelVariation });
-            foreach (string name in new[] { "anchor", "anchor_hollow", "anchor_pip", "marker" }) legacy.AddChild(PulpIcon.Create(name, UIPalette.Accent2, 46f));
             return page;
         }
 

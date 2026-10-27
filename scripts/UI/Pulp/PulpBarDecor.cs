@@ -9,11 +9,11 @@ namespace FTT.UI.Pulp {
 
     /// <summary>
     /// TG-WIDGETS (GAUGE-A, UI_SPEC_GLASS 3.4.1 and 3.6; first written by UR-WIDGETS as the GAUGE-B overlay). The glass tube
-    /// over a <see cref="ProgressBar"/>, which stays the value carrier: the decor hides the bar's own drawing when it
-    /// attaches (a shared material only the bar's own drawing uses, <see cref="HideShaderPath"/>; TG-CLOSE later gives the
-    /// five bar variations empty styles), follows the bar's <c>SelfModulate</c> (the HUDs' flash channel: the hit flash,
-    /// the not-yet tint) and draws the whole tube in code, every layer a polygon clipped to the inner parallelogram, so a fill's anchored end follows the
-    /// slant and its moving end is vertical:
+    /// over a <see cref="ProgressBar"/>, which stays the value carrier and draws nothing of its own (the five bar
+    /// variations, <c>PulpBar</c> ... <c>PulpBossBar</c>, have an empty background and a fill that holds its colour but
+    /// draws nothing: TG-CLOSE, which retired the decor's hide-self material). The tube follows the bar's
+    /// <c>SelfModulate</c> (the HUDs' flash channel: the not-yet tint) and draws itself in code, every layer a polygon
+    /// clipped to the inner parallelogram, so a fill's anchored end follows the slant and its moving end is vertical:
     /// <list type="bullet">
     /// <item>the track: the outer parallelogram (run 12, boss 16) in <c>edge</c> (boss: its 110 degree gradient), the inner
     /// one inset 1.5 px on run 11 (15) with the 180 degree track gradient, and the tube's glow behind it;</item>
@@ -54,26 +54,6 @@ namespace FTT.UI.Pulp {
         private float[] _notches = Array.Empty<float>();
         private Tween _lagTween;
         private double _clock;
-        private Material _materialBefore;
-        private bool _hid;
-
-        /// <summary>Legacy (UR-WIDGETS): the path of the deleted pulp overlay shader. Nothing loads it; kept under the Phase A
-        /// rule that no public widget member goes away before TG-CLOSE.</summary>
-        public const string ShaderPath = "res://assets/shaders/pulp_bar_layers.gdshader";
-
-        /// <summary>The material that hides the bar's own drawing (its children keep their own).</summary>
-        public const string HideShaderPath = "res://assets/shaders/ui_hide_self.gdshader";
-        private static ShaderMaterial _hideMaterial;
-
-        /// <summary>The one shared material that hides a decorated bar's own drawing; null if the shader is missing.</summary>
-        public static Material HideMaterial {
-            get {
-                if (_hideMaterial == null && ResourceLoader.Exists(HideShaderPath)) {
-                    _hideMaterial = new ShaderMaterial { Shader = GD.Load<Shader>(HideShaderPath) };
-                }
-                return _hideMaterial;
-            }
-        }
 
         /// <summary>The spec's resonance glow, rgb(242, 204, 77): the full meter's glow and a ready lens's.</summary>
         public static readonly Color ResGlow = new(0.949f, 0.8f, 0.302f);
@@ -91,12 +71,14 @@ namespace FTT.UI.Pulp {
         /// <summary>The bar this decor draws for.</summary>
         public ProgressBar Bar => _bar;
 
-        /// <summary>Adds the tube as the last child of <paramref name="bar"/> (the bar's other children are untouched) and hides the bar's own drawing.</summary>
+        /// <summary>
+        /// Adds the tube as the last child of <paramref name="bar"/> (the bar's other children are untouched). The bar wears
+        /// one of the five bar variations, whose styles draw nothing, so only the tube shows.
+        /// </summary>
         public static PulpBarDecor Attach(ProgressBar bar, PulpBarStyle style = PulpBarStyle.Hp) {
             if (Of(bar) is { } existing) return existing;
             var decor = new PulpBarDecor { _bar = bar, _style = style };
             bar.AddChild(decor);
-            decor.HideBar();
             return decor;
         }
 
@@ -152,12 +134,28 @@ namespace FTT.UI.Pulp {
         /// <c>PulpMotion.TrackerDrop</c> (a fade under Reduced Temporal Effects).
         /// </summary>
         public void DropLagTo(float target) {
-            _lagTween?.Kill();
+            StopLag();
             if (target >= _lagValue || !IsInsideTree()) {
                 LagValue = target;
                 return;
             }
             _lagTween = PulpMotion.TrackerDrop(this, _lagValue, target, v => LagValue = v);
+        }
+
+        /// <summary>
+        /// Stops the tracker's hold-and-drain, if one runs, and puts the tracker on <paramref name="value"/> at once: for a
+        /// heal, a new maximum, a first presentation or a reset (REVIEW-UI-GLASS-CODEX-2). Assigning <see cref="LagValue"/>
+        /// alone does not stop it: the drain writes through that setter from its own start, so a heal that only assigned
+        /// the value let the earlier hit's drain bring a damage band back above the healed fill.
+        /// </summary>
+        public void SnapLagTo(float value) {
+            StopLag();
+            LagValue = value;
+        }
+
+        private void StopLag() {
+            if (_lagTween != null && _lagTween.IsValid()) _lagTween.Kill();
+            _lagTween = null;
         }
 
         public override void _EnterTree() {
@@ -167,7 +165,6 @@ namespace FTT.UI.Pulp {
                 _bar.Resized += Invalidate;
                 _bar.Changed += Invalidate;
                 _bar.Draw += QueueRedraw;   // a fill-mode or tint change redraws the bar; the tube follows
-                HideBar();
             }
             Invalidate();
         }
@@ -175,27 +172,13 @@ namespace FTT.UI.Pulp {
         public override void _Ready() => SetProcess(true);
 
         public override void _ExitTree() {
-            _lagTween?.Kill();
+            StopLag();
             if (_bar != null && IsInstanceValid(_bar)) {
                 _bar.ValueChanged -= OnBarChanged;
                 _bar.Resized -= Invalidate;
                 _bar.Changed -= Invalidate;
                 _bar.Draw -= QueueRedraw;
-                if (_hid && _bar.Material == HideMaterial) _bar.Material = _materialBefore;
-                _materialBefore = null;
-                _hid = false;
             }
-        }
-
-        // The bar stays the value carrier but draws nothing of its own: a material its children do not use. Its
-        // SelfModulate stays free for the HUDs' flashes, which the tube follows.
-        private void HideBar() {
-            if (_bar == null || _hid) return;
-            Material hide = HideMaterial;
-            if (hide == null) return;
-            _materialBefore = _bar.Material;
-            _bar.Material = hide;
-            _hid = true;
         }
 
         public override void _Notification(int what) {
@@ -209,7 +192,7 @@ namespace FTT.UI.Pulp {
             QueueRedraw();
         }
 
-        // Every frame: the tube takes the bar's SelfModulate (the hit flash, the not-yet tint); the low pulse runs only while
+        // Every frame: the tube takes the bar's SelfModulate (the not-yet tint); the low pulse runs only while
         // the bar itself processes (a paused HUD holds it). Allocation free.
         public override void _Process(double delta) {
             if (_bar == null) return;
@@ -219,21 +202,6 @@ namespace FTT.UI.Pulp {
             _clock += delta;
             QueueRedraw();
         }
-
-        // ---- legacy geometry reads (the pulp overlay's; kept for callers) ----
-
-        private StyleBox Background => _bar?.GetThemeStylebox("background");
-
-        /// <summary>Legacy: the bar rect inset by its background stylebox's content margins (the glass tube insets 1.5 px itself).</summary>
-        public Rect2 InnerRect() {
-            StyleBox bg = Background;
-            float l = bg?.GetContentMargin(Side.Left) ?? 3f, t = bg?.GetContentMargin(Side.Top) ?? 3f;
-            float r = bg?.GetContentMargin(Side.Right) ?? 3f, b = bg?.GetContentMargin(Side.Bottom) ?? 3f;
-            return new Rect2(l, t, Mathf.Max(0f, Size.X - l - r), Mathf.Max(0f, Size.Y - t - b));
-        }
-
-        /// <summary>Legacy: the fill's horizontal skew (a <c>StyleBoxFlat.Skew.X</c>), 0 when the fill is not a flat box.</summary>
-        public float Skew => (_bar?.GetThemeStylebox("fill") as StyleBoxFlat)?.Skew.X ?? 0f;
 
         // ---- the tube ----
 

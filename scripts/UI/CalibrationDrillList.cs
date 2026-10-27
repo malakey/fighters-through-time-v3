@@ -9,12 +9,12 @@ namespace FTT.UI {
     /// The shared Calibration Drills list (F18 Option B). Both entry points — the
     /// standalone Main Menu route through
     /// <see cref="CalibrationDrillPicker"/> and the Story hub's Holodeck console —
-    /// arrive here, and the content is identical: the six drills of
+    /// arrive here, and the content is identical: the five drills of
     /// <see cref="CalibrationDrillCatalog"/> run with the chosen character's
     /// <b>normalized Fighter kit</b>.
     ///
     /// <para>The rows are built here rather than authored one-per-drill because the
-    /// catalog is the single source of drill identity; authoring six fixed buttons
+    /// catalog is the single source of drill identity; authoring five fixed buttons
     /// would put a second copy of the drill order in a scene file. The row template
     /// and the static copy are authored.</para>
     /// </summary>
@@ -43,7 +43,7 @@ namespace FTT.UI {
             DressGlass();
             // FU-MENU: the rows outgrow 1080 px at the 1.4 UI scale; shrink to fit (TG-SCREENS: and keep clear of the
             // screen heading above).
-            MenuSafeAreaFit.Attach(GetNode<Control>(Root.TrimEnd('/')), GlassScreenDressing.ScaledHeadingReserve);
+            MenuSafeAreaFit.Attach(GetNode<Control>(Root.TrimEnd('/')), PulpScreenKit.ScaledHeadingReserve);
             FocusChainBuilder.Apply(GetNode<Control>("List"));
         }
 
@@ -56,15 +56,15 @@ namespace FTT.UI {
         /// at its row's right (<see cref="AddResultGlyph"/>).
         /// </summary>
         private void DressGlass() {
-            GlassScreenDressing.AddMenuArt(this, index: 1);
-            GlassScreenDressing.AddScreenHeading(this, "drill_list_title");
+            PulpScreenKit.AddMenuArt(this, index: 1);
+            PulpScreenKit.AddScreenHeading(this, "drill_list_title");
             _objectiveLabel = GetNodeOrNull<Label>(Root + "Objective");
             var rows = new List<Button>(_drillButtons.Count);
             foreach (Button row in _drillButtons) {
                 FTT.UI.Pulp.PulpButtonDecor.Apply(row);
                 rows.Add(row);
             }
-            FTT.UI.Pulp.PulpButtonDecor.ApplyStackWidth(rows, 560f, GlassScreenDressing.ScaledStackCap(700f));
+            FTT.UI.Pulp.PulpButtonDecor.ApplyStackWidth(rows, 560f, PulpScreenKit.ScaledStackCap(700f));
             var footer = GetNode<HBoxContainer>(Root + "ButtonRow");
             List<Button> buttons = PulpScreenKit.ButtonsOf(footer);
             foreach (Button button in buttons) FTT.UI.Pulp.PulpButtonDecor.Apply(button, compact: true).ShowPrompt = false;

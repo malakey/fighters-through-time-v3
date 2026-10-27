@@ -145,29 +145,20 @@ namespace FTT.Diagnostics {
                 row.AddChild(new Label { Text = variation.Length > 0 ? variation : "Button (glass field)", ThemeTypeVariation = UIPalette.SmallLabelVariation });
             }
 
-            left.AddChild(Heading("Panels: glass slabs and presets, the tag, the badges, pulp-only plates"));
+            left.AddChild(Heading("Panels: glass slabs and presets, the tag, the badges"));
             var panels = new HFlowContainer();
             panels.AddThemeConstantOverride("h_separation", 18);
             panels.AddThemeConstantOverride("v_separation", 18);
             left.AddChild(panels);
             var names = new List<string> { UIPalette.Variations.InkPanel, UIPalette.Variations.DialogueGlassPanel,
-                UIPalette.Variations.HudPlatePanel, UIPalette.Variations.PanelTagPlate,
-                UIPalette.Variations.ReadyBadge, UIPalette.Variations.ReadyBadgeIdle };
+                UIPalette.Variations.PanelTagPlate, UIPalette.Variations.ReadyBadge, UIPalette.Variations.ReadyBadgeIdle };
             names.AddRange(new[] { UIPalette.Variations.GlassPanelPause, UIPalette.Variations.GlassPanelVitals,
                 UIPalette.Variations.GlassPanelAbilities, UIPalette.Variations.GlassPanelTimeTools,
                 UIPalette.Variations.GlassPanelDust, UIPalette.Variations.GlassPanelTimer,
                 UIPalette.Variations.GlassPanelStats, UIPalette.Variations.GlassPanelContinue });
-            names.AddRange(new[] { UIPalette.Variations.PaperPanel, UIPalette.Variations.BannerPanel,
-                UIPalette.Variations.BossNameplate, UIPalette.Variations.BossPhaseTab, UIPalette.Variations.SlotPlate,
-                UIPalette.Variations.KeyTagPlate, UIPalette.Variations.CardPlate, UIPalette.Variations.BubblePlate,
-                UIPalette.Variations.StampPlate });
             foreach (string name in names) {
                 var panel = new PanelContainer { ThemeTypeVariation = name };
-                bool paper = name is nameof(UIPalette.Variations.BannerPanel) or nameof(UIPalette.Variations.PaperPanel)
-                    or nameof(UIPalette.Variations.BossPhaseTab) or nameof(UIPalette.Variations.KeyTagPlate)
-                    or nameof(UIPalette.Variations.BubblePlate);
                 var label = new Label { Text = name, ThemeTypeVariation = UIPalette.LabelRoles.PanelTag };
-                if (paper) label.AddThemeColorOverride("font_color", UIPalette.LabelDark);
                 panel.AddChild(label);
                 panels.AddChild(panel);
             }
@@ -194,13 +185,9 @@ namespace FTT.Diagnostics {
             sliders.AddChild(new HSlider { Value = 100, CustomMinimumSize = new Vector2(360, 44) });
             right.AddChild(new HSeparator());
 
-            right.AddChild(Heading("Bars: default, HP 30, HP 44, Ultimate 16, stat 14, boss"));
+            right.AddChild(Heading("Bars: default, then the five tubes"));
             right.AddChild(new ProgressBar { Value = 64, CustomMinimumSize = new Vector2(420, 24), ShowPercentage = false });
-            right.AddChild(new ProgressBar { Value = 64, CustomMinimumSize = new Vector2(380, 30), ShowPercentage = false, ThemeTypeVariation = UIPalette.Variations.PulpBar });
-            right.AddChild(new ProgressBar { Value = 82, CustomMinimumSize = new Vector2(510, 44), ShowPercentage = false, ThemeTypeVariation = UIPalette.Variations.PulpBarH44 });
-            right.AddChild(new ProgressBar { Value = 100, CustomMinimumSize = new Vector2(390, 16), ShowPercentage = false, ThemeTypeVariation = UIPalette.Variations.PulpBarH16 });
-            right.AddChild(new ProgressBar { Value = 55, CustomMinimumSize = new Vector2(170, 14), ShowPercentage = false, ThemeTypeVariation = UIPalette.Variations.PulpBarH14 });
-            right.AddChild(new ProgressBar { Value = 62, CustomMinimumSize = new Vector2(760, 34), ShowPercentage = false, ThemeTypeVariation = UIPalette.Variations.PulpBossBar });
+            AddTubes(right, 760f);
 
             right.AddChild(Heading("Tabs (TabContainer) and a scroll bar"));
             var tabs = new TabContainer { CustomMinimumSize = new Vector2(760, 150) };
@@ -238,9 +225,7 @@ namespace FTT.Diagnostics {
             foreach (var (name, value) in UIPalette.GeneratorPalette) Swatch(name, value);
             Swatch("P1", UIPalette.P1); Swatch("P2", UIPalette.P2);
             Swatch("UnboundCold (grammar)", UIPalette.UnboundCold); Swatch("ResonanceGold (grammar)", UIPalette.ResonanceGold);
-            Swatch("PlateFill (legacy)", UIPalette.PlateFill); Swatch("Paper (legacy)", UIPalette.Paper);
-            Swatch("Track (legacy)", UIPalette.Track); Swatch("PromptCream (legacy)", UIPalette.PromptCream);
-            Swatch("Cyan (legacy)", UIPalette.Cyan);
+            Swatch("Cyan (P1 default and the Severed only)", UIPalette.Cyan);
             return root;
         }
 
@@ -329,12 +314,8 @@ namespace FTT.Diagnostics {
             var right = new VBoxContainer { Name = "Tubes", CustomMinimumSize = new Vector2(560, 0) };
             right.AddThemeConstantOverride("separation", 20);
             columns.AddChild(right);
-            right.AddChild(Heading("Bars (the pulp tracks until the tube decor)"));
-            right.AddChild(new ProgressBar { Value = 64, CustomMinimumSize = new Vector2(380, 30), ShowPercentage = false, ThemeTypeVariation = UIPalette.Variations.PulpBar });
-            right.AddChild(new ProgressBar { Value = 82, CustomMinimumSize = new Vector2(510, 44), ShowPercentage = false, ThemeTypeVariation = UIPalette.Variations.PulpBarH44 });
-            right.AddChild(new ProgressBar { Value = 100, CustomMinimumSize = new Vector2(390, 16), ShowPercentage = false, ThemeTypeVariation = UIPalette.Variations.PulpBarH16 });
-            right.AddChild(new ProgressBar { Value = 55, CustomMinimumSize = new Vector2(170, 14), ShowPercentage = false, ThemeTypeVariation = UIPalette.Variations.PulpBarH14 });
-            right.AddChild(new ProgressBar { Value = 62, CustomMinimumSize = new Vector2(540, 34), ShowPercentage = false, ThemeTypeVariation = UIPalette.Variations.PulpBossBar });
+            right.AddChild(Heading("Bars: the glass tubes"));
+            AddTubes(right, 540f);
             right.AddChild(Heading("Halos S and L on bright art"));
             PanelContainer art = Backing("HaloArt", scene: true);
             var artColumn = new VBoxContainer();
@@ -356,5 +337,24 @@ namespace FTT.Diagnostics {
         [UiCaptureTarget("main_menu_root", SettleFrames = 20)]
         public static Node MainMenuRoot(UiCaptureContext context) =>
             ResourceLoader.Load<PackedScene>("res://scenes/menus/MainMenu.tscn").Instantiate();
+
+        // TG-CLOSE: the five bar variations draw nothing of their own since the pulp purge; the tube decor draws them.
+        private static void AddTubes(Control into, float bossWidth) {
+            var specs = new (float Value, Vector2 Size, string Variation, FTT.UI.Pulp.PulpBarStyle Style)[] {
+                (64, new Vector2(380, 30), UIPalette.Variations.PulpBar, FTT.UI.Pulp.PulpBarStyle.Hp),
+                (82, new Vector2(510, 44), UIPalette.Variations.PulpBarH44, FTT.UI.Pulp.PulpBarStyle.Hp),
+                (100, new Vector2(390, 16), UIPalette.Variations.PulpBarH16, FTT.UI.Pulp.PulpBarStyle.Meter),
+                (55, new Vector2(170, 14), UIPalette.Variations.PulpBarH14, FTT.UI.Pulp.PulpBarStyle.Stat),
+                (62, new Vector2(bossWidth, 34), UIPalette.Variations.PulpBossBar, FTT.UI.Pulp.PulpBarStyle.Boss),
+            };
+            foreach (var spec in specs) {
+                var bar = new ProgressBar {
+                    Value = spec.Value, CustomMinimumSize = spec.Size, ShowPercentage = false, ThemeTypeVariation = spec.Variation,
+                    SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin
+                };
+                into.AddChild(bar);
+                FTT.UI.Pulp.PulpBarDecor.Attach(bar, spec.Style);
+            }
+        }
     }
 }

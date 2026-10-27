@@ -86,6 +86,29 @@ public class UIThemeTests {
         RequireStyle(UIPalette.Variations.ReadyBadgeIdle, "panel");
         foreach (var preset in PanelPresets) RequireStyle(preset.Name, "panel");
 
+        // TG-CLOSE folds (plan 9's closeout list): the OptionButton arrow is the kit's 18 px chevron_down, tinted by the
+        // field's font colour; the slider grabber is a 44 px canvas, so a slider stands 44 px tall (it was 64); a hovered
+        // tab is the quiet lit tab with white text, not the selected gold with the selected ink.
+        Texture2D arrow = theme.GetIcon("arrow", "OptionButton");
+        if (arrow == null || arrow.ResourcePath != "res://assets/sprites/ui/glass/icons/chevron_down_18.png" || arrow.GetSize() != new Vector2(18f, 18f)) {
+            missing.Add($"OptionButton/icons/arrow is {arrow?.ResourcePath ?? "missing"}, not the 18 px chevron_down");
+        }
+        if (theme.GetConstant("modulate_arrow", "OptionButton") != 1) missing.Add("OptionButton/constants/modulate_arrow must tint the arrow by the font colour");
+        foreach (string slider in new[] { "HSlider", "VSlider" }) {
+            Texture2D grabber = theme.GetIcon("grabber", slider);
+            if (grabber == null || grabber.GetHeight() != 44 || grabber.GetWidth() != 44) {
+                missing.Add($"{slider}/icons/grabber is {grabber?.GetSize().ToString() ?? "missing"}, not 44 x 44");
+            }
+        }
+        if (theme.GetColor("font_hover_color", UIPalette.Variations.GlassTab) != UIPalette.TextFocus) missing.Add("GlassTab hovers in the selected ink, not white");
+        if (theme.GetColor("font_hovered_color", "TabContainer") != UIPalette.TextFocus) missing.Add("TabContainer hovers in the selected ink, not white");
+        if (theme.GetStylebox("tab_hovered", "TabContainer") is StyleBoxTexture hovered) {
+            Color centre = CentrePixel(hovered);
+            if (centre.A > 0.4f) missing.Add($"the hovered tab's centre is {centre}: as strong as the selected tab");
+        } else {
+            missing.Add("TabContainer/styles/tab_hovered is not the kit texture");
+        }
+
         if (missing.Count > 0) AssertThat(string.Join(" | ", missing)).IsEqual("");
     }
 
@@ -98,6 +121,13 @@ public class UIThemeTests {
         // focusable type without a focus stylebox is invisible to navigate.
         foreach (string type in new[] { "Button", "CheckBox", "OptionButton", "LineEdit" }) {
             if (!theme.HasStylebox("focus", type)) missing.Add($"{type}/styles/focus");
+        }
+        // TG-CLOSE: a slider and a focusable label (the select's Remote Play notice) wear the glass field's focus overlay
+        // from the theme (Settings borrowed it per slider; a label showed Godot's default frame).
+        foreach (string type in new[] { "HSlider", "VSlider", "Label" }) {
+            if (theme.GetStylebox("focus", type) is not StyleBoxTexture overlay || overlay.Texture?.ResourcePath != "res://assets/sprites/ui/glass/glass_field_focus.png") {
+                missing.Add($"{type}/styles/focus is not the glass field's focus overlay");
+            }
         }
 
         if (missing.Count > 0) AssertThat(string.Join(" | ", missing)).IsEqual("");
@@ -381,11 +411,35 @@ public class UIThemeTests {
                 drift.Add($"{role.Name} tracks {spacing} px but {role.Tracking} em at {role.Size} px is {expectedSpacing}");
             }
         }
+        // TG-CLOSE: the roles Phase B lacked (plan 9's closeout list), at UI_SPEC_GLASS 9.1 / 9.2 / 3.4.1's values, so no
+        // screen stands in with the nearest role and a colour override: name, face, weight, size, colour, halo.
+        var folded = new (string Name, string Face, int Weight, int Size, Color Colour, string Halo)[] {
+            ("DescriptionLabel", "outfit", 400, 24, UIPalette.Ink2, ""),       // the difficulty description
+            ("BodyCompactLabel", "outfit", 400, 24, UIPalette.Ink, ""),        // 9.2 body at 24 (Systems Card, log, boot)
+            ("BodySmallDimLabel", "outfit", 400, 22, UIPalette.Ink2, ""),      // secondary small copy (Move List stats)
+            ("SlotCaption", "outfit", 600, 18, UIPalette.Accent, ""),          // the Move List slot name
+            ("LogSpeaker", "cinzel", 700, 22, UIPalette.Accent, ""),           // the dialogue log's speaker
+            ("CreditsHeading", "cinzel", 700, 30, UIPalette.Accent, ""),       // the credits' role headings
+            ("HudNumeralMaxScene", "outfit", 400, 21, UIPalette.TextFocus, "S"), // the Fighter "/max" (20.9)
+        };
+        foreach (var f in folded) {
+            if (!theme.HasFont("font", f.Name) || theme.GetTypeVariationBase(f.Name) != "Label") { drift.Add($"the folded role {f.Name} is missing"); continue; }
+            Font font = theme.GetFont("font", f.Name);
+            if (BaseFontPath(font) != (f.Face == "cinzel" ? CinzelPath : OutfitPath) || Weight(font) != f.Weight) drift.Add($"{f.Name} is not {f.Face} {f.Weight}");
+            if (theme.GetFontSize("font_size", f.Name) != Mathf.RoundToInt(f.Size * UIPalette.AppliedUiScale)) drift.Add($"{f.Name} is {theme.GetFontSize("font_size", f.Name)} px, not {f.Size}");
+            if (!theme.GetColor("font_color", f.Name).IsEqualApprox(f.Colour)) drift.Add($"{f.Name} is {theme.GetColor("font_color", f.Name)}, not {f.Colour}");
+            bool halo = theme.HasConstant("outline_size", f.Name) && theme.GetConstant("outline_size", f.Name) > 0;
+            if (halo != (f.Halo != "")) drift.Add($"{f.Name}'s halo is {(halo ? "on" : "off")}");
+        }
         if (drift.Count > 0) AssertThat(string.Join(" | ", drift)).IsEqual("");
     }
 
+    /// <summary>
+    /// Every kit variation exists on its base type, and (TG-CLOSE) no retired variation, Label role or palette entry
+    /// remains in the theme or the generator's palette; the five bar variations are value carriers that draw nothing.
+    /// </summary>
     [TestCase]
-    public void EveryPulpVariationExistsOnItsBaseType() {
+    public void EveryKitVariationExistsOnItsBaseTypeAndNoRetiredNameRemains() {
         Theme theme = LoadTheme();
         var drift = new List<string>();
         void Require(string name, string baseType, string styleName) {
@@ -400,24 +454,43 @@ public class UIThemeTests {
             Require(name, "Button", "focus");
         }
         var panels = new List<string> {
-            UIPalette.Variations.InkPanel, UIPalette.Variations.PaperPanel, UIPalette.Variations.HudPlatePanel,
-            UIPalette.Variations.DialogueGlassPanel, UIPalette.Variations.BannerPanel,
-            UIPalette.Variations.PanelTagPlate, UIPalette.Variations.BossNameplate,
-            UIPalette.Variations.BossPhaseTab, UIPalette.Variations.SlotPlate,
-            UIPalette.Variations.SlotPlateReady, UIPalette.Variations.KeyTagPlate,
-            UIPalette.Variations.CardPlate, UIPalette.Variations.CardPlatePick,
-            UIPalette.Variations.BubblePlate,
-            UIPalette.Variations.StampPlate, UIPalette.Variations.ScrimPanel,
-            UIPalette.Variations.CoverBannerPanel, UIPalette.Variations.ReadyBadge, UIPalette.Variations.ReadyBadgeIdle };
+            UIPalette.Variations.InkPanel, UIPalette.Variations.DialogueGlassPanel, UIPalette.Variations.PanelTagPlate,
+            UIPalette.Variations.ScrimPanel, UIPalette.Variations.ReadyBadge, UIPalette.Variations.ReadyBadgeIdle };
         foreach (var preset in PanelPresets) panels.Add(preset.Name);
         foreach (string name in panels) Require(name, "PanelContainer", "panel");
         foreach (string name in new[] { UIPalette.Variations.PulpBar, UIPalette.Variations.PulpBarH44, UIPalette.Variations.PulpBarH16, UIPalette.Variations.PulpBarH14, UIPalette.Variations.PulpBossBar }) {
             Require(name, "ProgressBar", "background");
             Require(name, "ProgressBar", "fill");
             // FighterHUD.TintFill recolours the fill by reading it as a StyleBoxFlat, and the bar decor reads its colour.
-            if (theme.GetStylebox("fill", name) is not StyleBoxFlat) drift.Add($"{name} fill must stay a StyleBoxFlat");
+            if (theme.GetStylebox("fill", name) is not StyleBoxFlat fill) drift.Add($"{name} fill must stay a StyleBoxFlat");
+            // TG-CLOSE: a value carrier under the glass tube decor draws nothing of its own (plan 2.2).
+            else if (fill.DrawCenter || fill.BorderWidthLeft + fill.BorderWidthTop + fill.BorderWidthRight + fill.BorderWidthBottom > 0
+                     || fill.ShadowSize > 0) drift.Add($"{name} fill draws something; it must only hold its colour");
+            if (theme.GetStylebox("background", name) is not StyleBoxEmpty) drift.Add($"{name} background must be empty");
         }
         if (theme.GetStylebox("fill", "ProgressBar") is not StyleBoxFlat) drift.Add("ProgressBar fill must stay a StyleBoxFlat");
+
+        // TG-CLOSE: the retired pulp variations, roles and palette entries are gone from the theme, the generated
+        // name tables and the generator's palette (the lists live in UiLegacyKitReferenceScanTests).
+        // Theme.HasFontSize also answers true through the default font size, so a retired type is looked up in the type list.
+        var themeTypes = new HashSet<string>(theme.GetTypeList());
+        var variationNames = new HashSet<string>();
+        foreach (FieldInfo field in typeof(UIPalette.Variations).GetFields()) variationNames.Add(field.Name);
+        foreach (FieldInfo field in typeof(UIPalette.LabelRoles).GetFields()) variationNames.Add(field.Name);
+        foreach (string name in FTT.Tests.ContentValidation.UiLegacyKitReferenceScanTests.RetiredVariations) {
+            if (themeTypes.Contains(name)) drift.Add($"the retired variation {name} is still in the theme");
+            if (variationNames.Contains(name)) drift.Add($"UIPalette.Variations still names the retired {name}");
+        }
+        foreach (string name in FTT.Tests.ContentValidation.UiLegacyKitReferenceScanTests.RetiredRoles) {
+            if (themeTypes.Contains(name)) drift.Add($"the retired role {name} is still in the theme");
+            if (variationNames.Contains(name)) drift.Add($"UIPalette.LabelRoles still names the retired {name}");
+        }
+        var paletteNames = new HashSet<string>();
+        foreach (var (name, _) in UIPalette.GeneratorPalette) paletteNames.Add(name);
+        foreach (string name in FTT.Tests.ContentValidation.UiLegacyKitReferenceScanTests.RetiredPaletteConstants) {
+            if (paletteNames.Contains(name)) drift.Add($"the generator's palette still has the retired {name}");
+            if (typeof(UIPalette).GetField(name, BindingFlags.Public | BindingFlags.Static) != null) drift.Add($"UIPalette.{name} is still defined");
+        }
         if (drift.Count > 0) AssertThat(string.Join(" | ", drift)).IsEqual("");
     }
 
@@ -447,6 +520,40 @@ public class UIThemeTests {
         if (tag.GetContentMargin(Side.Left) != 14 || tag.GetContentMargin(Side.Right) != 14
             || tag.GetContentMargin(Side.Top) != 3 || tag.GetContentMargin(Side.Bottom) != 3) {
             drift.Add("PanelTagPlate must carry the 6.4 content margins 14 / 3 / 14 / 3");
+        }
+        // TG-CLOSE folds: the empty (disabled) slab is a quiet flat slab at the Continue card's padding with the slab's
+        // 18 px chamfer at top-left and bottom-right (its dashed edge is drawn by the slab frame); the compact footer
+        // chevron (no prompt badge) pads its label 30 on the right, not 40 (4.2's footer).
+        if (theme.GetTypeVariationBase(UIPalette.Variations.GlassPanelEmpty) != "PanelContainer"
+            || theme.GetStylebox("panel", UIPalette.Variations.GlassPanelEmpty) is not StyleBoxFlat empty) {
+            drift.Add("GlassPanelEmpty must be a flat PanelContainer slab");
+        } else {
+            if (!empty.BgColor.IsEqualApprox(UIPalette.ButtonFillDisabled)) drift.Add($"GlassPanelEmpty paints {empty.BgColor}");
+            if (empty.CornerRadiusTopLeft != 18 || empty.CornerRadiusBottomRight != 18 || empty.CornerRadiusTopRight != 0
+                || empty.CornerRadiusBottomLeft != 0 || empty.CornerDetail != 1) drift.Add("GlassPanelEmpty must carry the 18 px chamfer at TL and BR");
+            RequirePadding(UIPalette.Variations.GlassPanelEmpty, "panel", 16, 20, 16);
+        }
+        if (theme.GetTypeVariationBase(UIPalette.Variations.PulpButtonCompactFooter) != "Button") {
+            drift.Add("PulpButtonCompactFooter must be a Button variation");
+        } else {
+            StyleBox footer = theme.GetStylebox("normal", UIPalette.Variations.PulpButtonCompactFooter);
+            StyleBox compact = theme.GetStylebox("normal", UIPalette.Variations.PulpButtonCompact);
+            if (footer.GetContentMargin(Side.Right) != 30 || footer.GetContentMargin(Side.Left) != compact.GetContentMargin(Side.Left)) {
+                drift.Add($"PulpButtonCompactFooter pads {footer.GetContentMargin(Side.Left)} / {footer.GetContentMargin(Side.Right)}, not 52 / 30");
+            }
+            if (theme.GetFont("font", UIPalette.Variations.PulpButtonCompactFooter) != theme.GetFont("font", UIPalette.Variations.PulpButtonCompact)) {
+                drift.Add("PulpButtonCompactFooter must draw the compact chevron's font");
+            }
+        }
+        // The tag plate stands 24 px tall (6.4) around its PanelTag label (the role's line box trimmed to 18).
+        var tagPlate = new PanelContainer { Theme = theme, ThemeTypeVariation = UIPalette.Variations.PanelTagPlate };
+        tagPlate.AddChild(new Label { Text = "STORY MODE", ThemeTypeVariation = UIPalette.LabelRoles.PanelTag });
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(tagPlate);
+        try {
+            float height = tagPlate.GetCombinedMinimumSize().Y;
+            if (Mathf.Abs(height - 24f * UIPalette.AppliedUiScale) > 1f) drift.Add($"the tag plate is {height} px tall, not 24");
+        } finally {
+            tagPlate.Free();
         }
         if (theme.GetTypeVariationBase(UIPalette.Variations.DialogueBodyRich) != "RichTextLabel") drift.Add("DialogueBodyRich must be a RichTextLabel variation");
         if (theme.GetFontSize("normal_font_size", UIPalette.Variations.DialogueBodyRich) != 33) drift.Add("DialogueBodyRich must be 33 px");
@@ -559,7 +666,7 @@ public class UIThemeTests {
         var haloL = new HashSet<string> { "CoverTitle", "BannerHeading", "PauseTitle", "BossName", "SideCardName" };
         var haloS = new HashSet<string> {
             "LevelTitle", "ObjectiveLine", "HeroNameScene", "PromptCaption", "SceneCaption", "VersionCaption",
-            "HudNumeral", "HudNumeralSmall", "HudNumeralMax", "SlotKeyTagScene", "SlotNumber", "StatusName", "StatusTime",
+            "HudNumeral", "HudNumeralSmall", "HudNumeralMax", "HudNumeralMaxScene", "SlotKeyTagScene", "SlotNumber", "StatusName", "StatusTime",
             "IntegrityPercent", "IntegrityCaption", "BossPhaseTag", "BossHpValue", "NoteLabel", "HintLine",
             "SelectCountdown", "UltimateReadyLabel" };
         Theme theme = LoadTheme();

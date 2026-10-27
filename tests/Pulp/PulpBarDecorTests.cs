@@ -97,10 +97,11 @@ public class PulpBarDecorTests {
             AssertThat(bar.HasThemeStyleboxOverride("fill")).IsEqual(overrideBefore);
             AssertThat(bar.GetThemeStylebox("fill")).IsEqual(fillBefore);
             AssertThat(fillBefore is StyleBoxFlat).IsTrue();
-            AssertThat(Mathf.IsEqualApprox(decor.Skew, 0.2126f)).IsTrue();
-            Rect2 inner = decor.InnerRect();
-            AssertThat(inner.Position).IsEqual(new Vector2(3f, 3f));
-            AssertThat(inner.Size).IsEqual(new Vector2(374f, 24f));
+            // TG-CLOSE: the bar variation is a value carrier: an empty background, and a fill that holds its colour (the
+            // tube reads it; FighterHUD.TintFill writes it) but draws nothing, so only the tube shows.
+            AssertThat(bar.GetThemeStylebox("background") is StyleBoxEmpty).IsTrue();
+            AssertThat(((StyleBoxFlat)fillBefore).DrawCenter).IsFalse();
+            AssertThat(((StyleBoxFlat)fillBefore).BgColor.IsEqualApprox(UIPalette.Hp)).IsTrue();
             decor.LagValue = 10f;
             decor.DropLagTo(60f);
             AssertThat(decor.LagValue).IsEqual(60f);
@@ -119,10 +120,11 @@ public class PulpBarDecorTests {
         try {
             PulpBarDecor decor = PulpBarDecor.Attach(bar);
             await Frames();
-            // The bar stays the value carrier and draws nothing of its own (a material its children do not use); its
-            // SelfModulate stays the HUDs' flash channel (the hit flash, the not-yet tint), and the tube follows it.
-            AssertObject(PulpBarDecor.HideMaterial).IsNotNull();
-            AssertThat(bar.Material == PulpBarDecor.HideMaterial).IsTrue();
+            // The bar stays the value carrier and draws nothing of its own: its variation's styles are empty (TG-CLOSE retired
+            // the hide-self material), so the bar carries no material; its SelfModulate stays the HUDs' flash channel (the
+            // not-yet tint), and the tube follows it.
+            AssertObject(bar.Material).IsNull();
+            AssertThat(bar.GetThemeStylebox("background") is StyleBoxEmpty).IsTrue();
             AssertThat(decor.UseParentMaterial).IsFalse();
             AssertThat(bar.SelfModulate).IsEqual(Colors.White);
             AssertThat(decor.Visible).IsTrue();

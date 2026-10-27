@@ -173,20 +173,10 @@ namespace FTT.UI {
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
                 ThemeTypeVariation = UIPalette.Variations.PulpButtonCompact
             };
-            Pulp.PulpButtonDecor decor = Pulp.PulpButtonDecor.Apply(button, compact: true);
-            decor.GrowToFit = true;
-            // Kit gap (TG-WIDGETS, reported in docs/handoffs/TG_PAUSE.md): the decor sizes a wrapping row for its longest
-            // word against the prompt badge as it measures at that moment and caches the result, but the keyboard key-cap
-            // badge settles wider afterwards, which left the focused label's last word cut under it ("CALIBRATIO"). Re-running
-            // the decor's own rule whenever the badge changes size keeps the label whole; nothing here sets a width.
-            if (decor.Badge != null) decor.Badge.Resized += () => Callable.From(() => Remeasure(decor)).CallDeferred();
+            // The decor re-measures the longest word whenever its badge changes width (TG-CLOSE folded the workaround that
+            // toggled GrowToFit here), so the focused label never ends under the keyboard key-cap ("CALIBRATIO").
+            Pulp.PulpButtonDecor.Apply(button, compact: true).GrowToFit = true;
             return button;
-        }
-
-        private static void Remeasure(Pulp.PulpButtonDecor decor) {
-            if (!GodotObject.IsInstanceValid(decor) || !decor.GrowToFit) return;
-            decor.GrowToFit = false;
-            decor.GrowToFit = true;
         }
 
         /// <summary>Replaces the prompt copy, for reusing one modal across actions.</summary>
