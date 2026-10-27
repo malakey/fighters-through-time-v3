@@ -171,7 +171,10 @@ namespace FTT.UI.Pulp {
             return new Rect2(offset, offset, side, side);
         }
 
-        /// <summary>The centre number's size for a lens: 0.36 x the lens at 100 %, following the theme's scale (19.44, 26.64, 33.12).</summary>
+        /// <summary>
+        /// The centre number's size for a lens: 0.36 x the lens at 100 % (19.44, 26.64, 33.12), times the scale of the theme the
+        /// lens resolves <c>SlotNumber</c> in (<see cref="SlotNumberSizeInContext"/>), so the UI scale reaches it exactly once.
+        /// </summary>
         public static int CenterFontSize(float lens, int themeSlotNumberSize) =>
             Mathf.RoundToInt(CenterShare * lens * themeSlotNumberSize / SlotNumberBaseSize);
 
@@ -225,6 +228,15 @@ namespace FTT.UI.Pulp {
         private string _appliedGlyph;
         private static readonly StringName SaturationParam = "saturation", BrightnessParam = "brightness";
         private static readonly StringName FontSizeName = "font_size";
+        private static readonly StringName SlotNumberType = UIPalette.LabelRoles.SlotNumber;
+
+        /// <summary>
+        /// The <c>SlotNumber</c> size as a label under this lens resolves it: through the nearest ancestor's theme (the HUDs'
+        /// unscaled copy, whose whole layout <see cref="UiScaleBinder"/> scales; a screen's scale-mutated shared theme), else
+        /// the authored <see cref="SlotNumberBaseSize"/>. Never the shared theme directly, which a HUD would scale twice.
+        /// </summary>
+        public int SlotNumberSizeInContext =>
+            HasThemeFontSize(FontSizeName, SlotNumberType) ? GetThemeFontSize(FontSizeName, SlotNumberType) : SlotNumberBaseSize;
 
         public Label CenterLabel => _center;
         public PulpIcon GlyphIcon => _glyph;
@@ -266,8 +278,7 @@ namespace FTT.UI.Pulp {
             _glyph.Position = origin + Vector2.One * (lens * LockInset);
             _center.Position = origin;
             _center.Size = new Vector2(lens, lens);
-            int themeSize = UIPalette.LoadTheme()?.GetFontSize(FontSizeName, UIPalette.LabelRoles.SlotNumber) ?? SlotNumberBaseSize;
-            _center.AddThemeFontSizeOverride(FontSizeName, CenterFontSize(lens, themeSize));
+            _center.AddThemeFontSizeOverride(FontSizeName, CenterFontSize(lens, SlotNumberSizeInContext));
             _readyLabel.Position = origin;
             _readyLabel.Size = new Vector2(lens, lens);
             _keyLabel.ResetSize();
