@@ -57,6 +57,10 @@ namespace FTT.UI.Pulp {
         private Material _materialBefore;
         private bool _hid;
 
+        /// <summary>Legacy (UR-WIDGETS): the path of the deleted pulp overlay shader. Nothing loads it; kept under the Phase A
+        /// rule that no public widget member goes away before TG-CLOSE.</summary>
+        public const string ShaderPath = "res://assets/shaders/pulp_bar_layers.gdshader";
+
         /// <summary>The material that hides the bar's own drawing (its children keep their own).</summary>
         public const string HideShaderPath = "res://assets/shaders/ui_hide_self.gdshader";
         private static ShaderMaterial _hideMaterial;
