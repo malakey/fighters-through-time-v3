@@ -31,10 +31,11 @@ namespace FTT.UI {
         // ---- Glass panel -----------------------------------------------------
 
         /// <summary>
-        /// Translucent ink fill. Alpha is the whole point: the scene reads through it. The plate's border, shadow and
-        /// corners are baked into the kit art (UR-ART), so the old border, shadow and radius constants are retired.
+        /// The glass slab's translucent fill (TG-THEME cross-edit: the theme's glass slab, <see cref="UIPalette.PanelBackground"/>,
+        /// was the pulp ink plate). Alpha is the whole point: the scene reads through it. The slab's edge, shadow and
+        /// chamfer come from the theme, so no border, shadow or radius constant lives here.
         /// </summary>
-        public static readonly Color GlassBackground = UIPalette.PlateFill;
+        public static readonly Color GlassBackground = UIPalette.PanelBackground;
 
         // ---- Box and roundel (UI_SPEC Appendix B) -----------------------------
 

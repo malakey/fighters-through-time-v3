@@ -158,9 +158,9 @@ namespace FTT.UI {
 
         private static Color Hex(int r, int g, int b, float a = 1f) => new(r / 255f, g / 255f, b / 255f, a);
 
-        /// <summary>bg1: the translucent ink plate fill (#090C1E at 0.80).</summary>
+        /// <summary>Legacy (pulp, retired by the glass closeout): bg1, the translucent ink plate fill (#090C1E at 0.80).</summary>
         public static readonly Color PlateFill = Hex(0x09, 0x0C, 0x1E, 0.80f);
-        /// <summary>bg2: raised fill for settings tabs (#1E1C34 at 0.78).</summary>
+        /// <summary>Legacy (pulp, retired by the glass closeout): bg2, raised fill for settings tabs (#1E1C34 at 0.78).</summary>
         public static readonly Color PlateRaised = Hex(0x1E, 0x1C, 0x34, 0.78f);
         /// <summary>Screen backdrop under art (#05071A).</summary>
         public static readonly Color Backdrop = Hex(0x05, 0x07, 0x1A);
@@ -194,8 +194,156 @@ namespace FTT.UI {
         public static readonly Color Danger = Hex(0xFF, 0x5A, 0x5A);
         /// <summary>Boss red (#FF5A5A).</summary>
         public static readonly Color Boss = Hex(0xFF, 0x5A, 0x5A);
-        /// <summary>Paper (#F3F0E6): panel border, selected button, bubbles.</summary>
+        /// <summary>Legacy (pulp, retired by the glass closeout): paper (#F3F0E6), the pulp panel border and bubbles.</summary>
         public static readonly Color Paper = Hex(0xF3, 0xF0, 0xE6);
+
+        // ---- Glass tokens (Temporal Glass rebuild, TG-THEME 2026-10-27) ----------
+        //
+        // UI_SPEC_GLASS sections 1.1, 1.3 and 1.4 resolved to constants, each named for its role (1.6). The
+        // generator (tools/ui_theme/build_ftt_theme.py) paints every theme colour from a table of the same names,
+        // writes that table into UIPalette.Roles.cs (GeneratorPalette), and UIThemeTests pins every entry to the
+        // constant here and the glass ones to the spec's values. The fills are the build fills of 1.4 (one level
+        // everywhere, darker than the mock's, because gl_compatibility has no backdrop blur).
+
+        /// <summary>Focus (#FFD45C): the focused edge, the focused marker and its glow.</summary>
+        public static readonly Color Focus = Hex(0xFF, 0xD4, 0x5C);
+        /// <summary>edge: the standard hairline (#F3C95B at 0.55): rings, the tube edge, the panel border.</summary>
+        public static readonly Color Edge = Hex(0xF3, 0xC9, 0x5B, 0.55f);
+        /// <summary>edge-hi: the lit hairline (#FFD45C): the tag bar, a ready lens, the bright end of a flourish rule.</summary>
+        public static readonly Color EdgeHi = Hex(0xFF, 0xD4, 0x5C);
+        /// <summary>edge-dim: the quiet hairline (#F3C95B at 0.25): a normal chevron, a tile, an empty status ring.</summary>
+        public static readonly Color EdgeDim = Hex(0xF3, 0xC9, 0x5B, 0.25f);
+        /// <summary>ink-inv (#1A1204): text on a gold fill.</summary>
+        public static readonly Color InkInv = Hex(0x1A, 0x12, 0x04);
+        /// <summary>hp2 (#4FCF8A): the HP fill's anchored end (<see cref="Hp"/> is the moving end).</summary>
+        public static readonly Color Hp2 = Hex(0x4F, 0xCF, 0x8A);
+        /// <summary>boss2 (#A82A2A): the boss fill's start and the low-HP fill's start.</summary>
+        public static readonly Color Boss2 = Hex(0xA8, 0x2A, 0x2A);
+        /// <summary>shadow (#00020C at 0.60): the soft drop shadow of panels and portraits.</summary>
+        public static readonly Color PanelShadow = Hex(0x00, 0x02, 0x0C, 0.60f);
+        /// <summary>The panel fill's 160 degree start, as built (rgba(15, 24, 52, .92); drawn .80 with a blur).</summary>
+        public static readonly Color GlassFillTop = Hex(0x0F, 0x18, 0x34, 0.92f);
+        /// <summary>The panel fill's 160 degree end, as built (rgba(6, 10, 26, .95)).</summary>
+        public static readonly Color GlassFillBottom = Hex(0x06, 0x0A, 0x1A, 0.95f);
+        /// <summary>The single-colour fallback of the panel fill (6.2: rgba(15, 24, 52, .93)), what a flat slab paints.</summary>
+        public static readonly Color GlassFillFlat = Hex(0x0F, 0x18, 0x34, 0.93f);
+        /// <summary>The chevron and field fill, normal and selected (rgba(8, 13, 32, .90)).</summary>
+        public static readonly Color ButtonFill = Hex(0x08, 0x0D, 0x20, 0.90f);
+        /// <summary>The chevron fill under the focus and pressed washes (rgba(8, 16, 38, .92)).</summary>
+        public static readonly Color ButtonFillFocus = Hex(0x08, 0x10, 0x26, 0.92f);
+        /// <summary>The pressed wash (rgba(glow, .50) to .16, mean .33) composited over <see cref="ButtonFillFocus"/>: a flat pressed fill.</summary>
+        public static readonly Color ButtonFillPressed = Hex(0x5A, 0x51, 0x38, 0.946f);
+        /// <summary>The disabled chevron fill (rgba(8, 13, 32, .50)).</summary>
+        public static readonly Color ButtonFillDisabled = Hex(0x08, 0x0D, 0x20, 0.50f);
+        /// <summary>The select tile fill, 160 degree start (rgba(26, 38, 74, .90)).</summary>
+        public static readonly Color TileFillTop = Hex(0x1A, 0x26, 0x4A, 0.90f);
+        /// <summary>The select tile fill, 160 degree end (rgba(6, 10, 26, .94)).</summary>
+        public static readonly Color TileFillBottom = Hex(0x06, 0x0A, 0x1A, 0.94f);
+        /// <summary>The lens radial's outer stop (rgba(6, 10, 26, .92)).</summary>
+        public static readonly Color LensFill = Hex(0x06, 0x0A, 0x1A, 0.92f);
+        /// <summary>The badge radial's outer stop (rgba(8, 12, 30, .86)).</summary>
+        public static readonly Color BadgeFill = Hex(0x08, 0x0C, 0x1E, 0.86f);
+        /// <summary>The Integrity dial radial's outer stop (rgba(5, 9, 24, .90)).</summary>
+        public static readonly Color DialFill = Hex(0x05, 0x09, 0x18, 0.90f);
+        /// <summary>The portrait frame radial's outer stop (rgba(6, 10, 26, .95)).</summary>
+        public static readonly Color PortraitFill = Hex(0x06, 0x0A, 0x1A, 0.95f);
+        /// <summary>The glass tube's inner track, top (rgba(2, 5, 14, .95)).</summary>
+        public static readonly Color TubeTrackTop = Hex(0x02, 0x05, 0x0E, 0.95f);
+        /// <summary>The glass tube's inner track, bottom (rgba(10, 16, 36, .82)).</summary>
+        public static readonly Color TubeTrackBottom = Hex(0x0A, 0x10, 0x24, 0.82f);
+        /// <summary>The boss tube's opaque track, top (#05060F).</summary>
+        public static readonly Color BossTrackTop = Hex(0x05, 0x06, 0x0F);
+        /// <summary>The boss tube's opaque track, bottom (#120A18).</summary>
+        public static readonly Color BossTrackBottom = Hex(0x12, 0x0A, 0x18);
+        /// <summary>The cooldown sweep (rgba(2, 5, 14, .76)).</summary>
+        public static readonly Color SweepShade = Hex(0x02, 0x05, 0x0E, 0.76f);
+        /// <summary>The Integrity wedge's remainder (rgba(2, 5, 14, .55)).</summary>
+        public static readonly Color WedgeRemainder = Hex(0x02, 0x05, 0x0E, 0.55f);
+        /// <summary>The toggle track fill while off (rgba(6, 10, 26, .90)).</summary>
+        public static readonly Color ToggleTrackFill = Hex(0x06, 0x0A, 0x1A, 0.90f);
+        /// <summary>The TabContainer's quiet inner panel (agent choice, rgba(6, 10, 26, .60)).</summary>
+        public static readonly Color TabPanelFill = Hex(0x06, 0x0A, 0x1A, 0.60f);
+        /// <summary>The slider track (rgba(255, 255, 255, .12)).</summary>
+        public static readonly Color SliderTrack = Hex(0xFF, 0xFF, 0xFF, 0.12f);
+        /// <summary>The scroll bar track (rgba(255, 255, 255, .06)).</summary>
+        public static readonly Color ScrollTrack = Hex(0xFF, 0xFF, 0xFF, 0.06f);
+        /// <summary>The glass tube's decile ticks (rgba(255, 255, 255, .13)).</summary>
+        public static readonly Color TickLine = Hex(0xFF, 0xFF, 0xFF, 0.13f);
+        /// <summary>A readiness or status ring's remainder and the tube's glow (rgba(glow, .16)).</summary>
+        public static readonly Color RingTrack = Hex(0xF3, 0xC9, 0x5B, 0.16f);
+        /// <summary>The 14 px focus glow (rgba(glow, .55)).</summary>
+        public static readonly Color FocusGlow = Hex(0xF3, 0xC9, 0x5B, 0.55f);
+        /// <summary>A popup row's focus wash (rgba(glow, .22), the flat mean of the button wash).</summary>
+        public static readonly Color FocusWash = Hex(0xF3, 0xC9, 0x5B, 0.22f);
+        /// <summary>The panel tag's wash (rgba(glow, .21), the flat mean of its .34 to .08 gradient).</summary>
+        public static readonly Color TagWash = Hex(0xF3, 0xC9, 0x5B, 0.21f);
+        /// <summary>An unselected tab (rgba(glow, .08)).</summary>
+        public static readonly Color TabFill = Hex(0xF3, 0xC9, 0x5B, 0.08f);
+        /// <summary>A hovered tab (agent choice, rgba(glow, .16)).</summary>
+        public static readonly Color TabHover = Hex(0xF3, 0xC9, 0x5B, 0.16f);
+        /// <summary>The READY badge fill (rgba(glow, .14)).</summary>
+        public static readonly Color ReadyBadgeFill = Hex(0xF3, 0xC9, 0x5B, 0.14f);
+        /// <summary>The READY badge glow (rgba(glow, .30)).</summary>
+        public static readonly Color ReadyBadgeGlow = Hex(0xF3, 0xC9, 0x5B, 0.30f);
+        /// <summary>The idle (choosing) badge border (rgba(glow, .25)).</summary>
+        public static readonly Color ReadyBadgeIdleEdge = Hex(0xF3, 0xC9, 0x5B, 0.25f);
+        /// <summary>The idle (choosing) badge fill (rgba(0, 0, 0, .25)).</summary>
+        public static readonly Color ReadyBadgeIdleFill = Hex(0x00, 0x00, 0x00, 0.25f);
+        /// <summary>Text selection in a field (rgba(glow, .40)).</summary>
+        public static readonly Color Selection = Hex(0xF3, 0xC9, 0x5B, 0.40f);
+        /// <summary>The block pip glow (rgba(143, 216, 255, .6)).</summary>
+        public static readonly Color PipGlow = Hex(0x8F, 0xD8, 0xFF, 0.60f);
+        /// <summary>The Defy-ready glow (rgba(255, 232, 122, .75)).</summary>
+        public static readonly Color DefyReadyGlow = Hex(0xFF, 0xE8, 0x7A, 0.75f);
+        /// <summary>The boss tube's edge (#FF4D62, PAL-A's boss red, which the mock hard-codes).</summary>
+        public static readonly Color BossEdge = Hex(0xFF, 0x4D, 0x62);
+        /// <summary>The boss tube's glow (rgba(255, 77, 98, .30)).</summary>
+        public static readonly Color BossGlow = Hex(0xFF, 0x4D, 0x62, 0.30f);
+        /// <summary>The boss damage tracker (rgba(255, 255, 255, .55)).</summary>
+        public static readonly Color BossTracker = Hex(0xFF, 0xFF, 0xFF, 0.55f);
+        /// <summary>The selected tab's text and the select lock glyph (#04141A, AC24).</summary>
+        public static readonly Color TabSelectedInk = Hex(0x04, 0x14, 0x1A);
+        /// <summary>What the <c>ScrimPanel</c> variation paints, opaque; every user multiplies it by SelfModulate alpha 0.70.</summary>
+        public static readonly Color ScrimFill = Hex(0x03, 0x05, 0x0E);
+        /// <summary>The build pause dim (rgba(3, 5, 14, .70), 1.4): <see cref="ScrimFill"/> at the users' 0.70.</summary>
+        public static readonly Color PauseDim = Hex(0x03, 0x05, 0x0E, 0.70f);
+        /// <summary>The Smothered Game Over dim (rgba(3, 5, 14, .82), 9.2).</summary>
+        public static readonly Color GameOverDim = Hex(0x03, 0x05, 0x0E, 0.82f);
+        /// <summary>The menu scrim's strongest stop (90 degree: .96 at 0, .84 at 26 %, .35 at 48 %, 0 at 66 %; 1.3).</summary>
+        public static readonly Color ScrimMenu = Hex(0x04, 0x07, 0x14, 0.96f);
+        /// <summary>The select vignette's centre stop (rgba(3, 5, 16, .55), transparent at 80 %).</summary>
+        public static readonly Color SelectVignette = Hex(0x03, 0x05, 0x10, 0.55f);
+        /// <summary>The Fighter top shade's top stop (180 degree: .80, .64 at 42 %, .30 at 78 %, 0 at 100 %).</summary>
+        public static readonly Color TopShade = Hex(0x06, 0x04, 0x0C, 0.80f);
+        /// <summary>The main menu title gradient's top (#FFFFFF).</summary>
+        public static readonly Color TitleTop = Hex(0xFF, 0xFF, 0xFF);
+        /// <summary>The main menu title gradient at 42 % and its flat fallback (#DFE8FF).</summary>
+        public static readonly Color TitleMid = Hex(0xDF, 0xE8, 0xFF);
+        /// <summary>The main menu title gradient's bottom (#8D9BC6).</summary>
+        public static readonly Color TitleBottom = Hex(0x8D, 0x9B, 0xC6);
+        /// <summary>The focused, hovered and pressed label (#FFFFFF, T10).</summary>
+        public static readonly Color TextFocus = Hex(0xFF, 0xFF, 0xFF);
+        /// <summary>The modulate a disabled glass field or tab texture draws with (#FFFFFF at 0.50, agent choice).</summary>
+        public static readonly Color DimModulate = Hex(0xFF, 0xFF, 0xFF, 0.50f);
+        /// <summary>
+        /// The panel fill at the slab's centre, midway along its 160 degree build gradient (<see cref="GlassFillTop"/> to
+        /// <see cref="GlassFillBottom"/>). The glass_panel nine-slice bakes this fill over the slab's own soft drop shadow.
+        /// </summary>
+        public static readonly Color GlassFillMid = GlassFillTop.Lerp(GlassFillBottom, 0.5f);
+        /// <summary>The scene halo S rim (#000000 at 0.85, 2.4).</summary>
+        public static readonly Color HaloOutlineS = Hex(0x00, 0x00, 0x00, 0.85f);
+        /// <summary>The scene halo S shadow (#000000 at 0.60).</summary>
+        public static readonly Color HaloShadowS = Hex(0x00, 0x00, 0x00, 0.60f);
+        /// <summary>The scene halo L rim (#000000 at 0.70).</summary>
+        public static readonly Color HaloOutlineL = Hex(0x00, 0x00, 0x00, 0.70f);
+        /// <summary>The scene halo L shadow (#000000 at 0.50).</summary>
+        public static readonly Color HaloShadowL = Hex(0x00, 0x00, 0x00, 0.50f);
+
+        /// <summary>The scene halo tiers as Label theme values (2.4): rim px, shadow offset y, shadow outline px.</summary>
+        public const int HaloSOutline = 2, HaloSShadowOffsetY = 1, HaloSShadowOutline = 4;
+        public const int HaloLOutline = 3, HaloLShadowOffsetY = 3, HaloLShadowOutline = 8;
+        /// <summary>T29's halo S variant: the same rim and shadow with a 6 px shadow outline.</summary>
+        public const int HaloS6ShadowOutline = 6;
 
         /// <summary>
         /// Player 1 ownership colour, read live from the player's chosen slot palette
@@ -228,64 +376,75 @@ namespace FTT.UI {
             return luminance < OwnerDarkLuminance ? (playerIndex == 1 ? P2Edge : P1Edge) : fill;
         }
 
-        // UI_SPEC 1.2: literals the selected components hard-code.
-        /// <summary>#000000: every ring, border and hard shadow.</summary>
+        // UI_SPEC 1.2 (pulp): literals the pulp components hard-coded. The glass closeout retires the ones marked legacy.
+        /// <summary>#000000: black (the scene halos are black at their own alphas).</summary>
         public static readonly Color InkBlack = Hex(0, 0, 0);
-        /// <summary>#0C0A10: dark text on gold or paper, card base.</summary>
+        /// <summary>Legacy (pulp, retired by the glass closeout): #0C0A10, dark text on gold or paper, card base.</summary>
         public static readonly Color LabelDark = Hex(0x0C, 0x0A, 0x10);
-        /// <summary>#14101A: paper-panel text 1.</summary>
+        /// <summary>Legacy (pulp, retired by the glass closeout): #14101A, paper-panel text 1.</summary>
         public static readonly Color PaperInk = Hex(0x14, 0x10, 0x1A);
-        /// <summary>#3A3144: paper-panel text 2 (stat labels).</summary>
+        /// <summary>Legacy (pulp, retired by the glass closeout): #3A3144, paper-panel text 2 (stat labels).</summary>
         public static readonly Color PaperInk2 = Hex(0x3A, 0x31, 0x44);
-        /// <summary>#6B6150: paper-panel text 3, disabled border.</summary>
+        /// <summary>Legacy (pulp, retired by the glass closeout): #6B6150, paper-panel text 3, disabled border.</summary>
         public static readonly Color PaperInk3 = Hex(0x6B, 0x61, 0x50);
-        /// <summary>#3A3144: empty bar, ring and toggle tracks.</summary>
+        /// <summary>Legacy (pulp, retired by the glass closeout): #3A3144, the pulp empty bar, ring and toggle tracks.</summary>
         public static readonly Color Track = Hex(0x3A, 0x31, 0x44);
-        /// <summary>#2A2434: ability slot frame fill.</summary>
+        /// <summary>Legacy (pulp, retired by the glass closeout): #2A2434, the pulp ability slot frame fill.</summary>
         public static readonly Color SlotFrame = Hex(0x2A, 0x24, 0x34);
-        /// <summary>#FFF3D8: prompt text, key circles, hint lines.</summary>
+        /// <summary>Legacy (pulp, retired by the glass closeout): #FFF3D8, the pulp prompt text, key circles, hint lines.</summary>
         public static readonly Color PromptCream = Hex(0xFF, 0xF3, 0xD8);
-        /// <summary>#FF7A5C: damage-over-time status badge.</summary>
+        /// <summary>#FF7A5C: the damage status glyph and ring (Venom, Radiant Burn).</summary>
         public static readonly Color StatusDamage = Hex(0xFF, 0x7A, 0x5C);
-        /// <summary>#8FC7FF: control status badge.</summary>
+        /// <summary>#8FC7FF: the control status glyph and ring (Time Dilation, Static Charge, Root).</summary>
         public static readonly Color StatusControl = Hex(0x8F, 0xC7, 0xFF);
-        /// <summary>#2C2733: disabled button base stripe.</summary>
+        /// <summary>Legacy (pulp, retired by the glass closeout): #2C2733, the pulp disabled button base stripe.</summary>
         public static readonly Color DisabledFill = Hex(0x2C, 0x27, 0x33);
         /// <summary>
-        /// Disabled label (#A0987F). The spec's #7A705A reads 2.97:1 on the disabled
-        /// stripe; this is lifted past 4.5:1 (plan item 14, accessibility).
+        /// Legacy (pulp, retired by the glass closeout): the pulp disabled label (#A0987F), lifted past 4.5:1 on the
+        /// pulp disabled stripe. The glass disabled label is <see cref="Ink3"/>.
         /// </summary>
         public static readonly Color DisabledLabel = Hex(0xA0, 0x98, 0x7F);
 
         // ---- Derived control colours (what the Theme actually paints) --------
+        //
+        // TG-THEME: re-pointed at the glass values. UIThemeTests pins each against the generated theme.
 
-        public static readonly Color PanelBackground = PlateFill;
-        public static readonly Color PanelBorder = Paper;
+        /// <summary>A glass slab's fill at its centre (the glass_panel nine-slice bakes it over its drop shadow).</summary>
+        public static readonly Color PanelBackground = GlassFillMid;
+        /// <summary>A glass slab's edge (the standard hairline).</summary>
+        public static readonly Color PanelBorder = Edge;
 
-        public static readonly Color ButtonNormal = PlateFill;
-        public static readonly Color ButtonHover = Accent;
-        public static readonly Color ButtonPressed = Accent2;
-        public static readonly Color ButtonDisabled = DisabledFill;
+        public static readonly Color ButtonNormal = ButtonFill;
+        /// <summary>A chevron's hover box is its normal box (orchestrator ruling: the decor takes focus on mouse-enter).</summary>
+        public static readonly Color ButtonHover = ButtonFill;
+        public static readonly Color ButtonPressed = ButtonFillPressed;
+        public static readonly Color ButtonDisabled = ButtonFillDisabled;
 
         /// <summary>
-        /// Focus ring colour for ring-style focus boxes (line edits, check boxes).
-        /// A button's focus is the filled accent plate instead
-        /// (<see cref="FocusFill"/>). Controller and keyboard players navigate
-        /// entirely by these, so every focusable control in the theme draws one.
+        /// The lit edge every focus box draws (chevrons, fields, line edits, check boxes): the focused
+        /// row's edge plus a 14 px <see cref="FocusGlow"/>. Controller and keyboard players navigate entirely by
+        /// these, so every focusable control in the theme draws one.
         /// </summary>
-        public static readonly Color FocusOutline = Accent;
+        public static readonly Color FocusOutline = Focus;
 
-        /// <summary>The filled plate a focused or hovered button draws.</summary>
-        public static readonly Color FocusFill = Accent;
+        /// <summary>The fill a focused chevron sits on: its normal box, under the focus overlay (which has no dark base).</summary>
+        public static readonly Color FocusFill = ButtonFill;
 
-        /// <summary>Label colour on a focused, hovered or pressed (accent-filled) button.</summary>
-        public static readonly Color TextOnAccent = LabelDark;
+        /// <summary>Text on a gold fill: the selected tab (#04141A, AC24).</summary>
+        public static readonly Color TextOnAccent = TabSelectedInk;
 
         public static readonly Color TextPrimary = Ink;
         public static readonly Color TextAccent = Accent;
-        public static readonly Color TextDisabled = DisabledLabel;
+        /// <summary>The disabled label (ink3).</summary>
+        public static readonly Color TextDisabled = Ink3;
+        /// <summary>The normal chevron label (ink2, T10).</summary>
+        public static readonly Color ButtonLabel = Ink2;
 
-        /// <summary>Slider and progress-bar troughs.</summary>
+        /// <summary>
+        /// The default ring remainder (<see cref="RadialProgress"/>, including the world-space Restoration Font and Resonance
+        /// Hold channel rings). Kept on the pulp <see cref="Track"/> by orchestrator ruling until TG-WIDGETS step 2 gives
+        /// RadialProgress its own default; the glass tube's tracks are <see cref="TubeTrackTop"/> / <see cref="TubeTrackBottom"/>.
+        /// </summary>
         public static readonly Color TrackBackground = Track;
 
         // ---- Type scale -----------------------------------------------------
@@ -301,7 +460,8 @@ namespace FTT.UI {
         public const int BodyFontSize = 20;
         public const int HeadingFontSize = 26;
         public const int EmphasisFontSize = 30;
-        public const int TitleFontSize = 40;
+        /// <summary>The panel title inside a slab (UI_SPEC_GLASS 9.1: Cinzel 900, 36 px; the pulp title was 40).</summary>
+        public const int TitleFontSize = 36;
 
         /// <summary>No UI label renders below this at 1080p (plan item 14).</summary>
         public const int MinLabelFontSize = 18;

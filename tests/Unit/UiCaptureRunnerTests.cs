@@ -34,7 +34,8 @@ public class UiCaptureRunnerTests {
     public void TheRegistryDiscoversAttributedTargetsFromEveryPartialFile() {
         var all = UiCaptureTargets.All;
         foreach (string name in new[] {
-            "theme_labels_small", "theme_labels_large", "theme_controls", "theme_palette", "main_menu_root" }) {
+            "theme_labels_small", "theme_labels_large", "theme_controls", "theme_palette", "theme_glass_components",
+            "main_menu_root" }) {
             AssertThat(all.ContainsKey(name))
                 .OverrideFailureMessage($"capture target '{name}' is not registered").IsTrue();
         }

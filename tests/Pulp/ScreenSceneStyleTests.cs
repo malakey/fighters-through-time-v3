@@ -6,7 +6,10 @@ using static GdUnit4.Assertions;
 
 namespace FTT.Tests.Pulp;
 
-/// <summary>UR-SCREENS. The restyled scenes carry no per-node font size and no chrome cyan; roles and the palette do that work.</summary>
+/// <summary>
+/// UR-SCREENS. The restyled scenes carry no per-node font size and no chrome cyan; roles and the palette do that work.
+/// TG-THEME dropped the ban on the <c>temporal_glass_</c> menu art: the glass rebuild wires those backgrounds back in.
+/// </summary>
 [TestSuite]
 [RequireGodotRuntime]
 public class ScreenSceneStyleTests {
@@ -27,7 +30,7 @@ public class ScreenSceneStyleTests {
             string[] lines = File.ReadAllLines(path);
             for (int i = 0; i < lines.Length; i++) {
                 if (lines[i].Contains("theme_override_font_sizes/font_size")
-                    || lines[i].Contains("Color(0, 0.9, 0.9") || lines[i].Contains("temporal_glass_")) {
+                    || lines[i].Contains("Color(0, 0.9, 0.9")) {
                     offenders.Add(scene + ":" + (i + 1));
                 }
             }
