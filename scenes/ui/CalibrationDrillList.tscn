@@ -36,43 +36,46 @@ mouse_filter = 2
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="Title" type="Label" parent="List/Root"]
-layout_mode = 2
-theme_type_variation = &"TitleLabel"
-text = "drill_list_title"
-uppercase = true
-horizontal_alignment = 1
-
 [node name="Hint" type="Label" parent="List/Root"]
-custom_minimum_size = Vector2(720, 0)
+custom_minimum_size = Vector2(760, 0)
 layout_mode = 2
-theme_type_variation = &"StatusLine"
+theme_type_variation = &"HintLine"
 text = "drill_list_hint"
 horizontal_alignment = 1
 autowrap_mode = 3
 
 [node name="CharacterLine" type="Label" parent="List/Root"]
 layout_mode = 2
-theme_type_variation = &"HeadingLabel"
+theme_type_variation = &"SceneCaption"
 horizontal_alignment = 1
+uppercase = true
 
 [node name="Rows" type="VBoxContainer" parent="List/Root"]
 layout_mode = 2
-theme_override_constants/separation = 8
+size_flags_horizontal = 4
+theme_override_constants/separation = 11
+
+[node name="Objective" type="Label" parent="List/Root"]
+custom_minimum_size = Vector2(760, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_type_variation = &"HintLine"
+horizontal_alignment = 1
+autowrap_mode = 3
 
 [node name="ButtonRow" type="HBoxContainer" parent="List/Root"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 34
 alignment = 1
 
 [node name="BackButton" type="Button" parent="List/Root/ButtonRow"]
-custom_minimum_size = Vector2(340, 58)
+custom_minimum_size = Vector2(0, 58)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 text = "common_back"
 
 [node name="ExitButton" type="Button" parent="List/Root/ButtonRow"]
-custom_minimum_size = Vector2(340, 58)
+custom_minimum_size = Vector2(0, 58)
 layout_mode = 2
 theme_type_variation = &"PulpButtonCompact"
 text = "drill_exit"

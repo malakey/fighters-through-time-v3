@@ -47,10 +47,18 @@ namespace FTT.UI {
         /// <summary>The roster IDs this screen offers (the manifest roster). Test surface.</summary>
         public static System.Collections.Generic.IReadOnlyList<string> Roster => CharacterRoster.IDs;
 
+        /// <summary>The picker tile (UI_SPEC_GLASS 3.7, 9.2: the select tile, 164 x 164, no Random tile).</summary>
+        public const float TileSize = 164f;
+        /// <summary>The tile name's box (3.7: centred in 156 px, its bottom 11 px above the tile's bottom).</summary>
+        public const float NameBoxWidth = 156f, NameBottomInset = 11f;
+
+        private static readonly StyleBoxEmpty TileBox = new();
+        private static readonly string[] TileBoxSlots = { "normal", "hover", "pressed", "hover_pressed", "focus", "disabled" };
+
         public override void _Ready() {
             UIPalette.ApplyTheme(this);
-            _nameLabel = GetNode<Label>(Root + "Preview/PreviewName");
-            _statsLabel = GetNode<Label>(Root + "Preview/PreviewStats");
+            _nameLabel = GetNode<Label>(Root + "PreviewPanel/Preview/PreviewName");
+            _statsLabel = GetNode<Label>(Root + "PreviewPanel/Preview/PreviewStats");
 
             var grid = GetNode<GridContainer>(Root + "Grid");
             string[] roster = RosterIDs;
@@ -66,14 +74,14 @@ namespace FTT.UI {
                 int captured = index;
                 Button tile = _tiles[index];
                 tile.Text = string.Empty;
-                AddPortraitLayer(tile, PortraitFor(_roster[index]), NameFor(_roster[index]));
+                DressTile(tile, PortraitFor(_roster[index]), CardNameFor(_roster[index]));
                 // Unlike the Fighter select's cursor-driven tiles, these are plain
                 // focusable buttons: one player, one token, so focus *is* the cursor.
-                // The focused tile is a gold plate: its name reads dark on it, ink otherwise.
+                // The glass tile lights its edge on focus (hover takes focus); its name turns white then, ink2 otherwise.
                 Label tileName = tile.GetNodeOrNull<Label>("CharacterName");
                 void Tint() {
                     bool lit = tile.HasFocus() || tile.IsHovered();
-                    tileName?.AddThemeColorOverride("font_color", lit ? UIPalette.LabelDark : UIPalette.Ink);
+                    tileName?.AddThemeColorOverride("font_color", lit ? UIPalette.TextFocus : UIPalette.Ink2);
                 }
                 tile.FocusEntered += Tint;
                 tile.FocusExited += Tint;
@@ -89,12 +97,31 @@ namespace FTT.UI {
             GetNode<Button>(Root + "ButtonRow/SystemsCardButton").Pressed += OpenSystemsCard;
             GetNode<Button>(Root + "ButtonRow/BackButton").Pressed += Back;
 
-            // UR-SCREENS: banner decor on the footer row, the prompt bar bottom-right.
-            PulpScreenKit.DecorateButtons(GetNode<Control>(Root + "ButtonRow"), compact: true);
-            PulpScreenKit.AddPromptBar(this, ("ui_accept", "ui_prompt_select"), ("ui_cancel", "common_back"));
+            DressGlass();
             Highlight(StartingIndex());
             FocusChainBuilder.Apply(GetNode<Control>("Select"));
             if (_tiles.Length > 0) _tiles[_highlighted].GrabFocus();
+        }
+
+        /// <summary>
+        /// TG-SCREENS (UI_SPEC_GLASS 9.1, 9.2: the Calibration picker): a full-screen menu. The sub-screen art, the heading
+        /// <c>drill_picker_title</c> between flourishes top-centre, the hint as scene text, a 3 x 3 grid of glass select
+        /// tiles (no Random), the hero's preview on a glass slab, the footer as compact chevrons at their D6 width with no
+        /// prompt badge and the derived row gap, the prompt bar bottom-right and the screen streak. The block shrinks to fit
+        /// under the heading at a large UI scale.
+        /// </summary>
+        private void DressGlass() {
+            GlassScreenDressing.AddMenuArt(this, index: 1);
+            GlassScreenDressing.AddScreenHeading(this, "drill_picker_title");
+            if (GetNodeOrNull<PanelContainer>(Root + "PreviewPanel") is { } preview) PulpScreenKit.DressPanel(preview);
+            var footer = GetNode<HBoxContainer>(Root + "ButtonRow");
+            System.Collections.Generic.List<Button> buttons = PulpScreenKit.ButtonsOf(footer);
+            foreach (Button button in buttons) FTT.UI.Pulp.PulpButtonDecor.Apply(button, compact: true).ShowPrompt = false;
+            FTT.UI.Pulp.PulpButtonDecor.ApplyStackWidth(buttons, 290f, reservePrompt: false);
+            PulpScreenKit.SeparateFocusRow(footer);
+            MenuSafeAreaFit.Attach(GetNode<Control>(Root.TrimEnd('/')), GlassScreenDressing.ScaledHeadingReserve);
+            PulpScreenKit.AddPromptBar(this, ("ui_accept", "ui_prompt_select"), ("ui_cancel", "common_back"));
+            PulpScreenKit.AddScreenStreak(this);
         }
 
         /// <summary>
@@ -213,39 +240,47 @@ namespace FTT.UI {
         private static Texture2D PortraitFor(string characterID) => DataFor(characterID)?.CharacterPortrait;
 
         /// <summary>
-        /// The Fighter select's tile treatment: the portrait gets its own layer
-        /// above the name so a long name cannot squeeze the icon to a sliver.
+        /// The tile's short name (UI_SPEC_GLASS 3.7: <c>character_&lt;id&gt;_card_name</c>, as the Fighter select's tiles), else
+        /// the display name.
         /// </summary>
-        private static void AddPortraitLayer(Button button, Texture2D portrait, string characterName) {
-            var portraitRect = new TextureRect {
-                Name = "Portrait",
-                Texture = portrait,
-                ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-                StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
-                MouseFilter = MouseFilterEnum.Ignore,
-                AnchorLeft = 0.5f,
-                AnchorRight = 0.5f,
-                OffsetLeft = -36f,
-                OffsetTop = 5f,
-                OffsetRight = 36f,
-                OffsetBottom = 77f
-            };
-            button.AddChild(portraitRect);
+        private string CardNameFor(string characterID) {
+            string key = $"character_{characterID}_card_name";
+            string card = Tr(key);
+            return card != key && !string.IsNullOrWhiteSpace(card) ? card : NameFor(characterID);
+        }
+
+        /// <summary>
+        /// The select tile treatment (UI_SPEC_GLASS 3.7) on a picker button: the button draws nothing of its own; a
+        /// <see cref="FTT.UI.Pulp.GlassTileDecor"/> draws the 164 px glass tile, its portrait window (the art at 150 %, a
+        /// face crop) and the focus edge and glow, and the short name (<c>CardName</c>, T35) sits centred 11 px above the
+        /// tile's bottom, shrunk to its 156 px box at a large UI scale (the built <see cref="CardTextFit"/> rule).
+        /// </summary>
+        private static void DressTile(Button button, Texture2D portrait, string cardName) {
+            button.CustomMinimumSize = new Vector2(TileSize, TileSize);
+            foreach (string slot in TileBoxSlots) button.AddThemeStyleboxOverride(slot, TileBox);
+            FTT.UI.Pulp.GlassTileDecor decor = FTT.UI.Pulp.GlassTileDecor.Attach(button, FTT.UI.Pulp.GlassTileDecor.SelectChamfer);
+            decor.Portrait = portrait;
 
             var nameLabel = new Label {
                 Name = "CharacterName",
-                Text = characterName,
+                Text = cardName,
+                Uppercase = true,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
-                AutowrapMode = TextServer.AutowrapMode.WordSmart,
                 MouseFilter = MouseFilterEnum.Ignore,
-                AnchorRight = 1f,
-                AnchorTop = 1f,
-                AnchorBottom = 1f,
-                OffsetTop = -52f
+                AutoTranslateMode = AutoTranslateModeEnum.Disabled,
+                ThemeTypeVariation = UIPalette.LabelRoles.CardName
             };
-            nameLabel.ThemeTypeVariation = UIPalette.SmallLabelVariation;
             button.AddChild(nameLabel);
+            void Fit() {
+                if (!IsInstanceValid(nameLabel)) return;
+                float height = nameLabel.GetMinimumSize().Y;
+                nameLabel.Size = new Vector2(nameLabel.Size.X, height);
+                nameLabel.Position = new Vector2(nameLabel.Position.X, TileSize - NameBottomInset - height);
+                CardTextFit.Fit(nameLabel, (TileSize - NameBoxWidth) / 2f, NameBoxWidth, centred: true);
+            }
+            nameLabel.ThemeChanged += () => Callable.From(Fit).CallDeferred();
+            Callable.From(Fit).CallDeferred();
         }
     }
 }

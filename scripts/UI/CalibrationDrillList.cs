@@ -40,13 +40,74 @@ namespace FTT.UI {
             GetNode<Button>(Root + "ButtonRow/BackButton").Pressed += Back;
             GetNode<Button>(Root + "ButtonRow/ExitButton").Pressed += ExitCalibration;
 
-            // UR-SCREENS: banner decor on every row and footer button, the prompt bar bottom-right.
-            PulpScreenKit.DecorateButtons(GetNode<Control>(Root.TrimEnd('/')), compact: true);
-            foreach (Button row in _drillButtons) PulpScreenKit.ReserveBadgeSpace(row);
-            PulpScreenKit.AddPromptBar(this, ("ui_accept", "ui_prompt_select"), ("ui_cancel", "common_back"));
-            // FU-MENU: nine drill rows outgrow 1080 px at the 1.4 UI scale; shrink to fit.
-            MenuSafeAreaFit.Attach(GetNode<Control>(Root.TrimEnd('/')));
+            DressGlass();
+            // FU-MENU: the rows outgrow 1080 px at the 1.4 UI scale; shrink to fit (TG-SCREENS: and keep clear of the
+            // screen heading above).
+            MenuSafeAreaFit.Attach(GetNode<Control>(Root.TrimEnd('/')), GlassScreenDressing.ScaledHeadingReserve);
             FocusChainBuilder.Apply(GetNode<Control>("List"));
+        }
+
+        /// <summary>
+        /// TG-SCREENS (UI_SPEC_GLASS 9.1, 9.2: the Calibration list): a full-screen menu. The sub-screen art, the heading
+        /// <c>drill_list_title</c> between flourishes top-centre, the hint and the training line as scene text, a chevron
+        /// column of the drills at its D6 width (min 560, cap 700, the prompt reserved) with the focused drill's objective
+        /// under it (as the difficulty screen's description), the footer as compact chevrons with no badge and the derived
+        /// row gap, the prompt bar bottom-right and the screen streak. A drill finished this session shows its last result
+        /// at its row's right (<see cref="AddResultGlyph"/>).
+        /// </summary>
+        private void DressGlass() {
+            GlassScreenDressing.AddMenuArt(this, index: 1);
+            GlassScreenDressing.AddScreenHeading(this, "drill_list_title");
+            _objectiveLabel = GetNodeOrNull<Label>(Root + "Objective");
+            var rows = new List<Button>(_drillButtons.Count);
+            foreach (Button row in _drillButtons) {
+                FTT.UI.Pulp.PulpButtonDecor.Apply(row);
+                rows.Add(row);
+            }
+            FTT.UI.Pulp.PulpButtonDecor.ApplyStackWidth(rows, 560f, GlassScreenDressing.ScaledStackCap(700f));
+            var footer = GetNode<HBoxContainer>(Root + "ButtonRow");
+            List<Button> buttons = PulpScreenKit.ButtonsOf(footer);
+            foreach (Button button in buttons) FTT.UI.Pulp.PulpButtonDecor.Apply(button, compact: true).ShowPrompt = false;
+            FTT.UI.Pulp.PulpButtonDecor.ApplyStackWidth(buttons, 290f, reservePrompt: false);
+            PulpScreenKit.SeparateFocusRow(footer);
+            PulpScreenKit.AddPromptBar(this, ("ui_accept", "ui_prompt_select"), ("ui_cancel", "common_back"));
+            PulpScreenKit.AddScreenStreak(this);
+            ShowObjective(0);
+        }
+
+        private Label _objectiveLabel;
+
+        // ---- each drill's last result this session (UI_SPEC_GLASS 9.2: shown at the row's right) ------------------
+
+        /// <summary>The result glyph's name, size and gap to the right of its row's chevron.</summary>
+        public const string ResultGlyphName = "ResultGlyph";
+        public const float ResultGlyphSize = 28f, ResultGlyphGap = 16f;
+
+        private static CalibrationDrillOutcome[] _lastOutcomes = System.Array.Empty<CalibrationDrillOutcome>();
+
+        /// <summary>
+        /// Records drill <paramref name="drillIndex"/>'s result for the list (the runner calls it as a drill ends). Process
+        /// memory for the glyph only, like the route's own session fields: never persisted and never read by gameplay.
+        /// </summary>
+        public static void NoteOutcome(int drillIndex, CalibrationDrillOutcome outcome) {
+            if (drillIndex < 0 || drillIndex >= CalibrationDrillCatalog.Count) return;
+            if (_lastOutcomes.Length != CalibrationDrillCatalog.Count) {
+                System.Array.Resize(ref _lastOutcomes, CalibrationDrillCatalog.Count);
+            }
+            _lastOutcomes[drillIndex] = outcome;
+        }
+
+        /// <summary>Drill <paramref name="drillIndex"/>'s last result this session; <c>InProgress</c> when none.</summary>
+        public static CalibrationDrillOutcome LastOutcome(int drillIndex) =>
+            drillIndex >= 0 && drillIndex < _lastOutcomes.Length ? _lastOutcomes[drillIndex] : CalibrationDrillOutcome.InProgress;
+
+        /// <summary>Test seam: forgets every recorded result.</summary>
+        internal static void ForgetOutcomesForTest() => _lastOutcomes = System.Array.Empty<CalibrationDrillOutcome>();
+
+        /// <summary>Shows the objective of drill <paramref name="index"/> under the column (the focused row's lesson).</summary>
+        private void ShowObjective(int index) {
+            if (_objectiveLabel == null || index < 0 || index >= CalibrationDrillCatalog.Count) return;
+            _objectiveLabel.Text = Tr(CalibrationDrillCatalog.At(index).ObjectiveKey);
         }
 
         private void BuildRows() {
@@ -55,18 +116,43 @@ namespace FTT.UI {
                 CalibrationDrillDefinition drill = CalibrationDrillCatalog.At(index);
                 var button = new Button {
                     Name = $"DrillButton{index}",
-                    // Numbered so the order the design fixes is visible, and the
-                    // objective sits under the name as the one-line lesson.
-                    Text = $"{index + 1}.  {Tr(drill.NameKey)}\n{Tr(drill.ObjectiveKey)}",
-                    CustomMinimumSize = new Vector2(720f, 70f),
-                    ThemeTypeVariation = UIPalette.Variations.PulpButtonCompact,
-                    Alignment = HorizontalAlignment.Left,
-                    AutowrapMode = TextServer.AutowrapMode.WordSmart
+                    // Numbered so the order the design fixes is visible. TG-SCREENS: the objective, the one-line lesson,
+                    // shows under the column for the focused row (a chevron row carries one line).
+                    Text = $"{index + 1}.  {Tr(drill.NameKey)}",
+                    CustomMinimumSize = new Vector2(0f, 68f),
+                    ThemeTypeVariation = UIPalette.Variations.PulpButton,
+                    Alignment = HorizontalAlignment.Left
                 };
                 button.Pressed += () => StartDrill(captured);
+                button.FocusEntered += () => ShowObjective(captured);
                 _rows.AddChild(button);
                 _drillButtons.Add(button);
+                AddResultGlyph(button, index);
             }
+        }
+
+        /// <summary>
+        /// The row's last result this session at its right, outside the chevron so it never meets the focused row's
+        /// prompt badge: <c>check</c> in hp for a pass, the <c>cross</c> in ink2 for a fail, named by its tooltip. A drill
+        /// not finished this session shows nothing.
+        /// </summary>
+        private void AddResultGlyph(Button row, int index) {
+            CalibrationDrillOutcome last = LastOutcome(index);
+            if (last == CalibrationDrillOutcome.InProgress) return;
+            bool passed = last == CalibrationDrillOutcome.Passed;
+            FTT.UI.Pulp.PulpIcon glyph = FTT.UI.Pulp.PulpIcon.Create(
+                passed ? "check" : "cross", passed ? UIPalette.Hp : UIPalette.Ink2, ResultGlyphSize);
+            glyph.Name = ResultGlyphName;
+            glyph.TooltipText = Tr(passed ? "drill_result_pass" : "drill_result_fail");
+            row.AddChild(glyph);
+            glyph.AnchorLeft = 1f;
+            glyph.AnchorRight = 1f;
+            glyph.AnchorTop = 0.5f;
+            glyph.AnchorBottom = 0.5f;
+            glyph.OffsetLeft = ResultGlyphGap;
+            glyph.OffsetRight = ResultGlyphGap + ResultGlyphSize;
+            glyph.OffsetTop = -ResultGlyphSize / 2f;
+            glyph.OffsetBottom = ResultGlyphSize / 2f;
         }
 
         private void RefreshCharacterLine() {
