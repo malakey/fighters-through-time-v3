@@ -36,7 +36,8 @@ public class MainMenuSceneTests {
     private const string ScenePath = "res://scenes/menus/MainMenu.tscn";
     private const string RootLayout = "RootScreen/Center/Panel/Layout/";
     private const string SlotLayout = "SlotScreen/Center/Panel/Layout/";
-    private const string CharacterLayout = "CharacterScreen/Center/Panel/Layout/";
+    // TG-MENU: the character grid sits in Layout/Body beside the hero's side slab.
+    private const string CharacterLayout = "CharacterScreen/Center/Panel/Layout/Body/";
     private const string LevelLayout = "LevelSelectScreen/Center/Panel/Layout/";
     private const string DifficultyLayout = "DifficultyScreen/Center/Panel/Layout/";
 
@@ -97,9 +98,11 @@ public class MainMenuSceneTests {
         try {
             // The A1 convention: the scene stores the key, Godot's automatic
             // control translation resolves it, so a language change needs no rebuild.
-            // UR-MENU: the cover title is two live keys (the word, and the banner plate under it).
+            // TG-MENU (ruling R2): the title's first line is the raw key; its middle and last lines are the banner key's
+            // value split at its first space, resolved in code.
             AssertThat(menu.GetNode<Label>("RootScreen/TitleBlock/Title").Text).IsEqual("menu_cover_title_word");
-            AssertThat(menu.GetNode<Label>("RootScreen/TitleBlock/Banner/BannerLabel").Text).IsEqual("menu_cover_title_banner");
+            AssertThat(menu.GetNode<Label>("RootScreen/TitleBlock/Middle").Text).IsEqual("Through");
+            AssertThat(menu.GetNode<Label>("RootScreen/TitleBlock/Last").Text).IsEqual("Time");
             AssertThat(menu.GetNode<Button>(RootLayout + "StoryButton").Text).IsEqual("menu_story_mode");
             AssertThat(menu.GetNode<Label>(SlotLayout + "Title").Text).IsEqual("save_select_title");
 
