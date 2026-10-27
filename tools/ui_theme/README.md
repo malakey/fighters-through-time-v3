@@ -37,9 +37,12 @@ Edit `build_ftt_theme.py`, never the `.tres`. Run `--import` afterwards
   glow, the tab's the glow only. A chevron's `hover` is its normal box (the decor takes focus
   on mouse-enter); a field and a tab hover with their own full-look boxes. What 6.2 builds flat stays a
   `StyleBoxFlat`: the READY badges, the scrim, the slider track and fill, the scroll bars, the check box ring, the
-  tooltip, the tab container's inner panel. The pulp-only plates (paper, banners, boss, slot and card plates,
-  bubble, stamp) and the five HUD bar variations keep their pulp textures until their replacements land (the
-  handoff, `docs/handoffs/TG_THEME.md`, says why).
+  tooltip, the tab container's inner panel. The `OptionButton` arrow is `glass_option_arrow`, `chevron_down`'s bold
+  weight baked at its 18 px display size, and a spin box's up and down arrows are its vertical flip
+  (`glass_spin_up`) and the same arrow, in every state; all three stay 18 px at every UI scale. The five HUD bar
+  variations are value carriers: an empty background and a fill that holds its colour but draws nothing, under the
+  glass tube decor (`PulpBarDecor`) that draws the whole tube. TG-CLOSE retired the pulp kit's plates, roles and
+  palette entries, and `UiLegacyKitReferenceScanTests` fails on any reference to them.
 - **Variations and presets** are listed in `VARIATIONS` (written to `UIPalette.Variations`), including the eight
   3.1 slab presets (`GlassPanelPause` ... `GlassPanelContinue`, content margins = their paddings), `ReadyBadge` /
   `ReadyBadgeIdle`, `GlassField`, `GlassTab` / `GlassTabSelected`. A chevron variation also carries a `selected`
@@ -107,12 +110,14 @@ The method returns the node to show (it is stretched to the frame). The runner d
 `[UiCaptureTarget]` method by reflection; names must be unique (a duplicate is logged and skipped).
 Screens adopt their own theme; the theme specimen targets show how to apply it
 (`UIPalette.ApplyTheme(root)`). Target names are kept across the glass rebuild, so the pulp gallery
-(`D:/Projects/ftt-scratch/ur-captures/main-6a840a3f/`) and the glass one pair 1:1.
+(`D:/Projects/ftt-scratch/ur-captures/main-6a840a3f/`) and the glass one (`D:/Projects/ftt-scratch/tg-captures/final/`,
+whose `compare/pulp` holds the pairs) pair 1:1.
 
 Theme targets: `theme_labels_small` (every Label role at 30 px and under) and `theme_labels_large` (over 30 px), plate
 roles on a glass slab and scene roles on a bright art swatch; `theme_controls` (the button variations in four states,
 every panel variation, fields, sliders, bars, tabs, a scroll bar); `theme_palette` (every generator palette entry over
-white, then P1 / P2, the grammar and the legacy pulp colours); `theme_glass_components` (the glass components at their
+white, then P1 / P2, the grammar colours `UnboundCold` and `ResonanceGold`, and `Cyan`, kept for player 1's default and
+the Severed); `theme_glass_components` (the glass components at their
 spec sizes: the 68 / 64 / 58 px chevrons in every state including focused-and-pressed, a slab with its tag, the READY
 badges, tabs, fields, a slider, the bars, the halos on bright art); `main_menu_root`. A static capture can focus one
 control only, so the specimens show the hover, focus, focused-and-pressed and selected looks by drawing the theme's own
