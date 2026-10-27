@@ -49,6 +49,14 @@ namespace FTT.UI {
         public static float BossNameFloorScale(float uiScale) =>
             Mathf.Min(1f, BossNameFloorPixels / (BossNameSize * Mathf.Max(0.01f, uiScale)));
 
+        /// <summary>
+        /// The free band between the left stack and the right cluster, 24 from each, in the HUD's canvas units for a canvas
+        /// <paramref name="canvasWidth"/> wide (on screen, times the UI scale): the boss bar's band, the checkpoint toast's
+        /// and (TG-CLOSE) the first-use tooltip's.
+        /// </summary>
+        public static (float Left, float Right) FreeBand(float canvasWidth) =>
+            (LeftClusterRight + BossGap, canvasWidth - DustPlateReach - BossGap);
+
         /// <summary>The boss bar's width in canvas units for a canvas <paramref name="canvasWidth"/> wide: min(840, canvas - 1008), floored at 320.</summary>
         public static float BossBarWidthFor(float canvasWidth) =>
             Mathf.Clamp(canvasWidth - LeftClusterRight - DustPlateReach - 2f * BossGap, BossBarMinWidth, BossBarMaxWidth);
@@ -611,8 +619,7 @@ namespace FTT.UI {
             if (_bossPanel == null || _root == null) return;
             float scale = FitScale;
             float space = _root.Size.X > 1f ? _root.Size.X : 1920f / scale;
-            float left = LeftClusterRight + BossGap;
-            float right = space - DustPlateReach - BossGap;
+            (float left, float right) = FreeBand(space);
             float width = BossBarWidthFor(space);
             float x = Mathf.Clamp(BossPreferredX, left, Mathf.Max(left, right - width));
             float nameX = BossDiamondInset + BossDiamondSize + BossNameGap;
@@ -710,7 +717,7 @@ namespace FTT.UI {
             if (_checkpointToast == null) return;
             float canvas = _root != null && _root.Size.X > 1f ? _root.Size.X : 1920f;
             float width = _checkpointToast.GetCombinedMinimumSize().X;
-            float bandLeft = LeftClusterRight + BossGap, bandRight = canvas - DustPlateReach - BossGap;
+            (float bandLeft, float bandRight) = FreeBand(canvas);
             float left = Mathf.Max(bandLeft, Mathf.Min(canvas / 2f - width / 2f, bandRight - width));
             // The toast is anchored at the canvas's centre line (anchors 0.5), so its offsets are measured from it.
             _checkpointToast.OffsetLeft = left - canvas / 2f;
