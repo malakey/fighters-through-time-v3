@@ -817,11 +817,23 @@ namespace FTT.UI {
                 widths[i] = Mathf.Ceil(paddings[i] + labelWidth(i, fitted) + FooterSlack);
                 sum += widths[i];
             }
-            // Labels too long even at the floor: keep the row inside its budget (the decor then ellipsizes at the floor).
+            // Labels too long even at the floor: keep the row inside its budget. Each button first keeps its intrinsic
+            // minimum (its paddings and the slack), and what remains of the budget is shared across the label spaces in
+            // proportion to their need (the decor then ellipsizes at the floor). If the minimums alone exceed it, they stand.
             float cap = shared * count;
             if (sum > cap) {
-                float scale = cap / sum;
-                for (int i = 0; i < count; i++) widths[i] = Mathf.Floor(widths[i] * scale);
+                var mins = new float[count];
+                float minSum = 0f;
+                float needSum = 0f;
+                for (int i = 0; i < count; i++) {
+                    mins[i] = Mathf.Ceil(paddings[i] + FooterSlack);
+                    minSum += mins[i];
+                    needSum += Mathf.Max(0f, widths[i] - mins[i]);
+                }
+                for (int i = 0; i < count; i++) {
+                    float share = minSum >= cap || needSum <= 0f ? 0f : (cap - minSum) * Mathf.Max(0f, widths[i] - mins[i]) / needSum;
+                    widths[i] = mins[i] + Mathf.Floor(share);
+                }
             }
             return widths;
         }
