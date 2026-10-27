@@ -1,6 +1,8 @@
 ﻿using System.Collections.Generic;
+using System.Threading.Tasks;
 using FTT.Core;
 using FTT.UI;
+using FTT.UI.Pulp;
 using GdUnit4;
 using Godot;
 using static GdUnit4.Assertions;
@@ -456,6 +458,120 @@ public class MainMenuSceneTests {
             Teardown(host);
             RestoreSlots(originals);
         }
+    }
+
+    /// <summary>
+    /// TG-CLOSE polish: a filled slot's summary reads whole at UI scale 1.0 and 1.4 for every campaign level title (all
+    /// sixteen <c>*_level_title</c> values, whatever their form) and the widest hero name. A line too long for the slab
+    /// first shrinks toward the 18 px floor, then wraps to a second line if the slab holds it, else names the level by its
+    /// short title (<see cref="FTT.UI.PulpScreenKit.ShortTitle"/>); menu_slots_140 cut "…THE SIEGE OF ORLÉA…". The slab's
+    /// other lines read whole too, and every line stays inside the slab.
+    /// </summary>
+    [TestCase]
+    public async Task EverySlotSummaryReadsWholeForEveryLevelTitleAndTheWidestHeroAtBothUiScales() {
+        StorySaveData[] originals = ClearAllSlots();
+        if (originals == null) return;
+        float scale = UIPalette.AppliedUiScale;
+        MainMenu menu = Open(out Node host);
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        var problems = new List<string>();
+        const string Lines = SlotLayout + "SlotRow0/SlotButton/Slab/Row/Lines/";
+        try {
+            var summary = menu.GetNode<Label>(Lines + "Summary");
+            Font font = summary.GetThemeFont("font");
+            string hero = "", heroName = "";
+            float widest = -1f;
+            foreach (string id in CharacterRoster.ToArray()) {
+                string name = TranslationServer.Translate($"character_{id}_name").ToString();
+                float width = font.GetStringSize(name, HorizontalAlignment.Left, -1f, summary.GetThemeFontSize("font_size")).X;
+                if (width > widest) { widest = width; hero = id; heroName = name; }
+            }
+            foreach (float ui in new[] { 1f, 1.4f }) {
+                UIPalette.ApplyUiScale(ui);
+                for (int level = 0; level < 16; level++) {
+                    string path = StoryManager.GetLevelScenePath((CampaignLevel)level);
+                    string titleKey = LoadingScreen.LevelTitleKeyForScene(path);
+                    string title = TranslationServer.Translate(titleKey).ToString();
+                    SaveManager.Instance.SaveSlots[0] = new StorySaveData {
+                        SelectedCharacterID = hero, CurrentLevelID = path, Difficulty = Difficulty.Normal,
+                        LastSavedTimestamp = "2026-10-27T12:00:00.0000000Z"
+                    };
+                    Press(menu, RootLayout + "StoryButton");
+                    for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+                    string where = $"{ui} {titleKey}";
+                    if (!summary.Text.Contains(heroName)) problems.Add($"{where}: '{summary.Text}' does not name {heroName}");
+                    if (!summary.Text.Contains(title) && !summary.Text.Contains(PulpScreenKit.ShortTitle(title))) {
+                        problems.Add($"{where}: '{summary.Text}' names neither the title nor its short form");
+                    }
+                    Rect2 slab = menu.GetNode<Control>(SlotLayout + "SlotRow0/SlotButton/Slab").GetGlobalRect();
+                    foreach (string line in new[] { "Name", "Summary", "Detail", "Lowest" }) {
+                        var label = menu.GetNode<Label>(Lines + line);
+                        if (!label.Visible) continue;
+                        string reason = WholeLabel(label);
+                        if (reason != null) problems.Add($"{where}: {line} '{label.Text}' {reason}");
+                        Rect2 r = label.GetGlobalRect();
+                        if (r.Position.X < slab.Position.X - 1f || r.End.X > slab.End.X + 1f || r.Position.Y < slab.Position.Y - 1f || r.End.Y > slab.End.Y + 1f) {
+                            problems.Add($"{where}: {line} leaves the slab ({r} in {slab})");
+                        }
+                    }
+                    menu.GoBack();
+                }
+            }
+        } finally {
+            Teardown(host);
+            RestoreSlots(originals);
+            UIPalette.ApplyUiScale(scale);
+        }
+        if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
+    }
+
+    /// <summary>Null when <paramref name="label"/> shows its whole text at 18 px or more, else why not.</summary>
+    private static string WholeLabel(Label label) {
+        int size = label.GetThemeFontSize("font_size");
+        if (size < UIPalette.MinLabelFontSize) return $"draws at {size} px, under the 18 px floor";
+        if (label.AutowrapMode != TextServer.AutowrapMode.Off) {
+            return label.GetLineCount() <= label.GetVisibleLineCount() ? null
+                : $"wraps to {label.GetLineCount()} lines and shows {label.GetVisibleLineCount()}";
+        }
+        string text = label.Uppercase ? label.Text.ToUpperInvariant() : label.Text;
+        float width = label.GetThemeFont("font").GetStringSize(text, HorizontalAlignment.Left, -1f, size).X;
+        return width <= label.Size.X + 0.5f ? null : $"needs {width:0} px of {label.Size.X:0} at {size} px";
+    }
+
+    /// <summary>
+    /// TG-CLOSE polish: every developer level tile's label reads whole at UI scale 1.0 (today "00 CHRONAL INTEGRATI…" and
+    /// "15 THE MERIDIAN FOUND…" were cut): a long name shrinks toward the compact chevron's 18 px floor first, then uses its
+    /// short form, and no tile ends in an ellipsis.
+    /// </summary>
+    [TestCase]
+    public async Task EveryDeveloperLevelTileReadsWholeAtUiScaleOne() {
+        float scale = UIPalette.AppliedUiScale;
+        MainMenu menu = Open(out Node host);
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        var problems = new List<string>();
+        try {
+            UIPalette.ApplyUiScale(1f);
+            menu.GetNode<Control>("RootScreen").Visible = false;
+            menu.GetNode<Control>("LevelSelectScreen").Visible = true;
+            for (int frame = 0; frame < 4; frame++) await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+            var grid = menu.GetNode<GridContainer>(LevelLayout + "Grid");
+            Rect2 screen = menu.GetViewportRect();
+            for (int index = 0; index < grid.GetChildCount(); index++) {
+                if (grid.GetChild(index) is not Button tile) continue;
+                var decor = tile.GetNodeOrNull<PulpButtonDecor>("PulpButtonDecor");
+                if (decor == null) { problems.Add(tile.Name + " has no decor"); continue; }
+                if (decor.LabelIsTrimmed) {
+                    problems.Add($"'{decor.DrawnText}' is cut at {decor.DrawnFontSize} px (needs {decor.DrawnTextWidth:0} at the role size, has {decor.LabelAvailableWidth:0} in a {tile.Size.X:0} px tile)");
+                }
+                if (decor.DrawnFontSize < UIPalette.MinLabelFontSize) problems.Add($"'{decor.DrawnText}' draws under the floor");
+                Rect2 r = tile.GetGlobalRect();
+                if (!screen.Encloses(r)) problems.Add($"{tile.Name} leaves the screen ({r})");
+            }
+        } finally {
+            Teardown(host);
+            UIPalette.ApplyUiScale(scale);
+        }
+        if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
     }
 
     [TestCase]
