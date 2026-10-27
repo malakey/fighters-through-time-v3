@@ -228,7 +228,11 @@ namespace FTT.Combat {
 
             UpdateProgressLine(live);
 
-            if (outcome != CalibrationDrillOutcome.InProgress) ShowResultCard(outcome);
+            if (outcome != CalibrationDrillOutcome.InProgress) {
+                // Presentation only: the drill list shows each drill's last result this session (UI_SPEC_GLASS 9.2).
+                FTT.UI.CalibrationDrillList.NoteOutcome(_drillIndex, outcome);
+                ShowResultCard(outcome);
+            }
         }
 
         private CalibrationDrillSample Sample(bool live) {
@@ -303,11 +307,73 @@ namespace FTT.Combat {
             if (_listButton != null) _listButton.Pressed += ReturnToDrillList;
             if (_exitButton != null) _exitButton.Pressed += ExitCalibration;
             if (_resultCard != null) _resultCard.Visible = false;
-            // UR-SCREENS: the result card's buttons are banner buttons and its panel wears the halftone.
-            foreach (Button button in new[] { _retryButton, _nextButton, _listButton, _exitButton }) {
-                if (button != null) FTT.UI.Pulp.PulpButtonDecor.Apply(button, compact: true);
+            _resultDim = GetNodeOrNull<ColorRect>(overlay + "ResultDim");
+            if (_resultDim != null) {
+                _resultDim.Color = FTT.UI.UIPalette.PauseDim;
+                _resultDim.Visible = false;
             }
-            if (_resultCard is PanelContainer cardPanel) FTT.UI.PulpScreenKit.DressPanel(cardPanel, buttonInset: true);
+            DressOverlay(overlay);
+        }
+
+        // ---- presentation only (TG-SCREENS, UI_SPEC_GLASS 9.2: the drill HUD and the result) ----------------------
+
+        private ColorRect _resultDim;
+        private Control _hudPanel;
+        private Control _resultPrompts;
+        private readonly FTT.UI.Pulp.PulpIcon[] _missMarks = new FTT.UI.Pulp.PulpIcon[CalibrationDrillCatalog.AllowedMisses];
+        private int _shownMisses = -1;
+
+        /// <summary>The miss glyphs' size (the bold <c>cross</c> below 30 px).</summary>
+        public const float MissGlyphSize = 24f;
+
+        /// <summary>
+        /// The drill HUD as a 900 px glass slab (drill name in Cinzel, the objective in body copy, the progress caption and
+        /// the three misses as <c>cross</c> glyphs, ink3 until spent, then danger). It stays at the bottom centre where the
+        /// pulp build put it: the Fighter HUD it runs under holds the top band (HUD-F2). The result is an overlay: the .70
+        /// dim, a glass slab with the sheen and the 14 px inset kept clear of the prompt bar, the T03 title, the coaching,
+        /// the four chevrons stacked at their D6 width and the prompt bar bottom-centre; the HUD slab, which the prompt bar
+        /// would sit on, steps aside while the result shows. Nothing here reads or writes simulation state.
+        /// </summary>
+        private void DressOverlay(string overlay) {
+            if (GetNodeOrNull<PanelContainer>(overlay + "TopPanel") is { } hud) {
+                FTT.UI.PulpScreenKit.DressPanel(hud);
+                _hudPanel = hud;
+            }
+            if (_resultCard is PanelContainer cardPanel) {
+                FTT.UI.PulpScreenKit.DressPanel(cardPanel, buttonInset: true);
+                FTT.UI.MenuSafeAreaFit.Attach(cardPanel, FTT.UI.GlassScreenDressing.ScaledOverlayPromptClearance);
+            }
+            if (GetNodeOrNull<Control>(overlay.TrimEnd('/')) is { } overlayRoot) {
+                _resultPrompts = FTT.UI.GlassScreenDressing.AddOverlayPromptBar(overlayRoot, ("ui_accept", "ui_prompt_select"));
+                if (_resultPrompts != null) _resultPrompts.Visible = false;
+            }
+            if (GetNodeOrNull<VBoxContainer>(overlay + "TopPanel/Layout") is { } layout) {
+                var misses = new HBoxContainer { Name = "Misses", Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = Control.MouseFilterEnum.Ignore };
+                misses.AddThemeConstantOverride("separation", 10);
+                for (int i = 0; i < _missMarks.Length; i++) {
+                    FTT.UI.Pulp.PulpIcon mark = FTT.UI.Pulp.PulpIcon.Create("cross", FTT.UI.UIPalette.Ink3, MissGlyphSize);
+                    mark.Name = "Miss" + i;
+                    misses.AddChild(mark);
+                    _missMarks[i] = mark;
+                }
+                layout.AddChild(misses);
+            }
+            var stack = new System.Collections.Generic.List<Button>(4);
+            foreach (Button button in new[] { _retryButton, _nextButton, _listButton, _exitButton }) {
+                if (button == null) continue;
+                FTT.UI.Pulp.PulpButtonDecor.Apply(button);
+                stack.Add(button);
+            }
+            FTT.UI.Pulp.PulpButtonDecor.ApplyStackWidth(stack, 560f, FTT.UI.GlassScreenDressing.ScaledStackCap(680f));
+        }
+
+        /// <summary>Tints the miss glyphs: a spent miss in danger, the rest ink3. Writes only when the count changes.</summary>
+        private void ShowMisses(int misses) {
+            if (misses == _shownMisses) return;
+            _shownMisses = misses;
+            for (int i = 0; i < _missMarks.Length; i++) {
+                if (_missMarks[i] != null) _missMarks[i].Tint = i < misses ? FTT.UI.UIPalette.Danger : FTT.UI.UIPalette.Ink3;
+            }
         }
 
         private void RefreshObjective() {
@@ -316,11 +382,18 @@ namespace FTT.Combat {
             _objectiveLabel.Text = Tr(_definition.ObjectiveKey);
         }
 
+        private int _progressShownFor = -1;
+
         private void UpdateProgressLine(bool live) {
+            ShowMisses(_progress?.Misses ?? 0);
             if (_progressLabel == null) return;
-            _progressLabel.Text = string.Format(
-                Tr("drill_progress"), _drillIndex + 1, CalibrationDrillCatalog.Count);
-            _progressLabel.Visible = live;
+            // Runs every physics frame: the text is rebuilt only when the drill changes.
+            if (_progressShownFor != _drillIndex) {
+                _progressShownFor = _drillIndex;
+                _progressLabel.Text = string.Format(
+                    Tr("drill_progress"), _drillIndex + 1, CalibrationDrillCatalog.Count);
+            }
+            if (_progressLabel.Visible != live) _progressLabel.Visible = live;
         }
 
         private void ShowResultCard(CalibrationDrillOutcome outcome) {
@@ -331,8 +404,9 @@ namespace FTT.Combat {
             bool passed = outcome == CalibrationDrillOutcome.Passed;
             if (_resultTitle != null) _resultTitle.Text = Tr(passed ? "drill_result_pass" : "drill_result_fail");
             if (_resultTitle != null) {
+                // UI_SPEC_GLASS 9.2: a pass reads in Resonance bright, a fail in ink2 (T03 either way).
                 _resultTitle.AddThemeColorOverride(
-                    "font_color", passed ? FTT.UI.UIPalette.Accent : FTT.UI.UIPalette.Warning);
+                    "font_color", passed ? FTT.UI.UIPalette.Res2 : FTT.UI.UIPalette.Ink2);
             }
             if (_resultCoaching != null) {
                 _resultCoaching.Text = Tr(passed ? _definition.PassCoachKey : _definition.FailCoachKey);
@@ -341,14 +415,24 @@ namespace FTT.Combat {
             if (_nextButton != null) {
                 _nextButton.Visible = passed && CalibrationDrillCatalog.HasNext(_drillIndex);
             }
+            if (_resultDim != null) _resultDim.Visible = true;
+            if (_hudPanel != null) _hudPanel.Visible = false;
+            if (_resultPrompts != null) _resultPrompts.Visible = true;
             if (_resultCard != null) {
                 _resultCard.Visible = true;
                 FTT.UI.FocusChainBuilder.Apply(_resultCard);
+                FTT.UI.GlassScreenDressing.FadeIn(_resultCard);
             }
         }
 
+        /// <summary>Shows the result card for <paramref name="outcome"/> without a played attempt (the UI capture tool's preview).</summary>
+        internal void ShowResultCardForPreview(CalibrationDrillOutcome outcome) => ShowResultCard(outcome);
+
         private void HideResultCard() {
             _cardVisible = false;
+            if (_resultDim != null) _resultDim.Visible = false;
+            if (_resultPrompts != null) _resultPrompts.Visible = false;
+            if (_hudPanel != null) _hudPanel.Visible = true;
             if (_resultCard != null) _resultCard.Visible = false;
             if (_driver != null && IsInstanceValid(_driver)) _driver.ProcessMode = ProcessModeEnum.Inherit;
         }

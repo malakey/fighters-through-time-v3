@@ -152,18 +152,34 @@ namespace FTT.UI {
                     Name = $"CreditLine_{index}",
                     Text = Tr(line.Key),
                     HorizontalAlignment = HorizontalAlignment.Center,
+                    // The title stays on one line: its gradient spans one line box (a second line drew flat in the
+                    // gradient's last colour), so the 1100 px column widens to it, centred, when it is wider.
+                    AutowrapMode = line.Key == TitleKey ? TextServer.AutowrapMode.Off : TextServer.AutowrapMode.WordSmart,
                     MouseFilter = Control.MouseFilterEnum.Ignore
                 };
-                // Headings ride the TitleLabel role; body lines keep the theme
-                // default, so the roll follows the accessibility UI scale.
-                // UR-SCREENS: roles carry the colour (accent Cinzel headings, ink body); no overrides.
-                if (line.IsHeading) {
-                    label.ThemeTypeVariation = UIPalette.TitleLabelVariation;
-                    label.Uppercase = true;
-                }
+                // TG-SCREENS (UI_SPEC_GLASS 9.2): roles carry the size and colour, so the roll follows the accessibility
+                // UI scale with no override. The title in the T01 style (the title gradient) at 78 px, role headings in
+                // Cinzel accent, names in body copy, "the end" in T03; every heading upper-case.
+                label.ThemeTypeVariation = RoleFor(line);
+                if (line.IsHeading) label.Uppercase = true;
                 _lines.AddChild(label);
+                if (line.Key == TitleKey) FTT.UI.Pulp.TitleGradient.Attach(label);
             }
         }
+
+        public const string TitleKey = "credits_title";
+        public const string EndKey = "credits_the_end";
+
+        /// <summary>
+        /// The role a credit line wears: the title at 78 px (<c>PauseTitle</c>, Cinzel 900, white under the gradient), the
+        /// end line in T03 (<c>BannerHeading</c>), the other headings in <c>HeadingLabel</c> (Cinzel 700 accent; the spec's
+        /// 30 px is a kit gap, the role is 26) and the names in <c>BodyLabel</c> (Outfit 400 26 ink).
+        /// </summary>
+        public static string RoleFor(CreditLine line) => line.Key switch {
+            TitleKey => UIPalette.LabelRoles.PauseTitle,
+            EndKey => UIPalette.LabelRoles.BannerHeading,
+            _ => line.IsHeading ? UIPalette.LabelRoles.HeadingLabel : UIPalette.LabelRoles.BodyLabel
+        };
 
         private void ResolveOrBuildUI() {
             _shade = GetNodeOrNull<ColorRect>("Shade");
@@ -177,6 +193,8 @@ namespace FTT.UI {
                 UIPalette.ApplyTheme(_shade);
                 _shade.Color = BackdropColor;
                 AddHintBand();
+                // A full-screen menu on the bg0 field: the dir-a screen streak above everything (UI_SPEC_GLASS 9.2).
+                PulpScreenKit.AddScreenStreak(_shade);
             }
         }
 

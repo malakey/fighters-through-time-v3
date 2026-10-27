@@ -2,6 +2,7 @@ using FTT.Characters;
 using FTT.Combat;
 using FTT.Core;
 using FTT.FighterSim;
+using FTT.UI;
 using GdUnit4;
 using Godot;
 using static GdUnit4.Assertions;
@@ -139,6 +140,53 @@ public class DrillSceneSmokeTests {
             AssertThat(objective).IsNotEqual(runner.CurrentDrill.ObjectiveKey);
         } finally {
             Teardown(host);
+        }
+    }
+
+    /// <summary>
+    /// TG-SCREENS (UI_SPEC_GLASS 9.2): the drill list shows each drill's last result this session at its row's right, a
+    /// check in hp for a pass and the cross in ink2 for a fail (shape as well as colour), and nothing for a drill not
+    /// finished yet; a later result replaces an earlier one.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task TheListShowsEachDrillsLastResultAtItsRowsRight() {
+        CalibrationDrillList.ForgetOutcomesForTest();
+        CalibrationDrillList.NoteOutcome(0, CalibrationDrillOutcome.Passed);
+        CalibrationDrillList.NoteOutcome(1, CalibrationDrillOutcome.Failed);
+        CalibrationDrillList.NoteOutcome(1, CalibrationDrillOutcome.Passed);
+        CalibrationDrillList.NoteOutcome(2, CalibrationDrillOutcome.Failed);
+        var tree = (SceneTree)Engine.GetMainLoop();
+        var host = new Node { Name = "DrillListResultHost" };
+        tree.Root.AddChild(host);
+        try {
+            var list = ResourceLoader.Load<PackedScene>(CalibrationRoute.DrillListScenePath)
+                .Instantiate<CalibrationDrillList>();
+            host.AddChild(list);
+            // Let the column lay out, so a row has its real width when the glyph's place is read.
+            for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+            var issues = new System.Collections.Generic.List<string>();
+            for (int index = 0; index < list.DrillButtons.Count; index++) {
+                Button row = list.DrillButtons[index];
+                var glyph = row.GetNodeOrNull<FTT.UI.Pulp.PulpIcon>(CalibrationDrillList.ResultGlyphName);
+                CalibrationDrillOutcome last = CalibrationDrillList.LastOutcome(index);
+                if (last == CalibrationDrillOutcome.InProgress) {
+                    if (glyph != null) issues.Add($"row {index} shows a result it never had");
+                    continue;
+                }
+                if (glyph == null) { issues.Add($"row {index} shows no {last} glyph"); continue; }
+                bool passed = last == CalibrationDrillOutcome.Passed;
+                if (glyph.IconName != (passed ? "check" : "cross")) issues.Add($"row {index} draws '{glyph.IconName}' for {last}");
+                if (glyph.Tint != (passed ? UIPalette.Hp : UIPalette.Ink2)) issues.Add($"row {index}'s {last} glyph is {glyph.Tint}");
+                if (row.Size.X <= 0f || glyph.Position.X < row.Size.X) {
+                    issues.Add($"row {index}'s glyph sits at x {glyph.Position.X}, inside its {row.Size.X} px chevron, not at its right");
+                }
+            }
+            if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+            AssertThat(CalibrationDrillList.LastOutcome(1)).IsEqual(CalibrationDrillOutcome.Passed);
+        } finally {
+            host.GetParent()?.RemoveChild(host);
+            host.Free();
+            CalibrationDrillList.ForgetOutcomesForTest();
         }
     }
 

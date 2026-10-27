@@ -11,6 +11,11 @@ namespace FTT.UI {
     /// <b>dotted</b> for an Any-of prerequisite, and a brighter glowing line
     /// once the prerequisite end is unlocked. Before V7.6 there was no edge
     /// rendering at all — prerequisites were conveyed only by tooltip text.</para>
+    ///
+    /// <para>TG-SCREENS (Temporal Glass, orchestrator ruling R10): the satisfied edge is Resonance gold
+    /// (<see cref="UIPalette.Res2"/>) with a soft glow under it, where it was cyan; resonance is gold under PAL-B, and cold
+    /// cyan belongs to player 1 and the Severed. An unsatisfied edge keeps the built dormant slate. The pulp ink stroke
+    /// under every edge is gone (glass draws no black outlines). The draw allocates nothing.</para>
     /// </summary>
     public partial class ResonanceEdgeLayer : Control {
 
@@ -22,13 +27,29 @@ namespace FTT.UI {
 
         private const float SolidWidth = 2.5f;
         private const float SatisfiedWidth = 4f;
+        /// <summary>The soft glow drawn under a satisfied edge (its width, its alpha relative to the edge colour).</summary>
+        private const float SatisfiedGlowWidth = 11f;
+        private const float SatisfiedGlowAlpha = 0.22f;
         private const float DashLength = 9f;
         private const float DashGap = 7f;
 
-        private static readonly Color DormantColor = new(0.32f, 0.36f, 0.46f, 0.75f);
-        private static readonly Color SatisfiedColor = new(0.30f, 0.95f, 0.92f, 0.95f);
+        /// <summary>An unsatisfied prerequisite: the built dormant slate, quieter than the gold.</summary>
+        public static readonly Color DormantColor = new(0.32f, 0.36f, 0.46f, 0.75f);
+        /// <summary>A satisfied prerequisite: Resonance gold (R10).</summary>
+        private static readonly Color SatisfiedColor = new(UIPalette.Res2, 0.95f);
+        private static readonly Color SatisfiedGlow = new(UIPalette.Res2, SatisfiedGlowAlpha);
 
-        private static readonly Color InkColor = new(0f, 0f, 0f, 0.8f);
+        /// <summary>The colour an edge draws in. Test surface.</summary>
+        public static Color ColorFor(Edge edge) => edge.Satisfied ? SatisfiedColor : DormantColor;
+
+        /// <summary>The line width an edge draws at. Test surface.</summary>
+        public static float WidthFor(Edge edge) => edge.Satisfied ? SatisfiedWidth : SolidWidth;
+
+        /// <summary>The width of the soft glow under an edge (0: none; only a satisfied edge glows). Test surface.</summary>
+        public static float GlowWidthFor(Edge edge) => edge.Satisfied ? SatisfiedGlowWidth : 0f;
+
+        /// <summary>True when an edge draws dotted (an Any-of prerequisite). Test surface.</summary>
+        public static bool IsDotted(Edge edge) => edge.AnyOf;
 
         private readonly List<Edge> _edges = new();
 
@@ -47,17 +68,16 @@ namespace FTT.UI {
         }
 
         public override void _Draw() {
-            // UR-SCREENS: a black ink stroke under every edge (the pulp line work); the edge colours and
-            // the solid / dotted / glowing grammar are unchanged and semantic.
+            // Glows first, so no edge's glow lies over another edge's line.
             foreach (Edge edge in _edges) {
-                float ink = (edge.Satisfied ? SatisfiedWidth : SolidWidth) + 3f;
-                if (edge.AnyOf) DrawDashed(edge.From, edge.To, InkColor, ink);
-                else DrawLine(edge.From, edge.To, InkColor, ink, true);
+                if (!edge.Satisfied) continue;
+                if (IsDotted(edge)) DrawDashed(edge.From, edge.To, SatisfiedGlow, SatisfiedGlowWidth);
+                else DrawLine(edge.From, edge.To, SatisfiedGlow, SatisfiedGlowWidth, true);
             }
             foreach (Edge edge in _edges) {
-                Color color = edge.Satisfied ? SatisfiedColor : DormantColor;
-                float width = edge.Satisfied ? SatisfiedWidth : SolidWidth;
-                if (edge.AnyOf) DrawDashed(edge.From, edge.To, color, width);
+                Color color = ColorFor(edge);
+                float width = WidthFor(edge);
+                if (IsDotted(edge)) DrawDashed(edge.From, edge.To, color, width);
                 else DrawLine(edge.From, edge.To, color, width, true);
             }
         }
