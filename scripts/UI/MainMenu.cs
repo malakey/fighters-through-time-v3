@@ -246,7 +246,6 @@ namespace FTT.UI {
             var levelSelect = GetNode<Button>(layout + "LevelSelectButton");
             levelSelect.Visible = ShowDeveloperLevelSelect;
             levelSelect.Pressed += OnLevelSelectPressed;
-            ApplyRootRowSeparation(GetNode<Control>("RootScreen/Center/Panel/Layout"));
             var fighterButton = GetNode<Button>(layout + "FighterButton");
             // Package 12 W5 (H05/G01): the Fighter button opens the Fighter Play
             // Options menu (Local Versus / Versus CPU); the flow from there on
@@ -285,13 +284,14 @@ namespace FTT.UI {
                 _deleteButtons[slot] = GetNode<Button>($"{layout}SlotRow{slot}/DeleteButton");
                 _slotButtons[slot].Pressed += () => OnSlotPressed(captured);
                 _deleteButtons[slot].Pressed += () => ConfirmDeleteStorySlot(captured);
+                BuildSlotSlab(slot);
             }
             GetNode<Button>(layout + "BackButton").Pressed += GoBack;
         }
 
         private void BindCharacterScreen() {
             const string layout = "CharacterScreen/Center/Panel/Layout/";
-            var grid = GetNode<GridContainer>(layout + "Grid");
+            var grid = GetNode<GridContainer>(layout + "Body/Grid");
             // Package 11 A6b: the roster comes from the content manifest, never
             // from a literal cast list (the A9 mandate). The authored grid still
             // carries a fixed number of CharacterButton tiles, so a roster that
@@ -303,9 +303,13 @@ namespace FTT.UI {
                 string characterID = RosterIDs[index];
                 var button = grid.GetNodeOrNull<Button>($"CharacterButton{index}");
                 if (button == null) continue;
+                // The full name stays the button's (hidden) text; the tile draws the short card name.
                 button.Text = CharacterName(characterID);
                 button.Pressed += () => OnCharacterPressed(characterID);
+                DressCharacterTile(button, characterID);
             }
+            BindHeroSlab();
+            PaintTileNames();
             GetNode<Button>(layout + "BackButton").Pressed += GoBack;
         }
 
@@ -320,6 +324,9 @@ namespace FTT.UI {
             BindDifficultyButton(
                 GetNode<Button>(layout + "HardButton"),
                 FTT.Core.Difficulty.Hard, "difficulty_hard", "difficulty_hard_description");
+            _difficultyDescription = GetNodeOrNull<Label>(layout + "Description");
+            _difficultyDescription?.AddThemeColorOverride("font_color", UIPalette.Ink2);
+            ShowDifficultyDescription(_difficultyDescriptionKey);
             GetNode<Button>(layout + "BackButton").Pressed += GoBack;
         }
 
@@ -328,9 +335,10 @@ namespace FTT.UI {
             FTT.Core.Difficulty difficulty,
             string nameKey,
             string descriptionKey) {
-            // Two lines with different emphasis cannot be one raw key, so this one
-            // resolves here rather than through automatic control translation.
-            button.Text = $"{Tr(nameKey)}\n{Tr(descriptionKey)}";
+            // TG-MENU (9.2): the row is the difficulty's name (a raw key, resolved by automatic control translation and
+            // drawn upper-case by the decor); the focused row's description shows under the column.
+            button.Text = nameKey;
+            button.FocusEntered += () => ShowDifficultyDescription(descriptionKey);
             button.Pressed += () => OnDifficultyPressed(difficulty);
         }
 
@@ -345,11 +353,24 @@ namespace FTT.UI {
             var grid = GetNode<GridContainer>(layout + "Grid");
             for (int index = 0; index < CampaignLevelCount; index++) {
                 var level = (FTT.Core.CampaignLevel)index;
-                var button = grid.GetNode<Button>($"LevelButton{index}");
-                button.Text = $"{LevelSelectNumber(level)}  {Tr(FTT.Environment.HubWorldController.CampaignLevelNameKey(level))}";
-                button.Pressed += () => OnLevelPressed(level);
+                grid.GetNode<Button>($"LevelButton{index}").Pressed += () => OnLevelPressed(level);
             }
+            PaintLevelTiles();
             GetNode<Button>(layout + "BackButton").Pressed += GoBack;
+        }
+
+        /// <summary>
+        /// Writes each developer tile's label: the level's campaign number and its mission name up to the subtitle (TG-MENU:
+        /// the 4 x 4 compact grid has no room for the subtitle), composed here because of the numbered prefix.
+        /// </summary>
+        private void PaintLevelTiles() {
+            if (GetNodeOrNull<GridContainer>("LevelSelectScreen/Center/Panel/Layout/Grid") is not { } grid) return;
+            for (int index = 0; index < CampaignLevelCount; index++) {
+                var level = (FTT.Core.CampaignLevel)index;
+                if (grid.GetNodeOrNull<Button>($"LevelButton{index}") is not { } button) continue;
+                string name = MainMenuContinue.ShortPlace(Tr(FTT.Environment.HubWorldController.CampaignLevelNameKey(level)));
+                button.Text = $"{LevelSelectNumber(level)}  {name}";
+            }
         }
 
         /// <summary>The campaign number shown on a developer tile.</summary>
@@ -377,15 +398,17 @@ namespace FTT.UI {
             _extrasScreen.Visible = screen == MainMenuScreen.Extras;
             _licensesScreen.Visible = screen == MainMenuScreen.Licenses;
             if (screen == MainMenuScreen.Root) _developerLevelFlow = false;
-            // The cover layers (rays, burst) are the root's alone; the sub-screens sit on the cover art under a scrim.
-            if (_coverRays != null) _coverRays.Visible = screen == MainMenuScreen.Root;
-            if (_coverBurst != null) _coverBurst.Visible = screen == MainMenuScreen.Root;
-            if (_subScrim != null) _subScrim.Visible = screen != MainMenuScreen.Root;
-            if (screen == MainMenuScreen.Root) RefreshContinueSticker();
+            // MENU-A's art under the menu scrim at the root; the sub-screens are full-screen menus over the sub-screen art
+            // (UI_SPEC_GLASS 7.5, 9.1), their text on glass slabs, so no scrim.
+            bool root = screen == MainMenuScreen.Root;
+            if (_mainArt != null) _mainArt.Visible = root;
+            if (_subArt != null) _subArt.Visible = !root;
+            if (_menuScrim != null) _menuScrim.Visible = root;
+            if (root) RefreshContinueCard();
 
             if (screen == MainMenuScreen.SlotSelect) RefreshSlotRows();
             FocusChainBuilder.Apply(ScreenRoot(screen));
-            // The cover opens on Story Mode, as the mock draws it (Quick Play is a developer row above it).
+            // The root opens on Story Mode, as MENU-A draws it (Quick Play is an extra row above it, R1).
             if (screen == MainMenuScreen.Root) GetNodeOrNull<Button>("RootScreen/Center/Panel/Layout/StoryButton")?.GrabFocus();
             PopInPanel(screen);
         }
@@ -509,6 +532,7 @@ namespace FTT.UI {
             if (parent == null || manager == null || string.IsNullOrEmpty(manager.LastLoadNoticeKey)) return;
             var notice = new Label {
                 Name = "SaveLoadNotice",
+                ThemeTypeVariation = UIPalette.LabelRoles.HintLine,
                 Text = manager.LastLoadNotice,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
@@ -529,12 +553,13 @@ namespace FTT.UI {
         private void RefreshSlotRows() {
             for (int slot = 0; slot < StorySlotCount; slot++) {
                 FTT.Core.StorySaveData save = FTT.Core.SaveManager.Instance?.SaveSlots[slot];
-                _slotButtons[slot].Text = save == null
+                string text = save == null
                     ? string.Format(Tr("save_slot_empty"), slot + 1)
                     : SaveSlotSummary(slot, save);
-                // A saved slot shows up to four upper-case lines (a long first line wraps); an empty one is one line.
-                _slotButtons[slot].CustomMinimumSize = new Vector2(_slotButtons[slot].CustomMinimumSize.X, save == null ? 96f : 168f);
+                // The slot button keeps the whole summary as its text (screen readers, tests); its glass slab draws it.
+                _slotButtons[slot].Text = text;
                 _deleteButtons[slot].Visible = save != null;
+                PaintSlotSlab(slot, save, text);
             }
         }
 
@@ -591,16 +616,12 @@ namespace FTT.UI {
             if (slot < 0) return;
             FTT.Core.SaveManager.Instance?.DeleteStorySlot(slot);
             RefreshSlotRows();
-            RefreshContinueSticker();
+            RefreshContinueCard();
             FocusChainBuilder.Apply(_slotScreen);
         }
 
         private string SaveSlotSummary(int slotIndex, FTT.Core.StorySaveData save) {
-            string difficultyKey = save.Difficulty switch {
-                FTT.Core.Difficulty.Easy => "difficulty_easy",
-                FTT.Core.Difficulty.Hard => "difficulty_hard",
-                _ => "difficulty_normal"
-            };
+            string difficultyKey = MainMenuContinue.DifficultyKey(save.Difficulty);
             string progress = save.IsCompleted
                 ? Tr("save_completed")
                 : LocationText(save.CurrentLevelID);
@@ -704,11 +725,17 @@ namespace FTT.UI {
         /// </summary>
         private string CharacterName(string characterID) {
             if (string.IsNullOrWhiteSpace(characterID)) return Tr("common_unknown");
-            FTT.Characters.CharacterData data = FTT.Core.AuthoredResources.Load<FTT.Characters.CharacterData>(
-                $"res://resources/Characters/{characterID}_data.tres");
+            FTT.Characters.CharacterData data = CharacterDataFor(characterID);
             return data == null || string.IsNullOrWhiteSpace(data.DisplayNameKey)
                 ? Tr("common_unknown")
                 : Tr(data.DisplayNameKey);
+        }
+
+        /// <summary>A character's authored data (its name key, portrait and style), or null for an unknown ID.</summary>
+        private static FTT.Characters.CharacterData CharacterDataFor(string characterID) {
+            if (string.IsNullOrWhiteSpace(characterID)) return null;
+            return FTT.Core.AuthoredResources.Load<FTT.Characters.CharacterData>(
+                $"res://resources/Characters/{characterID}_data.tres");
         }
     }
 }
