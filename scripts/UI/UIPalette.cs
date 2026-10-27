@@ -323,6 +323,13 @@ namespace FTT.UI {
         public static readonly Color TitleBottom = Hex(0x8D, 0x9B, 0xC6);
         /// <summary>The focused, hovered and pressed label (#FFFFFF, T10).</summary>
         public static readonly Color TextFocus = Hex(0xFF, 0xFF, 0xFF);
+        /// <summary>The modulate a disabled glass field or tab texture draws with (#FFFFFF at 0.50, agent choice).</summary>
+        public static readonly Color DimModulate = Hex(0xFF, 0xFF, 0xFF, 0.50f);
+        /// <summary>
+        /// The panel fill at the slab's centre, midway along its 160 degree build gradient (<see cref="GlassFillTop"/> to
+        /// <see cref="GlassFillBottom"/>). The glass_panel nine-slice bakes this fill over the slab's own soft drop shadow.
+        /// </summary>
+        public static readonly Color GlassFillMid = GlassFillTop.Lerp(GlassFillBottom, 0.5f);
         /// <summary>The scene halo S rim (#000000 at 0.85, 2.4).</summary>
         public static readonly Color HaloOutlineS = Hex(0x00, 0x00, 0x00, 0.85f);
         /// <summary>The scene halo S shadow (#000000 at 0.60).</summary>
@@ -402,13 +409,14 @@ namespace FTT.UI {
         //
         // TG-THEME: re-pointed at the glass values. UIThemeTests pins each against the generated theme.
 
-        /// <summary>A glass slab's fill as a flat slab paints it.</summary>
-        public static readonly Color PanelBackground = GlassFillFlat;
+        /// <summary>A glass slab's fill at its centre (the glass_panel nine-slice bakes it over its drop shadow).</summary>
+        public static readonly Color PanelBackground = GlassFillMid;
         /// <summary>A glass slab's edge (the standard hairline).</summary>
         public static readonly Color PanelBorder = Edge;
 
         public static readonly Color ButtonNormal = ButtonFill;
-        public static readonly Color ButtonHover = ButtonFillFocus;
+        /// <summary>A chevron's hover box is its normal box (orchestrator ruling: the decor takes focus on mouse-enter).</summary>
+        public static readonly Color ButtonHover = ButtonFill;
         public static readonly Color ButtonPressed = ButtonFillPressed;
         public static readonly Color ButtonDisabled = ButtonFillDisabled;
 
@@ -419,8 +427,8 @@ namespace FTT.UI {
         /// </summary>
         public static readonly Color FocusOutline = Focus;
 
-        /// <summary>The fill a focused or hovered chevron sits on (the focus box itself is an overlay with no fill).</summary>
-        public static readonly Color FocusFill = ButtonFillFocus;
+        /// <summary>The fill a focused chevron sits on: its normal box, under the focus overlay (which has no dark base).</summary>
+        public static readonly Color FocusFill = ButtonFill;
 
         /// <summary>Text on a gold fill: the selected tab (#04141A, AC24).</summary>
         public static readonly Color TextOnAccent = TabSelectedInk;
@@ -432,8 +440,12 @@ namespace FTT.UI {
         /// <summary>The normal chevron label (ink2, T10).</summary>
         public static readonly Color ButtonLabel = Ink2;
 
-        /// <summary>Progress-bar troughs and the default ring remainder: the glass tube's dark inner track.</summary>
-        public static readonly Color TrackBackground = TubeTrackTop;
+        /// <summary>
+        /// The default ring remainder (<see cref="RadialProgress"/>, including the world-space Restoration Font and Resonance
+        /// Hold channel rings). Kept on the pulp <see cref="Track"/> by orchestrator ruling until TG-WIDGETS step 2 gives
+        /// RadialProgress its own default; the glass tube's tracks are <see cref="TubeTrackTop"/> / <see cref="TubeTrackBottom"/>.
+        /// </summary>
+        public static readonly Color TrackBackground = Track;
 
         // ---- Type scale -----------------------------------------------------
         //

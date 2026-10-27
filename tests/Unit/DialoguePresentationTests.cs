@@ -46,15 +46,25 @@ public class DialoguePresentationTests {
             .IsEqual("PanelContainer");
 
         // TG-THEME: the box is the glass slab (UI_SPEC_GLASS G1). Built as 6.2's flat fallback its fill is the
-        // box's own colour; wired to the glass nine-slice it is the art's centre texel. Either way the contract
-        // is "a translucent plate in the DialogueTheme fill colour".
+        // box's own colour; wired to the glass nine-slice (step 2) it is the art's centre texel, where glass_panel
+        // bakes the fill over the slab's own soft drop shadow. Either way the contract is "a translucent plate in
+        // the DialogueTheme fill colour".
         StyleBox glass = theme.GetStylebox("panel", DialogueTheme.GlassPanelVariation);
         AssertThat(glass is StyleBoxFlat || glass is StyleBoxTexture)
             .OverrideFailureMessage($"The glass must be a flat slab or the glass nine-slice, not {glass}.").IsTrue();
         Color centre;
+        Color expected = DialogueTheme.GlassBackground;
+        float tolerance = 0.02f;
         if (glass is StyleBoxTexture texture) {
             Image art = texture.Texture.GetImage();
             centre = art.GetPixel(art.GetWidth() / 2, art.GetHeight() / 2);
+            // The fill composited over the drop shadow (straight alpha, "over").
+            Color shadow = UIPalette.PanelShadow;
+            float a = expected.A + shadow.A * (1f - expected.A);
+            expected = new Color((expected.R * expected.A + shadow.R * shadow.A * (1f - expected.A)) / a,
+                (expected.G * expected.A + shadow.G * shadow.A * (1f - expected.A)) / a,
+                (expected.B * expected.A + shadow.B * shadow.A * (1f - expected.A)) / a, a);
+            tolerance = 0.03f;  // the kit's rounding
         } else {
             var flat = (StyleBoxFlat)glass;
             AssertThat(flat.DrawCenter).IsTrue();
@@ -66,10 +76,12 @@ public class DialoguePresentationTests {
         AssertThat(centre.A < 1f)
             .OverrideFailureMessage($"The glass fill must be translucent; alpha is {centre.A}.")
             .IsTrue();
-        AssertThat(Mathf.Abs(centre.R - DialogueTheme.GlassBackground.R) < 0.02f
-            && Mathf.Abs(centre.G - DialogueTheme.GlassBackground.G) < 0.02f
-            && Mathf.Abs(centre.B - DialogueTheme.GlassBackground.B) < 0.02f
-            && Mathf.Abs(centre.A - DialogueTheme.GlassBackground.A) < 0.02f).IsTrue();
+        AssertThat(Mathf.Abs(centre.R - expected.R) < tolerance
+            && Mathf.Abs(centre.G - expected.G) < tolerance
+            && Mathf.Abs(centre.B - expected.B) < tolerance
+            && Mathf.Abs(centre.A - expected.A) < tolerance)
+            .OverrideFailureMessage($"The glass paints {centre} at its centre but DialogueTheme says {expected}.")
+            .IsTrue();
     }
 
     [TestCase]

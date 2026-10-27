@@ -360,6 +360,7 @@ namespace FTT.UI {
             ("ReadyBadgeIdleEdge", new Color(0xF3 / 255f, 0xC9 / 255f, 0x5B / 255f, 0.25f)),
             ("ReadyBadgeIdleFill", new Color(0x00 / 255f, 0x00 / 255f, 0x00 / 255f, 0.25f)),
             ("Selection", new Color(0xF3 / 255f, 0xC9 / 255f, 0x5B / 255f, 0.4f)),
+            ("DimModulate", new Color(0xFF / 255f, 0xFF / 255f, 0xFF / 255f, 0.5f)),
             ("PipGlow", new Color(0x8F / 255f, 0xD8 / 255f, 0xFF / 255f, 0.6f)),
             ("DefyReadyGlow", new Color(0xFF / 255f, 0xE8 / 255f, 0x7A / 255f, 0.75f)),
             ("BossEdge", new Color(0xFF / 255f, 0x4D / 255f, 0x62 / 255f, 1.0f)),

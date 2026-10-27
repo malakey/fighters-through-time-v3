@@ -26,13 +26,20 @@ Edit `build_ftt_theme.py`, never the `.tres`. Run `--import` afterwards
   `FontVariation.spacing_glyph` = em x size), colour, halo tier (`None` plate, `"S"`, `"S6"` for T29, `"L"`),
   tabular figures and, for roles whose text wraps, the 2.3 line height (as `line_spacing`, against the faces'
   natural 1.26 / 1.348 em). `UIPalette.LabelRoleTable` carries name, size, face, weight, tracking and halo.
-- **The styles.** Step 1 builds every glass style in the 6.2 `StyleBoxFlat` fallback form: the slab G1 with a
-  45 degree bevel at TL/BR (`corner_detail = 1`), the chevron as a box whose right corners bevel to a point at
-  mid-height (`CHEVRON_RADIUS`), the field (chamfer 8), parallelograms by `skew`. The focus box of a chevron,
-  field and line edit is an **overlay**: the lit edge and the 14 px glow, `draw_center = false` (plan 0.4 P5),
-  over state boxes that carry the fill. Step 2 wires TG-ART's nine-slices (`glass_kit.json`). The pulp-only
-  plates (paper, banners, boss, slot and card plates, bubble, stamp) and the five HUD bar variations keep their
-  pulp textures until their replacements land (the handoff, `docs/handoffs/TG_THEME.md`, says why).
+- **The styles** are TG-ART's nine-slices, read from `assets/sprites/ui/glass/glass_kit.json` (`gbox`: the
+  texture, its 6.4 nine-slice and expand margins and the tile flag come from the catalog; the content margins are
+  the panel padding or the label inset): the slab G1 (`glass_panel`) for every slab, preset and popup, the tag G2
+  (`glass_tag`) for `PanelTagPlate` and `HintLinePlate`, the chevron states (`glass_btn_*`), the tabs
+  (`glass_tab*`), the field (`glass_field*`) for the default `Button`, `OptionButton`, `GlassField`, `LineEdit` and
+  so the spin box, and the slider grabber icon (`glass_slider_grabber`, with `center_grabber`). The focus box of a
+  chevron, field, line edit and tab is an **overlay** with no dark base (plan 0.4 P5), drawn over state boxes that
+  carry the fill: the chevron's is the lit edge, the focus wash and the 14 px glow, the field's the lit edge and the
+  glow, the tab's the glow only. A chevron's `hover` is its normal box (the decor takes focus
+  on mouse-enter); a field and a tab hover with their own full-look boxes. What 6.2 builds flat stays a
+  `StyleBoxFlat`: the READY badges, the scrim, the slider track and fill, the scroll bars, the check box ring, the
+  tooltip, the tab container's inner panel. The pulp-only plates (paper, banners, boss, slot and card plates,
+  bubble, stamp) and the five HUD bar variations keep their pulp textures until their replacements land (the
+  handoff, `docs/handoffs/TG_THEME.md`, says why).
 - **Variations and presets** are listed in `VARIATIONS` (written to `UIPalette.Variations`), including the eight
   3.1 slab presets (`GlassPanelPause` ... `GlassPanelContinue`, content margins = their paddings), `ReadyBadge` /
   `ReadyBadgeIdle`, `GlassField`, `GlassTab` / `GlassTabSelected`. A chevron variation also carries a `selected`

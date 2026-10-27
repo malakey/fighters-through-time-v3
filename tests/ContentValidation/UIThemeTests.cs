@@ -154,20 +154,59 @@ public class UIThemeTests {
         RequireColor("ProgressBar", "font_color", UIPalette.TextPrimary);
         RequireColor("TabContainer", "font_selected_color", UIPalette.TextOnAccent);  // the selected tab is a gold fill
 
-        // The painted surfaces, not just the type colours: what each box paints at its centre.
-        void RequireFill(string type, string box, Color expected) {
+        // The painted surfaces, not just the type colours: what each box paints at its centre. A flat box paints its
+        // fill; a glass nine-slice (TG-ART's kit) bakes its fill over its own shadow, edge and washes, so its centre
+        // texel is compared with the constant composited the way the kit bakes it, within the kit's rounding.
+        void RequireFill(string type, string box, Color expected, float tolerance = 0.02f) {
             Color actual = Fill(theme.GetStylebox(box, type));
-            if (!Near(actual, expected)) drift.Add($"{type}/styles/{box} paints {actual} but UIPalette says {expected}");
+            if (!Near(actual, expected, tolerance)) drift.Add($"{type}/styles/{box} paints {actual} but UIPalette says {expected}");
         }
-        RequireFill("PanelContainer", "panel", UIPalette.PanelBackground);
-        RequireFill(UIPalette.Variations.PulpButton, "normal", UIPalette.ButtonNormal);
-        RequireFill(UIPalette.Variations.PulpButton, "hover", UIPalette.ButtonHover);
-        RequireFill(UIPalette.Variations.PulpButton, "pressed", UIPalette.ButtonPressed);
-        RequireFill(UIPalette.Variations.PulpButton, "disabled", UIPalette.ButtonDisabled);
-        RequireFill("Button", "normal", UIPalette.ButtonNormal);
+        StyleBox slabBox = theme.GetStylebox("panel", "PanelContainer");
+        if (slabBox is StyleBoxTexture) {
+            // glass_panel bakes the fill at its centre over the slab's soft drop shadow.
+            RequireFill("PanelContainer", "panel", OverAlpha(UIPalette.PanelBackground, UIPalette.PanelShadow), KitTolerance);
+        } else {
+            RequireFill("PanelContainer", "panel", UIPalette.PanelBackground);
+        }
+        foreach (string chevron in new[] { UIPalette.Variations.PulpButton, UIPalette.Variations.TemporalGlassButton,
+                     UIPalette.Variations.PulpButtonCompact }) {
+            StyleBox normal = theme.GetStylebox("normal", chevron), hover = theme.GetStylebox("hover", chevron);
+            StyleBox pressed = theme.GetStylebox("pressed", chevron), focus = theme.GetStylebox("focus", chevron);
+            StyleBox disabled = theme.GetStylebox("disabled", chevron);
+            float tolerance = normal is StyleBoxTexture ? KitTolerance : 0.02f;
+            RequireFill(chevron, "normal", UIPalette.ButtonNormal, tolerance);
+            RequireFill(chevron, "hover", UIPalette.ButtonHover, tolerance);
+            // Orchestrator ruling (step 2): a chevron's hover box is its normal box, because the decor takes focus on
+            // mouse-enter, so hovered, focused and both draw the normal box under the focus overlay, identically.
+            if (hover.GetInstanceId() != normal.GetInstanceId()) drift.Add($"{chevron}/styles/hover must be its normal box");
+            if (pressed is StyleBoxTexture) {
+                // TG-ART solved glass_btn_pressed's interior against the focus overlay (plan 0.4 P5): a pressed row is
+                // (almost always) a focused one, and pressed under focus must compose into the pressed fill and read
+                // brighter than a focused normal row, which a focus box with a fill of its own would hide.
+                Color pressedFocused = OverAlpha(Fill(focus), Fill(pressed));
+                Color normalFocused = OverAlpha(Fill(focus), Fill(normal));
+                if (!Near(pressedFocused, UIPalette.ButtonPressed, 0.05f)) drift.Add($"{chevron} pressed under focus paints {pressedFocused} but UIPalette says {UIPalette.ButtonPressed}");
+                Color black = new(0f, 0f, 0f);
+                if (Luminance(Over(pressedFocused, black)) < Luminance(Over(normalFocused, black)) + 0.02) {
+                    drift.Add($"{chevron} pressed under focus ({pressedFocused}) does not read brighter than normal under focus ({normalFocused})");
+                }
+            } else {
+                RequireFill(chevron, "pressed", UIPalette.ButtonPressed);
+            }
+            if (disabled is StyleBoxTexture disabledTexture) {
+                // TG-ART 6.2: the disabled fill over the averaged stripe haze rgba(glow, .15) (the CSS stripes run
+                // under the fill's backdrop blur, which averages them); only the ring shows the dashes, which tile.
+                RequireFill(chevron, "disabled", OverAlpha(UIPalette.ButtonDisabled, new Color(UIPalette.Accent, 0.15f)), 0.02f);
+                if (disabledTexture.AxisStretchHorizontal != StyleBoxTexture.AxisStretchMode.Tile) drift.Add($"{chevron}/styles/disabled must tile its dashes");
+                if (Fill(disabled).A >= Fill(normal).A) drift.Add($"{chevron}/styles/disabled must read fainter than its normal box");
+            } else {
+                RequireFill(chevron, "disabled", UIPalette.ButtonDisabled);
+            }
+        }
+        RequireFill("Button", "normal", UIPalette.ButtonNormal, theme.GetStylebox("normal", "Button") is StyleBoxTexture ? KitTolerance : 0.02f);
 
         // The focus box is an overlay with no fill of its own (plan 0.4 P5), so a focused, pressed row still reads as
-        // pressed; it carries the lit edge and the glow.
+        // pressed; it carries the lit edge and the 14 px glow outside the shape.
         foreach (string type in new[] { "Button", UIPalette.Variations.PulpButton, UIPalette.Variations.TemporalGlassButton,
                      UIPalette.Variations.PulpButtonCompact, "LineEdit" }) {
             StyleBox focus = theme.GetStylebox("focus", type);
@@ -175,13 +214,58 @@ public class UIThemeTests {
             if (focus is StyleBoxFlat flat) {
                 if (!flat.BorderColor.IsEqualApprox(UIPalette.FocusOutline)) drift.Add($"{type} focus edge is {flat.BorderColor} but UIPalette says {UIPalette.FocusOutline}");
                 if (flat.ShadowSize < 14 || !flat.ShadowColor.IsEqualApprox(UIPalette.FocusGlow)) drift.Add($"{type} focus glow is {flat.ShadowSize} px {flat.ShadowColor}");
+            } else if (focus is StyleBoxTexture overlay) {
+                // The glow runs 14 px outside the shape (the expand margins), so the texel at the expand margin is the
+                // lit edge and the one just outside it is the glow.
+                for (int side = 0; side < 4; side++) {
+                    if (overlay.GetExpandMargin((Side)side) != 14) drift.Add($"{type} focus overlay expands {overlay.GetExpandMargin((Side)side)} px on side {side}, not the 14 px glow");
+                }
+                Image art = overlay.Texture.GetImage();
+                int x = (int)overlay.GetExpandMargin(Side.Left), y = art.GetHeight() / 2;
+                Color edge = art.GetPixel(x, y), glow = art.GetPixel(x - 1, y);
+                if (!Near(edge, UIPalette.FocusOutline)) drift.Add($"{type} focus edge is {edge} but UIPalette says {UIPalette.FocusOutline}");
+                if (!Near(new Color(glow, 1f), new Color(UIPalette.FocusGlow, 1f)) || glow.A <= 0f || glow.A > UIPalette.FocusGlow.A) {
+                    drift.Add($"{type} focus glow is {glow} but UIPalette says {UIPalette.FocusGlow}");
+                }
             }
         }
-        if (theme.GetStylebox("panel", "PanelContainer") is StyleBoxFlat slab && !slab.BorderColor.IsEqualApprox(UIPalette.PanelBorder)) {
+        if (slabBox is StyleBoxFlat slab && !slab.BorderColor.IsEqualApprox(UIPalette.PanelBorder)) {
             drift.Add($"the slab's edge is {slab.BorderColor} but UIPalette says {UIPalette.PanelBorder}");
+        } else if (slabBox is StyleBoxTexture slabTexture) {
+            // The glass_panel hairline sits at the expand margin, anti-aliased against the shadow and the fill, so its
+            // hue is compared (the green and blue channels over the red), not its strength.
+            Image art = slabTexture.Texture.GetImage();
+            Color edge = art.GetPixel((int)slabTexture.GetExpandMargin(Side.Left), art.GetHeight() / 2);
+            Color border = UIPalette.PanelBorder;
+            if (edge.R <= 0.25f || Mathf.Abs(edge.G / edge.R - border.G / border.R) > 0.03f
+                || Mathf.Abs(edge.B / edge.R - border.B / border.R) > 0.03f) {
+                drift.Add($"the slab's edge is {edge}, not the hue of UIPalette.PanelBorder {border}");
+            }
+        }
+
+        // The glass fields and tabs hover with their own full-look boxes (TG-ART's glass_field_hover, glass_tab_hover):
+        // a hovered field is lit like a focused one and a hovered tab reads like the selected gold.
+        foreach ((string type, string box, string stem) in new[] {
+                     ("Button", "hover", "glass_field_hover"), ("LineEdit", "focus", "glass_field_focus"),
+                     ("TabContainer", "tab_hovered", "glass_tab_hover"), (UIPalette.Variations.GlassTab, "hover", "glass_tab_hover") }) {
+            StyleBox style = theme.GetStylebox(box, type);
+            string path = (style as StyleBoxTexture)?.Texture?.ResourcePath ?? "";
+            if (!path.EndsWith($"/{stem}.png")) drift.Add($"{type}/styles/{box} draws {path}, not {stem}");
         }
 
         if (drift.Count > 0) AssertThat(string.Join(" | ", drift)).IsEqual("");
+    }
+
+    /// <summary>The colour tolerance of a glass nine-slice's baked centre against its constant (the kit's rounding).</summary>
+    private const float KitTolerance = 0.03f;
+
+    /// <summary><paramref name="top"/> composited over a translucent <paramref name="under"/> (straight alpha, "over").</summary>
+    private static Color OverAlpha(Color top, Color under) {
+        float a = top.A + under.A * (1f - top.A);
+        if (a <= 0f) return new Color(0f, 0f, 0f, 0f);
+        return new Color((top.R * top.A + under.R * under.A * (1f - top.A)) / a,
+            (top.G * top.A + under.G * under.A * (1f - top.A)) / a,
+            (top.B * top.A + under.B * under.A * (1f - top.A)) / a, a);
     }
 
     /// <summary>

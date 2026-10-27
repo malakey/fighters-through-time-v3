@@ -10,11 +10,14 @@ one table: the palette (UI_SPEC_GLASS section 1), the Label roles (section 2.3,
 T01-T60, with the scene halos of 2.4) and the styles (sections 3.0-3.3 and 6.2).
 The output is committed; edit this script, not the .tres.
 
-Step 1 of TG-THEME builds every glass style in the 6.2 StyleBoxFlat fallback form
-(bevels by corner_detail = 1, parallelograms by skew), so screens stay usable before
-TG-ART's nine-slices land; step 2 wires the nine-slices. The pulp-only variations
-(paper, banners, boss plates, slot plates, cards, bubbles, stamp) keep their pulp
-plates until the closeout retires them.
+The glass styles are TG-ART's nine-slices (assets/sprites/ui/glass/glass_kit.json, 6.4):
+the slab and its presets, the tag, the chevron states, the tabs, the fields, the slider
+grabber (TG-THEME step 2). What 6.2 builds as a StyleBoxFlat stays flat: the READY badges,
+the scrim, the slider track and fill, the scroll bars, the check box ring, the tooltip.
+The focus boxes are overlays (plan 0.4 P5). The pulp-only variations (paper, banners, boss
+plates, slot plates, cards, bubbles, stamp) and the five HUD bars keep their pulp art until
+the closeout retires them (the bars until the glass tube decor hides them, orchestrator
+ruling).
 
 The palette lives in one table (PALETTE, plan ruling R11): every colour a style or
 role uses is looked up there by its UIPalette name, and the table is written into
@@ -101,6 +104,7 @@ pal("ReadyBadgeGlow", "F3C95B", 0.30, doc="the READY badge glow")
 pal("ReadyBadgeIdleEdge", "F3C95B", 0.25, doc="the idle badge border")
 pal("ReadyBadgeIdleFill", "000000", 0.25, doc="the idle badge fill")
 pal("Selection", "F3C95B", 0.40, doc="text selection in a field")
+pal("DimModulate", "FFFFFF", 0.50, doc="the modulate a disabled field or tab texture draws with (agent choice)")
 pal("PipGlow", "8FD8FF", 0.60, doc="block pip glow")
 pal("DefyReadyGlow", "FFE87A", 0.75, doc="Defy-ready glow")
 pal("BossEdge", "FF4D62", doc="boss tube edge (PAL-A's boss red, hard-coded by the mock)")
@@ -239,70 +243,106 @@ def line(color, thickness):
     return add_sub("StyleBoxLine", [("color", C(color)), ("thickness", thickness)], "Line")
 
 
-# ---- glass shapes in the 6.2 StyleBoxFlat fallback form ---------------------
-SLAB_CHAMFER = 18          # G1: chamfer 18 at top-left and bottom-right
-FIELD_CHAMFER = 8          # 3.3: the glass field
-CHEVRON_RADIUS = 35        # the right corners bevel to a point at mid-height for any height up to 70 px
-                           # (StyleBoxFlat shrinks two radii that exceed a side to fit it), a run of h / 2
+# ---- the glass kit (TG-ART's nine-slices, glass_kit.json) -------------------------------------
+GLASS_KIT_DIR = "res://assets/sprites/ui/glass/"
+_GLASS_KIT = json.load(open(os.path.join(ROOT, "assets", "sprites", "ui", "glass", "glass_kit.json"), encoding="utf-8"))
+_glass_ids = {}
 
 
-def slab(prefix, padding, shadow=True):
-    """G1 glass slab (6.2's flat fallback: a 45 degree bevel at TL/BR, a 2 px Edge border, the flat fill,
-    the soft drop shadow). padding = (top, sides, bottom), the 3.1 preset."""
+def glass_tex(stem):
+    """An ExtResource for a glass kit texture (catalog key = its glass-prefixed stem; the file is relative to the kit)."""
+    if stem not in _glass_ids:
+        ext.append(("Texture2D", GLASS_KIT_DIR + _GLASS_KIT[stem]["file"], stem))
+        _glass_ids[stem] = 'ExtResource("%s")' % stem
+    return _glass_ids[stem]
+
+
+def gbox(prefix, stem, content=None, modulate=None):
+    """A StyleBoxTexture from the glass kit: texture and expand margins and the tile flag from glass_kit.json (6.4),
+    content margins = the panel padding or label inset; modulate is a palette name (a dimmed state)."""
+    entry = _GLASS_KIT[stem]
+    p = []
+    if content:
+        l, t, r, b = content
+        p += [("content_margin_left", float(l)), ("content_margin_top", float(t)),
+              ("content_margin_right", float(r)), ("content_margin_bottom", float(b))]
+    p.append(("texture", glass_tex(stem)))
+    l, t, r, b = entry["nine_slice_margins_LTRB"]
+    p += [("texture_margin_left", float(l)), ("texture_margin_top", float(t)),
+          ("texture_margin_right", float(r)), ("texture_margin_bottom", float(b))]
+    if any(entry.get("expand_margins_LTRB", [0, 0, 0, 0])):
+        l, t, r, b = entry["expand_margins_LTRB"]
+        p += [("expand_margin_left", float(l)), ("expand_margin_top", float(t)),
+              ("expand_margin_right", float(r)), ("expand_margin_bottom", float(b))]
+    if entry.get("axis_stretch") == "tile":
+        p.append(("axis_stretch_horizontal", 1))
+    if modulate:
+        p.append(("modulate_color", C(modulate)))
+    return add_sub("StyleBoxTexture", p, prefix)
+
+
+FIELD_CHAMFER = 8          # 3.3: the glass field (the tooltip's flat box borrows it)
+
+
+def slab(prefix, padding):
+    """G1 glass slab: glass_panel (edge, build fill and drop shadow baked; the sheen and streaks are GlassSheen's).
+    padding = (top, sides, bottom), the 3.1 preset, as the content margins."""
     top, sides, bottom = padding
-    return flat(prefix, bg="GlassFillFlat", border="Edge", bw=2,
-                radii=(SLAB_CHAMFER, 0, SLAB_CHAMFER, 0), detail=1,
-                shadow=(0, 14, 22, "PanelShadow") if shadow else None,
-                margins=(sides, top, sides, bottom))
+    return gbox(prefix, "glass_panel", (sides, top, sides, bottom))
 
 
 def tag_plate(prefix):
-    """G2 panel tag (flat): the gold wash with a 2 px lit bar on its left; the right end bevels at the bottom."""
-    return flat(prefix, bg="TagWash", border="EdgeHi", bw_sides=(2, 0, 0, 0),
-                radii=(0, 0, 8, 0), detail=1, margins=(14, 3, 14, 3))
+    """G2 panel tag: glass_tag (the 2 px lit bar, the gold wash, the 8 px slant), content 14 / 3 / 14 / 3 (6.4)."""
+    return gbox(prefix, "glass_tag", (14, 3, 14, 3))
 
 
 def chevron_set(prefix, margins):
-    """G3 chevron button per state (3.2). The focus box is an overlay (lit edge and glow, no base: plan 0.4 P5),
-    so a focused, pressed row reads as pressed; hover lights the edge over the focus base (AC8, see the handoff)."""
-    radii = (0, CHEVRON_RADIUS, CHEVRON_RADIUS, 0)
+    """G3 chevron button per state (3.2, 6.4). The focus box is TG-ART's overlay (the lit edge, the focus wash and the
+    14 px glow, no dark base: plan 0.4 P5), and the pressed box is solved to compose with it into the CSS pressed look.
+    hover = the normal box (orchestrator ruling): the decor takes focus on mouse-enter, so a hovered chevron draws the
+    focus overlay over its normal box, exactly as a focused one; glass_btn_hover stays in the kit, unused here."""
+    normal = gbox(prefix + "Normal", "glass_btn_normal", margins)
+    pressed = gbox(prefix + "Pressed", "glass_btn_pressed", margins)
     return {
-        "normal": flat(prefix + "Normal", bg="ButtonFill", border="EdgeDim", bw=2, radii=radii, detail=1, margins=margins),
-        "hover": flat(prefix + "Hover", bg="ButtonFillFocus", border="Focus", bw=2, radii=radii, detail=1, margins=margins),
-        "pressed": flat(prefix + "Pressed", bg="ButtonFillPressed", border="EdgeDim", bw=2, radii=radii, detail=1, margins=margins),
-        "hover_pressed": flat(prefix + "Pressed", bg="ButtonFillPressed", border="EdgeDim", bw=2, radii=radii, detail=1, margins=margins),
-        "disabled": flat(prefix + "Disabled", bg="ButtonFillDisabled", border="EdgeDim", bw=2, radii=radii, detail=1, margins=margins),
-        "focus": flat(prefix + "Focus", border="Focus", bw=2, radii=radii, detail=1, center=False,
-                      shadow=(0, 0, 14, "FocusGlow"), margins=margins),
+        "normal": normal,
+        "hover": normal,
+        "pressed": pressed,
+        "hover_pressed": pressed,
+        "disabled": gbox(prefix + "Disabled", "glass_btn_disabled", margins),
+        "focus": gbox(prefix + "Focus", "glass_btn_focus", margins),
         # Not a box Godot draws by itself: the button decor swaps it in for the current value of a list (3.2 selected).
-        "selected": flat(prefix + "Selected", bg="ButtonFill", border="Edge", bw=2, radii=radii, detail=1, margins=margins),
+        "selected": gbox(prefix + "Selected", "glass_btn_selected", margins),
     }
 
 
 def field_set(prefix, margins):
-    """The glass field (3.3: chamfer 8, a quiet edge, the button fill); focus is the lit edge and the glow."""
-    radii = (FIELD_CHAMFER, 0, FIELD_CHAMFER, 0)
+    """The glass field (3.3, plan 0.4 P8). Undecorated, so hover is TG-ART's full focused look (glass_field_hover,
+    orchestrator ruling); pressed is the field itself, so under the focus overlay it reads as the focused field."""
+    normal = gbox(prefix + "Normal", "glass_field", margins)
     return {
-        "normal": flat(prefix + "Normal", bg="ButtonFill", border="EdgeDim", bw=2, radii=radii, detail=1, margins=margins),
-        "hover": flat(prefix + "Hover", bg="ButtonFillFocus", border="Edge", bw=2, radii=radii, detail=1, margins=margins),
-        "pressed": flat(prefix + "Pressed", bg="ButtonFillPressed", border="EdgeDim", bw=2, radii=radii, detail=1, margins=margins),
-        "hover_pressed": flat(prefix + "Pressed", bg="ButtonFillPressed", border="EdgeDim", bw=2, radii=radii, detail=1, margins=margins),
-        "disabled": flat(prefix + "Disabled", bg="ButtonFillDisabled", border="EdgeDim", bw=2, radii=radii, detail=1, margins=margins),
-        "focus": flat(prefix + "Focus", border="Focus", bw=2, radii=radii, detail=1, center=False,
-                      shadow=(0, 0, 14, "FocusGlow"), margins=margins),
+        "normal": normal,
+        "hover": gbox(prefix + "Hover", "glass_field_hover", margins),
+        "pressed": normal,
+        "hover_pressed": normal,
+        "disabled": gbox(prefix + "Disabled", "glass_field", margins, modulate="DimModulate"),
+        "focus": gbox(prefix + "Focus", "glass_field_focus", margins),
     }
 
 
 TAB_MARGINS = (26, 9, 26, 9)   # 3.3: padding 12 / 26, 48 tall with Outfit's natural line height
 
 
-def tab_box(prefix, bg):
-    """G14 tab (flat): the top-right corner bevels 16 px (the top edge is the shorter)."""
-    return flat(prefix, bg=bg, radii=(0, 16, 0, 0), detail=1, margins=TAB_MARGINS)
-
-
-def tab_focus(prefix):
-    return flat(prefix, radii=(0, 16, 0, 0), detail=1, center=False, shadow=(0, 0, 14, "FocusGlow"), margins=TAB_MARGINS)
+def tab_set():
+    """G14 tabs: unselected, hovered (TG-ART's full look, the selected look plus the glow; orchestrator ruling),
+    selected, the focus overlay (the glow only) and a dimmed disabled tab, all with the same content margins so a tab
+    never changes size between states."""
+    return {
+        "unselected": gbox("TabUn", "glass_tab", TAB_MARGINS),
+        "hovered": gbox("TabHov", "glass_tab_hover", TAB_MARGINS),
+        "selected": gbox("TabSel", "glass_tab_selected", TAB_MARGINS),
+        "focus": gbox("TabFocus", "glass_tab_focus", TAB_MARGINS),
+        "disabled": gbox("TabDis", "glass_tab", TAB_MARGINS, modulate="DimModulate"),
+    }
 
 
 # ---- fonts -----------------------------------------------------------------
@@ -527,15 +567,16 @@ def build():
     put_button("OptionButton", None, field, 22, field_font, FIELD_COLORS)
     put("OptionButton/constants/arrow_margin", 14)
     tab_font = font("outfit", 600, tracking_px(0.13, 24))
-    unselected, hovered, selected = tab_box("TabUn", "TabFill"), tab_box("TabHov", "TabHover"), tab_box("TabSel", "Accent")
+    tabs = tab_set()
+    # The hover box is the selected look plus the glow (a gold fill), so a hovered tab's text is the selected ink.
     put_button("GlassTab", "Button", {
-        "normal": unselected, "hover": hovered, "pressed": selected, "hover_pressed": selected,
-        "disabled": unselected, "focus": tab_focus("TabFocus")}, 24, tab_font,
-        dict(font_color="Ink2", font_hover_color="Ink", font_focus_color="Ink2", font_pressed_color="TabSelectedInk",
-             font_hover_pressed_color="TabSelectedInk", font_disabled_color="Ink3"))
+        "normal": tabs["unselected"], "hover": tabs["hovered"], "pressed": tabs["selected"],
+        "hover_pressed": tabs["selected"], "disabled": tabs["disabled"], "focus": tabs["focus"]}, 24, tab_font,
+        dict(font_color="Ink2", font_hover_color="TabSelectedInk", font_focus_color="Ink2",
+             font_pressed_color="TabSelectedInk", font_hover_pressed_color="TabSelectedInk", font_disabled_color="Ink3"))
     put_button("GlassTabSelected", "Button", {
-        "normal": selected, "hover": selected, "pressed": selected, "hover_pressed": selected,
-        "disabled": selected, "focus": tab_focus("TabFocus")}, 24, tab_font,
+        "normal": tabs["selected"], "hover": tabs["selected"], "pressed": tabs["selected"],
+        "hover_pressed": tabs["selected"], "disabled": tabs["selected"], "focus": tabs["focus"]}, 24, tab_font,
         dict(font_color="TabSelectedInk", font_hover_color="TabSelectedInk", font_focus_color="TabSelectedInk",
              font_pressed_color="TabSelectedInk", font_hover_pressed_color="TabSelectedInk",
              font_disabled_color="TabSelectedInk"))
@@ -571,7 +612,10 @@ def build():
     default_slab = slab("Slab", DEFAULT_PANEL_PADDING)
     put("Panel/styles/panel", default_slab)
     put("PanelContainer/styles/panel", default_slab)
-    put("PopupPanel/styles/panel", slab("PopupSlab", (8, 8, 8), shadow=False))
+    # The popups share the slab at padding 8. The nine-slice's expand margins put its edge on the popup's rect, so the
+    # slab reads the same whether or not the popup window clips the baked shadow outside it (not seen in a capture).
+    popup_slab = slab("PopupSlab", (8, 8, 8))
+    put("PopupPanel/styles/panel", popup_slab)
 
     def pv(name, ref):
         put(name + "/base_type", '&"PanelContainer"')
@@ -607,17 +651,16 @@ def build():
 
     # ---- Inputs: the glass field (LineEdit), sliders, scroll bars, spin box buttons
     line_margins = (16, 8, 16, 8)
-    radii = (FIELD_CHAMFER, 0, FIELD_CHAMFER, 0)
     colors("LineEdit", font_color="Ink", font_placeholder_color="Ink3", caret_color="Accent",
            font_selected_color="Ink", selection_color="Selection")
     put("LineEdit/font_sizes/font_size", 22)
-    put("LineEdit/styles/normal", flat("LineN", bg="ButtonFill", border="EdgeDim", bw=2, radii=radii, detail=1, margins=line_margins))
-    put("LineEdit/styles/focus", flat("LineF", border="Focus", bw=2, radii=radii, detail=1, center=False,
-                                      shadow=(0, 0, 14, "FocusGlow"), margins=line_margins))
-    put("LineEdit/styles/read_only", flat("LineR", bg="ButtonFillDisabled", border="EdgeDim", bw=2, radii=radii, detail=1,
-                                          margins=line_margins))
-    # 3.3 slider: a 12 px track (content margins 6 and 6) leaning with a 6 px run (skew 0.5). UR-POLISH: the track ends
-    # under the grabber's travel limit (expand right -6), so its slanted cap never shows past the grabber at a high value.
+    put("LineEdit/styles/normal", gbox("LineN", "glass_field", line_margins))
+    put("LineEdit/styles/focus", gbox("LineF", "glass_field_focus", line_margins))
+    put("LineEdit/styles/read_only", gbox("LineR", "glass_field", line_margins, modulate="DimModulate"))
+    # 3.3 slider: a 12 px track (content margins 6 and 6) leaning with a 6 px run (skew 0.5), and the glass grabber, a
+    # 64 px icon (the 31.7 px diamond with its ring and glow) whose centre travels the whole track (center_grabber), as
+    # the mock's handle sits at x = v %. UR-POLISH: the track's slanted right cap ends under the grabber at the maximum
+    # value (expand right -6 against a 3 px lean), so it never shows past it.
     put("HSlider/styles/slider", flat("Slider", bg="SliderTrack", skew=0.5, margins=(0, 6, 0, 6), expand=(-3, 0, -6, 0)))
     put("HSlider/styles/grabber_area", flat("SliderFill", bg="Accent", skew=0.5, margins=(0, 6, 0, 6), expand=(-3, 0, 0, 0)))
     put("HSlider/styles/grabber_area_highlight", flat("SliderFillHi", bg="Focus", skew=0.5, margins=(0, 6, 0, 6), expand=(-3, 0, 0, 0)))
@@ -625,9 +668,9 @@ def build():
     put("VSlider/styles/grabber_area", flat("VSliderFill", bg="Accent", margins=(6, 0, 6, 0)))
     put("VSlider/styles/grabber_area_highlight", flat("VSliderFillHi", bg="Focus", margins=(6, 0, 6, 0)))
     for t in ("HSlider", "VSlider"):
-        # Step 1 keeps the frozen pulp grabber icon; step 2 wires glass_slider_grabber.png.
         for icon in ("grabber", "grabber_highlight", "grabber_disabled"):
-            put(t + "/icons/" + icon, kit_tex("slider_grabber"))
+            put(t + "/icons/" + icon, glass_tex("glass_slider_grabber"))
+        put(t + "/constants/center_grabber", 1)
     # 3.3 scroll bar: 8 px wide, rounded ends, a gold grabber at least 48 long.
     for t, track_margins, grab_margins in (("VScrollBar", (4, 0, 4, 0), (4, 24, 4, 24)),
                                           ("HScrollBar", (0, 4, 0, 4), (24, 4, 24, 4))):
@@ -675,19 +718,20 @@ def build():
     # margins (the Settings layout is TG-PAUSE's).
     put("TabContainer/styles/panel", flat("TabPanel", bg="TabPanelFill", border="EdgeDim", bw=2, radii=(12, 0, 12, 0),
                                           detail=1, margins=(18, 18, 24, 26)))
-    put("TabContainer/styles/tab_selected", selected)
-    put("TabContainer/styles/tab_unselected", unselected)
-    put("TabContainer/styles/tab_hovered", hovered)
-    put("TabContainer/styles/tab_disabled", unselected)
-    put("TabContainer/styles/tab_focus", tab_focus("TabFocus"))
+    put("TabContainer/styles/tab_selected", tabs["selected"])
+    put("TabContainer/styles/tab_unselected", tabs["unselected"])
+    put("TabContainer/styles/tab_hovered", tabs["hovered"])
+    put("TabContainer/styles/tab_disabled", tabs["disabled"])
+    put("TabContainer/styles/tab_focus", tabs["focus"])
     put("TabContainer/styles/tabbar_background", empty("TabBar"))
-    colors("TabContainer", font_selected_color="TabSelectedInk", font_hovered_color="Ink",
+    colors("TabContainer", font_selected_color="TabSelectedInk", font_hovered_color="TabSelectedInk",
            font_unselected_color="Ink2", font_disabled_color="Ink3")
     put("TabContainer/font_sizes/font_size", 24)
     put("TabContainer/fonts/font", tab_font)
 
-    # ---- Popup menu (a glass slab of 44 px rows), tooltip, separators
-    put("PopupMenu/styles/panel", slab("PopupSlab", (8, 8, 8), shadow=False))
+    # ---- Popup menu (a glass slab of 44 px rows), tooltip (a small flat slab: a tooltip is often shorter than the
+    # glass_panel nine-slice's corners), separators
+    put("PopupMenu/styles/panel", popup_slab)
     put("PopupMenu/styles/hover", flat("MenuHover", bg="FocusWash", border="Focus", bw_sides=(2, 0, 0, 0),
                                        margins=(8, 4, 8, 4)))
     put("PopupMenu/styles/separator", line("EdgeDim", 1))
