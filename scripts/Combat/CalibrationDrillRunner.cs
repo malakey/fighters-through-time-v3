@@ -339,11 +339,12 @@ namespace FTT.Combat {
                 FTT.UI.PulpScreenKit.DressPanel(hud);
                 _hudPanel = hud;
             }
+            Control overlayRoot = GetNodeOrNull<Control>(overlay.TrimEnd('/'));
             if (_resultCard is PanelContainer cardPanel) {
                 FTT.UI.PulpScreenKit.DressPanel(cardPanel, buttonInset: true);
-                FTT.UI.MenuSafeAreaFit.Attach(cardPanel, FTT.UI.GlassScreenDressing.ScaledOverlayPromptClearance);
+                FTT.UI.MenuSafeAreaFit.AttachClearOfPromptBar(cardPanel, overlayRoot);
             }
-            if (GetNodeOrNull<Control>(overlay.TrimEnd('/')) is { } overlayRoot) {
+            if (overlayRoot != null) {
                 _resultPrompts = FTT.UI.GlassScreenDressing.AddOverlayPromptBar(overlayRoot, ("ui_accept", "ui_prompt_select"));
                 if (_resultPrompts != null) _resultPrompts.Visible = false;
             }

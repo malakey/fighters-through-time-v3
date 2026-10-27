@@ -80,7 +80,7 @@ namespace FTT.UI {
             if (root is ColorRect dim) dim.Color = UIPalette.GameOverDim;
             if (root.GetNodeOrNull<PanelContainer>("Center/Panel") is { } panel) {
                 PulpScreenKit.DressPanel(panel, buttonInset: true);
-                MenuSafeAreaFit.Attach(panel, GlassScreenDressing.ScaledOverlayPromptClearance);
+                MenuSafeAreaFit.AttachClearOfPromptBar(panel, root);
                 GlassScreenDressing.FadeIn(panel);
             }
             if (layout != null && layout.GetNodeOrNull<Label>("Title") is { } title) {

@@ -119,7 +119,7 @@ namespace FTT.UI {
             tagged.AddChild(panel);
             PulpScreenKit.DressPanel(panel, null, sheen: true, buttonInset: true);
             // The slab clears the overlay prompt bar at the foot of the screen (as the other glass overlays do).
-            MenuSafeAreaFit.Attach(tagged, GlassScreenDressing.ScaledOverlayPromptClearance);
+            MenuSafeAreaFit.AttachClearOfPromptBar(tagged, this);
 
             var layout = new VBoxContainer { Name = "Layout" };
             layout.AddThemeConstantOverride("separation", (int)(RowPitch - RowControlHeight));

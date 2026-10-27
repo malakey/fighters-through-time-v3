@@ -18,9 +18,6 @@ namespace FTT.UI {
         /// <summary>The gap kept between two chips, edge to edge.</summary>
         public const float ChipGap = 14f;
 
-        /// <summary>Extra clear space above and below the panel so the bottom-right prompt bar (top at 1006 of 1080) never touches its frame.</summary>
-        public const float PromptBarClearance = 56f;
-
         private const float ChipMarginLeft = 12f, ChipMarginRight = 38f, ChipMarginTop = 8f, ChipMarginBottom = 8f;
 
         /// <summary>The dim over the sub-screen art behind the grid (UI_SPEC_GLASS 9.2: "sub-screen art, dim .55").</summary>
@@ -119,7 +116,9 @@ namespace FTT.UI {
                 ContentMarginTop = ChipMarginTop, ContentMarginBottom = ChipMarginBottom
             };
             if (Root.GetNodeOrNull<PanelContainer>("Center/Panel") is { } gridPanel) {
-                MenuSafeAreaFit.Attach(gridPanel, PromptBarClearance);
+                // The panel clears the bottom-right prompt bar, measured from its top (TG-CLOSE: the hand-kept 56 fell
+                // 8 px short of the corner bar, 44 px from the bottom).
+                MenuSafeAreaFit.AttachClearOfPromptBar(gridPanel, this);
                 PulpScreenKit.DressPanel(gridPanel, "resonance_grid_tag");
             }
             // The balance line: Outfit 500 20 in res (9.2); the nearest role is SmallLabel (500, 18), coloured res.

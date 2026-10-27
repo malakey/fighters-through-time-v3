@@ -99,7 +99,7 @@ namespace FTT.UI {
             _panel = _root.GetNodeOrNull<PausePanel>("Center/Panel");
             if (_panel != null) {
                 PulpScreenKit.DressPanel(_panel, sheen: true, buttonInset: true);
-                MenuSafeAreaFit.Attach(_panel, GlassScreenDressing.OverlayPromptClearance);
+                MenuSafeAreaFit.AttachClearOfPromptBar(_panel, _root);
             }
             if (_portrait?.GetParent() is Control header) {
                 _portraitFrame = new Pulp.PulpPortraitRoundel { Name = "PortraitFrame", Diameter = PortraitSize };

@@ -55,7 +55,7 @@ namespace FTT.UI {
             center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
             AddChild(center);
             center.AddChild(panel);
-            MenuSafeAreaFit.Attach(panel, GlassScreenDressing.ScaledOverlayPromptClearance);
+            MenuSafeAreaFit.AttachClearOfPromptBar(panel, shade);
 
             var layout = new VBoxContainer { Name = "Layout", Alignment = BoxContainer.AlignmentMode.Center };
             layout.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);

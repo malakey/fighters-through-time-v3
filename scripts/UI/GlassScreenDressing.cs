@@ -14,7 +14,8 @@ namespace FTT.UI {
     /// with flourishes top-centre at y 40 (<see cref="AddScreenHeading"/>) and the prompt bar bottom-right.</item>
     /// <item><b>Overlays over gameplay</b> carry the build dim (<see cref="UIPalette.PauseDim"/>, Game Over the stronger
     /// <see cref="UIPalette.GameOverDim"/>), one centred glass slab, no streak (AC19, plan 0.4 P3) and the prompt bar
-    /// bottom-centre at 34 (<see cref="AddOverlayPromptBar"/>).</item>
+    /// bottom-centre at 34 (<see cref="AddOverlayPromptBar"/>); the slab clears the bar through
+    /// <see cref="MenuSafeAreaFit.AttachClearOfPromptBar"/> (TG-CLOSE).</item>
     /// </list>
     /// Plus two parts the kit lacks (listed as kit gaps for the closeout): flourishes placed around an existing centred
     /// title label without moving it (<see cref="FlankTitle"/>, so a node path a test binds to survives), and the results
@@ -39,19 +40,10 @@ namespace FTT.UI {
         public const float HeadingReserve = 100f;
 
         /// <summary>
-        /// The clear space an overlay slab keeps above and below so the bottom-centre prompt bar (34 px from the bottom, a
-        /// key cap about 32 tall) never sits on it, at UI scale 1.0: the bar's top plus a 10 px gap, less the fit's own 24.
-        /// </summary>
-        public const float OverlayPromptClearance = 56f;
-
-        /// <summary>
         /// <see cref="HeadingReserve"/> at the applied UI scale: the heading's text grows with the scale (at 1.4 the T03
         /// line ends near y 125), so a fixed reserve let the block's first line run into it. Read once at attach.
         /// </summary>
         public static float ScaledHeadingReserve => HeadingReserve * Mathf.Max(1f, UIPalette.AppliedUiScale);
-
-        /// <summary><see cref="OverlayPromptClearance"/> at the applied UI scale (the bar's key caps grow with it).</summary>
-        public static float ScaledOverlayPromptClearance => OverlayPromptClearance * Mathf.Max(1f, UIPalette.AppliedUiScale);
 
         /// <summary>
         /// A chevron stack's D6 cap (3.2: 700 for menu stacks) at the applied UI scale. The kit leaves its cap unscaled, so at

@@ -88,7 +88,7 @@ namespace FTT.UI {
             };
             center.AddChild(_panel);
             PulpScreenKit.DressPanel(_panel, sheen: true, buttonInset: true);
-            MenuSafeAreaFit.Attach(_panel, GlassScreenDressing.OverlayPromptClearance);
+            MenuSafeAreaFit.AttachClearOfPromptBar(_panel, _root);
 
             var body = new VBoxContainer { Name = "Body" };
             body.AddThemeConstantOverride("separation", 16);

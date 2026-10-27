@@ -317,7 +317,7 @@ namespace FTT.UI {
             if (_shade is ColorRect dim) dim.Color = UIPalette.PauseDim;
             if (_panel != null) {
                 PulpScreenKit.DressPanel(_panel, buttonInset: true);
-                MenuSafeAreaFit.Attach(_panel, GlassScreenDressing.ScaledOverlayPromptClearance);
+                MenuSafeAreaFit.AttachClearOfPromptBar(_panel, _shade);
             }
             if (_titleLabel != null) _titleFlourishes = GlassScreenDressing.FlankTitle(_titleLabel);
             foreach (Label line in new[] { _dustMobsLabel, _dustExtractorsLabel, _dustBossLabel, _dustOptionalLabel,
