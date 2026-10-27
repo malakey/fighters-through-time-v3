@@ -104,11 +104,14 @@ namespace FTT.UI {
         public static bool TryResolveBanner(in FighterPresentationPayload payload, out FighterOverlayBeat beat) {
             switch (payload.Phase) {
                 case FighterPresentationPhase.Countdown:
+                    // The 3 / 2 / 1 stands on chrome that belongs to no player: the chrome accent (TG-CLOSE; UI_SPEC_GLASS
+                    // gives this numeral no colour of its own). It was UIPalette.P1, an ownership colour that followed the
+                    // player-slot palette.
                     beat = payload.CountdownValue > 0
                         ? new FighterOverlayBeat(
                             FighterBannerStyle.CountdownNumeral,
                             "fighter_countdown_digit",
-                            UIPalette.P1,
+                            UIPalette.Accent,
                             Duration(payload.DurationSeconds),
                             CountdownFontSize,
                             showsPlate: false)

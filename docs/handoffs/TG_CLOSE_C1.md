@@ -223,3 +223,65 @@ not committed.
    -3; the measured prompt gap of 10 px; the tooltip wrapping at the band's 508 px at 1.4; `TrackBackground` re-pointed
    to the glass track (no production reader); `PulpButtonDecor.Marker` typed `GlassMarker`; `MainMenuCoverTests` reading
    the real save slots (read-only).
+
+## Fix step (after the C1 merge)
+
+The orchestrator's rulings on C1 (`D:\Projects\ftt-scratch\tg-routed-findings.md`, the TG-CLOSE C1 section): rulings 1, 3
+and 4 needed no code (the tracking stays unscaled, `PROVISIONAL-UI-GLASS-TRACKING-UNSCALED`; line heights and the reclaim
+flash stay open; the agent choices are recorded as `PROVISIONAL-UI-GLASS-CLOSE`). Rulings 2 and 5 are this step, on
+`tg/close` fast-forwarded to `main` at `feb3f619` (3740). Presentation only.
+
+| Commit | What |
+|---|---|
+| `9fcfc0e1` | The Fighter countdown digit draws in the chrome accent |
+| `94811c47` | Every select footer label reads whole at 1.0 and 1.4 |
+| `54c79e9f` | Capture targets `hudf_countdown`, `hudf_countdown_140` |
+
+**The select footer (ruling 2).** `CharacterSelectScreen.FooterWidths` (pure) sizes the row in the layout pass
+(`FitFooter`). The buttons keep the shared 280 px while every label reads whole in one at the 18 px compact floor or above,
+which is UI scale 1.0, as the mock. Otherwise they share the same 3 x 280 by need: every label at the largest single size,
+from the role's down to the floor, at which all three fit together, each button its paddings, its label at that size and
+2 px of slack (`FooterSlack`). The row stays inside the 908 px between the side panels, the focus-row separation is
+unchanged, and nothing draws under the floor. The footer no longer binds the D6 stack rule (min = cap = 280), which would
+write 280 back on a theme change. `PulpButtonDecor.LabelPaddingWidth` and `DrawnLabelWidth` are the two measures the rule
+reads (the same ones the decor's own fit and `RequiredWidth` use). Measured:
+
+| Scale | MOVE LIST | SYSTEMS CARD | BACK | Row |
+|---|---|---|---|---|
+| 1.0 | 280 px, label 24 px | 280 px, 20 px | 280 px, 24 px | x 506 to 1414 (unchanged) |
+| 1.4 | 282 px, 25 px | 350 px, 25 px (was 280, trimmed at 18 px) | 198 px, 25 px | x 511 to 1409 |
+
+The side panels end at x 500 and start at 1420 at both scales.
+
+**The countdown digit (ruling 5).** `FighterOverlayModel.TryResolveBanner` drew the pre-match 3 / 2 / 1 in
+`UIPalette.P1`, which followed the player-slot palette (cyan, blue or white). UI_SPEC_GLASS gives this numeral no colour
+of its own (T59, the select's countdown, is accent), so it draws in the chrome accent, `UIPalette.Accent`. The 190 px size
+stays (the overlay is a HUD on `UiScaleBinder`); GO, the stamps and the winner banner are unchanged.
+
+**Tests:** 3740 to **3742**.
+
+- `CharacterSelectCardTests.EveryFooterLabelReadsWholeBetweenTheSidePanelsAtBothUiScales` (+1). At 1.0 and 1.4: no label
+  trimmed, none under 18 px, every button between `P1Panel` and `P2Panel`, and neighbours at least the focus-row gap
+  apart. Seen failing first: "1.4: SystemsCardButton's label is trimmed at 18 px".
+- `FighterOverlayModelTests.TheCountdownDigitIsTheChromeAccentInEveryPlayerSlotPalette` (+1). Seen failing first: the
+  digit drew (0, 0.941, 1), (0.227, 0.553, 1) and white in the three palettes.
+- In place: `CharacterSelectCardTests.TileTextShrinksToItsBoxAtLargeUiScaleButNeverBelowItsSizeAtScaleOne` drops its
+  SYSTEMS CARD exemption, and `FighterMatchPresentationTests.TheCountdownRendersNumeralsThenGo` pins the accent where it
+  pinned `UIPalette.P1`.
+
+**Runs:** the widened UI filter plus `FighterOverlayModel`, `FighterLocalization` and `FighterMatchFlowContent`
+(`fixstep-ui.log`) is **798 / 798**. It holds every suite this step touches (CharacterSelect, FighterOverlayModel,
+FighterMatchPresentation, FighterHud, PadMenuFighterSelect); a run of those alone before the in-place pin read 96 / 97,
+the one failure the old `UIPalette.P1` pin. Build: 0 errors, the two known warnings.
+
+**Captures** (windowed, under the lock) are in `D:\Projects\ftt-scratch\tg-captures\close-fix\`:
+
+- The footer states: `select_cards`, `select_p1_ready`, `select_ready`, `select_mirror`, `select_join`,
+  `select_versus_cpu`, the three `select_palette_*`, `select_140` and `select_ready_140`.
+- `select_stage` and `select_stage_140`.
+- The countdown beat: `hudf_countdown`, `hudf_countdown_140` and `drill_hud`, which opens on the countdown. The `hudf_ko`
+  stamp is unchanged.
+
+Every one was looked at. At 1.4 all three footer labels read whole at one size, BACK the narrowest. Against the C1 head,
+every 1.0 select state is pixel-identical (`select_mirror` differs only in P2's animated hero sprite, outside the footer),
+and the 1.4 states differ only in the footer band (x 506 to 1413). The digit is gold at both scales and keeps its size.

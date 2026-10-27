@@ -132,6 +132,29 @@ namespace FTT.Diagnostics {
             return page;
         }
 
+        /// <summary>The pre-match countdown's "3" over the top band (TG-CLOSE fix step: the chrome accent, not player one's colour).</summary>
+        [UiCaptureTarget("hudf_countdown", SettleFrames = 12)]
+        public static Node HudfCountdown(UiCaptureContext context) => HudfCountdownAt(context, 1f);
+
+        /// <summary>The countdown at UI scale 1.4 (the overlay keeps its 190 px numeral on the HUD's own scale).</summary>
+        [UiCaptureTarget("hudf_countdown_140", SettleFrames = 12)]
+        public static Node HudfCountdown140(UiCaptureContext context) => HudfCountdownAt(context, 1.4f);
+
+        private static Node HudfCountdownAt(UiCaptureContext context, float scale) {
+            HudfSetScale(scale);
+            (Control page, FighterHUD hud) = HudfPage();
+            var overlay = new FighterPresentationOverlay();
+            page.AddChild(overlay);
+            context.AfterReady = _ => {
+                HudfStart(hud, 0, false);
+                overlay.Present(new FighterPresentationPayload {
+                    Phase = FighterPresentationPhase.Countdown, CountdownValue = 3, WinnerPlayerID = -1, SubjectPlayerID = -1,
+                    DurationSeconds = 30f
+                });
+            };
+            return page;
+        }
+
         /// <summary>UI scale 1.4: the clusters keep their corners, the HP tubes shrink before they meet the plate, the badges drop their text.</summary>
         [UiCaptureTarget("hudf_140", SettleFrames = 12)]
         public static Node Hudf140(UiCaptureContext context) {

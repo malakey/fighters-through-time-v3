@@ -31,7 +31,8 @@ public class FighterMatchPresentationTests {
             overlay.Present(Payload(FighterPresentationPhase.Countdown, countdownValue: 3, seconds: 1f));
             AssertThat(overlay.BannerText)
                 .IsEqual(string.Format(TranslationServer.Translate("fighter_countdown_digit").ToString(), 3));
-            AssertThat(overlay.BannerColor).IsEqual(UIPalette.P1);
+            // TG-CLOSE fix step: the chrome accent (no player owns the countdown), not player one's colour.
+            AssertThat(overlay.BannerColor).IsEqual(UIPalette.Accent);
             AssertThat(overlay.BannerFontSize).IsEqual(FighterOverlayModel.CountdownFontSize);
             // Numerals sit on the stage, not on a plate.
             AssertThat(overlay.PlateVisible).IsFalse();
