@@ -172,13 +172,13 @@ namespace FTT.UI {
 
         /// <summary>
         /// The role a credit line wears: the title at 78 px (<c>PauseTitle</c>, Cinzel 900, white under the gradient), the
-        /// end line in T03 (<c>BannerHeading</c>), the other headings in <c>HeadingLabel</c> (Cinzel 700 accent; the spec's
-        /// 30 px is a kit gap, the role is 26) and the names in <c>BodyLabel</c> (Outfit 400 26 ink).
+        /// end line in T03 (<c>BannerHeading</c>), the other headings in <c>CreditsHeading</c> (Cinzel 700 30 .13em accent,
+        /// 9.2; folded by TG-CLOSE, <c>HeadingLabel</c>'s 26 stood in) and the names in <c>BodyLabel</c> (Outfit 400 26 ink).
         /// </summary>
         public static string RoleFor(CreditLine line) => line.Key switch {
             TitleKey => UIPalette.LabelRoles.PauseTitle,
             EndKey => UIPalette.LabelRoles.BannerHeading,
-            _ => line.IsHeading ? UIPalette.LabelRoles.HeadingLabel : UIPalette.LabelRoles.BodyLabel
+            _ => line.IsHeading ? UIPalette.LabelRoles.CreditsHeading : UIPalette.LabelRoles.BodyLabel
         };
 
         private void ResolveOrBuildUI() {

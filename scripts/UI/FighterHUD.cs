@@ -313,7 +313,7 @@ namespace FTT.UI {
                 };
                 panel.HpMax = new Label {
                     Name = "Max", MouseFilter = Control.MouseFilterEnum.Ignore,
-                    ThemeTypeVariation = UIPalette.LabelRoles.HudNumeralSmall,
+                    ThemeTypeVariation = UIPalette.LabelRoles.HudNumeralMaxScene,
                     SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
                     Modulate = new Color(1f, 1f, 1f, HpMaxAlpha)
                 };

@@ -435,6 +435,14 @@ ROLES = [
     ("UltimateReadyLabel", "outfit", 700, 18, 0.16, "Res2", "S", False, None, "T60"),
     ("BodyLabel",          "outfit", 400, 26, 0.0,  "Ink",  None, False, 1.35, "9.1 body copy"),
     ("BodySmallLabel",     "outfit", 400, 22, 0.0,  "Ink",  None, False, None, "9.1 small copy"),
+    # TG-CLOSE: the roles Phase B lacked (it stood in with the nearest role and a colour override)
+    ("DescriptionLabel",   "outfit", 400, 24, 0.0,  "Ink2", None, False, 1.35, "9.2 the difficulty description"),
+    ("BodyCompactLabel",   "outfit", 400, 24, 0.0,  "Ink",  None, False, 1.35, "9.2 body at 24 (Systems Card, dialogue log, boot, the play options notice)"),
+    ("BodySmallDimLabel",  "outfit", 400, 22, 0.0,  "Ink2", None, False, None, "9.1 small copy in ink2 (the Move List stats, secondary copy)"),
+    ("SlotCaption",        "outfit", 600, 18, 0.16, "Accent", None, False, None, "9.2 the Move List slot name"),
+    ("LogSpeaker",         "cinzel", 700, 22, 0.13, "Accent", None, False, None, "9.2 the dialogue log's speaker"),
+    ("CreditsHeading",     "cinzel", 700, 30, 0.13, "Accent", None, False, None, "9.2 the credits' role headings"),
+    ("HudNumeralMaxScene", "outfit", 400, 21, 0.0,  "TextFocus", "S", True, None, "T17 /max of the Fighter numeral (20.9; HudNumeralSmall stood in)"),
 ]
 
 # halo tier -> (outline px, outline colour, shadow offset y, shadow outline px, shadow colour)  (2.4)

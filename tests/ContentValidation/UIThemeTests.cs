@@ -411,6 +411,26 @@ public class UIThemeTests {
                 drift.Add($"{role.Name} tracks {spacing} px but {role.Tracking} em at {role.Size} px is {expectedSpacing}");
             }
         }
+        // TG-CLOSE: the roles Phase B lacked (plan 9's closeout list), at UI_SPEC_GLASS 9.1 / 9.2 / 3.4.1's values, so no
+        // screen stands in with the nearest role and a colour override: name, face, weight, size, colour, halo.
+        var folded = new (string Name, string Face, int Weight, int Size, Color Colour, string Halo)[] {
+            ("DescriptionLabel", "outfit", 400, 24, UIPalette.Ink2, ""),       // the difficulty description
+            ("BodyCompactLabel", "outfit", 400, 24, UIPalette.Ink, ""),        // 9.2 body at 24 (Systems Card, log, boot)
+            ("BodySmallDimLabel", "outfit", 400, 22, UIPalette.Ink2, ""),      // secondary small copy (Move List stats)
+            ("SlotCaption", "outfit", 600, 18, UIPalette.Accent, ""),          // the Move List slot name
+            ("LogSpeaker", "cinzel", 700, 22, UIPalette.Accent, ""),           // the dialogue log's speaker
+            ("CreditsHeading", "cinzel", 700, 30, UIPalette.Accent, ""),       // the credits' role headings
+            ("HudNumeralMaxScene", "outfit", 400, 21, UIPalette.TextFocus, "S"), // the Fighter "/max" (20.9)
+        };
+        foreach (var f in folded) {
+            if (!theme.HasFont("font", f.Name) || theme.GetTypeVariationBase(f.Name) != "Label") { drift.Add($"the folded role {f.Name} is missing"); continue; }
+            Font font = theme.GetFont("font", f.Name);
+            if (BaseFontPath(font) != (f.Face == "cinzel" ? CinzelPath : OutfitPath) || Weight(font) != f.Weight) drift.Add($"{f.Name} is not {f.Face} {f.Weight}");
+            if (theme.GetFontSize("font_size", f.Name) != Mathf.RoundToInt(f.Size * UIPalette.AppliedUiScale)) drift.Add($"{f.Name} is {theme.GetFontSize("font_size", f.Name)} px, not {f.Size}");
+            if (!theme.GetColor("font_color", f.Name).IsEqualApprox(f.Colour)) drift.Add($"{f.Name} is {theme.GetColor("font_color", f.Name)}, not {f.Colour}");
+            bool halo = theme.HasConstant("outline_size", f.Name) && theme.GetConstant("outline_size", f.Name) > 0;
+            if (halo != (f.Halo != "")) drift.Add($"{f.Name}'s halo is {(halo ? "on" : "off")}");
+        }
         if (drift.Count > 0) AssertThat(string.Join(" | ", drift)).IsEqual("");
     }
 
@@ -612,7 +632,7 @@ public class UIThemeTests {
         var haloL = new HashSet<string> { "CoverTitle", "BannerHeading", "PauseTitle", "BossName", "SideCardName" };
         var haloS = new HashSet<string> {
             "LevelTitle", "ObjectiveLine", "HeroNameScene", "PromptCaption", "SceneCaption", "VersionCaption",
-            "HudNumeral", "HudNumeralSmall", "HudNumeralMax", "SlotKeyTagScene", "SlotNumber", "StatusName", "StatusTime",
+            "HudNumeral", "HudNumeralSmall", "HudNumeralMax", "HudNumeralMaxScene", "SlotKeyTagScene", "SlotNumber", "StatusName", "StatusTime",
             "IntegrityPercent", "IntegrityCaption", "BossPhaseTag", "BossHpValue", "NoteLabel", "HintLine",
             "SelectCountdown", "UltimateReadyLabel" };
         Theme theme = LoadTheme();

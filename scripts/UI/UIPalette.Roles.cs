@@ -131,6 +131,20 @@ namespace FTT.UI {
             public const string BodyLabel = "BodyLabel";
             /// <summary>Outfit 400, 22 px, 0.00 em, Ink, plate (9.1 small copy).</summary>
             public const string BodySmallLabel = "BodySmallLabel";
+            /// <summary>Outfit 400, 24 px, 0.00 em, Ink2, plate (9.2 the difficulty description).</summary>
+            public const string DescriptionLabel = "DescriptionLabel";
+            /// <summary>Outfit 400, 24 px, 0.00 em, Ink, plate (9.2 body at 24 (Systems Card, dialogue log, boot, the play options notice)).</summary>
+            public const string BodyCompactLabel = "BodyCompactLabel";
+            /// <summary>Outfit 400, 22 px, 0.00 em, Ink2, plate (9.1 small copy in ink2 (the Move List stats, secondary copy)).</summary>
+            public const string BodySmallDimLabel = "BodySmallDimLabel";
+            /// <summary>Outfit 600, 18 px, 0.16 em, Accent, plate (9.2 the Move List slot name).</summary>
+            public const string SlotCaption = "SlotCaption";
+            /// <summary>Cinzel 700, 22 px, 0.13 em, Accent, plate (9.2 the dialogue log's speaker).</summary>
+            public const string LogSpeaker = "LogSpeaker";
+            /// <summary>Cinzel 700, 30 px, 0.13 em, Accent, plate (9.2 the credits' role headings).</summary>
+            public const string CreditsHeading = "CreditsHeading";
+            /// <summary>Outfit 400, 21 px, 0.00 em, TextFocus, halo S (T17 /max of the Fighter numeral (20.9; HudNumeralSmall stood in)).</summary>
+            public const string HudNumeralMaxScene = "HudNumeralMaxScene";
         }
 
         /// <summary>
@@ -201,6 +215,13 @@ namespace FTT.UI {
             ("UltimateReadyLabel", 18, "outfit", 700, 0.16f, "S"),
             ("BodyLabel", 26, "outfit", 400, 0.0f, ""),
             ("BodySmallLabel", 22, "outfit", 400, 0.0f, ""),
+            ("DescriptionLabel", 24, "outfit", 400, 0.0f, ""),
+            ("BodyCompactLabel", 24, "outfit", 400, 0.0f, ""),
+            ("BodySmallDimLabel", 22, "outfit", 400, 0.0f, ""),
+            ("SlotCaption", 18, "outfit", 600, 0.16f, ""),
+            ("LogSpeaker", 22, "cinzel", 700, 0.13f, ""),
+            ("CreditsHeading", 30, "cinzel", 700, 0.13f, ""),
+            ("HudNumeralMaxScene", 21, "outfit", 400, 0.0f, "S"),
         };
 
         /// <summary>Non-Label variations authored in the shared theme.</summary>

@@ -271,10 +271,9 @@ namespace FTT.UI {
             _outcome = new Label {
                 Name = "Outcome",
                 HorizontalAlignment = HorizontalAlignment.Center,
-                ThemeTypeVariation = UIPalette.HeadingLabelVariation,
+                ThemeTypeVariation = UIPalette.LabelRoles.SideCardName,   // T40 (9.2), halo L from the role
                 Uppercase = true
             };
-            GlassScreenDressing.ApplySceneHalo(_outcome, large: false);
             outcomeRow.AddChild(_outcome);
 
             // The two fighters on glass slabs. The totals Labels keep their names and texts (the F21 test seams).

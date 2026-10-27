@@ -143,7 +143,7 @@ public class FighterMatchPresentationTests {
 
     /// <summary>V7.3 UI-scale pass: the stamp rides the TitleLabel theme
     /// variation with no font-size override (the old 56 px override froze it
-    /// out of the accessibility UI scale), the outcome line the HeadingLabel.</summary>
+    /// out of the accessibility UI scale), the outcome line T40 (TG-CLOSE: the SideCardName role, 9.2; HeadingLabel stood in).</summary>
     [TestCase]
     public void TheStampUsesTheTitleVariationWithNoFontSizeOverride() {
         MatchResults results = MountResults();
@@ -154,7 +154,9 @@ public class FighterMatchPresentationTests {
             AssertThat(stamp.HasThemeFontSizeOverride("font_size")).IsFalse();
             var outcome = results.FindChild("Outcome", recursive: true, owned: false) as Label;
             AssertObject(outcome).IsNotNull();
-            AssertThat(outcome.ThemeTypeVariation.ToString()).IsEqual(UIPalette.HeadingLabelVariation);
+            AssertThat(outcome.ThemeTypeVariation.ToString()).IsEqual(UIPalette.LabelRoles.SideCardName);
+            // The role carries its own halo L (2.4), so no halo is copied onto the label as overrides.
+            AssertThat(outcome.HasThemeConstantOverride("outline_size")).IsFalse();
             AssertThat(outcome.HasThemeFontSizeOverride("font_size")).IsFalse();
         } finally {
             results.Free();
