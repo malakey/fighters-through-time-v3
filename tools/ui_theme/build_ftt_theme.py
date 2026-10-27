@@ -667,6 +667,14 @@ def build():
         put("SpinBox/styles/%s_background_disabled" % d, empty("SpinNone"))
         put("SpinBox/styles/%s_background_hovered" % d, flat("SpinHover", bg="RingTrack"))
         put("SpinBox/styles/%s_background_pressed" % d, flat("SpinPressed", bg="ButtonFillPressed"))
+    # TG-CLOSE polish (6.2: "option button, spin box ... arrows = the chevron_down icon"): the up and down buttons draw the
+    # kit's 18 px chevrons in every state, the down one the OptionButton arrow and the up one its vertical flip (both
+    # baked ink2 / ink), tinted like the field's text so they land on ink2 at rest, bright when lit, dim when disabled.
+    for d, stem in (("up", "glass_spin_up"), ("down", "glass_option_arrow")):
+        for state in ("", "_hover", "_pressed", "_disabled"):
+            put("SpinBox/icons/%s%s" % (d, state), glass_tex(stem))
+        colors("SpinBox", **{d + "_icon_modulate": "Ink", d + "_hover_icon_modulate": "TextFocus",
+                             d + "_pressed_icon_modulate": "TextFocus", d + "_disabled_icon_modulate": "Ink3"})
 
     # ---- Progress bars. The default ProgressBar wears the glass tube's dark track and gold edge (an undecorated bar,
     # such as the boot notice's timer). The five HUD bar variations are value carriers under the glass tube decor

@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=127 format=3 uid="uid://c3ajip41tplop"]
+[gd_resource type="Theme" load_steps=128 format=3 uid="uid://c3ajip41tplop"]
 
 [ext_resource type="FontFile" path="res://assets/fonts/cinzel/Cinzel-Variable.ttf" id="font_cinzel"]
 [ext_resource type="FontFile" path="res://assets/fonts/outfit/Outfit-Variable.ttf" id="font_outfit"]
@@ -22,6 +22,7 @@
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/glass/glass_tag.png" id="glass_tag"]
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/glass/glass_panel.png" id="glass_panel"]
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/glass/glass_slider_grabber.png" id="glass_slider_grabber"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/glass/icons/chevron_up_18.png" id="glass_spin_up"]
 
 [sub_resource type="FontVariation" id="FontVar_1"]
 resource_name = "ftt_default_font_outfit_400"
@@ -1700,6 +1701,22 @@ SpeakerName/base_type = &"Label"
 SpeakerName/colors/font_color = Color(0.9529412, 0.7882353, 0.3568627, 1)
 SpeakerName/font_sizes/font_size = 30
 SpeakerName/fonts/font = SubResource("FontVar_41")
+SpinBox/colors/down_disabled_icon_modulate = Color(0.5411765, 0.5137255, 0.454902, 1)
+SpinBox/colors/down_hover_icon_modulate = Color(1, 1, 1, 1)
+SpinBox/colors/down_icon_modulate = Color(0.9529412, 0.9411765, 0.9019608, 1)
+SpinBox/colors/down_pressed_icon_modulate = Color(1, 1, 1, 1)
+SpinBox/colors/up_disabled_icon_modulate = Color(0.5411765, 0.5137255, 0.454902, 1)
+SpinBox/colors/up_hover_icon_modulate = Color(1, 1, 1, 1)
+SpinBox/colors/up_icon_modulate = Color(0.9529412, 0.9411765, 0.9019608, 1)
+SpinBox/colors/up_pressed_icon_modulate = Color(1, 1, 1, 1)
+SpinBox/icons/down = ExtResource("glass_option_arrow")
+SpinBox/icons/down_disabled = ExtResource("glass_option_arrow")
+SpinBox/icons/down_hover = ExtResource("glass_option_arrow")
+SpinBox/icons/down_pressed = ExtResource("glass_option_arrow")
+SpinBox/icons/up = ExtResource("glass_spin_up")
+SpinBox/icons/up_disabled = ExtResource("glass_spin_up")
+SpinBox/icons/up_hover = ExtResource("glass_spin_up")
+SpinBox/icons/up_pressed = ExtResource("glass_spin_up")
 SpinBox/styles/down_background = SubResource("CheckBoxNone_36")
 SpinBox/styles/down_background_disabled = SubResource("CheckBoxNone_36")
 SpinBox/styles/down_background_hovered = SubResource("SpinHover_93")
