@@ -79,14 +79,24 @@ namespace FTT.UI {
         internal CheckButton MeterPickupsToggle => _meterPickups;
         internal IReadOnlyList<string> StageIDs => _stageIDs;
 
+        /// <summary>
+        /// The settings rows (UI_SPEC_GLASS 3.3): a 360 px label column, 22 px, a 44 px tall control; rows 62 apart. The
+        /// control column is 380 wide, not 3.3's 300: a stage with its layout ("Chicago Exposition - Sealed") or a full hero
+        /// name has to read whole in the field.
+        /// </summary>
+        public const float RowLabelWidth = 360f, RowGap = 22f, RowControlWidth = 380f, RowControlHeight = 44f, RowPitch = 62f;
+        /// <summary>The console's action rows: the pause panel's chevrons (D6, min 560, cap 680).</summary>
+        public const float ActionRowMinWidth = 560f, ActionRowCap = 680f;
+
         public override void _Ready() {
             SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
             MouseFilter = MouseFilterEnum.Stop;
             UIPalette.ApplyTheme(this);
 
+            // TG-SELECT (UI_SPEC_GLASS 9.1, 9.2): an overlay over the hub or the select, the build dim rgba(3,5,14,.70).
             var shade = new ColorRect {
                 Name = "Shade",
-                Color = UIPalette.Shade,
+                Color = UIPalette.PauseDim,
                 MouseFilter = MouseFilterEnum.Stop
             };
             shade.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
@@ -99,23 +109,25 @@ namespace FTT.UI {
             center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
             AddChild(center);
 
-            // UR-SELECT: an ink panel with its title tag (the tag carries the screen's name).
-            var tagged = new PulpTaggedPanel {
-                Name = "Tagged",
-                TagKey = FrontEnd ? "fighter_versus_cpu_title" : "holodeck_console_title"
-            };
+            // TG-SELECT: one glass slab (the sheen, the 14 px stack inset), its title inside (9.2: 36 px), no tag. The
+            // tagged host stays so the console's node paths do not move.
+            var tagged = new PulpTaggedPanel { Name = "Tagged", TagKey = "" };
             center.AddChild(tagged);
             var panel = new PanelContainer {
-                Name = "Panel", ThemeTypeVariation = UIPalette.Variations.InkPanel, CustomMinimumSize = new Vector2(720f, 0f)
+                Name = "Panel", ThemeTypeVariation = UIPalette.Variations.InkPanel
             };
             tagged.AddChild(panel);
-            MenuSafeAreaFit.Attach(tagged);
+            PulpScreenKit.DressPanel(panel, null, sheen: true, buttonInset: true);
+            // The slab clears the overlay prompt bar at the foot of the screen (as the other glass overlays do).
+            MenuSafeAreaFit.Attach(tagged, GlassScreenDressing.ScaledOverlayPromptClearance);
 
             var layout = new VBoxContainer { Name = "Layout" };
-            layout.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);
+            layout.AddThemeConstantOverride("separation", (int)(RowPitch - RowControlHeight));
             panel.AddChild(layout);
-            // Room for the title tag that hangs over the panel's top-left corner (the first row stood under it).
-            layout.AddChild(new Control { Name = "TagClearance", CustomMinimumSize = new Vector2(0f, 22f), MouseFilter = MouseFilterEnum.Ignore });
+            layout.AddChild(new Label {
+                Name = "Title", Text = FrontEnd ? "fighter_versus_cpu_title" : "holodeck_console_title", Uppercase = true,
+                ThemeTypeVariation = UIPalette.LabelRoles.TitleLabel, HorizontalAlignment = HorizontalAlignment.Center
+            });
 
             GameManager.Instance?.EnsureMatchSettingsLoaded();
             MatchSettings settings = GameManager.Instance?.CurrentSession.MatchSettings
@@ -139,31 +151,33 @@ namespace FTT.UI {
             _matchMode.AddItem(Tr("fighter_mode_time"), (int)MatchMode.TimeLimit);
             _matchMode.Select(SelectableModeIndex(settings.Mode));
 
-            var rulesRow = new HBoxContainer { Name = "RulesRow" };
-            rulesRow.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);
-            layout.AddChild(rulesRow);
-
+            // Stocks and the timer are two settings rows; the stock count keeps its RulesRow path.
+            var rulesRow = MakeSettingsRow(layout, "RulesRow");
             rulesRow.AddChild(MakeRowLabel("StocksLabel", "hud_stocks"));
             _stockCount = new SpinBox {
                 Name = "StockCount",
                 MinValue = 1, MaxValue = 5, Value = settings.StockCount,
-                CustomMinimumSize = new Vector2(80f, 36f)
+                CustomMinimumSize = new Vector2(RowControlWidth, RowControlHeight),
+                SizeFlagsHorizontal = SizeFlags.ExpandFill
             };
             rulesRow.AddChild(_stockCount);
 
-            rulesRow.AddChild(MakeRowLabel("TimerLabel", "fighter_mode_time"));
+            var timerRow = MakeSettingsRow(layout, "TimerRow");
+            timerRow.AddChild(MakeRowLabel("TimerLabel", "fighter_mode_time"));
             _timeLimit = new SpinBox {
                 Name = "TimeLimit",
                 MinValue = 60, MaxValue = 480, Step = 30, Value = settings.TimeLimit,
-                CustomMinimumSize = new Vector2(110f, 36f)
+                CustomMinimumSize = new Vector2(RowControlWidth, RowControlHeight),
+                SizeFlagsHorizontal = SizeFlags.ExpandFill
             };
-            rulesRow.AddChild(_timeLimit);
+            timerRow.AddChild(_timeLimit);
 
             _itemFrequency = AddOptionRow(layout, "ItemFrequency", "fighter_items");
             FillFrequencySelect(_itemFrequency, (int)settings.ItemSpawnRate);
 
-            var togglesRow = new HBoxContainer { Name = "TogglesRow" };
-            togglesRow.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);
+            // The two toggles as settings rows: the switch's own text in the label column, the track at the row's end.
+            var togglesRow = new VBoxContainer { Name = "TogglesRow" };
+            togglesRow.AddThemeConstantOverride("separation", (int)(RowPitch - RowControlHeight - 8f));
             layout.AddChild(togglesRow);
             _meterPickups = new CheckButton {
                 Name = "MeterPickups",
@@ -171,7 +185,7 @@ namespace FTT.UI {
                 ButtonPressed = settings.MeterPickupsEnabled
             };
             PulpToggleDecor.Apply(_meterPickups);
-            _meterPickups.CustomMinimumSize = new Vector2(330f, 52f);
+            _meterPickups.CustomMinimumSize = new Vector2(RowLabelWidth + RowGap + RowControlWidth, 52f);
             togglesRow.AddChild(_meterPickups);
             _stageHazards = new CheckButton {
                 Name = "StageHazards",
@@ -179,18 +193,16 @@ namespace FTT.UI {
                 ButtonPressed = settings.StageHazardsEnabled
             };
             PulpToggleDecor.Apply(_stageHazards);
-            _stageHazards.CustomMinimumSize = new Vector2(330f, 52f);
+            _stageHazards.CustomMinimumSize = new Vector2(RowLabelWidth + RowGap + RowControlWidth, 52f);
             togglesRow.AddChild(_stageHazards);
 
-            var launch = new Button {
-                Name = "LaunchButton",
-                Text = Tr("holodeck_launch"),
-                ThemeTypeVariation = UIPalette.Variations.PulpButtonCompact,
-                CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, 58f)
-            };
-            PulpButtonDecor.Apply(launch, compact: true);
+            // The actions: the pause panel's chevron rows (64 px, D6 width, the focused row's prompt), Launch first.
+            var actions = new List<Button>();
+            var launch = new Button { Name = "LaunchButton", Text = Tr("holodeck_launch") };
+            PulpScreenKit.StylePauseButton(launch, ActionRowMinWidth);
             launch.Pressed += OnLaunchPressed;
             layout.AddChild(launch);
+            actions.Add(launch);
 
             // Package 11 A11 (F18): the hub console keeps the CPU practice bout and
             // gains a second entry alongside it. Same drill list and content as the
@@ -199,29 +211,32 @@ namespace FTT.UI {
             // front-end Versus CPU screen has no drills entry — the main menu owns
             // the standalone route.
             if (!FrontEnd) {
-                var drills = new Button {
-                    Name = "CalibrationDrillsButton",
-                    Text = Tr("holodeck_calibration_drills"),
-                    ThemeTypeVariation = UIPalette.Variations.PulpButtonCompact,
-                    CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, 58f)
-                };
-                PulpButtonDecor.Apply(drills, compact: true);
+                var drills = new Button { Name = "CalibrationDrillsButton", Text = Tr("holodeck_calibration_drills") };
+                PulpScreenKit.StylePauseButton(drills, ActionRowMinWidth);
                 drills.Pressed += OnCalibrationDrillsPressed;
                 layout.AddChild(drills);
+                actions.Add(drills);
             }
 
-            var back = new Button {
-                Name = "BackButton",
-                Text = Tr("common_back"),
-                ThemeTypeVariation = UIPalette.Variations.PulpButtonCompact,
-                CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, 58f)
-            };
-            PulpButtonDecor.Apply(back, compact: true);
+            var back = new Button { Name = "BackButton", Text = Tr("common_back") };
+            PulpScreenKit.StylePauseButton(back, ActionRowMinWidth);
             back.Pressed += () => Closed?.Invoke();
             layout.AddChild(back);
+            actions.Add(back);
+            PulpButtonDecor.ApplyStackWidth(actions, ActionRowMinWidth, ActionRowCap);
+
+            GlassScreenDressing.AddOverlayPromptBar(this, ("ui_accept", "ui_prompt_select"), ("ui_cancel", "common_back"));
+            GlassScreenDressing.FadeIn(tagged);
 
             FocusChainBuilder.Apply(layout);
             launch.GrabFocus();
+        }
+
+        private static HBoxContainer MakeSettingsRow(VBoxContainer layout, string name) {
+            var row = new HBoxContainer { Name = name };
+            row.AddThemeConstantOverride("separation", (int)RowGap);
+            layout.AddChild(row);
+            return row;
         }
 
         public override void _UnhandledInput(InputEvent @event) {
@@ -230,23 +245,27 @@ namespace FTT.UI {
             Closed?.Invoke();
         }
 
+        /// <summary>A settings row's label (UI_SPEC_GLASS 3.3, T52 <c>SettingsRowLabel</c>, upper-case) in the 360 px column.</summary>
         private static Label MakeRowLabel(string name, string textKey) => new() {
             Name = name,
             Text = TranslationServer.Translate(textKey),
+            Uppercase = true,
+            ThemeTypeVariation = UIPalette.LabelRoles.SettingsRowLabel,
+            CustomMinimumSize = new Vector2(RowLabelWidth, RowControlHeight),
             VerticalAlignment = VerticalAlignment.Center
         };
 
         private static OptionButton AddOptionRow(VBoxContainer layout, string name, string labelKey) {
-            var row = new HBoxContainer { Name = name + "Row" };
-            row.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);
-            layout.AddChild(row);
-            var label = MakeRowLabel(name + "Label", labelKey);
-            label.CustomMinimumSize = new Vector2(200f, 0f);
-            row.AddChild(label);
+            HBoxContainer row = MakeSettingsRow(layout, name + "Row");
+            row.AddChild(MakeRowLabel(name + "Label", labelKey));
+            // The glass field (3.3, P8): the theme's default OptionButton. Every control fills the row past the label column,
+            // so the fields keep one width when a large UI scale widens the longest one past 380.
             var select = new OptionButton {
                 Name = name,
-                CustomMinimumSize = new Vector2(320f, 36f),
-                SizeFlagsHorizontal = SizeFlags.ExpandFill
+                CustomMinimumSize = new Vector2(RowControlWidth, RowControlHeight),
+                SizeFlagsHorizontal = SizeFlags.ExpandFill,
+                ClipText = true,
+                TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis
             };
             row.AddChild(select);
             return select;

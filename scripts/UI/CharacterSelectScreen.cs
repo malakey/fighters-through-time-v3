@@ -314,9 +314,9 @@ namespace FTT.UI {
         }
 
         /// <summary>
-        /// Moves the token the player drives by one grid step with wraparound.
-        /// Locked tokens do not move — cancel first. The Random tile is the last
-        /// grid cell.
+        /// Moves the token the player drives by one grid step with wraparound
+        /// (<see cref="CardGridRules.Step"/>). Locked tokens do not move — cancel
+        /// first. The Random tile is the last index, alone on the grid's last row.
         /// </summary>
         public bool TryMoveCursor(int playerIndex, int dx, int dy) {
             if (_phase != SelectScreenPhase.Selection) return false;
@@ -325,10 +325,7 @@ namespace FTT.UI {
             SelectionToken token = _tokens[tokenIndex];
             if (token.Ready) return false;
 
-            int rows = (TileCount + GridColumns - 1) / GridColumns;
-            int column = ((token.Cursor % GridColumns) + dx + GridColumns) % GridColumns;
-            int row = ((token.Cursor / GridColumns) + dy + rows) % rows;
-            token.Cursor = Math.Min(row * GridColumns + column, TileCount - 1);
+            token.Cursor = CardGridRules.Step(token.Cursor, dx, dy, _characterIDs.Length);
             RefreshPanels();
             RepaintTiles();
             return true;
@@ -432,6 +429,8 @@ namespace FTT.UI {
             _stageScrim.Visible = true;
             UpdateStagePreview();
             BuildFocusChain();
+            // UI_SPEC_GLASS 9.2: Fight is the stage phase's primary action, focused first.
+            GetNode<Button>(StageRoot + "StageButtonRow/FightButton").GrabFocus();
         }
 
         /// <summary>
@@ -442,7 +441,9 @@ namespace FTT.UI {
             _cpuConfigPanel = new HolodeckConsolePanel {
                 Name = "CpuConfigPanel",
                 FrontEnd = true,
-                SeedOverride = SeedOverride
+                SeedOverride = SeedOverride,
+                // An overlay never shows the screen streak (UI_SPEC_GLASS 9.1): it draws above it (the streak is z 10).
+                ZIndex = 11
             };
             _cpuConfigPanel.Closed += ReturnToSelection;
             AddChild(_cpuConfigPanel);
@@ -604,11 +605,15 @@ namespace FTT.UI {
         }
 
         /// <summary>
-        /// Shows the selected stage's placeholder preview plate. Production art
-        /// replaces the SVG behind <see cref="FighterStageData.PreviewTexturePath"/>
-        /// with no change here. The Random stage shows no plate until it resolves.
+        /// Lights the selected stage's tile. Since TG-SELECT the stage tiles show
+        /// every placeholder preview plate (production art replaces the SVG behind
+        /// <see cref="FighterStageData.PreviewTexturePath"/> with no change here), so
+        /// the single <c>StagePreview</c> beside the field stays hidden; it keeps the
+        /// selected plate and its name as its tooltip. The Random stage shows no plate
+        /// until it resolves.
         /// </summary>
         private void UpdateStagePreview() {
+            PaintStageTiles();
             if (_stagePreview == null) return;
             _stagePreview.Texture = null;
             _stagePreview.Visible = false;
@@ -626,7 +631,6 @@ namespace FTT.UI {
             if (texture == null) return;
             _stagePreview.Texture = texture;
             _stagePreview.TooltipText = Tr(stage.DisplayNameKey);
-            _stagePreview.Visible = true;
         }
 
         /// <summary>Opens the Move List for Player 1's current tile (lock wins
@@ -655,11 +659,6 @@ namespace FTT.UI {
                 };
             }
             _systemsCard.Open();
-        }
-
-        private Texture2D GetCharacterPortrait(int index) {
-            CharacterData data = AuthoredResources.Load<CharacterData>($"res://resources/Characters/{_characterIDs[index]}_data.tres");
-            return data?.CharacterPortrait;
         }
 
         private string GetCharacterName(int index) {
