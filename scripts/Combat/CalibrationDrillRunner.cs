@@ -345,7 +345,7 @@ namespace FTT.Combat {
                 FTT.UI.MenuSafeAreaFit.AttachClearOfPromptBar(cardPanel, overlayRoot);
             }
             if (overlayRoot != null) {
-                _resultPrompts = FTT.UI.GlassScreenDressing.AddOverlayPromptBar(overlayRoot, ("ui_accept", "ui_prompt_select"));
+                _resultPrompts = FTT.UI.PulpScreenKit.AddOverlayPromptBar(overlayRoot, ("ui_accept", "ui_prompt_select"));
                 if (_resultPrompts != null) _resultPrompts.Visible = false;
             }
             if (GetNodeOrNull<VBoxContainer>(overlay + "TopPanel/Layout") is { } layout) {
@@ -365,7 +365,7 @@ namespace FTT.Combat {
                 FTT.UI.Pulp.PulpButtonDecor.Apply(button);
                 stack.Add(button);
             }
-            FTT.UI.Pulp.PulpButtonDecor.ApplyStackWidth(stack, 560f, FTT.UI.GlassScreenDressing.ScaledStackCap(680f));
+            FTT.UI.Pulp.PulpButtonDecor.ApplyStackWidth(stack, 560f, FTT.UI.PulpScreenKit.ScaledStackCap(680f));
         }
 
         /// <summary>Tints the miss glyphs: a spent miss in danger, the rest ink3. Writes only when the count changes.</summary>
@@ -422,7 +422,7 @@ namespace FTT.Combat {
             if (_resultCard != null) {
                 _resultCard.Visible = true;
                 FTT.UI.FocusChainBuilder.Apply(_resultCard);
-                FTT.UI.GlassScreenDressing.FadeIn(_resultCard);
+                FTT.UI.PulpScreenKit.FadeIn(_resultCard);
             }
         }
 

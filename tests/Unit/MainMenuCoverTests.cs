@@ -140,12 +140,12 @@ public class MainMenuCoverTests {
             AssertThat(card.FindValidFocusNeighbor(side) == card).OverrideFailureMessage("The card lets focus leave by " + side).IsTrue();
         }
         // Focused: the focus edge along its hairline with the glow, and the A prompt; it never slides (no focus pose).
-        var frame = card.GetNode<MainMenu.SlabFrame>("FocusFrame");
+        var frame = card.GetNode<SlabFrame>("FocusFrame");
         var badge = card.GetNode<Control>("PromptBadge");
         AssertThat(frame.Visible).IsFalse();
         card.GrabFocus();
         AssertThat(frame.Visible).IsTrue();
-        AssertThat(frame.Mode == MainMenu.SlabFrame.FrameMode.Focus).OverrideFailureMessage("The focused card's frame is " + frame.Mode).IsTrue();
+        AssertThat(frame.Mode == SlabFrame.FrameMode.Focus).OverrideFailureMessage("The focused card's frame is " + frame.Mode).IsTrue();
         AssertThat(badge.Visible).IsTrue();
         AssertThat(badge.GetChildCount()).IsEqual(1);
         bool posed = false;
@@ -363,7 +363,7 @@ public class MainMenuCoverTests {
             var panel = menu.GetNode<PanelContainer>(screen + "/Center/Panel");
             if (panel.GetNodeOrNull<GlassSheen>(GlassSheen.NodeName) == null) issues.Add(screen + " has no sheen");
             if (panel.GetNodeOrNull<PanelTagAnchor>(PulpScreenKit.TagAnchorName) is not { } tag || tag.TagLabel.Text.Length == 0) issues.Add(screen + " has no tag");
-            if (panel.GetNodeOrNull<Label>("Layout/Title")?.GetNodeOrNull<MainMenu.HeadingFlourishes>(MainMenu.HeadingFlourishes.NodeName) == null) {
+            if (panel.GetNodeOrNull<Label>("Layout/Title")?.GetNodeOrNull<TitleFlourishes>(TitleFlourishes.NodeName) == null) {
                 issues.Add(screen + "'s title has no flourishes");
             }
             foreach (Node node in menu.GetNode(screen).FindChildren("*", "Button", true, false)) {
@@ -387,7 +387,7 @@ public class MainMenuCoverTests {
             string slabVariation = empty ? UIPalette.Variations.GlassPanelEmpty : UIPalette.Variations.GlassPanelContinue;
             if (slab == null || slab.ThemeTypeVariation.ToString() != slabVariation) issues.Add("slot " + slot + " (" + (empty ? "empty" : "filled") + ") wears " + slab?.ThemeTypeVariation + ", not " + slabVariation);
             else if (slab.HasThemeStyleboxOverride("panel")) issues.Add("slot " + slot + " paints its own slab");
-            if (button.GetNodeOrNull<MainMenu.SlabFrame>("SlabFrame") == null) issues.Add("slot " + slot + " has no frame");
+            if (button.GetNodeOrNull<SlabFrame>("SlabFrame") == null) issues.Add("slot " + slot + " has no frame");
             if (button.CustomMinimumSize != new Vector2(MainMenu.SlotSlabWidth, MainMenu.SlotSlabHeight)) issues.Add("slot " + slot + " is " + button.CustomMinimumSize);
         }
         var grid = menu.GetNode<GridContainer>("CharacterScreen/Center/Panel/Layout/Body/Grid");

@@ -36,12 +36,12 @@ namespace FTT.UI {
         /// prompt bar bottom-right and the screen streak.
         /// </summary>
         private void DressGlass() {
-            GlassScreenDressing.AddMenuArt(this, index: 1);
-            GlassScreenDressing.AddScreenHeading(this, "fighter_play_options_title");
+            PulpScreenKit.AddMenuArt(this, index: 1);
+            PulpScreenKit.AddScreenHeading(this, "fighter_play_options_title");
             if (GetNodeOrNull<PanelContainer>("Center/Panel") is { } panel) PulpScreenKit.DressPanel(panel, buttonInset: true);
             System.Collections.Generic.List<Button> column = PulpScreenKit.ButtonsOf(GetNode<Control>(Layout));
             foreach (Button button in column) FTT.UI.Pulp.PulpButtonDecor.Apply(button);
-            FTT.UI.Pulp.PulpButtonDecor.ApplyStackWidth(column, 560f, GlassScreenDressing.ScaledStackCap(700f));
+            FTT.UI.Pulp.PulpButtonDecor.ApplyStackWidth(column, 560f, PulpScreenKit.ScaledStackCap(700f));
             PulpScreenKit.AddPromptBar(this, ("ui_accept", "ui_prompt_select"), ("ui_cancel", "common_back"));
             PulpScreenKit.AddScreenStreak(this);
         }

@@ -225,8 +225,8 @@ namespace FTT.UI {
             actions.Add(back);
             PulpButtonDecor.ApplyStackWidth(actions, ActionRowMinWidth, ActionRowCap);
 
-            GlassScreenDressing.AddOverlayPromptBar(this, ("ui_accept", "ui_prompt_select"), ("ui_cancel", "common_back"));
-            GlassScreenDressing.FadeIn(tagged);
+            PulpScreenKit.AddOverlayPromptBar(this, ("ui_accept", "ui_prompt_select"), ("ui_cancel", "common_back"));
+            PulpScreenKit.FadeIn(tagged);
 
             FocusChainBuilder.Apply(layout);
             launch.GrabFocus();

@@ -109,7 +109,7 @@ namespace FTT.UI {
             // TG-SCREENS (UI_SPEC_GLASS 9.2): a full-screen menu. The sub-screen art under a .55 dim, one glass slab
             // with the constellation tag, glass chips (the GlassTileDecor tile at chamfer 12, an edge per state) and the
             // screen streak; the chip layout, separation and fit rules are UR-POLISH's, unchanged.
-            GlassScreenDressing.AddMenuArt(Root);
+            PulpScreenKit.AddMenuArt(Root);
             if (Root.GetNodeOrNull<ColorRect>("Shade") is { } shade) shade.Color = new Color(UIPalette.ScrimFill, ArtDimAlpha);
             _chipBox = new StyleBoxEmpty {
                 ContentMarginLeft = ChipMarginLeft, ContentMarginRight = ChipMarginRight, // room for the corner mark

@@ -43,7 +43,7 @@ namespace FTT.UI {
             DressGlass();
             // FU-MENU: the rows outgrow 1080 px at the 1.4 UI scale; shrink to fit (TG-SCREENS: and keep clear of the
             // screen heading above).
-            MenuSafeAreaFit.Attach(GetNode<Control>(Root.TrimEnd('/')), GlassScreenDressing.ScaledHeadingReserve);
+            MenuSafeAreaFit.Attach(GetNode<Control>(Root.TrimEnd('/')), PulpScreenKit.ScaledHeadingReserve);
             FocusChainBuilder.Apply(GetNode<Control>("List"));
         }
 
@@ -56,15 +56,15 @@ namespace FTT.UI {
         /// at its row's right (<see cref="AddResultGlyph"/>).
         /// </summary>
         private void DressGlass() {
-            GlassScreenDressing.AddMenuArt(this, index: 1);
-            GlassScreenDressing.AddScreenHeading(this, "drill_list_title");
+            PulpScreenKit.AddMenuArt(this, index: 1);
+            PulpScreenKit.AddScreenHeading(this, "drill_list_title");
             _objectiveLabel = GetNodeOrNull<Label>(Root + "Objective");
             var rows = new List<Button>(_drillButtons.Count);
             foreach (Button row in _drillButtons) {
                 FTT.UI.Pulp.PulpButtonDecor.Apply(row);
                 rows.Add(row);
             }
-            FTT.UI.Pulp.PulpButtonDecor.ApplyStackWidth(rows, 560f, GlassScreenDressing.ScaledStackCap(700f));
+            FTT.UI.Pulp.PulpButtonDecor.ApplyStackWidth(rows, 560f, PulpScreenKit.ScaledStackCap(700f));
             var footer = GetNode<HBoxContainer>(Root + "ButtonRow");
             List<Button> buttons = PulpScreenKit.ButtonsOf(footer);
             foreach (Button button in buttons) FTT.UI.Pulp.PulpButtonDecor.Apply(button, compact: true).ShowPrompt = false;

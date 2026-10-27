@@ -85,7 +85,7 @@ namespace FTT.UI {
             // against a hidden subtree collects nothing (FocusChainBuilder skips
             // invisible branches), and a controller player would land on nothing.
             FocusChainBuilder.Apply(_panel);
-            GlassScreenDressing.FadeIn(_panel);
+            PulpScreenKit.FadeIn(_panel);
         }
 
         /// <summary>The roundel portrait of player <paramref name="player"/> (0 or 1). Test seam.</summary>
@@ -230,7 +230,7 @@ namespace FTT.UI {
             AddChild(shade);
             _root = shade;
 
-            GlassScreenDressing.AddScreenHeading(shade, "fighter_results_title");
+            PulpScreenKit.AddScreenHeading(shade, "fighter_results_title");
 
             var center = new CenterContainer { Name = "Center", MouseFilter = Control.MouseFilterEnum.Ignore };
             center.SetAnchorsPreset(Control.LayoutPreset.FullRect);
@@ -240,7 +240,7 @@ namespace FTT.UI {
             layout.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);
             center.AddChild(layout);
             // The heading at y 40 above, the prompt bar below: the larger of the two reserves (the fit is symmetric).
-            MenuSafeAreaFit.Attach(layout, GlassScreenDressing.ScaledHeadingReserve);
+            MenuSafeAreaFit.Attach(layout, PulpScreenKit.ScaledHeadingReserve);
             _panel = layout;
 
             // V7.3 UI-scale pass: the stamp rides the TitleLabel role — its old
@@ -249,7 +249,7 @@ namespace FTT.UI {
             // the scene halo (it stands on the dim, not on a slab).
             _stamp = new Label { Name = "Stamp", HorizontalAlignment = HorizontalAlignment.Center, Uppercase = true };
             _stamp.ThemeTypeVariation = UIPalette.TitleLabelVariation;
-            GlassScreenDressing.ApplySceneHalo(_stamp, large: true);
+            PulpScreenKit.ApplySceneHalo(_stamp, large: true);
             layout.AddChild(_stamp);
 
             // The outcome line, led by the winner's slot shape and its glow (hidden on a draw).
@@ -326,7 +326,7 @@ namespace FTT.UI {
             // the prompt bar carries it), and its gap is the derived focus-row gap (at least 34, 9.1 item 4).
             PulpButtonDecor.ApplyStackWidth(buttons, 290f, reservePrompt: false);
             PulpScreenKit.SeparateFocusRow(buttonRow);
-            GlassScreenDressing.AddOverlayPromptBar(shade, ("ui_accept", "ui_prompt_select"));
+            PulpScreenKit.AddOverlayPromptBar(shade, ("ui_accept", "ui_prompt_select"));
         }
 
         /// <summary>

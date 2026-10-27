@@ -33,7 +33,7 @@ namespace FTT.UI {
             var backdrop = new ColorRect { Name = "Background", Color = UIPalette.Backdrop, MouseFilter = MouseFilterEnum.Ignore };
             backdrop.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
             AddChild(backdrop);
-            GlassScreenDressing.AddMenuArt(this, index: 1);
+            PulpScreenKit.AddMenuArt(this, index: 1);
             var center = new CenterContainer { Name = "Center", MouseFilter = MouseFilterEnum.Ignore };
             center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
             AddChild(center);

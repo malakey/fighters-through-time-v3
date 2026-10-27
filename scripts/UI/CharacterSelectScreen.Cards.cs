@@ -732,10 +732,10 @@ namespace FTT.UI {
             BuildSides();
 
             // The title between its flourishes (3.7), placed round the centred text so the label keeps its path.
-            GlassScreenDressing.FlankTitle(_title);
-            GlassScreenDressing.FlankTitle(GetNode<Label>(StageRoot + "StageTitle"));
+            TitleFlourishes.Attach(_title);
+            TitleFlourishes.Attach(GetNode<Label>(StageRoot + "StageTitle"));
             // The Remote Play notice is a sentence on the scene: the small body copy with the scene halo (2.4).
-            GlassScreenDressing.ApplySceneHalo(_remoteNotice, large: false);
+            PulpScreenKit.ApplySceneHalo(_remoteNotice, large: false);
 
             // The footer (P1): three compact chevrons 280 wide, 34 px apart, labels shrinking to fit (the compact floor is
             // 4.2's 18 px at every scale), no prompt badge (D6). They wear the compact footer chevron, whose label runs 30 px
