@@ -660,4 +660,19 @@ public class CharacterSelectCardTests {
         host.GetParent()?.RemoveChild(host);
         host.Free();
     }
+
+    /// <summary>TG-CLOSE Codex review 3: labels too long even at the floor never push the footer past its budget.</summary>
+    [TestCase]
+    public void TheFooterWidthsStayInsideTheBudgetWhenTheLabelsCannotFit() {
+        float[] paddings = { 40f, 40f, 40f };
+        float[] huge = CharacterSelectScreen.FooterWidths(280f, paddings, (i, s) => 400f, 24, 18);
+        float sum = 0f;
+        foreach (float w in huge) sum += w;
+        AssertThat(sum <= 280f * 3f).IsTrue();
+        foreach (float w in huge) AssertThat(w > 0f).IsTrue();
+        // A row that fits whole in the shared width is unchanged.
+        float[] fits = CharacterSelectScreen.FooterWidths(280f, paddings, (i, s) => 100f, 24, 18);
+        AssertThat(fits[0]).IsEqual(280f);
+        AssertThat(fits[2]).IsEqual(280f);
+    }
 }
