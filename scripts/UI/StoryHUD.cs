@@ -805,7 +805,8 @@ namespace FTT.UI {
             }
             _bossNotches?.SetThresholds(phaseThresholds);
             if (_bossDecor != null) {
-                _bossDecor.LagValue = currentHP;
+                // A reveal stops a tracker the last hit left running (REVIEW-UI-GLASS-CODEX-2).
+                _bossDecor.SnapLagTo(currentHP);
                 var notches = new System.Collections.Generic.List<float>(
                     _bossNotches?.Positions ?? System.Array.Empty<float>());
                 _bossDecor.PhaseNotches = notches.ToArray();
@@ -819,8 +820,11 @@ namespace FTT.UI {
         }
 
         public void UpdateBossHP(int currentHP) {
+            bool healed = _bossBar != null && currentHP > _bossBar.Value;
             if (_bossBar != null) _bossBar.Value = currentHP;
-            _bossDecor?.DropLagTo(currentHP);
+            // A boss heal (its historical recovery) stops the hold or drain the last hit started (REVIEW-UI-GLASS-CODEX-2).
+            if (healed) _bossDecor?.SnapLagTo(currentHP);
+            else _bossDecor?.DropLagTo(currentHP);
             RefreshBossTexts();
         }
 
@@ -942,12 +946,14 @@ namespace FTT.UI {
                 LayoutValuePair(_hpText, _hpMax, _hpBar, HpValueRightPad);
             }
             if (_hpDecor != null) {
-                // The first value seeds the tracker; later drops fall through it (a hit, not a level start).
-                if (!_hpSeeded) {
-                    _hpDecor.LagValue = currentHP;
-                    _hpSeeded = true;
-                }
-                _hpDecor.DropLagTo(currentHP);
+                // The first value, a new maximum and a heal (a rewind, the Rally reclaim, a font) put the tracker on the
+                // fill and stop a hold or drain the last hit started (REVIEW-UI-GLASS-CODEX-2); a drop falls through it.
+                bool fresh = !_hpSeeded || maximumHP != _hpPresentedMax;
+                if (fresh || currentHP > _hpPresented) _hpDecor.SnapLagTo(currentHP);
+                else _hpDecor.DropLagTo(currentHP);
+                _hpSeeded = true;
+                _hpPresented = currentHP;
+                _hpPresentedMax = maximumHP;
                 bool low = maximumHP > 0 && currentHP > 0 && currentHP / (float)maximumHP <= LowHpFraction;
                 _hpDecor.Low = low;
                 if (_hpFill != null) _hpFill.BgColor = low ? UIPalette.Danger : UIPalette.Hp;

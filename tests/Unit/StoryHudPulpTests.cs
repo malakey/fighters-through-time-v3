@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using FTT.Core;
 using FTT.Enemies;
 using FTT.UI;
@@ -562,6 +563,71 @@ public class StoryHudPulpTests {
             AssertThat(topLeft.Visible).IsTrue();
             AssertThat(hud.BossDecor.PhaseNotches.Length).IsEqual(0);
         } finally {
+            host.Free();
+        }
+    }
+
+    /// <summary>
+    /// REVIEW-UI-GLASS-CODEX-2 (Codex review 2 of Phase B, major): a heal that lands while a tube's damage tracker holds or
+    /// drains stops the tracker the hit started, on the hero's HP tube and on the boss tube (a boss heals through its
+    /// historical recovery), and so does a boss reveal over a tracker still running. A heal that only re-aimed or assigned
+    /// the tracker let the hit's drain bring a damage band back above the healed fill, with no new hit. Checked frame by
+    /// frame past the end of the old hold and drain.
+    /// </summary>
+    [TestCase]
+    public async System.Threading.Tasks.Task AHealOrABossRevealDuringTheTrackersHoldOrDrainStopsItSoNoDamageBandReturns() {
+        bool reducedBefore = ComfortSettings.ReducedTemporalEffects;
+        Node host = CreateHost("StoryHudTrackerHealHost");
+        try {
+            ComfortSettings.Apply(false);
+            StoryHUD hud = AddHud(host);
+            var hpBar = hud.GetNode<ProgressBar>($"{Stack}/Top/Vitals/HealthBar_BG");
+            var bossBar = hud.GetNode<ProgressBar>("SafeArea/BossPanel/BossBar");
+            hud.InitializePlayerVitals(100, 100, 0f);
+            hud.ShowBossBar("boss_archive_prime_name", 1200, 1200, new[] { 0.66f, 0.33f });
+            await Frames(2);
+            var problems = new List<string>();
+
+            async System.Threading.Tasks.Task Watch(string what) {
+                // 90 frames: past the end of a hit's 0.5 s hold and 0.6 s drain, whichever phase the heal landed in.
+                bool hpBad = false, bossBad = false;
+                for (int frame = 1; frame <= 90; frame++) {
+                    await Frames(1);
+                    if (!hpBad && hud.HpDecor.LagValue > (float)hpBar.Value + 0.01f) {
+                        hpBad = true;
+                        problems.Add($"{what}: {frame} frames on the hero's tracker is at {hud.HpDecor.LagValue:0.##}, above the fill at {hpBar.Value:0.##}");
+                    }
+                    if (!bossBad && hud.BossDecor.LagValue > (float)bossBar.Value + 0.01f) {
+                        bossBad = true;
+                        problems.Add($"{what}: {frame} frames on the boss tracker is at {hud.BossDecor.LagValue:0.##}, above the fill at {bossBar.Value:0.##}");
+                    }
+                }
+            }
+
+            // The heal lands 0.1 s into the hold, then 0.75 s after the hit (inside the drain).
+            foreach ((string phase, int healAfterFrames) in new[] { ("hold", 6), ("drain", 45) }) {
+                hud.InitializePlayerVitals(50, 100, 0f);
+                hud.UpdateBossHP(600);
+                await Frames(healAfterFrames);
+                hud.InitializePlayerVitals(60, 100, 0f);
+                hud.UpdateBossHP(700);
+                await Watch($"a heal in the {phase}");
+                if (Mathf.Abs(hud.HpDecor.LagValue - 60f) > 0.01f || Mathf.Abs(hud.BossDecor.LagValue - 700f) > 0.01f) {
+                    problems.Add($"a heal in the {phase} settles the trackers at {hud.HpDecor.LagValue:0.##} / {hud.BossDecor.LagValue:0.##}, not 60 / 700");
+                }
+                hud.InitializePlayerVitals(100, 100, 0f);
+                hud.UpdateBossHP(1200);
+                await Frames(2);
+            }
+
+            // A boss revealed again (a second reveal, or the next boss) over a tracker the last hit left running.
+            hud.UpdateBossHP(900);
+            await Frames(6);
+            hud.ShowBossBar("boss_archive_prime_name", 400, 1200, new[] { 0.66f, 0.33f });
+            await Watch("a reveal in the hold");
+            if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
+        } finally {
+            ComfortSettings.Apply(reducedBefore);
             host.Free();
         }
     }

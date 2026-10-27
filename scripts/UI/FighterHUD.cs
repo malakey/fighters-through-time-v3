@@ -687,7 +687,9 @@ namespace FTT.UI {
         /// MOT-A row 7 on an HP change. MOT-A has no hit flash (plan 0.4 P7): a drop jumps the fill and the numerals to
         /// the authoritative value while the damage tracker holds 0.5 s, then drains over 0.6 s (a fade under Reduced
         /// Temporal Effects); a rise (healing, the Rally reclaim) raises the fill over 0.2 s with the tracker riding it,
-        /// so no red ever shows on a heal. The first presentation and a new maximum jump with the tracker on the fill.
+        /// so no red ever shows on a heal. The first presentation and a new maximum jump with the tracker on the fill. A heal,
+        /// a first presentation and a new maximum stop a hold or drain the last hit started (<c>SnapLagTo</c>,
+        /// REVIEW-UI-GLASS-CODEX-2), or that drain would later write its old start back above the fill.
         /// </summary>
         private static void PresentHpChange(PlayerPanel panel, int hp, int maxHp) {
             bool first = panel.PresentedHP < 0;
@@ -698,7 +700,7 @@ namespace FTT.UI {
             if (healed) {
                 PulpBarDecor decor = panel.HpDecor;
                 ProgressBar bar = panel.HP;
-                if (decor != null && decor.LagValue > shown) decor.LagValue = shown;
+                decor?.SnapLagTo(Mathf.Min(decor.LagValue, shown));
                 panel.HealTween = PulpMotion.HealRise(bar, shown, hp, v => {
                     if (!GodotObject.IsInstanceValid(bar)) return;
                     bar.Value = v;
@@ -708,7 +710,7 @@ namespace FTT.UI {
             }
             panel.HP.Value = hp;
             if (panel.HpDecor == null) return;
-            if (first || maxHp != panel.PresentedMaxHP) panel.HpDecor.LagValue = hp;
+            if (first || maxHp != panel.PresentedMaxHP) panel.HpDecor.SnapLagTo(hp);
             else panel.HpDecor.DropLagTo(hp);
         }
 

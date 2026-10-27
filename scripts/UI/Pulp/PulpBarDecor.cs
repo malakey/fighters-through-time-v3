@@ -152,12 +152,28 @@ namespace FTT.UI.Pulp {
         /// <c>PulpMotion.TrackerDrop</c> (a fade under Reduced Temporal Effects).
         /// </summary>
         public void DropLagTo(float target) {
-            _lagTween?.Kill();
+            StopLag();
             if (target >= _lagValue || !IsInsideTree()) {
                 LagValue = target;
                 return;
             }
             _lagTween = PulpMotion.TrackerDrop(this, _lagValue, target, v => LagValue = v);
+        }
+
+        /// <summary>
+        /// Stops the tracker's hold-and-drain, if one runs, and puts the tracker on <paramref name="value"/> at once: for a
+        /// heal, a new maximum, a first presentation or a reset (REVIEW-UI-GLASS-CODEX-2). Assigning <see cref="LagValue"/>
+        /// alone does not stop it: the drain writes through that setter from its own start, so a heal that only assigned
+        /// the value let the earlier hit's drain bring a damage band back above the healed fill.
+        /// </summary>
+        public void SnapLagTo(float value) {
+            StopLag();
+            LagValue = value;
+        }
+
+        private void StopLag() {
+            if (_lagTween != null && _lagTween.IsValid()) _lagTween.Kill();
+            _lagTween = null;
         }
 
         public override void _EnterTree() {
@@ -175,7 +191,7 @@ namespace FTT.UI.Pulp {
         public override void _Ready() => SetProcess(true);
 
         public override void _ExitTree() {
-            _lagTween?.Kill();
+            StopLag();
             if (_bar != null && IsInstanceValid(_bar)) {
                 _bar.ValueChanged -= OnBarChanged;
                 _bar.Resized -= Invalidate;

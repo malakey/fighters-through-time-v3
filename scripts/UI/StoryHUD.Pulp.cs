@@ -95,6 +95,7 @@ namespace FTT.UI {
         private int _bossPhase = 1;
         private bool _bossPhaseDropped;
         private bool _hpSeeded;
+        private int _hpPresented, _hpPresentedMax;
         private SiphonStreamsLayer _siphonDraw;
         private Label _integrityCaption;
         private Label _sealedNote;
@@ -208,7 +209,7 @@ namespace FTT.UI {
             }
             if (_hpBar != null) {
                 _hpDecor = PulpBarDecor.Attach(_hpBar);
-                _hpDecor.LagValue = (float)_hpBar.Value;
+                _hpDecor.SnapLagTo((float)_hpBar.Value);
                 // The decor is the bar's last child; the numerals sit above it.
                 if (_hpText != null) _hpBar.MoveChild(_hpText, -1);
                 if (_hpMax != null) _hpBar.MoveChild(_hpMax, -1);
