@@ -192,45 +192,102 @@ namespace FTT.UI {
         /// </summary>
         public static float ResolveOpacity(float saved) => Mathf.Clamp(saved, 0.2f, 1f);
 
-        // ---- UR-HUDF layout (UI_SPEC 4.5; every number a UI_SPEC size, the fit rule plan item 14) ----
+        // ---- TG-HUDF layout (UI_SPEC_GLASS 4.5; every number a spec size, the fit its UI-scale rule) ----
+        //
+        // The HUD lays out on a canvas of viewport / s design units that UiScaleBinder scales by s (the HUD scale), so a
+        // design length L draws L x s screen px. 4.5's anchor model pins some lengths in SCREEN px: each cluster scales
+        // about its own top corner (36 / 22 from the screen's corner at every s), the timer plate about its top centre
+        // (22 from the top), and the lens rows keep their 46 px side margin while their top (192) scales with the HUD
+        // (269 at 1.4). FighterHUD.ApplyLayout writes those pinned lengths as length / s.
 
-        /// <summary>The reference canvas the clusters are authored on.</summary>
+        /// <summary>The reference viewport width (the project's 1920 x 1080).</summary>
         public const float ReferenceCanvasWidth = 1920f;
-        public const float ClusterMargin = 36f;
-        public const float TimerPlateWidth = 240f;
-        public const float TimerClearance = 16f;
+        /// <summary>Screen px from a cluster to its top corner (side, top): pinned at every UI scale.</summary>
+        public const float ClusterMargin = 36f, ClusterTop = 22f;
+        /// <summary>A cluster's height (header 30, gap 9, HP 44, gap 9, row 2 32, gap 9, Ultimate bar 16).</summary>
+        public const float ClusterHeight = 149f;
+        /// <summary>The lens rows: a pinned 46 px side margin; their top is a design length (192 at 1.0, 269 at 1.4).</summary>
+        public const float SlotRowMargin = 46f, SlotRowTop = 192f;
+        /// <summary>The band the HUD lives in at 1.0 (4.5: the key labels end at 273); it scales with the HUD.</summary>
+        public const float TopBandHeight = 273f;
+        /// <summary>The timer plate (GlassPanelTimer): 234 x 111.6, padding 12 / 32 / 12, its top pinned 22 px from the screen's.</summary>
+        public const float TimerPlateWidth = 234f, TimerPlateHeight = 111.6f, TimerPlateTop = 22f;
+        public const float TimerPlatePaddingX = 32f, TimerPlatePaddingY = 12f;
+        /// <summary>The digits' line box (T34 at line-height 1), the gap, and the mode label's line box (T14 at 1.2).</summary>
+        public const float TimerDigitsHeight = 60f, TimerLabelGap = 6f, TimerLabelHeight = 21.6f;
+        /// <summary>Screen px every HP tube keeps from the timer plate.</summary>
+        public const float TimerClearance = 24f;
+        /// <summary>The portrait frame (110) plus the 20 px gap before the column.</summary>
         public const float RoundelColumnWidth = 130f;
-        public const float HpBarFullWidth = 502f;
-        public const float HpBarMinWidth = 240f;
-        /// <summary>Below this bar width the HP numerals drop their "/max" (the echo band would sit under them).</summary>
+        public const float HpBarFullWidth = 510f;
+        /// <summary>The HP tube never draws narrower than this (screen px; 4.5's clamp floor).</summary>
+        public const float HpBarMinScreenWidth = 300f;
+        /// <summary>Below this tube width (design) the HP numerals drop their "/max" (the Rally echo band would sit under them).</summary>
         public const float HpMaxTextMinWidth = 460f;
         public const float HpBarHeight = 44f;
         public const float MeterBarFullWidth = 390f;
         public const float MeterBarHeight = 16f;
-        /// <summary>Below this canvas width the status chips show their badge and ring only (the text column would collide).</summary>
+        /// <summary>Below this canvas width the status badges show their badge and ring only (the text column would collide).</summary>
         public const float ChipTextMinCanvas = 1700f;
+        /// <summary>A shrunk hero name never draws smaller than this on screen (px; the 18 px floor of the type scale).</summary>
+        public const float NameMinScreenPixels = 18f;
 
         /// <summary>
-        /// The HP bar width that keeps both clusters clear of the timer plate: full width on a wide enough canvas, else
-        /// each bar gives up half the shortfall (the canvas is the viewport width divided by the UI scale).
+        /// The HP tube's width in screen px at HUD scale <paramref name="scale"/> (4.5):
+        /// <c>clamp(510 s, 300, (V/2 - 117 s - 24) - (36 + 130 s))</c>, so it shrinks before it meets the timer plate
+        /// (510 at 1.0, 554 at 1.4 against 714 unshrunk). The floor wins over the room, as the CSS clamp does.
         /// </summary>
-        public static float HpBarWidth(float canvasWidth) {
-            float cluster = ClusterWidth(HpBarFullWidth);
-            float need = 2f * (ClusterMargin + cluster) + TimerPlateWidth + 2f * TimerClearance;
-            float deficit = Mathf.Max(0f, need - canvasWidth);
-            return Mathf.Max(HpBarMinWidth, HpBarFullWidth - deficit / 2f);
+        public static float HpBarScreenWidth(float scale, float viewportWidth = ReferenceCanvasWidth) {
+            float s = Mathf.Max(0.01f, scale);
+            float room = (viewportWidth / 2f - TimerPlateWidth / 2f * s - TimerClearance) - (ClusterMargin + RoundelColumnWidth * s);
+            return Mathf.Max(HpBarMinScreenWidth, Mathf.Min(HpBarFullWidth * s, room));
         }
 
-        /// <summary>The meter bar keeps the spec's 390 : 502 proportion to its HP bar.</summary>
+        /// <summary>The HP tube's width in design units (the screen width / s, floored to a whole pixel so the clearance holds).</summary>
+        public static float HpBarWidth(float scale, float viewportWidth = ReferenceCanvasWidth) {
+            float s = Mathf.Max(0.01f, scale);
+            return Mathf.Floor(HpBarScreenWidth(s, viewportWidth) / s + 0.001f);
+        }
+
+        /// <summary>The Ultimate bar keeps 390 / 510 of its HP tube.</summary>
         public static float MeterBarWidth(float hpBarWidth) =>
             Mathf.Round(hpBarWidth * MeterBarFullWidth / HpBarFullWidth);
 
-        /// <summary>A cluster's width: the roundel and gap plus the HP bar plus the 8 px track margin.</summary>
-        public static float ClusterWidth(float hpBarWidth) => RoundelColumnWidth + hpBarWidth + 8f;
+        /// <summary>A cluster's width: the portrait frame and its gap plus the HP tube.</summary>
+        public static float ClusterWidth(float hpBarWidth) => RoundelColumnWidth + hpBarWidth;
 
         public static bool ChipsShowText(float canvasWidth) => canvasWidth >= ChipTextMinCanvas;
 
-        /// <summary>Kit icon for a status (UI_SPEC 3.4).</summary>
+        /// <summary>
+        /// The widest timer plate (design units) that keeps the clearance from both HP tubes at HUD scale
+        /// <paramref name="scale"/>; never narrower than the normal plate (its width is what the HP rule leaves room for).
+        /// </summary>
+        public static float TimerPlateMaxWidth(float scale, float viewportWidth = ReferenceCanvasWidth) {
+            float s = Mathf.Max(0.01f, scale);
+            float tubeEnd = ClusterMargin + (RoundelColumnWidth + HpBarWidth(s, viewportWidth)) * s;
+            float half = viewportWidth / 2f - tubeEnd - TimerClearance;
+            return Mathf.Max(TimerPlateWidth, 2f * half / s);
+        }
+
+        /// <summary>
+        /// Sudden Death's plate (4.5: "the plate widens to fit"): its one-line text plus the plate's sides, at least the
+        /// normal plate and at most <paramref name="maxWidth"/> (the text wraps inside it beyond that).
+        /// </summary>
+        public static float SuddenDeathPlateWidth(float textWidth, float maxWidth) =>
+            Mathf.Clamp(textWidth + 2f * TimerPlatePaddingX, TimerPlateWidth, Mathf.Max(TimerPlateWidth, maxWidth));
+
+        /// <summary>
+        /// The scale a hero name draws at so it fits <paramref name="room"/> (design px) in the header: 1 when it fits,
+        /// else the fit, but never below <see cref="NameMinScreenPixels"/> on screen at HUD scale <paramref name="scale"/>
+        /// (beyond that the name is ellipsized).
+        /// </summary>
+        public static float NameScale(float textWidth, float room, float fontSize, float scale) {
+            if (textWidth <= 0f || room <= 0f || textWidth <= room) return 1f;
+            float floor = Mathf.Min(1f, NameMinScreenPixels / Mathf.Max(1f, fontSize * Mathf.Max(0.01f, scale)));
+            return Mathf.Clamp(room / textWidth, floor, 1f);
+        }
+
+        /// <summary>Kit icon for a status (UI_SPEC_GLASS 3.4.3).</summary>
         public static string StatusIconName(StatusType status) => status switch {
             StatusType.TimeDilation => "dilation",
             StatusType.Venom => "venom",
@@ -249,7 +306,7 @@ namespace FTT.UI {
             _ => "defy_notready"
         };
 
-        /// <summary>UI_SPEC 3.3.4: ready res2, not ready and spent ink3, unavailable danger.</summary>
+        /// <summary>UI_SPEC_GLASS 3.4.4: ready res2, not ready and spent ink3, unavailable danger.</summary>
         public static Color DefyIconTint(DefySealState state) => state switch {
             DefySealState.Ready => UIPalette.Res2,
             DefySealState.Barred => UIPalette.Danger,
