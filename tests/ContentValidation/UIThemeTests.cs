@@ -221,9 +221,10 @@ public class UIThemeTests {
                     if (overlay.GetExpandMargin((Side)side) != 14) drift.Add($"{type} focus overlay expands {overlay.GetExpandMargin((Side)side)} px on side {side}, not the 14 px glow");
                 }
                 Image art = overlay.Texture.GetImage();
-                int x = (int)overlay.GetExpandMargin(Side.Left), y = art.GetHeight() / 2;
-                Color edge = art.GetPixel(x, y), glow = art.GetPixel(x - 1, y);
+                int x = Mathf.Clamp((int)overlay.GetExpandMargin(Side.Left), 0, art.GetWidth() - 1), y = art.GetHeight() / 2;
+                Color edge = art.GetPixel(x, y);
                 if (!Near(edge, UIPalette.FocusOutline)) drift.Add($"{type} focus edge is {edge} but UIPalette says {UIPalette.FocusOutline}");
+                Color glow = x > 0 ? art.GetPixel(x - 1, y) : new Color(0f, 0f, 0f, 0f);
                 if (!Near(new Color(glow, 1f), new Color(UIPalette.FocusGlow, 1f)) || glow.A <= 0f || glow.A > UIPalette.FocusGlow.A) {
                     drift.Add($"{type} focus glow is {glow} but UIPalette says {UIPalette.FocusGlow}");
                 }
@@ -235,7 +236,8 @@ public class UIThemeTests {
             // The glass_panel hairline sits at the expand margin, anti-aliased against the shadow and the fill, so its
             // hue is compared (the green and blue channels over the red), not its strength.
             Image art = slabTexture.Texture.GetImage();
-            Color edge = art.GetPixel((int)slabTexture.GetExpandMargin(Side.Left), art.GetHeight() / 2);
+            Color edge = art.GetPixel(Mathf.Clamp((int)slabTexture.GetExpandMargin(Side.Left), 0, art.GetWidth() - 1),
+                art.GetHeight() / 2);
             Color border = UIPalette.PanelBorder;
             if (edge.R <= 0.25f || Mathf.Abs(edge.G / edge.R - border.G / border.R) > 0.03f
                 || Mathf.Abs(edge.B / edge.R - border.B / border.R) > 0.03f) {
