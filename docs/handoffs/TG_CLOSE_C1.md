@@ -297,3 +297,110 @@ and the 1.4 states differ only in the footer band (x 506 to 1413). The digit is 
 The first bound scaled padding with the label space, so an asymmetric oversized row (`[600, 600, 40]` px labels) could drop a button under its intrinsic minimum (paddings + slack) and the container then grew it past the budget. `FooterWidths` now gives each button its minimum first and shares the rest of `shared * count` across the label spaces in proportion to need; if the minimums alone exceed the budget they stand. Cases that fit are unchanged.
 
 Tests (both failed on the first bound, pass now): `TheFooterWidthsKeepEveryButtonItsMinimumWhenOneLabelIsOversized` ("button 2 is 69, under its minimum") and the real-scene `OversizedAsymmetricFooterLabelsStayBetweenTheSidePanelsAtBothUiScales` (at 1.0: "MoveListButton (495, 880), (394, 59) leaves the row (500 to 1420) | BackButton (1343, 880), (82, 59) leaves the row"). The scene case sets long asymmetric labels and emits `PlayersRow.resized` to run the layout (a text change alone queues none). Filtered CharacterSelectCard + CharacterSelectScene + MenuLayoutBounds: Failed 0, Passed 42, Total 42.
+
+## Polish round (after the closeout gallery)
+
+The orchestrator routed the final gallery's "still wrong" list here (presentation only; no copy value the user still has
+to rule on changed). `tg/close` fast-forwarded to the integration head `f072bd6c` (3746) first.
+
+| Commit | What |
+|---|---|
+| `c31b6f8e` | The Fighter pause's Move List rows: short names, whole at 1.0 and 1.4 |
+| `a2b1b466` | Save slot summaries read whole; the developer level grid is three columns |
+| `acd22ace` | The Sudden Death line and the stage list's layout suffix take the spaced em dash |
+| `c97a9d22` | The first-run comfort card names its setting once; no row label wraps |
+| `02f42bf3` | A SpinBox draws the glass up and down chevrons |
+| `76380721` | Under Reduced Temporal Effects the damage tracker fades out over 200 ms |
+| `4c1823aa` | Two stale comments (`GameManager`'s screen dissolve, the `credits_140` capture) |
+| `6a16b6f7` | The `pause_fighter` capture sets its two fighters (diagnostics only) |
+
+1. **Fighter pause Move List rows** (`LocalFighterPause.FormatMoveListLabel`). Both rows name the fighter by the select
+   tiles' short name, `character_<id>_card_name` ("Move List — Einstein" ... "Move List — Tubman"), falling back to the
+   display name. The widest, "MOVE LIST — SHAKESPEARE" with the keyboard's key-cap badge, needs about 798 px to read whole
+   at its 34 px role size, so `RowCapAtOne` goes 760 -> 800 (the 760 row drew "MOVE LIST — JOAN OF ARC" at 33 px and cut
+   "WOLFGANG AMADEUS …" at 26). With Shakespeare in a row the slab is about 30 px wider at 1.0.
+2. **Save slot summaries** (`SlotSummaryFit`, pure; `MainMenu.FitSlotSummary`). A filled slot's first line keeps its role
+   size (StickerLine2, 22 px x the UI scale) when it fits the slab's text column (the slab less its paddings, the portrait
+   frame and the gap: 855 px at 1.0, 797 at 1.4); else it shrinks on one line toward the 18 px floor; else it wraps onto
+   two lines when the slab holds a second one; else the level is named by its short title (`PulpScreenKit.ShortTitle`),
+   shrunk if need be; a line still too long at the floor would keep the floor and its ellipsis (no shipped title and hero
+   reach it). The shrink is a font-size override on that one label, recomputed on every repaint and UI-scale change and
+   removed when the line fits. The wrap branch cannot occur in today's 140 px slab (its four lines already fill it);
+   only the pure test exercises it. The sixteen `*_level_title` values are untouched.
+3. **Dashes.** `fighter_hud_sudden_death_clock` reads "Sudden Death — next death loses" (HUD_CONTRACT's wording). The
+   Fighter select's and the Holodeck's stage lists joined a stage and its layout with a hyphen in code; one new key,
+   `fighter_stage_with_layout` ("{0} — {1}"), joins them ("Florence Workshop — Sealed"). The longest,
+   "Alexandria Chambers — Sealed", is about 8 px wider than before and still reads whole in both fields.
+4. **First-run comfort card** (`BootSequenceOverlay`). The card's heading says "REDUCED TEMPORAL EFFECTS"; the toggle no
+   longer repeats it as a row label (which wrapped to two lines at 1.0). Its row layout has no label column, so the track
+   sits under the heading beside the preview swatch; the button keeps the setting's name as its text, clipped, for a
+   screen reader. Existing keys only.
+5. **Developer level select.** The specified route (shrink to the floor, then the short title) cannot make it: "00
+   CHRONAL INTEGRATION" and "15  THE MERIDIAN FOUNDING" have no short form (no dash) and need about 335 and 353 px at
+   the compact chevron's 18 px floor (the tracking does not shrink) against 333 px of label room in a quarter-width tile.
+   The grid is three columns of six rows instead (`MainMenu.LevelColumns`, the scene's `Grid.columns`), where every tile
+   reads whole at its role size; the tile width rule is unchanged. Checked at 1.0, as asked; 1.4 has no capture target.
+6. **SpinBox arrows** (UI_SPEC_GLASS 6.2: "arrows = the chevron_down icon"). Through the art pipeline and the generator:
+   `build_glass_images.py` writes `icons/chevron_up_18.png`, the OptionButton arrow's exact vertical flip from the same
+   bake (catalogued as `glass_spin_up`; every other kit output regenerates byte for byte), and the theme's SpinBox
+   `up*` / `down*` icons in all four states are the two chevrons, their modulates the field's text colours (ink at rest,
+   which the ink2 / ink bake lands on ink2; white lit; ink3 disabled). Like the OptionButton arrow they stay 18 px at
+   UI scale 1.4.
+7. **Reduced Temporal Effects on the damage tracker.** MOT-A row 7 reads, under Reduced Temporal Effects, "tracker fades
+   out over 200 ms instead of draining". `PulpBarDecor.DropLagTo` passed `PulpMotion.TrackerDrop` no fade callback, so
+   the tracker sat for 0.2 s and snapped. It now passes `TrackerAlpha` (a multiplier on the tracker's colour in the
+   geometry pass): the tracker keeps its extent while the alpha runs 1 -> 0, then it goes to the fill and the alpha comes
+   back; any stop part way (a heal, `SnapLagTo`, a new hit) restores it. The two tween callbacks are made once.
+8. **Comments.** `scripts/Core/GameManager.cs` (comment only, at the orchestrator's request) names MOT-A's screen dissolve
+   instead of the pulp "MOT-B diagonal wipe"; the `credits_140` capture's summary says the title wraps to two lines.
+
+**Tests:** 3746 to **3755** (+9; the `[TestCase]` count under `tests/` is 3755). Each was run against the old code first
+(`polish-before.log`: Failed 9 of 9) and passes with the fix:
+
+- `LocalFighterPauseTests.EveryHerosMoveListRowsNameItByItsShortNameAndReadWholeAtBothUiScales`: all nine heroes, both
+  rows, 1.0 and 1.4. Before: every row read the full name, shrunk under its role size (26 to 33 px of 34 at 1.0), and
+  Mozart's was cut.
+- `MainMenuSceneTests.EverySlotSummaryReadsWholeForEveryLevelTitleAndTheWidestHeroAtBothUiScales`: all sixteen titles with
+  the widest hero (Mozart) at 1.0 and 1.4, every slab line whole and inside the slab. Before: 17 lines cut (four at 1.0, thirteen at 1.4).
+- `MainMenuSceneTests.EveryDeveloperLevelTileReadsWholeAtUiScaleOne`. Before: the two tiles above cut at 18 px.
+- `CharacterSelectSceneTests.StageSelectJoinsEachStageAndItsLayoutWithASpacedEmDash` and
+  `HolodeckConsoleTests.TheStageListJoinsEachStageAndItsLayoutWithASpacedEmDash`. Before: every stage read " - ".
+- `MainMenuExtrasTests.TheFirstRunComfortCardNamesItsSettingOnceAndNoRowLabelWraps`. Before: the name twice at both
+  scales, the row label on two lines at 1.0.
+- `UIThemeTests.SpinBoxArrowsAreTheGlassChevronsTheUpOneTheDownOneFlipped` (also the pixel flip and a live themed
+  SpinBox). Before: no SpinBox icon or modulate in the theme.
+- `PulpBarDecorTests.UnderReducedEffectsTheDamageTrackerFadesOutOverTwoHundredMillisecondsInsteadOfDraining`. Before:
+  alpha 0.9 of 0.9 at 0.1 s. `PulpBarDecor.TrackerColors` is its read-only surface.
+- `SlotSummaryFitTests.TheLineShrinksThenWrapsThenTakesTheShortTitleInThatOrder` (pure, new with the fix): the fit order,
+  the wrap branch included.
+- In place: `FighterHudSceneTests.SuddenDeathReplacesTheRunningClockWithItsPhaseText` also checks the em dash (it failed
+  first on " - "), and `MainMenuCoverTests`' grid message no longer says "4 x 4".
+
+**Runs:** the polish cases, 10 / 10 (`polish-after.log`); the widened UI filter plus `SlotSummaryFit`,
+`FighterMatchFlowContent`, `PauseFocusLoss` and `CampaignLocalization` (`polish-ui.log`), **809 / 809**. Build: 0 errors,
+the two known warnings. `--import` ran under the lock: the new `chevron_up_18.png.import` (mipmaps on, as every kit PNG)
+and the `.uid` sidecars of the two new scripts are committed; the regenerated `localization/en.en.translation` is not
+(the orchestrator regenerates it; without it `ScriptTranslationKeyTests` cannot resolve `fighter_stage_with_layout`).
+
+**Captures** (windowed, under the lock) overwrote their files in `D:\Projects\ftt-scratch\tg-captures\final\`:
+`pause_fighter`, `pause_fighter_ui14` (now Shakespeare against Mozart), `menu_slots`, `menu_slots_140`,
+`hudf_sudden_death`, `hudf_sudden_death_140`, `select_holodeck`, `select_holodeck_140`, `select_holodeck_frontend`,
+`select_stage`, `select_stage_140`, `boot_first_run`, `boot_first_run_ui14`, `menu_level_select`, `theme_controls`, and
+`huds_calm`, `huds_stress`, `hudf_versus` as a check on the tracker change (pixel-identical but for 2 px of
+`huds_stress`'s Time Freeze ring arc). `index.txt` names the re-captured targets; `final\compare\` (rec 18, crops 54,
+pulp 76) and the gallery thumbnails in `D:\Projects\ftt-scratch\tg-gallery\` were regenerated (`gallery.html` unchanged).
+Every re-captured image was looked at: both Move List rows whole at both scales; slot 2's summary at 1.4 whole on one
+line, shrunk; the comfort card with one heading and the toggle beside the swatch; the em dash on the Sudden Death plate
+and in both stage fields; the glass chevrons on every spin box; all sixteen level tiles whole in three columns.
+
+**Choices to record** (proposed `PROVISIONAL-UI-GLASS-POLISH`):
+
+- The Fighter pause's Move List rows carry the tiles' short name, and its row cap is 800 at UI scale 1.0.
+- A slot summary's fit order (role size, shrink to 18 px, two lines if the slab holds them, the short title) uses a
+  font-size override on that label. At 1.4 a shrunk summary line can draw smaller than the meta lines below it (slot 2 in
+  `menu_slots_140`): the user may prefer the short title before the shrink.
+- `fighter_stage_with_layout` ("{0} — {1}") is a new key.
+- The first-run comfort card's toggle has no row label of its own; the card's heading names it.
+- The developer level select is three columns of six rows, a deviation from UI_SPEC_GLASS 9.2's 4 x 4 (debug builds
+  only).
+- The SpinBox up arrow is the OptionButton arrow flipped; both stay 18 px at every UI scale.
