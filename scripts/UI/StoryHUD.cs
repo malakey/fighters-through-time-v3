@@ -1,5 +1,6 @@
 using Godot;
 using FTT.Core;
+using FTT.UI.Motion;
 using FTT.UI.Pulp;
 
 namespace FTT.UI {
@@ -40,8 +41,14 @@ namespace FTT.UI {
             FTT.Core.AbilitySlot.MovementAbility
         };
 
-        /// <summary>UR-HUDS: the 30 px shield pips (UI_SPEC 3.3.4), gap 7.</summary>
+        /// <summary>The 30 px shield pips (UI_SPEC_GLASS 3.4.4), gap 7: <c>shield</c> lit, <c>shield_off</c> at .28 spent.</summary>
         private const int BlockPipSize = 30;
+
+        /// <summary>A spent block pip's opacity (UI_SPEC_GLASS 3.4.4).</summary>
+        public const float SpentPipAlpha = 0.28f;
+
+        private static readonly StringName StoryPlayerGroup = "StoryPlayer";
+        private static readonly NodePath StatusControllerPath = "StatusController";
 
         /// <summary>
         /// M15 (Package 12 W10): the localized accessible label for the Act III
@@ -128,6 +135,7 @@ namespace FTT.UI {
         private float _bossIntroCardTimer;
         private Label _checkpointToast;
         private float _checkpointToastTimer;
+        private Tween _bossPhaseFade;
         private ColorRect _tremorOverlay;
         private int _tremorLevel;
 
@@ -293,11 +301,24 @@ namespace FTT.UI {
             TickDustFloat((float)delta);
             if (_bossIntroCardTimer > 0f) {
                 _bossIntroCardTimer -= (float)delta;
-                if (_bossIntroCardTimer <= 0f && _bossIntroCard != null) _bossIntroCard.Visible = false;
+                if (_bossIntroCard != null) {
+                    if (_bossIntroCardTimer <= 0f) {
+                        _bossIntroCard.Visible = false;
+                    } else if (_bossIntroCardTimer < PulpMotionRules.PanelOutSeconds) {
+                        // MOT-A row 5's fade at the end of the beat (no sink: the card is centred on the scene).
+                        _bossIntroCard.Modulate = new Color(1f, 1f, 1f, _bossIntroCardTimer / PulpMotionRules.PanelOutSeconds);
+                    }
+                }
             }
             if (_checkpointToastTimer > 0f) {
                 _checkpointToastTimer -= (float)delta;
-                if (_checkpointToastTimer <= 0f && _checkpointToast != null) _checkpointToast.Visible = false;
+                if (_checkpointToast != null) {
+                    if (_checkpointToastTimer <= 0f) {
+                        _checkpointToast.Visible = false;
+                    } else if (_checkpointToastTimer < ToastFadeSeconds) {
+                        _checkpointToast.Modulate = new Color(1f, 1f, 1f, ToastAlpha(_checkpointToastTimer));
+                    }
+                }
             }
         }
 
@@ -315,7 +336,7 @@ namespace FTT.UI {
         private void SyncStatusAuthority() {
             if (_statusAuthority == null || !IsInstanceValid(_statusAuthority)) {
                 _statusAuthority = ResolveStoryPlayer()
-                    ?.GetNodeOrNull<FTT.Combat.StatusController>("StatusController");
+                    ?.GetNodeOrNull<FTT.Combat.StatusController>(StatusControllerPath);
             }
             if (_statusAuthority == null || !IsInstanceValid(_statusAuthority)) return;
             _indicators.SyncStatusFromAuthority(
@@ -344,37 +365,50 @@ namespace FTT.UI {
 
         private FTT.Characters.PlayerController ResolveStoryPlayer() {
             if (_echoPlayer != null && IsInstanceValid(_echoPlayer)) return _echoPlayer;
-            _echoPlayer = GetTree()?.GetFirstNodeInGroup("StoryPlayer") as FTT.Characters.PlayerController;
+            _echoPlayer = GetTree()?.GetFirstNodeInGroup(StoryPlayerGroup) as FTT.Characters.PlayerController;
             return _echoPlayer;
         }
+
+        // The status each slot's glyph Label was last written for; the Label's text, tooltip and colour change only then.
+        private StatusType _damageLabelShown = (StatusType)(-1), _controlLabelShown = (StatusType)(-1);
 
         /// <summary>
         /// Draws one status slot. An empty slot hides its glyph and radial but
         /// <b>keeps its reserved position</b> — the panel is fixed-position
-        /// precisely so hiding one indicator cannot shift the other.
+        /// precisely so hiding one indicator cannot shift the other. The kept glyph
+        /// Label is rewritten only when the slot's status changes, the chip only
+        /// when its look does, so a steady frame allocates nothing.
         /// </summary>
         private void RefreshStatusSlot(Label indicator, RadialProgress radial, PulpStatusChip chip, bool damageSlot) {
             if (indicator == null) return;
             StatusType status = _indicators.StatusIn(damageSlot);
+            ref StatusType labelShown = ref damageSlot ? ref _damageLabelShown : ref _controlLabelShown;
+            ref ChipShown chipShown = ref damageSlot ? ref _damageShown : ref _controlShown;
             if (status == StatusType.None) {
-                indicator.Text = "";
-                indicator.TooltipText = "";
-                ApplyChip(chip, StatusType.None, 0f, 0f);
+                if (labelShown != StatusType.None) {
+                    indicator.Text = "";
+                    indicator.TooltipText = "";
+                    labelShown = StatusType.None;
+                }
+                ApplyChip(chip, ref chipShown, StatusType.None, 0f, 0f);
                 return;
             }
-            // Glyph plus localized name: HUD_CONTRACT forbids identifying an effect
-            // by colour alone, so the shape and the tooltip both carry it.
-            indicator.Text = HudAbilityIndicatorModel.StatusGlyph(status);
-            indicator.TooltipText = Tr(HudAbilityIndicatorModel.StatusLabelKey(status));
             // The authored status colours live with the glow arbiter; reusing them
             // keeps the HUD slot and the character's outline the same colour rather
             // than creating a second canonical palette for statuses.
             Color tint = FTT.Combat.GlowPalette.Status(status).OutlineColor;
-            indicator.AddThemeColorOverride("font_color", tint);
+            if (labelShown != status) {
+                // Glyph plus localized name: HUD_CONTRACT forbids identifying an effect
+                // by colour alone, so the shape and the tooltip both carry it.
+                indicator.Text = HudAbilityIndicatorModel.StatusGlyph(status);
+                indicator.TooltipText = Tr(HudAbilityIndicatorModel.StatusLabelKey(status));
+                indicator.AddThemeColorOverride(FontColorName, tint);
+                labelShown = status;
+            }
             float remaining = _indicators.RemainingIn(damageSlot);
-            ApplyChip(chip, status, remaining, StatusRadialFraction(remaining));
+            ApplyChip(chip, ref chipShown, status, remaining, StatusRadialFraction(remaining));
             if (radial == null) return;
-            // The chip draws the ring and the glyph (UR-HUDS); the legacy radial keeps its value, hidden.
+            // The chip draws the ring and the glyph; the legacy radial keeps its value, hidden.
             radial.FillColor = tint;
             radial.Fraction = StatusRadialFraction(remaining);
         }
@@ -411,7 +445,9 @@ namespace FTT.UI {
                 : FTT.Core.StoryManager.Instance.TimelineIntegrityPercent;
             _integrityClock.Visible = true;
             int whole = Mathf.FloorToInt(percent);
-            if (_integrityText != null) {
+            // The numeral and its tooltip change only when the shown whole percent (or the language) does.
+            if (_integrityText != null && whole != _shownIntegrityWhole) {
+                _shownIntegrityWhole = whole;
                 _integrityText.Text = string.Format(Tr("hud_percent"), whole);
                 _integrityText.TooltipText = string.Format(Tr("hud_integrity"), whole);
             }
@@ -419,29 +455,31 @@ namespace FTT.UI {
                 _clockWedge.Fraction = Mathf.Clamp(percent / 100f, 0f, 1f);
                 _clockWedge.FillColor = IntegrityTint();
             }
-            // F01 / UI_SPEC 3.3.4: sealed at the pre-boss checkpoint the dial gives way to the note.
+            // F01 / UI_SPEC_GLASS 3.4.4: sealed at the pre-boss checkpoint the dial gives way to the note.
             bool sealedGauge = FTT.Core.StoryManager.Instance != null && FTT.Core.StoryManager.Instance.IsPreBossLocked;
             SetDialShown(!sealedGauge);
             if (_siphonStreams == null) return;
             bool siphoning = _integrityKnown && _integrity.LivingExtractors > 0 && !_integrity.Frozen;
             _siphonStreams.Visible = siphoning;
-            if (siphoning) {
+            if (siphoning && _integrity.LivingExtractors != _shownSiphons) {
+                _shownSiphons = _integrity.LivingExtractors;
                 _siphonStreams.Text = string.Format(Tr("hud_integrity_siphons"), _integrity.LivingExtractors);
                 _siphonStreams.TooltipText = _siphonStreams.Text;
             }
             if (_siphonDraw != null) _siphonDraw.Count = siphoning && !sealedGauge ? _integrity.LivingExtractors : 0;
         }
 
+        private int _shownIntegrityWhole = int.MinValue, _shownSiphons = int.MinValue;
+
         /// <summary>
-        /// Clock tint. A frozen gauge reads slate — the PreBoss seal and a
-        /// rewind/scrub pause both stop the drain, and a clock that still looks live
-        /// while it is locked is the most misleading thing this widget can do.
-        /// Otherwise an active siphon reads red and the tier drives the rest.
+        /// The wedge's colour (its alpha rides the wedge's SelfModulate, <see cref="WedgeAlpha"/>): calm gold while the
+        /// gauge is healthy, <c>danger</c> once it falls into the Collapse Tremor's first stage (R8: the threshold is
+        /// <c>TimelineIntegrityRules</c>', not a literal here), and <c>ink2</c> at .6 while the clock is frozen (AC17) —
+        /// the PreBoss seal and a rewind pause both stop the drain, and a clock that still looks live while it is locked
+        /// is the most misleading thing this widget can do.
         /// </summary>
         private Color IntegrityTint() {
-            // Calm gold while the gauge is healthy; `Danger` once it falls into the Collapse Tremor's first
-            // stage (the threshold is TimelineIntegrityRules', not a literal here); a locked gauge reads slate.
-            if (_integrityKnown && _integrity.Frozen) return UIPalette.SlateDim;
+            if (_integrityKnown && _integrity.Frozen) return new Color(UIPalette.Ink2, FrozenWedgeAlpha / WedgeAlpha);
             float percent = _integrityKnown ? _integrity.Percent : 100f;
             return FTT.Core.TimelineIntegrityRules.TremorStage(percent) >= 1 ? UIPalette.Danger : UIPalette.Res;
         }
@@ -492,7 +530,7 @@ namespace FTT.UI {
             }
             bool thawWarning = _timeFreezeState == TimeFreezeState.Active
                 && _timeFreezeSeconds > 0f && _timeFreezeSeconds <= ThawWarningSeconds;
-            // UI_SPEC 3.3.4: ready res2 with no ring, active a ring on the remaining share, cooldown ink2.
+            // UI_SPEC_GLASS 3.4.4: ready res2 with no ring, active a ring on the remaining share, cooldown ink2.
             if (_freezeBadge != null) {
                 _freezeBadge.Ring = _timeFreezeState switch {
                     TimeFreezeState.Active => _timeFreezeSeconds / FTT.Environment.TimeFreezeController.FreezeSeconds,
@@ -509,7 +547,10 @@ namespace FTT.UI {
                 TimeFreezeState.Cooldown => UIPalette.Ink2,
                 _ => UIPalette.Res2
             };
-            _freezeRemainingText.AddThemeColorOverride("font_color", tint);
+            if (tint != _freezeTint) {
+                _freezeTint = tint;
+                _freezeRemainingText.AddThemeColorOverride(FontColorName, tint);
+            }
             // The text only changes when the state, the shown tenth / second or the thaw warning does (or the language),
             // so both strings are rebuilt on that key alone and a steady frame formats nothing.
             int shown = _timeFreezeState switch {
@@ -540,12 +581,41 @@ namespace FTT.UI {
         }
 
         private int _freezeTextKey = -1;
+        private Color _freezeTint = new(0f, 0f, 0f, 0f);
 
         /// <summary>The (state, shown time, warning) key the Time Freeze strings were last built for; -1 forces a rebuild. Test surface.</summary>
         internal int FreezeTextKey => _freezeTextKey;
 
         public override void _Notification(int what) {
-            if (what == (int)NotificationTranslationChanged) _freezeTextKey = -1;
+            if (what != (int)NotificationTranslationChanged) return;
+            // Every string the HUD formats itself is rebuilt in the new language; the measured layouts follow once the
+            // labels have re-shaped (they hear the change after this node).
+            _freezeTextKey = -1;
+            _shownIntegrityWhole = int.MinValue;
+            _shownSiphons = int.MinValue;
+            _shownBossPhase = -1;
+            _secondsFormat = null;
+            _damageLabelShown = (StatusType)(-1);
+            _controlLabelShown = (StatusType)(-1);
+            if (_damageShown.Type != StatusType.None) _damageShown.Time = null;
+            if (_controlShown.Type != StatusType.None) _controlShown.Time = null;
+            for (int index = 0; index < _lockShown.Length; index++) _lockShown[index] = (AbilitySlotLockState)(-1);
+            _lastRewinds = int.MinValue;
+            _lastDust = int.MinValue;
+            if (IsInsideTree()) CallDeferred(MethodName.RelayoutAfterTranslation);
+        }
+
+        private void RelayoutAfterTranslation() {
+            if (!IsInstanceValid(this) || !IsInsideTree()) return;
+            SizeChipHosts();
+            LayoutHeroName();
+            RefreshBossTexts();
+            LayoutBossPanel();
+            LayoutIntroCard();
+            if (_checkpointToast != null && _checkpointToast.Visible) {
+                _checkpointToast.Text = Tr("hud_checkpoint_reached");
+                PlaceCheckpointToast();
+            }
         }
 
         private void OnAbilitySlotLockChanged(AbilitySlotLockPayload payload) {
@@ -617,8 +687,8 @@ namespace FTT.UI {
         }
 
         private void OnRallyEchoChanged(RallyEchoPayload payload) {
-            // The band geometry is polled in RefreshEchoBand; the old reclaim flash tinted the ColorRect,
-            // which the pulp bar replaced (recorded as a gap in docs/handoffs/UR_HUDS.md).
+            // The band geometry is polled in RefreshEchoBand; the glass tube draws it. The old reclaim flash tinted
+            // the ColorRect and has no glass form (MOT-A row 8: the band is not animated); a gap since UR-HUDS.
         }
 
         // === Dust counter (HUD_CONTRACT) ======================================
@@ -632,12 +702,15 @@ namespace FTT.UI {
         /// </summary>
         private void ShowDustFloat(int amount) {
             if (_dustFloat == null || amount <= 0) return;
-            _dustFloat.Text = string.Format(Tr("hud_dust_pickup"), amount);
+            string text = string.Format(Tr("hud_dust_pickup"), amount);
+            _dustFloat.Text = text;
+            if (_dustFloatRise != null) _dustFloatRise.Text = text;
             _dustFloat.Visible = true;
-            _dustFloat.Modulate = new Color(1f, 1f, 1f, 1f);
             _dustFloatTimer = DustFloatSeconds;
+            AnimateDustFloat();
         }
 
+        /// <summary>The float's life (1 s, HUD_CONTRACT): in, held and out by MOT-A row 13, then gone.</summary>
         private void TickDustFloat(float delta) {
             if (_dustFloat == null || _dustFloatTimer <= 0f) return;
             _dustFloatTimer -= delta;
@@ -646,20 +719,27 @@ namespace FTT.UI {
                 _dustFloat.Visible = false;
                 return;
             }
-            _dustFloat.Modulate = new Color(1f, 1f, 1f, Mathf.Clamp(_dustFloatTimer / DustFloatSeconds, 0f, 1f));
+            AnimateDustFloat();
         }
 
         private void OnDustAwardCollected(DustAwardCollectedPayload payload) => ShowDustFloat(payload.Amount);
 
         private void OnChronalDustCollected(int amount) => ShowDustFloat(amount);
 
-        /// <summary>V7 boss intro ritual: the localized name card over the
-        /// establishing beat, before the bar sweeps in.</summary>
+        /// <summary>
+        /// V7 boss intro ritual: the localized name card over the establishing beat, before the bar sweeps in. UI_SPEC_GLASS
+        /// 9.2: a flourish with the boss-red diamond above the name in T04, fading in and rising (MOT-A row 4), held for the
+        /// beat, fading out at its end.
+        /// </summary>
         public void ShowBossIntroCard(string nameKey, float seconds) {
             if (_bossIntroCard == null) return;
             _bossIntroCard.Text = Tr(string.IsNullOrWhiteSpace(nameKey) ? "boss" : nameKey);
             _bossIntroCard.Visible = true;
+            _bossIntroCard.Modulate = Colors.White;
             _bossIntroCardTimer = Mathf.Max(0.5f, seconds);
+            // PopIn resets the scale, so the name's fit is applied after it starts.
+            if (_bossIntroCard.IsInsideTree()) PulpMotion.PopIn(_bossIntroCard);
+            LayoutIntroCard();
         }
 
         /// <summary>
@@ -713,8 +793,11 @@ namespace FTT.UI {
         /// </summary>
         public void ShowBossBar(string bossNameKey, int currentHP, int maximumHP, float[] phaseThresholds) {
             if (_bossPanel == null) return;
+            bool revealing = !_bossPanel.Visible;
             _bossPanel.Visible = true;
             _bossPhase = 1;
+            _bossPhaseFade?.Kill();
+            if (_bossPhaseTab != null) _bossPhaseTab.Modulate = Colors.White;
             if (_bossNameLabel != null) _bossNameLabel.Text = Tr(bossNameKey);
             if (_bossBar != null) {
                 _bossBar.MaxValue = maximumHP;
@@ -729,7 +812,9 @@ namespace FTT.UI {
             }
             RefreshBossTexts();
             LayoutBossPanel();
-            // The level title and objective give way to the bar while a boss is revealed (UI_SPEC 4.4 stress frame).
+            // The bar appears by MOT-A row 4 (rows 16: the boss reveal); a second reveal while it shows re-lays it only.
+            if (revealing && _bossPanel.IsInsideTree()) PulpMotion.PopIn(_bossPanel);
+            // The level title and objective give way to the bar while a boss is revealed (UI_SPEC_GLASS 4.4 stress frame).
             if (_topLeft != null) _topLeft.Visible = false;
         }
 
@@ -768,24 +853,21 @@ namespace FTT.UI {
             _indicators.StartCooldown(slot, 0f);
 
         /// <summary>
-        /// D10 (2026-10-11): the "not yet" flash on the refused slot — the cooldown
-        /// icon for a Special, the meter ring for the Ultimate (the BG hosts the
-        /// frame, the fill takes the tint). Player 0 only: the Level 13 Mirror
-        /// clone raises the event too, and its refusals are not the hero's.
+        /// D10 (2026-10-11): the "not yet" flash on the refused slot. Glass (UI_SPEC_GLASS 3.4.2, MOT-A row 17; ruling 3
+        /// of TG-WIDGETS step 2): a contracting 2 px <c>danger</c> circle round the lens's readiness ring, the shape
+        /// channel, with the lens tinted, the colour one (<c>NotYetFlash</c>'s circle mode). Player 0 only: the Level 13
+        /// Mirror clone raises the event too, and its refusals are not the hero's.
         /// </summary>
         private void OnAbilityLockoutRefused(FTT.Core.AbilityLockoutRefusedPayload payload) {
             if (payload.PlayerIndex != 0) return;
             if (payload.Slot == FTT.Core.AbilitySlot.Ultimate) {
-                NotYetFlash.Play(_meterHost, _ultSlot);
-                NotYetFlash.Play(_meterHost, _meterFill);
+                if (_ultSlot != null) NotYetFlash.Play(_ultSlot.Ring, _ultSlot, NotYetShape.Circle);
                 return;
             }
             if (payload.Slot is not (FTT.Core.AbilitySlot.Special1 or FTT.Core.AbilitySlot.Special2)) return;
             int index = System.Array.IndexOf(CooldownSlots, payload.Slot);
-            if (index < 0) return;
-            Label icon = _cooldownIcons[index];
-            NotYetFlash.Play(icon, _slots[index]);
-            NotYetFlash.Play(icon, icon);
+            if (index < 0 || _slots[index] == null) return;
+            NotYetFlash.Play(_slots[index].Ring, _slots[index], NotYetShape.Circle);
         }
 
         private void OnStatusEffectApplied(FTT.Core.StatusEffectPayload payload) {
@@ -805,11 +887,20 @@ namespace FTT.UI {
 
         private void OnBossPhaseChanged(int phaseIndex) {
             _bossNotches?.NotifyPhaseChanged(phaseIndex);
-            // BossController starts at phase index 0 and publishes 1 on entering its second phase: the tab shows
+            // BossController starts at phase index 0 and publishes 1 on entering its second phase: the label shows
             // the one-based number (index + 1) while the notches keep the raw index.
+            int previous = _bossPhase;
             _bossPhase = Mathf.Max(1, phaseIndex + 1);
             RefreshBossTexts();
             LayoutBossPanel();
+            // MOT-A row 16: the phase label cross-fades in over 220 ms (a fade, so the same under Reduced); notches are static.
+            if (_bossPhase != previous && _bossPhaseTab != null && _bossPanel != null && _bossPanel.Visible
+                && _bossPhaseTab.IsInsideTree()) {
+                _bossPhaseFade?.Kill();
+                _bossPhaseTab.Modulate = new Color(1f, 1f, 1f, 0f);
+                _bossPhaseFade = PulpMotion.NewTween(_bossPhaseTab);
+                _bossPhaseFade.TweenProperty(_bossPhaseTab, "modulate:a", 1f, PulpMotionRules.PhaseLabelSeconds);
+            }
         }
 
         private void OnBlockChargesChanged(FTT.Core.BlockChargesPayload payload) {
@@ -821,12 +912,22 @@ namespace FTT.UI {
             SetBlockPips(payload.CurrentCharges);
         }
 
+        /// <summary>
+        /// UI_SPEC_GLASS 9.2: the checkpoint toast fades in rising (MOT-A row 4), holds 2 s and fades over 300 ms (the
+        /// timer in <see cref="_Process"/>).
+        /// </summary>
         private void OnCheckpointReached(string checkpointID) {
             if (_checkpointToast == null) return;
             _checkpointToast.Text = Tr("hud_checkpoint_reached");
             _checkpointToast.Visible = true;
-            _checkpointToastTimer = 2.5f;
+            PlaceCheckpointToast();
+            _checkpointToast.Modulate = Colors.White;
+            _checkpointToastTimer = PulpMotionRules.PanelInSeconds + ToastHoldSeconds + ToastFadeSeconds;
+            if (_checkpointToast.IsInsideTree()) PulpMotion.PopIn(_checkpointToast);
         }
+
+        /// <summary>Seconds the checkpoint toast still shows (0 when hidden). Test seam.</summary>
+        public float CheckpointToastSecondsLeft => _checkpointToastTimer;
 
         private void UpdateHP(int currentHP, int maximumHP) {
             if (_hpBar != null) {
@@ -834,8 +935,11 @@ namespace FTT.UI {
                 _hpBar.Value = currentHP;
             }
             if (_hpText != null) {
-                _hpText.Text = $"{currentHP}/{maximumHP}";
+                // T17 (UI_SPEC_GLASS 3.4.1): the numeral, then "/max" at 18 px, dimmed, on its baseline.
+                _hpText.Text = currentHP.ToString(System.Globalization.CultureInfo.InvariantCulture);
                 _hpText.TooltipText = $"{Tr("hud_hp")} {currentHP}/{maximumHP}";
+                if (_hpMax != null) _hpMax.Text = "/" + maximumHP.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                LayoutValuePair(_hpText, _hpMax, _hpBar, HpValueRightPad);
             }
             if (_hpDecor != null) {
                 // The first value seeds the tracker; later drops fall through it (a hit, not a level start).
@@ -866,11 +970,11 @@ namespace FTT.UI {
             if ((force || rewinds != _lastRewinds) && _rewindCountText != null) {
                 _rewindCountText.Text = string.Format(Tr("hud_rewind_count"), rewinds);
                 _rewindCountText.TooltipText = string.Format(Tr("hud_rewinds"), rewinds);
-                // UI_SPEC 3.3.4: the glyph and the number turn to danger at one or none left; an empty
+                // UI_SPEC_GLASS 3.4.4: the glyph and the number turn to danger at one or none left; an empty
                 // hourglass at zero dims, and deliberately raises no alarm: running out is a state.
                 bool low = rewinds <= 1;
-                if (low) _rewindCountText.AddThemeColorOverride("font_color", UIPalette.Danger);
-                else _rewindCountText.RemoveThemeColorOverride("font_color");
+                if (low) _rewindCountText.AddThemeColorOverride(FontColorName, UIPalette.Danger);
+                else _rewindCountText.RemoveThemeColorOverride(FontColorName);
                 if (_rewindBadge != null) {
                     _rewindBadge.Tint = low ? UIPalette.Danger : UIPalette.Accent2;
                     _rewindBadge.Modulate = new Color(1f, 1f, 1f, rewinds <= 0 ? 0.45f : 1f);
@@ -882,7 +986,7 @@ namespace FTT.UI {
             if ((force || dust != _lastDust) && _dustText != null) {
                 // HUD_CONTRACT: this is the level's UNDEPOSITED balance, bound to the committed wallet;
                 // the Repository/Beacon shows spendable dust separately. The plate shows the bare number
-                // (UI_SPEC 3.3.4); the long form is its tooltip and accessible name.
+                // (T26, UI_SPEC_GLASS 3.4.4); the long form is its tooltip and accessible name.
                 _dustText.Text = dust.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
                 _dustText.TooltipText = string.Format(Tr("hud_level_dust"), dust);
                 _lastDust = dust;
@@ -893,6 +997,16 @@ namespace FTT.UI {
         /// Repaints the three cooldown rings, their lock overlays, the Ultimate lock
         /// overlay and both status slots from the model.
         /// </summary>
+        // What each kept glyph Label was last written for (0..2 the cooldowns, 3 the Ultimate): a steady frame writes nothing.
+        private readonly int[] _iconReadyShown = { -1, -1, -1 };
+        private readonly AbilitySlotLockState[] _lockShown = {
+            (AbilitySlotLockState)(-1), (AbilitySlotLockState)(-1), (AbilitySlotLockState)(-1), (AbilitySlotLockState)(-1)
+        };
+
+        /// <summary>
+        /// Repaints the three cooldown lenses and the Ultimate lens, their kept glyph Labels and lock overlays, and both
+        /// status slots from the model. Runs every frame; every write is gated on a change.
+        /// </summary>
         private void RefreshIndicators() {
             for (int index = 0; index < CooldownSlots.Length; index++) {
                 FTT.Core.AbilitySlot slot = CooldownSlots[index];
@@ -900,17 +1014,17 @@ namespace FTT.UI {
                 RadialProgress radial = _cooldownRadials[index];
                 if (radial != null) radial.Fraction = _indicators.ReadinessFraction(slot);
                 Label icon = _cooldownIcons[index];
-                if (icon != null) {
-                    icon.AddThemeColorOverride(
-                        "font_color",
-                        _indicators.IsReady(slot) ? UIPalette.Res2 : UIPalette.TextDisabled);
+                int ready = _indicators.IsReady(slot) ? 1 : 0;
+                if (icon != null && ready != _iconReadyShown[index]) {
+                    _iconReadyShown[index] = ready;
+                    icon.AddThemeColorOverride(FontColorName, ready == 1 ? UIPalette.Res2 : UIPalette.TextDisabled);
                 }
-                ApplyLockOverlay(_cooldownLockOverlays[index], lockState);
-                ApplySlot(_slots[index], lockState, _indicators.IsReady(slot),
+                ApplyLockOverlay(_cooldownLockOverlays[index], lockState, index);
+                ApplySlot(_slots[index], lockState, ready == 1,
                     _indicators.ReadinessFraction(slot), _indicators.RemainingSeconds(slot));
             }
             AbilitySlotLockState ultLock = _indicators.LockState(FTT.Core.AbilitySlot.Ultimate);
-            ApplyLockOverlay(_meterLockOverlay, ultLock);
+            ApplyLockOverlay(_meterLockOverlay, ultLock, CooldownSlots.Length);
             ApplySlot(_ultSlot, ultLock, _indicators.IsReady(FTT.Core.AbilitySlot.Ultimate),
                 _indicators.ReadinessFraction(FTT.Core.AbilitySlot.Ultimate), 0f);
             RefreshStatusSlot(_damageStatusIndicator, _damageStatusRadial, _damageChip, damageSlot: true);
@@ -918,12 +1032,14 @@ namespace FTT.UI {
         }
 
         /// <summary>
-        /// V7.5 slot locks. A locked slot is <b>shown</b>, never hidden: Dormant is
-        /// a dim star for a legacy the hero has not recovered yet, Suppressed a cold
-        /// cross-out for one an Eraser took away. Clear removes the overlay.
+        /// V7.5 slot locks. A locked slot is <b>shown</b>, never hidden: Dormant is the lens's dormant lock for a legacy
+        /// the hero has not recovered yet, Suppressed its cold cross-out for one an Eraser took away (the lens draws them).
+        /// The kept overlay Label carries the glyph and the localized name for the tests and accessibility, rewritten only
+        /// when the state changes.
         /// </summary>
-        private void ApplyLockOverlay(Label overlay, AbilitySlotLockState state) {
-            if (overlay == null) return;
+        private void ApplyLockOverlay(Label overlay, AbilitySlotLockState state, int index) {
+            if (overlay == null || _lockShown[index] == state) return;
+            _lockShown[index] = state;
             if (state == AbilitySlotLockState.Clear) {
                 overlay.Visible = false;
                 return;
@@ -932,8 +1048,8 @@ namespace FTT.UI {
             overlay.Text = HudAbilityIndicatorModel.LockGlyph(state);
             overlay.TooltipText = Tr(HudAbilityIndicatorModel.LockLabelKey(state));
             overlay.AddThemeColorOverride(
-                "font_color",
-                state == AbilitySlotLockState.Dormant ? UIPalette.SlateDim : UIPalette.TemporalViolet);
+                FontColorName,
+                state == AbilitySlotLockState.Dormant ? UIPalette.Ink3 : UIPalette.UnboundCold);
         }
 
         // === Portrait and data-driven pips ===
@@ -960,7 +1076,10 @@ namespace FTT.UI {
                 _portrait.Visible = data.CharacterPortrait != null;
             }
             if (_roundel != null) _roundel.Portrait = data.CharacterPortrait;
-            if (_heroName != null && !string.IsNullOrWhiteSpace(data.DisplayNameKey)) _heroName.Text = data.DisplayNameKey;
+            if (_heroName != null && !string.IsNullOrWhiteSpace(data.DisplayNameKey)) {
+                _heroName.Text = data.DisplayNameKey;
+                LayoutHeroName();
+            }
             for (int index = 0; index < CooldownSlots.Length; index++) {
                 if (_slots[index] != null) _slots[index].Art = AbilityIconLibrary.Load(characterID, CooldownSlots[index]);
             }
@@ -988,7 +1107,7 @@ namespace FTT.UI {
             _anchorPips = RebuildAnchorPipRow(_anchorPipRow, capacity);
         }
 
-        /// <summary>M15: the 8 × 8 gold diamond pips, one per anchor charge.</summary>
+        /// <summary>M15: the 18 × 18 gold diamond pips (UI_SPEC_GLASS 3.4.4), one per anchor charge.</summary>
         private static AnchorPip[] RebuildAnchorPipRow(HBoxContainer row, int count) {
             if (row == null) return System.Array.Empty<AnchorPip>();
             Godot.Collections.Array<Node> children = row.GetChildren();
@@ -1028,13 +1147,17 @@ namespace FTT.UI {
             return pips;
         }
 
-        /// <summary>A spent pip dims (opacity 0.28, grey) rather than disappearing, so capacity stays readable.</summary>
+        /// <summary>
+        /// UI_SPEC_GLASS 3.4.4: a lit pip is the <c>shield</c> glyph in <c>shield</c> with its pale glow; a spent one the
+        /// glowless <c>shield_off</c> at .28 rather than disappearing, so capacity stays readable.
+        /// </summary>
         private void SetBlockPips(int filled) {
             int lit = Mathf.Clamp(filled, 0, _blockPips.Length);
             for (int index = 0; index < _blockPips.Length; index++) {
                 bool on = index < lit;
-                _blockPips[index].Tint = on ? UIPalette.Shield : UIPalette.Ink3;
-                _blockPips[index].Modulate = new Color(1f, 1f, 1f, on ? 1f : 0.28f);
+                _blockPips[index].IconName = on ? "shield" : "shield_off";
+                _blockPips[index].Tint = UIPalette.Shield;
+                _blockPips[index].Modulate = new Color(1f, 1f, 1f, on ? 1f : SpentPipAlpha);
             }
         }
 
@@ -1066,6 +1189,7 @@ namespace FTT.UI {
             _hpBar = GetNodeOrNull<ProgressBar>($"{VitalsPath}/HealthBar_BG");
             _echoBand = GetNodeOrNull<ColorRect>($"{VitalsPath}/HealthBar_BG/RallyEcho_Band");
             _hpText = GetNodeOrNull<Label>($"{VitalsPath}/HealthBar_BG/HPText");
+            _hpMax = GetNodeOrNull<Label>($"{VitalsPath}/HealthBar_BG/HPMax");
             _blockPipRow = GetNodeOrNull<HBoxContainer>($"{VitalsPath}/BlockCharges_Panel");
 
             _damageStatusIndicator =
@@ -1123,6 +1247,7 @@ namespace FTT.UI {
             _checkpointToast = GetNodeOrNull<Label>("SafeArea/CheckpointToast");
             _bossPhaseTab = GetNodeOrNull<Label>("SafeArea/BossPanel/BossPhaseTab");
             _bossHpValue = GetNodeOrNull<Label>("SafeArea/BossPanel/BossBar/BossHpValue");
+            _bossHpMax = GetNodeOrNull<Label>("SafeArea/BossPanel/BossBar/BossHpMax");
             BuildPulpWidgets();
         }
     }

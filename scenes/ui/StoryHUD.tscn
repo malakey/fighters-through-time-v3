@@ -1,11 +1,13 @@
 [gd_scene load_steps=6 format=3]
 
-; UR-HUDS (pulp UI redesign, 2026-10-26): HUD-S1 corner cluster. Left column: three panels (VITALS
-; and ABILITIES tagged, the time tools untagged) under the level title; right column: the dust plate
-; and the Integrity dial; BossPanel is a plain Control laid out in code (top centre, BOSS-B).
-; Every pre-redesign glyph Label (status, Defy, cooldown, rewind, freeze, dust) is kept with its Text
-; and TooltipText for the tests and accessibility, its characters hidden, and the pulp widget is added
-; in code as its child. Paths moved only by the new panel nesting (docs/handoffs/UR_HUDS.md).
+; TG-HUDS (Temporal Glass rebuild, 2026-10-27): HUD-S1 corner cluster in glass. Left column: three glass slabs
+; (GlassPanelVitals and GlassPanelAbilities with light tags, GlassPanelTimeTools untagged) under the level title,
+; laid out at UI_SPEC_GLASS 4.4's rects; right column: the dust plate (GlassPanelDust) and the thin-ring Integrity
+; dial; BossPanel is a plain Control laid out in code (top of the free band, BOSS-A). Every glyph Label (status,
+; Defy, cooldown, rewind, freeze, dust) keeps its Text and TooltipText for the tests and accessibility, its
+; characters hidden, and the glass widget is added in code as its child. The node paths the pulp build pinned are
+; kept; Vitals became a plain Control (its children are placed in code), HealthBar_BG gained HPMax, TemporalRow a
+; FreezeGap spacer and BossBar a BossHpMax label (docs/handoffs/TG_HUDS.md).
 
 [ext_resource type="Script" path="res://scripts/UI/StoryHUD.cs" id="1_script"]
 [ext_resource type="Script" path="res://scripts/UI/BossPhaseNotchOverlay.cs" id="2_notches"]
@@ -29,14 +31,16 @@ mouse_filter = 2
 [node name="TopLeft" type="VBoxContainer" parent="SafeArea"]
 layout_mode = 0
 offset_left = 44.0
-offset_top = 20.0
+offset_top = 22.0
 offset_right = 944.0
 offset_bottom = 90.0
 mouse_filter = 2
+theme_override_constants/separation = 5
 
 [node name="LevelTitle" type="Label" parent="SafeArea/TopLeft"]
 layout_mode = 2
 theme_type_variation = &"LevelTitle"
+uppercase = true
 
 [node name="Objective" type="Label" parent="SafeArea/TopLeft"]
 layout_mode = 2
@@ -47,7 +51,7 @@ layout_mode = 0
 offset_left = 32.0
 offset_top = 108.0
 offset_right = 652.0
-offset_bottom = 600.0
+offset_bottom = 603.0
 mouse_filter = 2
 theme_override_constants/separation = 26
 
@@ -60,19 +64,20 @@ script = ExtResource("5_tagged")
 custom_minimum_size = Vector2(620, 0)
 layout_mode = 2
 mouse_filter = 2
+theme_type_variation = &"GlassPanelVitals"
 
 [node name="Pad" type="MarginContainer" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/margin_left = 14
-theme_override_constants/margin_top = 10
-theme_override_constants/margin_right = 14
-theme_override_constants/margin_bottom = 8
+theme_override_constants/margin_left = 0
+theme_override_constants/margin_top = 0
+theme_override_constants/margin_right = 0
+theme_override_constants/margin_bottom = 0
 
 [node name="Stack" type="VBoxContainer" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 18
 
 [node name="Top" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack"]
 layout_mode = 2
@@ -96,21 +101,26 @@ mouse_filter = 2
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Vitals" type="VBoxContainer" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top"]
+[node name="Vitals" type="Control" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top"]
+custom_minimum_size = Vector2(380, 106)
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
-theme_override_constants/separation = 8
 
 [node name="HeroName" type="Label" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top/Vitals"]
-layout_mode = 2
+layout_mode = 0
+offset_top = -4.0
+offset_right = 380.0
+offset_bottom = 26.0
 theme_type_variation = &"HeroName"
 uppercase = true
 
 [node name="HealthBar_BG" type="ProgressBar" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top/Vitals"]
 custom_minimum_size = Vector2(380, 30)
-layout_mode = 2
-size_flags_horizontal = 0
+layout_mode = 0
+offset_top = 30.0
+offset_right = 380.0
+offset_bottom = 60.0
 mouse_filter = 2
 theme_type_variation = &"PulpBar"
 max_value = 100.0
@@ -129,21 +139,26 @@ mouse_filter = 2
 color = Color(1, 0.92, 0.35, 0.55)
 
 [node name="HPText" type="Label" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top/Vitals/HealthBar_BG"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_right = -14.0
-grow_horizontal = 2
-grow_vertical = 2
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 30.0
 mouse_filter = 2
 theme_type_variation = &"HudNumeralSmall"
-horizontal_alignment = 2
-vertical_alignment = 1
+
+[node name="HPMax" type="Label" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top/Vitals/HealthBar_BG"]
+modulate = Color(1, 1, 1, 0.78)
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 30.0
+mouse_filter = 2
+theme_type_variation = &"HudNumeralMax"
 
 [node name="BlockCharges_Panel" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top/Vitals"]
 custom_minimum_size = Vector2(0, 30)
-layout_mode = 2
+layout_mode = 0
+offset_top = 76.0
+offset_right = 380.0
+offset_bottom = 106.0
 mouse_filter = 2
 theme_override_constants/separation = 7
 
@@ -198,27 +213,29 @@ script = ExtResource("5_tagged")
 custom_minimum_size = Vector2(620, 0)
 layout_mode = 2
 mouse_filter = 2
+theme_type_variation = &"GlassPanelAbilities"
 
 [node name="Pad" type="MarginContainer" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/margin_left = 14
-theme_override_constants/margin_top = 2
-theme_override_constants/margin_right = 14
-theme_override_constants/margin_bottom = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 0
+theme_override_constants/margin_right = 0
+theme_override_constants/margin_bottom = 27
 
 [node name="Abilities" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 22
+theme_override_constants/separation = 36
 
 [node name="MeterRow" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities"]
 layout_mode = 2
+size_flags_vertical = 0
 mouse_filter = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 28
 
 [node name="UltimateMeter_BG" type="Control" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/MeterRow"]
-custom_minimum_size = Vector2(116, 116)
+custom_minimum_size = Vector2(92, 92)
 layout_mode = 2
 mouse_filter = 2
 
@@ -268,7 +285,7 @@ uppercase = true
 
 [node name="CooldownRow" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities"]
 layout_mode = 2
-size_flags_vertical = 4
+size_flags_vertical = 0
 mouse_filter = 2
 theme_override_constants/separation = 30
 
@@ -366,19 +383,20 @@ vertical_alignment = 1
 custom_minimum_size = Vector2(620, 0)
 layout_mode = 2
 mouse_filter = 2
+theme_type_variation = &"GlassPanelTimeTools"
 
 [node name="Pad" type="MarginContainer" parent="SafeArea/TopLeft_Panel/TimePanel"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/margin_left = 14
-theme_override_constants/margin_top = 4
-theme_override_constants/margin_right = 14
-theme_override_constants/margin_bottom = 4
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 0
+theme_override_constants/margin_right = 0
+theme_override_constants/margin_bottom = 0
 
 [node name="TemporalRow" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/TimePanel/Pad"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 40
+theme_override_constants/separation = 24
 
 [node name="RewindCounter" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow"]
 layout_mode = 2
@@ -404,7 +422,7 @@ vertical_alignment = 1
 visible = false
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 10
 
 [node name="BeaconIcon" type="Control" parent="SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow/BeaconAnchors"]
 custom_minimum_size = Vector2(46, 46)
@@ -416,7 +434,11 @@ script = ExtResource("4_beacon")
 [node name="AnchorPips" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow/BeaconAnchors"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 6
+theme_override_constants/separation = 8
+
+[node name="FreezeGap" type="Control" parent="SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow"]
+layout_mode = 2
+mouse_filter = 2
 
 [node name="TimeFreezeIndicator" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow"]
 layout_mode = 2
@@ -436,11 +458,11 @@ vertical_alignment = 1
 layout_mode = 2
 size_flags_vertical = 4
 mouse_filter = 2
-theme_override_constants/separation = 5
+theme_override_constants/separation = -2
 
 [node name="FreezeSubLabel" type="Label" parent="SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow/TimeFreezeIndicator/FreezeColumn"]
 layout_mode = 2
-theme_type_variation = &"SceneCaption"
+theme_type_variation = &"CaptionLabel"
 text = "hud_time_freeze_name"
 uppercase = true
 
@@ -460,26 +482,25 @@ offset_right = -44.0
 offset_bottom = 320.0
 grow_horizontal = 0
 mouse_filter = 2
-theme_override_constants/separation = 35
+theme_override_constants/separation = 40
 
 [node name="DustPlate" type="PanelContainer" parent="SafeArea/TopRight_Panel"]
-custom_minimum_size = Vector2(270, 0)
 layout_mode = 2
 size_flags_horizontal = 8
 mouse_filter = 2
+theme_type_variation = &"GlassPanelDust"
 
 [node name="Pad" type="MarginContainer" parent="SafeArea/TopRight_Panel/DustPlate"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/margin_left = 8
+theme_override_constants/margin_left = 0
 theme_override_constants/margin_top = 0
-theme_override_constants/margin_right = 8
+theme_override_constants/margin_right = 0
 theme_override_constants/margin_bottom = 0
 
 [node name="CurrencyContainer" type="HBoxContainer" parent="SafeArea/TopRight_Panel/DustPlate/Pad"]
 layout_mode = 2
 mouse_filter = 2
-alignment = 1
 theme_override_constants/separation = 14
 
 [node name="ChronalDustIcon" type="Label" parent="SafeArea/TopRight_Panel/DustPlate/Pad/CurrencyContainer"]
@@ -494,7 +515,7 @@ vertical_alignment = 1
 [node name="ChronalDustText" type="Label" parent="SafeArea/TopRight_Panel/DustPlate/Pad/CurrencyContainer"]
 layout_mode = 2
 mouse_filter = 2
-theme_type_variation = &"HudNumeral"
+theme_type_variation = &"DustTotal"
 vertical_alignment = 1
 
 [node name="DustPickup_Float" type="Label" parent="SafeArea/TopRight_Panel/DustPlate/Pad/CurrencyContainer"]
@@ -518,10 +539,10 @@ mouse_filter = 2
 
 [node name="ClockWedge" type="Control" parent="SafeArea/TopRight_Panel/IntegrityClock"]
 layout_mode = 0
-offset_left = 10.0
-offset_top = 10.0
-offset_right = 102.0
-offset_bottom = 102.0
+offset_left = 12.32
+offset_top = 12.32
+offset_right = 99.68
+offset_bottom = 99.68
 mouse_filter = 2
 script = ExtResource("3_radial")
 
@@ -537,11 +558,11 @@ horizontal_alignment = 1
 [node name="IntegrityText" type="Label" parent="SafeArea/TopRight_Panel/IntegrityClock"]
 layout_mode = 0
 offset_left = -19.0
-offset_top = 114.0
+offset_top = 116.0
 offset_right = 131.0
-offset_bottom = 152.0
+offset_bottom = 146.0
 mouse_filter = 2
-theme_type_variation = &"HudNumeral"
+theme_type_variation = &"IntegrityPercent"
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -551,22 +572,19 @@ layout_mode = 0
 offset_left = 720.0
 offset_top = 22.0
 offset_right = 1560.0
-offset_bottom = 138.0
+offset_bottom = 104.0
 mouse_filter = 2
 
 [node name="BossName" type="Label" parent="SafeArea/BossPanel"]
 layout_mode = 0
 mouse_filter = 2
 theme_type_variation = &"BossName"
-horizontal_alignment = 1
-vertical_alignment = 1
+uppercase = true
 
 [node name="BossPhaseTab" type="Label" parent="SafeArea/BossPanel"]
 layout_mode = 0
 mouse_filter = 2
 theme_type_variation = &"BossPhaseTag"
-horizontal_alignment = 1
-vertical_alignment = 1
 uppercase = true
 
 [node name="BossBar" type="ProgressBar" parent="SafeArea/BossPanel"]
@@ -576,17 +594,19 @@ theme_type_variation = &"PulpBossBar"
 show_percentage = false
 
 [node name="BossHpValue" type="Label" parent="SafeArea/BossPanel/BossBar"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_right = -16.0
-grow_horizontal = 2
-grow_vertical = 2
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 34.0
 mouse_filter = 2
 theme_type_variation = &"BossHpValue"
-horizontal_alignment = 2
-vertical_alignment = 1
+
+[node name="BossHpMax" type="Label" parent="SafeArea/BossPanel/BossBar"]
+modulate = Color(1, 1, 1, 0.75)
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 34.0
+mouse_filter = 2
+theme_type_variation = &"HudNumeralMax"
 
 [node name="PhaseNotches" type="Control" parent="SafeArea/BossPanel/BossBar"]
 layout_mode = 1
@@ -601,21 +621,21 @@ script = ExtResource("2_notches")
 [node name="BossIntroCard" type="Label" parent="SafeArea"]
 visible = false
 layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
+anchors_preset = 14
 anchor_top = 0.5
-anchor_right = 0.5
+anchor_right = 1.0
 anchor_bottom = 0.5
-offset_left = -420.0
-offset_top = -40.0
-offset_right = 420.0
-offset_bottom = 40.0
+offset_left = 40.0
+offset_top = -60.0
+offset_right = -40.0
+offset_bottom = 60.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-theme_type_variation = &"BossName"
+theme_type_variation = &"PauseTitle"
 horizontal_alignment = 1
 vertical_alignment = 1
+uppercase = true
 
 [node name="TremorOverlay" type="ColorRect" parent="SafeArea"]
 visible = false
@@ -634,13 +654,10 @@ layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -170.0
-offset_top = 150.0
-offset_right = 170.0
-offset_bottom = 200.0
+offset_top = 140.0
+offset_bottom = 170.0
 grow_horizontal = 2
 mouse_filter = 2
-theme_type_variation = &"StateLabel"
-horizontal_alignment = 1
+theme_type_variation = &"PanelTag"
 vertical_alignment = 1
 uppercase = true

@@ -1,4 +1,4 @@
-using FTT.UI.Pulp;
+using FTT.UI.Motion;
 using Godot;
 
 namespace FTT.UI {
@@ -6,75 +6,87 @@ namespace FTT.UI {
     /// <summary>
     /// One Act III Beacon anchor charge on the Story HUD (M15, Package 12 W10).
     ///
-    /// <para>HUD_CONTRACT: an <c>8 × 8 px</c> gold <b>diamond</b> — a shape distinct
-    /// from the round rewind glyph, so the count reads without colour. An Anchor
-    /// Snap <b>cracks and fades</b> the spent pip; a pip that was already spent on
-    /// load or bind is drawn spent without replaying the crack.</para>
+    /// <para>HUD_CONTRACT: a gold <b>diamond</b>, a shape distinct from the round rewind glyph, so the count reads without
+    /// colour. Since the Temporal Glass rebuild (TG-HUDS, UI_SPEC_GLASS 3.4.4) the pip draws itself: an 18 x 18 diamond
+    /// (a 12.7 px square turned 45 degrees) filled <c>res</c> while the charge remains, a 1.5 px <c>ink3</c> outline once
+    /// spent. An Anchor Snap <b>splits and fades</b> the spent pip over 600 ms (MOT-A row 18): its two halves part and fade
+    /// while the spent outline comes up; under Reduced Temporal Effects a plain 150 ms fade. A pip that was already spent on
+    /// load or bind is drawn spent without replaying the split.</para>
     ///
-    /// <para>Code-built by <see cref="StoryHUD"/> inside the authored
-    /// <c>BeaconAnchors/AnchorPips</c> row, because the pip count is data-driven
-    /// (Easy 3 / Normal 2 / Hard 1). Presentation only; it never reads or writes
-    /// the charge count itself.</para>
+    /// <para>Code-built by <see cref="StoryHUD"/> inside the authored <c>BeaconAnchors/AnchorPips</c> row, because the pip
+    /// count is data-driven (Easy 3 / Normal 2 / Hard 1). Presentation only; it never reads or writes the charge count
+    /// itself. The diamond's points are fixed; a draw allocates nothing.</para>
     /// </summary>
     public partial class AnchorPip : Control {
         public enum PipState {
             /// <summary>A remaining anchor charge.</summary>
             Filled,
-            /// <summary>Spent by a Snap this session: the crack-and-fade beat is playing.</summary>
+            /// <summary>Spent by a Snap this session: the split-and-fade beat is playing.</summary>
             Cracking,
             /// <summary>Spent: a faint diamond outline.</summary>
             Spent
         }
 
-        /// <summary>
-        /// The pip's edge length, in reference pixels: 18 since the pulp UI redesign (UR-HUDS, the
-        /// HUD_CONTRACT's 8 px at about twice the size, drawn with the kit's <c>anchor_pip</c> icons).
-        /// </summary>
+        /// <summary>The pip's edge length, in reference pixels: the 18 px diamond (HUD_CONTRACT, 8 before the 2026-10-26 redesign).</summary>
         public const int PipSize = 18;
 
-        /// <summary>The Beacon icon's edge length (24 before UR-HUDS), the 46 px badge size of the time tools.</summary>
+        /// <summary>The Beacon badge's edge length (24 before the 2026-10-26 redesign), the 46 px badge of the time tools.</summary>
         public const int IconSize = 46;
 
-        /// <summary>Length of the crack-and-fade beat.</summary>
-        public const float CrackSeconds = 0.6f;
+        /// <summary>Length of the split-and-fade beat (MOT-A row 18); <see cref="PulpMotionRules.AnchorSplitReducedSeconds"/> under Reduced Temporal Effects.</summary>
+        public const float CrackSeconds = PulpMotionRules.AnchorSplitSeconds;
 
-        /// <summary>Opacity a spent pip settles at, so the capacity stays legible.</summary>
+        /// <summary>Legacy (the pulp pip's settled opacity); the glass pip settles on its 1.5 px outline at full opacity.</summary>
         public const float SpentAlpha = 0.22f;
+
+        /// <summary>The spent outline's width.</summary>
+        public const float OutlineWidth = 1.5f;
+
+        /// <summary>How far each half of a splitting pip travels, in pixels.</summary>
+        public const float SplitPixels = 4f;
 
         private PipState _state = PipState.Filled;
         private float _crackElapsed;
+        private float _crackDuration = CrackSeconds;
+        private bool _crackSplits = true;
+        private Color _fillColor = UIPalette.Res;
+
+        private static readonly Vector2[] Diamond = {
+            new(PipSize / 2f, 0f), new(PipSize, PipSize / 2f), new(PipSize / 2f, PipSize), new(0f, PipSize / 2f)
+        };
+        private static readonly Vector2[] LeftHalf = { new(PipSize / 2f, 0f), new(PipSize / 2f, PipSize), new(0f, PipSize / 2f) };
+        private static readonly Vector2[] RightHalf = { new(PipSize / 2f, 0f), new(PipSize, PipSize / 2f), new(PipSize / 2f, PipSize) };
+        private static readonly Vector2[] Outline = BuildOutline();
+        private readonly Vector2[] _left = new Vector2[3];
+        private readonly Vector2[] _right = new Vector2[3];
+
+        private static Vector2[] BuildOutline() {
+            // The stroke's centre line sits half the stroke inside the diamond, closed.
+            float inset = OutlineWidth / 2f * Mathf.Sqrt2;
+            float c = PipSize / 2f;
+            return new[] {
+                new Vector2(c, inset), new Vector2(PipSize - inset, c), new Vector2(c, PipSize - inset),
+                new Vector2(inset, c), new Vector2(c, inset)
+            };
+        }
 
         public PipState State => _state;
 
-        /// <summary>0 at the start of the crack, 1 once it has fully faded.</summary>
+        /// <summary>0 at the start of the split, 1 once it has fully faded.</summary>
         public float CrackProgress => _state == PipState.Spent ? 1f
-            : _state == PipState.Cracking ? Mathf.Clamp(_crackElapsed / CrackSeconds, 0f, 1f)
+            : _state == PipState.Cracking ? Mathf.Clamp(_crackElapsed / _crackDuration, 0f, 1f)
             : 0f;
 
-        public Color FillColor { get; set; } = UIPalette.GoldBright;
+        /// <summary>True while a split (not the Reduced fade) is playing or was last played.</summary>
+        public bool CrackSplits => _crackSplits;
 
-        private readonly PulpIcon _icon;
+        /// <summary>The filled pip's colour (<c>res</c>).</summary>
+        public Color FillColor { get => _fillColor; set { _fillColor = value; QueueRedraw(); } }
 
         public AnchorPip() {
             CustomMinimumSize = new Vector2(PipSize, PipSize);
             MouseFilter = MouseFilterEnum.Ignore;
             SizeFlagsVertical = SizeFlags.ShrinkCenter;
-            _icon = PulpIcon.Create("anchor_pip", FillColor, PipSize);
-            AddChild(_icon);
-            UpdateIcon();
-        }
-
-        private void UpdateIcon() {
-            if (_icon == null) return;
-            bool cracking = _state == PipState.Cracking;
-            _icon.IconName = cracking ? "anchor_pip_cracked" : "anchor_pip";
-            _icon.Tint = FillColor;
-            float alpha = _state switch {
-                PipState.Filled => 1f,
-                PipState.Cracking => Mathf.Lerp(1f, SpentAlpha, CrackProgress),
-                _ => SpentAlpha
-            };
-            _icon.Modulate = new Color(1f, 1f, 1f, alpha);
         }
 
         /// <summary>Filled or spent, with no animation (bind, load, refill).</summary>
@@ -82,31 +94,58 @@ namespace FTT.UI {
             _state = filled ? PipState.Filled : PipState.Spent;
             _crackElapsed = 0f;
             SetProcess(false);
-            UpdateIcon();
+            QueueRedraw();
         }
 
-        /// <summary>An Anchor Snap spent this charge: crack, then fade to spent.</summary>
+        /// <summary>An Anchor Snap spent this charge: split and fade to spent (a plain fade under Reduced Temporal Effects).</summary>
         public void Crack() {
             if (_state != PipState.Filled) return;
             _state = PipState.Cracking;
             _crackElapsed = 0f;
+            _crackSplits = !PulpMotion.Reduced;
+            _crackDuration = _crackSplits ? PulpMotionRules.AnchorSplitSeconds : PulpMotionRules.AnchorSplitReducedSeconds;
             SetProcess(true);
-            UpdateIcon();
+            QueueRedraw();
         }
 
-        /// <summary>Advances the crack beat. Public so tests can drive it headlessly.</summary>
+        /// <summary>Advances the split beat. Public so tests can drive it headlessly.</summary>
         public void Advance(float seconds) {
             if (_state != PipState.Cracking) return;
             _crackElapsed += Mathf.Max(0f, seconds);
-            if (_crackElapsed >= CrackSeconds) {
+            if (_crackElapsed >= _crackDuration) {
                 _state = PipState.Spent;
                 SetProcess(false);
             }
-            UpdateIcon();
+            QueueRedraw();
         }
 
         public override void _Ready() => SetProcess(_state == PipState.Cracking);
 
         public override void _Process(double delta) => Advance((float)delta);
+
+        public override void _Draw() {
+            switch (_state) {
+                case PipState.Filled:
+                    DrawColoredPolygon(Diamond, _fillColor);
+                    return;
+                case PipState.Spent:
+                    DrawPolyline(Outline, UIPalette.Ink3, OutlineWidth, true);
+                    return;
+            }
+            float p = CrackProgress;
+            DrawPolyline(Outline, new Color(UIPalette.Ink3, p), OutlineWidth, true);
+            var fading = new Color(_fillColor, _fillColor.A * (1f - p));
+            if (!_crackSplits) {
+                DrawColoredPolygon(Diamond, fading);
+                return;
+            }
+            float shift = SplitPixels * PulpMotionRules.CubicOut(p);
+            for (int i = 0; i < 3; i++) {
+                _left[i] = LeftHalf[i] + new Vector2(-shift, 0f);
+                _right[i] = RightHalf[i] + new Vector2(shift, 0f);
+            }
+            DrawColoredPolygon(_left, fading);
+            DrawColoredPolygon(_right, fading);
+        }
     }
 }
