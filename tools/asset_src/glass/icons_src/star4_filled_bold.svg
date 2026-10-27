@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fighter stock, ON state, BOLD (28 px display): F fill white @0.9 + stroke 2.25. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="64" height="64">
+  <path d="M16 2 L19.5 12.5 L30 16 L19.5 19.5 L16 30 L12.5 19.5 L2 16 L12.5 12.5 Z" fill="#FFFFFF" fill-opacity="0.9" stroke="#FFFFFF" stroke-width="2.25" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- DERIVED by tools/asset_src/glass/glass_svg.py (TG-ART): the BOLD weight of 'defy_ready', which the spec draws in one weight; strokes x1.5 (1.5->2.25, 1.35->2.0, 1.6->2.4, 2.6->3.9), a solid glyph unchanged. Use below 30 px (UI_SPEC_GLASS 3.5). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="256" height="256">
+  <circle cx="16" cy="16" r="11" fill="none" stroke="#FFFFFF" stroke-width="2.4"/>
+  <circle cx="16" cy="16" r="5.2" fill="#FFFFFF"/>
+  <path d="M16 1.5 V5 M16 27 V30.5 M1.5 16 H5 M27 16 H30.5" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-opacity="0.92"/>
+</svg>

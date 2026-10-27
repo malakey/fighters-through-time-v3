@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Select tile LOCKED mark: solid check (CSS .tile-a .lockmark .ic .f fill currentColor, no stroke), drawn 20 px on a 28 px square filled with the player colour; check tint #04141A. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="256" height="256">
+  <path d="M4.5 17 L7.6 13.9 L13 19.3 L24.4 6.9 L27.6 10 L13 25.6 Z" fill="#FFFFFF"/>
+</svg>

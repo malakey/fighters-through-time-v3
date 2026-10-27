@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ICN-A hairline from _build/lib.py ICONS['venom']; BOLD weight (F stroke 2.25, D stroke 2.0 units of 32) for any display size below 30 px (UI_SPEC_GLASS 3.5). White art, tinted by modulate. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="256" height="256">
+  <path d="M7.5 15 C7.5 9 11 4.5 16 4.5 C21 4.5 24.5 9 24.5 15 C24.5 18.2 23 20.2 21.2 21.2 V25.5 H10.8 V21.2 C9 20.2 7.5 18.2 7.5 15 Z" fill="#FFFFFF" fill-opacity="0.08" stroke="#FFFFFF" stroke-width="2.25" stroke-linejoin="round"/>
+  <path d="M12.6 12.4 a2.5 2.5 0 1 0 0.01 0 Z" fill="#FFFFFF"/>
+  <path d="M19.4 12.4 a2.5 2.5 0 1 0 0.01 0 Z" fill="#FFFFFF"/>
+  <path d="M14 25.5 V21.5" fill="none" stroke="#FFFFFF" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.92"/>
+  <path d="M16 25.5 V21.5" fill="none" stroke="#FFFFFF" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.92"/>
+  <path d="M18 25.5 V21.5" fill="none" stroke="#FFFFFF" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.92"/>
+  <path d="M15.2 18.4 L16 16.8 L16.8 18.4 Z" fill="none" stroke="#FFFFFF" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.92"/>
+</svg>

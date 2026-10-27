@@ -1,0 +1,439 @@
+{
+ "about": "TG-ART select hero idle frames (UI_SPEC_GLASS 3.7): the retro v2 idle loop of every roster member, cropped to one box per hero, symmetric about the pivot. pivot_x and feet_y are image pixels from the top-left; draw at select_scale with (pivot_x, feet_y) on (the side's centre x, select_feet_y); flip P2. Rebuilt by tools/asset_src/glass/build_select_heroes.py from the roster in resources/Content/content_manifest.csv.",
+ "select_scale": 2.05,
+ "select_feet_y": 700,
+ "heroes": [
+  {
+   "id": "einstein",
+   "fps": 6.0,
+   "loop": true,
+   "texel_scale": 2.0,
+   "frames": [
+    {
+     "file": "select_heroes/einstein_idle_0.png",
+     "size": [
+      132,
+      234
+     ],
+     "pivot_x": 66.0,
+     "feet_y": 229.0,
+     "source": "locomotion atlas region [496, 560, 152, 256] (einstein__idle#2)"
+    },
+    {
+     "file": "select_heroes/einstein_idle_1.png",
+     "size": [
+      132,
+      234
+     ],
+     "pivot_x": 66.0,
+     "feet_y": 229.0,
+     "source": "locomotion atlas region [648, 560, 152, 256] (einstein__idle#3)"
+    },
+    {
+     "file": "select_heroes/einstein_idle_2.png",
+     "size": [
+      132,
+      234
+     ],
+     "pivot_x": 66.0,
+     "feet_y": 229.0,
+     "source": "locomotion atlas region [800, 560, 152, 256] (einstein__idle#5)"
+    },
+    {
+     "file": "select_heroes/einstein_idle_3.png",
+     "size": [
+      132,
+      234
+     ],
+     "pivot_x": 66.0,
+     "feet_y": 229.0,
+     "source": "locomotion atlas region [952, 560, 152, 256] (einstein__idle#2)"
+    }
+   ]
+  },
+  {
+   "id": "joan",
+   "fps": 6.0,
+   "loop": true,
+   "texel_scale": 2.0,
+   "frames": [
+    {
+     "file": "select_heroes/joan_idle_0.png",
+     "size": [
+      168,
+      225
+     ],
+     "pivot_x": 84.0,
+     "feet_y": 221.0,
+     "source": "locomotion atlas region [0, 320, 184, 248] (joan__idle#2)"
+    },
+    {
+     "file": "select_heroes/joan_idle_1.png",
+     "size": [
+      168,
+      225
+     ],
+     "pivot_x": 84.0,
+     "feet_y": 221.0,
+     "source": "locomotion atlas region [184, 320, 184, 248] (joan__idle#3)"
+    },
+    {
+     "file": "select_heroes/joan_idle_2.png",
+     "size": [
+      168,
+      225
+     ],
+     "pivot_x": 84.0,
+     "feet_y": 221.0,
+     "source": "locomotion atlas region [368, 320, 184, 248] (joan__idle#5)"
+    },
+    {
+     "file": "select_heroes/joan_idle_3.png",
+     "size": [
+      168,
+      225
+     ],
+     "pivot_x": 84.0,
+     "feet_y": 221.0,
+     "source": "locomotion atlas region [552, 320, 184, 248] (joan__idle#2)"
+    }
+   ]
+  },
+  {
+   "id": "leonardo",
+   "fps": 6.0,
+   "loop": true,
+   "texel_scale": 2.0,
+   "frames": [
+    {
+     "file": "select_heroes/leonardo_idle_0.png",
+     "size": [
+      146,
+      236
+     ],
+     "pivot_x": 73.0,
+     "feet_y": 231.0,
+     "source": "locomotion atlas region [496, 560, 168, 256] (leonardo__idle#2)"
+    },
+    {
+     "file": "select_heroes/leonardo_idle_1.png",
+     "size": [
+      146,
+      236
+     ],
+     "pivot_x": 73.0,
+     "feet_y": 231.0,
+     "source": "locomotion atlas region [664, 560, 168, 256] (leonardo__idle#3)"
+    },
+    {
+     "file": "select_heroes/leonardo_idle_2.png",
+     "size": [
+      146,
+      236
+     ],
+     "pivot_x": 73.0,
+     "feet_y": 231.0,
+     "source": "locomotion atlas region [832, 560, 168, 256] (leonardo__idle#5)"
+    },
+    {
+     "file": "select_heroes/leonardo_idle_3.png",
+     "size": [
+      146,
+      236
+     ],
+     "pivot_x": 73.0,
+     "feet_y": 231.0,
+     "source": "locomotion atlas region [1000, 560, 168, 256] (leonardo__idle#2)"
+    }
+   ]
+  },
+  {
+   "id": "lincoln",
+   "fps": 6.0,
+   "loop": true,
+   "texel_scale": 2.0,
+   "frames": [
+    {
+     "file": "select_heroes/lincoln_idle_0.png",
+     "size": [
+      178,
+      223
+     ],
+     "pivot_x": 89.0,
+     "feet_y": 218.0,
+     "source": "locomotion atlas region [928, 600, 200, 248] (lincoln__idle#2)"
+    },
+    {
+     "file": "select_heroes/lincoln_idle_1.png",
+     "size": [
+      178,
+      223
+     ],
+     "pivot_x": 89.0,
+     "feet_y": 218.0,
+     "source": "locomotion atlas region [0, 864, 200, 248] (lincoln__idle#3)"
+    },
+    {
+     "file": "select_heroes/lincoln_idle_2.png",
+     "size": [
+      178,
+      223
+     ],
+     "pivot_x": 89.0,
+     "feet_y": 218.0,
+     "source": "locomotion atlas region [200, 864, 200, 248] (lincoln__idle#5)"
+    },
+    {
+     "file": "select_heroes/lincoln_idle_3.png",
+     "size": [
+      178,
+      223
+     ],
+     "pivot_x": 89.0,
+     "feet_y": 218.0,
+     "source": "locomotion atlas region [400, 864, 200, 248] (lincoln__idle#2)"
+    }
+   ]
+  },
+  {
+   "id": "cleopatra",
+   "fps": 6.0,
+   "loop": true,
+   "texel_scale": 2.0,
+   "frames": [
+    {
+     "file": "select_heroes/cleopatra_idle_0.png",
+     "size": [
+      170,
+      223
+     ],
+     "pivot_x": 85.0,
+     "feet_y": 219.0,
+     "source": "locomotion atlas region [480, 1408, 192, 240] (cleopatra__idle#2)"
+    },
+    {
+     "file": "select_heroes/cleopatra_idle_1.png",
+     "size": [
+      170,
+      223
+     ],
+     "pivot_x": 85.0,
+     "feet_y": 219.0,
+     "source": "locomotion atlas region [0, 1648, 192, 240] (cleopatra__idle#3)"
+    },
+    {
+     "file": "select_heroes/cleopatra_idle_2.png",
+     "size": [
+      170,
+      223
+     ],
+     "pivot_x": 85.0,
+     "feet_y": 219.0,
+     "source": "locomotion atlas region [192, 1648, 192, 240] (cleopatra__idle#5)"
+    },
+    {
+     "file": "select_heroes/cleopatra_idle_3.png",
+     "size": [
+      170,
+      223
+     ],
+     "pivot_x": 85.0,
+     "feet_y": 219.0,
+     "source": "locomotion atlas region [384, 1648, 192, 240] (cleopatra__idle#2)"
+    }
+   ]
+  },
+  {
+   "id": "tesla",
+   "fps": 6.0,
+   "loop": true,
+   "texel_scale": 2.0,
+   "frames": [
+    {
+     "file": "select_heroes/tesla_idle_0.png",
+     "size": [
+      160,
+      238
+     ],
+     "pivot_x": 80.0,
+     "feet_y": 233.0,
+     "source": "locomotion atlas region [248, 832, 176, 256] (tesla__idle#2)"
+    },
+    {
+     "file": "select_heroes/tesla_idle_1.png",
+     "size": [
+      160,
+      238
+     ],
+     "pivot_x": 80.0,
+     "feet_y": 233.0,
+     "source": "locomotion atlas region [424, 832, 176, 256] (tesla__idle#3)"
+    },
+    {
+     "file": "select_heroes/tesla_idle_2.png",
+     "size": [
+      160,
+      238
+     ],
+     "pivot_x": 80.0,
+     "feet_y": 233.0,
+     "source": "locomotion atlas region [600, 832, 176, 256] (tesla__idle#5)"
+    },
+    {
+     "file": "select_heroes/tesla_idle_3.png",
+     "size": [
+      160,
+      238
+     ],
+     "pivot_x": 80.0,
+     "feet_y": 233.0,
+     "source": "locomotion atlas region [776, 832, 176, 256] (tesla__idle#2)"
+    }
+   ]
+  },
+  {
+   "id": "shakespeare",
+   "fps": 6.0,
+   "loop": true,
+   "texel_scale": 2.0,
+   "frames": [
+    {
+     "file": "select_heroes/shakespeare_idle_0.png",
+     "size": [
+      210,
+      238
+     ],
+     "pivot_x": 105.0,
+     "feet_y": 233.0,
+     "source": "locomotion atlas region [0, 320, 232, 256] (shakespeare__idle#2)"
+    },
+    {
+     "file": "select_heroes/shakespeare_idle_1.png",
+     "size": [
+      210,
+      238
+     ],
+     "pivot_x": 105.0,
+     "feet_y": 233.0,
+     "source": "locomotion atlas region [232, 320, 232, 256] (shakespeare__idle#3)"
+    },
+    {
+     "file": "select_heroes/shakespeare_idle_2.png",
+     "size": [
+      210,
+      238
+     ],
+     "pivot_x": 105.0,
+     "feet_y": 233.0,
+     "source": "locomotion atlas region [464, 320, 232, 256] (shakespeare__idle#5)"
+    },
+    {
+     "file": "select_heroes/shakespeare_idle_3.png",
+     "size": [
+      210,
+      238
+     ],
+     "pivot_x": 105.0,
+     "feet_y": 233.0,
+     "source": "locomotion atlas region [696, 320, 232, 256] (shakespeare__idle#2)"
+    }
+   ]
+  },
+  {
+   "id": "mozart",
+   "fps": 6.0,
+   "loop": true,
+   "texel_scale": 2.0,
+   "frames": [
+    {
+     "file": "select_heroes/mozart_idle_0.png",
+     "size": [
+      124,
+      231
+     ],
+     "pivot_x": 62.0,
+     "feet_y": 226.0,
+     "source": "locomotion atlas region [0, 288, 144, 248] (mozart__idle#2)"
+    },
+    {
+     "file": "select_heroes/mozart_idle_1.png",
+     "size": [
+      124,
+      231
+     ],
+     "pivot_x": 62.0,
+     "feet_y": 226.0,
+     "source": "locomotion atlas region [144, 288, 144, 248] (mozart__idle#3)"
+    },
+    {
+     "file": "select_heroes/mozart_idle_2.png",
+     "size": [
+      124,
+      231
+     ],
+     "pivot_x": 62.0,
+     "feet_y": 226.0,
+     "source": "locomotion atlas region [288, 288, 144, 248] (mozart__idle#4)"
+    },
+    {
+     "file": "select_heroes/mozart_idle_3.png",
+     "size": [
+      124,
+      231
+     ],
+     "pivot_x": 62.0,
+     "feet_y": 226.0,
+     "source": "locomotion atlas region [432, 288, 144, 248] (mozart__idle#5)"
+    }
+   ]
+  },
+  {
+   "id": "tubman",
+   "fps": 6.0,
+   "loop": true,
+   "texel_scale": 2.0,
+   "frames": [
+    {
+     "file": "select_heroes/tubman_idle_0.png",
+     "size": [
+      202,
+      218
+     ],
+     "pivot_x": 101.0,
+     "feet_y": 213.0,
+     "source": "locomotion atlas region [0, 808, 224, 240] (tubman__idle#2)"
+    },
+    {
+     "file": "select_heroes/tubman_idle_1.png",
+     "size": [
+      202,
+      218
+     ],
+     "pivot_x": 101.0,
+     "feet_y": 213.0,
+     "source": "locomotion atlas region [224, 808, 224, 240] (tubman__idle#3)"
+    },
+    {
+     "file": "select_heroes/tubman_idle_2.png",
+     "size": [
+      202,
+      218
+     ],
+     "pivot_x": 101.0,
+     "feet_y": 213.0,
+     "source": "locomotion atlas region [448, 808, 224, 240] (tubman__idle#5)"
+    },
+    {
+     "file": "select_heroes/tubman_idle_3.png",
+     "size": [
+      202,
+      218
+     ],
+     "pivot_x": 101.0,
+     "feet_y": 213.0,
+     "source": "locomotion atlas region [672, 808, 224, 240] (tubman__idle#2)"
+    }
+   ]
+  }
+ ]
+}
