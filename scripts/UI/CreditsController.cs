@@ -152,9 +152,9 @@ namespace FTT.UI {
                     Name = $"CreditLine_{index}",
                     Text = Tr(line.Key),
                     HorizontalAlignment = HorizontalAlignment.Center,
-                    // The title stays on one line: its gradient spans one line box (a second line drew flat in the
-                    // gradient's last colour), so the 1100 px column widens to it, centred, when it is wider.
-                    AutowrapMode = line.Key == TitleKey ? TextServer.AutowrapMode.Off : TextServer.AutowrapMode.WordSmart,
+                    // Every line wraps in the 1100 px column, the title too: its gradient repeats on each of its lines
+                    // (TG-CLOSE; it stayed on one line and widened the column past the screen at 1.4).
+                    AutowrapMode = TextServer.AutowrapMode.WordSmart,
                     MouseFilter = Control.MouseFilterEnum.Ignore
                 };
                 // TG-SCREENS (UI_SPEC_GLASS 9.2): roles carry the size and colour, so the roll follows the accessibility

@@ -9,7 +9,8 @@ namespace FTT.UI.Pulp {
     /// font's own line), so <c>line_top</c> and <c>line_height</c> follow the label's font metrics, its layout and the UI
     /// scale (the theme's font size). A theme change re-applies them once it has reached the label. The label draws white
     /// under the shader (its colour override); without the shader it keeps its role colour, the flat #DFE8FF fallback.
-    /// Never animated.
+    /// Never animated. TG-CLOSE: a wrapped title repeats the gradient on every line (<c>line_count</c> lines,
+    /// <c>line_pitch</c> apart), so a title may wrap (the credits title does).
     /// </summary>
     public partial class TitleGradient : Node {
 
@@ -19,6 +20,7 @@ namespace FTT.UI.Pulp {
         public const float LineHeightRatio = 0.94f;
 
         private static readonly StringName LineTopName = "line_top", LineHeightName = "line_height";
+        private static readonly StringName LinePitchName = "line_pitch", LineCountName = "line_count";
         private static readonly StringName FontName = "font", FontSizeName = "font_size", NormalName = "normal";
         private static readonly StringName LineSpacingName = "line_spacing";
         private static Shader _shader;
@@ -26,7 +28,8 @@ namespace FTT.UI.Pulp {
         private Label _label;
         private ShaderMaterial _material;
         private bool _queued;
-        private float _lineTop = float.NaN, _lineHeight = float.NaN;
+        private float _lineTop = float.NaN, _lineHeight = float.NaN, _linePitch = float.NaN;
+        private int _lineCount = -1;
 
         /// <summary>The label's own material (null when the shader is missing: the flat fallback).</summary>
         public ShaderMaterial Material => _material;
@@ -34,6 +37,9 @@ namespace FTT.UI.Pulp {
         /// <summary>The line box's top and height the shader was last given (label-local pixels).</summary>
         public float LineTop => _lineTop;
         public float LineHeight => _lineHeight;
+        /// <summary>The distance between two lines' tops and the number of lines the shader was last given.</summary>
+        public float LinePitch => _linePitch;
+        public int LineCount => _lineCount;
 
         /// <summary>Installs the gradient on <paramref name="label"/> (idempotent: a second call returns the first).</summary>
         public static TitleGradient Attach(Label label) {
@@ -90,6 +96,7 @@ namespace FTT.UI.Pulp {
             int lines = Mathf.Max(1, _label.GetLineCount());
             float spacing = _label.GetThemeConstant(LineSpacingName);
             float textHeight = lines * fontHeight + (lines - 1) * spacing;
+            float pitch = fontHeight + spacing;
             float avail = _label.Size.Y - top - bottom;
             float y0 = _label.VerticalAlignment switch {
                 VerticalAlignment.Center => top + (avail - textHeight) / 2f,
@@ -100,6 +107,8 @@ namespace FTT.UI.Pulp {
             float lineTop = y0 + (fontHeight - lineHeight) / 2f;
             if (!Mathf.IsEqualApprox(lineTop, _lineTop)) { _lineTop = lineTop; _material.SetShaderParameter(LineTopName, lineTop); }
             if (!Mathf.IsEqualApprox(lineHeight, _lineHeight)) { _lineHeight = lineHeight; _material.SetShaderParameter(LineHeightName, lineHeight); }
+            if (!Mathf.IsEqualApprox(pitch, _linePitch)) { _linePitch = pitch; _material.SetShaderParameter(LinePitchName, pitch); }
+            if (lines != _lineCount) { _lineCount = lines; _material.SetShaderParameter(LineCountName, lines); }
         }
     }
 }

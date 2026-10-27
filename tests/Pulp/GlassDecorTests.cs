@@ -308,4 +308,59 @@ public class GlassDecorTests {
             host.Free();
         }
     }
+
+    /// <summary>
+    /// TG-CLOSE (TG-SCREENS kit gap): the title gradient repeats on every line of a wrapped title (it spanned the first
+    /// line box only, so a second line drew flat in the gradient's last colour), and the credits title therefore wraps
+    /// inside its 1100 px column instead of widening it past the screen at 1.4.
+    /// </summary>
+    [TestCase]
+    public async Task AWrappedTitleRepeatsItsGradientOnEveryLineAndTheCreditsTitleWraps() {
+        float original = UIPalette.AppliedUiScale;
+        Theme hold = UIPalette.LoadTheme();
+        var host = new Control { Name = "WrappedTitleHost" };
+        UIPalette.ApplyTheme(host);
+        Tree.Root.AddChild(host);
+        var creditsHost = new Node { Name = "WrappedCreditsHost" };
+        try {
+            UIPalette.ApplyUiScale(1f);
+            var label = new Label {
+                Text = "FIGHTERS THROUGH TIME", ThemeTypeVariation = UIPalette.LabelRoles.PauseTitle,
+                AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(620f, 0f)
+            };
+            host.AddChild(label);
+            TitleGradient gradient = TitleGradient.Attach(label);
+            await Frames(4);
+            AssertObject(gradient.Material).IsNotNull();
+            int lines = label.GetLineCount();
+            AssertThat(lines >= 2).OverrideFailureMessage($"Harness: the title did not wrap ({lines} line)").IsTrue();
+            int size = label.GetThemeFontSize("font_size");
+            float pitch = label.GetThemeFont("font").GetHeight(size) + label.GetThemeConstant("line_spacing");
+            AssertThat((int)gradient.Material.GetShaderParameter("line_count"))
+                .OverrideFailureMessage($"line_count {gradient.Material.GetShaderParameter("line_count")}, the label has {lines} lines").IsEqual(lines);
+            AssertThat(Mathf.Abs((float)gradient.Material.GetShaderParameter("line_pitch") - pitch) < 0.01f)
+                .OverrideFailureMessage($"line_pitch {gradient.Material.GetShaderParameter("line_pitch")}, the lines are {pitch} apart").IsTrue();
+
+            // The credits roll at 1.4: the title wraps inside the column, and its gradient knows every line.
+            UIPalette.ApplyUiScale(1.4f);
+            var credits = ResourceLoader.Load<PackedScene>("res://scenes/ui/Credits.tscn").Instantiate<CanvasLayer>();
+            Tree.Root.AddChild(creditsHost);
+            creditsHost.AddChild(credits);
+            await Frames(4);
+            var column = credits.GetNode<Control>("Shade/Scroll/Lines");
+            var title = column.GetNode<Label>("CreditLine_0");
+            AssertThat(title.AutowrapMode != TextServer.AutowrapMode.Off).OverrideFailureMessage("the credits title does not wrap").IsTrue();
+            AssertThat(column.Size.X <= 1100.5f).OverrideFailureMessage($"the title widened the 1100 px column to {column.Size.X}").IsTrue();
+            var titleGradient = title.GetNodeOrNull<TitleGradient>(TitleGradient.NodeName);
+            AssertObject(titleGradient).IsNotNull();
+            AssertThat((int)titleGradient.Material.GetShaderParameter("line_count")).IsEqual(title.GetLineCount());
+        } finally {
+            UIPalette.ApplyUiScale(original);
+            host.GetParent()?.RemoveChild(host);
+            host.Free();
+            creditsHost.GetParent()?.RemoveChild(creditsHost);
+            creditsHost.Free();
+            System.GC.KeepAlive(hold);
+        }
+    }
 }
