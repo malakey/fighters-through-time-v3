@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using FTT.Combat;
 using FTT.Core;
 using FTT.UI;
 using GdUnit4;
@@ -51,6 +53,33 @@ public class FighterOverlayModelTests {
             out FighterOverlayBeat go)).IsTrue();
         AssertThat(go.Style).IsEqual(FighterBannerStyle.Go);
         AssertThat(go.BannerKey).IsEqual("fighter_countdown_go");
+    }
+
+    /// <summary>
+    /// TG-CLOSE fix step (the orchestrator's ruling): the pre-match 3 / 2 / 1 stands on chrome that belongs to no player, so
+    /// it draws in the chrome accent (UI_SPEC_GLASS gives this numeral no colour of its own; T59, the select's countdown,
+    /// is accent too), not in player one's ownership colour, which followed the player-slot palette. Its size is kept.
+    /// </summary>
+    [TestCase]
+    public void TheCountdownDigitIsTheChromeAccentInEveryPlayerSlotPalette() {
+        GlobalSaveData data = SaveManager.Instance?.GlobalData;
+        if (data == null) AssertThat("GlobalData is missing").IsEqual("");
+        int saved = data.PlayerSlotPalette;
+        var problems = new List<string>();
+        try {
+            for (int palette = 0; palette < PlayerSlotPalettes.Count; palette++) {
+                data.PlayerSlotPalette = palette;
+                AssertThat(FighterOverlayModel.TryResolveBanner(
+                    Payload(FighterPresentationPhase.Countdown, countdownValue: 2), out FighterOverlayBeat numeral)).IsTrue();
+                if (!numeral.Color.IsEqualApprox(UIPalette.Accent)) {
+                    problems.Add($"{(PlayerSlotPalette)palette}: the digit draws {numeral.Color}, not the chrome accent {UIPalette.Accent}");
+                }
+                if (numeral.FontSize != FighterOverlayModel.CountdownFontSize) problems.Add($"{(PlayerSlotPalette)palette}: size {numeral.FontSize}");
+            }
+        } finally {
+            data.PlayerSlotPalette = saved;
+        }
+        if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
     }
 
     [TestCase]
