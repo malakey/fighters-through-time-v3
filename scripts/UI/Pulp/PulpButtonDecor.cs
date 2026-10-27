@@ -20,7 +20,13 @@ namespace FTT.UI.Pulp {
     /// on the focused row only (<see cref="ShowPrompt"/> turns it off for footers, 3.2 D6).</item>
     /// <item>Hover is focus (AC8): the mouse entering a visible, enabled, focusable button gives it focus.</item>
     /// <item>UI scale (6.7 item 8): the button's design height, the paddings the label is drawn at, the marker and the badge
-    /// grow with the UI scale; the width is the screen's (the <see cref="ApplyStackWidth"/> rule).</item>
+    /// grow with the UI scale.</item>
+    /// <item>Width: the screen's when it sets one (a <c>CustomMinimumSize</c> width) or a D6 stack's
+    /// (<see cref="ApplyStackWidth"/>). Otherwise the decor widens the row itself (orchestrator ruling, TG-WIDGETS step 2):
+    /// its minimum width is <see cref="RequiredWidth"/>, the drawn upper-case label at the theme size with the paddings and,
+    /// when the row can show its badge, the badge reserve, kept up to date after a theme, UI-scale, locale or text change.
+    /// A row that wraps (<see cref="GrowToFit"/>, autowrap, a line break) or clips its text (<c>ClipText</c>, an overrun
+    /// behaviour) keeps the width it has.</item>
     /// </list>
     /// Nothing polls per frame: the button's own redraw (its state, text or size changed) queues one refresh, and the label's
     /// text layout is cached until its text, font, size or width changes.
@@ -293,6 +299,9 @@ namespace FTT.UI.Pulp {
             _button.Resized += OnStateChanged;
             _button.VisibilityChanged += OnStateChanged;
             _button.Draw += OnButtonDraw;
+            // The button's text, icon, clipping or the screen's own width changed: refresh the width once, deferred. The
+            // decor's own write raises this too, and that refresh measures the same width and writes nothing.
+            _button.MinimumSizeChanged += QueueRefresh;
             if (InputManager.Instance != null) InputManager.Instance.DeviceAssigned += OnDeviceAssigned;
             Refresh();
         }
@@ -310,6 +319,7 @@ namespace FTT.UI.Pulp {
                 _button.Toggled -= OnToggled;
                 _button.Resized -= OnStateChanged;
                 _button.VisibilityChanged -= OnStateChanged;
+                _button.MinimumSizeChanged -= QueueRefresh;
                 _button.Draw -= OnButtonDraw;
             }
             if (InputManager.Instance != null) InputManager.Instance.DeviceAssigned -= OnDeviceAssigned;
@@ -404,11 +414,47 @@ namespace FTT.UI.Pulp {
             if (_growToFit) {
                 width = Mathf.Max(width, _wordMinWidth);
                 height = Mathf.Max(height, _grownHeight);
+            } else if (_stackRule != null) {
+                width = current.X;                 // the bound D6 rule owns the width
+            } else if (AutoWidens) {
+                width = AutoWidth();
             }
             var want = new Vector2(width, height);
             _written = want;
             _hasWritten = true;
+            // Writing only a changed size keeps this out of a loop: the resize it causes refreshes to the same value.
             if (current != want) _button.CustomMinimumSize = want;
+        }
+
+        /// <summary>
+        /// True when the decor sizes the row's width itself: no width from the screen, a label it draws on one line, in the
+        /// tree (where the theme resolves), and no clipping the screen asked for. A D6 stack is handled before this.
+        /// </summary>
+        private bool AutoWidens => _design.X <= 0f && _uppercase && _button.IsInsideTree() && !IsMultiLine
+            && !_button.ClipText && _button.TextOverrunBehavior == TextServer.OverrunBehavior.NoTrimming;
+
+        // The decor's own width for the row (ruling 5): RequiredWidth with the badge reserved when the row can show it,
+        // cached on its inputs so a refresh that changes none of them measures nothing.
+        private string _autoText;
+        private Font _autoFont;
+        private int _autoSize = -1;
+        private float _autoFixed = -1f;
+        private float _autoWidth;
+
+        private float AutoWidth() {
+            Font font = _button.GetThemeFont(FontName);
+            int size = _button.GetThemeFontSize(FontSizeName);
+            float fixedPart = RequiredFixedWidth(_button, _showPrompt && _button.FocusMode != Control.FocusModeEnum.None, _scale);
+            if (ReferenceEquals(_autoText, _drawn) && ReferenceEquals(_autoFont, font) && _autoSize == size
+                && Mathf.IsEqualApprox(_autoFixed, fixedPart)) {
+                return _autoWidth;
+            }
+            _autoText = _drawn;
+            _autoFont = font;
+            _autoSize = size;
+            _autoFixed = fixedPart;
+            _autoWidth = Mathf.Ceil(fixedPart + MeasureWidth(_drawn, font, size));
+            return _autoWidth;
         }
 
         // Recomputes the wrapped line count only when the text, width, font size or UI scale changed.
@@ -775,18 +821,24 @@ namespace FTT.UI.Pulp {
         // ---- The stack width rule (UI_SPEC_GLASS 3.2, D6) ----
 
         /// <summary>
-        /// The width a chevron needs for its label on one line at the theme size: its paddings (at the UI scale), the label,
-        /// and when <paramref name="reservePrompt"/> the badge and its gap: <c>58 + label + 16 + 36 + 54</c> (compact
-        /// <c>52 + label + 40</c> with no prompt). "CALIBRATION DRILLS" at Cinzel 700 34 px needs about 636.
+        /// The width a chevron needs for its label on one line at the theme size: its paddings (at the UI scale), an icon and
+        /// its separation if it has one, the label, and when <paramref name="reservePrompt"/> the badge and its gap:
+        /// <c>58 + label + 16 + 36 + 54</c> (compact <c>52 + label + 40</c> with no prompt). "CALIBRATION DRILLS" at Cinzel 700
+        /// 34 px needs 636 in the mock's browser and 616 in the build (Godot's tracking is a whole 4 px, not 4.42).
         /// </summary>
         public static float RequiredWidth(Button button, bool reservePrompt = true) {
             if (button == null) return 0f;
-            float scale = UiScaleFactor;
+            float label = MeasureWidth(ToDrawnText(button.Tr(button.Text)), button.GetThemeFont(FontName), button.GetThemeFontSize(FontSizeName));
+            return Mathf.Ceil(RequiredFixedWidth(button, reservePrompt, UiScaleFactor) + label);
+        }
+
+        // Everything a row's width holds but the label: its paddings at the UI scale, an icon and its separation, and the
+        // badge reserve when asked.
+        private static float RequiredFixedWidth(Button button, bool reservePrompt, float scale) {
             StyleBox box = button.GetThemeStylebox(NormalName);
             float paddings = ((box?.GetContentMargin(Side.Left) ?? 0f) + (box?.GetContentMargin(Side.Right) ?? 0f)) * scale;
-            float label = MeasureWidth(ToDrawnText(button.Tr(button.Text)), button.GetThemeFont(FontName), button.GetThemeFontSize(FontSizeName));
-            float prompt = reservePrompt ? BadgeReserve * scale : 0f;
-            return Mathf.Ceil(paddings + label + prompt);
+            float icon = button.Icon != null ? button.Icon.GetWidth() + button.GetThemeConstant(HSeparationName) : 0f;
+            return paddings + icon + (reservePrompt ? BadgeReserve * scale : 0f);
         }
 
         /// <summary>

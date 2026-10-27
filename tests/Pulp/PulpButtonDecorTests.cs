@@ -429,6 +429,128 @@ public class PulpButtonDecorTests {
     }
 
     [TestCase]
+    public async Task AnUnsizedRowWidensToItsDrawnLabelAndFollowsItsTextAndTheUiScaleWithoutALoop() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        float original = UIPalette.AppliedUiScale;
+        PulpPromptGlyphs.DeviceOverrideForTesting = PromptDevice.Pad;
+        var host = new Control { Name = "AutoWidthHost" };
+        UIPalette.ApplyTheme(host);
+        tree.Root.AddChild(host);
+        // A row no screen sized: a footer or modal button that took its width from its own text until now.
+        var row = new Button { Text = "menu_calibration_drills", ThemeTypeVariation = "PulpButton", FocusMode = Control.FocusModeEnum.All };
+        host.AddChild(row);
+        async Task Frames(int count = 4) {
+            for (int i = 0; i < count; i++) await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+        }
+        try {
+            PulpButtonDecor decor = PulpButtonDecor.Apply(row);
+            await Frames();
+            float needed = PulpButtonDecor.RequiredWidth(row);
+            // Harness: the button's own mixed-case text makes it narrower than its drawn upper-case label needs.
+            AssertThat(row.GetMinimumSize().X < needed).OverrideFailureMessage($"Harness: own {row.GetMinimumSize().X}, needed {needed}").IsTrue();
+            // Ruling 5: the decor widens the row to the drawn label, its paddings and the badge reserve; the label is whole.
+            AssertThat(row.CustomMinimumSize.X).IsEqual(needed);
+            AssertThat(row.Size.X >= needed).IsTrue();
+            AssertThat(decor.DrawnFontSize).IsEqual(row.GetThemeFontSize("font_size"));
+            AssertThat(decor.LabelIsTrimmed).IsFalse();
+            // A row that never shows its badge reserves none.
+            decor.ShowPrompt = false;
+            await Frames();
+            AssertThat(row.CustomMinimumSize.X).IsEqual(PulpButtonDecor.RequiredWidth(row, reservePrompt: false));
+            decor.ShowPrompt = true;
+            // A new text (a locale change reaches the same refresh) is measured again.
+            row.Text = "menu_quit";
+            await Frames();
+            float quit = PulpButtonDecor.RequiredWidth(row);
+            AssertThat(quit < needed).IsTrue();
+            AssertThat(row.CustomMinimumSize.X).IsEqual(quit);
+            // The UI scale grows the label and the paddings, and the row with them; and back.
+            UIPalette.ApplyUiScale(1.4f);
+            await Frames();
+            AssertThat(row.CustomMinimumSize.X > quit).IsTrue();
+            AssertThat(row.CustomMinimumSize.X).IsEqual(PulpButtonDecor.RequiredWidth(row));
+            UIPalette.ApplyUiScale(1f);
+            await Frames();
+            AssertThat(row.CustomMinimumSize.X).IsEqual(quit);
+            // Settled, a redraw and a refresh write nothing: no notification loop.
+            int changes = 0;
+            void Count() => changes++;
+            row.MinimumSizeChanged += Count;
+            await Frames(8);
+            row.QueueRedraw();
+            decor.Refresh();
+            await Frames(8);
+            row.MinimumSizeChanged -= Count;
+            AssertThat(changes).IsEqual(0);
+        } finally {
+            PulpPromptGlyphs.DeviceOverrideForTesting = null;
+            UIPalette.ApplyUiScale(original);
+            host.GetParent()?.RemoveChild(host);
+            host.Free();
+        }
+    }
+
+    [TestCase]
+    public async Task ARowWithTheScreensWidthAStacksWidthAWrapOrAClipKeepsThatWidth() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        PulpPromptGlyphs.DeviceOverrideForTesting = PromptDevice.Pad;
+        var host = new Control { Name = "KeptWidthHost" };
+        UIPalette.ApplyTheme(host);
+        tree.Root.AddChild(host);
+        Button Row(string key) {
+            var button = new Button { Text = key, ThemeTypeVariation = "PulpButton", FocusMode = Control.FocusModeEnum.All };
+            host.AddChild(button);
+            return button;
+        }
+        async Task Frames(int count = 4) {
+            for (int i = 0; i < count; i++) await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+        }
+        try {
+            // A width the screen set before decorating, and one it sets after.
+            Button sized = Row("menu_calibration_drills");
+            sized.CustomMinimumSize = new Vector2(400f, 0f);
+            PulpButtonDecor.Apply(sized);
+            Button later = Row("menu_calibration_drills");
+            PulpButtonDecor laterDecor = PulpButtonDecor.Apply(later);
+            Button clipped = Row("menu_calibration_drills");
+            clipped.ClipText = true;
+            PulpButtonDecor.Apply(clipped);
+            Button wrapping = Row("menu_calibration_drills");
+            PulpButtonDecor.Apply(wrapping).GrowToFit = true;
+            var stack = new List<Button> { Row("menu_calibration_drills"), Row("menu_quit") };
+            foreach (Button button in stack) PulpButtonDecor.Apply(button);
+            PulpButtonDecor.ApplyStackWidth(stack, 300f, 420f);
+            await Frames();
+            later.CustomMinimumSize = new Vector2(380f, later.CustomMinimumSize.Y);
+            await Frames();
+            float needed = PulpButtonDecor.RequiredWidth(sized);
+            AssertThat(needed > 420f).OverrideFailureMessage($"Harness: the label needs {needed}").IsTrue();
+            // The screen's width stays, set before or after the decor (the label shrinks inside it).
+            AssertThat(sized.CustomMinimumSize.X).IsEqual(400f);
+            AssertThat(later.CustomMinimumSize.X).IsEqual(380f);
+            // A row that asked to clip, or to wrap, is not widened to the one-line label.
+            AssertThat(clipped.CustomMinimumSize.X).IsEqual(0f);
+            AssertThat(wrapping.CustomMinimumSize.X < needed).IsTrue();
+            // The bound D6 rule owns its stack's width, however the decors refresh.
+            foreach (Button button in stack) {
+                button.QueueRedraw();
+                PulpButtonDecor.Apply(button).Refresh();
+            }
+            await Frames();
+            foreach (Button button in stack) AssertThat(button.CustomMinimumSize.X).IsEqual(420f);
+            // A screen that clears its width hands the row back to the decor at its next refresh (focus, hover, a resize, a
+            // text, theme or locale change; clearing alone raises nothing when the combined minimum does not move).
+            later.CustomMinimumSize = new Vector2(0f, later.CustomMinimumSize.Y);
+            laterDecor.Refresh();
+            AssertThat(later.CustomMinimumSize.X).IsEqual(needed);
+        } finally {
+            PulpPromptGlyphs.DeviceOverrideForTesting = null;
+            host.GetParent()?.RemoveChild(host);
+            host.Free();
+        }
+    }
+
+    [TestCase]
     public async Task AStackBuiltBeforeItsScreenIsInTheTreeTakesItsWidthThereAndFollowsTheUiScale() {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
         float original = UIPalette.AppliedUiScale;
