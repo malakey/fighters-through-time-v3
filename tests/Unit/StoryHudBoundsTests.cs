@@ -9,9 +9,9 @@ using static GdUnit4.Assertions;
 namespace FTT.Tests.Unit;
 
 /// <summary>
-/// UR-HUDS. The HUD-S1 clusters at UI scale 0.9, 1.0 and 1.4 in a 1920 x 1080 frame: every cluster stays
-/// inside the frame and none overlaps another or the boss bar (ruling 8: per-corner fit, the boss bar top
-/// centre with a maximum width, 320 units minimum).
+/// UR-HUDS, re-numbered for Temporal Glass by TG-HUDS. The HUD-S1 clusters at UI scale 0.9, 1.0 and 1.4 in a
+/// 1920 x 1080 frame: every cluster stays inside the frame and none overlaps another or the boss bar, which fills
+/// the free band between them (UI_SPEC_GLASS 4.4: min(840 s, 1920 - 1008 s), 24 s from each cluster).
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
@@ -72,8 +72,12 @@ public class StoryHudBoundsTests {
                 if (boss.Intersects(left)) problems.Add($"{scale}: boss overlaps the left column ({boss} vs {left})");
                 if (boss.Intersects(dust)) problems.Add($"{scale}: boss overlaps the dust plate");
                 if (boss.Intersects(dial)) problems.Add($"{scale}: boss overlaps the dial");
-                if (boss.Size.X < StoryHUD.BossBarMinWidth * scale - 1f) problems.Add($"{scale}: boss narrower than its minimum");
-                if (boss.Size.X > StoryHUD.BossBarMaxWidth * scale + 1f) problems.Add($"{scale}: boss wider than its maximum");
+                // UI_SPEC_GLASS 4.4: the bar fills the free band, min(840 s, 1920 - 1008 s), 24 s from the stack and from
+                // where the dust plate's 264 px would end.
+                float band = Mathf.Min(StoryHUD.BossBarMaxWidth * scale, 1920f - 1008f * scale);
+                if (Mathf.Abs(boss.Size.X - band) > 1f) problems.Add($"{scale}: boss {boss.Size.X} wide, not the band's {band}");
+                if (boss.Position.X < left.End.X + StoryHUD.BossGap * scale - 1f) problems.Add($"{scale}: boss closer than 24 s to the stack");
+                if (boss.End.X > 1920f - (StoryHUD.DustPlateReach + StoryHUD.BossGap) * scale + 1f) problems.Add($"{scale}: boss closer than 24 s to the dust plate");
                 var bar = hud.GetNode<Control>("SafeArea/BossPanel/BossBar");
                 var phase = hud.GetNode<Control>("SafeArea/BossPanel/BossPhaseTab");
                 if (!Bounds(hud.GetNode<Control>("SafeArea/BossPanel")).Grow(8f * scale).Encloses(Bounds(bar)))
