@@ -90,7 +90,7 @@ public class TranslationCsvShapeTests {
                 problems.Add($"line {startLine} key '{fields[0]}' has {fields.Count} columns, expected {expected}");
         }
         if (quoted)
-            problems.Add($"line {startLine} key '{fields[0]}' has an unterminated quote that runs to the end of the file");
+            problems.Add($"line {startLine} key '{(fields.Count > 0 ? fields[0] : "(none completed)")}' has an unterminated quote that runs to the end of the file");
         return problems;
     }
 
@@ -138,7 +138,19 @@ public class TranslationCsvShapeTests {
 
     [TestCase]
     public void ACommentLineInsideAQuotedValueIsPartOfTheValue() {
-        string[] lines = { "key,en", "a,\"one", "# not a comment", "two\"", "# real comment, with, commas" };
+        string[] lines = { "key,en", "a,\"one", "# closes here\"", "b,ok", "# real comment, with, commas" };
         AssertThat(string.Join(" | ", FindShapeProblems(lines))).IsEqual("");
+    }
+
+    [TestCase]
+    public void AnUnterminatedQuoteBeforeAnyCompletedFieldIsReportedNotThrown() {
+        var key = FindShapeProblems(new[] { "key,en", "\"unfinished", "b,world" });
+        AssertThat(key.Count).IsEqual(1);
+        AssertThat(key[0]).Contains("line 2");
+        AssertThat(key[0]).Contains("unterminated");
+        var header = FindShapeProblems(new[] { "\"key,en", "a,ok" });
+        AssertThat(header.Count).IsEqual(1);
+        AssertThat(header[0]).Contains("line 1");
+        AssertThat(header[0]).Contains("unterminated");
     }
 }
