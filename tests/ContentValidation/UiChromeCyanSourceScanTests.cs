@@ -25,7 +25,6 @@ public class UiChromeCyanSourceScanTests {
     /// <summary>Files that may name cyan, each with the one-line reason.</summary>
     private static readonly Dictionary<string, string> Allowed = new() {
         ["scripts/UI/UIPalette.cs"] = "defines the legacy Cyan / CyanDim constants and the grammar colours",
-        ["scripts/UI/ResonanceEdgeLayer.cs"] = "the Resonance grid's semantic 'satisfied' edge colour (kept by the redesign ruling)",
         ["scripts/UI/RewindPresentationOverlay.cs"] = "the rewind/collapse world-state tint, a temporal-effect presentation and not interface chrome"
     };
 

@@ -2,6 +2,9 @@
 
 [ext_resource type="Script" path="res://scripts/UI/GameOverScreen.cs" id="1_script"]
 [ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="2_theme"]
+; Smothered (TG-SCREENS, UI_SPEC_GLASS 9.2): an overlay with the stronger .82 dim, one 760 px glass slab, the title in
+; T04, a cold rule with a cold diamond under it (the Severed's light: the Smothered state is their victory; added in
+; code), the body, the deposited-dust notice and two stacked chevrons, Restart Level focused first.
 
 [node name="GameOver" type="CanvasLayer"]
 layer = 99
@@ -16,7 +19,7 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 0
 theme = ExtResource("2_theme")
-color = Color(0.0588, 0.0157, 0.0392, 1)
+color = Color(0.0118, 0.0196, 0.0549, 0.82)
 
 [node name="Center" type="CenterContainer" parent="Shade"]
 anchors_preset = 15
@@ -27,9 +30,8 @@ grow_vertical = 2
 mouse_filter = 2
 
 [node name="Panel" type="PanelContainer" parent="Shade/Center"]
-custom_minimum_size = Vector2(620, 0)
+custom_minimum_size = Vector2(760, 0)
 layout_mode = 2
-theme_type_variation = &"InkPanel"
 
 [node name="Layout" type="VBoxContainer" parent="Shade/Center/Panel"]
 layout_mode = 2
@@ -37,35 +39,39 @@ theme_override_constants/separation = 16
 
 [node name="Title" type="Label" parent="Shade/Center/Panel/Layout"]
 layout_mode = 2
-theme_type_variation = &"TitleLabel"
-theme_override_colors/font_color = Color(1, 0.353, 0.353, 1)
+theme_type_variation = &"PauseTitle"
 uppercase = true
 text = "game_over_title"
 horizontal_alignment = 1
 
 [node name="Body" type="Label" parent="Shade/Center/Panel/Layout"]
-custom_minimum_size = Vector2(560, 0)
+custom_minimum_size = Vector2(680, 0)
 layout_mode = 2
+size_flags_horizontal = 4
+theme_type_variation = &"BodyLabel"
 text = "game_over_smothered_body"
 horizontal_alignment = 1
 autowrap_mode = 3
 
 [node name="DustNotice" type="Label" parent="Shade/Center/Panel/Layout"]
-custom_minimum_size = Vector2(560, 0)
+custom_minimum_size = Vector2(680, 0)
 layout_mode = 2
-theme_type_variation = &"ObjectiveLine"
+size_flags_horizontal = 4
+theme_type_variation = &"BodySmallLabel"
 text = "game_over_deposited_dust_safe"
 horizontal_alignment = 1
 autowrap_mode = 3
 
 [node name="RestartButton" type="Button" parent="Shade/Center/Panel/Layout"]
-custom_minimum_size = Vector2(0, 80)
+custom_minimum_size = Vector2(0, 68)
 layout_mode = 2
+size_flags_horizontal = 4
 theme_type_variation = &"PulpButton"
 text = "game_over_restart_level"
 
 [node name="QuitButton" type="Button" parent="Shade/Center/Panel/Layout"]
-custom_minimum_size = Vector2(0, 80)
+custom_minimum_size = Vector2(0, 68)
 layout_mode = 2
+size_flags_horizontal = 4
 theme_type_variation = &"PulpButton"
 text = "game_over_quit_to_menu"

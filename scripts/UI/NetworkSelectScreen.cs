@@ -24,17 +24,20 @@ namespace FTT.UI {
         public override void _Ready() {
             var layout = new VBoxContainer {
                 Name = "Layout",
-                CustomMinimumSize = new Vector2(420f, 0f)
+                CustomMinimumSize = new Vector2(560f, 0f)
             };
             layout.AddThemeConstantOverride("separation", 12);
-            // UR-SCREENS (light pass, de-scoped screen): backdrop and an ink panel around the stack.
+            // TG-SCREENS (light pass, a de-scoped screen; UI_SPEC_GLASS 9.1): a full-screen menu. The bg0 field under the
+            // sub-screen art, one glass slab around the stack (the panel title inside it), compact chevrons, the glass
+            // field for the address, the prompt bar bottom-right and the screen streak.
             var backdrop = new ColorRect { Name = "Background", Color = UIPalette.Backdrop, MouseFilter = MouseFilterEnum.Ignore };
             backdrop.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
             AddChild(backdrop);
+            GlassScreenDressing.AddMenuArt(this, index: 1);
             var center = new CenterContainer { Name = "Center", MouseFilter = MouseFilterEnum.Ignore };
             center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
             AddChild(center);
-            var panel = new PanelContainer { Name = "Panel", ThemeTypeVariation = UIPalette.Variations.InkPanel };
+            var panel = new PanelContainer { Name = "Panel" };
             center.AddChild(panel);
             panel.AddChild(layout);
             MenuSafeAreaFit.Attach(panel);
@@ -52,7 +55,8 @@ namespace FTT.UI {
                 Name = "Notice",
                 Text = Tr("network_select_notice"),
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
-                HorizontalAlignment = HorizontalAlignment.Center
+                HorizontalAlignment = HorizontalAlignment.Center,
+                ThemeTypeVariation = UIPalette.LabelRoles.BodySmallLabel
             });
 
             var hostButton = MakeButton("HostButton", "network_host", OnHostPressed);
@@ -69,7 +73,8 @@ namespace FTT.UI {
             _statusLabel = new Label {
                 Name = "Status",
                 Text = Tr("network_status_offline"),
-                HorizontalAlignment = HorizontalAlignment.Center
+                HorizontalAlignment = HorizontalAlignment.Center,
+                ThemeTypeVariation = UIPalette.LabelRoles.CaptionLabel
             };
             layout.AddChild(_statusLabel);
 
@@ -78,6 +83,8 @@ namespace FTT.UI {
             layout.AddChild(_continueButton);
             layout.AddChild(MakeButton("BackButton", "common_back", OnBackPressed));
 
+            PulpScreenKit.AddPromptBar(this, ("ui_accept", "ui_prompt_select"));
+            PulpScreenKit.AddScreenStreak(this);
             hostButton.GrabFocus();
         }
 

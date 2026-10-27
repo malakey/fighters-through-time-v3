@@ -68,18 +68,24 @@ namespace FTT.UI {
                 _stamp.AddThemeColorOverride(
                     "font_color",
                     result.IsTrueTie ? UIPalette.Slate : UIPalette.BossRed);
+                // UI_SPEC_GLASS 9.2: a draw reads as one line, "Draw" in ink; the slate stamp would only repeat it.
+                _stamp.Visible = !result.IsTrueTie;
             }
             if (_outcome != null) {
                 _outcome.Text = result.IsTrueTie
                     ? Tr("fighter_results_draw")
                     : string.Format(Tr("fighter_results_winner"), result.WinnerPlayerID + 1);
+                if (result.IsTrueTie) _outcome.AddThemeColorOverride("font_color", UIPalette.Ink);
+                else _outcome.RemoveThemeColorOverride("font_color");
             }
+            ApplyWinnerShape(result);
             ApplyFighters(result);
             ApplyStocksLostTotals(result);
             // Focus is authored only once the panel is on screen: a chain built
             // against a hidden subtree collects nothing (FocusChainBuilder skips
             // invisible branches), and a controller player would land on nothing.
             FocusChainBuilder.Apply(_panel);
+            GlassScreenDressing.FadeIn(_panel);
         }
 
         /// <summary>The roundel portrait of player <paramref name="player"/> (0 or 1). Test seam.</summary>
@@ -133,13 +139,11 @@ namespace FTT.UI {
             bool timeMode = FighterHudModel.UsesStocksLostDisplay(result.MatchMode);
             if (_stocksLostOne != null) {
                 _stocksLostOne.Visible = timeMode;
-                _stocksLostOne.Text = string.Format(
-                    Tr("fighter_results_stocks_lost"), 1, result.PlayerOneStocksLost);
+                ResultRow.Attach(_stocksLostOne).SetText(Tr("fighter_results_stocks_lost"), 1, result.PlayerOneStocksLost);
             }
             if (_stocksLostTwo != null) {
                 _stocksLostTwo.Visible = timeMode;
-                _stocksLostTwo.Text = string.Format(
-                    Tr("fighter_results_stocks_lost"), 2, result.PlayerTwoStocksLost);
+                ResultRow.Attach(_stocksLostTwo).SetText(Tr("fighter_results_stocks_lost"), 2, result.PlayerTwoStocksLost);
             }
             if (_suddenDeathNote != null) {
                 _suddenDeathNote.Visible = result.DecidedInSuddenDeath;
@@ -192,10 +196,32 @@ namespace FTT.UI {
         public System.Collections.Generic.IReadOnlyList<string> ActionButtonNames => _actionButtonNames;
         private readonly System.Collections.Generic.List<string> _actionButtonNames = new();
 
+        /// <summary>The fighter slabs' width (UI_SPEC_GLASS 9.2: "two glass slabs 600 wide, left and right").</summary>
+        public const float FighterSlabWidth = 600f;
+
+        /// <summary>The portrait frame in each fighter slab (9.2: 110).</summary>
+        public const float PortraitFrame = 110f;
+
+        /// <summary>The winner's slot shape beside the outcome line, and its slot-colour glow (9.2: 14 px).</summary>
+        public const float WinnerShapeSize = 30f;
+        public const int WinnerGlowSize = 14;
+
+        private Control _winnerShapeHost;
+        private PulpIcon _winnerShape;
+        private StyleBoxFlat _winnerGlow;
+
+        /// <summary>
+        /// TG-SCREENS (UI_SPEC_GLASS 9.2, match results): full-screen over the dimmed stage (the .70 dim, no streak: it sits
+        /// over gameplay, plan 0.4 P3). The heading <c>fighter_results_title</c> in T03 between flourishes at y 40; the KO or
+        /// draw stamp (kept: its role and colours are pinned); the outcome line with the winner's slot shape and its glow;
+        /// two 600 px glass slabs, each a 110 px frame, the slot shape and the hero name (T09) and the per-player numbers as
+        /// results rows; the buttons as compact chevrons, centred, at least 34 px apart (the derived row gap); the prompt bar
+        /// bottom-centre.
+        /// </summary>
         private void BuildUI() {
             var shade = new ColorRect {
                 Name = "Shade",
-                Color = UIPalette.Shade,
+                Color = UIPalette.PauseDim,
                 MouseFilter = Control.MouseFilterEnum.Stop,
                 Visible = false
             };
@@ -204,43 +230,58 @@ namespace FTT.UI {
             AddChild(shade);
             _root = shade;
 
-            var center = new CenterContainer();
+            GlassScreenDressing.AddScreenHeading(shade, "fighter_results_title");
+
+            var center = new CenterContainer { Name = "Center", MouseFilter = Control.MouseFilterEnum.Ignore };
             center.SetAnchorsPreset(Control.LayoutPreset.FullRect);
             shade.AddChild(center);
 
-            var panel = new PanelContainer { Name = "Panel", CustomMinimumSize = new Vector2(760, 360) };
-            center.AddChild(panel);
-            MenuSafeAreaFit.Attach(panel);
-            _panel = panel;
-            PulpScreenKit.DressPanel(panel, "fighter_results_title", buttonInset: true);
-
-            var layout = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+            var layout = new VBoxContainer { Name = "Panel", Alignment = BoxContainer.AlignmentMode.Center };
             layout.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);
-            panel.AddChild(layout);
+            center.AddChild(layout);
+            // The heading at y 40 above, the prompt bar below: the larger of the two reserves (the fit is symmetric).
+            MenuSafeAreaFit.Attach(layout, GlassScreenDressing.ScaledHeadingReserve);
+            _panel = layout;
 
             // V7.3 UI-scale pass: the stamp rides the TitleLabel role — its old
-            // 56 px override froze it out of the accessibility scale, and the
-            // type scale deliberately has no display size beyond Title. The
-            // outline keeps the stamp reading as a stamp.
-            _stamp = new Label { Name = "Stamp", HorizontalAlignment = HorizontalAlignment.Center };
+            // 56 px override froze it out of the accessibility scale. On the glass
+            // results it keeps its role and its KO red / draw slate, upper-case, with
+            // the scene halo (it stands on the dim, not on a slab).
+            _stamp = new Label { Name = "Stamp", HorizontalAlignment = HorizontalAlignment.Center, Uppercase = true };
             _stamp.ThemeTypeVariation = UIPalette.TitleLabelVariation;
-            _stamp.AddThemeColorOverride("font_outline_color", UIPalette.NavyDeep);
-            _stamp.AddThemeConstantOverride("outline_size", 6);
+            GlassScreenDressing.ApplySceneHalo(_stamp, large: true);
             layout.AddChild(_stamp);
 
+            // The outcome line, led by the winner's slot shape and its glow (hidden on a draw).
+            var outcomeRow = new HBoxContainer { Name = "OutcomeRow", Alignment = BoxContainer.AlignmentMode.Center };
+            outcomeRow.AddThemeConstantOverride("separation", 14);
+            layout.AddChild(outcomeRow);
+            _winnerShapeHost = new WinnerShapeHost(this) {
+                Name = "WinnerShape", CustomMinimumSize = new Vector2(WinnerShapeSize, WinnerShapeSize),
+                SizeFlagsVertical = Control.SizeFlags.ShrinkCenter, MouseFilter = Control.MouseFilterEnum.Ignore
+            };
+            _winnerGlow = new StyleBoxFlat {
+                DrawCenter = false, BgColor = new Color(0f, 0f, 0f, 0f), ShadowSize = WinnerGlowSize, AntiAliasing = true
+            };
+            _winnerGlow.SetCornerRadiusAll(Mathf.RoundToInt(WinnerShapeSize / 2f));
+            _winnerShape = PulpIcon.Create("slot_p1", UIPalette.OwnerOnDark(0), WinnerShapeSize);
+            _winnerShape.Name = "Shape";
+            _winnerShapeHost.AddChild(_winnerShape);
+            outcomeRow.AddChild(_winnerShapeHost);
             _outcome = new Label {
                 Name = "Outcome",
                 HorizontalAlignment = HorizontalAlignment.Center,
-                ThemeTypeVariation = UIPalette.HeadingLabelVariation
+                ThemeTypeVariation = UIPalette.HeadingLabelVariation,
+                Uppercase = true
             };
-            layout.AddChild(_outcome);
+            GlassScreenDressing.ApplySceneHalo(_outcome, large: false);
+            outcomeRow.AddChild(_outcome);
 
-            // UR-SCREENS: the two fighters, each a portrait roundel, a slot shape + name row and the
-            // F21 stocks-lost line under it. The totals Labels keep their names and texts.
+            // The two fighters on glass slabs. The totals Labels keep their names and texts (the F21 test seams).
             var fighters = new HBoxContainer {
                 Name = "Fighters", Alignment = BoxContainer.AlignmentMode.Center
             };
-            fighters.AddThemeConstantOverride("separation", 120);
+            fighters.AddThemeConstantOverride("separation", 40);
             layout.AddChild(fighters);
             _stocksLostOne = MakeTotalsLine("StocksLostOne");
             _stocksLostTwo = MakeTotalsLine("StocksLostTwo");
@@ -248,6 +289,8 @@ namespace FTT.UI {
             fighters.AddChild(BuildFighterColumn(1, _stocksLostTwo));
 
             _suddenDeathNote = MakeTotalsLine("SuddenDeathNote");
+            _suddenDeathNote.ThemeTypeVariation = UIPalette.LabelRoles.SceneCaption;
+            _suddenDeathNote.Uppercase = true;
             layout.AddChild(_suddenDeathNote);
 
             // M26 (Package 12 W5): the buttons follow the match origin. Local
@@ -259,6 +302,9 @@ namespace FTT.UI {
             FighterMatchOrigin origin = GameManager.Instance?.CurrentSession.FighterMatchOrigin
                 ?? FighterMatchOrigin.LocalVersus;
             _actionButtonNames.Clear();
+            var buttonRow = new HBoxContainer { Name = "ButtonRow", Alignment = BoxContainer.AlignmentMode.Center };
+            layout.AddChild(buttonRow);
+            var buttons = new System.Collections.Generic.List<Button>();
             foreach (FighterResultsAction action in FighterFlowRoutes.ResultsActions(origin)) {
                 var button = MakeButton(Tr(FighterFlowRoutes.ResultsLabelKey(action, origin)));
                 button.Name = action + "Button";
@@ -273,40 +319,88 @@ namespace FTT.UI {
                         if (destination != null) GameManager.Instance?.LoadScene(destination);
                     };
                 }
-                layout.AddChild(button);
-                PulpButtonDecor.Apply(button, compact: true);
+                buttonRow.AddChild(button);
+                buttons.Add(button);
+                PulpButtonDecor.Apply(button, compact: true).ShowPrompt = false;
             }
-            PulpScreenKit.AddPromptBar(shade, ("ui_accept", "ui_prompt_select"));
+            // D6 (UI_SPEC_GLASS 3.2): the row shares its widest required width (at least 290; a compact row shows no prompt,
+            // the prompt bar carries it), and its gap is the derived focus-row gap (at least 34, 9.1 item 4).
+            PulpButtonDecor.ApplyStackWidth(buttons, 290f, reservePrompt: false);
+            PulpScreenKit.SeparateFocusRow(buttonRow);
+            GlassScreenDressing.AddOverlayPromptBar(shade, ("ui_accept", "ui_prompt_select"));
         }
 
+        /// <summary>
+        /// One fighter's 600 px glass slab: the 110 px portrait frame beside a column of the slot shape and the hero name
+        /// (T09), the winner's star, and the per-player numbers as results rows (the F21 stocks-lost line in Time mode).
+        /// The slab is the <c>Fighter1</c> / <c>Fighter2</c> node the loser's dimming reads.
+        /// </summary>
         private Control BuildFighterColumn(int player, Label stocksLost) {
-            var column = new VBoxContainer { Name = "Fighter" + (player + 1) };
-            column.AddThemeConstantOverride("separation", 8);
-            _fighterColumns[player] = column;
+            var slab = new PanelContainer { Name = "Fighter" + (player + 1), CustomMinimumSize = new Vector2(FighterSlabWidth, 0f) };
+            PulpScreenKit.DressPanel(slab);
+            _fighterColumns[player] = slab;
 
-            var roundel = new PulpPortraitRoundel { Name = "Roundel", Diameter = 140f };
-            var roundelHost = new CenterContainer { Name = "RoundelHost", MouseFilter = Control.MouseFilterEnum.Ignore };
-            roundelHost.AddChild(roundel);
-            column.AddChild(roundelHost);
+            var body = new HBoxContainer { Name = "Body" };
+            body.AddThemeConstantOverride("separation", 22);
+            slab.AddChild(body);
+
+            var roundel = new PulpPortraitRoundel { Name = "Roundel", Diameter = PortraitFrame, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
+            body.AddChild(roundel);
             _roundels[player] = roundel;
 
-            var row = new HBoxContainer { Name = "NameRow", Alignment = BoxContainer.AlignmentMode.Center };
-            row.AddThemeConstantOverride("separation", 8);
+            var column = new VBoxContainer { Name = "Column", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, Alignment = BoxContainer.AlignmentMode.Center };
+            column.AddThemeConstantOverride("separation", 8);
+            body.AddChild(column);
+
+            var row = new HBoxContainer { Name = "NameRow" };
+            row.AddThemeConstantOverride("separation", 12);
             Color slot = UIPalette.OwnerOnDark(player);
-            row.AddChild(PulpIcon.Create(player == 0 ? "slot_p1" : "slot_p2", slot, 30f));
-            var name = new Label { Name = "FighterName", ThemeTypeVariation = UIPalette.LabelRoles.HeroName };
+            PulpIcon shape = PulpIcon.Create(player == 0 ? "slot_p1" : "slot_p2", slot, 30f);
+            shape.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+            row.AddChild(shape);
+            var name = new Label {
+                Name = "FighterName", ThemeTypeVariation = UIPalette.LabelRoles.HeroNameScene, Uppercase = true,
+                VerticalAlignment = VerticalAlignment.Center, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+                // A long name ("William Shakespeare" at T09) wraps to a second line rather than losing its end.
+                AutowrapMode = TextServer.AutowrapMode.WordSmart
+            };
             row.AddChild(name);
-            var star = PulpIcon.Create("star4", UIPalette.Accent, 30f);
+            var star = PulpIcon.Create("star4_filled", UIPalette.Accent, 28f);
             star.Name = "WinnerStar";
             star.Visible = false;
+            star.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
             row.AddChild(star);
             _fighterNames[player] = name;
             _winnerStars[player] = star;
             column.AddChild(row);
 
-            stocksLost.HorizontalAlignment = HorizontalAlignment.Center;
             column.AddChild(stocksLost);
-            return column;
+            ResultRow.Attach(stocksLost);
+            return slab;
+        }
+
+        /// <summary>The winner's slot shape with a soft glow in its slot colour behind it (drawn without allocating).</summary>
+        private sealed partial class WinnerShapeHost : Control {
+            private readonly MatchResults _owner;
+            public WinnerShapeHost(MatchResults owner) { _owner = owner; }
+            public WinnerShapeHost() { }
+            public override void _Draw() {
+                if (_owner?._winnerGlow != null) DrawStyleBox(_owner._winnerGlow, new Rect2(Vector2.Zero, Size).Grow(-4f));
+            }
+        }
+
+        /// <summary>Shows the winner's shape and glow, or hides both on a draw.</summary>
+        private void ApplyWinnerShape(FighterMatchResult result) {
+            if (_winnerShapeHost == null) return;
+            bool decided = !result.IsTrueTie && result.WinnerPlayerID is 0 or 1;
+            _winnerShapeHost.Visible = decided;
+            if (!decided) return;
+            int player = result.WinnerPlayerID;
+            Color slot = UIPalette.OwnerOnDark(player);
+            _winnerShape.IconName = player == 0 ? "slot_p1" : "slot_p2";
+            _winnerShape.Tint = slot;
+            _winnerGlow.ShadowColor = new Color(slot, 0.6f);
+            _winnerShapeHost.QueueRedraw();
         }
 
         private void OnRematchPressed() {
@@ -357,7 +451,7 @@ namespace FTT.UI {
         private static Button MakeButton(string text) => new() {
             Text = text,
             ThemeTypeVariation = UIPalette.Variations.PulpButtonCompact,
-            CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, 58f)
+            CustomMinimumSize = new Vector2(0f, 58f)
         };
     }
 }
