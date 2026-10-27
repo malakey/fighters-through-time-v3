@@ -1,0 +1,13 @@
+[gd_resource type="GradientTexture2D" load_steps=2 format=3]
+
+[sub_resource type="Gradient" id="Gradient_glass_lens_radial"]
+offsets = PackedFloat32Array(0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1)
+colors = PackedColorArray(0.952941, 0.788235, 0.356863, 0.3, 0.669809, 0.560057, 0.27921, 0.3775, 0.483129, 0.40961, 0.228011, 0.455, 0.350787, 0.302955, 0.191715, 0.5325, 0.252073, 0.223401, 0.164642, 0.61, 0.175615, 0.161783, 0.143672, 0.6875, 0.114648, 0.112649, 0.126951, 0.765, 0.064898, 0.072555, 0.113307, 0.8425, 0.023529, 0.039216, 0.101961, 0.92)
+
+[resource]
+gradient = SubResource("Gradient_glass_lens_radial")
+width = 128
+height = 128
+fill = 1
+fill_from = Vector2(0.32, 0.24)
+fill_to = Vector2(0.7824, 0.7568)

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ICN-A hairline from _build/lib.py ICONS['spark']; REGULAR weight (F stroke 1.5, D stroke 1.35 units of 32; F fill white @0.08, X fill @0.85). White art, tinted in-engine by modulate. Glow (CSS drop-shadow 0 0 3px currentColor@60%) is a bake step, not in this file. Use at 30 px and above. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="64" height="64">
+  <path d="M16 3 L18 13.5 L28.5 16 L18 18.5 L16 29 L14 18.5 L3.5 16 L14 13.5 Z" fill="#FFFFFF" fill-opacity="0.08" stroke="#FFFFFF" stroke-width="1.5" stroke-linejoin="round"/>
+</svg>

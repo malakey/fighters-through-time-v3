@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AGENT-AUTHORED glyph (TG-ART, plan 0.4 P4): the Act III Beacon anchor at ZERO charges, the "hollow outline" HUD_CONTRACT.md requires. beacon_anchor's diamond outline only: no 0.08 fill and no inner cross, so it differs from beacon_anchor by shape, not colour. REGULAR weight (F stroke 1.5 units of 32). White art, tinted in-engine by modulate (the steady last-stand tint). Glow (CSS drop-shadow 0 0 3px currentColor@60%) is a bake step, not in this file. Use at 30 px and above. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="64" height="64">
+  <path d="M16 3 L25 16 L16 29 L7 16 Z" fill="none" stroke="#FFFFFF" stroke-width="1.5" stroke-linejoin="round"/>
+</svg>

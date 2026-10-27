@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Player 1 slot shape (triangle), solid. 22 px glyph in a 30 px box (28 px box on select tiles). Tint UIPalette.P1 (active player-slot palette; default #00F0FF). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="256" height="256">
+  <path d="M10 2 L18.5 17 H1.5 Z" fill="#FFFFFF"/>
+</svg>

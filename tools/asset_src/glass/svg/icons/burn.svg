@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ICN-A hairline from _build/lib.py ICONS['burn']; REGULAR weight (F stroke 1.5, D stroke 1.35 units of 32; F fill white @0.08, X fill @0.85). White art, tinted in-engine by modulate. Glow (CSS drop-shadow 0 0 3px currentColor@60%) is a bake step, not in this file. Use at 30 px and above. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="256" height="256">
+  <path d="M16 2.5 L18.7 11 L27 8 L21.8 15 L29.5 16 L21.8 17 L27 24 L18.7 21 L16 29.5 L13.3 21 L5 24 L10.2 17 L2.5 16 L10.2 15 L5 8 L13.3 11 Z" fill="#FFFFFF" fill-opacity="0.08" stroke="#FFFFFF" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M16 11.5 a4.5 4.5 0 1 0 0.01 0 Z" fill="none" stroke="#FFFFFF" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.92"/>
+</svg>

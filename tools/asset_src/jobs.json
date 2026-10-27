@@ -1667,6 +1667,798 @@
       "width": 40,
       "height": 56,
       "supersample": 4
+    },
+    {
+      "type": "svg",
+      "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/panel_slab.svg",
+      "out": "res://tools/asset_src/glass/raw/panel_slab.png",
+      "width": 560,
+      "height": 560,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/tag.svg",
+      "out": "res://tools/asset_src/glass/raw/tag.png",
+      "width": 160,
+      "height": 96,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/btn_sil.svg",
+      "out": "res://tools/asset_src/glass/raw/btn_sil.png",
+      "width": 496,
+      "height": 392,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/btn_inner.svg",
+      "out": "res://tools/asset_src/glass/raw/btn_inner.png",
+      "width": 496,
+      "height": 392,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/btn_normal.svg",
+      "out": "res://tools/asset_src/glass/raw/btn_normal.png",
+      "width": 496,
+      "height": 392,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/btn_selected.svg",
+      "out": "res://tools/asset_src/glass/raw/btn_selected.png",
+      "width": 496,
+      "height": 392,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/btn_focus_css.svg",
+      "out": "res://tools/asset_src/glass/raw/btn_focus_css.png",
+      "width": 496,
+      "height": 392,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/btn_pressed_css.svg",
+      "out": "res://tools/asset_src/glass/raw/btn_pressed_css.png",
+      "width": 496,
+      "height": 392,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/btn_pressed_focus_css.svg",
+      "out": "res://tools/asset_src/glass/raw/btn_pressed_focus_css.png",
+      "width": 496,
+      "height": 392,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/btn_overlay_parts.svg",
+      "out": "res://tools/asset_src/glass/raw/btn_overlay_parts.png",
+      "width": 496,
+      "height": 392,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/btn_disabled.svg",
+      "out": "res://tools/asset_src/glass/raw/btn_disabled.png",
+      "width": 416,
+      "height": 280,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/tab_sil.svg",
+      "out": "res://tools/asset_src/glass/raw/tab_sil.png",
+      "width": 368,
+      "height": 304,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/tab_normal.svg",
+      "out": "res://tools/asset_src/glass/raw/tab_normal.png",
+      "width": 368,
+      "height": 304,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/tab_selected.svg",
+      "out": "res://tools/asset_src/glass/raw/tab_selected.png",
+      "width": 368,
+      "height": 304,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/field_sil.svg",
+      "out": "res://tools/asset_src/glass/raw/field_sil.png",
+      "width": 304,
+      "height": 288,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/field_normal.svg",
+      "out": "res://tools/asset_src/glass/raw/field_normal.png",
+      "width": 304,
+      "height": 288,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/field_focus_css.svg",
+      "out": "res://tools/asset_src/glass/raw/field_focus_css.png",
+      "width": 304,
+      "height": 288,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/field_ring_focus.svg",
+      "out": "res://tools/asset_src/glass/raw/field_ring_focus.png",
+      "width": 304,
+      "height": 288,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/grabber_box.svg",
+      "out": "res://tools/asset_src/glass/raw/grabber_box.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/grabber_art.svg",
+      "out": "res://tools/asset_src/glass/raw/grabber_art.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/diamond_11.svg",
+      "out": "res://tools/asset_src/glass/raw/diamond_11.png",
+      "width": 192,
+      "height": 192,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/diamond_12.svg",
+      "out": "res://tools/asset_src/glass/raw/diamond_12.png",
+      "width": 192,
+      "height": 192,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/beacon_anchor.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/beacon_anchor.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/beacon_anchor_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/beacon_anchor_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/beacon_anchor_hollow.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/beacon_anchor_hollow.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/beacon_anchor_hollow_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/beacon_anchor_hollow_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/bolt.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/bolt.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/bolt_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/bolt_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/burn.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/burn.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/burn_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/burn_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/check.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/check.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/check_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/check_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/check_solid.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/check_solid.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/check_solid_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/check_solid_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/chevron_down.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/chevron_down.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/chevron_down_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/chevron_down_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/clock.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/clock.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/clock_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/clock_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/cross.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/cross.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/cross_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/cross_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/defy_barred.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/defy_barred.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/defy_barred_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/defy_barred_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/defy_notready.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/defy_notready.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/defy_notready_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/defy_notready_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/defy_ready.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/defy_ready.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/defy_ready_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/defy_ready_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/defy_spent.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/defy_spent.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/defy_spent_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/defy_spent_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/dilation.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/dilation.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/dilation_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/dilation_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/dormant.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/dormant.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/dormant_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/dormant_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/dust.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/dust.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/dust_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/dust_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/flag.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/flag.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/flag_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/flag_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/freeze.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/freeze.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/freeze_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/freeze_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/gear.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/gear.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/gear_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/gear_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/hourglass.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/hourglass.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/hourglass_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/hourglass_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/hourglass_caret.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/hourglass_caret.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/hourglass_caret_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/hourglass_caret_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/lock_dormant.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/lock_dormant.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/lock_dormant_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/lock_dormant_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/lock_suppressed.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/lock_suppressed.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/lock_suppressed_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/lock_suppressed_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/root.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/root.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/root_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/root_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/shield.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/shield.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/shield_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/shield_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/slot_p1.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/slot_p1.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/slot_p1_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/slot_p1_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/slot_p2.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/slot_p2.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/slot_p2_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/slot_p2_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/spark.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/spark.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/spark_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/spark_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/star4.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/star4.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/star4_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/star4_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/star4_filled.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/star4_filled.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/star4_filled_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/star4_filled_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/static.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/static.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/static_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/static_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/suppress.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/suppress.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/suppress_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/suppress_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/venom.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/venom.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/venom_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/venom_bold.png",
+      "width": 256,
+      "height": 256,
+      "supersample": 1
     }
   ]
 }

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Defy seal UNAVAILABLE (barred): ring r11 + slash, stroke 1.6 round. Tint danger #FF5A5A. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="256" height="256">
+  <circle cx="16" cy="16" r="11" fill="none" stroke="#FFFFFF" stroke-width="1.6"/>
+  <path d="M8.5 23.5 L23.5 8.5" fill="none" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-opacity="0.92"/>
+</svg>

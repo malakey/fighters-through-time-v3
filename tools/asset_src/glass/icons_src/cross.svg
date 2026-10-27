@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ICN-A hairline from _build/lib.py ICONS['cross'] (detail strokes only), REGULAR weight. In an ability slot use lock_suppressed. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="64" height="64">
+  <path d="M7 7 L25 25" fill="none" stroke="#FFFFFF" stroke-width="1.35" stroke-linecap="round" stroke-opacity="0.92"/>
+  <path d="M25 7 L7 25" fill="none" stroke="#FFFFFF" stroke-width="1.35" stroke-linecap="round" stroke-opacity="0.92"/>
+</svg>

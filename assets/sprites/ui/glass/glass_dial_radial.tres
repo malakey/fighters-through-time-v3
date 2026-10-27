@@ -1,0 +1,13 @@
+[gd_resource type="GradientTexture2D" load_steps=2 format=3]
+
+[sub_resource type="Gradient" id="Gradient_glass_dial_radial"]
+offsets = PackedFloat32Array(0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1)
+colors = PackedColorArray(0.952941, 0.788235, 0.356863, 0.22, 0.608679, 0.510511, 0.259949, 0.305, 0.41448, 0.353846, 0.205279, 0.39, 0.289783, 0.253251, 0.170175, 0.475, 0.202941, 0.183193, 0.145728, 0.56, 0.138988, 0.131601, 0.127725, 0.645, 0.089927, 0.092023, 0.113914, 0.73, 0.051101, 0.0607, 0.102983, 0.815, 0.019608, 0.035294, 0.094118, 0.9)
+
+[resource]
+gradient = SubResource("Gradient_glass_dial_radial")
+width = 128
+height = 128
+fill = 1
+fill_from = Vector2(0.34, 0.26)
+fill_to = Vector2(0.802, 0.778)

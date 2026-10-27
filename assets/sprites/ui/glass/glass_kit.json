@@ -1,0 +1,2239 @@
+{
+ "glass_badge_radial": {
+  "file": "glass_badge_radial.tres",
+  "fill": "radial",
+  "fill_from": [
+   0.32,
+   0.24
+  ],
+  "fill_to": [
+   0.7416,
+   0.7112
+  ],
+  "notes": "Engine resource, no script: load it with GD.Load / ResourceLoader (it is a Texture2D), not AuthoredResources. Stops interpolated in premultiplied space as the CSS does (sub-stops in the Gradient).",
+  "serves": "G7 badge fill (status, rewind, Time Freeze, Beacon): radial at 32 % 24 %, radius 0.632: rgba(glow,.28) -> rgba(8,12,30,.86).",
+  "size": [
+   128,
+   128
+  ],
+  "type": "GradientTexture2D"
+ },
+ "glass_btn_disabled": {
+  "axis_stretch": "tile",
+  "deviation": "canvas 104 x 70, not 100 x 70: with margins 2 / 32 the centre slice is 70 px, a whole number of 10 px dash periods, so axis_stretch_horizontal TILE repeats it without a seam (100 x 70 left a 66 px centre). The CSS stripes run under the whole half-transparent fill, where the fill's backdrop-filter blur(10px) averages them to a uniform haze; without blur they would show as hard stripes across the label, so the interior bakes the averaged haze and only the ring is dashed. Margins and the 30 px arrow are as specified.",
+  "file": "glass_btn_disabled.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   2,
+   2,
+   32,
+   2
+  ],
+  "serves": "G3 chevron button, disabled: the 1.5 px edge dashed (edge-dim, 6 on / 4 off from the left end, so the left end is solid), fill rgba(8,13,32,.50) over the averaged stripe haze rgba(glow,.15).",
+  "size": [
+   104,
+   70
+  ],
+  "spec_6_4": {
+   "expand_margins_LTRB": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "nine_slice_margins_LTRB": [
+    2,
+    2,
+    32,
+    2
+   ],
+   "size": [
+    100,
+    70
+   ]
+  }
+ },
+ "glass_btn_focus": {
+  "deviation": "plan 0.4 P5: an OVERLAY, drawn by Godot over the state box (Button, OptionButton, LineEdit and TabBar draw `focus` / `tab_focus` after the state style); it carries only what focus adds, never the dark base, so a focused pressed row still reads as pressed. Spec 6.4 describes the full look.",
+  "expand_margins_LTRB": [
+   14,
+   14,
+   14,
+   14
+  ],
+  "file": "glass_btn_focus.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   16,
+   16,
+   46,
+   16
+  ],
+  "notes": "the lit edge (100-degree #FFD45C -> rgba(glow,.55)), the focus wash (100-degree rgba(glow,.34) -> .07 at 75 %, no dark base) and the 14 px glow (0 0 14 rgba(glow,.55), Gaussian sigma 7) outside the chevron only. Over glass_btn_normal it lands within a few units of the CSS focus fill.",
+  "serves": "G3 chevron button, focus: the overlay Godot draws over the state box.",
+  "size": [
+   124,
+   98
+  ],
+  "spec_6_4": {
+   "expand_margins_LTRB": [
+    14,
+    14,
+    14,
+    14
+   ],
+   "nine_slice_margins_LTRB": [
+    16,
+    16,
+    46,
+    16
+   ],
+   "size": [
+    124,
+    98
+   ]
+  }
+ },
+ "glass_btn_hover": {
+  "deviation": "addition (not in 6.4): the overlay split of plan 0.4 P5 leaves no full focused box, and the spec's hover = focus (AC8) needs one where hover does not imply focus.",
+  "expand_margins_LTRB": [
+   14,
+   14,
+   14,
+   14
+  ],
+  "file": "glass_btn_hover.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   16,
+   16,
+   46,
+   16
+  ],
+  "serves": "G3 chevron button, the full CSS focus look as one box (edge, fill, glow): for a theme `hover` that cannot rely on the decor grabbing focus on mouse-enter. Hovered AND focused then draws the overlay on top of it (a brighter wash); prefer hover = glass_btn_normal plus focus-on-hover.",
+  "size": [
+   124,
+   98
+  ],
+  "spec_6_4": {
+   "expand_margins_LTRB": [
+    14,
+    14,
+    14,
+    14
+   ],
+   "nine_slice_margins_LTRB": [
+    16,
+    16,
+    46,
+    16
+   ],
+   "size": [
+    124,
+    98
+   ]
+  }
+ },
+ "glass_btn_normal": {
+  "file": "glass_btn_normal.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   2,
+   2,
+   32,
+   2
+  ],
+  "notes": "edge-dim edge; fill rgba(8,13,32,.90) under the 100-degree wash rgba(glow,.10) -> 0 at 55 %. The washes and the focus edge are laid out for a 560 x 68 button (they follow the stretched width; a 290 px compact button lands within 3 % of its own CSS stop).",
+  "serves": "G3 chevron button, normal (and hover / hover_pressed when the decor grabs focus on mouse-enter): TemporalGlassButton, PulpButton, PulpButtonCompact; one texture serves 58-70 px heights.",
+  "size": [
+   96,
+   70
+  ],
+  "spec_6_4": {
+   "expand_margins_LTRB": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "nine_slice_margins_LTRB": [
+    2,
+    2,
+    32,
+    2
+   ],
+   "size": [
+    96,
+    70
+   ]
+  }
+ },
+ "glass_btn_pressed": {
+  "deviation": "plan 0.4 P5: the interior is solved so that it composes with the focus overlay into the CSS pressed look (spec 6.4 bakes the CSS pressed fill directly); the edge band keeps edge-dim.",
+  "file": "glass_btn_pressed.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   2,
+   2,
+   32,
+   2
+  ],
+  "serves": "G3 chevron button, pressed / hover_pressed. Built to sit UNDER glass_btn_focus: a pressed button is (almost always) focused, and pressed + the focus overlay equals the CSS focused-pressed fill (rgba(glow,.50) -> .16 over rgba(8,16,38,.92)) exactly; alone it reads as a dimmer pressed fill.",
+  "size": [
+   96,
+   70
+  ],
+  "spec_6_4": {
+   "expand_margins_LTRB": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "nine_slice_margins_LTRB": [
+    2,
+    2,
+    32,
+    2
+   ],
+   "size": [
+    96,
+    70
+   ]
+  }
+ },
+ "glass_btn_selected": {
+  "file": "glass_btn_selected.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   2,
+   2,
+   32,
+   2
+  ],
+  "serves": "G3 chevron button, selected / toggled (the current value in a list): edge `edge` @0.55, the normal fill. The decor swaps it in for `normal` (as the pulp decor swapped its paper plate).",
+  "size": [
+   96,
+   70
+  ],
+  "spec_6_4": {
+   "expand_margins_LTRB": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "nine_slice_margins_LTRB": [
+    2,
+    2,
+    32,
+    2
+   ],
+   "size": [
+    96,
+    70
+   ]
+  }
+ },
+ "glass_dial_radial": {
+  "file": "glass_dial_radial.tres",
+  "fill": "radial",
+  "fill_from": [
+   0.34,
+   0.26
+  ],
+  "fill_to": [
+   0.802,
+   0.778
+  ],
+  "notes": "Engine resource, no script: load it with GD.Load / ResourceLoader (it is a Texture2D), not AuthoredResources. Stops interpolated in premultiplied space as the CSS does (sub-stops in the Gradient).",
+  "serves": "G9 Integrity dial face: radial at 34 % 26 %, radius 0.694: rgba(glow,.22) -> rgba(5,9,24,.90).",
+  "size": [
+   128,
+   128
+  ],
+  "type": "GradientTexture2D"
+ },
+ "glass_diamond_11": {
+  "file": "glass_diamond_11.png",
+  "mipmaps": true,
+  "serves": "flourish diamonds (3.7 select title, 3.8 menu title, GlassFlourish): an 11 px diamond with the menu's 14 px glow (sigma 7), white, tinted by modulate (#F3C95B). The select title's 12 px glow reuses it (the spec's two-texture choice).",
+  "size": [
+   48,
+   48
+  ]
+ },
+ "glass_diamond_12": {
+  "file": "glass_diamond_12.png",
+  "mipmaps": true,
+  "serves": "the boss name diamond (3.6, 12 px, glow 12, tint #FF5A5A) and the phase-notch diamond (glow 10, tint #F3C95B): a 12 px diamond with a 12 px glow (sigma 6), white, tinted by modulate.",
+  "size": [
+   48,
+   48
+  ]
+ },
+ "glass_field": {
+  "file": "glass_field.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   10,
+   10,
+   10,
+   10
+  ],
+  "serves": "glass field (3.3, plan 0.4 P8): the default Button, OptionButton, SpinBox and LineEdit field, the Controls tab's binding cells: chamfer 8 TL/BR, the 1.5 px edge-dim edge, fill rgba(8,13,32,.90).",
+  "size": [
+   48,
+   44
+  ],
+  "spec_6_4": {
+   "expand_margins_LTRB": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "nine_slice_margins_LTRB": [
+    10,
+    10,
+    10,
+    10
+   ],
+   "size": [
+    48,
+    44
+   ]
+  }
+ },
+ "glass_field_focus": {
+  "deviation": "plan 0.4 P5: an OVERLAY, drawn by Godot over the state box (Button, OptionButton, LineEdit and TabBar draw `focus` / `tab_focus` after the state style); it carries only what focus adds, never the dark base, so a focused pressed row still reads as pressed. Spec 6.4 describes the full look.",
+  "expand_margins_LTRB": [
+   14,
+   14,
+   14,
+   14
+  ],
+  "file": "glass_field_focus.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   24,
+   24,
+   24,
+   24
+  ],
+  "serves": "glass field, focus: the lit edge (100-degree #FFD45C -> rgba(glow,.55), laid out for a 300 px field) and the 14 px glow outside, drawn over glass_field.",
+  "size": [
+   76,
+   72
+  ],
+  "spec_6_4": {
+   "expand_margins_LTRB": [
+    14,
+    14,
+    14,
+    14
+   ],
+   "nine_slice_margins_LTRB": [
+    24,
+    24,
+    24,
+    24
+   ],
+   "size": [
+    76,
+    72
+   ]
+  }
+ },
+ "glass_field_hover": {
+  "deviation": "addition (not in 6.4): as glass_btn_hover, for a hover style that replaces the field's style.",
+  "expand_margins_LTRB": [
+   14,
+   14,
+   14,
+   14
+  ],
+  "file": "glass_field_hover.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   24,
+   24,
+   24,
+   24
+  ],
+  "serves": "glass field, the full CSS focus look as one box (OptionButton hover; AC8).",
+  "size": [
+   76,
+   72
+  ],
+  "spec_6_4": {
+   "expand_margins_LTRB": [
+    14,
+    14,
+    14,
+    14
+   ],
+   "nine_slice_margins_LTRB": [
+    24,
+    24,
+    24,
+    24
+   ],
+   "size": [
+    76,
+    72
+   ]
+  }
+ },
+ "glass_fighter_top_shade": {
+  "file": "fighter_top_shade.tres",
+  "fill": "linear",
+  "fill_from": [
+   0.5,
+   0.0
+  ],
+  "fill_to": [
+   0.5,
+   1.0
+  ],
+  "notes": "Engine resource, no script: load it with GD.Load / ResourceLoader (it is a Texture2D), not AuthoredResources. Stops interpolated in premultiplied space as the CSS does (sub-stops in the Gradient).",
+  "serves": "HUD-F2 Fighter top shade (1.3): 180 degrees over 1920 x 300: rgba(6,4,12,.80) 0, .64 42 %, .30 78 %, 0 100 %. A TextureRect 1920 x 300 at the top, stretch mode Scale.",
+  "size": [
+   4,
+   256
+  ],
+  "type": "GradientTexture2D"
+ },
+ "glass_ico_beacon_anchor": {
+  "file": "icons/beacon_anchor.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "beacon_anchor",
+  "mipmaps": true,
+  "serves": "Act III Beacon anchor (agent-authored, AC28)",
+  "shown_at": "28.5 in a 46 badge (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/beacon_anchor.svg",
+  "tint": "#FFE39A (accent2)",
+  "weight": "regular"
+ },
+ "glass_ico_beacon_anchor_bold": {
+  "file": "icons/beacon_anchor_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "beacon_anchor",
+  "mipmaps": true,
+  "serves": "Act III Beacon anchor (agent-authored, AC28)",
+  "shown_at": "28.5 in a 46 badge (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/beacon_anchor_bold.svg",
+  "tint": "#FFE39A (accent2)",
+  "weight": "bold"
+ },
+ "glass_ico_beacon_anchor_hollow": {
+  "file": "icons/beacon_anchor_hollow.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "beacon_anchor_hollow",
+  "mipmaps": true,
+  "serves": "Beacon anchor at zero charges: the diamond outline only (agent-authored, plan 0.4 P4)",
+  "shown_at": "28.5 (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/beacon_anchor_hollow.svg",
+  "tint": "the steady last-stand tint",
+  "weight": "regular"
+ },
+ "glass_ico_beacon_anchor_hollow_bold": {
+  "file": "icons/beacon_anchor_hollow_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "beacon_anchor_hollow",
+  "mipmaps": true,
+  "serves": "Beacon anchor at zero charges: the diamond outline only (agent-authored, plan 0.4 P4)",
+  "shown_at": "28.5 (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/beacon_anchor_hollow_bold.svg",
+  "tint": "the steady last-stand tint",
+  "weight": "bold"
+ },
+ "glass_ico_bolt": {
+  "file": "icons/bolt.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "bolt",
+  "mipmaps": true,
+  "serves": "defined, unused on the six screens",
+  "shown_at": "-",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/bolt.svg",
+  "tint": "-",
+  "weight": "regular"
+ },
+ "glass_ico_bolt_bold": {
+  "file": "icons/bolt_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "bolt",
+  "mipmaps": true,
+  "serves": "defined, unused on the six screens",
+  "shown_at": "-",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/bolt_bold.svg",
+  "tint": "-",
+  "weight": "bold"
+ },
+ "glass_ico_burn": {
+  "file": "icons/burn.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "burn",
+  "mipmaps": true,
+  "serves": "Radiant Burn status glyph (damage)",
+  "shown_at": "27.3 / 24.8 (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/burn.svg",
+  "tint": "#FF7A5C",
+  "weight": "regular"
+ },
+ "glass_ico_burn_bold": {
+  "file": "icons/burn_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "burn",
+  "mipmaps": true,
+  "serves": "Radiant Burn status glyph (damage)",
+  "shown_at": "27.3 / 24.8 (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/burn_bold.svg",
+  "tint": "#FF7A5C",
+  "weight": "bold"
+ },
+ "glass_ico_check": {
+  "file": "icons/check.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "check",
+  "mipmaps": true,
+  "serves": "defined, unused on the six screens",
+  "shown_at": "-",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/check.svg",
+  "tint": "-",
+  "weight": "regular"
+ },
+ "glass_ico_check_bold": {
+  "file": "icons/check_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "check",
+  "mipmaps": true,
+  "serves": "defined, unused on the six screens",
+  "shown_at": "-",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/check_bold.svg",
+  "tint": "-",
+  "weight": "bold"
+ },
+ "glass_ico_check_solid": {
+  "file": "icons/check_solid.png",
+  "glow": "none",
+  "icon": "check_solid",
+  "mipmaps": true,
+  "serves": "select tile lock mark (solid check)",
+  "shown_at": "20",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/check_solid.svg",
+  "tint": "#04141A on the slot-colour square",
+  "weight": "regular"
+ },
+ "glass_ico_check_solid_bold": {
+  "file": "icons/check_solid_bold.png",
+  "glow": "none",
+  "icon": "check_solid",
+  "mipmaps": true,
+  "serves": "select tile lock mark (solid check)",
+  "shown_at": "20",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/check_solid_bold.svg",
+  "tint": "#04141A on the slot-colour square",
+  "weight": "bold"
+ },
+ "glass_ico_chevron_down": {
+  "file": "icons/chevron_down.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "chevron_down",
+  "mipmaps": true,
+  "serves": "option-button and spin-box arrow, scroll hints (agent-authored, AC28)",
+  "shown_at": "18 (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/chevron_down.svg",
+  "tint": "#C0BAA6 (ink2)",
+  "weight": "regular"
+ },
+ "glass_ico_chevron_down_bold": {
+  "file": "icons/chevron_down_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "chevron_down",
+  "mipmaps": true,
+  "serves": "option-button and spin-box arrow, scroll hints (agent-authored, AC28)",
+  "shown_at": "18 (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/chevron_down_bold.svg",
+  "tint": "#C0BAA6 (ink2)",
+  "weight": "bold"
+ },
+ "glass_ico_clock": {
+  "file": "icons/clock.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "clock",
+  "mipmaps": true,
+  "serves": "defined, unused on the six screens",
+  "shown_at": "-",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/clock.svg",
+  "tint": "-",
+  "weight": "regular"
+ },
+ "glass_ico_clock_bold": {
+  "file": "icons/clock_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "clock",
+  "mipmaps": true,
+  "serves": "defined, unused on the six screens",
+  "shown_at": "-",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/clock_bold.svg",
+  "tint": "-",
+  "weight": "bold"
+ },
+ "glass_ico_cross": {
+  "file": "icons/cross.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "cross",
+  "mipmaps": true,
+  "serves": "plain cross glyph (defined, unused on the six screens; an ability slot uses lock_suppressed)",
+  "shown_at": "-",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/cross.svg",
+  "tint": "#38F2FF cold",
+  "weight": "regular"
+ },
+ "glass_ico_cross_bold": {
+  "file": "icons/cross_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "cross",
+  "mipmaps": true,
+  "serves": "plain cross glyph (defined, unused on the six screens; an ability slot uses lock_suppressed)",
+  "shown_at": "-",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/cross_bold.svg",
+  "tint": "#38F2FF cold",
+  "weight": "bold"
+ },
+ "glass_ico_defy_barred": {
+  "file": "icons/defy_barred.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "defy_barred",
+  "mipmaps": true,
+  "serves": "Defy seal, unavailable (ring and slash)",
+  "shown_at": "34 / 32",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/defy_barred.svg",
+  "tint": "#FF5A5A (danger)",
+  "weight": "regular"
+ },
+ "glass_ico_defy_barred_bold": {
+  "file": "icons/defy_barred_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "defy_barred",
+  "mipmaps": true,
+  "serves": "Defy seal, unavailable (ring and slash)",
+  "shown_at": "34 / 32",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/defy_barred_bold.svg",
+  "tint": "#FF5A5A (danger)",
+  "weight": "bold"
+ },
+ "glass_ico_defy_notready": {
+  "file": "icons/defy_notready.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "defy_notready",
+  "mipmaps": true,
+  "serves": "Defy seal, not ready (hollow ring)",
+  "shown_at": "34 / 32",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/defy_notready.svg",
+  "tint": "#8A8374 (ink3)",
+  "weight": "regular"
+ },
+ "glass_ico_defy_notready_bold": {
+  "file": "icons/defy_notready_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "defy_notready",
+  "mipmaps": true,
+  "serves": "Defy seal, not ready (hollow ring)",
+  "shown_at": "34 / 32",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/defy_notready_bold.svg",
+  "tint": "#8A8374 (ink3)",
+  "weight": "bold"
+ },
+ "glass_ico_defy_ready": {
+  "file": "icons/defy_ready.png",
+  "glow": "defy: Gaussian sigma 6.59 bake px at 0.75, rgb(255, 246, 177) baked, so the tint's modulate lands it on the spec colour",
+  "icon": "defy_ready",
+  "mipmaps": true,
+  "serves": "Defy seal, ready (ring, core, four rays)",
+  "shown_at": "34 Story / 32 Fighter",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/defy_ready.svg",
+  "tint": "#FFF0B0 (res2)",
+  "weight": "regular"
+ },
+ "glass_ico_defy_ready_bold": {
+  "file": "icons/defy_ready_bold.png",
+  "glow": "defy: Gaussian sigma 8.0 bake px at 0.75, rgb(255, 246, 177) baked, so the tint's modulate lands it on the spec colour",
+  "icon": "defy_ready",
+  "mipmaps": true,
+  "serves": "Defy seal, ready (ring, core, four rays)",
+  "shown_at": "34 Story / 32 Fighter",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/defy_ready_bold.svg",
+  "tint": "#FFF0B0 (res2)",
+  "weight": "bold"
+ },
+ "glass_ico_defy_spent": {
+  "file": "icons/defy_spent.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "defy_spent",
+  "mipmaps": true,
+  "serves": "Defy seal, spent (broken ring)",
+  "shown_at": "34 / 32",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/defy_spent.svg",
+  "tint": "#8A8374 (ink3)",
+  "weight": "regular"
+ },
+ "glass_ico_defy_spent_bold": {
+  "file": "icons/defy_spent_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "defy_spent",
+  "mipmaps": true,
+  "serves": "Defy seal, spent (broken ring)",
+  "shown_at": "34 / 32",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/defy_spent_bold.svg",
+  "tint": "#8A8374 (ink3)",
+  "weight": "bold"
+ },
+ "glass_ico_dilation": {
+  "file": "icons/dilation.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "dilation",
+  "mipmaps": true,
+  "serves": "Time Dilation status glyph (control)",
+  "shown_at": "27.3 Story / 24.8 Fighter badge (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/dilation.svg",
+  "tint": "#8FC7FF",
+  "weight": "regular"
+ },
+ "glass_ico_dilation_bold": {
+  "file": "icons/dilation_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "dilation",
+  "mipmaps": true,
+  "serves": "Time Dilation status glyph (control)",
+  "shown_at": "27.3 Story / 24.8 Fighter badge (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/dilation_bold.svg",
+  "tint": "#8FC7FF",
+  "weight": "bold"
+ },
+ "glass_ico_dormant": {
+  "file": "icons/dormant.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "dormant",
+  "mipmaps": true,
+  "serves": "plain dormant glyph (defined, unused on the six screens; an ability slot uses lock_dormant)",
+  "shown_at": "-",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/dormant.svg",
+  "tint": "#8A8374",
+  "weight": "regular"
+ },
+ "glass_ico_dormant_bold": {
+  "file": "icons/dormant_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "dormant",
+  "mipmaps": true,
+  "serves": "plain dormant glyph (defined, unused on the six screens; an ability slot uses lock_dormant)",
+  "shown_at": "-",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/dormant_bold.svg",
+  "tint": "#8A8374",
+  "weight": "bold"
+ },
+ "glass_ico_dust": {
+  "file": "icons/dust.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "dust",
+  "mipmaps": true,
+  "serves": "Chronal Dust",
+  "shown_at": "38 (regular)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/dust.svg",
+  "tint": "#F3C95B (res)",
+  "weight": "regular"
+ },
+ "glass_ico_dust_bold": {
+  "file": "icons/dust_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "dust",
+  "mipmaps": true,
+  "serves": "Chronal Dust",
+  "shown_at": "38 (regular)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/dust_bold.svg",
+  "tint": "#F3C95B (res)",
+  "weight": "bold"
+ },
+ "glass_ico_flag": {
+  "file": "icons/flag.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "flag",
+  "mipmaps": true,
+  "serves": "objective flag",
+  "shown_at": "22 (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/flag.svg",
+  "tint": "#FFF0B0 (res2)",
+  "weight": "regular"
+ },
+ "glass_ico_flag_bold": {
+  "file": "icons/flag_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "flag",
+  "mipmaps": true,
+  "serves": "objective flag",
+  "shown_at": "22 (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/flag_bold.svg",
+  "tint": "#FFF0B0 (res2)",
+  "weight": "bold"
+ },
+ "glass_ico_freeze": {
+  "file": "icons/freeze.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "freeze",
+  "mipmaps": true,
+  "serves": "Time Freeze",
+  "shown_at": "28.5 in a 46 badge (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/freeze.svg",
+  "tint": "#FFE39A (accent2)",
+  "weight": "regular"
+ },
+ "glass_ico_freeze_bold": {
+  "file": "icons/freeze_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "freeze",
+  "mipmaps": true,
+  "serves": "Time Freeze",
+  "shown_at": "28.5 in a 46 badge (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/freeze_bold.svg",
+  "tint": "#FFE39A (accent2)",
+  "weight": "bold"
+ },
+ "glass_ico_gear": {
+  "file": "icons/gear.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "gear",
+  "mipmaps": true,
+  "serves": "defined, unused on the six screens",
+  "shown_at": "-",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/gear.svg",
+  "tint": "-",
+  "weight": "regular"
+ },
+ "glass_ico_gear_bold": {
+  "file": "icons/gear_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "gear",
+  "mipmaps": true,
+  "serves": "defined, unused on the six screens",
+  "shown_at": "-",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/gear_bold.svg",
+  "tint": "-",
+  "weight": "bold"
+ },
+ "glass_ico_hourglass": {
+  "file": "icons/hourglass.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "hourglass",
+  "mipmaps": true,
+  "serves": "rewind counter",
+  "shown_at": "28.5 in a 46 badge (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/hourglass.svg",
+  "tint": "#FFE39A (accent2); #FF5A5A at 1 or 0",
+  "weight": "regular"
+ },
+ "glass_ico_hourglass_bold": {
+  "file": "icons/hourglass_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "hourglass",
+  "mipmaps": true,
+  "serves": "rewind counter",
+  "shown_at": "28.5 in a 46 badge (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/hourglass_bold.svg",
+  "tint": "#FFE39A (accent2); #FF5A5A at 1 or 0",
+  "weight": "bold"
+ },
+ "glass_ico_hourglass_caret": {
+  "file": "icons/hourglass_caret.png",
+  "glow": "none",
+  "icon": "hourglass_caret",
+  "mipmaps": true,
+  "serves": "dialogue advance caret (solid hourglass; its 1-unit black stroke never tints)",
+  "shown_at": "34",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/hourglass_caret.svg",
+  "tint": "#FFF0B0 (res2)",
+  "weight": "regular"
+ },
+ "glass_ico_hourglass_caret_bold": {
+  "file": "icons/hourglass_caret_bold.png",
+  "glow": "none",
+  "icon": "hourglass_caret",
+  "mipmaps": true,
+  "serves": "dialogue advance caret (solid hourglass; its 1-unit black stroke never tints)",
+  "shown_at": "34",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/hourglass_caret_bold.svg",
+  "tint": "#FFF0B0 (res2)",
+  "weight": "bold"
+ },
+ "glass_ico_lock_dormant": {
+  "file": "icons/lock_dormant.png",
+  "glow": "none",
+  "icon": "lock_dormant",
+  "mipmaps": true,
+  "serves": "slot-lock overlay, dormant Legacy slot (flat, no glow)",
+  "shown_at": "68 % of the lens: 50.3 / 62.6 / 36.7",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/lock_dormant.svg",
+  "tint": "#8A8374 (ink3) at opacity .8",
+  "weight": "regular"
+ },
+ "glass_ico_lock_dormant_bold": {
+  "file": "icons/lock_dormant_bold.png",
+  "glow": "none",
+  "icon": "lock_dormant",
+  "mipmaps": true,
+  "serves": "slot-lock overlay, dormant Legacy slot (flat, no glow)",
+  "shown_at": "68 % of the lens: 50.3 / 62.6 / 36.7",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/lock_dormant_bold.svg",
+  "tint": "#8A8374 (ink3) at opacity .8",
+  "weight": "bold"
+ },
+ "glass_ico_lock_suppressed": {
+  "file": "icons/lock_suppressed.png",
+  "glow": "cold: Gaussian sigma 3.82 bake px at 1.00, white, tinted by modulate",
+  "icon": "lock_suppressed",
+  "mipmaps": true,
+  "serves": "slot-lock overlay, suppressed (the cold cross-out, 6 px cold glow)",
+  "shown_at": "68 % of the lens",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/lock_suppressed.svg",
+  "tint": "#38F2FF cold",
+  "weight": "regular"
+ },
+ "glass_ico_lock_suppressed_bold": {
+  "file": "icons/lock_suppressed_bold.png",
+  "glow": "cold: Gaussian sigma 3.82 bake px at 1.00, white, tinted by modulate",
+  "icon": "lock_suppressed",
+  "mipmaps": true,
+  "serves": "slot-lock overlay, suppressed (the cold cross-out, 6 px cold glow)",
+  "shown_at": "68 % of the lens",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/lock_suppressed_bold.svg",
+  "tint": "#38F2FF cold",
+  "weight": "bold"
+ },
+ "glass_ico_root": {
+  "file": "icons/root.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "root",
+  "mipmaps": true,
+  "serves": "Root status glyph (control)",
+  "shown_at": "27.3 / 24.8 (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/root.svg",
+  "tint": "#8FC7FF",
+  "weight": "regular"
+ },
+ "glass_ico_root_bold": {
+  "file": "icons/root_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "root",
+  "mipmaps": true,
+  "serves": "Root status glyph (control)",
+  "shown_at": "27.3 / 24.8 (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/root_bold.svg",
+  "tint": "#8FC7FF",
+  "weight": "bold"
+ },
+ "glass_ico_shield": {
+  "file": "icons/shield.png",
+  "glow": "pip: Gaussian sigma 4.27 bake px at 0.60, rgb(164, 237, 255) baked, so the tint's modulate lands it on the spec colour",
+  "icon": "shield",
+  "mipmaps": true,
+  "serves": "block pip, on",
+  "shown_at": "30 Story (regular) / 24 Fighter (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/shield.svg",
+  "tint": "#DFE8FF",
+  "weight": "regular"
+ },
+ "glass_ico_shield_bold": {
+  "file": "icons/shield_bold.png",
+  "glow": "pip: Gaussian sigma 5.33 bake px at 0.60, rgb(164, 237, 255) baked, so the tint's modulate lands it on the spec colour",
+  "icon": "shield",
+  "mipmaps": true,
+  "serves": "block pip, on",
+  "shown_at": "30 Story (regular) / 24 Fighter (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/shield_bold.svg",
+  "tint": "#DFE8FF",
+  "weight": "bold"
+ },
+ "glass_ico_shield_off": {
+  "file": "icons/shield_off.png",
+  "glow": "none",
+  "icon": "shield_off",
+  "mipmaps": true,
+  "serves": "block pip, off: the shield glyph with no glow (CSS .c-pips .pip.off .ic{filter:none}); draw at opacity .28 and grayscale",
+  "shown_at": "30 / 24",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/shield.svg",
+  "tint": "#DFE8FF",
+  "weight": "regular"
+ },
+ "glass_ico_shield_off_bold": {
+  "file": "icons/shield_off_bold.png",
+  "glow": "none",
+  "icon": "shield_off",
+  "mipmaps": true,
+  "serves": "block pip, off: the shield glyph with no glow (CSS .c-pips .pip.off .ic{filter:none}); draw at opacity .28 and grayscale",
+  "shown_at": "30 / 24",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/shield_bold.svg",
+  "tint": "#DFE8FF",
+  "weight": "bold"
+ },
+ "glass_ico_slot_p1": {
+  "file": "icons/slot_p1.png",
+  "glow": "none",
+  "icon": "slot_p1",
+  "mipmaps": true,
+  "serves": "player 1 slot shape (triangle; 20-unit box filling the texture)",
+  "shown_at": "22 in a 30 box (28 on select tiles)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/slot_p1.svg",
+  "tint": "UIPalette.P1",
+  "weight": "regular"
+ },
+ "glass_ico_slot_p1_bold": {
+  "file": "icons/slot_p1_bold.png",
+  "glow": "none",
+  "icon": "slot_p1",
+  "mipmaps": true,
+  "serves": "player 1 slot shape (triangle; 20-unit box filling the texture)",
+  "shown_at": "22 in a 30 box (28 on select tiles)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/slot_p1_bold.svg",
+  "tint": "UIPalette.P1",
+  "weight": "bold"
+ },
+ "glass_ico_slot_p2": {
+  "file": "icons/slot_p2.png",
+  "glow": "none",
+  "icon": "slot_p2",
+  "mipmaps": true,
+  "serves": "player 2 slot shape (circle; 20-unit box filling the texture)",
+  "shown_at": "22 in a 30 box",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/slot_p2.svg",
+  "tint": "UIPalette.P2",
+  "weight": "regular"
+ },
+ "glass_ico_slot_p2_bold": {
+  "file": "icons/slot_p2_bold.png",
+  "glow": "none",
+  "icon": "slot_p2",
+  "mipmaps": true,
+  "serves": "player 2 slot shape (circle; 20-unit box filling the texture)",
+  "shown_at": "22 in a 30 box",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/slot_p2_bold.svg",
+  "tint": "UIPalette.P2",
+  "weight": "bold"
+ },
+ "glass_ico_spark": {
+  "file": "icons/spark.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "spark",
+  "mipmaps": true,
+  "serves": "defined, unused on the six screens",
+  "shown_at": "-",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/spark.svg",
+  "tint": "-",
+  "weight": "regular"
+ },
+ "glass_ico_spark_bold": {
+  "file": "icons/spark_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "spark",
+  "mipmaps": true,
+  "serves": "defined, unused on the six screens",
+  "shown_at": "-",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/spark_bold.svg",
+  "tint": "-",
+  "weight": "bold"
+ },
+ "glass_ico_star4": {
+  "file": "icons/star4.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "star4",
+  "mipmaps": true,
+  "serves": "Fighter stock, off (at opacity .22)",
+  "shown_at": "28 (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/star4.svg",
+  "tint": "the slot colour",
+  "weight": "regular"
+ },
+ "glass_ico_star4_bold": {
+  "file": "icons/star4_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "star4",
+  "mipmaps": true,
+  "serves": "Fighter stock, off (at opacity .22)",
+  "shown_at": "28 (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/star4_bold.svg",
+  "tint": "the slot colour",
+  "weight": "bold"
+ },
+ "glass_ico_star4_filled": {
+  "file": "icons/star4_filled.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "star4_filled",
+  "mipmaps": true,
+  "serves": "Fighter stock, on",
+  "shown_at": "28 (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/star4_filled.svg",
+  "tint": "the slot colour",
+  "weight": "regular"
+ },
+ "glass_ico_star4_filled_bold": {
+  "file": "icons/star4_filled_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "star4_filled",
+  "mipmaps": true,
+  "serves": "Fighter stock, on",
+  "shown_at": "28 (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/star4_filled_bold.svg",
+  "tint": "the slot colour",
+  "weight": "bold"
+ },
+ "glass_ico_static": {
+  "file": "icons/static.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "static",
+  "mipmaps": true,
+  "serves": "Static Charge status glyph (control)",
+  "shown_at": "27.3 / 24.8 (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/static.svg",
+  "tint": "#8FC7FF",
+  "weight": "regular"
+ },
+ "glass_ico_static_bold": {
+  "file": "icons/static_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "static",
+  "mipmaps": true,
+  "serves": "Static Charge status glyph (control)",
+  "shown_at": "27.3 / 24.8 (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/static_bold.svg",
+  "tint": "#8FC7FF",
+  "weight": "bold"
+ },
+ "glass_ico_suppress": {
+  "file": "icons/suppress.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "suppress",
+  "mipmaps": true,
+  "serves": "Suppression status glyph (the Severed)",
+  "shown_at": "27.3 / 24.8 (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/suppress.svg",
+  "tint": "#38F2FF cold",
+  "weight": "regular"
+ },
+ "glass_ico_suppress_bold": {
+  "file": "icons/suppress_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "suppress",
+  "mipmaps": true,
+  "serves": "Suppression status glyph (the Severed)",
+  "shown_at": "27.3 / 24.8 (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/suppress_bold.svg",
+  "tint": "#38F2FF cold",
+  "weight": "bold"
+ },
+ "glass_ico_venom": {
+  "file": "icons/venom.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "venom",
+  "mipmaps": true,
+  "serves": "Venom status glyph (damage)",
+  "shown_at": "27.3 / 24.8 (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/venom.svg",
+  "tint": "#FF7A5C",
+  "weight": "regular"
+ },
+ "glass_ico_venom_bold": {
+  "file": "icons/venom_bold.png",
+  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
+  "icon": "venom",
+  "mipmaps": true,
+  "serves": "Venom status glyph (damage)",
+  "shown_at": "27.3 / 24.8 (bold)",
+  "size": [
+   64,
+   64
+  ],
+  "source": "tools/asset_src/glass/svg/icons/venom_bold.svg",
+  "tint": "#FF7A5C",
+  "weight": "bold"
+ },
+ "glass_icons": {
+  "bold_stem": "glass_ico_<name>_bold",
+  "names": [
+   "beacon_anchor",
+   "beacon_anchor_hollow",
+   "bolt",
+   "burn",
+   "check",
+   "check_solid",
+   "chevron_down",
+   "clock",
+   "cross",
+   "defy_barred",
+   "defy_notready",
+   "defy_ready",
+   "defy_spent",
+   "dilation",
+   "dormant",
+   "dust",
+   "flag",
+   "freeze",
+   "gear",
+   "hourglass",
+   "hourglass_caret",
+   "lock_dormant",
+   "lock_suppressed",
+   "root",
+   "shield",
+   "shield_off",
+   "slot_p1",
+   "slot_p2",
+   "spark",
+   "star4",
+   "star4_filled",
+   "static",
+   "suppress",
+   "venom"
+  ],
+  "notes": "One white 64 x 64 texture per glyph and weight (a 32-unit grid baked at 2x), its glow baked in, tinted by modulate. Glyphs the spec draws in one weight have a derived bold (strokes x1.5; a solid glyph's bold is its regular art). shield_off is the block pip with no glow (the CSS off pip). The slot-lock overlays are lock_dormant and lock_suppressed (dormant and cross are the plain glyphs). Sources: tools/asset_src/glass/icons_src/ (the spec's 52 SVGs plus beacon_anchor_hollow, plan 0.4 P4).",
+  "regular_stem": "glass_ico_<name>",
+  "rule": "UI_SPEC_GLASS 3.5 / AC23: the bold weight below 30 px display size, the regular at 30 px and above"
+ },
+ "glass_kit_about": {
+  "note": "TG-ART Temporal Glass kit (UI_SPEC_GLASS, plan docs/UI_GLASS_2026-10-26_PLAN.md 2.3). Files are relative to res://assets/sprites/ui/glass/. Every PNG is imported with mipmaps. Nine-slices draw at 1:1 corners; `focus` textures are overlays drawn over the state box (plan 0.4 P5). Rebuild: tools/asset_src/glass/build_all.ps1 (holding D:/Projects/.ftt-gdunit-lock)."
+ },
+ "glass_lens_radial": {
+  "file": "glass_lens_radial.tres",
+  "fill": "radial",
+  "fill_from": [
+   0.32,
+   0.24
+  ],
+  "fill_to": [
+   0.7824,
+   0.7568
+  ],
+  "notes": "Engine resource, no script: load it with GD.Load / ResourceLoader (it is a Texture2D), not AuthoredResources. Stops interpolated in premultiplied space as the CSS does (sub-stops in the Gradient).",
+  "serves": "G6 lens fill (3.4.2): radial at 32 % 24 %, radius 0.693 of the size: rgba(glow,.30) -> rgba(6,10,26,.92). Map a circle polygon's UVs over the lens square.",
+  "size": [
+   128,
+   128
+  ],
+  "type": "GradientTexture2D"
+ },
+ "glass_menu_scrim": {
+  "file": "menu_scrim.tres",
+  "fill": "linear",
+  "fill_from": [
+   0.0,
+   0.5
+  ],
+  "fill_to": [
+   1.0,
+   0.5
+  ],
+  "notes": "Engine resource, no script: load it with GD.Load / ResourceLoader (it is a Texture2D), not AuthoredResources. Stops interpolated in premultiplied space as the CSS does (sub-stops in the Gradient).",
+  "serves": "MENU-A menu scrim (1.3): 90 degrees, rgba(4,7,20,.96) 0, .84 26 %, .35 48 %, 0 66 %. A full-screen TextureRect, stretch mode Scale; FlipH for the mirrored scrim.",
+  "size": [
+   512,
+   4
+  ],
+  "type": "GradientTexture2D"
+ },
+ "glass_panel": {
+  "content_margins_hint_LTRB": [
+   28,
+   22,
+   28,
+   22
+  ],
+  "deviation": "6.4 suggests placing the edge stops at the slice boundaries (the top-left corner patch .95 -> .22, the bottom-right .10 -> .62). Measured over the 17 panel sizes the screens use, that leaves the edge hairline a mean 0.189 alpha off the CSS (worst 0.271, the 1500 x 200 dialogue box; the Vitals panel's left edge .44 where the CSS draws .78). Laying both gradients out for the 620 x 214 Vitals panel cuts it to 0.066 (worst 0.144, the 680 x 769 pause panel). Canvas, slab, margins and expand margins are as specified.",
+  "expand_margins_LTRB": [
+   22,
+   8,
+   22,
+   36
+  ],
+  "file": "glass_panel.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   42,
+   28,
+   42,
+   56
+  ],
+  "notes": "96 x 96 slab at (22, 8): chamfer 18 TL/BR; the 1.5 px edge with the 128-degree gradient (rgba(glow,.95) 0, .22 24 %, .10 58 %, .62 100 %); the build fill 160 deg rgba(15,24,52,.92) -> rgba(6,10,26,.95) over the edge layer, which shows through as in the CSS; the drop shadow (0, 14), Gaussian sigma 11, #00020C @0.60. Both gradients are laid out for the 620 x 214 Vitals panel through the nine-slice stretch (exact there, the CSS's trend elsewhere). The sheen and the two streak lines are NOT baked (GlassSheen draws them from the panel's own rect).",
+  "serves": "G1 glass slab (PNL-A): every panel preset (InkPanel, DialogueGlassPanel, GlassPanel*), the default Panel and PanelContainer. Content margins are the paddings, one variation per preset (3.1).",
+  "size": [
+   140,
+   140
+  ],
+  "spec_6_4": {
+   "expand_margins_LTRB": [
+    22,
+    8,
+    22,
+    36
+   ],
+   "nine_slice_margins_LTRB": [
+    42,
+    28,
+    42,
+    56
+   ],
+   "size": [
+    140,
+    140
+   ]
+  }
+ },
+ "glass_portrait_radial": {
+  "file": "glass_portrait_radial.tres",
+  "fill": "radial",
+  "fill_from": [
+   0.5,
+   0.3
+  ],
+  "fill_to": [
+   0.89,
+   0.846
+  ],
+  "notes": "Engine resource, no script: load it with GD.Load / ResourceLoader (it is a Texture2D), not AuthoredResources. Stops interpolated in premultiplied space as the CSS does (sub-stops in the Gradient).",
+  "serves": "G5 portrait frame's inner fill: radial at 50 % 30 %, radius 0.671: rgba(glow,.38) -> rgba(6,10,26,.95).",
+  "size": [
+   128,
+   128
+  ],
+  "type": "GradientTexture2D"
+ },
+ "glass_select_vignette": {
+  "file": "select_vignette.tres",
+  "fill": "radial",
+  "fill_from": [
+   0.5,
+   0.45714
+  ],
+  "fill_to": [
+   0.92426,
+   0.8814
+  ],
+  "notes": "Engine resource, no script: load it with GD.Load / ResourceLoader (it is a Texture2D), not AuthoredResources. Stops interpolated in premultiplied space as the CSS does (sub-stops in the Gradient).",
+  "serves": "CARD-A select pool (1.3): radial-gradient(60% 70% at 50% 45%, rgba(3,5,16,.55), transparent 80%). Draw it as a full-screen TextureRect with stretch mode KeepAspectCovered: the texture's 256:168 aspect is the CSS ellipse's 1152:756, so its UV circle lands as that ellipse centred at (960, 486). (Stretched with Scale, the x extent stays exact and the y extent is 14 % short.)",
+  "size": [
+   256,
+   168
+  ],
+  "type": "GradientTexture2D"
+ },
+ "glass_slider_grabber": {
+  "file": "glass_slider_grabber.png",
+  "mipmaps": true,
+  "serves": "HSlider / VSlider grabber and grabber_highlight icon (3.3): the 31.7 px white diamond (a 28 px square rotated 45 degrees and scaled .8), its accent ring (3 px before the .8 scale, 2.4 px drawn) and the 16 px accent glow (sigma 6.4 drawn), centred. Not tinted.",
+  "size": [
+   64,
+   64
+  ]
+ },
+ "glass_tab": {
+  "file": "glass_tab.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   1,
+   0,
+   17,
+   0
+  ],
+  "serves": "G14 tab, unselected (TabBar / TabContainer tab_unselected, tab_disabled): fill rgba(glow,.08), the 16 px slant on the right (the top edge is the shorter); text T55 (TabLabel).",
+  "size": [
+   64,
+   48
+  ],
+  "spec_6_4": {
+   "expand_margins_LTRB": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "nine_slice_margins_LTRB": [
+    1,
+    0,
+    17,
+    0
+   ],
+   "size": [
+    64,
+    48
+   ]
+  }
+ },
+ "glass_tab_focus": {
+  "deviation": "plan 0.4 P5: an OVERLAY, drawn by Godot over the state box (Button, OptionButton, LineEdit and TabBar draw `focus` / `tab_focus` after the state style); it carries only what focus adds, never the dark base, so a focused pressed row still reads as pressed. Spec 6.4 describes the full look. Spec 3.3: a focused tab is the selected look plus this glow.",
+  "expand_margins_LTRB": [
+   14,
+   14,
+   14,
+   14
+  ],
+  "file": "glass_tab_focus.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   15,
+   14,
+   31,
+   14
+  ],
+  "serves": "G14 tab focus (tab_focus): the 14 px gold glow (0 0 14 rgba(glow,.55)) outside the tab shape, over the selected tab Godot already drew.",
+  "size": [
+   92,
+   76
+  ],
+  "spec_6_4": {
+   "expand_margins_LTRB": [
+    14,
+    14,
+    14,
+    14
+   ],
+   "nine_slice_margins_LTRB": [
+    15,
+    14,
+    31,
+    14
+   ],
+   "size": [
+    92,
+    76
+   ]
+  }
+ },
+ "glass_tab_hover": {
+  "deviation": "addition (not in 6.4): tab_hovered replaces the tab's style, so it needs the full look.",
+  "expand_margins_LTRB": [
+   14,
+   14,
+   14,
+   14
+  ],
+  "file": "glass_tab_hover.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   15,
+   14,
+   31,
+   14
+  ],
+  "serves": "G14 tab, hovered: the selected look plus the 14 px glow as one box (tab_hovered; AC8 hover = focus).",
+  "size": [
+   92,
+   76
+  ],
+  "spec_6_4": {
+   "expand_margins_LTRB": [
+    14,
+    14,
+    14,
+    14
+   ],
+   "nine_slice_margins_LTRB": [
+    15,
+    14,
+    31,
+    14
+   ],
+   "size": [
+    92,
+    76
+   ]
+  }
+ },
+ "glass_tab_selected": {
+  "file": "glass_tab_selected.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   1,
+   0,
+   17,
+   0
+  ],
+  "serves": "G14 tab, selected: 100-degree #F3C95B -> rgba(glow,.55) (laid out for a 180 px tab); text #04141A (TabSelectedInk).",
+  "size": [
+   64,
+   48
+  ],
+  "spec_6_4": {
+   "expand_margins_LTRB": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "nine_slice_margins_LTRB": [
+    1,
+    0,
+    17,
+    0
+   ],
+   "size": [
+    64,
+    48
+   ]
+  }
+ },
+ "glass_tag": {
+  "content_margins_hint_LTRB": [
+   14,
+   3,
+   14,
+   3
+  ],
+  "file": "glass_tag.png",
+  "mipmaps": true,
+  "nine_slice_margins_LTRB": [
+   3,
+   0,
+   9,
+   0
+  ],
+  "notes": "the 2 px #FFD45C bar, the 90-degree wash rgba(glow,.34) -> .08 (laid out for a 130 px tag, so it ends near .08 at the tag's right end), the 8 px right slant (the bottom edge is the shorter). Stretch horizontally only; the tag is always 24 px tall.",
+  "serves": "G2 panel tag (PanelTagPlate; PulpTagPlate, PanelTagAnchor, PausePanel): text T07 (PanelTag).",
+  "size": [
+   40,
+   24
+  ],
+  "spec_6_4": {
+   "expand_margins_LTRB": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "nine_slice_margins_LTRB": [
+    3,
+    0,
+    9,
+    0
+   ],
+   "size": [
+    40,
+    24
+   ]
+  }
+ },
+ "hero_cleopatra_idle_0": {
+  "feet_y": 219.0,
+  "file": "select_heroes/cleopatra_idle_0.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 85.0,
+  "serves": "CARD-A select hero sprite: cleopatra's idle frame 0 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   170,
+   223
+  ]
+ },
+ "hero_cleopatra_idle_1": {
+  "feet_y": 219.0,
+  "file": "select_heroes/cleopatra_idle_1.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 85.0,
+  "serves": "CARD-A select hero sprite: cleopatra's idle frame 1 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   170,
+   223
+  ]
+ },
+ "hero_cleopatra_idle_2": {
+  "feet_y": 219.0,
+  "file": "select_heroes/cleopatra_idle_2.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 85.0,
+  "serves": "CARD-A select hero sprite: cleopatra's idle frame 2 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   170,
+   223
+  ]
+ },
+ "hero_cleopatra_idle_3": {
+  "feet_y": 219.0,
+  "file": "select_heroes/cleopatra_idle_3.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 85.0,
+  "serves": "CARD-A select hero sprite: cleopatra's idle frame 3 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   170,
+   223
+  ]
+ },
+ "hero_einstein_idle_0": {
+  "feet_y": 229.0,
+  "file": "select_heroes/einstein_idle_0.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 66.0,
+  "serves": "CARD-A select hero sprite: einstein's idle frame 0 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   132,
+   234
+  ]
+ },
+ "hero_einstein_idle_1": {
+  "feet_y": 229.0,
+  "file": "select_heroes/einstein_idle_1.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 66.0,
+  "serves": "CARD-A select hero sprite: einstein's idle frame 1 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   132,
+   234
+  ]
+ },
+ "hero_einstein_idle_2": {
+  "feet_y": 229.0,
+  "file": "select_heroes/einstein_idle_2.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 66.0,
+  "serves": "CARD-A select hero sprite: einstein's idle frame 2 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   132,
+   234
+  ]
+ },
+ "hero_einstein_idle_3": {
+  "feet_y": 229.0,
+  "file": "select_heroes/einstein_idle_3.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 66.0,
+  "serves": "CARD-A select hero sprite: einstein's idle frame 3 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   132,
+   234
+  ]
+ },
+ "hero_joan_idle_0": {
+  "feet_y": 221.0,
+  "file": "select_heroes/joan_idle_0.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 84.0,
+  "serves": "CARD-A select hero sprite: joan's idle frame 0 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   168,
+   225
+  ]
+ },
+ "hero_joan_idle_1": {
+  "feet_y": 221.0,
+  "file": "select_heroes/joan_idle_1.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 84.0,
+  "serves": "CARD-A select hero sprite: joan's idle frame 1 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   168,
+   225
+  ]
+ },
+ "hero_joan_idle_2": {
+  "feet_y": 221.0,
+  "file": "select_heroes/joan_idle_2.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 84.0,
+  "serves": "CARD-A select hero sprite: joan's idle frame 2 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   168,
+   225
+  ]
+ },
+ "hero_joan_idle_3": {
+  "feet_y": 221.0,
+  "file": "select_heroes/joan_idle_3.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 84.0,
+  "serves": "CARD-A select hero sprite: joan's idle frame 3 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   168,
+   225
+  ]
+ },
+ "hero_leonardo_idle_0": {
+  "feet_y": 231.0,
+  "file": "select_heroes/leonardo_idle_0.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 73.0,
+  "serves": "CARD-A select hero sprite: leonardo's idle frame 0 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   146,
+   236
+  ]
+ },
+ "hero_leonardo_idle_1": {
+  "feet_y": 231.0,
+  "file": "select_heroes/leonardo_idle_1.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 73.0,
+  "serves": "CARD-A select hero sprite: leonardo's idle frame 1 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   146,
+   236
+  ]
+ },
+ "hero_leonardo_idle_2": {
+  "feet_y": 231.0,
+  "file": "select_heroes/leonardo_idle_2.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 73.0,
+  "serves": "CARD-A select hero sprite: leonardo's idle frame 2 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   146,
+   236
+  ]
+ },
+ "hero_leonardo_idle_3": {
+  "feet_y": 231.0,
+  "file": "select_heroes/leonardo_idle_3.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 73.0,
+  "serves": "CARD-A select hero sprite: leonardo's idle frame 3 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   146,
+   236
+  ]
+ },
+ "hero_lincoln_idle_0": {
+  "feet_y": 218.0,
+  "file": "select_heroes/lincoln_idle_0.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 89.0,
+  "serves": "CARD-A select hero sprite: lincoln's idle frame 0 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   178,
+   223
+  ]
+ },
+ "hero_lincoln_idle_1": {
+  "feet_y": 218.0,
+  "file": "select_heroes/lincoln_idle_1.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 89.0,
+  "serves": "CARD-A select hero sprite: lincoln's idle frame 1 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   178,
+   223
+  ]
+ },
+ "hero_lincoln_idle_2": {
+  "feet_y": 218.0,
+  "file": "select_heroes/lincoln_idle_2.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 89.0,
+  "serves": "CARD-A select hero sprite: lincoln's idle frame 2 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   178,
+   223
+  ]
+ },
+ "hero_lincoln_idle_3": {
+  "feet_y": 218.0,
+  "file": "select_heroes/lincoln_idle_3.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 89.0,
+  "serves": "CARD-A select hero sprite: lincoln's idle frame 3 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   178,
+   223
+  ]
+ },
+ "hero_mozart_idle_0": {
+  "feet_y": 226.0,
+  "file": "select_heroes/mozart_idle_0.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 62.0,
+  "serves": "CARD-A select hero sprite: mozart's idle frame 0 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   124,
+   231
+  ]
+ },
+ "hero_mozart_idle_1": {
+  "feet_y": 226.0,
+  "file": "select_heroes/mozart_idle_1.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 62.0,
+  "serves": "CARD-A select hero sprite: mozart's idle frame 1 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   124,
+   231
+  ]
+ },
+ "hero_mozart_idle_2": {
+  "feet_y": 226.0,
+  "file": "select_heroes/mozart_idle_2.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 62.0,
+  "serves": "CARD-A select hero sprite: mozart's idle frame 2 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   124,
+   231
+  ]
+ },
+ "hero_mozart_idle_3": {
+  "feet_y": 226.0,
+  "file": "select_heroes/mozart_idle_3.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 62.0,
+  "serves": "CARD-A select hero sprite: mozart's idle frame 3 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   124,
+   231
+  ]
+ },
+ "hero_select_index": {
+  "file": "select_heroes/select_heroes.json",
+  "heroes": [
+   "einstein",
+   "joan",
+   "leonardo",
+   "lincoln",
+   "cleopatra",
+   "tesla",
+   "shakespeare",
+   "mozart",
+   "tubman"
+  ],
+  "select_feet_y": 700,
+  "select_scale": 2.05,
+  "serves": "the select hero layer's index: per hero the four frames, pivot_x and feet_y (image px from the top-left), the idle frame rate (6 fps) and the loop flag; the roster comes from content_manifest.csv, so a new member gets its frames on the next build"
+ },
+ "hero_shakespeare_idle_0": {
+  "feet_y": 233.0,
+  "file": "select_heroes/shakespeare_idle_0.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 105.0,
+  "serves": "CARD-A select hero sprite: shakespeare's idle frame 0 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   210,
+   238
+  ]
+ },
+ "hero_shakespeare_idle_1": {
+  "feet_y": 233.0,
+  "file": "select_heroes/shakespeare_idle_1.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 105.0,
+  "serves": "CARD-A select hero sprite: shakespeare's idle frame 1 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   210,
+   238
+  ]
+ },
+ "hero_shakespeare_idle_2": {
+  "feet_y": 233.0,
+  "file": "select_heroes/shakespeare_idle_2.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 105.0,
+  "serves": "CARD-A select hero sprite: shakespeare's idle frame 2 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   210,
+   238
+  ]
+ },
+ "hero_shakespeare_idle_3": {
+  "feet_y": 233.0,
+  "file": "select_heroes/shakespeare_idle_3.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 105.0,
+  "serves": "CARD-A select hero sprite: shakespeare's idle frame 3 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   210,
+   238
+  ]
+ },
+ "hero_tesla_idle_0": {
+  "feet_y": 233.0,
+  "file": "select_heroes/tesla_idle_0.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 80.0,
+  "serves": "CARD-A select hero sprite: tesla's idle frame 0 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   160,
+   238
+  ]
+ },
+ "hero_tesla_idle_1": {
+  "feet_y": 233.0,
+  "file": "select_heroes/tesla_idle_1.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 80.0,
+  "serves": "CARD-A select hero sprite: tesla's idle frame 1 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   160,
+   238
+  ]
+ },
+ "hero_tesla_idle_2": {
+  "feet_y": 233.0,
+  "file": "select_heroes/tesla_idle_2.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 80.0,
+  "serves": "CARD-A select hero sprite: tesla's idle frame 2 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   160,
+   238
+  ]
+ },
+ "hero_tesla_idle_3": {
+  "feet_y": 233.0,
+  "file": "select_heroes/tesla_idle_3.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 80.0,
+  "serves": "CARD-A select hero sprite: tesla's idle frame 3 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   160,
+   238
+  ]
+ },
+ "hero_tubman_idle_0": {
+  "feet_y": 213.0,
+  "file": "select_heroes/tubman_idle_0.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 101.0,
+  "serves": "CARD-A select hero sprite: tubman's idle frame 0 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   202,
+   218
+  ]
+ },
+ "hero_tubman_idle_1": {
+  "feet_y": 213.0,
+  "file": "select_heroes/tubman_idle_1.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 101.0,
+  "serves": "CARD-A select hero sprite: tubman's idle frame 1 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   202,
+   218
+  ]
+ },
+ "hero_tubman_idle_2": {
+  "feet_y": 213.0,
+  "file": "select_heroes/tubman_idle_2.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 101.0,
+  "serves": "CARD-A select hero sprite: tubman's idle frame 2 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   202,
+   218
+  ]
+ },
+ "hero_tubman_idle_3": {
+  "feet_y": 213.0,
+  "file": "select_heroes/tubman_idle_3.png",
+  "fps": 6.0,
+  "mipmaps": true,
+  "pivot_x": 101.0,
+  "serves": "CARD-A select hero sprite: tubman's idle frame 3 of 4 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   202,
+   218
+  ]
+ }
+}

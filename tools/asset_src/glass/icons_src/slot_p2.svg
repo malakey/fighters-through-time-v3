@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Player 2 slot shape (circle), solid. 22 px glyph in a 30 px box. Tint UIPalette.P2 (default #FF3366). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="44" height="44">
+  <circle cx="10" cy="10" r="8" fill="#FFFFFF"/>
+</svg>
