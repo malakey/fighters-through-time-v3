@@ -270,9 +270,9 @@ stays (the overlay is a HUD on `UiScaleBinder`); GO, the stamps and the winner b
   pinned `UIPalette.P1`.
 
 **Runs:** the widened UI filter plus `FighterOverlayModel`, `FighterLocalization` and `FighterMatchFlowContent`
-(`fixstep-ui.log`) is **798 / 798**; the touched suites alone (CharacterSelect, FighterOverlayModel,
-FighterMatchPresentation, FighterHud, PadMenuFighterSelect) are 97 / 97 after the in-place pin. Build: 0 errors, the two
-known warnings.
+(`fixstep-ui.log`) is **798 / 798**. It holds every suite this step touches (CharacterSelect, FighterOverlayModel,
+FighterMatchPresentation, FighterHud, PadMenuFighterSelect); a run of those alone before the in-place pin read 96 / 97,
+the one failure the old `UIPalette.P1` pin. Build: 0 errors, the two known warnings.
 
 **Captures** (windowed, under the lock) are in `D:\Projects\ftt-scratch\tg-captures\close-fix\`:
 
@@ -282,5 +282,6 @@ known warnings.
 - The countdown beat: `hudf_countdown`, `hudf_countdown_140` and `drill_hud`, which opens on the countdown. The `hudf_ko`
   stamp is unchanged.
 
-Every one was looked at. At 1.4 all three footer labels read whole at one size, BACK the narrowest. At 1.0 the footer is
-pixel-identical to the C1 head. The digit is gold at both scales and keeps its size.
+Every one was looked at. At 1.4 all three footer labels read whole at one size, BACK the narrowest. Against the C1 head,
+every 1.0 select state is pixel-identical (`select_mirror` differs only in P2's animated hero sprite, outside the footer),
+and the 1.4 states differ only in the footer band (x 506 to 1413). The digit is gold at both scales and keeps its size.
