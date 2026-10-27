@@ -52,19 +52,45 @@ public class TranslationCsvShapeTests {
         return fields;
     }
 
-    /// <summary>Returns one message per data row whose column count differs from the header's.</summary>
+    /// <summary>
+    /// Returns one message per bad record. Parses logical records as Godot's get_csv_line does: a record continues onto the
+    /// next physical line while a double quote is open. Blank and <c>#</c> lines are skipped only between records.
+    /// </summary>
     public static List<string> FindShapeProblems(string[] lines) {
         var problems = new List<string>();
         int expected = -1;
+        bool quoted = false;
+        int startLine = 0;
+        var fields = new List<string>();
+        var sb = new StringBuilder();
         for (int n = 0; n < lines.Length; n++) {
             string line = lines[n].TrimEnd('\r');
             if (n == 0) line = line.TrimStart('\uFEFF');
-            if (line.Length == 0 || line.StartsWith("#")) continue;
-            var fields = SplitRecord(line);
-            if (expected < 0) { expected = fields.Count; continue; }
-            if (fields.Count != expected)
-                problems.Add($"line {n + 1} key '{fields[0]}' has {fields.Count} columns, expected {expected}");
+            if (!quoted) {
+                if (line.Length == 0 || line.StartsWith("#")) continue;
+                startLine = n + 1;
+                fields.Clear();
+                sb.Clear();
+            }
+            for (int i = 0; i < line.Length; i++) {
+                char c = line[i];
+                if (quoted) {
+                    if (c == '"') {
+                        if (i + 1 < line.Length && line[i + 1] == '"') { sb.Append('"'); i++; }
+                        else quoted = false;
+                    } else sb.Append(c);
+                } else if (c == '"') quoted = true;
+                else if (c == ',') { fields.Add(sb.ToString()); sb.Clear(); }
+                else sb.Append(c);
+            }
+            if (quoted) { sb.Append('\n'); continue; }
+            fields.Add(sb.ToString());
+            if (expected < 0) expected = fields.Count;
+            else if (fields.Count != expected)
+                problems.Add($"line {startLine} key '{fields[0]}' has {fields.Count} columns, expected {expected}");
         }
+        if (quoted)
+            problems.Add($"line {startLine} key '{fields[0]}' has an unterminated quote that runs to the end of the file");
         return problems;
     }
 
@@ -90,5 +116,29 @@ public class TranslationCsvShapeTests {
         var bad = FindShapeProblems(new[] { "key,en", "a,Nassau, 1715" });
         AssertThat(bad.Count).IsEqual(1);
         AssertThat(bad[0]).Contains("line 2");
+    }
+
+    [TestCase]
+    public void AQuotedValueMayCrossALineBreak() {
+        string[] lines = { "key,en", "a,\"hello", "world\"", "b,ok" };
+        AssertThat(string.Join(" | ", FindShapeProblems(lines))).IsEqual("");
+    }
+
+    [TestCase]
+    public void AnUnterminatedQuoteThatSwallowsTheNextRowIsFlagged() {
+        string[] lines = { "key,en", "a,\"hello", "b,world" };
+        var swallowed = FindShapeProblems(lines);
+        AssertThat(swallowed.Count).IsEqual(1);
+        AssertThat(swallowed[0]).Contains("line 2");
+        var open = FindShapeProblems(new[] { "key,en", "a,ok", "b,\"never closed", "c,x" });
+        AssertThat(open.Count).IsEqual(1);
+        AssertThat(open[0]).Contains("line 3");
+        AssertThat(open[0]).Contains("unterminated");
+    }
+
+    [TestCase]
+    public void ACommentLineInsideAQuotedValueIsPartOfTheValue() {
+        string[] lines = { "key,en", "a,\"one", "# not a comment", "two\"", "# real comment, with, commas" };
+        AssertThat(string.Join(" | ", FindShapeProblems(lines))).IsEqual("");
     }
 }
