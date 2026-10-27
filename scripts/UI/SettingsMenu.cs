@@ -184,7 +184,7 @@ namespace FTT.UI {
             _panel = _root.GetNodeOrNull<PausePanel>("Margin/Panel");
             if (_panel != null) {
                 PulpScreenKit.DressPanel(_panel, sheen: true, buttonInset: false);
-                MenuSafeAreaFit.Attach(_panel, PausePanel.PromptBarClearance);
+                MenuSafeAreaFit.Attach(_panel, GlassScreenDressing.OverlayPromptClearance);
             }
             var found = _root.FindChildren("*", "CheckButton", true, false);
             using (found.AsDisposable()) {

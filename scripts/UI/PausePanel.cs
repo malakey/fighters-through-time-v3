@@ -39,13 +39,6 @@ namespace FTT.UI {
         /// <summary>The D6 cap of a menu stack at UI scale 1.0 (3.2: 700); a pause stack scales it with the UI scale.</summary>
         public const float RowCapAtOne = 700f;
 
-        /// <summary>
-        /// The extra room a centred overlay slab keeps clear above and below (<see cref="MenuSafeAreaFit"/>) for the prompt bar
-        /// at the bottom centre (UI_SPEC_GLASS 9.1: 34 px from the bottom): the bar's margin, its keycaps at UI scale 1.4 (36 px)
-        /// and a 12 px gap, less the fit's own 24 px margin. A slab that would reach the bar shrinks instead.
-        /// </summary>
-        public const float PromptBarClearance = 58f;
-
         private readonly PanelTagAnchor _anchor;
         private Tween _dimTween;
         private Tween _panelTween;
@@ -128,6 +121,45 @@ namespace FTT.UI {
         public static float ApplyRowWidths(IReadOnlyList<Button> rows, float capAtOne = RowCapAtOne) {
             if (rows == null || rows.Count == 0) return 0f;
             return PulpButtonDecor.ApplyStackWidth(rows, RowMinWidth, capAtOne * PulpButtonDecor.UiScaleFactor);
+        }
+
+        /// <summary>The pause title's padding below it (UI_SPEC_GLASS 2.3 T04 and 4.3 row 3b: 16 px).</summary>
+        public const float TitleBottomPadding = 16f;
+
+        private static readonly StringName TitleTrimMeta = "glass_title_trim";
+
+        /// <summary>
+        /// Sets the pause title's box to the spec's (UI_SPEC_GLASS 4.3 row 3b): T04 stands on a line height of 1, its 78 px
+        /// size, with a 16 px padding below, while a Godot label's box is the font's full height (Cinzel's ascent and descent
+        /// run some 31 px past 78), which left the title 15 px and everything under it 27 px lower in the slab than the mock.
+        /// The title gets its own copy of its role's font whose negative top and bottom spacing trims the box: half the excess
+        /// above; below, half the excess less what the layout's separation leaves of the 16 px padding. It is recomputed
+        /// when the theme changes (a UI-scale change); the size, colour and halo stay the role's. Once per label.
+        /// </summary>
+        public static void TrimTitleBox(Label title) {
+            if (title == null || title.HasMeta(TitleTrimMeta)) return;
+            Theme theme = UIPalette.LoadTheme();
+            string role = title.ThemeTypeVariation.ToString();
+            if (theme == null || role.Length == 0 || !theme.HasFont("font", role)) return;
+            Font roleFont = theme.GetFont("font", role);
+            FontVariation trimmed = roleFont is FontVariation variation && variation.Duplicate() is FontVariation copy
+                ? copy
+                : new FontVariation { BaseFont = roleFont };
+            title.SetMeta(TitleTrimMeta, true);
+            void Apply() {
+                if (!GodotObject.IsInstanceValid(title)) return;
+                int size = title.GetThemeFontSize("font_size");
+                float excess = Mathf.Max(0f, roleFont.GetHeight(size) - size);
+                int separation = title.GetParent() is BoxContainer box ? box.GetThemeConstant("separation") : 0;
+                float padding = Mathf.Max(0f, TitleBottomPadding * PulpButtonDecor.UiScaleFactor - separation);
+                int top = Mathf.RoundToInt(excess / 2f);
+                int bottom = Mathf.RoundToInt(Mathf.Max(0f, excess / 2f - padding));
+                if (trimmed.SpacingTop != -top) trimmed.SpacingTop = -top;
+                if (trimmed.SpacingBottom != -bottom) trimmed.SpacingBottom = -bottom;
+            }
+            Apply();
+            title.AddThemeFontOverride("font", trimmed);
+            title.ThemeChanged += Apply;
         }
     }
 }

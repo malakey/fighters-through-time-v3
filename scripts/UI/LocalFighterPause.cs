@@ -241,7 +241,7 @@ namespace FTT.UI {
             panelCenter.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
             AddChild(panelCenter);
             panelCenter.AddChild(_panel);
-            MenuSafeAreaFit.Attach(_panel, PausePanel.PromptBarClearance);
+            MenuSafeAreaFit.Attach(_panel, GlassScreenDressing.OverlayPromptClearance);
             PulpScreenKit.DressPanel(_pausePanel, sheen: true, buttonInset: true);
 
             var layout = new VBoxContainer { Name = "Layout" };
@@ -255,6 +255,7 @@ namespace FTT.UI {
                 ThemeTypeVariation = UIPalette.LabelRoles.PauseTitle
             };
             layout.AddChild(title);
+            PausePanel.TrimTitleBox(title);
 
             _statusLine = new Label {
                 Name = "StatusLine",

@@ -253,10 +253,11 @@ namespace FTT.UI {
 
         /// <summary>
         /// TG-PAUSE (UI_SPEC_GLASS 4.3): what both build paths share. Every row is a 64 px glass chevron (the diamond
-        /// marker, the 14 px focus slide, the prompt badge), the stack shares the D6 width (rows 626 and the panel 680 at
-        /// 1.0: 20 + 626 + 20 + the 14 px stack inset), the panel keeps the 14 px inset for the focused row's slide and glow,
-        /// <see cref="MenuSafeAreaFit"/> keeps it on screen at UI scale 1.4, and the bottom-centre prompt bar is added. The
-        /// authored scene and the fallback differ only in who made the nodes.
+        /// marker, the 14 px focus slide, the prompt badge), the stack shares the D6 width (the widest label decides: about
+        /// 610 on a keyboard at 1.0, the panel then 20 + 610 + 20 + the 14 px stack inset), the panel keeps the 14 px inset
+        /// for the focused row's slide and glow, the title's box is trimmed to the spec's, <see cref="MenuSafeAreaFit"/>
+        /// keeps the slab on screen and clear of the prompt bar at UI scale 1.4, and the bottom-centre prompt bar is added.
+        /// The authored scene and the fallback differ only in who made the nodes.
         /// </summary>
         private void DecorateForGlass() {
             if (_root == null) return;
@@ -267,9 +268,10 @@ namespace FTT.UI {
                 _rows.Add(button);
             }
             PausePanel.ApplyRowWidths(_rows);
+            PausePanel.TrimTitleBox(_menuPanel?.GetNodeOrNull<Label>("Layout/Title"));
             if (_menuPanel is PanelContainer panel) {
                 PulpScreenKit.DressPanel(panel, sheen: true, buttonInset: true);
-                MenuSafeAreaFit.Attach(panel, PausePanel.PromptBarClearance);
+                MenuSafeAreaFit.Attach(panel, GlassScreenDressing.OverlayPromptClearance);
             }
             if (_root.GetNodeOrNull(PulpScreenKit.PromptBarName) == null) PulpScreenKit.AddBottomPromptBar(_root, "menu_resume");
             _promptBar = _root.GetNodeOrNull<Control>(PulpScreenKit.PromptBarName);
