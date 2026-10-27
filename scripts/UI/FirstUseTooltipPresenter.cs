@@ -172,6 +172,31 @@ namespace FTT.UI {
 
         private Tween _appear;
 
+        // What the last FitPlate read; a change while a tooltip shows (a Settings change over the pause, a resize, a locale
+        // switch) refits the plate in _Process.
+        private float _fitScale, _fitHud, _fitView;
+        private bool _fitStale;
+
+        public override void _Notification(int what) {
+            if ((long)what == NotificationTranslationChanged) _fitStale = true;
+        }
+
+        private void RefitIfStale() {
+            if (_panel == null || !_panel.Visible) return;
+            float view = GetViewport()?.GetVisibleRect().Size.X ?? 1920f;
+            if (view <= 1f) view = 1920f;
+            if (!_fitStale
+                && Mathf.IsEqualApprox(_fitScale, Pulp.PulpButtonDecor.UiScaleFactor)
+                && Mathf.IsEqualApprox(_fitHud, Mathf.Max(0.01f, UiScaleBinder.CurrentSetting))
+                && Mathf.IsEqualApprox(_fitView, view)) return;
+            // Leave the plate at its final pose first, so the rise cannot write stale offsets after the refit.
+            _appear?.Kill();
+            _appear = null;
+            FTT.UI.Motion.PulpMotion.Settle(_panel);
+            _panel.Modulate = new Color(_panel.Modulate, 1f);
+            FitPlate();
+        }
+
         /// <summary>
         /// Sizes the plate to its line: the line on one row while it fits inside <see cref="PlateMaxWidth"/> (or the HUD's free
         /// band, when narrower) less the padding, else wrapped at that width (9.2: "height to content, max 900 wide"). Every
@@ -184,6 +209,10 @@ namespace FTT.UI {
             if (view <= 1f) view = 1920f;
             // The band in the HUD's canvas (the HUD is magnified by its own scale setting), on screen.
             float hud = Mathf.Max(0.01f, UiScaleBinder.CurrentSetting);
+            _fitScale = s;
+            _fitHud = hud;
+            _fitView = view;
+            _fitStale = false;
             (float bandLeft, float bandRight) = StoryHUD.FreeBand(view / hud);
             bandLeft *= hud;
             bandRight *= hud;
@@ -243,6 +272,7 @@ namespace FTT.UI {
         }
 
         public override void _Process(double delta) {
+            RefitIfStale();   // only while the plate is visible (a showing tooltip, or a preview)
             if (string.IsNullOrEmpty(ShowingTooltipID)) return;
             _remaining -= (float)delta;
             if (_remaining > 0f) return;

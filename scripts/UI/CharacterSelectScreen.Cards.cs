@@ -812,7 +812,17 @@ namespace FTT.UI {
                 for (int i = 0; i < count; i++) total += paddings[i] + labelWidth(i, fitted) + FooterSlack;
                 if (total <= budget) break;
             }
-            for (int i = 0; i < count; i++) widths[i] = Mathf.Ceil(paddings[i] + labelWidth(i, fitted) + FooterSlack);
+            float sum = 0f;
+            for (int i = 0; i < count; i++) {
+                widths[i] = Mathf.Ceil(paddings[i] + labelWidth(i, fitted) + FooterSlack);
+                sum += widths[i];
+            }
+            // Labels too long even at the floor: keep the row inside its budget (the decor then ellipsizes at the floor).
+            float cap = shared * count;
+            if (sum > cap) {
+                float scale = cap / sum;
+                for (int i = 0; i < count; i++) widths[i] = Mathf.Floor(widths[i] * scale);
+            }
             return widths;
         }
 

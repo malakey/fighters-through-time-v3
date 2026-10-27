@@ -285,3 +285,9 @@ the one failure the old `UIPalette.P1` pin. Build: 0 errors, the two known warni
 Every one was looked at. At 1.4 all three footer labels read whole at one size, BACK the narrowest. Against the C1 head,
 every 1.0 select state is pixel-identical (`select_mirror` differs only in P2's animated hero sprite, outside the footer),
 and the 1.4 states differ only in the footer band (x 506 to 1413). The digit is gold at both scales and keeps its size.
+
+## Codex review 3 fixes
+
+- **First-use tooltip refit** (`scripts/UI/FirstUseTooltipPresenter.cs`): `FitPlate` caches the UI scale factor, HUD scale setting and viewport width it read; `_Process` refits (settling the appear tween first through `PulpMotion.Settle`) when one changes or a translation change arrives, only while the plate is visible. No allocation per frame.
+- **Select footer bound** (`CharacterSelectScreen.Cards.cs`, `FooterWidths`): when the labels cannot fit even at the floor, the widths are scaled down (floored) so their sum stays within `shared * count`. Cases that fit return exactly what they did.
+- **Tests**: `StoryHudBoundsTests.AShowingFirstUseTooltipRefitsWhenTheUiScaleChanges`, `CharacterSelectCardTests.TheFooterWidthsStayInsideTheBudgetWhenTheLabelsCannotFit`. Both failed against the unfixed scripts (stashed) and pass with the fix. Filtered UI suites: Failed 0, Passed 80, Total 80.
