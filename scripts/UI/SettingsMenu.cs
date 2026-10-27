@@ -210,12 +210,7 @@ namespace FTT.UI {
         private const float ShortcutToggleWidth = 440f;
 
         /// <summary>A toggle row's label: the <c>RowLabel</c> child drawn in the label column (UI_SPEC_GLASS 3.3, T52).</summary>
-        public const string ToggleRowLabelName = SettingsRowLayout.RowLabelName;
-
-        private static readonly string[] ToggleTextColorSlots = {
-            "font_color", "font_hover_color", "font_focus_color", "font_pressed_color", "font_hover_pressed_color",
-            "font_disabled_color"
-        };
+        public const string ToggleRowLabelName = Pulp.PulpToggleDecor.RowLabelName;
 
         /// <summary>
         /// A settings switch (3.3): the glass toggle track at the button's right end, and the row's label drawn upper-case in
@@ -225,29 +220,9 @@ namespace FTT.UI {
         /// </summary>
         internal static void SkinToggle(CheckButton toggle, float width = 0f) {
             if (width > 0f) toggle.CustomMinimumSize = new Vector2(width, toggle.CustomMinimumSize.Y);
+            // The toggle decor draws the row label (T52, upper case) and hides the button's own text (TG-CLOSE folded the
+            // RowLabel this method used to build into PulpToggleDecor, so every toggle in the game has it).
             Pulp.PulpToggleDecor.Apply(toggle);
-            foreach (string slot in ToggleTextColorSlots) toggle.AddThemeColorOverride(slot, new Color(0f, 0f, 0f, 0f));
-            if (toggle.GetNodeOrNull<Label>(ToggleRowLabelName) is not { } label) {
-                label = new Label {
-                    Name = ToggleRowLabelName,
-                    Uppercase = true,
-                    AutowrapMode = TextServer.AutowrapMode.WordSmart,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    MouseFilter = Control.MouseFilterEnum.Ignore,
-                    ThemeTypeVariation = UIPalette.LabelRoles.SettingsRowLabel
-                };
-                toggle.AddChild(label);
-            }
-            label.Text = toggle.Text;
-            if (toggle.GetParent() is not SettingsRowLayout) {
-                // Outside the row layout the label column is the button's width less the gap and the track.
-                label.AnchorTop = 0f;
-                label.AnchorBottom = 1f;
-                label.OffsetLeft = 0f;
-                label.OffsetRight = Mathf.Max(0f, toggle.CustomMinimumSize.X - SettingsRowLayout.SpecItemGap - Pulp.PulpToggleDecor.TrackWidth);
-                label.OffsetTop = 0f;
-                label.OffsetBottom = 0f;
-            }
         }
 
         /// <summary>
