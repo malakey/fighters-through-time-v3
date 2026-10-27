@@ -118,16 +118,19 @@ namespace FTT.Diagnostics {
             return page;
         }
 
-        /// <summary>The portrait roundel at 112, 110 and 86 for two heroes.</summary>
+        /// <summary>TG-WIDGETS: the G5 portrait frame at 112, 110, 86, 150 and 320 for two heroes (the target keeps the roundel's name).</summary>
         [UiCaptureTarget("widgets_roundel")]
         public static Node WidgetsRoundel(UiCaptureContext context) {
             Control page = WidgetPage();
-            var row = new HBoxContainer { Position = new Vector2(80f, 60f) };
-            row.AddThemeConstantOverride("separation", 50);
-            page.AddChild(row);
+            var column = new VBoxContainer { Position = new Vector2(80f, 60f) };
+            column.AddThemeConstantOverride("separation", 60);
+            page.AddChild(column);
             foreach (string who in new[] { "einstein", "joan" }) {
-                foreach (float d in new[] { 112f, 110f, 86f }) {
-                    var roundel = new PulpPortraitRoundel { Diameter = d };
+                var row = new HBoxContainer();
+                row.AddThemeConstantOverride("separation", 50);
+                column.AddChild(row);
+                foreach (float d in new[] { 112f, 110f, 86f, 150f, 320f }) {
+                    var roundel = new PulpPortraitRoundel { Diameter = d, SizeFlagsVertical = Control.SizeFlags.ShrinkBegin };
                     roundel.Portrait = GD.Load<Texture2D>($"res://assets/sprites/characters/portraits/{who}_portrait.png");
                     row.AddChild(roundel);
                 }

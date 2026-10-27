@@ -49,8 +49,15 @@ public class UrPolish2Tests {
         }
     }
 
+    /// <summary>
+    /// TG-WIDGETS (Codex finding 2 of REVIEW-UI-PULP-CODEX-3). The tag clamp rule on fresh panels at both scales (an
+    /// overlong tag clamps and ellipsizes, a short one is untouched, the glass tag has no tilt), then the same tag hosts
+    /// rescaled live across the clip threshold in both directions: a tag that fits at 1.0 must clamp when the scale
+    /// grows under it and come back whole when it shrinks again, for all three hosts (<c>PanelTagAnchor</c>,
+    /// <c>PulpTaggedPanel</c>, <c>PausePanel</c>).
+    /// </summary>
     [TestCase]
-    public async Task AnOverlongTagClampsInsideItsPanelAtBothUiScalesAndAShortOneIsUntouched() {
+    public async Task AnOverlongTagClampsInsideItsPanelAndFollowsALiveUiScaleChangeBothWays() {
         float original = UIPalette.AppliedUiScale;
         Theme hold = UIPalette.LoadTheme();
         var problems = new List<string>();
@@ -76,6 +83,7 @@ public class UrPolish2Tests {
                     PulpScreenKit.AddTag(anchored, "common_back");
                     await Settle();
                     if (anchor.Tag.Size != shortSize || anchor.Tag.Position != shortPos) problems.Add($"{scale}: a short tag moved or resized {shortPos} {shortSize} -> {anchor.Tag.Position} {anchor.Tag.Size}");
+                    if (!Mathf.IsZeroApprox(anchor.Tag.Rotation)) problems.Add($"{scale}: the anchored glass tag is tilted {anchor.Tag.RotationDegrees} degrees");
 
                     var pause = new PausePanel { Name = "Pause", Position = new Vector2(100, 400), CustomMinimumSize = new Vector2(500, 200) };
                     pause.AddChild(new Label { Text = "x" });
@@ -84,16 +92,160 @@ public class UrPolish2Tests {
                     await Settle();
                     if (Bounds(pause.Tag).End.X > Bounds(pause).End.X - PulpTagPlate.RightMargin + 2f)
                         problems.Add($"{scale}: pause tag {Bounds(pause.Tag)} past panel {Bounds(pause)}");
+                    if (!Mathf.IsZeroApprox(pause.Tag.Rotation)) problems.Add($"{scale}: the pause glass tag is tilted {pause.Tag.RotationDegrees} degrees");
                 } finally {
                     host.GetParent()?.RemoveChild(host);
                     host.Free();
                 }
             }
+            await CheckLiveRescale(problems);
         } finally {
             UIPalette.ApplyUiScale(original);
             System.GC.KeepAlive(hold);
         }
         if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
+    }
+
+    private const string ThresholdTag = "A MIDDLING PANEL TITLE";
+
+    /// <summary>One tag host of each kind: the panel it measures against, its tag and the tag's label.</summary>
+    private sealed class TagHost {
+        public string Kind;
+        public Control Panel;
+        public Control Tag;
+        public Label Label;
+    }
+
+    private static TagHost BuildTagHost(Control parent, string kind, float width, Vector2 position) {
+        switch (kind) {
+            case "anchor": {
+                var panel = new PanelContainer { Name = "Anchored", ThemeTypeVariation = UIPalette.Variations.InkPanel, Position = position, CustomMinimumSize = new Vector2(width, 120) };
+                panel.AddChild(new Label { Text = "x" });
+                parent.AddChild(panel);
+                Label label = PulpScreenKit.AddTag(panel, ThresholdTag);
+                var anchor = panel.GetNode<PanelTagAnchor>(PulpScreenKit.TagAnchorName);
+                return new TagHost { Kind = kind, Panel = panel, Tag = anchor.Tag, Label = label };
+            }
+            case "tagged": {
+                var tagged = new PulpTaggedPanel { TagKey = ThresholdTag, Position = position };
+                var panel = new PanelContainer { ThemeTypeVariation = UIPalette.Variations.InkPanel, CustomMinimumSize = new Vector2(width, 120) };
+                panel.AddChild(new Label { Text = "x" });
+                tagged.AddChild(panel);
+                parent.AddChild(tagged);
+                return new TagHost { Kind = kind, Panel = tagged, Tag = tagged.Tag, Label = tagged.TagLabel };
+            }
+            default: {
+                var pause = new PausePanel { Name = "Pause", Position = position, CustomMinimumSize = new Vector2(width, 120) };
+                pause.AddChild(new Label { Text = "x" });
+                parent.AddChild(pause);
+                pause.TagText = ThresholdTag;
+                return new TagHost { Kind = kind, Panel = pause, Tag = pause.Tag, Label = (Label)pause.Tag.GetChild(0) };
+            }
+        }
+    }
+
+    /// <summary>The tag's left edge relative to its panel's left edge (unrotated).</summary>
+    private static float TagLeftInPanel(TagHost host) =>
+        host.Tag.GetParent() is Control parent && parent != host.Panel ? parent.Position.X + host.Tag.Position.X : host.Tag.Position.X;
+
+    private static void CheckTag(TagHost host, float panelWidth, bool clamped, float natural, string step, List<string> problems) {
+        float right = TagLeftInPanel(host) + host.Tag.Size.X;
+        float limit = panelWidth - PulpTagPlate.RightMargin;
+        string tag = $"{host.Kind} {step}";
+        if (clamped) {
+            if (!host.Label.ClipText) problems.Add($"{tag}: the label is not clipped although the tag needs {natural} px");
+            if (right > limit + 1f) problems.Add($"{tag}: the tag ends at {right}, past the clamp {limit}");
+        } else {
+            if (host.Label.ClipText) problems.Add($"{tag}: the label is still clipped although the tag fits");
+            if (Mathf.Abs(host.Tag.Size.X - natural) > 1f) problems.Add($"{tag}: the tag is {host.Tag.Size.X} wide, not its natural {natural}");
+        }
+    }
+
+    /// <summary>
+    /// Builds one host of each kind at 1.0 (sequence A) and another at 1.4 (sequence B) with a panel width between the
+    /// tag's natural width at the two scales, then flips the scale on the same instances: A 1.0 -> 1.4 -> 1.0 and B
+    /// 1.4 -> 1.0 -> 1.4. Natural widths and the tag's offset are measured first on fresh hosts in a wide panel.
+    /// </summary>
+    private static async Task CheckLiveRescale(List<string> problems) {
+        var root = ((SceneTree)Engine.GetMainLoop()).Root;
+        var host = new Control { Name = "UrPolish2LiveTags" };
+        UIPalette.ApplyTheme(host);
+        root.AddChild(host);
+        try {
+            string[] kinds = { "anchor", "tagged", "pause" };
+            var natural = new Dictionary<(string, float), float>();
+            var left = new Dictionary<string, float>();
+            foreach (float scale in new[] { 1f, 1.4f }) {
+                UIPalette.ApplyUiScale(scale);
+                await Settle();
+                foreach (string kind in kinds) {
+                    TagHost wide = BuildTagHost(host, kind, 2000f, new Vector2(0, 0));
+                    await Settle();
+                    natural[(kind, scale)] = wide.Tag.Size.X;
+                    left[kind] = TagLeftInPanel(wide);
+                    wide.Panel.GetParent().RemoveChild(wide.Panel);
+                    wide.Panel.Free();
+                }
+            }
+            var width = new Dictionary<string, float>();
+            foreach (string kind in kinds) {
+                float n10 = natural[(kind, 1f)], n14 = natural[(kind, 1.4f)];
+                if (n14 - n10 < 20f) problems.Add($"{kind}: harness: the natural widths {n10} / {n14} are too close to straddle");
+                width[kind] = Mathf.Round(left[kind] + PulpTagPlate.RightMargin + (n10 + n14) / 2f);
+            }
+
+            UIPalette.ApplyUiScale(1f);
+            await Settle();
+            var a = new Dictionary<string, TagHost>();
+            var b = new Dictionary<string, TagHost>();
+            float y = 60f;
+            foreach (string kind in kinds) { a[kind] = BuildTagHost(host, kind, width[kind], new Vector2(40, y)); y += 170f; }
+            await Settle();
+            foreach (string kind in kinds) CheckTag(a[kind], width[kind], false, natural[(kind, 1f)], "A built at 1.0", problems);
+
+            UIPalette.ApplyUiScale(1.4f);
+            await Settle();
+            foreach (string kind in kinds) CheckTag(a[kind], width[kind], true, natural[(kind, 1.4f)], "A rescaled 1.0 -> 1.4", problems);
+            foreach (string kind in kinds) { b[kind] = BuildTagHost(host, kind, width[kind], new Vector2(40, y)); y += 170f; }
+            await Settle();
+            foreach (string kind in kinds) CheckTag(b[kind], width[kind], true, natural[(kind, 1.4f)], "B built at 1.4", problems);
+
+            UIPalette.ApplyUiScale(1f);
+            await Settle();
+            foreach (string kind in kinds) CheckTag(a[kind], width[kind], false, natural[(kind, 1f)], "A back 1.4 -> 1.0", problems);
+            foreach (string kind in kinds) CheckTag(b[kind], width[kind], false, natural[(kind, 1f)], "B rescaled 1.4 -> 1.0", problems);
+
+            UIPalette.ApplyUiScale(1.4f);
+            await Settle();
+            foreach (string kind in kinds) CheckTag(b[kind], width[kind], true, natural[(kind, 1.4f)], "B back 1.0 -> 1.4", problems);
+
+            // One theme change in one step: an ancestor adopts a theme carrying the 1.4 sizes (UIPalette.ApplyUiScale sends
+            // one change per font size, so a later change can hide a placement made with the label's stale size).
+            Theme big = (Theme)UIPalette.LoadTheme().Duplicate();
+            UIPalette.ApplyUiScale(1f);
+            await Settle();
+            var swapUp = new Control { Name = "SwapUp", Position = new Vector2(900, 0) };
+            var swapDown = new Control { Name = "SwapDown", Position = new Vector2(900, 540), Theme = big };
+            host.AddChild(swapUp);
+            host.AddChild(swapDown);
+            var up = new Dictionary<string, TagHost>();
+            var down = new Dictionary<string, TagHost>();
+            y = 0f;
+            foreach (string kind in kinds) {
+                up[kind] = BuildTagHost(swapUp, kind, width[kind], new Vector2(0, y));
+                down[kind] = BuildTagHost(swapDown, kind, width[kind], new Vector2(0, y));
+                y += 170f;
+            }
+            await Settle();
+            swapUp.Theme = big;
+            swapDown.Theme = null;
+            await Settle();
+            foreach (string kind in kinds) CheckTag(up[kind], width[kind], true, natural[(kind, 1.4f)], "theme swap 1.0 -> 1.4", problems);
+            foreach (string kind in kinds) CheckTag(down[kind], width[kind], false, natural[(kind, 1f)], "theme swap 1.4 -> 1.0", problems);
+        } finally {
+            host.GetParent()?.RemoveChild(host);
+            host.Free();
+        }
     }
 
     [TestCase]
@@ -242,29 +394,104 @@ public class UrPolish2Tests {
         if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
     }
 
-    /// <summary>The focused pose's rect: the pose's slide, scale and tilt about the centre, grown by the focus plate's margins.</summary>
-    private static Rect2 PosedRect(Button button) {
-        Vector2 centre = button.Size / 2f;
-        var pose = Transform2D.Identity.Translated(centre + PulpMotionRules.FocusTranslateX * Vector2.Right)
-            * new Transform2D(Mathf.DegToRad(PulpMotionRules.FocusTiltDegrees), new Vector2(PulpMotionRules.FocusScale, PulpMotionRules.FocusScale), 0f, Vector2.Zero)
-            * Transform2D.Identity.Translated(-centre);
-        Rect2 posed = pose * new Rect2(Vector2.Zero, button.Size);
-        posed = posed.GrowIndividual(PulpScreenKit.FocusPlateExpandLeft, 0f, PulpScreenKit.FocusPlateExpandRight, 0f);
-        return new Rect2(Bounds(button).Position + posed.Position, posed.Size);
+    /// <summary>The spec's least gap between two buttons in a horizontal row (UI_SPEC_GLASS 9.1 item 4, plan P1).</summary>
+    private const float SpecRowGapFloor = 34f;
+
+    /// <summary>A stylebox's expand margins (left, top, right, bottom); zero for a box without them.</summary>
+    private static Vector4 ExpandOf(StyleBox box) => box switch {
+        StyleBoxTexture t => new Vector4(t.ExpandMarginLeft, t.ExpandMarginTop, t.ExpandMarginRight, t.ExpandMarginBottom),
+        StyleBoxFlat f => new Vector4(f.ExpandMarginLeft, f.ExpandMarginTop, f.ExpandMarginRight, f.ExpandMarginBottom),
+        _ => Vector4.Zero
+    };
+
+    private static Vector4 Max(Vector4 a, Vector4 b) => new(Mathf.Max(a.X, b.X), Mathf.Max(a.Y, b.Y), Mathf.Max(a.Z, b.Z), Mathf.Max(a.W, b.W));
+
+    /// <summary>The expand of every box a button draws while it is not focused (its state boxes).</summary>
+    private static Vector4 StateExpand(Button button) {
+        Vector4 grow = Vector4.Zero;
+        foreach (string state in new[] { "normal", "hover", "pressed", "hover_pressed", "disabled" }) grow = Max(grow, ExpandOf(button.GetThemeStylebox(state)));
+        return grow;
     }
 
-    private static void CheckRow(Button[] row, string tag, List<string> problems) {
-        for (int i = 0; i < row.Length; i++) {
-            Rect2 posed = PosedRect(row[i]);
-            for (int k = 0; k < row.Length; k++) {
+    /// <summary>The axis-aligned bounds of a control's local rect grown by <paramref name="grow"/>, through its current global transform.</summary>
+    private static Rect2 Drawn(Control control, Vector4 grow) {
+        var local = new Rect2(-grow.X, -grow.Y, control.Size.X + grow.X + grow.Z, control.Size.Y + grow.Y + grow.W);
+        Transform2D xform = control.GetGlobalTransform();
+        var box = new Rect2(xform * local.Position, Vector2.Zero);
+        return box.Expand(xform * new Vector2(local.End.X, local.Position.Y)).Expand(xform * local.End)
+            .Expand(xform * new Vector2(local.Position.X, local.End.Y));
+    }
+
+    /// <summary>
+    /// TG-WIDGETS (Codex finding 1 of REVIEW-UI-PULP-CODEX-3). The drawn bounds of each button of a row while it is focused
+    /// and pressed, measured on the real control: its focus overlay and state boxes as the theme (or a local override)
+    /// gives them, carried by the real <c>FocusPose</c> frame by frame through the slide (so any tween overshoot is seen)
+    /// and the press. The overlay shows from the frame focus lands, before the slide. Each must stay clear of every
+    /// neighbour's own drawn plate: its normal box at rest and along its own slide (a neighbour that just lost focus is
+    /// still easing back). The rows also keep the spec's 34 px floor.
+    /// </summary>
+    private static async Task CheckRow(Button[] row, string tag, List<string> problems) {
+        var tree = (SceneTree)Engine.GetMainLoop();
+        int n = row.Length;
+        var rest = new Rect2[n];
+        var drawn = new Rect2[n];
+        var slide = new float[n];
+        for (int i = 0; i < n; i++) rest[i] = Bounds(row[i]);
+        for (int i = 0; i + 1 < n; i++) {
+            float gap = rest[i + 1].Position.X - rest[i].End.X;
+            if (gap < SpecRowGapFloor - 0.5f) problems.Add($"{tag}: {row[i].Name} and {row[i + 1].Name} are {gap} px apart, under the spec's {SpecRowGapFloor}");
+        }
+        for (int i = 0; i < n; i++) {
+            Button button = row[i];
+            Vector4 grow = Max(StateExpand(button), ExpandOf(button.GetThemeStylebox("focus")));
+            Rect2 union = Drawn(button, grow);
+            button.GrabFocus();
+            for (int frame = 0; frame < 16; frame++) {
+                union = union.Merge(Drawn(button, grow));
+                slide[i] = Mathf.Max(slide[i], Bounds(button).Position.X - rest[i].Position.X);
+                await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+            }
+            button.EmitSignal(BaseButton.SignalName.ButtonDown);
+            union = union.Merge(Drawn(button, grow));
+            await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+            union = union.Merge(Drawn(button, grow));
+            button.EmitSignal(BaseButton.SignalName.ButtonUp);
+            for (int frame = 0; frame < 12; frame++) {
+                union = union.Merge(Drawn(button, grow));
+                await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+            }
+            button.ReleaseFocus();
+            await Settle(12);
+            drawn[i] = union;
+        }
+        for (int i = 0; i < n; i++) {
+            for (int k = 0; k < n; k++) {
                 if (k == i) continue;
-                if (posed.Intersects(Bounds(row[k]))) problems.Add($"{tag}: focused {row[i].Name} {posed} covers {row[k].Name} {Bounds(row[k])}");
+                Vector4 own = ExpandOf(row[k].GetThemeStylebox("normal"));
+                var plate = new Rect2(rest[k].Position - new Vector2(own.X, own.Y), rest[k].Size + new Vector2(own.X + own.Z, own.Y + own.W));
+                plate = plate.Merge(new Rect2(plate.Position + new Vector2(slide[k], 0f), plate.Size));
+                if (drawn[i].Intersects(plate)) problems.Add($"{tag}: focused {row[i].Name} draws to {drawn[i]}, over {row[k].Name}'s own plate {plate}");
             }
         }
     }
 
+    /// <summary>A pause-row chevron whose focus overlay reaches farther than the shipped one: 12 px left and 23 px right, the margins the review measured on the pulp plate.</summary>
+    private static Button WideOverlayButton(string name, float width) {
+        var button = new Button {
+            Name = name, Text = "common_back", ThemeTypeVariation = UIPalette.Variations.TemporalGlassButton,
+            FocusMode = Control.FocusModeEnum.All, CustomMinimumSize = new Vector2(width, 64f)
+        };
+        var focus = (StyleBox)UIPalette.LoadTheme().GetStylebox("focus", UIPalette.Variations.TemporalGlassButton).Duplicate();
+        switch (focus) {
+            case StyleBoxTexture t: t.ExpandMarginLeft = 12f; t.ExpandMarginRight = 23f; break;
+            case StyleBoxFlat f: f.ExpandMarginLeft = 12f; f.ExpandMarginRight = 23f; break;
+        }
+        button.AddThemeStyleboxOverride("focus", focus);
+        return button;
+    }
+
     [TestCase]
-    public async Task AFocusedButtonInAHorizontalRowClearsItsNeighboursAtBothUiScales() {
+    public async Task AFocusedButtonInAHorizontalRowClearsItsNeighboursDrawnPlatesAtBothUiScales() {
         float original = UIPalette.AppliedUiScale;
         Theme hold = UIPalette.LoadTheme();
         var problems = new List<string>();
@@ -282,18 +509,24 @@ public class UrPolish2Tests {
                     host.AddChild(list);
                     list.Populate("joan", MoveListScreen.MoveListMode.Fighter);
                     list.Visible = true;
+                    // A row whose buttons carry a wider focus overlay than the theme's: the gap must follow the real box.
+                    var probe = new HBoxContainer { Name = "Probe", Position = new Vector2(80f, 960f) };
+                    host.AddChild(probe);
+                    Button[] wide = { WideOverlayButton("WideA", 480f), WideOverlayButton("WideB", 360f) };
+                    foreach (Button button in wide) probe.AddChild(button);
+                    foreach (Button button in wide) PulpButtonDecor.Apply(button);
                     await Settle();
                     modal.Open();
                     await Settle();
-                    // TG-THEME cross-edit: PosedRect models the focus pose from a button's rest slot, so no button may be
-                    // posed when it is measured (the opened modal focuses Cancel; its real slide would be counted twice).
+                    // Measure from the rest slots: the opened modal focuses Cancel, so release it first.
                     modal.GetViewport().GuiReleaseFocus();
                     await Settle(12);
-                    CheckRow(new[] { modal.CancelButton, modal.ConfirmButton }, $"{scale} modal", problems);
+                    await CheckRow(new[] { modal.CancelButton, modal.ConfirmButton }, $"{scale} modal", problems);
                     var footer = list.Root.GetNode<Control>("Center/Panel/Layout/FooterRow");
                     var buttons = new List<Button>();
                     for (int i = 0; i < footer.GetChildCount(); i++) if (footer.GetChild(i) is Button b) buttons.Add(b);
-                    CheckRow(buttons.ToArray(), $"{scale} movelist footer", problems);
+                    await CheckRow(buttons.ToArray(), $"{scale} movelist footer", problems);
+                    await CheckRow(wide, $"{scale} wide-overlay row", problems);
                 } finally {
                     host.GetParent()?.RemoveChild(host);
                     host.Free();

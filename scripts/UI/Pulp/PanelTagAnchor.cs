@@ -3,10 +3,20 @@ using Godot;
 
 namespace FTT.UI {
 
-    /// <summary>The tag anchor: a plain control the panel fits to its content area, holding the tag plate.</summary>
+    /// <summary>
+    /// The tag anchor: a plain control the panel fits to its content area, holding the tag plate positioned back out to
+    /// the panel's corner (UI_SPEC_GLASS 3.1). Its minimum size is zero, so the tag never widens the panel; the clamp keeps
+    /// it inside instead.
+    ///
+    /// <para>Codex finding 2 of REVIEW-UI-PULP-CODEX-3: a theme change reaches this control before the tag's label, whose
+    /// font size stays cached until the label itself is notified, so placing the tag from inside the change measured the
+    /// old size (a tag that fits at UI scale 1.0 and overflows at 1.4 stayed unclipped, and the reverse stayed clipped).
+    /// A theme change now queues one deferred placement, which runs after the change has propagated.</para>
+    /// </summary>
     public partial class PanelTagAnchor : Control {
         private readonly PanelContainer _tag;
         private readonly Label _label;
+        private bool _placeQueued;
 
         public PanelTagAnchor() {
             MouseFilter = MouseFilterEnum.Ignore;
@@ -24,10 +34,22 @@ namespace FTT.UI {
         }
 
         public override void _Notification(int what) {
-            if (what == NotificationResized || what == NotificationParented || what == NotificationThemeChanged
-                || what == NotificationVisibilityChanged) {
+            if (what == NotificationThemeChanged) {
+                QueuePlace();
+            } else if (what == NotificationResized || what == NotificationParented || what == NotificationVisibilityChanged) {
                 Place();
             }
+        }
+
+        private void QueuePlace() {
+            if (_placeQueued) return;
+            _placeQueued = true;
+            Callable.From(PlaceQueued).CallDeferred();
+        }
+
+        private void PlaceQueued() {
+            _placeQueued = false;
+            if (IsInstanceValid(this) && IsInsideTree()) Place();
         }
 
         private void Place() {

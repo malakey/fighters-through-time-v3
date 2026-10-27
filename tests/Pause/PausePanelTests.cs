@@ -6,7 +6,7 @@ using static GdUnit4.Assertions;
 
 namespace FTT.Tests.Pause;
 
-/// <summary>UR-PAUSE: the PAUSE-A panel (UI_SPEC 3.1): padding, the halftone corner and the out-of-flow level tag.</summary>
+/// <summary>UR-PAUSE: the PAUSE-A panel (UI_SPEC 3.1): padding, the glass sheen (TG-WIDGETS cross-edit) and the out-of-flow level tag.</summary>
 [TestSuite]
 [RequireGodotRuntime]
 public class PausePanelTests {
@@ -31,14 +31,22 @@ public class PausePanelTests {
             AssertThat(box.ContentMarginLeft).IsEqual(PausePanel.Border + PausePanel.PadSides);
             AssertThat(box.ContentMarginTop).IsEqual(PausePanel.Border + PausePanel.PadTop);
             AssertThat(box.ContentMarginBottom).IsEqual(PausePanel.Border + PausePanel.PadBottom);
-            AssertThat(panel.GetNodeOrNull("HalftoneCorner")).IsNotNull();
+            AssertThat(panel.GetNodeOrNull("GlassSheen")).IsNotNull();   // TG-WIDGETS cross-edit: the sheen replaces the halftone
 
             // The layout fills the padded rect; the tag does not squash it.
             AssertThat(layout.Position.X).IsEqual(box.ContentMarginLeft);
             AssertThat(layout.Size.Y).IsEqual(200f);
             AssertThat(panel.Tag.Visible).IsTrue();
-            AssertThat(panel.Tag.Position.Y).IsLess(0f);
-            AssertThat(panel.Tag.RotationDegrees).IsEqualApprox(-1.2f, 0.01f);
+            AssertThat(panel.Tag.GetGlobalRect().Position.Y).IsLess(panel.GetGlobalRect().Position.Y);
+            AssertThat(panel.Tag.RotationDegrees).IsEqualApprox(0f, 0.01f);   // TG-WIDGETS cross-edit: the glass tag is not tilted
+
+            // The tag stays out of flow: an overlong one clamps inside the panel instead of widening it.
+            float width = panel.Size.X;
+            panel.TagText = "AN EXCEEDINGLY LONG LOCALIZED PANEL TITLE THAT RUNS PAST ANY PANEL EDGE";
+            await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+            await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+            AssertThat(panel.Size.X).IsEqual(width);
+            AssertThat(panel.Tag.GetGlobalRect().End.X <= panel.GetGlobalRect().End.X - FTT.UI.Pulp.PulpTagPlate.RightMargin + 1f).IsTrue();
 
             panel.TagText = "";
             AssertThat(panel.Tag.Visible).IsFalse();
