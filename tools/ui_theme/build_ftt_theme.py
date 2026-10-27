@@ -526,13 +526,19 @@ def build():
     put_button("GlassField", "Button", field, 22, field_font, FIELD_COLORS)
     put_button("OptionButton", None, field, 22, field_font, FIELD_COLORS)
     put("OptionButton/constants/arrow_margin", 14)
+    # TG-CLOSE: the 3.3 arrow, chevron_down's bold weight rasterized at its 18 px display size (an OptionButton draws its
+    # arrow at the texture's size); baked as ink2 / ink, so modulate_arrow (the field's font colour) lands it on ink2 at
+    # rest, white when the field is lit and ink3 when it is disabled.
+    put("OptionButton/icons/arrow", glass_tex("glass_option_arrow"))
+    put("OptionButton/constants/modulate_arrow", 1)
     tab_font = font("outfit", 600, tracking_px(0.13, 24))
     tabs = tab_set()
-    # The hover box is the selected look plus the glow (a gold fill), so a hovered tab's text is the selected ink.
+    # The hover box is the quiet lit tab (TG-CLOSE: TG-ART's hover was the selected gold, which read as selected), so a
+    # hovered tab's text turns white, as a lit chevron's does.
     put_button("GlassTab", "Button", {
         "normal": tabs["unselected"], "hover": tabs["hovered"], "pressed": tabs["selected"],
         "hover_pressed": tabs["selected"], "disabled": tabs["disabled"], "focus": tabs["focus"]}, 24, tab_font,
-        dict(font_color="Ink2", font_hover_color="TabSelectedInk", font_focus_color="Ink2",
+        dict(font_color="Ink2", font_hover_color="TextFocus", font_focus_color="Ink2",
              font_pressed_color="TabSelectedInk", font_hover_pressed_color="TabSelectedInk", font_disabled_color="Ink3"))
     put_button("GlassTabSelected", "Button", {
         "normal": tabs["selected"], "hover": tabs["selected"], "pressed": tabs["selected"],
@@ -596,6 +602,7 @@ def build():
                               margins=(22, 8, 22, 8)))
 
     # ---- Inputs: the glass field (LineEdit), sliders, scroll bars, spin box buttons
+    field_focus = field["focus"]
     line_margins = (16, 8, 16, 8)
     colors("LineEdit", font_color="Ink", font_placeholder_color="Ink3", caret_color="Accent",
            font_selected_color="Ink", selection_color="Selection")
@@ -617,6 +624,11 @@ def build():
         for icon in ("grabber", "grabber_highlight", "grabber_disabled"):
             put(t + "/icons/" + icon, glass_tex("glass_slider_grabber"))
         put(t + "/constants/center_grabber", 1)
+        # TG-CLOSE: a focused slider wears the glass field's focus overlay (the lit edge and the 14 px glow; Settings
+        # borrowed it per slider until the closeout folded it here). The grabber canvas is 44 px, so a slider is 44 tall.
+        put(t + "/styles/focus", field_focus)
+    # TG-CLOSE: a focusable Label (the select's Remote Play notice) wears the same overlay, not Godot's default frame.
+    put("Label/styles/focus", field_focus)
     # 3.3 scroll bar: 8 px wide, rounded ends, a gold grabber at least 48 long.
     for t, track_margins, grab_margins in (("VScrollBar", (4, 0, 4, 0), (4, 24, 4, 24)),
                                           ("HScrollBar", (0, 4, 0, 4), (24, 4, 24, 4))):
@@ -660,7 +672,7 @@ def build():
     put("TabContainer/styles/tab_disabled", tabs["disabled"])
     put("TabContainer/styles/tab_focus", tabs["focus"])
     put("TabContainer/styles/tabbar_background", empty("TabBar"))
-    colors("TabContainer", font_selected_color="TabSelectedInk", font_hovered_color="TabSelectedInk",
+    colors("TabContainer", font_selected_color="TabSelectedInk", font_hovered_color="TextFocus",
            font_unselected_color="Ink2", font_disabled_color="Ink3")
     put("TabContainer/font_sizes/font_size", 24)
     put("TabContainer/fonts/font", tab_font)

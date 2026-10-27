@@ -86,6 +86,29 @@ public class UIThemeTests {
         RequireStyle(UIPalette.Variations.ReadyBadgeIdle, "panel");
         foreach (var preset in PanelPresets) RequireStyle(preset.Name, "panel");
 
+        // TG-CLOSE folds (plan 9's closeout list): the OptionButton arrow is the kit's 18 px chevron_down, tinted by the
+        // field's font colour; the slider grabber is a 44 px canvas, so a slider stands 44 px tall (it was 64); a hovered
+        // tab is the quiet lit tab with white text, not the selected gold with the selected ink.
+        Texture2D arrow = theme.GetIcon("arrow", "OptionButton");
+        if (arrow == null || arrow.ResourcePath != "res://assets/sprites/ui/glass/icons/chevron_down_18.png" || arrow.GetSize() != new Vector2(18f, 18f)) {
+            missing.Add($"OptionButton/icons/arrow is {arrow?.ResourcePath ?? "missing"}, not the 18 px chevron_down");
+        }
+        if (theme.GetConstant("modulate_arrow", "OptionButton") != 1) missing.Add("OptionButton/constants/modulate_arrow must tint the arrow by the font colour");
+        foreach (string slider in new[] { "HSlider", "VSlider" }) {
+            Texture2D grabber = theme.GetIcon("grabber", slider);
+            if (grabber == null || grabber.GetHeight() != 44 || grabber.GetWidth() != 44) {
+                missing.Add($"{slider}/icons/grabber is {grabber?.GetSize().ToString() ?? "missing"}, not 44 x 44");
+            }
+        }
+        if (theme.GetColor("font_hover_color", UIPalette.Variations.GlassTab) != UIPalette.TextFocus) missing.Add("GlassTab hovers in the selected ink, not white");
+        if (theme.GetColor("font_hovered_color", "TabContainer") != UIPalette.TextFocus) missing.Add("TabContainer hovers in the selected ink, not white");
+        if (theme.GetStylebox("tab_hovered", "TabContainer") is StyleBoxTexture hovered) {
+            Color centre = CentrePixel(hovered);
+            if (centre.A > 0.4f) missing.Add($"the hovered tab's centre is {centre}: as strong as the selected tab");
+        } else {
+            missing.Add("TabContainer/styles/tab_hovered is not the kit texture");
+        }
+
         if (missing.Count > 0) AssertThat(string.Join(" | ", missing)).IsEqual("");
     }
 
@@ -98,6 +121,13 @@ public class UIThemeTests {
         // focusable type without a focus stylebox is invisible to navigate.
         foreach (string type in new[] { "Button", "CheckBox", "OptionButton", "LineEdit" }) {
             if (!theme.HasStylebox("focus", type)) missing.Add($"{type}/styles/focus");
+        }
+        // TG-CLOSE: a slider and a focusable label (the select's Remote Play notice) wear the glass field's focus overlay
+        // from the theme (Settings borrowed it per slider; a label showed Godot's default frame).
+        foreach (string type in new[] { "HSlider", "VSlider", "Label" }) {
+            if (theme.GetStylebox("focus", type) is not StyleBoxTexture overlay || overlay.Texture?.ResourcePath != "res://assets/sprites/ui/glass/glass_field_focus.png") {
+                missing.Add($"{type}/styles/focus is not the glass field's focus overlay");
+            }
         }
 
         if (missing.Count > 0) AssertThat(string.Join(" | ", missing)).IsEqual("");

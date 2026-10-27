@@ -303,9 +303,11 @@ KIT = {
         deviation=OVERLAY_NOTE + " Spec 3.3: a focused tab is the selected look plus this glow."),
     "glass_tab_hover": dict(
         file="glass_tab_hover.png", spec=SPEC_TAB_FOCUS,
-        serves="G14 tab, hovered: the selected look plus the 14 px glow as one box (tab_hovered; AC8 hover = "
-               "focus).",
-        deviation="addition (not in 6.4): tab_hovered replaces the tab's style, so it needs the full look."),
+        serves="G14 tab, hovered (tab_hovered): the unselected tab lit, a fill of rgba(glow,.16) (TabHover) with the "
+               "14 px glow outside the shape at .30; its text turns white. Quieter than the selected tab, so a hovered "
+               "tab never reads as the selected one (TG-CLOSE).",
+        deviation="addition (not in 6.4): tab_hovered replaces the tab's style, so it needs its own look. TG-ART drew "
+                  "it as the selected look plus the glow, which read as selected (orchestrator: a quieter hover)."),
     "glass_field": dict(
         file="glass_field.png", spec=SPEC_FIELD,
         serves="glass field (3.3, plan 0.4 P8): the default Button, OptionButton, SpinBox and LineEdit field, the "
@@ -320,10 +322,19 @@ KIT = {
         serves="glass field, the full CSS focus look as one box (OptionButton hover; AC8).",
         deviation="addition (not in 6.4): as glass_btn_hover, for a hover style that replaces the field's style."),
     "glass_slider_grabber": dict(
-        file="glass_slider_grabber.png", size=(64, 64),
+        file="glass_slider_grabber.png", size=(44, 44),
         serves="HSlider / VSlider grabber and grabber_highlight icon (3.3): the 31.7 px white diamond (a 28 px "
                "square rotated 45 degrees and scaled .8), its accent ring (3 px before the .8 scale, 2.4 px "
-               "drawn) and the 16 px accent glow (sigma 6.4 drawn), centred. Not tinted."),
+               "drawn) and the 16 px accent glow (sigma 6.4 drawn), centred. Not tinted.",
+        deviation="canvas 44 x 44 (TG-ART drew 64 x 64): a Slider is as tall as its grabber icon, so the 64 px canvas "
+                  "made every Settings slider row 64 tall; at 44 the glow is clipped to the canvas, fading over its "
+                  "last 3 px, and a slider stands in a 44 px field like the option buttons (TG-CLOSE)."),
+    "glass_option_arrow": dict(
+        file="icons/chevron_down_18.png", size=(18, 18),
+        serves="OptionButton arrow (3.3): chevron_down in the bold weight rasterized at its 18 px display size (an "
+               "OptionButton draws its arrow at the texture's own size), its generic glow baked (sigma 2.5 x 18 / 64). "
+               "Baked in ink2 / ink, so the theme's modulate_arrow, which tints it by the field's font colour, lands it "
+               "on ink2 at rest (7.2), brighter when the field is lit and dimmer when disabled."),
     "glass_diamond_11": dict(
         file="glass_diamond_11.png", size=(48, 48),
         serves="flourish diamonds (3.7 select title, 3.8 menu title, GlassFlourish): an 11 px diamond with the "
@@ -501,7 +512,7 @@ BTN_CANVAS, BTN_BOX = (124, 98), (14, 14, 96, 70)
 BTN_DIS_CANVAS = _DISABLED_SIZE
 TAB_CANVAS, TAB_BOX = (92, 76), (14, 14, 64, 48)
 FIELD_CANVAS, FIELD_BOX, FIELD_N = (76, 72), (14, 14, 48, 44), 8
-GRAB_CANVAS = (64, 64)
+GRAB_CANVAS = (44, 44)   # TG-CLOSE: was 64 (a Slider stands as tall as its grabber)
 DIAMOND_CANVAS = (48, 48)
 
 # Reference sizes the stretched washes are laid out for (UI_SPEC_GLASS 3.2-3.3 sizes as drawn).
@@ -647,6 +658,7 @@ def build_tabs():
     raw("tab_sil", *TAB_CANVAS, path(shape, "#FFFFFF"))
     raw("tab_normal", *TAB_CANVAS, path(shape, solid(g(0.08))))
     raw("tab_selected", *TAB_CANVAS, path(shape, "url(#s)"), sel)
+    raw("tab_hover_fill", *TAB_CANVAS, path(shape, solid(g(0.16))))   # TG-CLOSE: the quieter hover (TabHover)
 
 
 def build_fields():
@@ -765,6 +777,10 @@ def main():
         jobs.append({"type": "svg", "group": "glass_icons_raw", "src": SVG_RES + "icons/" + stem + ".svg",
                      "out": RAW_RES + "icons/" + stem + ".png", "width": 64 * SS, "height": 64 * SS,
                      "supersample": 1})
+    # TG-CLOSE: the OptionButton arrow, chevron_down's bold weight rendered at its 18 px display size (x4).
+    jobs.append({"type": "svg", "group": "glass_icons_raw", "src": SVG_RES + "icons/chevron_down_bold.svg",
+                 "out": RAW_RES + "icons/chevron_down_bold_18.png", "width": 18 * SS, "height": 18 * SS,
+                 "supersample": 1})
     kept, added = write_jobs(jobs)
     print(f"svgs: {len(RAW)} kit layers + {added - len(RAW)} icons; jobs.json: kept {kept}, appended {added}")
 

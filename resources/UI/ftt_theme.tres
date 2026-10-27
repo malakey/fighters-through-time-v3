@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=119 format=3 uid="uid://c3ajip41tplop"]
+[gd_resource type="Theme" load_steps=120 format=3 uid="uid://c3ajip41tplop"]
 
 [ext_resource type="FontFile" path="res://assets/fonts/cinzel/Cinzel-Variable.ttf" id="font_cinzel"]
 [ext_resource type="FontFile" path="res://assets/fonts/outfit/Outfit-Variable.ttf" id="font_outfit"]
@@ -14,6 +14,7 @@
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/glass/glass_field.png" id="glass_field"]
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/glass/glass_field_hover.png" id="glass_field_hover"]
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/glass/glass_field_focus.png" id="glass_field_focus"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/glass/icons/chevron_down_18.png" id="glass_option_arrow"]
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/glass/glass_tab.png" id="glass_tab"]
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/glass/glass_tab_hover.png" id="glass_tab_hover"]
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/glass/glass_tab_selected.png" id="glass_tab_selected"]
@@ -1183,7 +1184,7 @@ GlassTab/base_type = &"Button"
 GlassTab/colors/font_color = Color(0.7529412, 0.7294118, 0.6509804, 1)
 GlassTab/colors/font_disabled_color = Color(0.5411765, 0.5137255, 0.454902, 1)
 GlassTab/colors/font_focus_color = Color(0.7529412, 0.7294118, 0.6509804, 1)
-GlassTab/colors/font_hover_color = Color(0.01568627, 0.07843137, 0.1019608, 1)
+GlassTab/colors/font_hover_color = Color(1, 1, 1, 1)
 GlassTab/colors/font_hover_pressed_color = Color(0.01568627, 0.07843137, 0.1019608, 1)
 GlassTab/colors/font_pressed_color = Color(0.01568627, 0.07843137, 0.1019608, 1)
 GlassTab/font_sizes/font_size = 24
@@ -1219,6 +1220,7 @@ HSlider/constants/center_grabber = 1
 HSlider/icons/grabber = ExtResource("glass_slider_grabber")
 HSlider/icons/grabber_disabled = ExtResource("glass_slider_grabber")
 HSlider/icons/grabber_highlight = ExtResource("glass_slider_grabber")
+HSlider/styles/focus = SubResource("FieldFocus_22")
 HSlider/styles/grabber_area = SubResource("SliderFill_75")
 HSlider/styles/grabber_area_highlight = SubResource("SliderFillHi_76")
 HSlider/styles/slider = SubResource("Slider_74")
@@ -1310,6 +1312,7 @@ IntegrityPercent/font_sizes/font_size = 23
 IntegrityPercent/fonts/font = SubResource("FontVar_43")
 Label/colors/font_color = Color(0.9529412, 0.9411765, 0.9019608, 1)
 Label/font_sizes/font_size = 20
+Label/styles/focus = SubResource("FieldFocus_22")
 LevelTitle/base_type = &"Label"
 LevelTitle/colors/font_color = Color(0.9529412, 0.9411765, 0.9019608, 1)
 LevelTitle/colors/font_outline_color = Color(0, 0, 0, 0.85)
@@ -1361,8 +1364,10 @@ OptionButton/colors/font_hover_color = Color(1, 1, 1, 1)
 OptionButton/colors/font_hover_pressed_color = Color(1, 1, 1, 1)
 OptionButton/colors/font_pressed_color = Color(1, 1, 1, 1)
 OptionButton/constants/arrow_margin = 14
+OptionButton/constants/modulate_arrow = 1
 OptionButton/font_sizes/font_size = 22
 OptionButton/fonts/font = SubResource("FontVar_23")
+OptionButton/icons/arrow = ExtResource("glass_option_arrow")
 OptionButton/styles/disabled = SubResource("FieldDisabled_21")
 OptionButton/styles/focus = SubResource("FieldFocus_22")
 OptionButton/styles/hover = SubResource("FieldHover_20")
@@ -1617,7 +1622,7 @@ StickerLine3/colors/font_color = Color(0.7529412, 0.7294118, 0.6509804, 1)
 StickerLine3/font_sizes/font_size = 19
 StickerLine3/fonts/font = SubResource("FontVar_39")
 TabContainer/colors/font_disabled_color = Color(0.5411765, 0.5137255, 0.454902, 1)
-TabContainer/colors/font_hovered_color = Color(0.01568627, 0.07843137, 0.1019608, 1)
+TabContainer/colors/font_hovered_color = Color(1, 1, 1, 1)
 TabContainer/colors/font_selected_color = Color(0.01568627, 0.07843137, 0.1019608, 1)
 TabContainer/colors/font_unselected_color = Color(0.7529412, 0.7294118, 0.6509804, 1)
 TabContainer/font_sizes/font_size = 24
@@ -1684,6 +1689,7 @@ VSlider/constants/center_grabber = 1
 VSlider/icons/grabber = ExtResource("glass_slider_grabber")
 VSlider/icons/grabber_disabled = ExtResource("glass_slider_grabber")
 VSlider/icons/grabber_highlight = ExtResource("glass_slider_grabber")
+VSlider/styles/focus = SubResource("FieldFocus_22")
 VSlider/styles/grabber_area = SubResource("VSliderFill_78")
 VSlider/styles/grabber_area_highlight = SubResource("VSliderFillHi_79")
 VSlider/styles/slider = SubResource("VSlider_77")

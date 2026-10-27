@@ -537,6 +537,15 @@
     {
       "type": "svg",
       "group": "glass",
+      "src": "res://tools/asset_src/glass/svg/tab_hover_fill.svg",
+      "out": "res://tools/asset_src/glass/raw/tab_hover_fill.png",
+      "width": 368,
+      "height": 304,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass",
       "src": "res://tools/asset_src/glass/svg/field_sil.svg",
       "out": "res://tools/asset_src/glass/raw/field_sil.png",
       "width": 304,
@@ -575,8 +584,8 @@
       "group": "glass",
       "src": "res://tools/asset_src/glass/svg/grabber_box.svg",
       "out": "res://tools/asset_src/glass/raw/grabber_box.png",
-      "width": 256,
-      "height": 256,
+      "width": 176,
+      "height": 176,
       "supersample": 1
     },
     {
@@ -584,8 +593,8 @@
       "group": "glass",
       "src": "res://tools/asset_src/glass/svg/grabber_art.svg",
       "out": "res://tools/asset_src/glass/raw/grabber_art.png",
-      "width": 256,
-      "height": 256,
+      "width": 176,
+      "height": 176,
       "supersample": 1
     },
     {
@@ -1198,6 +1207,15 @@
       "out": "res://tools/asset_src/glass/raw/icons/venom_bold.png",
       "width": 256,
       "height": 256,
+      "supersample": 1
+    },
+    {
+      "type": "svg",
+      "group": "glass_icons_raw",
+      "src": "res://tools/asset_src/glass/svg/icons/chevron_down_bold.svg",
+      "out": "res://tools/asset_src/glass/raw/icons/chevron_down_bold_18.png",
+      "width": 72,
+      "height": 72,
       "supersample": 1
     }
   ]

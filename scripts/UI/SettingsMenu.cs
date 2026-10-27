@@ -199,7 +199,6 @@ namespace FTT.UI {
                 Pulp.PulpButtonDecor.ApplyStackWidth(new[] { resetAll }, CompactButtonMinWidth, reservePrompt: false);
             }
             QuietTabPanel();
-            foreach (KeyValuePair<Godot.Range, Label> pair in _valueLabels) GiveSliderTheFieldFocus(pair.Key);
             RefreshValueLabels();
             _promptBar = PulpScreenKit.AddBottomPromptBar(_root, "common_back");
         }
@@ -266,16 +265,6 @@ namespace FTT.UI {
         }
 
         private const float TabPanelPadding = 24f, TabPanelPaddingTop = 14f;
-
-        /// <summary>
-        /// A slider has no focus look in the glass theme (a kit gap): it borrows the glass field's focus overlay (the lit edge
-        /// and the 14 px glow), so a pad player sees which slider the stick moves.
-        /// </summary>
-        private static void GiveSliderTheFieldFocus(Control slider) {
-            Theme theme = UIPalette.LoadTheme();
-            if (theme == null || !theme.HasStylebox("focus", UIPalette.Variations.GlassField)) return;
-            slider.AddThemeStyleboxOverride("focus", theme.GetStylebox("focus", UIPalette.Variations.GlassField));
-        }
 
         /// <summary>
         /// Applies the shared UI theme if it is present. A1 authors it in a parallel
