@@ -47,8 +47,16 @@ namespace FTT.Diagnostics {
         private static Node PauseAtUi14(UiCaptureContext context, System.Func<UiCaptureContext, Node> build) {
             float saved = UIPalette.AppliedUiScale;
             UIPalette.ApplyUiScale(1.4f);
+            // The saved setting too, as in the game (the first-use tooltip reads the HUD's scale for its free band); the
+            // runner puts the setting back around every target (TG-CLOSE).
+            FTT.Core.GlobalSaveData global = FTT.Core.SaveManager.Instance?.GlobalData;
+            float savedSetting = global?.UiScale ?? 1f;
+            if (global != null) global.UiScale = 1.4f;
             Node node = build(context);
-            node.TreeExited += () => UIPalette.ApplyUiScale(saved);
+            node.TreeExited += () => {
+                UIPalette.ApplyUiScale(saved);
+                if (global != null) global.UiScale = savedSetting;
+            };
             return node;
         }
 

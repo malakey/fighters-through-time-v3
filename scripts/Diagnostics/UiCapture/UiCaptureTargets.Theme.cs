@@ -185,13 +185,9 @@ namespace FTT.Diagnostics {
             sliders.AddChild(new HSlider { Value = 100, CustomMinimumSize = new Vector2(360, 44) });
             right.AddChild(new HSeparator());
 
-            right.AddChild(Heading("Bars: default, HP 30, HP 44, Ultimate 16, stat 14, boss"));
+            right.AddChild(Heading("Bars: default, then the glass tubes on HP 30, HP 44, Ultimate 16, stat 14, boss"));
             right.AddChild(new ProgressBar { Value = 64, CustomMinimumSize = new Vector2(420, 24), ShowPercentage = false });
-            right.AddChild(new ProgressBar { Value = 64, CustomMinimumSize = new Vector2(380, 30), ShowPercentage = false, ThemeTypeVariation = UIPalette.Variations.PulpBar });
-            right.AddChild(new ProgressBar { Value = 82, CustomMinimumSize = new Vector2(510, 44), ShowPercentage = false, ThemeTypeVariation = UIPalette.Variations.PulpBarH44 });
-            right.AddChild(new ProgressBar { Value = 100, CustomMinimumSize = new Vector2(390, 16), ShowPercentage = false, ThemeTypeVariation = UIPalette.Variations.PulpBarH16 });
-            right.AddChild(new ProgressBar { Value = 55, CustomMinimumSize = new Vector2(170, 14), ShowPercentage = false, ThemeTypeVariation = UIPalette.Variations.PulpBarH14 });
-            right.AddChild(new ProgressBar { Value = 62, CustomMinimumSize = new Vector2(760, 34), ShowPercentage = false, ThemeTypeVariation = UIPalette.Variations.PulpBossBar });
+            AddTubes(right, 760f);
 
             right.AddChild(Heading("Tabs (TabContainer) and a scroll bar"));
             var tabs = new TabContainer { CustomMinimumSize = new Vector2(760, 150) };
@@ -318,12 +314,8 @@ namespace FTT.Diagnostics {
             var right = new VBoxContainer { Name = "Tubes", CustomMinimumSize = new Vector2(560, 0) };
             right.AddThemeConstantOverride("separation", 20);
             columns.AddChild(right);
-            right.AddChild(Heading("Bars (the pulp tracks until the tube decor)"));
-            right.AddChild(new ProgressBar { Value = 64, CustomMinimumSize = new Vector2(380, 30), ShowPercentage = false, ThemeTypeVariation = UIPalette.Variations.PulpBar });
-            right.AddChild(new ProgressBar { Value = 82, CustomMinimumSize = new Vector2(510, 44), ShowPercentage = false, ThemeTypeVariation = UIPalette.Variations.PulpBarH44 });
-            right.AddChild(new ProgressBar { Value = 100, CustomMinimumSize = new Vector2(390, 16), ShowPercentage = false, ThemeTypeVariation = UIPalette.Variations.PulpBarH16 });
-            right.AddChild(new ProgressBar { Value = 55, CustomMinimumSize = new Vector2(170, 14), ShowPercentage = false, ThemeTypeVariation = UIPalette.Variations.PulpBarH14 });
-            right.AddChild(new ProgressBar { Value = 62, CustomMinimumSize = new Vector2(540, 34), ShowPercentage = false, ThemeTypeVariation = UIPalette.Variations.PulpBossBar });
+            right.AddChild(Heading("Bars: the glass tubes (the bar variations are value carriers that draw nothing)"));
+            AddTubes(right, 540f);
             right.AddChild(Heading("Halos S and L on bright art"));
             PanelContainer art = Backing("HaloArt", scene: true);
             var artColumn = new VBoxContainer();
@@ -345,5 +337,24 @@ namespace FTT.Diagnostics {
         [UiCaptureTarget("main_menu_root", SettleFrames = 20)]
         public static Node MainMenuRoot(UiCaptureContext context) =>
             ResourceLoader.Load<PackedScene>("res://scenes/menus/MainMenu.tscn").Instantiate();
+
+        // TG-CLOSE: the five bar variations draw nothing of their own since the pulp purge; the tube decor draws them.
+        private static void AddTubes(Control into, float bossWidth) {
+            var specs = new (float Value, Vector2 Size, string Variation, FTT.UI.Pulp.PulpBarStyle Style)[] {
+                (64, new Vector2(380, 30), UIPalette.Variations.PulpBar, FTT.UI.Pulp.PulpBarStyle.Hp),
+                (82, new Vector2(510, 44), UIPalette.Variations.PulpBarH44, FTT.UI.Pulp.PulpBarStyle.Hp),
+                (100, new Vector2(390, 16), UIPalette.Variations.PulpBarH16, FTT.UI.Pulp.PulpBarStyle.Meter),
+                (55, new Vector2(170, 14), UIPalette.Variations.PulpBarH14, FTT.UI.Pulp.PulpBarStyle.Stat),
+                (62, new Vector2(bossWidth, 34), UIPalette.Variations.PulpBossBar, FTT.UI.Pulp.PulpBarStyle.Boss),
+            };
+            foreach (var spec in specs) {
+                var bar = new ProgressBar {
+                    Value = spec.Value, CustomMinimumSize = spec.Size, ShowPercentage = false, ThemeTypeVariation = spec.Variation,
+                    SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin
+                };
+                into.AddChild(bar);
+                FTT.UI.Pulp.PulpBarDecor.Attach(bar, spec.Style);
+            }
+        }
     }
 }

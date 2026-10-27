@@ -107,10 +107,25 @@ namespace FTT.Diagnostics {
                 slot.SizeFlagsVertical = Control.SizeFlags.ShrinkBegin;
                 row.AddChild(slot);
             }
+            // TG-CLOSE: the Fighter Ultimate tubes' refusal, a frame leaning with each tube (P2's mirrored).
+            var tubes = new VBoxContainer { Position = new Vector2(120f, 320f) };
+            tubes.AddThemeConstantOverride("separation", 40);
+            page.AddChild(tubes);
+            var meters = new ProgressBar[2];
+            for (int i = 0; i < 2; i++) {
+                meters[i] = new ProgressBar {
+                    Value = 64, CustomMinimumSize = new Vector2(390f, 16f), ShowPercentage = false,
+                    ThemeTypeVariation = UIPalette.Variations.PulpBarH16, SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin,
+                    FillMode = i == 0 ? (int)ProgressBar.FillModeEnum.BeginToEnd : (int)ProgressBar.FillModeEnum.EndToBegin
+                };
+                tubes.AddChild(meters[i]);
+                PulpBarDecor.Attach(meters[i], PulpBarStyle.Meter);
+            }
             context.AfterReady = _ => {
                 NotYetFlash.Play(story.Ring, story, NotYetShape.Circle);
                 NotYetFlash.Play(ult.Ring, ult, NotYetShape.Circle);
                 NotYetFlash.Play(framed, framed);
+                foreach (ProgressBar meter in meters) NotYetFlash.Play(meter, meter, NotYetShape.Tube);
             };
             return page;
         }
