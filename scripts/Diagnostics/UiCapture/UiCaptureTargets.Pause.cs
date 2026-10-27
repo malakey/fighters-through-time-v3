@@ -1,3 +1,4 @@
+using FTT.Core;
 using FTT.UI;
 using Godot;
 
@@ -36,8 +37,23 @@ namespace FTT.Diagnostics {
             return null;
         }
 
+        /// <summary>
+        /// TG-PAUSE: frames to wait before and after a target opens its surface. The pause dim's 0.16 s ramp and the panel's
+        /// 0.22 s fade-rise both end well inside it, so a capture shows the resting layout, not the motion.
+        /// </summary>
+        private const int PauseSettle = 30;
+
+        /// <summary>Builds <paramref name="build"/> with the shared theme at UI scale 1.4 (restored when the capture frees it).</summary>
+        private static Node PauseAtUi14(UiCaptureContext context, System.Func<UiCaptureContext, Node> build) {
+            float saved = UIPalette.AppliedUiScale;
+            UIPalette.ApplyUiScale(1.4f);
+            Node node = build(context);
+            node.TreeExited += () => UIPalette.ApplyUiScale(saved);
+            return node;
+        }
+
         /// <summary>The Story pause from the authored scene, open.</summary>
-        [UiCaptureTarget("pause_story", SettleFrames = 12)]
+        [UiCaptureTarget("pause_story", SettleFrames = PauseSettle)]
         public static Node PauseStory(UiCaptureContext context) {
             Node stage = PauseStage(PauseMenu.CreateDefault());
             context.AfterReady = node => PauseFindIn<PauseMenu>(node)?.SetPaused(true);
@@ -45,37 +61,36 @@ namespace FTT.Diagnostics {
         }
 
         /// <summary>The code-built fallback, which must read the same.</summary>
-        [UiCaptureTarget("pause_story_fallback", SettleFrames = 12)]
+        [UiCaptureTarget("pause_story_fallback", SettleFrames = PauseSettle)]
         public static Node PauseStoryFallback(UiCaptureContext context) {
             Node stage = PauseStage(new PauseMenu { Name = "FallbackPause" });
             context.AfterReady = node => PauseFindIn<PauseMenu>(node)?.SetPaused(true);
             return stage;
         }
 
-        /// <summary>The Story pause with the shared theme at UI scale 1.4 (restored when the capture frees it).</summary>
-        [UiCaptureTarget("pause_story_ui14", SettleFrames = 12)]
-        public static Node PauseStoryUiScale(UiCaptureContext context) {
-            float saved = UIPalette.AppliedUiScale;
-            UIPalette.ApplyUiScale(1.4f);
-            Node stage = PauseStage(PauseMenu.CreateDefault());
-            stage.TreeExited += () => UIPalette.ApplyUiScale(saved);
-            context.AfterReady = node => PauseFindIn<PauseMenu>(node)?.SetPaused(true);
-            return stage;
-        }
+        /// <summary>The Story pause with the shared theme at UI scale 1.4.</summary>
+        [UiCaptureTarget("pause_story_ui14", SettleFrames = PauseSettle)]
+        public static Node PauseStoryUiScale(UiCaptureContext context) => PauseAtUi14(context, PauseStory);
 
-        [UiCaptureTarget("pause_fighter", SettleFrames = 12)]
+        [UiCaptureTarget("pause_fighter", SettleFrames = PauseSettle)]
         public static Node PauseFighter(UiCaptureContext context) {
             Node stage = PauseStage(new LocalFighterPause { Name = "LocalFighterPause" });
             context.AfterReady = node => PauseFindIn<LocalFighterPause>(node)?.SetPaused(true);
             return stage;
         }
 
-        [UiCaptureTarget("disconnect_modal", SettleFrames = 12)]
+        [UiCaptureTarget("pause_fighter_ui14", SettleFrames = PauseSettle)]
+        public static Node PauseFighterUi14(UiCaptureContext context) => PauseAtUi14(context, PauseFighter);
+
+        [UiCaptureTarget("disconnect_modal", SettleFrames = PauseSettle)]
         public static Node PauseDisconnectModal(UiCaptureContext context) {
             Node stage = PauseStage(new LocalFighterPause { Name = "LocalFighterPause" });
             context.AfterReady = node => PauseFindIn<LocalFighterPause>(node)?.ForceDisconnectPause(1);
             return stage;
         }
+
+        [UiCaptureTarget("disconnect_modal_ui14", SettleFrames = PauseSettle)]
+        public static Node PauseDisconnectModalUi14(UiCaptureContext context) => PauseAtUi14(context, PauseDisconnectModal);
 
         private static Node PauseSettingsTab(UiCaptureContext context, int tab) {
             var settings = new SettingsMenu { Name = "SettingsMenu" };
@@ -84,53 +99,65 @@ namespace FTT.Diagnostics {
                 menu?.Show();
                 if (menu?.Tabs != null) menu.Tabs.CurrentTab = tab;
             };
-            return settings;
+            return PauseStage(settings);
         }
 
-        [UiCaptureTarget("settings_audio", SettleFrames = 12)]
+        [UiCaptureTarget("settings_audio", SettleFrames = PauseSettle)]
         public static Node PauseSettingsAudio(UiCaptureContext context) => PauseSettingsTab(context, 0);
 
-        [UiCaptureTarget("settings_display", SettleFrames = 12)]
+        [UiCaptureTarget("settings_display", SettleFrames = PauseSettle)]
         public static Node PauseSettingsDisplay(UiCaptureContext context) => PauseSettingsTab(context, 1);
 
-        [UiCaptureTarget("settings_gameplay", SettleFrames = 12)]
+        [UiCaptureTarget("settings_gameplay", SettleFrames = PauseSettle)]
         public static Node PauseSettingsGameplay(UiCaptureContext context) => PauseSettingsTab(context, 2);
 
-        [UiCaptureTarget("settings_controls", SettleFrames = 12)]
+        [UiCaptureTarget("settings_controls", SettleFrames = PauseSettle)]
         public static Node PauseSettingsControls(UiCaptureContext context) => PauseSettingsTab(context, 3);
 
-        /// <summary>The Controls tab at UI scale 1.4 (restored when the capture frees it).</summary>
-        [UiCaptureTarget("settings_controls_ui14", SettleFrames = 12)]
-        public static Node PauseSettingsControlsUi14(UiCaptureContext context) {
-            float saved = UIPalette.AppliedUiScale;
-            UIPalette.ApplyUiScale(1.4f);
-            Node menu = PauseSettingsTab(context, 3);
-            menu.TreeExited += () => UIPalette.ApplyUiScale(saved);
-            return menu;
-        }
+        [UiCaptureTarget("settings_audio_ui14", SettleFrames = PauseSettle)]
+        public static Node PauseSettingsAudioUi14(UiCaptureContext context) => PauseAtUi14(context, PauseSettingsAudio);
 
-        [UiCaptureTarget("movelist", SettleFrames = 12)]
+        [UiCaptureTarget("settings_display_ui14", SettleFrames = PauseSettle)]
+        public static Node PauseSettingsDisplayUi14(UiCaptureContext context) => PauseAtUi14(context, PauseSettingsDisplay);
+
+        [UiCaptureTarget("settings_gameplay_ui14", SettleFrames = PauseSettle)]
+        public static Node PauseSettingsGameplayUi14(UiCaptureContext context) => PauseAtUi14(context, PauseSettingsGameplay);
+
+        /// <summary>The Controls tab at UI scale 1.4.</summary>
+        [UiCaptureTarget("settings_controls_ui14", SettleFrames = PauseSettle)]
+        public static Node PauseSettingsControlsUi14(UiCaptureContext context) => PauseAtUi14(context, PauseSettingsControls);
+
+        [UiCaptureTarget("movelist", SettleFrames = PauseSettle)]
         public static Node PauseMoveList(UiCaptureContext context) {
             var screen = new MoveListScreen { Name = "MoveList" };
             context.AfterReady = node => PauseFindIn<MoveListScreen>(node)?.Open("joan");
-            return screen;
+            return PauseStage(screen);
         }
 
-        [UiCaptureTarget("systems_card", SettleFrames = 12)]
+        [UiCaptureTarget("movelist_ui14", SettleFrames = PauseSettle)]
+        public static Node PauseMoveListUi14(UiCaptureContext context) => PauseAtUi14(context, PauseMoveList);
+
+        [UiCaptureTarget("systems_card", SettleFrames = PauseSettle)]
         public static Node PauseSystemsCard(UiCaptureContext context) {
             var screen = new SystemsCardScreen { Name = "SystemsCard" };
             context.AfterReady = node => PauseFindIn<SystemsCardScreen>(node)?.Open();
-            return screen;
+            return PauseStage(screen);
         }
 
-        [UiCaptureTarget("confirm_modal", SettleFrames = 12)]
+        [UiCaptureTarget("systems_card_ui14", SettleFrames = PauseSettle)]
+        public static Node PauseSystemsCardUi14(UiCaptureContext context) => PauseAtUi14(context, PauseSystemsCard);
+
+        [UiCaptureTarget("confirm_modal", SettleFrames = PauseSettle)]
         public static Node PauseConfirmModalTarget(UiCaptureContext context) {
             ConfirmModal modal = ConfirmModal.Create("pause_quit_confirm", titleKey: "pause_quit_to_menu");
             context.AfterReady = node => PauseFindIn<ConfirmModal>(node)?.Open();
             return PauseStage(modal);
         }
 
-        [UiCaptureTarget("two_option_prompt", SettleFrames = 12)]
+        [UiCaptureTarget("confirm_modal_ui14", SettleFrames = PauseSettle)]
+        public static Node PauseConfirmModalUi14(UiCaptureContext context) => PauseAtUi14(context, PauseConfirmModalTarget);
+
+        [UiCaptureTarget("two_option_prompt", SettleFrames = PauseSettle)]
         public static Node PauseTwoOptionPromptTarget(UiCaptureContext context) {
             TwoOptionPrompt prompt = TwoOptionPrompt.Create(
                 "dlg_l00_wren_offer_1", "level00_choice_full", "level00_choice_skip", "speaker_wren");
@@ -138,7 +165,10 @@ namespace FTT.Diagnostics {
             return PauseStage(prompt);
         }
 
-        [UiCaptureTarget("dialogue_box", SettleFrames = 12)]
+        [UiCaptureTarget("two_option_prompt_ui14", SettleFrames = PauseSettle)]
+        public static Node PauseTwoOptionPromptUi14(UiCaptureContext context) => PauseAtUi14(context, PauseTwoOptionPromptTarget);
+
+        [UiCaptureTarget("dialogue_box", SettleFrames = PauseSettle)]
         public static Node PauseDialogueBoxTarget(UiCaptureContext context) {
             DialogueManager dialogue = DialogueManager.CreateDefault();
             context.AfterReady = node => {
@@ -151,7 +181,10 @@ namespace FTT.Diagnostics {
             return PauseStage(dialogue);
         }
 
-        [UiCaptureTarget("dialogue_log", SettleFrames = 12)]
+        [UiCaptureTarget("dialogue_box_ui14", SettleFrames = PauseSettle)]
+        public static Node PauseDialogueBoxUi14(UiCaptureContext context) => PauseAtUi14(context, PauseDialogueBoxTarget);
+
+        [UiCaptureTarget("dialogue_log", SettleFrames = PauseSettle)]
         public static Node PauseDialogueLogTarget(UiCaptureContext context) {
             DialogueLog.Clear();
             DialogueLog.Append(new DialogueLog.Entry("demo", "Joan of Arc", "Hold the line. They will break on us, not through us.", PausePortrait, false));
@@ -162,21 +195,43 @@ namespace FTT.Diagnostics {
             return PauseStage(log);
         }
 
-        [UiCaptureTarget("first_use_tooltip", SettleFrames = 12)]
+        [UiCaptureTarget("dialogue_log_ui14", SettleFrames = PauseSettle)]
+        public static Node PauseDialogueLogUi14(UiCaptureContext context) => PauseAtUi14(context, PauseDialogueLogTarget);
+
+        [UiCaptureTarget("first_use_tooltip", SettleFrames = PauseSettle)]
         public static Node PauseFirstUseTooltip(UiCaptureContext context) {
             var presenter = new FirstUseTooltipPresenter { Name = "FirstUseTooltips" };
-            context.AfterReady = node => {
-                var panel = PauseFindIn<FirstUseTooltipPresenter>(node)?.GetNodeOrNull<Control>("TooltipPanel");
-                if (panel == null) return;
-                if (panel.GetChildCount() > 0 && panel.GetChild(0) is Label label) {
-                    label.Text = "Hold Block, then press Attack, to grab a guarding foe.";
-                }
-                panel.Visible = true;
-            };
+            // The real fit and appear path (TG-PAUSE): a real tooltip key, so the line is the shipped copy.
+            context.AfterReady = node => PauseFindIn<FirstUseTooltipPresenter>(node)?.PresentForPreview(FirstUseTooltips.KeyFor(FirstUseTooltips.Grab));
             return PauseStage(presenter);
         }
 
-        [UiCaptureTarget("boot_overlay", SettleFrames = 12)]
+        [UiCaptureTarget("first_use_tooltip_ui14", SettleFrames = PauseSettle)]
+        public static Node PauseFirstUseTooltipUi14(UiCaptureContext context) => PauseAtUi14(context, PauseFirstUseTooltip);
+
+        [UiCaptureTarget("boot_overlay", SettleFrames = PauseSettle)]
         public static Node PauseBootOverlay(UiCaptureContext context) => new BootSequenceOverlay { Name = "BootOverlay" };
+
+        [UiCaptureTarget("boot_overlay_ui14", SettleFrames = PauseSettle)]
+        public static Node PauseBootOverlayUi14(UiCaptureContext context) => PauseAtUi14(context, PauseBootOverlay);
+
+        /// <summary>The first-run cards (shown on a fresh install only), through the overlay's preview seam.</summary>
+        [UiCaptureTarget("boot_first_run", SettleFrames = PauseSettle)]
+        public static Node PauseBootFirstRun(UiCaptureContext context) {
+            var overlay = new BootSequenceOverlay { Name = "BootOverlay" };
+            context.AfterReady = node => (node as BootSequenceOverlay)?.ShowStepForPreview(BootStep.FirstRunSetup);
+            return overlay;
+        }
+
+        [UiCaptureTarget("boot_first_run_ui14", SettleFrames = PauseSettle)]
+        public static Node PauseBootFirstRunUi14(UiCaptureContext context) => PauseAtUi14(context, PauseBootFirstRun);
+
+        /// <summary>The local crash-report prompt (shown only after a crash), through the overlay's preview seam.</summary>
+        [UiCaptureTarget("boot_crash_prompt", SettleFrames = PauseSettle)]
+        public static Node PauseBootCrashPrompt(UiCaptureContext context) {
+            var overlay = new BootSequenceOverlay { Name = "BootOverlay" };
+            context.AfterReady = node => (node as BootSequenceOverlay)?.ShowStepForPreview(BootStep.CrashPrompt);
+            return overlay;
+        }
     }
 }
