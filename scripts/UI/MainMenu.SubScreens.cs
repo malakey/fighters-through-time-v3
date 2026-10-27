@@ -15,7 +15,9 @@ namespace FTT.UI {
     /// <item><b>Character</b>: the 3 x 3 glass tiles (3.7: the portrait window, the card name T35, the focus edge) and a side
     /// slab for the focused hero (a portrait frame 112, the name T40 with the D10 fit, the style as its tag).</item>
     /// <item><b>Difficulty</b>: three chevron rows and the focused row's description under the column.</item>
-    /// <item><b>Level select</b> (debug builds): a 4 x 4 grid of compact chevrons, "NN  place".</item>
+    /// <item><b>Level select</b> (debug builds): a grid of compact chevrons, "NN  place", three columns of six rows (TG-CLOSE
+    /// polish: the spec's 4 x 4 left "CHRONAL INTEGRATION" and "THE MERIDIAN FOUNDING", which have no short form, cut even
+    /// at the 18 px floor).</item>
     /// <item><b>Extras</b>: a chevron column. <b>Licences</b>: one slab with the scrolling list.</item>
     /// </list>
     /// Every node path the screen scripts and tests bind (<c>&lt;Screen&gt;/Center/Panel/Layout/...</c>,
@@ -42,12 +44,16 @@ namespace FTT.UI {
         internal const float HeroSlabWidth = 440f, HeroPortrait = 112f;
         /// <summary>D10: a long hero name shrinks on one line down to 36 / 48 of its size before it wraps.</summary>
         internal const float HeroNameShrinkFloor = 0.75f;
-        internal const int LevelColumns = 4;
+        /// <summary>The developer level grid's columns (the scene's <c>Grid.columns</c>): three, so every tile reads whole at UI scale 1.0.</summary>
+        internal const int LevelColumns = 3;
 
         private readonly PulpPortraitRoundel[] _slotPortraits = new PulpPortraitRoundel[StorySlotCount];
         private readonly PanelContainer[] _slotSlabs = new PanelContainer[StorySlotCount];
         private readonly SlabFrame[] _slotFrames = new SlabFrame[StorySlotCount];
         private readonly bool[] _slotEmpty = new bool[StorySlotCount];
+        // A filled slot's first summary line, whole and with the level's short title (TG-CLOSE polish, FitSlotSummary).
+        private readonly string[] _slotSummaryFull = new string[StorySlotCount];
+        private readonly string[] _slotSummaryShort = new string[StorySlotCount];
         private float _subScale = -1f;
 
         private PanelContainer _heroSlab;
@@ -88,7 +94,7 @@ namespace FTT.UI {
         /// <summary>
         /// Applies the UI scale to the sub-screens: every chevron stack's D6 width (3.2: menu rows 560 to 700, compact 290,
         /// all x s), the slot slabs (140 x s tall, their frame, gaps and paddings x s; the width stays 1000), the hero slab's
-        /// name box, the difficulty description's two-line height and the level tiles' width cap (four columns on screen).
+        /// name box, the difficulty description's two-line height and the level tiles' width cap (three columns on screen).
         /// </summary>
         private void ApplySubScreenScale(float s) {
             var deletes = new List<Button>();
@@ -112,6 +118,7 @@ namespace FTT.UI {
                 _slotPortraits[slot].Diameter = SlotPortrait * s;
                 _slotSlabs[slot].GetNode<BoxContainer>("Row").AddThemeConstantOverride("separation", Mathf.RoundToInt(SlotRowGap * s));
                 PaintSlotFill(slot);
+                FitSlotSummary(slot);
             }
             if (_heroPortrait != null) _heroPortrait.Diameter = HeroPortrait * s;
             if (_heroNameBox != null && _heroName != null) FitHeroName();
@@ -135,7 +142,7 @@ namespace FTT.UI {
         }
 
         /// <summary>
-        /// The level tiles share one width: their widest label (no prompt), at least 290, at most what keeps four columns and
+        /// The level tiles share one width: their widest label (no prompt), at least 290, at most what keeps the grid's columns and
         /// their 34 px gaps inside the screen's safe area and the slab's paddings; a label that is still too long shrinks,
         /// then ellipsizes in its decor.
         /// </summary>
@@ -180,8 +187,12 @@ namespace FTT.UI {
             };
         }
 
-        /// <summary>Paints slot <paramref name="slot"/>'s slab from its save (null: the empty slab).</summary>
-        private void PaintSlotSlab(int slot, FTT.Core.StorySaveData save, string summary) {
+        /// <summary>
+        /// Paints slot <paramref name="slot"/>'s slab from its save (null: the empty slab). <paramref name="shortSummary"/> is
+        /// the same summary with the level named by its short title, which the first line falls back to when the whole line
+        /// cannot read whole (<see cref="FitSlotSummary"/>).
+        /// </summary>
+        private void PaintSlotSlab(int slot, FTT.Core.StorySaveData save, string summary, string shortSummary) {
             PanelContainer slab = _slotSlabs[slot];
             if (slab == null) return;
             var lines = slab.GetNode<Node>("Row/Lines");
@@ -195,6 +206,7 @@ namespace FTT.UI {
                 name.Visible = detail.Visible = lowest.Visible = false;
                 first.Text = summary;
                 first.AddThemeColorOverride("font_color", UIPalette.Ink2);
+                _slotSummaryFull[slot] = _slotSummaryShort[slot] = null;
             } else {
                 _slotPortraits[slot].Visible = true;
                 _slotPortraits[slot].Portrait = CharacterDataFor(save.SelectedCharacterID)?.CharacterPortrait;
@@ -208,9 +220,62 @@ namespace FTT.UI {
                 lowest.Text = parts.Length > 1 ? parts[^1] : "";
                 detail.Visible = detail.Text.Length > 0;
                 lowest.Visible = lowest.Text.Length > 0;
+                _slotSummaryFull[slot] = parts[0];
+                _slotSummaryShort[slot] = (shortSummary ?? summary).Split('\n')[0];
             }
             PaintSlotFill(slot);
+            FitSlotSummary(slot);
             PaintSlotFrame(slot);
+        }
+
+        /// <summary>
+        /// TG-CLOSE polish: a filled slot's summary line reads whole whatever the level title and the hero's name
+        /// (<see cref="SlotSummaryFit"/>): at its role size when it fits; else shrunk on one line toward the 18 px floor; else
+        /// on two lines when the slab holds a second one; else with the level's short title, shrunk if need be. The width is
+        /// the slab's text column (the slab less its paddings, the portrait frame and the gap), so it is known before layout.
+        /// The shrink is a font-size override on this one label, recomputed from the role's current size on every repaint
+        /// and UI-scale change (so it never freezes at 100 %), and removed when the line fits at its role size.
+        /// </summary>
+        private void FitSlotSummary(int slot) {
+            PanelContainer slab = _slotSlabs[slot];
+            if (slab == null) return;
+            var row = slab.GetNode<BoxContainer>("Row");
+            var lines = row.GetNode<BoxContainer>("Lines");
+            var first = lines.GetNode<Label>("Summary");
+            first.RemoveThemeFontSizeOverride("font_size");
+            first.AutowrapMode = TextServer.AutowrapMode.Off;
+            string full = _slotSummaryFull[slot];
+            if (_slotEmpty[slot] || string.IsNullOrEmpty(full)) return;
+            first.Text = full;
+            Font font = first.GetThemeFont("font");
+            int role = first.GetThemeFontSize("font_size");
+            if (font == null || role <= 0) return;
+            StyleBox plate = slab.GetThemeStylebox("panel");
+            Vector2 slabSize = _slotButtons[slot].CustomMinimumSize;
+            float portrait = _slotPortraits[slot].Visible ? _slotPortraits[slot].Diameter + row.GetThemeConstant("separation") : 0f;
+            // A pixel of slack: the portrait frame and the paddings round to whole pixels in layout.
+            float width = slabSize.X - (plate?.GetContentMargin(Side.Left) ?? 0f) - (plate?.GetContentMargin(Side.Right) ?? 0f)
+                - portrait - 1f;
+            float content = slabSize.Y - (plate?.GetContentMargin(Side.Top) ?? 0f) - (plate?.GetContentMargin(Side.Bottom) ?? 0f);
+            float used = 0f;
+            int shown = 0;
+            for (int i = 0, n = lines.GetChildCount(); i < n; i++) {
+                if (lines.GetChild(i) is not Label line || !line.Visible) continue;
+                used += line.GetMinimumSize().Y;
+                shown++;
+            }
+            used += Mathf.Max(0, shown - 1) * lines.GetThemeConstant("separation");
+            bool holdsSecondLine = content - used >= first.GetMinimumSize().Y;
+            int LinesAtRole(string text) {
+                var paragraph = new TextParagraph { Width = width, BreakFlags = TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound };
+                paragraph.AddString(text, font, role);
+                return paragraph.GetLineCount();
+            }
+            SlotSummaryFit.Choice choice = SlotSummaryFit.Choose(full, _slotSummaryShort[slot], role, UIPalette.MinLabelFontSize, width,
+                (text, size) => font.GetStringSize(text, HorizontalAlignment.Left, -1f, size).X, LinesAtRole, holdsSecondLine);
+            first.Text = choice.Text;
+            if (choice.Size != role) first.AddThemeFontSizeOverride("font_size", choice.Size);
+            if (choice.Wrap) first.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         }
 
         // A filled slot is the glass slab (the theme's continue-card plate); an empty one the theme's quiet empty slab

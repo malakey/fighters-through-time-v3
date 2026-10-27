@@ -979,6 +979,7 @@ stage_layout_open,Open
 stage_layout_sealed,Sealed
 stage_layout_open_tooltip,"Open layout: the main floor has a pit. The bottom blast zone is reachable and its edges are grabbable ledges."
 stage_layout_sealed_tooltip,"Sealed layout: the main floor runs unbroken from wall to wall."
+fighter_stage_with_layout,{0} — {1}
 # Package 11 A5
 dialogue_skip_confirm_title,Skip this scene?
 dialogue_skip_confirm_body,"You haven't watched this one yet, and it won't replay."
@@ -1223,7 +1224,7 @@ hud_slot_lock_dormant,Dormant legacy
 hud_slot_lock_suppressed,Suppressed
 hud_slot_lock_clear,Available
 fighter_hud_stocks_lost,Stocks lost: {0}
-fighter_hud_sudden_death_clock,Sudden Death - next death loses
+fighter_hud_sudden_death_clock,Sudden Death — next death loses
 results_dust_optional,"Optional finds: {0}"
 results_dust_carried,"Earned before resuming: {0}"
 results_dust_losses,"Lost to collapse or exit: {0}"

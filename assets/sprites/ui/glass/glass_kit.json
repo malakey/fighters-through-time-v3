@@ -1611,6 +1611,15 @@
    44
   ]
  },
+ "glass_spin_up": {
+  "file": "icons/chevron_up_18.png",
+  "mipmaps": true,
+  "serves": "SpinBox up arrow (3.3, 6.2: a spin box's arrows are the chevron_down icon; TG-CLOSE polish): the OptionButton arrow above flipped vertically, the same bake, so the theme's SpinBox icon modulates (the field's font colours) land it on ink2 at rest, brighter when lit and dimmer when disabled. The down arrow is glass_option_arrow itself.",
+  "size": [
+   18,
+   18
+  ]
+ },
  "glass_tab": {
   "file": "glass_tab.png",
   "mipmaps": true,

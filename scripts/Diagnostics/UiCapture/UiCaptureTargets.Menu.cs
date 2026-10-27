@@ -135,12 +135,17 @@ namespace FTT.Diagnostics {
                 MenuPress(menu, "CharacterScreen/Center/Panel/Layout/Body/Grid/CharacterButton1");
             });
 
+        private static void OpenLevelSelect(MainMenu menu) {
+            MenuPress(menu, MenuRootLayout + "LevelSelectButton");
+            MenuPress(menu, "CharacterScreen/Center/Panel/Layout/Body/Grid/CharacterButton0");
+        }
+
         [UiCaptureTarget("menu_level_select", SettleFrames = 20)]
-        public static Node MenuLevelSelect(UiCaptureContext context) =>
-            MenuSubScreen(context, menu => {
-                MenuPress(menu, MenuRootLayout + "LevelSelectButton");
-                MenuPress(menu, "CharacterScreen/Center/Panel/Layout/Body/Grid/CharacterButton0");
-            });
+        public static Node MenuLevelSelect(UiCaptureContext context) => MenuSubScreen(context, OpenLevelSelect);
+
+        /// <summary>The developer level select at UI scale 1.4 (TG-CLOSE polish: the three-column grid).</summary>
+        [UiCaptureTarget("menu_level_select_140", SettleFrames = 24)]
+        public static Node MenuLevelSelect140(UiCaptureContext context) => MenuSubScreen(context, OpenLevelSelect, 1.4f);
 
         [UiCaptureTarget("menu_extras", SettleFrames = 20)]
         public static Node MenuExtras(UiCaptureContext context) =>

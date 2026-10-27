@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Threading.Tasks;
 using FTT.Core;
 using FTT.UI;
 using GdUnit4;
@@ -220,6 +221,52 @@ public class MainMenuExtrasTests {
             BootStep.PhotosensitivityNotice, BootStep.FirstRunSetup, BootStep.CrashPrompt, BootStep.Done
         });
         AssertThat(BootSequencePlan.NoticeSeconds).IsEqual(3f);
+    }
+
+    /// <summary>
+    /// TG-CLOSE polish: the first-run comfort card names its setting once (it showed "REDUCED TEMPORAL EFFECTS" as the
+    /// card's heading and again as the toggle's row label), and no row label on the card wraps, at UI scale 1.0 or 1.4
+    /// (the row label wrapped to two lines at 1.0). The toggle itself stays.
+    /// </summary>
+    [TestCase]
+    public async Task TheFirstRunComfortCardNamesItsSettingOnceAndNoRowLabelWraps() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        float scale = UIPalette.AppliedUiScale;
+        var problems = new System.Collections.Generic.List<string>();
+        string setting = TranslationServer.Translate("settings_reduced_temporal_effects").ToString().ToUpperInvariant();
+        try {
+            foreach (float ui in new[] { 1f, 1.4f }) {
+                UIPalette.ApplyUiScale(ui);
+                var overlay = new BootSequenceOverlay { Name = "BootOverlay" };
+                tree.Root.AddChild(overlay);
+                try {
+                    overlay.ShowStepForPreview(BootStep.FirstRunSetup);
+                    for (int frame = 0; frame < 4; frame++) await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+                    int named = 0;
+                    Godot.Collections.Array<Node> labels = overlay.Panel.FindChildren("*", "Label", true, false);
+                    using (labels.AsDisposable()) {
+                        foreach (Node node in labels) {
+                            if (node is not Label label || !label.IsVisibleInTree()) continue;
+                            string drawn = label.Tr(label.Text).ToUpperInvariant();
+                            if (drawn == setting) named++;
+                            if (label.ThemeTypeVariation.ToString() == UIPalette.LabelRoles.SettingsRowLabel && label.GetLineCount() > 1) {
+                                problems.Add($"{ui}: the row label '{drawn}' wraps to {label.GetLineCount()} lines");
+                            }
+                        }
+                    }
+                    if (named != 1) problems.Add($"{ui}: '{setting}' shows {named} times");
+                    if (overlay.ReducedEffectsToggle == null || !overlay.ReducedEffectsToggle.IsVisibleInTree()) {
+                        problems.Add($"{ui}: the comfort toggle is not shown");
+                    }
+                } finally {
+                    overlay.GetParent()?.RemoveChild(overlay);
+                    overlay.Free();
+                }
+            }
+        } finally {
+            UIPalette.ApplyUiScale(scale);
+        }
+        if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
     }
 
     private static void Press(MainMenu menu, string path) =>

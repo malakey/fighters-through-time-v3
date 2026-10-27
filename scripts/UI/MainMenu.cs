@@ -360,7 +360,7 @@ namespace FTT.UI {
 
         /// <summary>
         /// Writes each developer tile's label: the level's campaign number and its mission name up to the subtitle (TG-MENU:
-        /// the 4 x 4 compact grid has no room for the subtitle), composed here because of the numbered prefix.
+        /// the compact grid has no room for the subtitle), composed here because of the numbered prefix.
         /// </summary>
         private void PaintLevelTiles() {
             if (GetNodeOrNull<GridContainer>("LevelSelectScreen/Center/Panel/Layout/Grid") is not { } grid) return;
@@ -555,10 +555,12 @@ namespace FTT.UI {
                 string text = save == null
                     ? string.Format(Tr("save_slot_empty"), slot + 1)
                     : SaveSlotSummary(slot, save);
-                // The slot button keeps the whole summary as its text (screen readers, tests); its glass slab draws it.
+                // The slot button keeps the whole summary as its text (screen readers, tests); its glass slab draws it, with
+                // the level's short title in reserve for a summary line too long for the slab (TG-CLOSE polish).
                 _slotButtons[slot].Text = text;
                 _deleteButtons[slot].Visible = save != null;
-                PaintSlotSlab(slot, save, text);
+                string shortText = save == null ? text : SaveSlotSummary(slot, save, shortTitle: true);
+                PaintSlotSlab(slot, save, text, shortText);
             }
         }
 
@@ -619,11 +621,17 @@ namespace FTT.UI {
             FocusChainBuilder.Apply(_slotScreen);
         }
 
-        private string SaveSlotSummary(int slotIndex, FTT.Core.StorySaveData save) {
+        /// <summary>
+        /// The slot's summary (<c>save_slot_summary</c> and the G14 lowest-difficulty line). With <paramref name="shortTitle"/>
+        /// the level is named by its short title, the text before its dash (TG-CLOSE polish: the slab falls back to it when
+        /// the whole line does not fit).
+        /// </summary>
+        private string SaveSlotSummary(int slotIndex, FTT.Core.StorySaveData save, bool shortTitle = false) {
             string difficultyKey = MainMenuContinue.DifficultyKey(save.Difficulty);
             string progress = save.IsCompleted
                 ? Tr("save_completed")
                 : LocationText(save.CurrentLevelID);
+            if (shortTitle) progress = PulpScreenKit.ShortTitle(progress);
             string timestamp = Tr("save_timestamp_unknown");
             if (DateTimeOffset.TryParse(save.LastSavedTimestamp, out DateTimeOffset savedAt)) {
                 timestamp = savedAt.ToLocalTime().ToString("g");

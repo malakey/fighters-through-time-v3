@@ -40,6 +40,28 @@ public class HolodeckConsoleTests {
         }
     }
 
+    /// <summary>
+    /// TG-CLOSE polish: a stage and its Open / Sealed layout are joined by the spaced em dash ("Florence Workshop — Sealed"),
+    /// as HUD_CONTRACT and the rest of the copy write it, through one translation format key; it was a hyphen joined in code.
+    /// </summary>
+    [TestCase]
+    public void TheStageListJoinsEachStageAndItsLayoutWithASpacedEmDash() {
+        (Node host, HolodeckConsolePanel panel) = CreatePanel("HolodeckStageDashHost");
+        var problems = new System.Collections.Generic.List<string>();
+        try {
+            OptionButton stages = panel.StageSelect;
+            for (int index = 0; index < stages.ItemCount; index++) {
+                if (stages.GetItemId(index) == HolodeckConsolePanel.RandomItemID) continue;
+                string text = stages.GetItemText(index);
+                if (!text.Contains(" — ") || text.Contains(" - ")) problems.Add($"'{text}'");
+            }
+            AssertThat(stages.ItemCount).IsGreater(1);
+        } finally {
+            host.Free();
+        }
+        if (problems.Count > 0) AssertThat("not joined by ' — ': " + string.Join(", ", problems)).IsEqual("");
+    }
+
     [TestCase]
     public void LaunchWritesACpuPracticeSessionThatReturnsToTheHub() {
         GameManager gameManager = GameManager.Instance;

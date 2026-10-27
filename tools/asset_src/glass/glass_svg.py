@@ -335,6 +335,12 @@ KIT = {
                "OptionButton draws its arrow at the texture's own size), its generic glow baked (sigma 2.5 x 18 / 64). "
                "Baked in ink2 / ink, so the theme's modulate_arrow, which tints it by the field's font colour, lands it "
                "on ink2 at rest (7.2), brighter when the field is lit and dimmer when disabled."),
+    "glass_spin_up": dict(
+        file="icons/chevron_up_18.png", size=(18, 18),
+        serves="SpinBox up arrow (3.3, 6.2: a spin box's arrows are the chevron_down icon; TG-CLOSE polish): the "
+               "OptionButton arrow above flipped vertically, the same bake, so the theme's SpinBox icon modulates "
+               "(the field's font colours) land it on ink2 at rest, brighter when lit and dimmer when disabled. "
+               "The down arrow is glass_option_arrow itself."),
     "glass_diamond_11": dict(
         file="glass_diamond_11.png", size=(48, 48),
         serves="flourish diamonds (3.7 select title, 3.8 menu title, GlassFlourish): an 11 px diamond with the "

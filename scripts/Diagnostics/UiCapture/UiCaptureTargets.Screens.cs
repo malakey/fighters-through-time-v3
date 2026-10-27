@@ -222,7 +222,7 @@ namespace FTT.Diagnostics {
             return At14(() => SceneTarget("res://scenes/ui/HolodeckDrill.tscn"));
         }
 
-        /// <summary>The credits roll at UI scale 1.4 (the one-line title widens the column, centred).</summary>
+        /// <summary>The credits roll at UI scale 1.4: the title wraps to two lines inside the 1100 px column (TG-SCREENS ruling 6).</summary>
         [UiCaptureTarget("credits_140", SettleFrames = 12)]
         public static Node Credits140(UiCaptureContext context) {
             context.AfterReady = node => ((CreditsController)node)._Process(6.4);

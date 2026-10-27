@@ -81,7 +81,7 @@ namespace FTT.UI {
 
         /// <summary>
         /// The settings rows (UI_SPEC_GLASS 3.3): a 360 px label column, 22 px, a 44 px tall control; rows 62 apart. The
-        /// control column is 380 wide, not 3.3's 300: a stage with its layout ("Chicago Exposition - Sealed") or a full hero
+        /// control column is 380 wide, not 3.3's 300: a stage with its layout ("Chicago Exposition — Sealed") or a full hero
         /// name has to read whole in the field.
         /// </summary>
         public const float RowLabelWidth = 360f, RowGap = 22f, RowControlWidth = 380f, RowControlHeight = 44f, RowPitch = 62f;
@@ -305,9 +305,10 @@ namespace FTT.UI {
                 _stageIDs.Add(stage.StageID);
                 // Same Open/Sealed badge the Fighter select shows: the Holodeck
                 // routes straight into a match, so it must not hide whether the
-                // floor has a pit in it.
-                _stageSelect.AddItem(
-                    $"{Tr(stage.DisplayNameKey)} - {Tr(FighterStageLayoutBadge.LabelKey(stage))}", itemID);
+                // floor has a pit in it. TG-CLOSE polish: one format key joins the
+                // two with the spaced em dash ("Florence Workshop — Sealed").
+                _stageSelect.AddItem(string.Format(Tr("fighter_stage_with_layout"),
+                    Tr(stage.DisplayNameKey), Tr(FighterStageLayoutBadge.LabelKey(stage))), itemID);
                 _stageSelect.SetItemTooltip(
                     _stageSelect.ItemCount - 1, Tr(FighterStageLayoutBadge.TooltipKey(stage)));
             }

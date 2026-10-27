@@ -41,10 +41,12 @@ namespace FTT.UI {
         private readonly List<Button> _disconnectRows = new();
 
         /// <summary>
-        /// The Fighter pause's D6 cap at UI scale 1.0: its Move List rows carry a hero's full name ("Move List — William
-        /// Shakespeare"), so it keeps the 760 px row the pulp build gave them; a shorter stack is narrower (the D6 width).
+        /// The Fighter pause's D6 cap at UI scale 1.0. Its Move List rows name a hero by the select tiles' short name (TG-CLOSE
+        /// polish), and the widest, "MOVE LIST — SHAKESPEARE" with the keyboard's key-cap badge, needs about 798 px to read
+        /// whole at its role size, so the cap is 800 (the pulp build's 760 cut it to 33 px); a shorter stack is narrower (the
+        /// D6 width), and at UI scale 1.4 the cap grows with the scale.
         /// </summary>
-        public const float RowCapAtOne = 760f;
+        public const float RowCapAtOne = 800f;
 
         /// <summary>The disconnect modal's slab width (UI_SPEC_GLASS 9.2: the confirm modal's 760).</summary>
         public const float DisconnectPanelWidth = ConfirmModal.ModalPanelWidth;
@@ -405,13 +407,19 @@ namespace FTT.UI {
             return destination;
         }
 
-        /// <summary>"Move List — {name}", degrading to the plain label when the
-        /// slot has no resolvable character (menu-hosted tests, empty session).</summary>
+        /// <summary>
+        /// "Move List — {name}" in both rows alike, the name being the short one the select tiles use (TG-CLOSE polish:
+        /// <c>character_&lt;id&gt;_card_name</c>, "Einstein" ... "Tubman"; the full "Wolfgang Amadeus Mozart" was cut), else the
+        /// character's display name; the plain label when the slot has no resolvable character (menu-hosted tests, an empty
+        /// session).
+        /// </summary>
         private string FormatMoveListLabel(string characterID) {
+            if (string.IsNullOrWhiteSpace(characterID)) return Tr("movelist_title");
+            string cardKey = $"character_{characterID}_card_name";
+            string card = Tr(cardKey);
+            if (card != cardKey && !string.IsNullOrWhiteSpace(card)) return string.Format(Tr("movelist_title_for"), card);
             string path = $"res://resources/Characters/{characterID}_data.tres";
-            if (string.IsNullOrWhiteSpace(characterID) || !ResourceLoader.Exists(path)) {
-                return Tr("movelist_title");
-            }
+            if (!ResourceLoader.Exists(path)) return Tr("movelist_title");
             var data = FTT.Core.AuthoredResources.Load<FTT.Characters.CharacterData>(path);
             return data == null || string.IsNullOrWhiteSpace(data.DisplayNameKey)
                 ? Tr("movelist_title")
