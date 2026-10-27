@@ -13,7 +13,7 @@ namespace FTT.Tests.ContentValidation;
 /// <summary>
 /// TG-ART: the Temporal Glass UI kit (<c>assets/sprites/ui/glass/glass_kit.json</c>, written by
 /// <c>tools/asset_src/glass/write_catalog.py</c>; plan <c>docs/UI_GLASS_2026-10-26_PLAN.md</c> 2.3). Every catalog file
-/// loads at its stated size with mipmaps on, and no glass stem shadows a pulp one; every nine-slice keeps a centre
+/// loads at its stated size with mipmaps on, and the retired pulp kit is gone (TG-CLOSE); every nine-slice keeps a centre
 /// slice and the margins of UI_SPEC_GLASS 6.4 (or a departure recorded both here and in its catalog entry); every
 /// icon has a regular and a bold 64 px texture; every icon name the HUD models produce exists in the glass set; and
 /// every roster member has four baked select idle frames with a feet line.
@@ -23,7 +23,8 @@ namespace FTT.Tests.ContentValidation;
 public class GlassKitContentTests {
 
     private const string Root = PulpKit.GlassDirectory;
-    private const string PulpCatalog = PulpKit.Directory + "pulp_kit.json";
+    /// <summary>The retired pulp kit's folder (TG-CLOSE deleted it with its catalog; the ability icons moved out).</summary>
+    private const string RetiredPulpFolder = "res://assets/sprites/ui/" + "pulp/";
 
     /// <summary>UI_SPEC_GLASS 6.4: canvas w, h; nine-slice margins L, T, R, B; expand margins L, T, R, B.</summary>
     private static readonly Dictionary<string, int[]> Spec64 = new() {
@@ -73,21 +74,22 @@ public class GlassKitContentTests {
     }
 
     [TestCase]
-    public void EveryCatalogFileLoadsAtItsStatedSizeWithMipmapsAndNoStemShadowsAPulpOne() {
+    public void EveryCatalogFileLoadsAtItsStatedSizeWithMipmapsAndTheRetiredPulpKitIsGone() {
         var issues = new List<string>();
         int pngs = 0;
         using JsonDocument glass = Read(Root + "glass_kit.json");
-        using JsonDocument pulp = Read(PulpCatalog);
-        var pulpStems = new HashSet<string>();
-        foreach (JsonProperty p in pulp.RootElement.EnumerateObject()) {
-            pulpStems.Add(p.Name);
-            if (!PulpKit.Has(p.Name) || PulpKit.IsGlass(p.Name)) {
-                issues.Add($"pulp stem {p.Name} no longer resolves to the pulp catalog through PulpKit");
+        // TG-CLOSE: the pulp kit, its catalog and its fallback in PulpKit are gone; a pulp stem resolves to nothing.
+        if (DirAccess.DirExistsAbsolute(RetiredPulpFolder)) {
+            issues.Add($"{RetiredPulpFolder} still exists");
+        }
+        foreach (string pulpStem in new[] { "panel_dark", "btn_focus_h64", "ico_anchor", "keycap" }) {
+            if (PulpKit.Has(pulpStem) || PulpKit.Texture(pulpStem) != null) {
+                issues.Add($"the retired pulp stem {pulpStem} still resolves through PulpKit");
             }
         }
         foreach (JsonProperty p in glass.RootElement.EnumerateObject()) {
-            if (pulpStems.Contains(p.Name)) {
-                issues.Add($"{p.Name}: in both catalogs");
+            if (!PulpKit.IsGlass(p.Name)) {
+                issues.Add($"{p.Name}: PulpKit does not read it from the glass catalog");
             }
             if (!p.Name.StartsWith("glass_") && !p.Name.StartsWith("hero_")) {
                 issues.Add($"{p.Name}: no glass prefix");
@@ -133,7 +135,6 @@ public class GlassKitContentTests {
             AssertThat(string.Join(" | ", issues)).IsEqual("");
         }
         AssertThat(pngs >= 120).IsTrue();
-        AssertThat(pulpStems.Count >= 90).IsTrue();
     }
 
     [TestCase]

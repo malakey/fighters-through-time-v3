@@ -384,8 +384,12 @@ public class UIThemeTests {
         if (drift.Count > 0) AssertThat(string.Join(" | ", drift)).IsEqual("");
     }
 
+    /// <summary>
+    /// Every kit variation exists on its base type, and (TG-CLOSE) no retired variation, Label role or palette entry
+    /// remains in the theme or the generator's palette; the five bar variations are value carriers that draw nothing.
+    /// </summary>
     [TestCase]
-    public void EveryPulpVariationExistsOnItsBaseType() {
+    public void EveryKitVariationExistsOnItsBaseTypeAndNoRetiredNameRemains() {
         Theme theme = LoadTheme();
         var drift = new List<string>();
         void Require(string name, string baseType, string styleName) {
@@ -400,24 +404,43 @@ public class UIThemeTests {
             Require(name, "Button", "focus");
         }
         var panels = new List<string> {
-            UIPalette.Variations.InkPanel, UIPalette.Variations.PaperPanel, UIPalette.Variations.HudPlatePanel,
-            UIPalette.Variations.DialogueGlassPanel, UIPalette.Variations.BannerPanel,
-            UIPalette.Variations.PanelTagPlate, UIPalette.Variations.BossNameplate,
-            UIPalette.Variations.BossPhaseTab, UIPalette.Variations.SlotPlate,
-            UIPalette.Variations.SlotPlateReady, UIPalette.Variations.KeyTagPlate,
-            UIPalette.Variations.CardPlate, UIPalette.Variations.CardPlatePick,
-            UIPalette.Variations.BubblePlate,
-            UIPalette.Variations.StampPlate, UIPalette.Variations.ScrimPanel,
-            UIPalette.Variations.CoverBannerPanel, UIPalette.Variations.ReadyBadge, UIPalette.Variations.ReadyBadgeIdle };
+            UIPalette.Variations.InkPanel, UIPalette.Variations.DialogueGlassPanel, UIPalette.Variations.PanelTagPlate,
+            UIPalette.Variations.ScrimPanel, UIPalette.Variations.ReadyBadge, UIPalette.Variations.ReadyBadgeIdle };
         foreach (var preset in PanelPresets) panels.Add(preset.Name);
         foreach (string name in panels) Require(name, "PanelContainer", "panel");
         foreach (string name in new[] { UIPalette.Variations.PulpBar, UIPalette.Variations.PulpBarH44, UIPalette.Variations.PulpBarH16, UIPalette.Variations.PulpBarH14, UIPalette.Variations.PulpBossBar }) {
             Require(name, "ProgressBar", "background");
             Require(name, "ProgressBar", "fill");
             // FighterHUD.TintFill recolours the fill by reading it as a StyleBoxFlat, and the bar decor reads its colour.
-            if (theme.GetStylebox("fill", name) is not StyleBoxFlat) drift.Add($"{name} fill must stay a StyleBoxFlat");
+            if (theme.GetStylebox("fill", name) is not StyleBoxFlat fill) drift.Add($"{name} fill must stay a StyleBoxFlat");
+            // TG-CLOSE: a value carrier under the glass tube decor draws nothing of its own (plan 2.2).
+            else if (fill.DrawCenter || fill.BorderWidthLeft + fill.BorderWidthTop + fill.BorderWidthRight + fill.BorderWidthBottom > 0
+                     || fill.ShadowSize > 0) drift.Add($"{name} fill draws something; it must only hold its colour");
+            if (theme.GetStylebox("background", name) is not StyleBoxEmpty) drift.Add($"{name} background must be empty");
         }
         if (theme.GetStylebox("fill", "ProgressBar") is not StyleBoxFlat) drift.Add("ProgressBar fill must stay a StyleBoxFlat");
+
+        // TG-CLOSE: the retired pulp variations, roles and palette entries are gone from the theme, the generated
+        // name tables and the generator's palette (the lists live in UiLegacyKitReferenceScanTests).
+        // Theme.HasFontSize also answers true through the default font size, so a retired type is looked up in the type list.
+        var themeTypes = new HashSet<string>(theme.GetTypeList());
+        var variationNames = new HashSet<string>();
+        foreach (FieldInfo field in typeof(UIPalette.Variations).GetFields()) variationNames.Add(field.Name);
+        foreach (FieldInfo field in typeof(UIPalette.LabelRoles).GetFields()) variationNames.Add(field.Name);
+        foreach (string name in FTT.Tests.ContentValidation.UiLegacyKitReferenceScanTests.RetiredVariations) {
+            if (themeTypes.Contains(name)) drift.Add($"the retired variation {name} is still in the theme");
+            if (variationNames.Contains(name)) drift.Add($"UIPalette.Variations still names the retired {name}");
+        }
+        foreach (string name in FTT.Tests.ContentValidation.UiLegacyKitReferenceScanTests.RetiredRoles) {
+            if (themeTypes.Contains(name)) drift.Add($"the retired role {name} is still in the theme");
+            if (variationNames.Contains(name)) drift.Add($"UIPalette.LabelRoles still names the retired {name}");
+        }
+        var paletteNames = new HashSet<string>();
+        foreach (var (name, _) in UIPalette.GeneratorPalette) paletteNames.Add(name);
+        foreach (string name in FTT.Tests.ContentValidation.UiLegacyKitReferenceScanTests.RetiredPaletteConstants) {
+            if (paletteNames.Contains(name)) drift.Add($"the generator's palette still has the retired {name}");
+            if (typeof(UIPalette).GetField(name, BindingFlags.Public | BindingFlags.Static) != null) drift.Add($"UIPalette.{name} is still defined");
+        }
         if (drift.Count > 0) AssertThat(string.Join(" | ", drift)).IsEqual("");
     }
 

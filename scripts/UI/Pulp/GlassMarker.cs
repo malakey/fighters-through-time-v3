@@ -8,12 +8,12 @@ namespace FTT.UI.Pulp {
     /// <c>focus</c> #FFD45C with a 1.5 px white outline, a 4 px ring rgba(glow,.30) around it and a 16 px <c>focus</c>
     /// glow. Selected: filled and outlined <c>accent</c>. Disabled: a dashed (3 px) <c>edge</c> outline at .5 opacity.
     ///
-    /// <para>It derives from <see cref="PulpIcon"/> so <c>PulpButtonDecor.Marker</c> keeps its type; <c>Tint</c> reports
-    /// the state's main colour and <c>ShadowEnabled</c> whether the glow is drawn. The square scales with
-    /// <see cref="Scale"/> (the decor passes the UI scale). Drawn with a rotated canvas transform from cached shapes:
-    /// nothing allocates per draw.</para>
+    /// <para><see cref="Tint"/> reports the state's main colour and <see cref="GlowEnabled"/> whether the glow is drawn.
+    /// The square scales with <see cref="MarkerScale"/> (the decor passes the UI scale). Drawn with a rotated canvas
+    /// transform from cached shapes: nothing allocates per draw. (It derived from <c>PulpIcon</c> until the glass closeout
+    /// retired that icon's pulp members; <c>PulpButtonDecor.Marker</c> is typed <see cref="GlassMarker"/> since.)</para>
     /// </summary>
-    public partial class GlassMarker : PulpIcon {
+    public partial class GlassMarker : Control {
 
         /// <summary>The square's side at 100 %.</summary>
         public const float Side = 14f;
@@ -35,9 +35,13 @@ namespace FTT.UI.Pulp {
         public GlassMarker() {
             Name = "Marker";
             MouseFilter = MouseFilterEnum.Ignore;
-            Tint = PulpButtonDecor.MarkerTint(_state);
-            ShadowEnabled = PulpButtonDecor.MarkerHasShadow(_state);
         }
+
+        /// <summary>The state's main colour: its outline, or its fill when filled.</summary>
+        public Color Tint => PulpButtonDecor.MarkerTint(_state);
+
+        /// <summary>True when the state draws the 16 px glow and the 4 px ring (focus only).</summary>
+        public bool GlowEnabled => PulpButtonDecor.MarkerHasShadow(_state);
 
         /// <summary>The state drawn.</summary>
         public PulpButtonDecor.MarkerState State {
@@ -45,8 +49,6 @@ namespace FTT.UI.Pulp {
             set {
                 if (_state == value) return;
                 _state = value;
-                Tint = PulpButtonDecor.MarkerTint(value);
-                ShadowEnabled = PulpButtonDecor.MarkerHasShadow(value);
                 QueueRedraw();
             }
         }

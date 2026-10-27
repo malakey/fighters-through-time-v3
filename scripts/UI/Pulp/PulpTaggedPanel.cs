@@ -13,8 +13,6 @@ namespace FTT.UI.Pulp {
 
         /// <summary>The tag's offset from the panel's top-left corner (3.1: chamfer 18 + 8, -11).</summary>
         public static readonly Vector2 TagOffset = PulpTagPlate.PanelCornerOffset;
-        /// <summary>Legacy (the pulp plate's 3 px border); the glass slab's corner is the panel's own, so 0.</summary>
-        public const float PaddingBoxInset = 0f;
         /// <summary>The glass tag is not tilted (the pulp tag leaned -1.2 degrees).</summary>
         public const float TagDegrees = 0f;
 
@@ -54,7 +52,7 @@ namespace FTT.UI.Pulp {
         public override Vector2 _GetMinimumSize() => Panel?.GetCombinedMinimumSize() ?? Vector2.Zero;
 
         private void PlaceTag() =>
-            PulpTagPlate.Place(_tag, new Vector2(PaddingBoxInset, PaddingBoxInset) + TagOffset, Size.X - PulpTagPlate.RightMargin);
+            PulpTagPlate.Place(_tag, TagOffset, Size.X - PulpTagPlate.RightMargin);
 
         public override void _Notification(int what) {
             if (what == NotificationSortChildren) {

@@ -145,29 +145,20 @@ namespace FTT.Diagnostics {
                 row.AddChild(new Label { Text = variation.Length > 0 ? variation : "Button (glass field)", ThemeTypeVariation = UIPalette.SmallLabelVariation });
             }
 
-            left.AddChild(Heading("Panels: glass slabs and presets, the tag, the badges, pulp-only plates"));
+            left.AddChild(Heading("Panels: glass slabs and presets, the tag, the badges"));
             var panels = new HFlowContainer();
             panels.AddThemeConstantOverride("h_separation", 18);
             panels.AddThemeConstantOverride("v_separation", 18);
             left.AddChild(panels);
             var names = new List<string> { UIPalette.Variations.InkPanel, UIPalette.Variations.DialogueGlassPanel,
-                UIPalette.Variations.HudPlatePanel, UIPalette.Variations.PanelTagPlate,
-                UIPalette.Variations.ReadyBadge, UIPalette.Variations.ReadyBadgeIdle };
+                UIPalette.Variations.PanelTagPlate, UIPalette.Variations.ReadyBadge, UIPalette.Variations.ReadyBadgeIdle };
             names.AddRange(new[] { UIPalette.Variations.GlassPanelPause, UIPalette.Variations.GlassPanelVitals,
                 UIPalette.Variations.GlassPanelAbilities, UIPalette.Variations.GlassPanelTimeTools,
                 UIPalette.Variations.GlassPanelDust, UIPalette.Variations.GlassPanelTimer,
                 UIPalette.Variations.GlassPanelStats, UIPalette.Variations.GlassPanelContinue });
-            names.AddRange(new[] { UIPalette.Variations.PaperPanel, UIPalette.Variations.BannerPanel,
-                UIPalette.Variations.BossNameplate, UIPalette.Variations.BossPhaseTab, UIPalette.Variations.SlotPlate,
-                UIPalette.Variations.KeyTagPlate, UIPalette.Variations.CardPlate, UIPalette.Variations.BubblePlate,
-                UIPalette.Variations.StampPlate });
             foreach (string name in names) {
                 var panel = new PanelContainer { ThemeTypeVariation = name };
-                bool paper = name is nameof(UIPalette.Variations.BannerPanel) or nameof(UIPalette.Variations.PaperPanel)
-                    or nameof(UIPalette.Variations.BossPhaseTab) or nameof(UIPalette.Variations.KeyTagPlate)
-                    or nameof(UIPalette.Variations.BubblePlate);
                 var label = new Label { Text = name, ThemeTypeVariation = UIPalette.LabelRoles.PanelTag };
-                if (paper) label.AddThemeColorOverride("font_color", UIPalette.LabelDark);
                 panel.AddChild(label);
                 panels.AddChild(panel);
             }
@@ -238,9 +229,7 @@ namespace FTT.Diagnostics {
             foreach (var (name, value) in UIPalette.GeneratorPalette) Swatch(name, value);
             Swatch("P1", UIPalette.P1); Swatch("P2", UIPalette.P2);
             Swatch("UnboundCold (grammar)", UIPalette.UnboundCold); Swatch("ResonanceGold (grammar)", UIPalette.ResonanceGold);
-            Swatch("PlateFill (legacy)", UIPalette.PlateFill); Swatch("Paper (legacy)", UIPalette.Paper);
-            Swatch("Track (legacy)", UIPalette.Track); Swatch("PromptCream (legacy)", UIPalette.PromptCream);
-            Swatch("Cyan (legacy)", UIPalette.Cyan);
+            Swatch("Cyan (P1 default and the Severed only)", UIPalette.Cyan);
             return root;
         }
 

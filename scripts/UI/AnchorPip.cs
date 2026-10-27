@@ -36,9 +36,6 @@ namespace FTT.UI {
         /// <summary>Length of the split-and-fade beat (MOT-A row 18); <see cref="PulpMotionRules.AnchorSplitReducedSeconds"/> under Reduced Temporal Effects.</summary>
         public const float CrackSeconds = PulpMotionRules.AnchorSplitSeconds;
 
-        /// <summary>Legacy (the pulp pip's settled opacity); the glass pip settles on its 1.5 px outline at full opacity.</summary>
-        public const float SpentAlpha = 0.22f;
-
         /// <summary>The spent outline's width.</summary>
         public const float OutlineWidth = 1.5f;
 

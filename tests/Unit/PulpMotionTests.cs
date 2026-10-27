@@ -11,7 +11,7 @@ namespace FTT.Tests.Unit;
 
 /// <summary>
 /// UR-THEME, re-pinned by TG-THEME for MOT-A (UI_SPEC_GLASS section 5). The engine half of the motion: the focus pose,
-/// the panel fade-rise and fade-sink, the ready bloom, the legacy hit flash and the screen dissolve, each under both
+/// the panel fade-rise and fade-sink, the ready bloom and the screen dissolve (the pulp hit flash is deleted), each under both
 /// the standard treatment and Reduced Temporal Effects, and the dissolve under a paused tree. Every case restores the
 /// comfort preset and the tree pause in a finally. The runner's fixed 60 fps makes a frame exactly 1/60 s.
 /// </summary>
@@ -321,29 +321,6 @@ public class PulpMotionTests {
         } finally {
             SetReduced(before);
             lens.Free();
-        }
-    }
-
-    [TestCase]
-    public async Task TheHitFlashBlanksOnlyThePlateForOneFrameAndNeverTwiceInASecond() {
-        bool before = ComfortSettings.ReducedTemporalEffects;
-        var plate = new ColorRect { Color = Colors.White };
-        Tree.Root.AddChild(plate);
-        try {
-            SetReduced(false);
-            var limiter = new HitFlashLimiter();
-            AssertThat(PulpMotion.HitFlash(plate, limiter, 5.0)).IsTrue();
-            AssertThat(plate.SelfModulate.IsEqualApprox(new Color(0f, 0f, 0f, 1f))).IsTrue();
-            AssertThat(PulpMotion.HitFlash(plate, limiter, 5.3)).IsFalse();   // rate-limited
-            await Frames(4);
-            AssertThat(plate.SelfModulate.IsEqualApprox(Colors.White)).IsTrue();
-
-            SetReduced(true);
-            AssertThat(PulpMotion.HitFlash(plate, new HitFlashLimiter(), 99.0)).IsFalse();
-            AssertThat(plate.SelfModulate.IsEqualApprox(Colors.White)).IsTrue();
-        } finally {
-            SetReduced(before);
-            plate.Free();
         }
     }
 

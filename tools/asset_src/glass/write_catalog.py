@@ -1,11 +1,11 @@
 """TG-ART: writes assets/sprites/ui/glass/glass_kit.json, the Temporal Glass kit's machine-readable catalog.
 
-The shape follows the pulp kit's pulp_kit.json (which stays frozen beside it until the closeout): one object per
-stem with its file (relative to assets/sprites/ui/glass/), size, nine-slice margins, expand margins, content-margin
-hint, axis stretch, mipmap flag and what it serves. The definitions come from glass_svg.py (KIT, ICON_TABLE,
-GRADIENTS) and select_heroes.json; sizes are read back from the written PNGs and must match the definitions.
-Every stem carries a glass prefix (glass_, glass_ico_, hero_) so none collides with a pulp_kit.json stem:
-scripts/UI/Pulp/PulpKit.cs reads this catalog first and the pulp one second.
+The shape follows the retired pulp kit's catalog (deleted with the pulp kit by TG-CLOSE, 2026-10-27): one object
+per stem with its file (relative to assets/sprites/ui/glass/), size, nine-slice margins, expand margins,
+content-margin hint, axis stretch, mipmap flag and what it serves. The definitions come from glass_svg.py (KIT,
+ICON_TABLE, GRADIENTS) and select_heroes.json; sizes are read back from the written PNGs and must match the
+definitions. Every stem carries a glass prefix (glass_, glass_ico_, hero_); scripts/UI/Pulp/PulpKit.cs reads
+this catalog.
 
 Read by: PulpKit.cs (Texture, Plate, Expand, SharedPlate, GlassIconTexture), tools/ui_theme/build_ftt_theme.py
 (TG-THEME step 2 wires the nine-slices), GlassKitContentTests.cs.
@@ -24,7 +24,6 @@ sys.path.insert(0, HERE)
 import glass_svg as G  # noqa: E402
 
 KIT_DIR = os.path.join(G.REPO, "assets", "sprites", "ui", "glass")
-PULP_JSON = os.path.join(G.REPO, "assets", "sprites", "ui", "pulp", "pulp_kit.json")
 
 
 def png_size(rel):
@@ -138,10 +137,6 @@ def main():
             if stem in cat:
                 raise SystemExit("duplicate stem " + stem)
             cat[stem] = e
-    pulp = json.load(open(PULP_JSON, encoding="utf-8"))
-    clash = sorted(set(cat) & set(pulp))
-    if clash:
-        raise SystemExit("glass stems collide with pulp_kit.json: " + ", ".join(clash))
     for stem in cat:
         if not (stem.startswith("glass_") or stem.startswith("hero_")):
             raise SystemExit("unprefixed glass stem " + stem)

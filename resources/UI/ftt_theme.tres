@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=154 format=3 uid="uid://c3ajip41tplop"]
+[gd_resource type="Theme" load_steps=119 format=3 uid="uid://c3ajip41tplop"]
 
 [ext_resource type="FontFile" path="res://assets/fonts/cinzel/Cinzel-Variable.ttf" id="font_cinzel"]
 [ext_resource type="FontFile" path="res://assets/fonts/outfit/Outfit-Variable.ttf" id="font_outfit"]
@@ -20,24 +20,7 @@
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/glass/glass_tab_focus.png" id="glass_tab_focus"]
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/glass/glass_tag.png" id="glass_tag"]
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/glass/glass_panel.png" id="glass_panel"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/pulp/panel_paper.png" id="kit_panel_paper"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/pulp/banner_select.png" id="kit_banner_select"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/pulp/banner_cover.png" id="kit_banner_cover"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/pulp/boss_nameplate.png" id="kit_boss_nameplate"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/pulp/boss_phase_tab.png" id="kit_boss_phase_tab"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/pulp/slot_frame.png" id="kit_slot_frame"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/pulp/slot_frame_ready.png" id="kit_slot_frame_ready"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/pulp/key_tag.png" id="kit_key_tag"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/pulp/card_frame.png" id="kit_card_frame"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/pulp/card_frame_pick.png" id="kit_card_frame_pick"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/pulp/bubble.png" id="kit_bubble"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/pulp/stamp_ready.png" id="kit_stamp_ready"]
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/glass/glass_slider_grabber.png" id="glass_slider_grabber"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/pulp/bar_track_h30.png" id="kit_bar_track_h30"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/pulp/bar_track_h44.png" id="kit_bar_track_h44"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/pulp/bar_track_h16.png" id="kit_bar_track_h16"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/pulp/bar_track_h14.png" id="kit_bar_track_h14"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/pulp/bar_track_boss.png" id="kit_bar_track_boss"]
 
 [sub_resource type="FontVariation" id="FontVar_1"]
 resource_name = "ftt_default_font_outfit_400"
@@ -515,31 +498,17 @@ opentype_features = {
 [sub_resource type="FontVariation" id="FontVar_49"]
 base_font = ExtResource("font_outfit")
 variation_opentype = {
-2003265652: 500.0
-}
-spacing_glyph = 2
-
-[sub_resource type="FontVariation" id="FontVar_50"]
-base_font = ExtResource("font_outfit")
-variation_opentype = {
 2003265652: 600.0
 }
 spacing_glyph = 5
 
-[sub_resource type="FontVariation" id="FontVar_51"]
+[sub_resource type="FontVariation" id="FontVar_50"]
 base_font = ExtResource("font_cinzel")
 variation_opentype = {
 2003265652: 700.0
 }
 
-[sub_resource type="FontVariation" id="FontVar_52"]
-base_font = ExtResource("font_outfit")
-variation_opentype = {
-2003265652: 400.0
-}
-spacing_glyph = 2
-
-[sub_resource type="StyleBoxTexture" id="HintPlate_53"]
+[sub_resource type="StyleBoxTexture" id="HintPlate_51"]
 content_margin_left = 14.0
 content_margin_top = 3.0
 content_margin_right = 14.0
@@ -550,35 +519,42 @@ texture_margin_top = 0.0
 texture_margin_right = 9.0
 texture_margin_bottom = 0.0
 
-[sub_resource type="FontVariation" id="FontVar_54"]
+[sub_resource type="FontVariation" id="FontVar_52"]
 base_font = ExtResource("font_outfit")
 variation_opentype = {
 2003265652: 500.0
 }
 spacing_glyph = 9
 
-[sub_resource type="FontVariation" id="FontVar_55"]
+[sub_resource type="FontVariation" id="FontVar_53"]
+base_font = ExtResource("font_outfit")
+variation_opentype = {
+2003265652: 500.0
+}
+spacing_glyph = 2
+
+[sub_resource type="FontVariation" id="FontVar_54"]
 base_font = ExtResource("font_outfit")
 variation_opentype = {
 2003265652: 700.0
 }
 spacing_glyph = 2
 
-[sub_resource type="FontVariation" id="FontVar_56"]
+[sub_resource type="FontVariation" id="FontVar_55"]
 base_font = ExtResource("font_outfit")
 variation_opentype = {
 2003265652: 600.0
 }
 spacing_glyph = 6
 
-[sub_resource type="FontVariation" id="FontVar_57"]
+[sub_resource type="FontVariation" id="FontVar_56"]
 base_font = ExtResource("font_outfit")
 variation_opentype = {
 2003265652: 700.0
 }
 spacing_glyph = 3
 
-[sub_resource type="StyleBoxTexture" id="Slab_58"]
+[sub_resource type="StyleBoxTexture" id="Slab_57"]
 content_margin_left = 28.0
 content_margin_top = 22.0
 content_margin_right = 28.0
@@ -593,7 +569,7 @@ expand_margin_top = 8.0
 expand_margin_right = 22.0
 expand_margin_bottom = 36.0
 
-[sub_resource type="StyleBoxTexture" id="PopupSlab_59"]
+[sub_resource type="StyleBoxTexture" id="PopupSlab_58"]
 content_margin_left = 8.0
 content_margin_top = 8.0
 content_margin_right = 8.0
@@ -608,7 +584,7 @@ expand_margin_top = 8.0
 expand_margin_right = 22.0
 expand_margin_bottom = 36.0
 
-[sub_resource type="StyleBoxTexture" id="DialogueSlab_60"]
+[sub_resource type="StyleBoxTexture" id="DialogueSlab_59"]
 content_margin_left = 26.0
 content_margin_top = 22.0
 content_margin_right = 26.0
@@ -623,7 +599,7 @@ expand_margin_top = 8.0
 expand_margin_right = 22.0
 expand_margin_bottom = 36.0
 
-[sub_resource type="StyleBoxTexture" id="GlassPanelPause_61"]
+[sub_resource type="StyleBoxTexture" id="GlassPanelPause_60"]
 content_margin_left = 20.0
 content_margin_top = 30.0
 content_margin_right = 20.0
@@ -638,7 +614,7 @@ expand_margin_top = 8.0
 expand_margin_right = 22.0
 expand_margin_bottom = 36.0
 
-[sub_resource type="StyleBoxTexture" id="GlassPanelVitals_62"]
+[sub_resource type="StyleBoxTexture" id="GlassPanelVitals_61"]
 content_margin_left = 26.0
 content_margin_top = 20.0
 content_margin_right = 26.0
@@ -653,7 +629,7 @@ expand_margin_top = 8.0
 expand_margin_right = 22.0
 expand_margin_bottom = 36.0
 
-[sub_resource type="StyleBoxTexture" id="GlassPanelAbilities_63"]
+[sub_resource type="StyleBoxTexture" id="GlassPanelAbilities_62"]
 content_margin_left = 30.0
 content_margin_top = 22.0
 content_margin_right = 30.0
@@ -668,7 +644,7 @@ expand_margin_top = 8.0
 expand_margin_right = 22.0
 expand_margin_bottom = 36.0
 
-[sub_resource type="StyleBoxTexture" id="GlassPanelTimeTools_64"]
+[sub_resource type="StyleBoxTexture" id="GlassPanelTimeTools_63"]
 content_margin_left = 26.0
 content_margin_top = 14.0
 content_margin_right = 26.0
@@ -683,7 +659,7 @@ expand_margin_top = 8.0
 expand_margin_right = 22.0
 expand_margin_bottom = 36.0
 
-[sub_resource type="StyleBoxTexture" id="GlassPanelDust_65"]
+[sub_resource type="StyleBoxTexture" id="GlassPanelDust_64"]
 content_margin_left = 24.0
 content_margin_top = 14.0
 content_margin_right = 24.0
@@ -698,7 +674,7 @@ expand_margin_top = 8.0
 expand_margin_right = 22.0
 expand_margin_bottom = 36.0
 
-[sub_resource type="StyleBoxTexture" id="GlassPanelTimer_66"]
+[sub_resource type="StyleBoxTexture" id="GlassPanelTimer_65"]
 content_margin_left = 32.0
 content_margin_top = 12.0
 content_margin_right = 32.0
@@ -713,7 +689,7 @@ expand_margin_top = 8.0
 expand_margin_right = 22.0
 expand_margin_bottom = 36.0
 
-[sub_resource type="StyleBoxTexture" id="GlassPanelStats_67"]
+[sub_resource type="StyleBoxTexture" id="GlassPanelStats_66"]
 content_margin_left = 26.0
 content_margin_top = 20.0
 content_margin_right = 26.0
@@ -728,7 +704,7 @@ expand_margin_top = 8.0
 expand_margin_right = 22.0
 expand_margin_bottom = 36.0
 
-[sub_resource type="StyleBoxTexture" id="GlassPanelContinue_68"]
+[sub_resource type="StyleBoxTexture" id="GlassPanelContinue_67"]
 content_margin_left = 20.0
 content_margin_top = 16.0
 content_margin_right = 20.0
@@ -743,14 +719,14 @@ expand_margin_top = 8.0
 expand_margin_right = 22.0
 expand_margin_bottom = 36.0
 
-[sub_resource type="StyleBoxFlat" id="Scrim_69"]
+[sub_resource type="StyleBoxFlat" id="Scrim_68"]
 content_margin_left = 0.0
 content_margin_top = 0.0
 content_margin_right = 0.0
 content_margin_bottom = 0.0
 bg_color = Color(0.01176471, 0.01960784, 0.05490196, 1)
 
-[sub_resource type="StyleBoxFlat" id="ReadyBadge_70"]
+[sub_resource type="StyleBoxFlat" id="ReadyBadge_69"]
 content_margin_left = 22.0
 content_margin_top = 8.0
 content_margin_right = 22.0
@@ -765,7 +741,7 @@ shadow_color = Color(0.9529412, 0.7882353, 0.3568627, 0.3)
 shadow_size = 18
 shadow_offset = Vector2(0, 0)
 
-[sub_resource type="StyleBoxFlat" id="ReadyBadgeIdle_71"]
+[sub_resource type="StyleBoxFlat" id="ReadyBadgeIdle_70"]
 content_margin_left = 22.0
 content_margin_top = 8.0
 content_margin_right = 22.0
@@ -777,187 +753,7 @@ border_width_right = 2
 border_width_bottom = 2
 border_color = Color(0.9529412, 0.7882353, 0.3568627, 0.25)
 
-[sub_resource type="StyleBoxTexture" id="Paper_72"]
-content_margin_left = 22.0
-content_margin_top = 18.0
-content_margin_right = 28.0
-content_margin_bottom = 28.0
-texture = ExtResource("kit_panel_paper")
-texture_margin_left = 11.0
-texture_margin_top = 11.0
-texture_margin_right = 14.0
-texture_margin_bottom = 14.0
-expand_margin_left = 0.0
-expand_margin_top = 0.0
-expand_margin_right = 9.0
-expand_margin_bottom = 9.0
-
-[sub_resource type="StyleBoxTexture" id="Banner_73"]
-content_margin_left = 64.0
-content_margin_top = 8.0
-content_margin_right = 70.0
-content_margin_bottom = 10.0
-texture = ExtResource("kit_banner_select")
-texture_margin_left = 23.0
-texture_margin_top = 13.0
-texture_margin_right = 34.0
-texture_margin_bottom = 20.0
-expand_margin_left = 7.0
-expand_margin_top = 0.0
-expand_margin_right = 18.0
-expand_margin_bottom = 11.0
-
-[sub_resource type="StyleBoxTexture" id="CoverBanner_74"]
-content_margin_left = 30.0
-content_margin_top = 6.0
-content_margin_right = 44.0
-content_margin_bottom = 14.0
-texture = ExtResource("kit_banner_cover")
-texture_margin_left = 23.0
-texture_margin_top = 14.0
-texture_margin_right = 35.0
-texture_margin_bottom = 21.0
-expand_margin_left = 7.0
-expand_margin_top = 0.0
-expand_margin_right = 19.0
-expand_margin_bottom = 12.0
-
-[sub_resource type="StyleBoxTexture" id="BossName_75"]
-content_margin_left = 26.0
-content_margin_top = 6.0
-content_margin_right = 30.0
-content_margin_bottom = 10.0
-texture = ExtResource("kit_boss_nameplate")
-texture_margin_left = 17.0
-texture_margin_top = 9.0
-texture_margin_right = 24.0
-texture_margin_bottom = 14.0
-expand_margin_left = 5.0
-expand_margin_top = 0.0
-expand_margin_right = 12.0
-expand_margin_bottom = 7.0
-
-[sub_resource type="StyleBoxTexture" id="BossPhase_76"]
-content_margin_left = 14.0
-content_margin_top = 5.0
-content_margin_right = 16.0
-content_margin_bottom = 6.0
-texture = ExtResource("kit_boss_phase_tab")
-texture_margin_left = 6.0
-texture_margin_top = 6.0
-texture_margin_right = 10.0
-texture_margin_bottom = 10.0
-expand_margin_left = 0.0
-expand_margin_top = 0.0
-expand_margin_right = 4.0
-expand_margin_bottom = 4.0
-
-[sub_resource type="StyleBoxTexture" id="Slot_77"]
-content_margin_left = 6.0
-content_margin_top = 6.0
-content_margin_right = 8.0
-content_margin_bottom = 8.0
-texture = ExtResource("kit_slot_frame")
-texture_margin_left = 10.0
-texture_margin_top = 10.0
-texture_margin_right = 15.0
-texture_margin_bottom = 16.0
-expand_margin_left = 2.0
-expand_margin_top = 2.0
-expand_margin_right = 7.0
-expand_margin_bottom = 8.0
-
-[sub_resource type="StyleBoxTexture" id="SlotReady_78"]
-content_margin_left = 6.0
-content_margin_top = 6.0
-content_margin_right = 8.0
-content_margin_bottom = 8.0
-texture = ExtResource("kit_slot_frame_ready")
-texture_margin_left = 12.0
-texture_margin_top = 12.0
-texture_margin_right = 17.0
-texture_margin_bottom = 18.0
-expand_margin_left = 4.0
-expand_margin_top = 4.0
-expand_margin_right = 9.0
-expand_margin_bottom = 10.0
-
-[sub_resource type="StyleBoxTexture" id="KeyTag_79"]
-content_margin_left = 7.0
-content_margin_top = 3.0
-content_margin_right = 7.0
-content_margin_bottom = 2.0
-texture = ExtResource("kit_key_tag")
-texture_margin_left = 5.0
-texture_margin_top = 5.0
-texture_margin_right = 5.0
-texture_margin_bottom = 5.0
-expand_margin_left = 0.0
-expand_margin_top = 0.0
-expand_margin_right = 0.0
-expand_margin_bottom = 0.0
-
-[sub_resource type="StyleBoxTexture" id="Card_80"]
-content_margin_left = 10.0
-content_margin_top = 10.0
-content_margin_right = 14.0
-content_margin_bottom = 14.0
-texture = ExtResource("kit_card_frame")
-texture_margin_left = 9.0
-texture_margin_top = 10.0
-texture_margin_right = 16.0
-texture_margin_bottom = 17.0
-expand_margin_left = 3.0
-expand_margin_top = 3.0
-expand_margin_right = 10.0
-expand_margin_bottom = 11.0
-
-[sub_resource type="StyleBoxTexture" id="CardPick_81"]
-content_margin_left = 10.0
-content_margin_top = 10.0
-content_margin_right = 14.0
-content_margin_bottom = 14.0
-texture = ExtResource("kit_card_frame_pick")
-texture_margin_left = 14.0
-texture_margin_top = 14.0
-texture_margin_right = 23.0
-texture_margin_bottom = 24.0
-expand_margin_left = 8.0
-expand_margin_top = 8.0
-expand_margin_right = 17.0
-expand_margin_bottom = 18.0
-
-[sub_resource type="StyleBoxTexture" id="Bubble_82"]
-content_margin_left = 26.0
-content_margin_top = 10.0
-content_margin_right = 32.0
-content_margin_bottom = 14.0
-texture = ExtResource("kit_bubble")
-texture_margin_left = 32.0
-texture_margin_top = 32.0
-texture_margin_right = 38.0
-texture_margin_bottom = 38.0
-expand_margin_left = 0.0
-expand_margin_top = 0.0
-expand_margin_right = 6.0
-expand_margin_bottom = 6.0
-
-[sub_resource type="StyleBoxTexture" id="Stamp_83"]
-content_margin_left = 16.0
-content_margin_top = 6.0
-content_margin_right = 20.0
-content_margin_bottom = 8.0
-texture = ExtResource("kit_stamp_ready")
-texture_margin_left = 7.0
-texture_margin_top = 7.0
-texture_margin_right = 11.0
-texture_margin_bottom = 11.0
-expand_margin_left = 0.0
-expand_margin_top = 0.0
-expand_margin_right = 5.0
-expand_margin_bottom = 5.0
-
-[sub_resource type="StyleBoxTexture" id="LineN_84"]
+[sub_resource type="StyleBoxTexture" id="LineN_71"]
 content_margin_left = 16.0
 content_margin_top = 8.0
 content_margin_right = 16.0
@@ -968,7 +764,7 @@ texture_margin_top = 10.0
 texture_margin_right = 10.0
 texture_margin_bottom = 10.0
 
-[sub_resource type="StyleBoxTexture" id="LineF_85"]
+[sub_resource type="StyleBoxTexture" id="LineF_72"]
 content_margin_left = 16.0
 content_margin_top = 8.0
 content_margin_right = 16.0
@@ -983,7 +779,7 @@ expand_margin_top = 14.0
 expand_margin_right = 14.0
 expand_margin_bottom = 14.0
 
-[sub_resource type="StyleBoxTexture" id="LineR_86"]
+[sub_resource type="StyleBoxTexture" id="LineR_73"]
 content_margin_left = 16.0
 content_margin_top = 8.0
 content_margin_right = 16.0
@@ -995,7 +791,7 @@ texture_margin_right = 10.0
 texture_margin_bottom = 10.0
 modulate_color = Color(1, 1, 1, 0.5)
 
-[sub_resource type="StyleBoxFlat" id="Slider_87"]
+[sub_resource type="StyleBoxFlat" id="Slider_74"]
 content_margin_left = 0.0
 content_margin_top = 6.0
 content_margin_right = 0.0
@@ -1007,7 +803,7 @@ expand_margin_top = 0.0
 expand_margin_right = -6.0
 expand_margin_bottom = 0.0
 
-[sub_resource type="StyleBoxFlat" id="SliderFill_88"]
+[sub_resource type="StyleBoxFlat" id="SliderFill_75"]
 content_margin_left = 0.0
 content_margin_top = 6.0
 content_margin_right = 0.0
@@ -1019,7 +815,7 @@ expand_margin_top = 0.0
 expand_margin_right = 0.0
 expand_margin_bottom = 0.0
 
-[sub_resource type="StyleBoxFlat" id="SliderFillHi_89"]
+[sub_resource type="StyleBoxFlat" id="SliderFillHi_76"]
 content_margin_left = 0.0
 content_margin_top = 6.0
 content_margin_right = 0.0
@@ -1031,28 +827,28 @@ expand_margin_top = 0.0
 expand_margin_right = 0.0
 expand_margin_bottom = 0.0
 
-[sub_resource type="StyleBoxFlat" id="VSlider_90"]
+[sub_resource type="StyleBoxFlat" id="VSlider_77"]
 content_margin_left = 6.0
 content_margin_top = 0.0
 content_margin_right = 6.0
 content_margin_bottom = 0.0
 bg_color = Color(1, 1, 1, 0.12)
 
-[sub_resource type="StyleBoxFlat" id="VSliderFill_91"]
+[sub_resource type="StyleBoxFlat" id="VSliderFill_78"]
 content_margin_left = 6.0
 content_margin_top = 0.0
 content_margin_right = 6.0
 content_margin_bottom = 0.0
 bg_color = Color(0.9529412, 0.7882353, 0.3568627, 1)
 
-[sub_resource type="StyleBoxFlat" id="VSliderFillHi_92"]
+[sub_resource type="StyleBoxFlat" id="VSliderFillHi_79"]
 content_margin_left = 6.0
 content_margin_top = 0.0
 content_margin_right = 6.0
 content_margin_bottom = 0.0
 bg_color = Color(1, 0.8313725, 0.3607843, 1)
 
-[sub_resource type="StyleBoxFlat" id="VScrollBarTrack_93"]
+[sub_resource type="StyleBoxFlat" id="VScrollBarTrack_80"]
 content_margin_left = 4.0
 content_margin_top = 0.0
 content_margin_right = 4.0
@@ -1063,7 +859,7 @@ corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
-[sub_resource type="StyleBoxFlat" id="VScrollBarGrab_94"]
+[sub_resource type="StyleBoxFlat" id="VScrollBarGrab_81"]
 content_margin_left = 4.0
 content_margin_top = 24.0
 content_margin_right = 4.0
@@ -1074,7 +870,7 @@ corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
-[sub_resource type="StyleBoxFlat" id="VScrollBarGrabHi_95"]
+[sub_resource type="StyleBoxFlat" id="VScrollBarGrabHi_82"]
 content_margin_left = 4.0
 content_margin_top = 24.0
 content_margin_right = 4.0
@@ -1085,7 +881,7 @@ corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
-[sub_resource type="StyleBoxFlat" id="HScrollBarTrack_96"]
+[sub_resource type="StyleBoxFlat" id="HScrollBarTrack_83"]
 content_margin_left = 0.0
 content_margin_top = 4.0
 content_margin_right = 0.0
@@ -1096,7 +892,7 @@ corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
-[sub_resource type="StyleBoxFlat" id="HScrollBarGrab_97"]
+[sub_resource type="StyleBoxFlat" id="HScrollBarGrab_84"]
 content_margin_left = 24.0
 content_margin_top = 4.0
 content_margin_right = 24.0
@@ -1107,7 +903,7 @@ corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
-[sub_resource type="StyleBoxFlat" id="HScrollBarGrabHi_98"]
+[sub_resource type="StyleBoxFlat" id="HScrollBarGrabHi_85"]
 content_margin_left = 24.0
 content_margin_top = 4.0
 content_margin_right = 24.0
@@ -1118,13 +914,13 @@ corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
-[sub_resource type="StyleBoxFlat" id="SpinHover_99"]
+[sub_resource type="StyleBoxFlat" id="SpinHover_86"]
 bg_color = Color(0.9529412, 0.7882353, 0.3568627, 0.16)
 
-[sub_resource type="StyleBoxFlat" id="SpinPressed_100"]
+[sub_resource type="StyleBoxFlat" id="SpinPressed_87"]
 bg_color = Color(0.3529412, 0.3176471, 0.2196078, 0.946)
 
-[sub_resource type="StyleBoxFlat" id="ProgBg_101"]
+[sub_resource type="StyleBoxFlat" id="ProgBg_88"]
 bg_color = Color(0.007843137, 0.01960784, 0.05490196, 0.95)
 border_width_left = 2
 border_width_top = 2
@@ -1132,93 +928,26 @@ border_width_right = 2
 border_width_bottom = 2
 border_color = Color(0.9529412, 0.7882353, 0.3568627, 0.55)
 
-[sub_resource type="StyleBoxFlat" id="ProgFill_102"]
+[sub_resource type="StyleBoxFlat" id="ProgFill_89"]
 bg_color = Color(0.9529412, 0.7882353, 0.3568627, 1)
 
-[sub_resource type="StyleBoxTexture" id="BarBg_103"]
-content_margin_left = 3.0
-content_margin_top = 3.0
-content_margin_right = 3.0
-content_margin_bottom = 3.0
-texture = ExtResource("kit_bar_track_h30")
-texture_margin_left = 15.0
-texture_margin_top = 8.0
-texture_margin_right = 20.0
-texture_margin_bottom = 13.0
-expand_margin_left = 6.0
-expand_margin_top = 2.0
-expand_margin_right = 11.0
-expand_margin_bottom = 8.0
-
-[sub_resource type="StyleBoxFlat" id="BarFill_104"]
+[sub_resource type="StyleBoxFlat" id="PulpBarFill_90"]
+draw_center = false
 bg_color = Color(0.5490196, 0.9411765, 0.7215686, 1)
-skew = Vector2(0.2126, 0)
 
-[sub_resource type="StyleBoxTexture" id="PulpBarH44Bg_105"]
-texture = ExtResource("kit_bar_track_h44")
-texture_margin_left = 18.0
-texture_margin_top = 8.0
-texture_margin_right = 23.0
-texture_margin_bottom = 13.0
-expand_margin_left = 8.0
-expand_margin_top = 2.0
-expand_margin_right = 13.0
-expand_margin_bottom = 8.0
-
-[sub_resource type="StyleBoxTexture" id="PulpBarH16Bg_106"]
-texture = ExtResource("kit_bar_track_h16")
-texture_margin_left = 12.0
-texture_margin_top = 8.0
-texture_margin_right = 17.0
-texture_margin_bottom = 13.0
-expand_margin_left = 5.0
-expand_margin_top = 2.0
-expand_margin_right = 10.0
-expand_margin_bottom = 8.0
-
-[sub_resource type="StyleBoxFlat" id="PulpBarH16Fill_107"]
+[sub_resource type="StyleBoxFlat" id="PulpBarH16Fill_91"]
+draw_center = false
 bg_color = Color(1, 0.7019608, 0.2784314, 1)
-skew = Vector2(0.2126, 0)
 
-[sub_resource type="StyleBoxTexture" id="PulpBarH14Bg_108"]
-content_margin_left = 3.0
-content_margin_top = 3.0
-content_margin_right = 3.0
-content_margin_bottom = 3.0
-texture = ExtResource("kit_bar_track_h14")
-texture_margin_left = 11.0
-texture_margin_top = 8.0
-texture_margin_right = 16.0
-texture_margin_bottom = 13.0
-expand_margin_left = 4.0
-expand_margin_top = 2.0
-expand_margin_right = 9.0
-expand_margin_bottom = 8.0
-
-[sub_resource type="StyleBoxFlat" id="PulpBarH14Fill_109"]
+[sub_resource type="StyleBoxFlat" id="PulpBarH14Fill_92"]
+draw_center = false
 bg_color = Color(0.9529412, 0.7882353, 0.3568627, 1)
-skew = Vector2(0.2126, 0)
 
-[sub_resource type="StyleBoxTexture" id="BossBarBg_110"]
-content_margin_left = 5.0
-content_margin_top = 5.0
-content_margin_right = 5.0
-content_margin_bottom = 5.0
-texture = ExtResource("kit_bar_track_boss")
-texture_margin_left = 19.0
-texture_margin_top = 10.0
-texture_margin_right = 27.0
-texture_margin_bottom = 18.0
-expand_margin_left = 8.0
-expand_margin_top = 3.0
-expand_margin_right = 16.0
-expand_margin_bottom = 11.0
-
-[sub_resource type="StyleBoxFlat" id="BossBarFill_111"]
+[sub_resource type="StyleBoxFlat" id="PulpBossBarFill_93"]
+draw_center = false
 bg_color = Color(1, 0.3529412, 0.3529412, 1)
-skew = Vector2(0.1763, 0)
 
-[sub_resource type="StyleBoxFlat" id="TabPanel_112"]
+[sub_resource type="StyleBoxFlat" id="TabPanel_94"]
 content_margin_left = 18.0
 content_margin_top = 18.0
 content_margin_right = 24.0
@@ -1235,7 +964,7 @@ corner_radius_bottom_right = 12
 corner_radius_bottom_left = 0
 corner_detail = 1
 
-[sub_resource type="StyleBoxFlat" id="MenuHover_113"]
+[sub_resource type="StyleBoxFlat" id="MenuHover_95"]
 content_margin_left = 8.0
 content_margin_top = 4.0
 content_margin_right = 8.0
@@ -1247,11 +976,11 @@ border_width_right = 0
 border_width_bottom = 0
 border_color = Color(1, 0.8313725, 0.3607843, 1)
 
-[sub_resource type="StyleBoxLine" id="Line_114"]
+[sub_resource type="StyleBoxLine" id="Line_96"]
 color = Color(0.9529412, 0.7882353, 0.3568627, 0.25)
 thickness = 1
 
-[sub_resource type="StyleBoxFlat" id="Tip_115"]
+[sub_resource type="StyleBoxFlat" id="Tip_97"]
 content_margin_left = 12.0
 content_margin_top = 6.0
 content_margin_right = 12.0
@@ -1286,8 +1015,6 @@ BannerHeading/constants/shadow_offset_y = 3
 BannerHeading/constants/shadow_outline_size = 8
 BannerHeading/font_sizes/font_size = 56
 BannerHeading/fonts/font = SubResource("FontVar_36")
-BannerPanel/base_type = &"PanelContainer"
-BannerPanel/styles/panel = SubResource("Banner_73")
 BodyLabel/base_type = &"Label"
 BodyLabel/colors/font_color = Color(0.9529412, 0.9411765, 0.9019608, 1)
 BodyLabel/constants/line_spacing = 2
@@ -1317,10 +1044,6 @@ BossName/constants/shadow_offset_y = 3
 BossName/constants/shadow_outline_size = 8
 BossName/font_sizes/font_size = 38
 BossName/fonts/font = SubResource("FontVar_36")
-BossNameplate/base_type = &"PanelContainer"
-BossNameplate/styles/panel = SubResource("BossName_75")
-BossPhaseTab/base_type = &"PanelContainer"
-BossPhaseTab/styles/panel = SubResource("BossPhase_76")
 BossPhaseTag/base_type = &"Label"
 BossPhaseTag/colors/font_color = Color(0.7529412, 0.7294118, 0.6509804, 1)
 BossPhaseTag/colors/font_outline_color = Color(0, 0, 0, 0.85)
@@ -1331,12 +1054,6 @@ BossPhaseTag/constants/shadow_offset_y = 1
 BossPhaseTag/constants/shadow_outline_size = 4
 BossPhaseTag/font_sizes/font_size = 18
 BossPhaseTag/fonts/font = SubResource("FontVar_40")
-BubblePlate/base_type = &"PanelContainer"
-BubblePlate/styles/panel = SubResource("Bubble_82")
-BubbleText/base_type = &"Label"
-BubbleText/colors/font_color = Color(0.04705882, 0.03921569, 0.0627451, 1)
-BubbleText/font_sizes/font_size = 46
-BubbleText/fonts/font = SubResource("FontVar_52")
 Button/colors/font_color = Color(0.9529412, 0.9411765, 0.9019608, 1)
 Button/colors/font_disabled_color = Color(0.5411765, 0.5137255, 0.454902, 1)
 Button/colors/font_focus_color = Color(1, 1, 1, 1)
@@ -1355,26 +1072,18 @@ CaptionLabel/base_type = &"Label"
 CaptionLabel/colors/font_color = Color(0.7529412, 0.7294118, 0.6509804, 1)
 CaptionLabel/font_sizes/font_size = 18
 CaptionLabel/fonts/font = SubResource("FontVar_40")
-CardDates/base_type = &"Label"
-CardDates/colors/font_color = Color(0.9529412, 0.7882353, 0.3568627, 1)
-CardDates/font_sizes/font_size = 18
-CardDates/fonts/font = SubResource("FontVar_49")
 CardName/base_type = &"Label"
 CardName/colors/font_color = Color(0.7529412, 0.7294118, 0.6509804, 1)
 CardName/font_sizes/font_size = 18
 CardName/fonts/font = SubResource("FontVar_24")
-CardPlate/base_type = &"PanelContainer"
-CardPlate/styles/panel = SubResource("Card_80")
-CardPlatePick/base_type = &"PanelContainer"
-CardPlatePick/styles/panel = SubResource("CardPick_81")
 CardQuestion/base_type = &"Label"
 CardQuestion/colors/font_color = Color(0.7529412, 0.7294118, 0.6509804, 1)
 CardQuestion/font_sizes/font_size = 40
-CardQuestion/fonts/font = SubResource("FontVar_51")
+CardQuestion/fonts/font = SubResource("FontVar_50")
 CardStamp/base_type = &"Label"
 CardStamp/colors/font_color = Color(0.9529412, 0.7882353, 0.3568627, 1)
 CardStamp/font_sizes/font_size = 26
-CardStamp/fonts/font = SubResource("FontVar_50")
+CardStamp/fonts/font = SubResource("FontVar_49")
 CheckBox/colors/font_color = Color(0.9529412, 0.9411765, 0.9019608, 1)
 CheckBox/colors/font_disabled_color = Color(0.5411765, 0.5137255, 0.454902, 1)
 CheckBox/colors/font_focus_color = Color(1, 1, 1, 1)
@@ -1401,8 +1110,6 @@ CoverBanner/base_type = &"Label"
 CoverBanner/colors/font_color = Color(0.7529412, 0.7294118, 0.6509804, 1)
 CoverBanner/font_sizes/font_size = 38
 CoverBanner/fonts/font = SubResource("FontVar_35")
-CoverBannerPanel/base_type = &"PanelContainer"
-CoverBannerPanel/styles/panel = SubResource("CoverBanner_74")
 CoverTitle/base_type = &"Label"
 CoverTitle/colors/font_color = Color(0.8745098, 0.9098039, 1, 1)
 CoverTitle/colors/font_outline_color = Color(0, 0, 0, 0.7)
@@ -1428,7 +1135,7 @@ DialogueBodyRich/constants/line_separation = 1
 DialogueBodyRich/font_sizes/normal_font_size = 33
 DialogueBodyRich/fonts/normal_font = SubResource("FontVar_39")
 DialogueGlassPanel/base_type = &"PanelContainer"
-DialogueGlassPanel/styles/panel = SubResource("DialogueSlab_60")
+DialogueGlassPanel/styles/panel = SubResource("DialogueSlab_59")
 DustFloat/base_type = &"Label"
 DustFloat/colors/font_color = Color(1, 0.9411765, 0.6901961, 1)
 DustFloat/font_sizes/font_size = 26
@@ -1457,21 +1164,21 @@ GlassField/styles/hover_pressed = SubResource("FieldNormal_19")
 GlassField/styles/normal = SubResource("FieldNormal_19")
 GlassField/styles/pressed = SubResource("FieldNormal_19")
 GlassPanelAbilities/base_type = &"PanelContainer"
-GlassPanelAbilities/styles/panel = SubResource("GlassPanelAbilities_63")
+GlassPanelAbilities/styles/panel = SubResource("GlassPanelAbilities_62")
 GlassPanelContinue/base_type = &"PanelContainer"
-GlassPanelContinue/styles/panel = SubResource("GlassPanelContinue_68")
+GlassPanelContinue/styles/panel = SubResource("GlassPanelContinue_67")
 GlassPanelDust/base_type = &"PanelContainer"
-GlassPanelDust/styles/panel = SubResource("GlassPanelDust_65")
+GlassPanelDust/styles/panel = SubResource("GlassPanelDust_64")
 GlassPanelPause/base_type = &"PanelContainer"
-GlassPanelPause/styles/panel = SubResource("GlassPanelPause_61")
+GlassPanelPause/styles/panel = SubResource("GlassPanelPause_60")
 GlassPanelStats/base_type = &"PanelContainer"
-GlassPanelStats/styles/panel = SubResource("GlassPanelStats_67")
+GlassPanelStats/styles/panel = SubResource("GlassPanelStats_66")
 GlassPanelTimeTools/base_type = &"PanelContainer"
-GlassPanelTimeTools/styles/panel = SubResource("GlassPanelTimeTools_64")
+GlassPanelTimeTools/styles/panel = SubResource("GlassPanelTimeTools_63")
 GlassPanelTimer/base_type = &"PanelContainer"
-GlassPanelTimer/styles/panel = SubResource("GlassPanelTimer_66")
+GlassPanelTimer/styles/panel = SubResource("GlassPanelTimer_65")
 GlassPanelVitals/base_type = &"PanelContainer"
-GlassPanelVitals/styles/panel = SubResource("GlassPanelVitals_62")
+GlassPanelVitals/styles/panel = SubResource("GlassPanelVitals_61")
 GlassTab/base_type = &"Button"
 GlassTab/colors/font_color = Color(0.7529412, 0.7294118, 0.6509804, 1)
 GlassTab/colors/font_disabled_color = Color(0.5411765, 0.5137255, 0.454902, 1)
@@ -1502,19 +1209,19 @@ GlassTabSelected/styles/hover = SubResource("TabSel_27")
 GlassTabSelected/styles/hover_pressed = SubResource("TabSel_27")
 GlassTabSelected/styles/normal = SubResource("TabSel_27")
 GlassTabSelected/styles/pressed = SubResource("TabSel_27")
-HScrollBar/styles/grabber = SubResource("HScrollBarGrab_97")
-HScrollBar/styles/grabber_highlight = SubResource("HScrollBarGrabHi_98")
-HScrollBar/styles/grabber_pressed = SubResource("HScrollBarGrabHi_98")
-HScrollBar/styles/scroll = SubResource("HScrollBarTrack_96")
-HScrollBar/styles/scroll_focus = SubResource("HScrollBarTrack_96")
-HSeparator/styles/separator = SubResource("Line_114")
+HScrollBar/styles/grabber = SubResource("HScrollBarGrab_84")
+HScrollBar/styles/grabber_highlight = SubResource("HScrollBarGrabHi_85")
+HScrollBar/styles/grabber_pressed = SubResource("HScrollBarGrabHi_85")
+HScrollBar/styles/scroll = SubResource("HScrollBarTrack_83")
+HScrollBar/styles/scroll_focus = SubResource("HScrollBarTrack_83")
+HSeparator/styles/separator = SubResource("Line_96")
 HSlider/constants/center_grabber = 1
 HSlider/icons/grabber = ExtResource("glass_slider_grabber")
 HSlider/icons/grabber_disabled = ExtResource("glass_slider_grabber")
 HSlider/icons/grabber_highlight = ExtResource("glass_slider_grabber")
-HSlider/styles/grabber_area = SubResource("SliderFill_88")
-HSlider/styles/grabber_area_highlight = SubResource("SliderFillHi_89")
-HSlider/styles/slider = SubResource("Slider_87")
+HSlider/styles/grabber_area = SubResource("SliderFill_75")
+HSlider/styles/grabber_area_highlight = SubResource("SliderFillHi_76")
+HSlider/styles/slider = SubResource("Slider_74")
 HeadingLabel/base_type = &"Label"
 HeadingLabel/colors/font_color = Color(0.9529412, 0.7882353, 0.3568627, 1)
 HeadingLabel/font_sizes/font_size = 26
@@ -1547,7 +1254,7 @@ HintLinePlate/base_type = &"Label"
 HintLinePlate/colors/font_color = Color(0.7529412, 0.7294118, 0.6509804, 1)
 HintLinePlate/font_sizes/font_size = 22
 HintLinePlate/fonts/font = SubResource("FontVar_39")
-HintLinePlate/styles/normal = SubResource("HintPlate_53")
+HintLinePlate/styles/normal = SubResource("HintPlate_51")
 HudNumeral/base_type = &"Label"
 HudNumeral/colors/font_color = Color(1, 1, 1, 1)
 HudNumeral/colors/font_outline_color = Color(0, 0, 0, 0.85)
@@ -1578,10 +1285,8 @@ HudNumeralSmall/constants/shadow_offset_y = 1
 HudNumeralSmall/constants/shadow_outline_size = 4
 HudNumeralSmall/font_sizes/font_size = 22
 HudNumeralSmall/fonts/font = SubResource("FontVar_43")
-HudPlatePanel/base_type = &"PanelContainer"
-HudPlatePanel/styles/panel = SubResource("Slab_58")
 InkPanel/base_type = &"PanelContainer"
-InkPanel/styles/panel = SubResource("Slab_58")
+InkPanel/styles/panel = SubResource("Slab_57")
 IntegrityCaption/base_type = &"Label"
 IntegrityCaption/colors/font_color = Color(0.9529412, 0.9411765, 0.9019608, 1)
 IntegrityCaption/colors/font_outline_color = Color(0, 0, 0, 0.85)
@@ -1603,8 +1308,6 @@ IntegrityPercent/constants/shadow_offset_y = 1
 IntegrityPercent/constants/shadow_outline_size = 4
 IntegrityPercent/font_sizes/font_size = 23
 IntegrityPercent/fonts/font = SubResource("FontVar_43")
-KeyTagPlate/base_type = &"PanelContainer"
-KeyTagPlate/styles/panel = SubResource("KeyTag_79")
 Label/colors/font_color = Color(0.9529412, 0.9411765, 0.9019608, 1)
 Label/font_sizes/font_size = 20
 LevelTitle/base_type = &"Label"
@@ -1623,13 +1326,13 @@ LineEdit/colors/font_placeholder_color = Color(0.5411765, 0.5137255, 0.454902, 1
 LineEdit/colors/font_selected_color = Color(0.9529412, 0.9411765, 0.9019608, 1)
 LineEdit/colors/selection_color = Color(0.9529412, 0.7882353, 0.3568627, 0.4)
 LineEdit/font_sizes/font_size = 22
-LineEdit/styles/focus = SubResource("LineF_85")
-LineEdit/styles/normal = SubResource("LineN_84")
-LineEdit/styles/read_only = SubResource("LineR_86")
+LineEdit/styles/focus = SubResource("LineF_72")
+LineEdit/styles/normal = SubResource("LineN_71")
+LineEdit/styles/read_only = SubResource("LineR_73")
 MenuTagline/base_type = &"Label"
 MenuTagline/colors/font_color = Color(0.9529412, 0.7882353, 0.3568627, 1)
 MenuTagline/font_sizes/font_size = 21
-MenuTagline/fonts/font = SubResource("FontVar_54")
+MenuTagline/fonts/font = SubResource("FontVar_52")
 NoteLabel/base_type = &"Label"
 NoteLabel/colors/font_color = Color(0.7529412, 0.7294118, 0.6509804, 1)
 NoteLabel/colors/font_outline_color = Color(0, 0, 0, 0.85)
@@ -1666,16 +1369,14 @@ OptionButton/styles/hover = SubResource("FieldHover_20")
 OptionButton/styles/hover_pressed = SubResource("FieldNormal_19")
 OptionButton/styles/normal = SubResource("FieldNormal_19")
 OptionButton/styles/pressed = SubResource("FieldNormal_19")
-Panel/styles/panel = SubResource("Slab_58")
-PanelContainer/styles/panel = SubResource("Slab_58")
+Panel/styles/panel = SubResource("Slab_57")
+PanelContainer/styles/panel = SubResource("Slab_57")
 PanelTag/base_type = &"Label"
 PanelTag/colors/font_color = Color(0.9529412, 0.9411765, 0.9019608, 1)
 PanelTag/font_sizes/font_size = 18
 PanelTag/fonts/font = SubResource("FontVar_40")
 PanelTagPlate/base_type = &"PanelContainer"
-PanelTagPlate/styles/panel = SubResource("HintPlate_53")
-PaperPanel/base_type = &"PanelContainer"
-PaperPanel/styles/panel = SubResource("Paper_72")
+PanelTagPlate/styles/panel = SubResource("HintPlate_51")
 PauseTitle/base_type = &"Label"
 PauseTitle/colors/font_color = Color(1, 1, 1, 1)
 PauseTitle/colors/font_outline_color = Color(0, 0, 0, 0.7)
@@ -1695,14 +1396,14 @@ PopupMenu/constants/item_start_padding = 16
 PopupMenu/constants/v_separation = 16
 PopupMenu/font_sizes/font_size = 22
 PopupMenu/fonts/font = SubResource("FontVar_32")
-PopupMenu/styles/hover = SubResource("MenuHover_113")
-PopupMenu/styles/panel = SubResource("PopupSlab_59")
-PopupMenu/styles/separator = SubResource("Line_114")
-PopupPanel/styles/panel = SubResource("PopupSlab_59")
+PopupMenu/styles/hover = SubResource("MenuHover_95")
+PopupMenu/styles/panel = SubResource("PopupSlab_58")
+PopupMenu/styles/separator = SubResource("Line_96")
+PopupPanel/styles/panel = SubResource("PopupSlab_58")
 ProgressBar/colors/font_color = Color(0.9529412, 0.9411765, 0.9019608, 1)
 ProgressBar/font_sizes/font_size = 18
-ProgressBar/styles/background = SubResource("ProgBg_101")
-ProgressBar/styles/fill = SubResource("ProgFill_102")
+ProgressBar/styles/background = SubResource("ProgBg_88")
+ProgressBar/styles/fill = SubResource("ProgFill_89")
 PromptCaption/base_type = &"Label"
 PromptCaption/colors/font_color = Color(0.7529412, 0.7294118, 0.6509804, 1)
 PromptCaption/colors/font_outline_color = Color(0, 0, 0, 0.85)
@@ -1720,28 +1421,28 @@ PromptKey/fonts/font = SubResource("FontVar_41")
 PulpBar/base_type = &"ProgressBar"
 PulpBar/colors/font_color = Color(0.9529412, 0.9411765, 0.9019608, 1)
 PulpBar/font_sizes/font_size = 22
-PulpBar/styles/background = SubResource("BarBg_103")
-PulpBar/styles/fill = SubResource("BarFill_104")
+PulpBar/styles/background = SubResource("CheckBoxNone_31")
+PulpBar/styles/fill = SubResource("PulpBarFill_90")
 PulpBarH14/base_type = &"ProgressBar"
 PulpBarH14/colors/font_color = Color(0.9529412, 0.9411765, 0.9019608, 1)
 PulpBarH14/font_sizes/font_size = 22
-PulpBarH14/styles/background = SubResource("PulpBarH14Bg_108")
-PulpBarH14/styles/fill = SubResource("PulpBarH14Fill_109")
+PulpBarH14/styles/background = SubResource("CheckBoxNone_31")
+PulpBarH14/styles/fill = SubResource("PulpBarH14Fill_92")
 PulpBarH16/base_type = &"ProgressBar"
 PulpBarH16/colors/font_color = Color(0.9529412, 0.9411765, 0.9019608, 1)
 PulpBarH16/font_sizes/font_size = 22
-PulpBarH16/styles/background = SubResource("PulpBarH16Bg_106")
-PulpBarH16/styles/fill = SubResource("PulpBarH16Fill_107")
+PulpBarH16/styles/background = SubResource("CheckBoxNone_31")
+PulpBarH16/styles/fill = SubResource("PulpBarH16Fill_91")
 PulpBarH44/base_type = &"ProgressBar"
 PulpBarH44/colors/font_color = Color(0.9529412, 0.9411765, 0.9019608, 1)
 PulpBarH44/font_sizes/font_size = 22
-PulpBarH44/styles/background = SubResource("PulpBarH44Bg_105")
-PulpBarH44/styles/fill = SubResource("BarFill_104")
+PulpBarH44/styles/background = SubResource("CheckBoxNone_31")
+PulpBarH44/styles/fill = SubResource("PulpBarFill_90")
 PulpBossBar/base_type = &"ProgressBar"
 PulpBossBar/colors/font_color = Color(1, 1, 1, 1)
 PulpBossBar/font_sizes/font_size = 24
-PulpBossBar/styles/background = SubResource("BossBarBg_110")
-PulpBossBar/styles/fill = SubResource("BossBarFill_111")
+PulpBossBar/styles/background = SubResource("CheckBoxNone_31")
+PulpBossBar/styles/fill = SubResource("PulpBossBarFill_93")
 PulpButton/base_type = &"Button"
 PulpButton/colors/font_color = Color(0.7529412, 0.7294118, 0.6509804, 1)
 PulpButton/colors/font_disabled_color = Color(0.5411765, 0.5137255, 0.454902, 1)
@@ -1777,11 +1478,11 @@ PulpButtonCompact/styles/selected = SubResource("PulpButtonCompactSelected_17")
 RandomWord/base_type = &"Label"
 RandomWord/colors/font_color = Color(0.7529412, 0.7294118, 0.6509804, 1)
 RandomWord/font_sizes/font_size = 20
-RandomWord/fonts/font = SubResource("FontVar_56")
+RandomWord/fonts/font = SubResource("FontVar_55")
 ReadyBadge/base_type = &"PanelContainer"
-ReadyBadge/styles/panel = SubResource("ReadyBadge_70")
+ReadyBadge/styles/panel = SubResource("ReadyBadge_69")
 ReadyBadgeIdle/base_type = &"PanelContainer"
-ReadyBadgeIdle/styles/panel = SubResource("ReadyBadgeIdle_71")
+ReadyBadgeIdle/styles/panel = SubResource("ReadyBadgeIdle_70")
 RewindCount/base_type = &"Label"
 RewindCount/colors/font_color = Color(0.9529412, 0.9411765, 0.9019608, 1)
 RewindCount/font_sizes/font_size = 32
@@ -1797,7 +1498,7 @@ SceneCaption/constants/shadow_outline_size = 4
 SceneCaption/font_sizes/font_size = 18
 SceneCaption/fonts/font = SubResource("FontVar_40")
 ScrimPanel/base_type = &"PanelContainer"
-ScrimPanel/styles/panel = SubResource("Scrim_69")
+ScrimPanel/styles/panel = SubResource("Scrim_68")
 SelectCountdown/base_type = &"Label"
 SelectCountdown/colors/font_color = Color(0.9529412, 0.7882353, 0.3568627, 1)
 SelectCountdown/colors/font_outline_color = Color(0, 0, 0, 0.85)
@@ -1807,11 +1508,11 @@ SelectCountdown/constants/shadow_offset_x = 0
 SelectCountdown/constants/shadow_offset_y = 1
 SelectCountdown/constants/shadow_outline_size = 4
 SelectCountdown/font_sizes/font_size = 26
-SelectCountdown/fonts/font = SubResource("FontVar_50")
+SelectCountdown/fonts/font = SubResource("FontVar_49")
 SettingsRowLabel/base_type = &"Label"
 SettingsRowLabel/colors/font_color = Color(0.9529412, 0.9411765, 0.9019608, 1)
 SettingsRowLabel/font_sizes/font_size = 22
-SettingsRowLabel/fonts/font = SubResource("FontVar_49")
+SettingsRowLabel/fonts/font = SubResource("FontVar_53")
 SettingsRowValue/base_type = &"Label"
 SettingsRowValue/colors/font_color = Color(0.9529412, 0.9411765, 0.9019608, 1)
 SettingsRowValue/font_sizes/font_size = 26
@@ -1851,10 +1552,6 @@ SlotNumber/constants/shadow_offset_y = 1
 SlotNumber/constants/shadow_outline_size = 4
 SlotNumber/font_sizes/font_size = 19
 SlotNumber/fonts/font = SubResource("FontVar_45")
-SlotPlate/base_type = &"PanelContainer"
-SlotPlate/styles/panel = SubResource("Slot_77")
-SlotPlateReady/base_type = &"PanelContainer"
-SlotPlateReady/styles/panel = SubResource("SlotReady_78")
 SmallLabel/base_type = &"Label"
 SmallLabel/colors/font_color = Color(0.7529412, 0.7294118, 0.6509804, 1)
 SmallLabel/font_sizes/font_size = 18
@@ -1865,18 +1562,12 @@ SpeakerName/font_sizes/font_size = 30
 SpeakerName/fonts/font = SubResource("FontVar_36")
 SpinBox/styles/down_background = SubResource("CheckBoxNone_31")
 SpinBox/styles/down_background_disabled = SubResource("CheckBoxNone_31")
-SpinBox/styles/down_background_hovered = SubResource("SpinHover_99")
-SpinBox/styles/down_background_pressed = SubResource("SpinPressed_100")
+SpinBox/styles/down_background_hovered = SubResource("SpinHover_86")
+SpinBox/styles/down_background_pressed = SubResource("SpinPressed_87")
 SpinBox/styles/up_background = SubResource("CheckBoxNone_31")
 SpinBox/styles/up_background_disabled = SubResource("CheckBoxNone_31")
-SpinBox/styles/up_background_hovered = SubResource("SpinHover_99")
-SpinBox/styles/up_background_pressed = SubResource("SpinPressed_100")
-StampPlate/base_type = &"PanelContainer"
-StampPlate/styles/panel = SubResource("Stamp_83")
-StarBadgeText/base_type = &"Label"
-StarBadgeText/colors/font_color = Color(0.04705882, 0.03921569, 0.0627451, 1)
-StarBadgeText/font_sizes/font_size = 44
-StarBadgeText/fonts/font = SubResource("FontVar_39")
+SpinBox/styles/up_background_hovered = SubResource("SpinHover_86")
+SpinBox/styles/up_background_pressed = SubResource("SpinPressed_87")
 StatLabel/base_type = &"Label"
 StatLabel/colors/font_color = Color(0.7529412, 0.7294118, 0.6509804, 1)
 StatLabel/font_sizes/font_size = 18
@@ -1931,7 +1622,7 @@ TabContainer/colors/font_selected_color = Color(0.01568627, 0.07843137, 0.101960
 TabContainer/colors/font_unselected_color = Color(0.7529412, 0.7294118, 0.6509804, 1)
 TabContainer/font_sizes/font_size = 24
 TabContainer/fonts/font = SubResource("FontVar_24")
-TabContainer/styles/panel = SubResource("TabPanel_112")
+TabContainer/styles/panel = SubResource("TabPanel_94")
 TabContainer/styles/tab_disabled = SubResource("TabDis_29")
 TabContainer/styles/tab_focus = SubResource("TabFocus_28")
 TabContainer/styles/tab_hovered = SubResource("TabHov_26")
@@ -1969,10 +1660,10 @@ TitleLabel/fonts/font = SubResource("FontVar_33")
 ToggleText/base_type = &"Label"
 ToggleText/colors/font_color = Color(0.7529412, 0.7294118, 0.6509804, 1)
 ToggleText/font_sizes/font_size = 18
-ToggleText/fonts/font = SubResource("FontVar_55")
+ToggleText/fonts/font = SubResource("FontVar_54")
 TooltipLabel/colors/font_color = Color(0.9529412, 0.9411765, 0.9019608, 1)
 TooltipLabel/font_sizes/font_size = 18
-TooltipPanel/styles/panel = SubResource("Tip_115")
+TooltipPanel/styles/panel = SubResource("Tip_97")
 UltimateReadyLabel/base_type = &"Label"
 UltimateReadyLabel/colors/font_color = Color(1, 0.9411765, 0.6901961, 1)
 UltimateReadyLabel/colors/font_outline_color = Color(0, 0, 0, 0.85)
@@ -1982,20 +1673,20 @@ UltimateReadyLabel/constants/shadow_offset_x = 0
 UltimateReadyLabel/constants/shadow_offset_y = 1
 UltimateReadyLabel/constants/shadow_outline_size = 4
 UltimateReadyLabel/font_sizes/font_size = 18
-UltimateReadyLabel/fonts/font = SubResource("FontVar_57")
-VScrollBar/styles/grabber = SubResource("VScrollBarGrab_94")
-VScrollBar/styles/grabber_highlight = SubResource("VScrollBarGrabHi_95")
-VScrollBar/styles/grabber_pressed = SubResource("VScrollBarGrabHi_95")
-VScrollBar/styles/scroll = SubResource("VScrollBarTrack_93")
-VScrollBar/styles/scroll_focus = SubResource("VScrollBarTrack_93")
-VSeparator/styles/separator = SubResource("Line_114")
+UltimateReadyLabel/fonts/font = SubResource("FontVar_56")
+VScrollBar/styles/grabber = SubResource("VScrollBarGrab_81")
+VScrollBar/styles/grabber_highlight = SubResource("VScrollBarGrabHi_82")
+VScrollBar/styles/grabber_pressed = SubResource("VScrollBarGrabHi_82")
+VScrollBar/styles/scroll = SubResource("VScrollBarTrack_80")
+VScrollBar/styles/scroll_focus = SubResource("VScrollBarTrack_80")
+VSeparator/styles/separator = SubResource("Line_96")
 VSlider/constants/center_grabber = 1
 VSlider/icons/grabber = ExtResource("glass_slider_grabber")
 VSlider/icons/grabber_disabled = ExtResource("glass_slider_grabber")
 VSlider/icons/grabber_highlight = ExtResource("glass_slider_grabber")
-VSlider/styles/grabber_area = SubResource("VSliderFill_91")
-VSlider/styles/grabber_area_highlight = SubResource("VSliderFillHi_92")
-VSlider/styles/slider = SubResource("VSlider_90")
+VSlider/styles/grabber_area = SubResource("VSliderFill_78")
+VSlider/styles/grabber_area_highlight = SubResource("VSliderFillHi_79")
+VSlider/styles/slider = SubResource("VSlider_77")
 VersionCaption/base_type = &"Label"
 VersionCaption/colors/font_color = Color(0.5411765, 0.5137255, 0.454902, 1)
 VersionCaption/colors/font_outline_color = Color(0, 0, 0, 0.85)

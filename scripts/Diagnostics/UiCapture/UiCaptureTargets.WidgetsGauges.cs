@@ -157,7 +157,7 @@ namespace FTT.Diagnostics {
             return page;
         }
 
-        /// <summary>A tagged dark panel and a tagged paper panel inside a box container.</summary>
+        /// <summary>Two tagged glass slabs (the default slab and the pause preset) inside a box container.</summary>
         [UiCaptureTarget("widgets_tagged_panel")]
         public static Node WidgetsTaggedPanel(UiCaptureContext context) {
             Control page = WidgetPage();
@@ -167,7 +167,7 @@ namespace FTT.Diagnostics {
             foreach (bool paper in new[] { false, true }) {
                 var tagged = new PulpTaggedPanel { TagKey = paper ? "menu_story_mode" : "menu_settings" };
                 var panel = new PanelContainer {
-                    ThemeTypeVariation = paper ? UIPalette.Variations.PaperPanel : UIPalette.Variations.InkPanel,
+                    ThemeTypeVariation = paper ? UIPalette.Variations.GlassPanelPause : UIPalette.Variations.InkPanel,
                     CustomMinimumSize = new Vector2(420f, 220f)
                 };
                 panel.AddChild(new Label { Text = "contents", ThemeTypeVariation = "HeadingLabel" });

@@ -14,10 +14,10 @@ The glass styles are TG-ART's nine-slices (assets/sprites/ui/glass/glass_kit.jso
 the slab and its presets, the tag, the chevron states, the tabs, the fields, the slider
 grabber (TG-THEME step 2). What 6.2 builds as a StyleBoxFlat stays flat: the READY badges,
 the scrim, the slider track and fill, the scroll bars, the check box ring, the tooltip.
-The focus boxes are overlays (plan 0.4 P5). The pulp-only variations (paper, banners, boss
-plates, slot plates, cards, bubbles, stamp) and the five HUD bars keep their pulp art until
-the closeout retires them (the bars until the glass tube decor hides them, orchestrator
-ruling).
+The focus boxes are overlays (plan 0.4 P5). The five HUD bar variations are value carriers: an
+empty background and a fill that holds its colour but draws nothing, under the glass tube decor
+(PulpBarDecor) that draws the whole tube (TG-CLOSE, 2026-10-27, which also retired the pulp
+kit's plates, roles and palette entries; the kit's legacy name "Pulp" stays on the C# types).
 
 The palette lives in one table (PALETTE, plan ruling R11): every colour a style or
 role uses is looked up there by its UIPalette name, and the table is written into
@@ -125,8 +125,6 @@ pal("HaloOutlineS", "000000", 0.85, doc="halo S rim")
 pal("HaloShadowS", "000000", 0.60, doc="halo S shadow")
 pal("HaloOutlineL", "000000", 0.70, doc="halo L rim")
 pal("HaloShadowL", "000000", 0.50, doc="halo L shadow")
-# legacy (pulp) colours the retired roles still use until the closeout
-pal("LabelDark", "0C0A10", doc="legacy pulp: dark text on gold or paper")
 
 
 def col(hexstr, a=1.0):
@@ -198,41 +196,6 @@ def flat(prefix, bg=None, border=None, bw=0, radii=None, detail=None, skew=0.0, 
         p += [("shadow_color", C(scol)), ("shadow_size", size),
               ("shadow_offset", "Vector2(%g, %g)" % (dx, dy))]
     return add_sub("StyleBoxFlat", p, prefix)
-
-
-PULP_KIT_DIR = "res://assets/sprites/ui/pulp/"
-_PULP_KIT = json.load(open(os.path.join(ROOT, "assets", "sprites", "ui", "pulp", "pulp_kit.json"), encoding="utf-8"))
-_tex_ids = {}
-
-
-def kit_tex(stem):
-    """An ExtResource for a frozen pulp kit PNG (catalog key = file stem): the pulp-only plates until the closeout."""
-    if stem not in _tex_ids:
-        ident = "kit_" + stem
-        ext.append(("Texture2D", PULP_KIT_DIR + _PULP_KIT[stem]["file"], ident))
-        _tex_ids[stem] = 'ExtResource("%s")' % ident
-    return _tex_ids[stem]
-
-
-def tbox(prefix, stem, content=None):
-    """A StyleBoxTexture from the frozen pulp kit (margins and expand margins come from pulp_kit.json)."""
-    entry = _PULP_KIT[stem]
-    p = []
-    if content:
-        l, t, r, b = content
-        p += [("content_margin_left", float(l)), ("content_margin_top", float(t)),
-              ("content_margin_right", float(r)), ("content_margin_bottom", float(b))]
-    p.append(("texture", kit_tex(stem)))
-    l, t, r, b = entry["nine_slice_margins_LTRB"]
-    p += [("texture_margin_left", float(l)), ("texture_margin_top", float(t)),
-          ("texture_margin_right", float(r)), ("texture_margin_bottom", float(b))]
-    if "expand_margins_LTRB" in entry:
-        l, t, r, b = entry["expand_margins_LTRB"]
-        p += [("expand_margin_left", float(l)), ("expand_margin_top", float(t)),
-              ("expand_margin_right", float(r)), ("expand_margin_bottom", float(b))]
-    if entry.get("axis_stretch") == "tile":
-        p.append(("axis_stretch_horizontal", 1))
-    return add_sub("StyleBoxTexture", p, prefix)
 
 
 def empty(prefix="Empty"):
@@ -447,14 +410,11 @@ ROLES = [
     ("TimerDigits",        "outfit", 600, 60, 0.04, "Ink",  None, True,  None, "T34"),
     # select
     ("CardName",           "outfit", 600, 18, 0.16, "Ink2", None, False, None, "T35 the tile name (17 raised to 18)"),
-    ("CardDates",          "outfit", 500, 18, 0.12, "Accent", None, False, None, "T36 retired (pulp values kept until the closeout)"),
     ("CardStamp",          "outfit", 600, 26, 0.20, "Accent", None, False, None, "T37 the READY badge text"),
     ("CardQuestion",       "cinzel", 700, 40, 0.0,  "Ink2", None, False, None, "T38"),
-    ("BubbleText",         "outfit", 400, 46, 0.04, "LabelDark", None, False, None, "T39 retired (pulp values kept until the closeout)"),
     ("SideCardName",       "cinzel", 900, 48, 0.05, "TextFocus", "L", False, 1.08, "T40"),
     ("StatLabel",          "outfit", 500, 18, 0.16, "Ink2", None, False, None, "T41"),
     ("StatValue",          "outfit", 600, 24, 0.0,  "Ink",  None, True,  None, "T42"),
-    ("StarBadgeText",      "outfit", 400, 44, 0.0,  "LabelDark", None, False, None, "T43 retired (pulp values kept until the closeout)"),
     ("HintLine",           "outfit", 400, 22, 0.0,  "Ink2", "S", False, None, "T44"),
     ("HintLinePlate",      "outfit", 400, 22, 0.0,  "Ink2", None, False, None, "T44 on the glass tag plate (the credits skip hint)"),
     ("StickerLine1",       "cinzel", 700, 24, 0.13, "Ink",  None, False, None, "T45 the Continue card's hero name"),
@@ -622,7 +582,6 @@ def build():
         put(name + "/styles/panel", ref)
 
     pv("InkPanel", default_slab)
-    pv("HudPlatePanel", default_slab)
     pv("DialogueGlassPanel", slab("DialogueSlab", DIALOGUE_PANEL_PADDING))
     for name, padding, _doc in PANEL_PRESETS:
         pv(name, slab(name, padding))
@@ -635,19 +594,6 @@ def build():
                           shadow=(0, 0, 18, "ReadyBadgeGlow"), margins=(22, 8, 22, 8)))
     pv("ReadyBadgeIdle", flat("ReadyBadgeIdle", bg="ReadyBadgeIdleFill", border="ReadyBadgeIdleEdge", bw=2,
                               margins=(22, 8, 22, 8)))
-    # Pulp-only plates: unchanged (still the pulp art, so unrestyled screens render) until the closeout retires them.
-    pv("PaperPanel", tbox("Paper", "panel_paper", (22, 18, 28, 28)))
-    pv("BannerPanel", tbox("Banner", "banner_select", (64, 8, 70, 10)))
-    pv("CoverBannerPanel", tbox("CoverBanner", "banner_cover", (30, 6, 44, 14)))
-    pv("BossNameplate", tbox("BossName", "boss_nameplate", (26, 6, 30, 10)))
-    pv("BossPhaseTab", tbox("BossPhase", "boss_phase_tab", (14, 5, 16, 6)))
-    pv("SlotPlate", tbox("Slot", "slot_frame", (6, 6, 8, 8)))
-    pv("SlotPlateReady", tbox("SlotReady", "slot_frame_ready", (6, 6, 8, 8)))
-    pv("KeyTagPlate", tbox("KeyTag", "key_tag", (7, 3, 7, 2)))
-    pv("CardPlate", tbox("Card", "card_frame", (10, 10, 14, 14)))
-    pv("CardPlatePick", tbox("CardPick", "card_frame_pick", (10, 10, 14, 14)))
-    pv("BubblePlate", tbox("Bubble", "bubble", (26, 10, 32, 14)))
-    pv("StampPlate", tbox("Stamp", "stamp_ready", (16, 6, 20, 8)))
 
     # ---- Inputs: the glass field (LineEdit), sliders, scroll bars, spin box buttons
     line_margins = (16, 8, 16, 8)
@@ -686,33 +632,23 @@ def build():
         put("SpinBox/styles/%s_background_hovered" % d, flat("SpinHover", bg="RingTrack"))
         put("SpinBox/styles/%s_background_pressed" % d, flat("SpinPressed", bg="ButtonFillPressed"))
 
-    # ---- Progress bars. The fill stays a StyleBoxFlat (FighterHUD.TintFill recolours it; the bar decor reads it).
-    # The default ProgressBar wears the glass tube's dark track and gold edge. The five HUD bar variations keep their
-    # pulp tracks and skewed fills for now: the pulp bar decor draws its layers over the bar's own fill and reads the
-    # fill's skew, so their glass form (an empty background and a fill that holds its colour but draws nothing,
-    # plan 2.2) can only land together with the glass tube decor (TG-WIDGETS step 2). See the handoff.
+    # ---- Progress bars. The default ProgressBar wears the glass tube's dark track and gold edge (an undecorated bar,
+    # such as the boot notice's timer). The five HUD bar variations are value carriers under the glass tube decor
+    # (PulpBarDecor, GAUGE-A, which draws the whole tube): an empty background and a fill that holds its colour
+    # (FighterHUD.TintFill recolours it, the decor reads it) but draws nothing, so the bar draws nothing of its own
+    # (plan 2.2; TG-CLOSE, which also retired the tube decor's hide-self material).
     colors("ProgressBar", font_color="Ink")
     put("ProgressBar/font_sizes/font_size", 18)
     put("ProgressBar/styles/background", flat("ProgBg", bg="TubeTrackTop", border="Edge", bw=2))
     put("ProgressBar/styles/fill", flat("ProgFill", bg="Accent"))
-    put("PulpBar/base_type", '&"ProgressBar"')
-    put("PulpBar/styles/background", tbox("BarBg", "bar_track_h30", (3, 3, 3, 3)))
-    put("PulpBar/styles/fill", flat("BarFill", bg="Hp", skew=0.2126))
-    colors("PulpBar", font_color="Ink")
-    put("PulpBar/font_sizes/font_size", 22)
-    for name, stem, margins, fill_color in (("PulpBarH44", "bar_track_h44", None, "Hp"),
-                                            ("PulpBarH16", "bar_track_h16", None, "Meter2"),
-                                            ("PulpBarH14", "bar_track_h14", (3, 3, 3, 3), "Accent")):
+    for name, fill_color, font_color, size in (("PulpBar", "Hp", "Ink", 22), ("PulpBarH44", "Hp", "Ink", 22),
+                                               ("PulpBarH16", "Meter2", "Ink", 22), ("PulpBarH14", "Accent", "Ink", 22),
+                                               ("PulpBossBar", "Danger", "TextFocus", 24)):
         put("%s/base_type" % name, '&"ProgressBar"')
-        put("%s/styles/background" % name, tbox(name + "Bg", stem, margins))
-        put("%s/styles/fill" % name, flat(name + "Fill", bg=fill_color, skew=0.2126))
-        colors(name, font_color="Ink")
-        put("%s/font_sizes/font_size" % name, 22)
-    put("PulpBossBar/base_type", '&"ProgressBar"')
-    put("PulpBossBar/styles/background", tbox("BossBarBg", "bar_track_boss", (5, 5, 5, 5)))
-    put("PulpBossBar/styles/fill", flat("BossBarFill", bg="Danger", skew=0.1763))
-    colors("PulpBossBar", font_color="TextFocus")
-    put("PulpBossBar/font_sizes/font_size", 24)
+        put("%s/styles/background" % name, empty("BarNone"))
+        put("%s/styles/fill" % name, flat(name + "Fill", bg=fill_color, center=False))
+        colors(name, font_color=font_color)
+        put("%s/font_sizes/font_size" % name, size)
 
     # ---- Tabs (G14): TabContainer's own styles; the inner panel is a quiet field that keeps the pulp content
     # margins (the Settings layout is TG-PAUSE's).
@@ -784,7 +720,6 @@ VARIATIONS = [
     ("GlassTab", "Button: a G14 tab (pressed = selected) for a tab row built from buttons"),
     ("GlassTabSelected", "Button: a G14 tab in its selected look"),
     ("InkPanel", "PanelContainer: the glass slab G1, default padding 22 / 28 / 22 (legacy name)"),
-    ("HudPlatePanel", "PanelContainer: the glass slab G1 (no scene user; retired by the closeout)"),
     ("DialogueGlassPanel", "PanelContainer: the glass slab G1, dialogue padding 22 / 26 / 22"),
 ] + [(name, "PanelContainer: the glass slab G1 for %s, padding %d / %d / %d" % ((doc,) + padding))
      for name, padding, doc in PANEL_PRESETS] + [
@@ -792,23 +727,11 @@ VARIATIONS = [
     ("ScrimPanel", "PanelContainer: the pause dim, painted opaque; every user sets SelfModulate alpha 0.70"),
     ("ReadyBadge", "PanelContainer: the G12 READY badge"),
     ("ReadyBadgeIdle", "PanelContainer: the G12 badge while choosing"),
-    ("PaperPanel", "PanelContainer, pulp-only (retired by the closeout): paper panel"),
-    ("BannerPanel", "PanelContainer, pulp-only (retired by the closeout): gold banner"),
-    ("BossNameplate", "PanelContainer, pulp-only (retired by the closeout): boss nameplate"),
-    ("BossPhaseTab", "PanelContainer, pulp-only (retired by the closeout): boss PHASE tab"),
-    ("SlotPlate", "PanelContainer, pulp-only (retired by the closeout): ability slot"),
-    ("SlotPlateReady", "PanelContainer, pulp-only (retired by the closeout): ready slot"),
-    ("KeyTagPlate", "PanelContainer, pulp-only (retired by the closeout): slot key tag"),
-    ("CardPlate", "PanelContainer, pulp-only (retired by the closeout): trading card"),
-    ("CardPlatePick", "PanelContainer, pulp-only (retired by the closeout): a picked card"),
-    ("BubblePlate", "PanelContainer, pulp-only (retired by the closeout): speech bubble"),
-    ("StampPlate", "PanelContainer, pulp-only (retired by the closeout): card stamp"),
-    ("CoverBannerPanel", "PanelContainer, pulp-only (retired by the closeout): the cover's banner"),
-    ("PulpBar", "ProgressBar: the Story HP bar, 30 px (the fill stays a StyleBoxFlat; the pulp track until the glass tube decor lands)"),
-    ("PulpBarH44", "ProgressBar: the Fighter HP bar, 44 px (pulp track until the glass tube decor lands)"),
-    ("PulpBarH16", "ProgressBar: the Fighter Ultimate bar, 16 px (pulp track until the glass tube decor lands)"),
-    ("PulpBarH14", "ProgressBar: the select stat bar, 14 px (pulp track until the glass tube decor lands)"),
-    ("PulpBossBar", "ProgressBar: the boss bar (pulp track until the glass tube decor lands)"),
+    ("PulpBar", "ProgressBar: the Story HP value carrier, 30 px, under the glass tube decor (draws nothing itself; legacy name)"),
+    ("PulpBarH44", "ProgressBar: the Fighter HP value carrier, 44 px, under the glass tube decor"),
+    ("PulpBarH16", "ProgressBar: the Fighter Ultimate value carrier, 16 px, under the glass tube decor"),
+    ("PulpBarH14", "ProgressBar: the select stat value carrier, 14 px, under the glass tube decor"),
+    ("PulpBossBar", "ProgressBar: the boss value carrier, 34 px, under the glass tube decor"),
     ("DialogueBodyRich", "RichTextLabel, T49: the dialogue line (Outfit 400, 33 px)"),
 ]
 

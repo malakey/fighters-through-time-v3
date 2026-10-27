@@ -68,7 +68,7 @@ public class PulpButtonDecorTests {
             decor.Refresh();
             AssertThat(marker.State).IsEqual(PulpButtonDecor.MarkerState.Focus);
             AssertThat(marker.Tint).IsEqual(UIPalette.Focus);
-            AssertThat(marker.ShadowEnabled).IsTrue();
+            AssertThat(marker.GlowEnabled).IsTrue();
         } finally {
             button.Free();
         }
@@ -95,7 +95,7 @@ public class PulpButtonDecorTests {
             AssertThat(Mathf.Abs(CentreX(first.Marker) - 31f) < 0.01f).IsTrue();
             AssertThat(Mathf.Abs(first.Marker.Position.Y + first.Marker.Size.Y / 2f - 40f) < 0.01f).IsTrue();
             AssertThat(first.Marker.Tint).IsEqual(UIPalette.Edge);
-            AssertThat(first.Marker.ShadowEnabled).IsFalse();
+            AssertThat(first.Marker.GlowEnabled).IsFalse();
         } finally {
             PulpPromptGlyphs.DeviceOverrideForTesting = null;
             button.Free();
@@ -178,7 +178,7 @@ public class PulpButtonDecorTests {
             decor.Refresh();
             AssertThat(((GlassMarker)decor.Marker).State).IsEqual(PulpButtonDecor.MarkerState.Disabled);
             AssertThat(decor.Marker.Tint).IsEqual(PulpButtonDecor.MarkerDisabledTint);
-            AssertThat(decor.Marker.ShadowEnabled).IsFalse();
+            AssertThat(decor.Marker.GlowEnabled).IsFalse();
             AssertThat(decor.Badge.Visible).IsFalse();
         } finally {
             button.Free();

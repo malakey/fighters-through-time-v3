@@ -31,9 +31,6 @@ namespace FTT.UI.Motion {
         public const float PressScale = 0.985f;
         /// <summary>Releasing a press returns to the focus state over this long.</summary>
         public const float PressReleaseSeconds = 0.12f;
-        /// <summary>Legacy (pulp trading cards; the closeout deletes it): the card pick pose's lift and tilt.</summary>
-        public const float CardLift = -10f;
-        public const float CardTiltDegrees = 1.6f;
 
         // ---- Panels (rows 4, 5, 14) ------------------------------------------
 
@@ -99,16 +96,6 @@ namespace FTT.UI.Motion {
         /// </summary>
         public const float DissolveSeconds = 0.2f;
 
-        // ---- Legacy (pulp) until the closeout -------------------------------------
-
-        /// <summary>One frame at the 60 Hz the game runs at (the legacy hit flash's length).</summary>
-        public const float FrameSeconds = 1f / 60f;
-        /// <summary>
-        /// Legacy (MOT-A has no hit flash; the closeout deletes it with <see cref="HitFlashLimiter"/>): the ink-black hit
-        /// flash on a bar plate is rate-limited to once per second per bar, so nothing strobes.
-        /// </summary>
-        public const float HitFlashMinIntervalSeconds = 1.0f;
-
         // ---- Curves (pure, so the engine half and the tests share them) ----------------
 
         /// <summary>Sine ease-in-out of a 0..1 progress (clamped).</summary>
@@ -166,23 +153,5 @@ namespace FTT.UI.Motion {
             phase -= (float)Math.Floor(phase);
             return 0.5f - 0.5f * (float)Math.Cos(2.0 * Math.PI * phase);
         }
-    }
-
-    /// <summary>
-    /// Legacy (MOT-A has no hit flash; the closeout deletes this with <c>PulpMotion.HitFlash</c>). One bar's hit-flash
-    /// rate limit: a multi-hit string lands faster than 1 Hz, and the flash must never strobe, so a flash inside the
-    /// interval is swallowed.
-    /// </summary>
-    public sealed class HitFlashLimiter {
-        private double _lastFlash = double.NegativeInfinity;
-
-        /// <summary>True when the flash may play at <paramref name="nowSeconds"/>; records it.</summary>
-        public bool TryFlash(double nowSeconds) {
-            if (nowSeconds - _lastFlash < PulpMotionRules.HitFlashMinIntervalSeconds) return false;
-            _lastFlash = nowSeconds;
-            return true;
-        }
-
-        public void Reset() => _lastFlash = double.NegativeInfinity;
     }
 }

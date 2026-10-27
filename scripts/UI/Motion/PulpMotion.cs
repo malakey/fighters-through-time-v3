@@ -21,7 +21,7 @@ namespace FTT.UI.Motion {
     /// TG-THEME (first written by UR-THEME; the class keeps its legacy name). Engine-side MOT-A helpers
     /// (UI_SPEC_GLASS section 5): the panel fade-rise and fade-sink, the damage tracker's hold-and-drain, the
     /// healing rise and the single ready bloom. The button focus pose is <see cref="FocusPose"/> and the screen change
-    /// is <see cref="ScreenWipe"/>. The pulp hit flash stays until the closeout deletes it (MOT-A has none).
+    /// is <see cref="ScreenWipe"/>. MOT-A has no hit flash (plan 0.4 P7): the pulp one was deleted by the glass closeout.
     ///
     /// <para>Every helper reads <see cref="ComfortSettings.ReducedTemporalEffects"/> when it runs (never
     /// <c>scripts/FighterSim/</c>) and falls back to a stable cue: an instant value, a plain fade. Every tween runs
@@ -194,24 +194,6 @@ namespace FTT.UI.Motion {
                 glow?.Invoke(1f);
             }));
             return tween;
-        }
-
-        /// <summary>
-        /// Legacy (MOT-A defines no hit flash; the closeout deletes this and <see cref="HitFlashLimiter"/>). The 1-frame
-        /// ink-black hit flash on a bar plate. Returns false, flashing nothing, under Reduced Temporal Effects or inside the
-        /// limiter's once-per-second window. <paramref name="nowSeconds"/> is any monotonic clock (<c>Time.GetTicksMsec() / 1000.0</c>).
-        /// </summary>
-        public static bool HitFlash(CanvasItem plate, HitFlashLimiter limiter, double nowSeconds) {
-            if (Reduced || !limiter.TryFlash(nowSeconds)) return false;
-            Color before = plate.SelfModulate;
-            plate.SelfModulate = new Color(0f, 0f, 0f, before.A);
-            Tween tween = plate.CreateTween();
-            tween.SetPauseMode(Tween.TweenPauseMode.Process);
-            tween.TweenInterval(PulpMotionRules.FrameSeconds);
-            tween.TweenCallback(Callable.From(() => {
-                if (GodotObject.IsInstanceValid(plate)) plate.SelfModulate = before;
-            }));
-            return true;
         }
 
         private static Color WithAlpha(Color c, float a) => new(c.R, c.G, c.B, a);

@@ -406,15 +406,19 @@ public class MainMenuCoverTests {
     [TestCase]
     public void TheSceneAndScriptsCarryNoPulpArtNoFontSizeOverrideAndNoChromeCyan() {
         string source = File.ReadAllText(ProjectSettings.GlobalizePath(ScenePath));
-        AssertThat(source.Contains("res://assets/sprites/ui/pulp/")).OverrideFailureMessage("The scene still references pulp art").IsFalse();
+        foreach (string retiredPath in FTT.Tests.ContentValidation.UiLegacyKitReferenceScanTests.RetiredPaths) {
+            AssertThat(source.Contains(retiredPath)).OverrideFailureMessage("The scene still references pulp art").IsFalse();
+        }
         AssertThat(source.Contains("theme_override_font_sizes")).OverrideFailureMessage("A font-size override survives").IsFalse();
         AssertThat(source.Contains("Color(0, 0.9, 0.9, 1)")).OverrideFailureMessage("A chrome cyan literal survives").IsFalse();
         AssertThat(source.Contains("type=\"StyleBoxTexture\"")).OverrideFailureMessage("The scene carries its own texture plate").IsFalse();
         AssertThat(source.Contains("temporal_glass_main_menu_background.png")).OverrideFailureMessage("The root lost its glass art").IsTrue();
         AssertThat(source.Contains("temporal_glass_submenu_background.png")).OverrideFailureMessage("The sub-screens lost their art").IsTrue();
-        // No retired pulp variation or role anywhere in the menu's scene or scripts (the closeout's purge relies on it).
-        string[] retired = { "CoverBannerPanel", "BannerPanel", "PaperPanel", "CardPlate", "BubblePlate", "StampPlate", "KeyTagPlate",
-            "SlotPlate", "CardDates", "BubbleText", "StarBadgeText", "ui/pulp/" };
+        // No retired pulp variation, role or kit path anywhere in the menu's scene or scripts (TG-CLOSE keeps the one retired
+        // list in UiLegacyKitReferenceScanTests, which also scans the whole repository).
+        var retired = new List<string>(FTT.Tests.ContentValidation.UiLegacyKitReferenceScanTests.RetiredVariations);
+        retired.AddRange(FTT.Tests.ContentValidation.UiLegacyKitReferenceScanTests.RetiredRoles);
+        retired.AddRange(FTT.Tests.ContentValidation.UiLegacyKitReferenceScanTests.RetiredPaths);
         foreach (string file in new[] { ScenePath, "res://scripts/UI/MainMenu.cs", "res://scripts/UI/MainMenu.Cover.cs",
                      "res://scripts/UI/MainMenu.SubScreens.cs" }) {
             string text = File.ReadAllText(ProjectSettings.GlobalizePath(file));

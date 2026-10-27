@@ -158,10 +158,6 @@ namespace FTT.UI {
 
         private static Color Hex(int r, int g, int b, float a = 1f) => new(r / 255f, g / 255f, b / 255f, a);
 
-        /// <summary>Legacy (pulp, retired by the glass closeout): bg1, the translucent ink plate fill (#090C1E at 0.80).</summary>
-        public static readonly Color PlateFill = Hex(0x09, 0x0C, 0x1E, 0.80f);
-        /// <summary>Legacy (pulp, retired by the glass closeout): bg2, raised fill for settings tabs (#1E1C34 at 0.78).</summary>
-        public static readonly Color PlateRaised = Hex(0x1E, 0x1C, 0x34, 0.78f);
         /// <summary>Screen backdrop under art (#05071A).</summary>
         public static readonly Color Backdrop = Hex(0x05, 0x07, 0x1A);
         /// <summary>Text 1 (#F3F0E6).</summary>
@@ -194,8 +190,6 @@ namespace FTT.UI {
         public static readonly Color Danger = Hex(0xFF, 0x5A, 0x5A);
         /// <summary>Boss red (#FF5A5A).</summary>
         public static readonly Color Boss = Hex(0xFF, 0x5A, 0x5A);
-        /// <summary>Legacy (pulp, retired by the glass closeout): paper (#F3F0E6), the pulp panel border and bubbles.</summary>
-        public static readonly Color Paper = Hex(0xF3, 0xF0, 0xE6);
 
         // ---- Glass tokens (Temporal Glass rebuild, TG-THEME 2026-10-27) ----------
         //
@@ -376,34 +370,13 @@ namespace FTT.UI {
             return luminance < OwnerDarkLuminance ? (playerIndex == 1 ? P2Edge : P1Edge) : fill;
         }
 
-        // UI_SPEC 1.2 (pulp): literals the pulp components hard-coded. The glass closeout retires the ones marked legacy.
+        // Literals the components hard-code (the pulp kit's legacy ones were retired by the glass closeout, TG-CLOSE).
         /// <summary>#000000: black (the scene halos are black at their own alphas).</summary>
         public static readonly Color InkBlack = Hex(0, 0, 0);
-        /// <summary>Legacy (pulp, retired by the glass closeout): #0C0A10, dark text on gold or paper, card base.</summary>
-        public static readonly Color LabelDark = Hex(0x0C, 0x0A, 0x10);
-        /// <summary>Legacy (pulp, retired by the glass closeout): #14101A, paper-panel text 1.</summary>
-        public static readonly Color PaperInk = Hex(0x14, 0x10, 0x1A);
-        /// <summary>Legacy (pulp, retired by the glass closeout): #3A3144, paper-panel text 2 (stat labels).</summary>
-        public static readonly Color PaperInk2 = Hex(0x3A, 0x31, 0x44);
-        /// <summary>Legacy (pulp, retired by the glass closeout): #6B6150, paper-panel text 3, disabled border.</summary>
-        public static readonly Color PaperInk3 = Hex(0x6B, 0x61, 0x50);
-        /// <summary>Legacy (pulp, retired by the glass closeout): #3A3144, the pulp empty bar, ring and toggle tracks.</summary>
-        public static readonly Color Track = Hex(0x3A, 0x31, 0x44);
-        /// <summary>Legacy (pulp, retired by the glass closeout): #2A2434, the pulp ability slot frame fill.</summary>
-        public static readonly Color SlotFrame = Hex(0x2A, 0x24, 0x34);
-        /// <summary>Legacy (pulp, retired by the glass closeout): #FFF3D8, the pulp prompt text, key circles, hint lines.</summary>
-        public static readonly Color PromptCream = Hex(0xFF, 0xF3, 0xD8);
         /// <summary>#FF7A5C: the damage status glyph and ring (Venom, Radiant Burn).</summary>
         public static readonly Color StatusDamage = Hex(0xFF, 0x7A, 0x5C);
         /// <summary>#8FC7FF: the control status glyph and ring (Time Dilation, Static Charge, Root).</summary>
         public static readonly Color StatusControl = Hex(0x8F, 0xC7, 0xFF);
-        /// <summary>Legacy (pulp, retired by the glass closeout): #2C2733, the pulp disabled button base stripe.</summary>
-        public static readonly Color DisabledFill = Hex(0x2C, 0x27, 0x33);
-        /// <summary>
-        /// Legacy (pulp, retired by the glass closeout): the pulp disabled label (#A0987F), lifted past 4.5:1 on the
-        /// pulp disabled stripe. The glass disabled label is <see cref="Ink3"/>.
-        /// </summary>
-        public static readonly Color DisabledLabel = Hex(0xA0, 0x98, 0x7F);
 
         // ---- Derived control colours (what the Theme actually paints) --------
         //
@@ -441,11 +414,11 @@ namespace FTT.UI {
         public static readonly Color ButtonLabel = Ink2;
 
         /// <summary>
-        /// The default ring remainder (<see cref="RadialProgress"/>, including the world-space Restoration Font and Resonance
-        /// Hold channel rings). Kept on the pulp <see cref="Track"/> by orchestrator ruling until TG-WIDGETS step 2 gives
-        /// RadialProgress its own default; the glass tube's tracks are <see cref="TubeTrackTop"/> / <see cref="TubeTrackBottom"/>.
+        /// The glass tube's track (<see cref="TubeTrackTop"/>; the default <c>ProgressBar</c> background paints it). The
+        /// radial rings keep their own default (<c>RadialProgress.DefaultTrackColor</c>), so the world-space channel rings
+        /// never follow a palette change.
         /// </summary>
-        public static readonly Color TrackBackground = Track;
+        public static readonly Color TrackBackground = TubeTrackTop;
 
         // ---- Type scale -----------------------------------------------------
         //

@@ -85,22 +85,16 @@ namespace FTT.UI {
             public const string TimerDigits = "TimerDigits";
             /// <summary>Outfit 600, 18 px, 0.16 em, Ink2, plate (T35 the tile name (17 raised to 18)).</summary>
             public const string CardName = "CardName";
-            /// <summary>Outfit 500, 18 px, 0.12 em, Accent, plate (T36 retired (pulp values kept until the closeout)).</summary>
-            public const string CardDates = "CardDates";
             /// <summary>Outfit 600, 26 px, 0.20 em, Accent, plate (T37 the READY badge text).</summary>
             public const string CardStamp = "CardStamp";
             /// <summary>Cinzel 700, 40 px, 0.00 em, Ink2, plate (T38).</summary>
             public const string CardQuestion = "CardQuestion";
-            /// <summary>Outfit 400, 46 px, 0.04 em, LabelDark, plate (T39 retired (pulp values kept until the closeout)).</summary>
-            public const string BubbleText = "BubbleText";
             /// <summary>Cinzel 900, 48 px, 0.05 em, TextFocus, halo L (T40).</summary>
             public const string SideCardName = "SideCardName";
             /// <summary>Outfit 500, 18 px, 0.16 em, Ink2, plate (T41).</summary>
             public const string StatLabel = "StatLabel";
             /// <summary>Outfit 600, 24 px, 0.00 em, Ink, plate (T42).</summary>
             public const string StatValue = "StatValue";
-            /// <summary>Outfit 400, 44 px, 0.00 em, LabelDark, plate (T43 retired (pulp values kept until the closeout)).</summary>
-            public const string StarBadgeText = "StarBadgeText";
             /// <summary>Outfit 400, 22 px, 0.00 em, Ink2, halo S (T44).</summary>
             public const string HintLine = "HintLine";
             /// <summary>Outfit 400, 22 px, 0.00 em, Ink2, plate (T44 on the glass tag plate (the credits skip hint)).</summary>
@@ -184,14 +178,11 @@ namespace FTT.UI {
             ("NoteLabel", 18, "outfit", 500, 0.16f, "S"),
             ("TimerDigits", 60, "outfit", 600, 0.04f, ""),
             ("CardName", 18, "outfit", 600, 0.16f, ""),
-            ("CardDates", 18, "outfit", 500, 0.12f, ""),
             ("CardStamp", 26, "outfit", 600, 0.2f, ""),
             ("CardQuestion", 40, "cinzel", 700, 0.0f, ""),
-            ("BubbleText", 46, "outfit", 400, 0.04f, ""),
             ("SideCardName", 48, "cinzel", 900, 0.05f, "L"),
             ("StatLabel", 18, "outfit", 500, 0.16f, ""),
             ("StatValue", 24, "outfit", 600, 0.0f, ""),
-            ("StarBadgeText", 44, "outfit", 400, 0.0f, ""),
             ("HintLine", 22, "outfit", 400, 0.0f, "S"),
             ("HintLinePlate", 22, "outfit", 400, 0.0f, ""),
             ("StickerLine1", 24, "cinzel", 700, 0.13f, ""),
@@ -228,8 +219,6 @@ namespace FTT.UI {
             public const string GlassTabSelected = "GlassTabSelected";
             /// <summary>PanelContainer: the glass slab G1, default padding 22 / 28 / 22 (legacy name).</summary>
             public const string InkPanel = "InkPanel";
-            /// <summary>PanelContainer: the glass slab G1 (no scene user; retired by the closeout).</summary>
-            public const string HudPlatePanel = "HudPlatePanel";
             /// <summary>PanelContainer: the glass slab G1, dialogue padding 22 / 26 / 22.</summary>
             public const string DialogueGlassPanel = "DialogueGlassPanel";
             /// <summary>PanelContainer: the glass slab G1 for the pause panel, padding 30 / 20 / 28.</summary>
@@ -256,39 +245,15 @@ namespace FTT.UI {
             public const string ReadyBadge = "ReadyBadge";
             /// <summary>PanelContainer: the G12 badge while choosing.</summary>
             public const string ReadyBadgeIdle = "ReadyBadgeIdle";
-            /// <summary>PanelContainer, pulp-only (retired by the closeout): paper panel.</summary>
-            public const string PaperPanel = "PaperPanel";
-            /// <summary>PanelContainer, pulp-only (retired by the closeout): gold banner.</summary>
-            public const string BannerPanel = "BannerPanel";
-            /// <summary>PanelContainer, pulp-only (retired by the closeout): boss nameplate.</summary>
-            public const string BossNameplate = "BossNameplate";
-            /// <summary>PanelContainer, pulp-only (retired by the closeout): boss PHASE tab.</summary>
-            public const string BossPhaseTab = "BossPhaseTab";
-            /// <summary>PanelContainer, pulp-only (retired by the closeout): ability slot.</summary>
-            public const string SlotPlate = "SlotPlate";
-            /// <summary>PanelContainer, pulp-only (retired by the closeout): ready slot.</summary>
-            public const string SlotPlateReady = "SlotPlateReady";
-            /// <summary>PanelContainer, pulp-only (retired by the closeout): slot key tag.</summary>
-            public const string KeyTagPlate = "KeyTagPlate";
-            /// <summary>PanelContainer, pulp-only (retired by the closeout): trading card.</summary>
-            public const string CardPlate = "CardPlate";
-            /// <summary>PanelContainer, pulp-only (retired by the closeout): a picked card.</summary>
-            public const string CardPlatePick = "CardPlatePick";
-            /// <summary>PanelContainer, pulp-only (retired by the closeout): speech bubble.</summary>
-            public const string BubblePlate = "BubblePlate";
-            /// <summary>PanelContainer, pulp-only (retired by the closeout): card stamp.</summary>
-            public const string StampPlate = "StampPlate";
-            /// <summary>PanelContainer, pulp-only (retired by the closeout): the cover's banner.</summary>
-            public const string CoverBannerPanel = "CoverBannerPanel";
-            /// <summary>ProgressBar: the Story HP bar, 30 px (the fill stays a StyleBoxFlat; the pulp track until the glass tube decor lands).</summary>
+            /// <summary>ProgressBar: the Story HP value carrier, 30 px, under the glass tube decor (draws nothing itself; legacy name).</summary>
             public const string PulpBar = "PulpBar";
-            /// <summary>ProgressBar: the Fighter HP bar, 44 px (pulp track until the glass tube decor lands).</summary>
+            /// <summary>ProgressBar: the Fighter HP value carrier, 44 px, under the glass tube decor.</summary>
             public const string PulpBarH44 = "PulpBarH44";
-            /// <summary>ProgressBar: the Fighter Ultimate bar, 16 px (pulp track until the glass tube decor lands).</summary>
+            /// <summary>ProgressBar: the Fighter Ultimate value carrier, 16 px, under the glass tube decor.</summary>
             public const string PulpBarH16 = "PulpBarH16";
-            /// <summary>ProgressBar: the select stat bar, 14 px (pulp track until the glass tube decor lands).</summary>
+            /// <summary>ProgressBar: the select stat value carrier, 14 px, under the glass tube decor.</summary>
             public const string PulpBarH14 = "PulpBarH14";
-            /// <summary>ProgressBar: the boss bar (pulp track until the glass tube decor lands).</summary>
+            /// <summary>ProgressBar: the boss value carrier, 34 px, under the glass tube decor.</summary>
             public const string PulpBossBar = "PulpBossBar";
             /// <summary>RichTextLabel, T49: the dialogue line (Outfit 400, 33 px).</summary>
             public const string DialogueBodyRich = "DialogueBodyRich";
@@ -381,7 +346,6 @@ namespace FTT.UI {
             ("HaloShadowS", new Color(0x00 / 255f, 0x00 / 255f, 0x00 / 255f, 0.6f)),
             ("HaloOutlineL", new Color(0x00 / 255f, 0x00 / 255f, 0x00 / 255f, 0.7f)),
             ("HaloShadowL", new Color(0x00 / 255f, 0x00 / 255f, 0x00 / 255f, 0.5f)),
-            ("LabelDark", new Color(0x0C / 255f, 0x0A / 255f, 0x10 / 255f, 1.0f)),
         };
     }
 }

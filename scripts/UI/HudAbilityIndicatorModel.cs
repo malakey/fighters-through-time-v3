@@ -371,7 +371,7 @@ namespace FTT.UI {
         };
 
         /// <summary>
-        /// UR-HUDS: the ICN-B icon of a status (<c>assets/sprites/ui/pulp/icons</c>). Shape carries the
+        /// UR-HUDS: the ICN-A glass icon of a status (<c>assets/sprites/ui/glass/icons</c>). Shape carries the
         /// effect, never colour alone; the glyph <see cref="StatusGlyph"/> stays for the tests and tooltips.
         /// </summary>
         public static string StatusIconName(StatusType type) => type switch {

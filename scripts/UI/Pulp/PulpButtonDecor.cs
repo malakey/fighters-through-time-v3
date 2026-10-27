@@ -130,8 +130,8 @@ namespace FTT.UI.Pulp {
             }
         }
 
-        /// <summary>The diamond marker (a <see cref="GlassMarker"/>; its tint is the state's main colour).</summary>
-        public PulpIcon Marker => _marker;
+        /// <summary>The diamond marker; its tint is the state's main colour.</summary>
+        public GlassMarker Marker => _marker;
         /// <summary>The prompt badge control; visible only while the button has focus.</summary>
         public Control Badge => _badge;
         /// <summary>The device family the badge currently shows.</summary>
@@ -821,13 +821,6 @@ namespace FTT.UI.Pulp {
             if (had && saved != null) _button.AddThemeStyleboxOverride(slot, saved);
             else _button.RemoveThemeStyleboxOverride(slot);
         }
-
-        /// <summary>Legacy (the pulp paper plates' heights by variation); the glass selected look is the theme's own box.</summary>
-        public static int SelectedPlateHeight(string variation) => variation switch {
-            UIPalette.Variations.PulpButton => 80,
-            UIPalette.Variations.TemporalGlassButton => 64,
-            _ => 58
-        };
 
         // The theme's selected chevron (TG-THEME: every chevron variation carries styles/selected = glass_btn_selected),
         // else the kit's plate with the normal box's paddings.
