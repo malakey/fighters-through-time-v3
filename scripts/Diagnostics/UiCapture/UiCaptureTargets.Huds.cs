@@ -244,6 +244,20 @@ namespace FTT.Diagnostics {
             return page;
         }
 
+        /// <summary>The toast and the intro card at UI scale 1.4 (the card's name fitted to the canvas less 40 px a side).</summary>
+        [UiCaptureTarget("huds_toasts_140", SettleFrames = 20)]
+        public static Node HudsToasts140(UiCaptureContext context) {
+            Control page = HudStage("mozart");
+            HudScale(1.4f);
+            StoryHUD hud = AddCaptureHud(page);
+            context.AfterReady = _ => {
+                CalmState(hud);
+                EventBus.Instance.RaiseCheckpointReached("capture_toast_checkpoint");
+                hud.ShowBossIntroCard("boss_iron_chancellor_name", 5f);
+            };
+            return page;
+        }
+
         [UiCaptureTarget("huds_boss_names", SettleFrames = 20)]
         public static Node HudsBossNames(UiCaptureContext context) => BossNamesPage(1f);
 
