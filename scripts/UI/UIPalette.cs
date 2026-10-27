@@ -497,14 +497,6 @@ namespace FTT.UI {
         private static System.Collections.Generic.Dictionary<(string Type, string Name), int> _authoredFontSizes;
         private static int _authoredDefaultFontSize = -1;
 
-        // TG-CLOSE: the authored spacing (the CSS tracking and the line trims, whole pixels at 1.0) of each theme font entry
-        // and of the default font, keyed like the sizes so a reloaded theme or the unscaled copy (other font objects) is
-        // written from the same record. Writing it to a font shared by several entries is idempotent.
-        private static System.Collections.Generic.Dictionary<(string Type, string Name), Spacing> _authoredEntrySpacing;
-        private static Spacing? _authoredDefaultSpacing;
-
-        private readonly record struct Spacing(int Glyph, int Space, int Top, int Bottom);
-
         /// <summary>Applies the persisted setting to the shared theme (boot and settings-change entry point).</summary>
         public static void ApplySavedUiScale() => ApplyUiScale(CurrentUiScale);
 
@@ -512,9 +504,7 @@ namespace FTT.UI {
         /// Rescales the shared theme's default font size and every per-type
         /// font-size entry to <paramref name="factor"/> times the authored
         /// value. Idempotent: always scales from the captured authored sizes,
-        /// never from the current ones. TG-CLOSE: the theme fonts' spacing (the
-        /// roles' CSS tracking and line trims, authored in pixels for 1.0) scales
-        /// with them, rounded to the engine's whole pixels.
+        /// never from the current ones.
         /// </summary>
         public static void ApplyUiScale(float factor) {
             factor = Mathf.Clamp(factor,
@@ -522,51 +512,14 @@ namespace FTT.UI {
             Theme theme = LoadTheme();
             if (theme == null) return;
             CaptureAuthoredSizes(theme);
-            CaptureAuthoredSpacing(theme);
             if (_authoredDefaultFontSize > 0) {
                 theme.DefaultFontSize = ScaleFontSize(_authoredDefaultFontSize, factor);
             }
             foreach (var entry in _authoredFontSizes) {
                 theme.SetFontSize(entry.Key.Name, entry.Key.Type, ScaleFontSize(entry.Value, factor));
             }
-            ApplySpacing(theme, factor);
             AppliedUiScale = factor;
         }
-
-        // Writes the authored spacing times the factor, only where it changes (a write raises the font's changed signal).
-        private static void SetSpacing(FontVariation font, Spacing authored, float factor) {
-            if (font == null) return;
-            int glyph = Mathf.RoundToInt(authored.Glyph * factor), space = Mathf.RoundToInt(authored.Space * factor);
-            int top = Mathf.RoundToInt(authored.Top * factor), bottom = Mathf.RoundToInt(authored.Bottom * factor);
-            if (font.SpacingGlyph != glyph) font.SpacingGlyph = glyph;
-            if (font.SpacingSpace != space) font.SpacingSpace = space;
-            if (font.SpacingTop != top) font.SpacingTop = top;
-            if (font.SpacingBottom != bottom) font.SpacingBottom = bottom;
-        }
-
-        private static void CaptureAuthoredSpacing(Theme theme) {
-            if (_authoredEntrySpacing != null) return;
-            _authoredEntrySpacing = new System.Collections.Generic.Dictionary<(string, string), Spacing>();
-            if (theme.DefaultFont is FontVariation fallback) _authoredDefaultSpacing = SpacingOf(fallback);
-            foreach (string themeType in theme.GetFontTypeList()) {
-                foreach (string fontName in theme.GetFontList(themeType)) {
-                    if (theme.GetFont(fontName, themeType) is FontVariation font) _authoredEntrySpacing[(themeType, fontName)] = SpacingOf(font);
-                }
-            }
-        }
-
-        private static void ApplySpacing(Theme target, float factor) {
-            if (_authoredEntrySpacing == null || target == null) return;
-            if (_authoredDefaultSpacing is Spacing fallbackSpacing && target.DefaultFont is FontVariation fallback) {
-                SetSpacing(fallback, fallbackSpacing, factor);
-            }
-            foreach (var entry in _authoredEntrySpacing) {
-                if (target.GetFont(entry.Key.Name, entry.Key.Type) is FontVariation font) SetSpacing(font, entry.Value, factor);
-            }
-        }
-
-        private static Spacing SpacingOf(FontVariation font) =>
-            new(font.SpacingGlyph, font.SpacingSpace, font.SpacingTop, font.SpacingBottom);
 
         /// <summary>
         /// A duplicate of the shared theme carrying the authored (unscaled)
@@ -582,8 +535,6 @@ namespace FTT.UI {
             foreach (var entry in _authoredFontSizes) {
                 copy.SetFontSize(entry.Key.Name, entry.Key.Type, entry.Value);
             }
-            // The copy's fonts were duplicated at the shared theme's current scale: put their spacing back too.
-            ApplySpacing(copy, 1f);
             return copy;
         }
 

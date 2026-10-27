@@ -812,38 +812,4 @@ public class UIThemeTests {
             .OverrideFailureMessage("ApplyTheme must not clobber a deliberately assigned theme.")
             .IsSame(custom);
     }
-
-    /// <summary>
-    /// TG-CLOSE (TG-WIDGETS' kit gap "unscaled tracking"): the UI scale scales each role's tracking with its size, so a
-    /// heading at 1.4 keeps its CSS em spacing (in whole pixels, the engine's limit) instead of the 1.0 pixels; the HUDs'
-    /// unscaled copy keeps the authored values (their roots magnify the whole canvas); and 1.0 brings the authored values
-    /// back.
-    /// </summary>
-    [TestCase]
-    public void TheTrackingFollowsTheUiScaleAndTheUnscaledCopyKeepsTheAuthoredValues() {
-        float original = UIPalette.AppliedUiScale;
-        Theme theme = UIPalette.LoadTheme();
-        var drift = new List<string>();
-        try {
-            UIPalette.ApplyUiScale(1.4f);
-            Theme unscaled = UIPalette.NewUnscaledTheme();
-            foreach (var role in UIPalette.LabelRoleTable) {
-                int authored = Mathf.RoundToInt(role.Tracking * role.Size);
-                int scaled = Mathf.RoundToInt(authored * 1.4f);
-                int now = (theme.GetFont("font", role.Name) as FontVariation)?.SpacingGlyph ?? 0;
-                if (now != scaled) drift.Add($"{role.Name} tracks {now} px at 1.4, not {scaled}");
-                int copy = (unscaled.GetFont("font", role.Name) as FontVariation)?.SpacingGlyph ?? 0;
-                if (copy != authored) drift.Add($"{role.Name}'s unscaled copy tracks {copy} px, not {authored}");
-            }
-            UIPalette.ApplyUiScale(1f);
-            foreach (var role in UIPalette.LabelRoleTable) {
-                int authored = Mathf.RoundToInt(role.Tracking * role.Size);
-                int now = (theme.GetFont("font", role.Name) as FontVariation)?.SpacingGlyph ?? 0;
-                if (now != authored) drift.Add($"{role.Name} tracks {now} px back at 1.0, not {authored}");
-            }
-        } finally {
-            UIPalette.ApplyUiScale(original);
-        }
-        if (drift.Count > 0) AssertThat(string.Join(" | ", drift)).IsEqual("");
-    }
 }

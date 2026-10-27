@@ -157,8 +157,6 @@ namespace FTT.UI {
                 int bottom = Mathf.RoundToInt(Mathf.Max(0f, excess / 2f - padding));
                 if (trimmed.SpacingTop != -top) trimmed.SpacingTop = -top;
                 if (trimmed.SpacingBottom != -bottom) trimmed.SpacingBottom = -bottom;
-                // The copy follows the role's tracking, which the UI scale rescales (TG-CLOSE).
-                if (roleFont is FontVariation role && trimmed.SpacingGlyph != role.SpacingGlyph) trimmed.SpacingGlyph = role.SpacingGlyph;
             }
             Apply();
             title.AddThemeFontOverride("font", trimmed);
