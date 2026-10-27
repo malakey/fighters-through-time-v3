@@ -35,9 +35,10 @@ namespace FTT.UI {
         public Control Tag => _tag;
 
         public override void _Ready() {
-            // The theme's ink panel carries 22 / 18 / 28 / 28 content margins; the pause panel pads 30 / 20 / 28.
-            if (GetThemeStylebox("panel") is StyleBoxTexture shared && !HasThemeStyleboxOverride("panel")) {
-                var own = (StyleBoxTexture)shared.Duplicate();
+            // The theme's slab carries the default panel padding; the pause panel pads 30 / 20 / 28. (TG-THEME cross-edit:
+            // any StyleBox, since the step-1 glass slab is a StyleBoxFlat rather than the pulp nine-slice.)
+            if (GetThemeStylebox("panel") is StyleBox shared && !HasThemeStyleboxOverride("panel")) {
+                var own = (StyleBox)shared.Duplicate();
                 own.ContentMarginLeft = Border + PadSides;
                 own.ContentMarginRight = Border + PadSides;
                 own.ContentMarginTop = Border + PadTop;

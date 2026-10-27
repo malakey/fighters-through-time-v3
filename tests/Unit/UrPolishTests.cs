@@ -103,14 +103,28 @@ public class UrPolishTests {
         }
     }
 
+    /// <summary>
+    /// TG-THEME re-valued this for the glass: the dialogue slab pads 22 / 26 / 22 (UI_SPEC_GLASS 3.1; the pulp plate's
+    /// thick frame needed 30 on top), and the slider track, now a leaning <see cref="StyleBoxFlat"/>, still ends under
+    /// the grabber's travel limit so its slanted cap never shows past the grabber at a high value.
+    /// </summary>
     [TestCase]
     public void TheDialoguePanelGivesTheSpeakerItsPaddingAndTheSliderTrackEndsUnderTheGrabber() {
         Theme theme = UIPalette.LoadTheme();
         StyleBox panel = theme.GetStylebox("panel", UIPalette.Variations.DialogueGlassPanel);
-        AssertThat(panel.GetContentMargin(Side.Top) >= 30f).OverrideFailureMessage("UI_SPEC Appendix B: 22 of padding plus the plate's frame").IsTrue();
+        AssertThat(panel.GetContentMargin(Side.Top) >= 22f).OverrideFailureMessage("UI_SPEC_GLASS 3.1: the dialogue box pads 22 on top").IsTrue();
         AssertThat(panel.GetContentMargin(Side.Left) >= 26f).IsTrue();
-        var track = (StyleBoxTexture)theme.GetStylebox("slider", "HSlider");
-        AssertThat(track.ExpandMarginRight < 0f).OverrideFailureMessage("the track's slanted right cap must not stick out past the grabber").IsTrue();
+        AssertThat(panel.GetContentMargin(Side.Right) >= 26f).IsTrue();
+        AssertThat(panel.GetContentMargin(Side.Bottom) >= 22f).IsTrue();
+        StyleBox slider = theme.GetStylebox("slider", "HSlider");
+        float expandRight = slider switch {
+            StyleBoxFlat flat => flat.ExpandMarginRight,
+            StyleBoxTexture texture => texture.ExpandMarginRight,
+            _ => 0f
+        };
+        float lean = slider is StyleBoxFlat leaning ? Mathf.Abs(leaning.Skew.X) * slider.GetMinimumSize().Y / 2f : 0f;
+        // The cap must end at least its own lean inside the track's rect, under the grabber at the maximum value.
+        AssertThat(expandRight + lean < 0f).OverrideFailureMessage("the track's slanted right cap must not stick out past the grabber").IsTrue();
     }
 
     [TestCase]

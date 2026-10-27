@@ -26,7 +26,7 @@ public class PausePanelTests {
             await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
             await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
 
-            var box = panel.GetThemeStylebox("panel") as StyleBoxTexture;
+            var box = panel.GetThemeStylebox("panel");   // TG-THEME cross-edit: any StyleBox (the step-1 slab is flat)
             AssertObject(box).OverrideFailureMessage("The pause panel must carry its own padded plate.").IsNotNull();
             AssertThat(box.ContentMarginLeft).IsEqual(PausePanel.Border + PausePanel.PadSides);
             AssertThat(box.ContentMarginTop).IsEqual(PausePanel.Border + PausePanel.PadTop);

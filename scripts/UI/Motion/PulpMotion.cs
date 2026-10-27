@@ -5,16 +5,28 @@ using Godot;
 namespace FTT.UI.Motion {
 
     /// <summary>
-    /// UR-THEME. Engine-side MOT-B helpers (UI_SPEC section 5): the panel pop-in,
-    /// the stepped number thunk, the stepped tracker drop and the rate-limited hit
-    /// flash. The button focus pose is <see cref="FocusPose"/> and the screen
-    /// change is <see cref="ScreenWipe"/>.
+    /// A panel decor that plays MOT-A row 4's light band (a white band crossing the panel once along the glass
+    /// streak direction) when <see cref="PulpMotion.PopIn"/> shows its panel. <c>PopIn</c> calls it on every direct
+    /// child of the panel that implements it, and never under Reduced Temporal Effects. The glass sheen decor
+    /// (TG-WIDGETS' <c>GlassSheen</c>) is the implementer; the band's numbers are <see cref="PulpMotionRules.PanelBandSeconds"/>,
+    /// <see cref="PulpMotionRules.PanelBandWidth"/> and <see cref="PulpMotionRules.PanelBandAlpha"/>.
+    /// </summary>
+    public interface IPanelLightBand {
+        /// <summary>Starts the band's single crossing, over <paramref name="seconds"/>, linear.</summary>
+        void PlayLightBand(float seconds);
+    }
+
+    /// <summary>
+    /// TG-THEME (first written by UR-THEME; the class keeps its legacy name). Engine-side MOT-A helpers
+    /// (UI_SPEC_GLASS section 5): the panel fade-rise and fade-sink, the damage tracker's hold-and-drain, the
+    /// healing rise and the single ready bloom. The button focus pose is <see cref="FocusPose"/> and the screen change
+    /// is <see cref="ScreenWipe"/>. The pulp hit flash stays until the closeout deletes it (MOT-A has none).
     ///
-    /// <para>Every helper reads <see cref="ComfortSettings.ReducedTemporalEffects"/>
-    /// when it runs (never <c>scripts/FighterSim/</c>) and falls back to a stable
-    /// cue: an instant value, a plain fade. Every tween runs with
-    /// <see cref="Tween.TweenPauseMode.Process"/>, so a pause menu or a gameplay
-    /// pausing dialogue never freezes a half-played motion.</para>
+    /// <para>Every helper reads <see cref="ComfortSettings.ReducedTemporalEffects"/> when it runs (never
+    /// <c>scripts/FighterSim/</c>) and falls back to a stable cue: an instant value, a plain fade. Every tween runs
+    /// with <see cref="Tween.TweenPauseMode.Process"/>, so a pause menu or a gameplay-pausing dialogue never freezes
+    /// a half-played motion. A rise or sink moves the panel by its position and survives a container sort (it re-bases
+    /// on the slot the container gives it), and always ends on the exact resting position.</para>
     /// </summary>
     public static class PulpMotion {
 
@@ -29,82 +41,121 @@ namespace FTT.UI.Motion {
         }
 
         /// <summary>
-        /// Panel appears (UI_SPEC row 4). A 2-frame pop: scale 0.96 to 1.0 with alpha 0 to 1 over
-        /// 0.1 s (back-eased). Under Reduced Temporal Effects a 0.15 s alpha fade with no scale.
-        /// Returns the tween (never null) so a caller can await or kill it.
+        /// Panel appears (row 4): alpha 0 to 1 and a 24 px rise over 0.22 s (Cubic Out), and every direct child that is
+        /// an <see cref="IPanelLightBand"/> plays its band once. Under Reduced Temporal Effects a 0.15 s alpha fade with no
+        /// rise and no band. Returns the tween (never null) so a caller can await or kill it.
         /// </summary>
         public static Tween PopIn(Control panel) {
             Tween tween = NewTween(panel);
+            panel.Scale = Vector2.One;
+            panel.Modulate = WithAlpha(panel.Modulate, 0f);
             if (Reduced) {
-                panel.Scale = Vector2.One;
-                panel.Modulate = WithAlpha(panel.Modulate, 0f);
                 tween.TweenProperty(panel, "modulate:a", 1f, PulpMotionRules.PanelFadeSeconds);
                 return tween;
             }
-            panel.PivotOffset = panel.Size / 2f;
-            panel.Scale = Vector2.One * PulpMotionRules.PanelPopFromScale;
-            panel.Modulate = WithAlpha(panel.Modulate, 0f);
+            var rise = new OffsetDriver(panel, PulpMotionRules.PanelRiseAt);
+            rise.Apply(0f);
             tween.SetParallel(true);
-            tween.TweenProperty(panel, "scale", Vector2.One, PulpMotionRules.PanelPopSeconds)
-                .SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
-            tween.TweenProperty(panel, "modulate:a", 1f, PulpMotionRules.PanelPopSeconds);
-            return tween;
-        }
-
-        /// <summary>Panel leaves (the mirror of <see cref="PopIn"/>); the panel ends invisible, not freed.</summary>
-        public static Tween PopOut(Control panel) {
-            Tween tween = NewTween(panel);
-            tween.TweenProperty(panel, "modulate:a", 0f,
-                Reduced ? PulpMotionRules.PanelFadeSeconds : PulpMotionRules.PanelPopSeconds);
+            tween.TweenProperty(panel, "modulate:a", 1f, PulpMotionRules.PanelInSeconds)
+                .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+            tween.TweenMethod(Callable.From<float>(rise.Apply), 0f, 1f, PulpMotionRules.PanelInSeconds);
+            tween.Chain().TweenCallback(Callable.From(rise.Settle));
+            for (int i = 0, n = panel.GetChildCount(); i < n; i++) {
+                if (panel.GetChild(i) is IPanelLightBand band) band.PlayLightBand(PulpMotionRules.PanelBandSeconds);
+            }
             return tween;
         }
 
         /// <summary>
-        /// Number thunk (row 8). Calls <paramref name="apply"/> with the first two of three equal steps on
-        /// consecutive frames and then the exact target. Under Reduced Temporal Effects, or when nothing
-        /// changes, <paramref name="apply"/> gets the target at once and null is returned.
+        /// Panel leaves (row 5): alpha 1 to 0 and a 12 px sink over 0.16 s (Quad In); the panel ends invisible, not freed,
+        /// back on its resting position. Under Reduced Temporal Effects a 0.12 s alpha fade.
         /// </summary>
-        public static Tween Thunk(Node host, int from, int to, Action<int> apply) {
+        public static Tween PopOut(Control panel) {
+            Tween tween = NewTween(panel);
+            if (Reduced) {
+                tween.TweenProperty(panel, "modulate:a", 0f, PulpMotionRules.PanelFadeOutSeconds);
+                return tween;
+            }
+            var sink = new OffsetDriver(panel, SinkAt);
+            tween.SetParallel(true);
+            tween.TweenProperty(panel, "modulate:a", 0f, PulpMotionRules.PanelOutSeconds)
+                .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
+            tween.TweenMethod(Callable.From<float>(sink.Apply), 0f, 1f, PulpMotionRules.PanelOutSeconds);
+            tween.Chain().TweenCallback(Callable.From(sink.Settle));
+            return tween;
+        }
+
+        private static float SinkAt(float progress) => PulpMotionRules.PanelSinkPixels * progress * progress;
+
+        /// <summary>
+        /// The HP damage tracker (row 7): holds at <paramref name="from"/> for 0.5 s, then drains to <paramref name="to"/>
+        /// over 0.6 s (Sine InOut). Under Reduced Temporal Effects it fades out over 0.2 s instead of draining:
+        /// <paramref name="fadeAlpha"/> gets 1 to 0, then the tracker snaps to <paramref name="to"/> and the alpha returns
+        /// to 1; with no <paramref name="fadeAlpha"/> the tracker simply snaps after 0.2 s.
+        /// </summary>
+        public static Tween TrackerDrop(Node host, float from, float to, Action<float> apply, Action<float> fadeAlpha = null) {
+            Tween tween = NewTween(host);
+            if (Reduced) {
+                if (fadeAlpha != null) {
+                    tween.TweenMethod(Callable.From<float>(fadeAlpha), 1f, 0f, PulpMotionRules.TrackerFadeSeconds);
+                    tween.TweenCallback(Callable.From(() => { apply(to); fadeAlpha(1f); }));
+                } else {
+                    tween.TweenInterval(PulpMotionRules.TrackerFadeSeconds);
+                    tween.TweenCallback(Callable.From(() => apply(to)));
+                }
+                return tween;
+            }
+            tween.TweenInterval(PulpMotionRules.TrackerHoldSeconds);
+            tween.TweenMethod(Callable.From<float>(apply), from, to, PulpMotionRules.TrackerDrainSeconds)
+                .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+            return tween;
+        }
+
+        /// <summary>
+        /// Healing (row 7): the fill rises from <paramref name="from"/> to <paramref name="to"/> over 0.2 s (Quad Out); the
+        /// caller snaps the tracker to it. Under Reduced Temporal Effects <paramref name="apply"/> gets the target at once and
+        /// null is returned.
+        /// </summary>
+        public static Tween HealRise(Node host, float from, float to, Action<float> apply) {
             if (Reduced || from == to) {
                 apply(to);
                 return null;
             }
-            int[] values = PulpMotionRules.ThunkValues(from, to);
             Tween tween = NewTween(host);
-            for (int i = 0; i < values.Length; i++) {
-                int value = values[i];
-                tween.TweenCallback(Callable.From(() => apply(value)));
-                if (i < values.Length - 1) tween.TweenInterval(PulpMotionRules.FrameSeconds);
-            }
+            tween.TweenMethod(Callable.From<float>(apply), from, to, PulpMotionRules.HealRiseSeconds)
+                .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
             return tween;
         }
 
         /// <summary>
-        /// The HP damage tracker (row 6): holds, then drops from <paramref name="from"/> to
-        /// <paramref name="to"/> in <see cref="PulpMotionRules.TrackerSteps"/> equal steps. Under Reduced
-        /// Temporal Effects it slides linearly over 0.2 s with no hold.
+        /// The single ready bloom (row 10): <paramref name="target"/>'s modulate brightens to 1.35 and back while
+        /// <paramref name="glow"/> (a multiple of the steady ready glow alpha) rises from 0 to 1.5 and settles at 1, over
+        /// 0.6 s; it never loops and ends on the exact modulate it started from. Under Reduced Temporal Effects the steady
+        /// ready look at once: <paramref name="glow"/> gets 1 and null is returned.
         /// </summary>
-        public static Tween TrackerDrop(Node host, float from, float to, Action<float> apply) {
-            Tween tween = NewTween(host);
+        public static Tween Bloom(CanvasItem target, Action<float> glow = null) {
             if (Reduced) {
-                tween.TweenMethod(Callable.From<float>(apply), from, to, PulpMotionRules.TrackerFadeSeconds);
-                return tween;
+                glow?.Invoke(1f);
+                return null;
             }
-            tween.TweenInterval(PulpMotionRules.TrackerHoldSeconds);
-            float stepSeconds = PulpMotionRules.TrackerDropSeconds / PulpMotionRules.TrackerSteps;
-            for (int i = 1; i <= PulpMotionRules.TrackerSteps; i++) {
-                float value = Mathf.Lerp(from, to, i / (float)PulpMotionRules.TrackerSteps);
-                tween.TweenCallback(Callable.From(() => apply(value)));
-                if (i < PulpMotionRules.TrackerSteps) tween.TweenInterval(stepSeconds);
-            }
+            Color rest = target.Modulate;
+            Tween tween = NewTween(target);
+            tween.TweenMethod(Callable.From<float>(elapsed => {
+                (float modulate, float bloomGlow) = PulpMotionRules.BloomAt(elapsed);
+                target.Modulate = new Color(rest.R * modulate, rest.G * modulate, rest.B * modulate, rest.A);
+                glow?.Invoke(bloomGlow);
+            }), 0f, PulpMotionRules.BloomSeconds, PulpMotionRules.BloomSeconds);
+            tween.TweenCallback(Callable.From(() => {
+                if (GodotObject.IsInstanceValid(target)) target.Modulate = rest;
+                glow?.Invoke(1f);
+            }));
             return tween;
         }
 
         /// <summary>
-        /// The 1-frame ink-black hit flash on a bar plate (row 7), never on the fill or the screen.
-        /// Returns false, flashing nothing, under Reduced Temporal Effects or inside the limiter's
-        /// once-per-second window. <paramref name="nowSeconds"/> is any monotonic clock
-        /// (<c>Time.GetTicksMsec() / 1000.0</c>).
+        /// Legacy (MOT-A defines no hit flash; the closeout deletes this and <see cref="HitFlashLimiter"/>). The 1-frame
+        /// ink-black hit flash on a bar plate. Returns false, flashing nothing, under Reduced Temporal Effects or inside the
+        /// limiter's once-per-second window. <paramref name="nowSeconds"/> is any monotonic clock (<c>Time.GetTicksMsec() / 1000.0</c>).
         /// </summary>
         public static bool HitFlash(CanvasItem plate, HitFlashLimiter limiter, double nowSeconds) {
             if (Reduced || !limiter.TryFlash(nowSeconds)) return false;
@@ -120,5 +171,37 @@ namespace FTT.UI.Motion {
         }
 
         private static Color WithAlpha(Color c, float a) => new(c.R, c.G, c.B, a);
+
+        /// <summary>
+        /// Moves a panel by a vertical offset that follows a curve of the tween's progress, and keeps working when a
+        /// container re-lays the panel out mid-motion: a position it did not write is the panel's new slot.
+        /// </summary>
+        private sealed class OffsetDriver {
+            private readonly Control _panel;
+            private readonly Func<float, float> _offsetAt;
+            private Vector2 _base;
+            private Vector2 _applied;
+
+            public OffsetDriver(Control panel, Func<float, float> offsetAt) {
+                _panel = panel;
+                _offsetAt = offsetAt;
+                _base = panel.Position;
+                _applied = _base;
+            }
+
+            public void Apply(float progress) {
+                if (!GodotObject.IsInstanceValid(_panel)) return;
+                if (!_panel.Position.IsEqualApprox(_applied)) _base = _panel.Position;
+                _applied = _base + new Vector2(0f, _offsetAt(progress));
+                _panel.Position = _applied;
+            }
+
+            public void Settle() {
+                if (!GodotObject.IsInstanceValid(_panel)) return;
+                if (!_panel.Position.IsEqualApprox(_applied)) _base = _panel.Position;
+                _panel.Position = _base;
+                _applied = _base;
+            }
+        }
     }
 }

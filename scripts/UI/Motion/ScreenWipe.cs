@@ -5,28 +5,30 @@ using Godot;
 namespace FTT.UI.Motion {
 
     /// <summary>
-    /// UR-THEME. The MOT-B screen change (UI_SPEC section 5, row 5): a full-screen accent slab with a
-    /// slanted trailing edge and a 6 px ink edge slides across in 8 discrete steps (0.26 s), the scene
-    /// swaps while it fully covers the screen, and 8 more steps carry it out the other side.
-    /// Under Reduced Temporal Effects there is no slab: an ink-black cross-fade of 0.2 s each way.
+    /// TG-THEME (first written by UR-THEME as the pulp diagonal wipe; the class, node name and API are kept). The
+    /// MOT-A screen change (UI_SPEC_GLASS section 5, row 6): a full-screen layer in the backdrop colour (bg0, #05071A)
+    /// fades in over 0.2 s (Sine InOut), the scene swaps while it fully covers the screen, then it fades out over 0.2 s.
+    /// A cross-dissolve through bg0 is already a stable cue, so Reduced Temporal Effects plays the same fade; the
+    /// spec's soft blur is not available on <c>gl_compatibility</c>, and the demo's gold-edged sweep is not used (AC21).
     ///
-    /// <para>It lives on a <see cref="CanvasLayer"/> above the loading screen (layer 110, the loading
-    /// screens are 100) and under <c>GameManager</c>, runs at <see cref="Node.ProcessModeEnum.Always"/>
-    /// and drives its tween with the process pause mode, so a paused tree cannot strand it covering
-    /// the screen. It swallows mouse input only while it is moving, never while idle.</para>
+    /// <para>It lives on a <see cref="CanvasLayer"/> above the loading screen (layer 110, the loading screens are 100)
+    /// and under <c>GameManager</c>, runs at <see cref="Node.ProcessModeEnum.Always"/> and drives its tween with the
+    /// process pause mode, so a paused tree cannot strand it covering the screen. It swallows mouse input only while
+    /// it is moving or covering, never while idle. Its layer is the child named <c>Slab</c>.</para>
     ///
-    /// <para><see cref="GameManager.LoadScene"/> uses it: the slab covers and uncovers the loading
-    /// screen at the start, and the cover starts <see cref="CoverSeconds"/> before the two-second
-    /// minimum display time ends, so the minimum is never lengthened.</para>
+    /// <para><see cref="GameManager.LoadScene"/> uses it: the dissolve covers and uncovers the loading screen at the
+    /// start, and the cover starts <see cref="CoverSeconds"/> before the two-second minimum display time ends, so the
+    /// minimum is never lengthened.</para>
     /// </summary>
     public partial class ScreenWipe : CanvasLayer {
 
         public const int WipeLayer = 110;
 
-        private SlabControl _slab;
+        private ColorRect _slab;
         private Tween _tween;
         private bool _covering;
         private bool _covered;
+        private bool _revealing;
 
         /// <summary>Raised the frame the screen is fully covered (the moment to swap the scene).</summary>
         public event Action Covered;
@@ -34,8 +36,8 @@ namespace FTT.UI.Motion {
         /// <summary>Raised when a reveal finished and the layer is idle again.</summary>
         public event Action Revealed;
 
-        /// <summary>How long a cover takes (the wipe's per-direction time, or the fade under Reduced Temporal Effects).</summary>
-        public float CoverSeconds => PulpMotion.Reduced ? PulpMotionRules.WipeFadeSeconds : PulpMotionRules.WipeSeconds;
+        /// <summary>How long a cover (or a reveal) takes: the dissolve's 0.2 s, the same under Reduced Temporal Effects.</summary>
+        public float CoverSeconds => PulpMotionRules.DissolveSeconds;
 
         /// <summary>True from <see cref="BeginCover"/> until the reveal finishes.</summary>
         public bool IsActive => _covering || _covered || _revealing;
@@ -43,7 +45,8 @@ namespace FTT.UI.Motion {
         /// <summary>True once the screen is fully covered and until the reveal starts.</summary>
         public bool IsCovered => _covered;
 
-        private bool _revealing;
+        /// <summary>The dissolve layer's current opacity (0 idle, 1 covering the screen).</summary>
+        public float Opacity => _slab == null ? 0f : _slab.Color.A;
 
         /// <summary>Finds the wipe under <paramref name="host"/> or creates it there.</summary>
         public static ScreenWipe EnsureFor(Node host) {
@@ -57,14 +60,17 @@ namespace FTT.UI.Motion {
         public override void _Ready() {
             Layer = WipeLayer;
             ProcessMode = ProcessModeEnum.Always;
-            _slab = new SlabControl { Name = "Slab", Visible = false, MouseFilter = Control.MouseFilterEnum.Ignore };
+            _slab = new ColorRect {
+                Name = "Slab", Visible = false, MouseFilter = Control.MouseFilterEnum.Ignore,
+                Color = new Color(UIPalette.Backdrop, 0f)
+            };
             _slab.SetAnchorsPreset(Control.LayoutPreset.FullRect);
             AddChild(_slab);
         }
 
         public override void _ExitTree() => _tween?.Kill();
 
-        /// <summary>Slides the slab (or fades the ink) in until the screen is covered, then raises <see cref="Covered"/>.</summary>
+        /// <summary>Fades the layer in until the screen is covered, then raises <see cref="Covered"/>.</summary>
         public void BeginCover() {
             if (_covering || _covered) return;
             _tween?.Kill();
@@ -72,17 +78,15 @@ namespace FTT.UI.Motion {
             _revealing = false;
             _slab.Visible = true;
             _slab.MouseFilter = Control.MouseFilterEnum.Stop;
-            _slab.Reduced = PulpMotion.Reduced;
-            _slab.Progress = -1f;
-            _slab.Alpha = 0f;
-            _slab.QueueRedraw();
-
+            float from = Opacity;
+            SetOpacity(from);
             _tween = PulpMotion.NewTween(this);
-            _tween.TweenMethod(Callable.From<float>(SetCoverProgress), 0f, 1f, CoverSeconds);
+            _tween.TweenMethod(Callable.From<float>(SetOpacity), from, 1f, CoverSeconds)
+                .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
             _tween.TweenCallback(Callable.From(FinishCover));
         }
 
-        /// <summary>Slides the slab out the far side (or fades the ink out); the layer then goes idle.</summary>
+        /// <summary>Fades the layer out; the layer then goes idle.</summary>
         public void BeginReveal() {
             if (!_covered && !_covering) return;
             _tween?.Kill();
@@ -90,9 +94,9 @@ namespace FTT.UI.Motion {
             _covered = false;
             _revealing = true;
             _slab.Visible = true;
-            _slab.Reduced = PulpMotion.Reduced;
             _tween = PulpMotion.NewTween(this);
-            _tween.TweenMethod(Callable.From<float>(SetRevealProgress), 0f, 1f, CoverSeconds);
+            _tween.TweenMethod(Callable.From<float>(SetOpacity), Opacity, 0f, CoverSeconds)
+                .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
             _tween.TweenCallback(Callable.From(FinishReveal));
         }
 
@@ -108,71 +112,31 @@ namespace FTT.UI.Motion {
             _tween?.Kill();
             _covering = _covered = _revealing = false;
             if (_slab == null) return;
+            SetOpacity(0f);
             _slab.Visible = false;
             _slab.MouseFilter = Control.MouseFilterEnum.Ignore;
         }
 
-        private void SetCoverProgress(float progress) {
-            if (_slab.Reduced) {
-                _slab.Alpha = progress;
-            } else {
-                _slab.Progress = PulpMotionRules.WipeOffsetCover(progress);
-            }
-            _slab.QueueRedraw();
-        }
-
-        private void SetRevealProgress(float progress) {
-            if (_slab.Reduced) {
-                _slab.Alpha = 1f - progress;
-            } else {
-                _slab.Progress = PulpMotionRules.WipeOffsetReveal(progress);
-            }
-            _slab.QueueRedraw();
+        private void SetOpacity(float alpha) {
+            Color c = _slab.Color;
+            if (c.A == alpha) return;
+            c.A = alpha;
+            _slab.Color = c;
         }
 
         private void FinishCover() {
             _covering = false;
             _covered = true;
-            SetCoverProgress(1f);
+            SetOpacity(1f);
             Covered?.Invoke();
         }
 
         private void FinishReveal() {
             _revealing = false;
+            SetOpacity(0f);
             _slab.Visible = false;
             _slab.MouseFilter = Control.MouseFilterEnum.Ignore;
             Revealed?.Invoke();
-        }
-
-        /// <summary>The slab itself: drawn, so it needs no texture.</summary>
-        private partial class SlabControl : Control {
-            /// <summary>The slab's left edge as a fraction of its width: -1 offscreen left, 0 covering, +1 offscreen right.</summary>
-            public float Progress = -1f;
-            public bool Reduced;
-            public float Alpha;
-
-            public override void _Draw() {
-                Vector2 size = Size;
-                if (Reduced) {
-                    DrawRect(new Rect2(Vector2.Zero, size), new Color(UIPalette.InkBlack, Alpha));
-                    return;
-                }
-                float ink = PulpMotionRules.WipeInkEdge;
-                // Wide enough that the slanted trailing edge clears the screen at rest.
-                float width = (size.X + ink * 2f) / PulpMotionRules.WipeSlantFraction;
-                float x = Progress * width - ink;
-                float slant = width * PulpMotionRules.WipeSlantFraction;
-                var inkPoly = new[] {
-                    new Vector2(x - ink, -ink), new Vector2(x + width + ink, -ink),
-                    new Vector2(x + slant + ink, size.Y + ink), new Vector2(x - ink, size.Y + ink)
-                };
-                var fillPoly = new[] {
-                    new Vector2(x, 0), new Vector2(x + width, 0),
-                    new Vector2(x + slant, size.Y), new Vector2(x, size.Y)
-                };
-                DrawColoredPolygon(inkPoly, UIPalette.InkBlack);
-                DrawColoredPolygon(fillPoly, UIPalette.Accent);
-            }
         }
     }
 }

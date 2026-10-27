@@ -45,13 +45,21 @@ public class DialoguePresentationTests {
             .OverrideFailureMessage("The variation must be based on PanelContainer to apply to the box.")
             .IsEqual("PanelContainer");
 
-        // Since the pulp kit (UR-THEME step 2) the glass is the kit's ink-panel texture: the border,
-        // shadow and corners are baked into the art, so the contract left is "a translucent plate in
-        // the DialogueTheme fill colour". (UR-PAUSE restyles the box and can retire the other constants.)
-        var glass = theme.GetStylebox("panel", DialogueTheme.GlassPanelVariation) as StyleBoxTexture;
-        AssertObject(glass).IsNotNull();
-        Image art = glass.Texture.GetImage();
-        Color centre = art.GetPixel(art.GetWidth() / 2, art.GetHeight() / 2);
+        // TG-THEME: the box is the glass slab (UI_SPEC_GLASS G1). Built as 6.2's flat fallback its fill is the
+        // box's own colour; wired to the glass nine-slice it is the art's centre texel. Either way the contract
+        // is "a translucent plate in the DialogueTheme fill colour".
+        StyleBox glass = theme.GetStylebox("panel", DialogueTheme.GlassPanelVariation);
+        AssertThat(glass is StyleBoxFlat || glass is StyleBoxTexture)
+            .OverrideFailureMessage($"The glass must be a flat slab or the glass nine-slice, not {glass}.").IsTrue();
+        Color centre;
+        if (glass is StyleBoxTexture texture) {
+            Image art = texture.Texture.GetImage();
+            centre = art.GetPixel(art.GetWidth() / 2, art.GetHeight() / 2);
+        } else {
+            var flat = (StyleBoxFlat)glass;
+            AssertThat(flat.DrawCenter).IsTrue();
+            centre = flat.BgColor;
+        }
 
         // Translucency is the whole point of the treatment: a fully opaque box
         // is a plain panel.

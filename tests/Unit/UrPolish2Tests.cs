@@ -285,6 +285,10 @@ public class UrPolish2Tests {
                     await Settle();
                     modal.Open();
                     await Settle();
+                    // TG-THEME cross-edit: PosedRect models the focus pose from a button's rest slot, so no button may be
+                    // posed when it is measured (the opened modal focuses Cancel; its real slide would be counted twice).
+                    modal.GetViewport().GuiReleaseFocus();
+                    await Settle(12);
                     CheckRow(new[] { modal.CancelButton, modal.ConfirmButton }, $"{scale} modal", problems);
                     var footer = list.Root.GetNode<Control>("Center/Panel/Layout/FooterRow");
                     var buttons = new List<Button>();
