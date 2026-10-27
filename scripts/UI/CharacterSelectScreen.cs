@@ -585,9 +585,10 @@ namespace FTT.UI {
                 // Open/Sealed rides the item label itself (V7 "Floor Segments, Pits
                 // & Ledges"): whether the main floor has a hole in it changes how a
                 // match is played, so it belongs in front of the pick rather than
-                // only in a tooltip.
-                _stageSelect.AddItem(
-                    $"{Tr(stage.DisplayNameKey)} - {Tr(FighterStageLayoutBadge.LabelKey(stage))}", itemID);
+                // only in a tooltip. TG-CLOSE polish: one format key joins the two
+                // with the spaced em dash ("Florence Workshop — Sealed").
+                _stageSelect.AddItem(string.Format(Tr("fighter_stage_with_layout"),
+                    Tr(stage.DisplayNameKey), Tr(FighterStageLayoutBadge.LabelKey(stage))), itemID);
                 int itemIndex = _stageSelect.ItemCount - 1;
                 // A production-contract stage is no longer a prototype. The line
                 // used to be appended unconditionally, which branded every stage —

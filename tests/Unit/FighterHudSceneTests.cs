@@ -394,6 +394,10 @@ public class FighterHudSceneTests {
             AssertThat(hud.TimerVisible).IsTrue();
             AssertThat(hud.TimerText)
                 .IsEqual(TranslationServer.Translate("fighter_hud_sudden_death_clock").ToString());
+            // TG-CLOSE polish: "Sudden Death — next death loses", the spaced em dash HUD_CONTRACT writes (it was a hyphen).
+            AssertThat(hud.TimerText.Contains(" — ") && !hud.TimerText.Contains(" - "))
+                .OverrideFailureMessage($"The Sudden Death line '{hud.TimerText}' is not joined by ' — '")
+                .IsTrue();
         } finally {
             hud.Free();
         }
