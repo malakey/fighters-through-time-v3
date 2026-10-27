@@ -228,6 +228,61 @@ public class PulpMotionTests {
         }
     }
 
+    /// <summary>
+    /// TG-WIDGETS (Codex review 1, finding 1): one motion owns a panel at a time. A sub-screen re-opened inside its
+    /// 0.22 s entrance, closed mid-entrance or re-opened mid-sink ends exactly on its slot; under Reduced Temporal Effects
+    /// an open and a close a frame apart end closed.
+    /// </summary>
+    [TestCase]
+    public async Task APanelReopenedOrClosedMidMotionEndsExactlyOnItsSlot() {
+        bool before = ComfortSettings.ReducedTemporalEffects;
+        var host = new Control();
+        var panel = new Control { Position = new Vector2(100, 200), Size = new Vector2(100, 100) };
+        var reduced = new Control { Position = new Vector2(300, 200), Size = new Vector2(100, 100) };
+        host.AddChild(panel);
+        host.AddChild(reduced);
+        Tree.Root.AddChild(host);
+        var slot = new Vector2(100, 200);
+        try {
+            SetReduced(false);
+            PulpMotion.PopIn(panel);
+            await Frames(4);
+            PulpMotion.PopIn(panel);
+            await Frames(3);
+            PulpMotion.PopIn(panel);
+            await Frames(30);
+            AssertThat(panel.Position).IsEqual(slot);
+            AssertThat(Mathf.IsEqualApprox(panel.Modulate.A, 1f)).IsTrue();
+
+            PulpMotion.PopIn(panel);
+            await Frames(5);
+            PulpMotion.PopOut(panel);
+            await Frames(20);
+            AssertThat(panel.Position).IsEqual(slot);
+            AssertThat(panel.Modulate.A).IsEqual(0f);
+
+            PulpMotion.PopIn(panel);
+            await Frames(30);
+            PulpMotion.PopOut(panel);
+            await Frames(4);
+            PulpMotion.PopIn(panel);
+            await Frames(30);
+            AssertThat(panel.Position).IsEqual(slot);
+            AssertThat(Mathf.IsEqualApprox(panel.Modulate.A, 1f)).IsTrue();
+
+            SetReduced(true);
+            PulpMotion.PopIn(reduced);
+            await Frames(1);
+            PulpMotion.PopOut(reduced);
+            await Frames(20);
+            AssertThat(reduced.Modulate.A).IsEqual(0f);
+            AssertThat(reduced.Position).IsEqual(new Vector2(300, 200));
+        } finally {
+            SetReduced(before);
+            host.Free();
+        }
+    }
+
     [TestCase]
     public async Task TheReadyBloomRisesOnceAndSettlesWithNoLoop() {
         bool before = ComfortSettings.ReducedTemporalEffects;
