@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AGENT-AUTHORED glyph (not in the mockup generator); BOLD weight (F stroke 2.25, D stroke 2.0 units of 32) for any display size below 30 px (UI_SPEC_GLASS 3.5). White art, tinted by modulate. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="256" height="256">
+  <path d="M8.5 12 L16 19.5 L23.5 12" fill="none" stroke="#FFFFFF" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.92"/>
+</svg>

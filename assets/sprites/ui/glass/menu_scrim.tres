@@ -1,0 +1,13 @@
+[gd_resource type="GradientTexture2D" load_steps=2 format=3]
+
+[sub_resource type="Gradient" id="Gradient_glass_menu_scrim"]
+offsets = PackedFloat32Array(0, 0.26, 0.48, 0.66)
+colors = PackedColorArray(0.015686, 0.027451, 0.078431, 0.96, 0.015686, 0.027451, 0.078431, 0.84, 0.015686, 0.027451, 0.078431, 0.35, 0.015686, 0.027451, 0.078431, 0)
+
+[resource]
+gradient = SubResource("Gradient_glass_menu_scrim")
+width = 512
+height = 4
+fill = 0
+fill_from = Vector2(0, 0.5)
+fill_to = Vector2(1, 0.5)

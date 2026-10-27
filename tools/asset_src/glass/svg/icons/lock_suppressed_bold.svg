@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- DERIVED by tools/asset_src/glass/glass_svg.py (TG-ART): the BOLD weight of 'lock_suppressed', which the spec draws in one weight; strokes x1.5 (1.5->2.25, 1.35->2.0, 1.6->2.4, 2.6->3.9), a solid glyph unchanged. Use below 30 px (UI_SPEC_GLASS 3.5). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="256" height="256">
+  <path d="M7 7 L25 25" fill="none" stroke="#FFFFFF" stroke-width="3.9" stroke-linecap="round"/>
+  <path d="M25 7 L7 25" fill="none" stroke="#FFFFFF" stroke-width="3.9" stroke-linecap="round"/>
+</svg>

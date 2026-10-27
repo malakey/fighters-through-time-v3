@@ -1,0 +1,13 @@
+[gd_resource type="GradientTexture2D" load_steps=2 format=3]
+
+[sub_resource type="Gradient" id="Gradient_glass_fighter_top_shade"]
+offsets = PackedFloat32Array(0, 0.42, 0.78, 1)
+colors = PackedColorArray(0.023529, 0.015686, 0.047059, 0.8, 0.023529, 0.015686, 0.047059, 0.64, 0.023529, 0.015686, 0.047059, 0.3, 0.023529, 0.015686, 0.047059, 0)
+
+[resource]
+gradient = SubResource("Gradient_glass_fighter_top_shade")
+width = 4
+height = 256
+fill = 0
+fill_from = Vector2(0.5, 0)
+fill_to = Vector2(0.5, 1)

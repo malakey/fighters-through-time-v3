@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ICN-A hairline from _build/lib.py ICONS['freeze']; REGULAR weight (F stroke 1.5, D stroke 1.35 units of 32; F fill white @0.08, X fill @0.85). White art, tinted in-engine by modulate. Glow (CSS drop-shadow 0 0 3px currentColor@60%) is a bake step, not in this file. Use at 30 px and above. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="64" height="64">
+  <path d="M16 3 A13 13 0 1 0 16 29 A13 13 0 1 0 16 3 Z" fill="#FFFFFF" fill-opacity="0.08" stroke="#FFFFFF" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M16 6.5 V25.5" fill="none" stroke="#FFFFFF" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.92"/>
+  <path d="M7.5 11.2 L24.5 20.8" fill="none" stroke="#FFFFFF" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.92"/>
+  <path d="M7.5 20.8 L24.5 11.2" fill="none" stroke="#FFFFFF" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.92"/>
+  <path d="M13 8.4 L16 11 L19 8.4" fill="none" stroke="#FFFFFF" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.92"/>
+  <path d="M13 23.6 L16 21 L19 23.6" fill="none" stroke="#FFFFFF" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.92"/>
+</svg>

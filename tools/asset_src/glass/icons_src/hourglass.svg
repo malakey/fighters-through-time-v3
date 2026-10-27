@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ICN-A hairline from _build/lib.py ICONS['hourglass']; REGULAR weight (F stroke 1.5, D stroke 1.35 units of 32; F fill white @0.08, X fill @0.85). White art, tinted in-engine by modulate. Glow (CSS drop-shadow 0 0 3px currentColor@60%) is a bake step, not in this file. Use at 30 px and above. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="64" height="64">
+  <path d="M8 4 H24 V7.5 C24 12 19.5 14 16 16 C19.5 18 24 20 24 24.5 V28 H8 V24.5 C8 20 12.5 18 16 16 C12.5 14 8 12 8 7.5 Z" fill="#FFFFFF" fill-opacity="0.08" stroke="#FFFFFF" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M11 7.5 H21" fill="none" stroke="#FFFFFF" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.92"/>
+  <path d="M13 25 H19" fill="none" stroke="#FFFFFF" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.92"/>
+</svg>

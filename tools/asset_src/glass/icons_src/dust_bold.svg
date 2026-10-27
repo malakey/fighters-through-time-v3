@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ICN-A hairline from _build/lib.py ICONS['dust']; BOLD weight (F stroke 2.25, D stroke 2.0 units of 32) for any display size below 30 px (UI_SPEC_GLASS 3.5). White art, tinted by modulate. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="64" height="64">
+  <path d="M16 3.5 L25.5 12 L16 28.5 L6.5 12 Z" fill="#FFFFFF" fill-opacity="0.08" stroke="#FFFFFF" stroke-width="2.25" stroke-linejoin="round"/>
+  <path d="M26 2.5 L27.2 5.8 L30.5 7 L27.2 8.2 L26 11.5 L24.8 8.2 L21.5 7 L24.8 5.8 Z" fill="#FFFFFF" fill-opacity="0.85"/>
+  <path d="M6.5 12 H25.5" fill="none" stroke="#FFFFFF" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.92"/>
+  <path d="M11.2 12 L16 3.5 L20.8 12 L16 28.5 Z" fill="none" stroke="#FFFFFF" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.92"/>
+</svg>
