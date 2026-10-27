@@ -156,4 +156,51 @@ public class StoryHudBoundsTests {
         }
         if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
     }
+
+    /// <summary>
+    /// TG-CLOSE Codex review 3: a tooltip showing when the UI scale changes (pause, Settings, resume) keeps the free band
+    /// it was fitted to; it refits in a frame and stays inside the new band, clear of the enlarged clusters.
+    /// </summary>
+    [TestCase]
+    public async Task AShowingFirstUseTooltipRefitsWhenTheUiScaleChanges() {
+        SaveManager save = SaveManager.Instance;
+        AssertObject(save?.GlobalData).IsNotNull();
+        float original = save.GlobalData.UiScale;
+        float applied = UIPalette.AppliedUiScale;
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        var port = new SubViewport { Size = new Vector2I(1920, 1080), RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled };
+        tree.Root.AddChild(port);
+        try {
+            save.GlobalData.UiScale = 1.0f;
+            UIPalette.ApplyUiScale(1.0f);
+            StoryHUD hud = StoryHUD.CreateDefault();
+            port.AddChild(hud);
+            hud.SetLevelTitle("campaign_level_orleans");
+            hud.SetObjective("florence_objective_reach_boss");
+            var presenter = new FirstUseTooltipPresenter { Name = "FirstUseTooltips" };
+            port.AddChild(presenter);
+            await Frames(4);
+            presenter.PresentForPreview(FirstUseTooltips.KeyFor(FirstUseTooltips.All[0]));
+            await Frames(20);
+            save.GlobalData.UiScale = 1.4f;
+            UIPalette.ApplyUiScale(1.4f);
+            await Frames(6);
+            var problems = new List<string>();
+            Rect2 plate = Bounds(presenter.GetNode<Control>("TooltipPanel"));
+            Rect2 left = Bounds(hud.GetNode<Control>("SafeArea/TopLeft_Panel"));
+            Rect2 dust = Bounds(hud.GetNode<Control>("SafeArea/TopRight_Panel/DustPlate"));
+            Rect2 dial = Bounds(hud.GetNode<Control>("SafeArea/TopRight_Panel/IntegrityClock"));
+            if (!Frame.Encloses(plate)) problems.Add($"plate {plate} outside the frame");
+            if (Mathf.Abs(plate.Position.Y - FirstUseTooltipPresenter.PlateTop * 1.4f) > 1f) problems.Add($"plate {plate} not at the 1.4 y");
+            if (plate.Intersects(left)) problems.Add($"plate {plate} covers the left stack {left}");
+            if (plate.Intersects(dust)) problems.Add($"plate {plate} covers the dust plate {dust}");
+            if (plate.Intersects(dial)) problems.Add($"plate {plate} covers the dial {dial}");
+            hud.QueueFree();
+            if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
+        } finally {
+            save.GlobalData.UiScale = original;
+            UIPalette.ApplyUiScale(applied);
+            port.Free();
+        }
+    }
 }
