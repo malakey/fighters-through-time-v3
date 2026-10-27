@@ -428,6 +428,124 @@ public class PulpButtonDecorTests {
         }
     }
 
+    /// <summary>
+    /// Codex review 1, finding 2: hover is focus (AC8), except while an editable text field holds the keyboard (typing the
+    /// LAN address): the hovered row and the hovered select tile show their hover look and leave the focus, and the badge,
+    /// with the field.
+    /// </summary>
+    [TestCase]
+    public async Task HoverLeavesTheKeyboardWithATextFieldOnARowAndATile() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        PulpPromptGlyphs.DeviceOverrideForTesting = PromptDevice.Pad;
+        var host = new VBoxContainer { Name = "HoverHost" };
+        UIPalette.ApplyTheme(host);
+        tree.Root.AddChild(host);
+        var line = new LineEdit { Name = "Address", CustomMinimumSize = new Vector2(400f, 50f) };
+        var text = new TextEdit { Name = "Notes", CustomMinimumSize = new Vector2(400f, 80f) };
+        var join = new Button {
+            Name = "Join", Text = "menu_settings", ThemeTypeVariation = "PulpButton", FocusMode = Control.FocusModeEnum.All,
+            CustomMinimumSize = new Vector2(560f, 68f)
+        };
+        var tileHost = new Button { Name = "Tile", FocusMode = Control.FocusModeEnum.All, CustomMinimumSize = new Vector2(164f, 164f) };
+        host.AddChild(line);
+        host.AddChild(text);
+        host.AddChild(join);
+        host.AddChild(tileHost);
+        async Task Frames(int count) {
+            for (int i = 0; i < count; i++) await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+        }
+        // As the viewport moves the mouse over a control: its hover notification (a button's hover state) and the
+        // mouse_entered signal; leaving, mouse_exited and the exit notification.
+        void Enter(Control control) {
+            control.Notification((int)Control.NotificationMouseEnter);
+            control.EmitSignal(Control.SignalName.MouseEntered);
+        }
+        void Leave(Control control) {
+            control.EmitSignal(Control.SignalName.MouseExited);
+            control.Notification((int)Control.NotificationMouseExit);
+        }
+        try {
+            PulpButtonDecor decor = PulpButtonDecor.Apply(join);
+            GlassTileDecor tile = GlassTileDecor.Attach(tileHost);
+            await Frames(3);
+            foreach (Control field in new Control[] { line, text }) {
+                field.GrabFocus();
+                AssertThat(field.HasFocus()).OverrideFailureMessage($"Harness: the {field.Name} field has no focus").IsTrue();
+                Enter(join);
+                await Frames(2);
+                AssertThat(field.HasFocus()).OverrideFailureMessage($"hovering the row took the keyboard from {field.Name}").IsTrue();
+                AssertThat(((GlassMarker)decor.Marker).State).IsEqual(PulpButtonDecor.MarkerState.Focus);   // the hover look
+                AssertThat(decor.Badge.Visible).IsFalse();                                                    // the badge stays with the focus
+                Leave(join);
+                await Frames(2);
+                AssertThat(((GlassMarker)decor.Marker).State).IsEqual(PulpButtonDecor.MarkerState.Normal);  // and leaves with the mouse
+                Enter(tileHost);
+                await Frames(1);
+                AssertThat(field.HasFocus()).OverrideFailureMessage($"hovering the tile took the keyboard from {field.Name}").IsTrue();
+                AssertThat(tile.Focused).IsFalse();
+                AssertThat(tile.EffectiveEdge).IsEqual(GlassTileDecor.TileEdge.Focus);                        // the tile's hover look
+                Leave(tileHost);
+                AssertThat(tile.EffectiveEdge).IsEqual(GlassTileDecor.TileEdge.Dim);
+            }
+            // With no field holding the keyboard, hover takes the focus as before.
+            line.ReleaseFocus();
+            text.ReleaseFocus();
+            Enter(join);
+            AssertThat(join.HasFocus()).IsTrue();
+            Leave(join);
+            Enter(tileHost);
+            AssertThat(tileHost.HasFocus()).IsTrue();
+        } finally {
+            PulpPromptGlyphs.DeviceOverrideForTesting = null;
+            host.GetParent()?.RemoveChild(host);
+            host.Free();
+        }
+    }
+
+    /// <summary>
+    /// Codex review 1, finding 3: a wrapping label's layout depends on the button's height (how many lines show), so a
+    /// height change alone re-lays it out, both ways.
+    /// </summary>
+    [TestCase]
+    public async Task AWrappingLabelShowsMoreOrFewerLinesWhenOnlyItsButtonsHeightChanges() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        var host = new Control { Name = "WrapHost" };
+        UIPalette.ApplyTheme(host);
+        tree.Root.AddChild(host);
+        var row = new Button {
+            Text = "Go to the next area of the map now and fight on", ThemeTypeVariation = "PulpButton",
+            AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(300f, 760f)
+        };
+        host.AddChild(row);
+        async Task Frames(int count = 4) {
+            for (int i = 0; i < count; i++) await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+        }
+        try {
+            PulpButtonDecor decor = PulpButtonDecor.Apply(row);
+            await Frames();
+            AssertThat(row.Size.Y >= 760f).IsTrue();
+            AssertThat(decor.LabelIsTrimmed).OverrideFailureMessage($"a 760 px button should show all {decor.WrappedLineCount} wrapped lines").IsFalse();
+            // Shorter: the button's own mixed-case wrap sets its height, and the drawn upper-case label needs more lines.
+            row.CustomMinimumSize = new Vector2(300f, 0f);
+            row.Size = new Vector2(300f, 0f);
+            await Frames();
+            StyleBox box = row.GetThemeStylebox("normal");
+            float avail = row.Size.Y - box.GetContentMargin(Side.Top) - box.GetContentMargin(Side.Bottom);
+            float lineHeight = row.GetThemeFont("font").GetHeight(row.GetThemeFontSize("font_size"));
+            int fits = Mathf.FloorToInt((avail + 1f) / lineHeight);
+            AssertThat(decor.WrappedLineCount > fits)
+                .OverrideFailureMessage($"Harness: {decor.WrappedLineCount} lines, {fits} fit in {avail} px").IsTrue();
+            AssertThat(decor.LabelIsTrimmed).OverrideFailureMessage("the shorter button keeps showing every line").IsTrue();
+            // Taller again: every line shows.
+            row.CustomMinimumSize = new Vector2(300f, 760f);
+            await Frames();
+            AssertThat(decor.LabelIsTrimmed).OverrideFailureMessage("the taller button keeps its ellipsis").IsFalse();
+        } finally {
+            host.GetParent()?.RemoveChild(host);
+            host.Free();
+        }
+    }
+
     [TestCase]
     public async Task AnUnsizedRowWidensToItsDrawnLabelAndFollowsItsTextAndTheUiScaleWithoutALoop() {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();

@@ -46,6 +46,7 @@ namespace FTT.UI.Pulp {
         private int _lockedBy = -1;
         private bool _showBadges = true;
         private bool _focused;
+        private bool _hovered;
         private Control _host;
         private TileMarks _marks;
         private Texture2D _portrait;
@@ -64,6 +65,7 @@ namespace FTT.UI.Pulp {
         private Vector2 _builtFor = new(-1f, -1f);
         private float _builtChamfer = -1f;
         private int _builtStateKey = int.MinValue;
+        private Color _builtP1, _builtP2;
 
         /// <summary>How many times the polygons were rebuilt (a state change recolours, a size change rebuilds).</summary>
         public int GeometryBuilds { get; private set; }
@@ -103,7 +105,7 @@ namespace FTT.UI.Pulp {
         /// <summary>True while the host has focus (or the mouse gave it focus).</summary>
         public bool Focused => _focused;
         /// <summary>The edge drawn now: the focus edge on a focused host, else <see cref="Edge"/>.</summary>
-        public TileEdge EffectiveEdge => _focused ? TileEdge.Focus : _edge;
+        public TileEdge EffectiveEdge => _focused || _hovered ? TileEdge.Focus : _edge;
         /// <summary>Optional art for the portrait window; null draws no window.</summary>
         public Texture2D Portrait { get => _portrait; set { _portrait = value; Changed(); } }
         /// <summary>The portrait window's insets as (left, top, right, bottom); 3.7's 8 / 8 / 8 / 42 by default.</summary>
@@ -120,6 +122,7 @@ namespace FTT.UI.Pulp {
             _host.FocusEntered += OnFocusEntered;
             _host.FocusExited += OnFocusExited;
             _host.MouseEntered += OnMouseEntered;
+            _host.MouseExited += OnMouseExited;
             _focused = _host.HasFocus();
         }
 
@@ -128,17 +131,30 @@ namespace FTT.UI.Pulp {
             _host.FocusEntered -= OnFocusEntered;
             _host.FocusExited -= OnFocusExited;
             _host.MouseEntered -= OnMouseEntered;
+            _host.MouseExited -= OnMouseExited;
             _host = null;
         }
 
         private void OnFocusEntered() { _focused = true; Changed(); }
         private void OnFocusExited() { _focused = false; Changed(); }
 
+        // Hover is focus, except while a text field or an open list holds the keyboard (Codex review 1, finding 2): the tile
+        // then shows the focus edge as its hover look and leaves the focus where it is.
         private void OnMouseEntered() {
-            if (_host != null && _host.IsVisibleInTree() && _host.FocusMode != FocusModeEnum.None && !_host.HasFocus()
-                && !(_host is BaseButton { Disabled: true })) {
+            if (_host == null || !_host.IsVisibleInTree() || _host.FocusMode == FocusModeEnum.None || _host.HasFocus()
+                || _host is BaseButton { Disabled: true }) return;
+            if (PulpButtonDecor.KeyboardIsHeld(_host)) {
+                _hovered = true;
+                Changed();
+            } else {
                 _host.GrabFocus();
             }
+        }
+
+        private void OnMouseExited() {
+            if (!_hovered) return;
+            _hovered = false;
+            Changed();
         }
 
         public override void _Notification(int what) {
@@ -152,7 +168,10 @@ namespace FTT.UI.Pulp {
             var box = new Rect2(Vector2.Zero, Size);
             bool sizeChanged = Size != _builtFor || !Mathf.IsEqualApprox(_chamfer, _builtChamfer);
             int key = StateKey();
-            if (!sizeChanged && key == _builtStateKey) return;
+            // The owner colours are read live from the active player-slot palette (Codex review 1, finding 4): a change of
+            // palette recolours the edges and glows like any state change, with no geometry rebuilt.
+            Color p1 = UIPalette.OwnerOnDark(0), p2 = UIPalette.OwnerOnDark(1);
+            if (!sizeChanged && key == _builtStateKey && p1 == _builtP1 && p2 == _builtP2) return;
             if (sizeChanged) {
                 GeometryBuilds++;
                 _builtFor = Size;
@@ -171,12 +190,13 @@ namespace FTT.UI.Pulp {
                 BuildWindowGlow(window);
             }
             _builtStateKey = key;
+            _builtP1 = p1;
+            _builtP2 = p2;
             Color edgeFlat = EffectiveEdge switch {
                 TileEdge.Standard => UIPalette.Edge,
                 TileEdge.Lit => UIPalette.EdgeHi,
                 _ => UIPalette.EdgeDim
             };
-            Color p1 = UIPalette.OwnerOnDark(0), p2 = UIPalette.OwnerOnDark(1);
             for (int i = 0; i < 6; i++) {
                 float t135 = GlassGeometry.GradientT(_outer[i], box, 135f);
                 _edgeColors[i] = _owners switch {
