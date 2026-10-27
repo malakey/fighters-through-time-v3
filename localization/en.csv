@@ -51,7 +51,7 @@ ability_einstein_mass_energy_conversion_description,"Fling an energized object s
 ability_einstein_relativity_rift_name,Relativity Rift
 ability_einstein_relativity_rift_description,Throw a damaging field ahead of you that slows opponents; the slow lingers briefly after they leave.
 ability_einstein_relativity_warp_name,Relativity Warp
-ability_einstein_relativity_warp_description,Fold spacetime: after a brief startup, reappear up to four units away in the input direction.
+ability_einstein_relativity_warp_description,"Fold spacetime: after a brief startup, reappear up to four units away in the input direction."
 ability_einstein_cosmological_constant_name,The Cosmological Constant
 ability_einstein_cosmological_constant_description,Collapse a miniature black hole into a final launch.
 ability_joan_righteous_smite_name,Righteous Smite
@@ -620,7 +620,7 @@ dlg_l06_boss_1,"The mountain gives more than any city ever could. Stand aside, o
 dlg_l06_exit_1,The anchors are down. The mountain is its own again.
 dlg_l06_exit_2,"Pliny's galleys waited for a man who never came. An admiral, a captain, a voice in a crowd... They're not only taking legends."
 dlg_l06_exit_3,...No. They're not. Come home.
-nassau_level_title,Nassau, 1715 — The Pirate Republic
+nassau_level_title,"Nassau, 1715 — The Pirate Republic"
 nassau_objective_reach_moorings,"The Navy is shelling the harbour. Get to the moorings."
 nassau_objective_board_flagship,"Cross the channel and board the burning flagship."
 nassau_objective_defeat_boss,Defeat the Dread Admiral
