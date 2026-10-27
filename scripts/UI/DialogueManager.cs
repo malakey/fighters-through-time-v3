@@ -106,7 +106,12 @@ namespace FTT.UI {
         private Label _continueHint;
         private Pulp.PulpPortraitRoundel _roundel;
         private Pulp.PulpIcon _advanceCaret;
+        private DialogueSilhouetteFrame _otherSpeakerFrame;
+        private bool _sequenceHasOtherSpeaker;
         private Texture2D _defaultPortrait;
+
+        /// <summary>The other speaker's frame (shown at .4 with a silhouette when a sequence has two speakers). Test surface.</summary>
+        internal Control OtherSpeakerFrame => _otherSpeakerFrame;
 
         private readonly List<DialogueSetData> _registeredSets = new();
         private DialogueSequenceData _currentSequence;
@@ -187,10 +192,12 @@ namespace FTT.UI {
         }
 
         /// <summary>
-        /// UR-PAUSE (UI_SPEC Appendix B): the 150 px portrait roundel replaces the square portrait on both build
-        /// paths. The <c>Portrait</c> TextureRect stays in the frame as the state carrier (texture, emotion tint,
-        /// tooltip) but is hidden, and the roundel mirrors its texture; the hourglass advance caret sits at the
-        /// panel's right 26 / bottom 18 and shows with the continue hint.
+        /// TG-PAUSE (UI_SPEC_GLASS 3.9; first built by UR-PAUSE): on both build paths the speaker's 150 px G5 portrait frame
+        /// sits inside the chamfered emotion frame, and the <c>Portrait</c> TextureRect stays in it as the hidden state
+        /// carrier (texture, emotion tint, tooltip) the frame mirrors; when the sequence has a second speaker, the other
+        /// speaker's frame stands at the row's right end at .4 holding a silhouette (plan 0.4 P6); the slab carries the glass
+        /// sheen; the solid <c>hourglass_caret</c> (34 px, <c>res2</c>) sits at the box's right 26 / bottom 18 and shows with
+        /// the continue hint. Row gaps 26, the name-over-line column gap 10.
         /// </summary>
         private void AddPulpChrome() {
             if (_portraitFrame != null && _roundel == null) {
@@ -201,11 +208,36 @@ namespace FTT.UI {
                 _roundel = new Pulp.PulpPortraitRoundel { Name = "Roundel", Diameter = DialogueTheme.PortraitSize };
                 _portraitFrame.AddChild(_roundel);
             }
+            if (_textLabel != null) {
+                // The line sets the box's height (3.9 draws the slab around its content; the build is container-driven for
+                // the UI scale): a line that needs more room at UI scale 1.4 grows the box upward instead of scrolling inside
+                // it, out of reach of a pad. The line is laid out whole from its first letter, so the reveal never re-wraps a
+                // word and the box never changes height in the middle of a line.
+                _textLabel.FitContent = true;
+                _textLabel.ScrollActive = false;
+                _textLabel.VisibleCharactersBehavior = TextServer.VisibleCharactersBehavior.CharsAfterShaping;
+            }
+            if (_dialoguePanel != null) {
+                _dialoguePanel.GrowVertical = Control.GrowDirection.Begin;
+                Pulp.GlassSheen.Attach(_dialoguePanel);
+                if (_dialoguePanel.GetNodeOrNull<HBoxContainer>("Layout") is { } layout) {
+                    layout.AddThemeConstantOverride("separation", DialogueTheme.RowGap);
+                    if (layout.GetNodeOrNull<VBoxContainer>("Content") is { } content) {
+                        content.AddThemeConstantOverride("separation", DialogueTheme.ColumnGap);
+                    }
+                    if (_otherSpeakerFrame == null) {
+                        _otherSpeakerFrame = new DialogueSilhouetteFrame {
+                            Name = "OtherSpeakerFrame", Visible = false, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter
+                        };
+                        layout.AddChild(_otherSpeakerFrame);
+                    }
+                }
+            }
             if (_advanceCaret == null) {
                 var host = new Control { Name = "CaretHost", MouseFilter = Control.MouseFilterEnum.Ignore };
                 host.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
                 AddChild(host);
-                _advanceCaret = Pulp.PulpIcon.Create("hourglass", UIPalette.Res2, DialogueTheme.CaretSize);
+                _advanceCaret = Pulp.PulpIcon.Create(DialogueTheme.CaretIcon, UIPalette.Res2, DialogueTheme.CaretSize);
                 _advanceCaret.Name = "AdvanceCaret";
                 _advanceCaret.Visible = false;
                 _advanceCaret.AnchorLeft = 0.5f;
@@ -407,9 +439,26 @@ namespace FTT.UI {
             Reveal.SetSpeed(FTT.Core.SaveManager.Instance?.GlobalData?.DialogueTextSpeed
                 ?? FTT.Core.TextSpeed.Normal);
             _loggedThroughIndex = -1;
+            _sequenceHasOtherSpeaker = HasSecondSpeaker(sequence);
             RefreshSkipHint();
             BeginBoxAnimation(opening: true);
             ShowCurrentLine();
+        }
+
+        /// <summary>
+        /// Plan 0.4 P6: the silhouette frame is drawn only when the sequence names a second speaker (two distinct speaker
+        /// keys among its lines; the portraitless unknown voice does not count).
+        /// </summary>
+        public static bool HasSecondSpeaker(DialogueSequenceData sequence) {
+            if (sequence == null) return false;
+            string first = null;
+            for (int i = 0; i < sequence.LineCount; i++) {
+                string key = sequence.GetSpeakerKey(i);
+                if (string.IsNullOrWhiteSpace(key) || IsPortraitlessSpeaker(key)) continue;
+                if (first == null) first = key;
+                else if (key != first) return true;
+            }
+            return false;
         }
 
         // === Package 12 W6 (G10): the session Dialogue Log =================
@@ -463,6 +512,7 @@ namespace FTT.UI {
             if (_roundel != null && _portrait != null) _roundel.Portrait = _portrait.Texture;
             // Package 13 W3 (S02): the Level 0 unnamed voice ("???") has no portrait.
             if (_portraitFrame != null) _portraitFrame.Visible = !IsPortraitlessSpeaker(speakerKey);
+            if (_otherSpeakerFrame != null) _otherSpeakerFrame.Visible = _sequenceHasOtherSpeaker;
 
             _textLabel.Text = SubstituteCaptiveNames(Tr(_currentSequence.GetLineKey(_currentIndex)));
             // G10: a shown line enters the session log the moment it appears.
