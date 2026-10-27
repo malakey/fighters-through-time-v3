@@ -375,10 +375,18 @@ public class MainMenuCoverTests {
                 else if (button.Name == "BackButton" && decor.ShowPrompt) issues.Add(screen + "'s Back shows a prompt (a compact footer, D6)");
             }
         }
+        // Open the slot screen (Story Mode). Its rows show SaveManager's slots (the screen reads them for display only; no
+        // slot row is pressed, so nothing loads or writes): TG-CLOSE folded the quiet empty slab into the theme, so an empty
+        // slot's slab wears GlassPanelEmpty and a filled one GlassPanelContinue, with no local panel box at 1.0.
+        menu.GetNode<Button>("RootScreen/Center/Panel/Layout/StoryButton").EmitSignal(BaseButton.SignalName.Pressed);
+        await Frames(2);
         for (int slot = 0; slot < 3; slot++) {
             var button = menu.GetNode<Button>($"SlotScreen/Center/Panel/Layout/SlotRow{slot}/SlotButton");
             var slab = button.GetNodeOrNull<PanelContainer>("Slab");
-            if (slab == null || slab.ThemeTypeVariation.ToString() != UIPalette.Variations.GlassPanelContinue) issues.Add("slot " + slot + " has no glass slab");
+            bool empty = SaveManager.Instance?.SaveSlots[slot] == null;
+            string slabVariation = empty ? UIPalette.Variations.GlassPanelEmpty : UIPalette.Variations.GlassPanelContinue;
+            if (slab == null || slab.ThemeTypeVariation.ToString() != slabVariation) issues.Add("slot " + slot + " (" + (empty ? "empty" : "filled") + ") wears " + slab?.ThemeTypeVariation + ", not " + slabVariation);
+            else if (slab.HasThemeStyleboxOverride("panel")) issues.Add("slot " + slot + " paints its own slab");
             if (button.GetNodeOrNull<MainMenu.SlabFrame>("SlabFrame") == null) issues.Add("slot " + slot + " has no frame");
             if (button.CustomMinimumSize != new Vector2(MainMenu.SlotSlabWidth, MainMenu.SlotSlabHeight)) issues.Add("slot " + slot + " is " + button.CustomMinimumSize);
         }

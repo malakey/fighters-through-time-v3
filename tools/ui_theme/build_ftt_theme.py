@@ -324,8 +324,8 @@ NATURAL_LINE = {"outfit": 1.26, "cinzel": 1.348}
 _fonts = {}
 
 
-def font(face, wght, spacing=0, tnum=False, default=False):
-    key = (face, wght, spacing, tnum, default)
+def font(face, wght, spacing=0, tnum=False, default=False, top=0, bottom=0):
+    key = (face, wght, spacing, tnum, default, top, bottom)
     if key in _fonts:
         return _fonts[key]
     base = CINZEL if face == "cinzel" else OUTFIT
@@ -337,6 +337,10 @@ def font(face, wght, spacing=0, tnum=False, default=False):
         p.append(("spacing_glyph", spacing))
     if tnum:
         p.append(("opentype_features", "{\n%d: 1\n}" % TNUM))
+    if top:
+        p.append(("spacing_top", top))
+    if bottom:
+        p.append(("spacing_bottom", bottom))
     ref = add_sub("FontVariation", p, "FontVar")
     _fonts[key] = ref
     return ref
@@ -453,6 +457,11 @@ HALOS = {
 }
 
 
+# TG-CLOSE: roles whose single line box is trimmed toward the CSS line height (FontVariation spacing_top / spacing_bottom,
+# whole px): PanelTag's 22.7 px Outfit line to about 18, so the 6.4 tag plate (padding 3 + 3) stands 24 px tall.
+LINE_TRIM = {"PanelTag": (-2, -3)}
+
+
 def line_spacing(face, size, lh):
     return int(round(lh * size - NATURAL_LINE[face] * size))
 
@@ -460,7 +469,8 @@ def line_spacing(face, size, lh):
 def emit_label_roles():
     for (name, face, wght, size, track, color, halo, tnum, lh, _spec) in ROLES:
         put("%s/base_type" % name, '&"Label"')
-        put("%s/fonts/font" % name, font(face, wght, tracking_px(track, size), tnum))
+        top, bottom = LINE_TRIM.get(name, (0, 0))
+        put("%s/fonts/font" % name, font(face, wght, tracking_px(track, size), tnum, top=top, bottom=bottom))
         put("%s/font_sizes/font_size" % name, size)
         put("%s/colors/font_color" % name, C(color))
         if halo:
@@ -517,6 +527,8 @@ CHEVRONS = [
     ("PulpButton", (58, 11, 54, 11), 34, 0.13, "T10 menu chevron row, 68 px"),
     ("TemporalGlassButton", (58, 9, 54, 9), 34, 0.13, "T10 pause and list chevron row, 64 px"),
     ("PulpButtonCompact", (52, 13, 40, 13), 24, 0.13, "T11 compact chevron, 58 px"),
+    # TG-CLOSE: a compact footer that shows no prompt badge (4.2's select footer) pads its label 30 on the right.
+    ("PulpButtonCompactFooter", (52, 13, 30, 13), 24, 0.13, "T11 compact footer chevron, 58 px, no badge"),
 ]
 FIELD_MARGINS = (16, 8, 14, 8)   # 3.3 option button: value text at left 16, the arrow at right 14; 44 px with Outfit 22
 
@@ -600,6 +612,10 @@ def build():
     for name, padding, _doc in PANEL_PRESETS:
         pv(name, slab(name, padding))
     pv("PanelTagPlate", tag_plate("Tag"))
+    # TG-CLOSE: the quiet empty (disabled) slab of an empty save slot (9.2): the disabled chevron fill with the slab's
+    # 18 px chamfer at top-left and bottom-right and the Continue card's padding; its dashed edge-dim edge is drawn by the
+    # slab frame (MainMenu built this box locally until the closeout).
+    pv("GlassPanelEmpty", flat("EmptySlab", bg="ButtonFillDisabled", radii=(18, 0, 18, 0), detail=1, margins=(20, 16, 20, 16)))
     # The dim is painted opaque; every ScrimPanel user multiplies it by SelfModulate alpha 0.70
     # (PulpScreenKit.ScrimAlpha and the three pause scenes), which gives the build dim rgba(3, 5, 14, .70) (1.4).
     pv("ScrimPanel", flat("Scrim", bg="ScrimFill", margins=(0, 0, 0, 0)))
@@ -735,12 +751,14 @@ def write_theme(default_font):
 VARIATIONS = [
     ("PulpButton", "Button, T10: the menu chevron row (68 px; legacy name)"),
     ("PulpButtonCompact", "Button, T11: the compact chevron (58 px; legacy name)"),
+    ("PulpButtonCompactFooter", "Button, T11: the compact chevron of a footer with no prompt badge, label padded 30 on the right (4.2; legacy name)"),
     ("TemporalGlassButton", "Button, T10: the pause and list chevron row (64 px)"),
     ("GlassField", "Button: the glass field (3.3, chamfer 8), the same as the default Button"),
     ("GlassTab", "Button: a G14 tab (pressed = selected) for a tab row built from buttons"),
     ("GlassTabSelected", "Button: a G14 tab in its selected look"),
     ("InkPanel", "PanelContainer: the glass slab G1, default padding 22 / 28 / 22 (legacy name)"),
     ("DialogueGlassPanel", "PanelContainer: the glass slab G1, dialogue padding 22 / 26 / 22"),
+    ("GlassPanelEmpty", "PanelContainer: the quiet empty (disabled) slab, the Continue card's padding (an empty save slot; 9.2)"),
 ] + [(name, "PanelContainer: the glass slab G1 for %s, padding %d / %d / %d" % ((doc,) + padding))
      for name, padding, doc in PANEL_PRESETS] + [
     ("PanelTagPlate", "PanelContainer: the glass panel tag G2"),

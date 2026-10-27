@@ -737,18 +737,13 @@ namespace FTT.UI {
             // The Remote Play notice is a sentence on the scene: the small body copy with the scene halo (2.4).
             GlassScreenDressing.ApplySceneHalo(_remoteNotice, large: false);
 
-            // The footer (P1): three compact chevrons 280 wide, 34 px apart, labels shrinking to fit, no prompt badge (D6).
-            // Their label runs 30 px short of the right edge rather than the compact plate's 40, as the mock's does, so
-            // "SYSTEMS CARD" reads whole at UI scale 1.0 (it needs about 192 px at the 20 px floor; 280 - 52 - 40 leaves 188).
-            StyleBox footerBox = null;
-            if (UIPalette.LoadTheme()?.GetStylebox("normal", UIPalette.Variations.PulpButtonCompact) is StyleBox compactNormal) {
-                footerBox = (StyleBox)compactNormal.Duplicate();
-                footerBox.ContentMarginRight = FooterLabelRightMargin;
-            }
+            // The footer (P1): three compact chevrons 280 wide, 34 px apart, labels shrinking to fit (the compact floor is
+            // 4.2's 18 px at every scale), no prompt badge (D6). They wear the compact footer chevron, whose label runs 30 px
+            // short of the right edge rather than the compact plate's 40, as the mock's does (TG-CLOSE folded the local box).
             var footer = new List<Button>();
             foreach (string name in new[] { "MoveListButton", "SystemsCardButton", "BackButton" }) {
                 Button button = GetNode<Button>(SelectRoot + "ButtonRow/" + name);
-                if (footerBox != null) button.AddThemeStyleboxOverride("normal", footerBox);
+                button.ThemeTypeVariation = UIPalette.Variations.PulpButtonCompactFooter;
                 PulpButtonDecor decor = PulpButtonDecor.Apply(button, compact: true);
                 decor.ShowPrompt = false;
                 footer.Add(button);
@@ -777,9 +772,6 @@ namespace FTT.UI {
 
         /// <summary>The footer buttons' width (plan 0.4 P1: 280 so three fit 34 px apart between the side panels).</summary>
         public const float FooterButtonWidth = 280f;
-
-        /// <summary>The footer labels' right padding (the compact plate's is 40; see <see cref="StyleChrome"/>).</summary>
-        public const float FooterLabelRightMargin = 30f;
 
         // === The stage phase (9.2) ========================================================
 

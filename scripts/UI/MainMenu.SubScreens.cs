@@ -48,7 +48,6 @@ namespace FTT.UI {
         private readonly PanelContainer[] _slotSlabs = new PanelContainer[StorySlotCount];
         private readonly SlabFrame[] _slotFrames = new SlabFrame[StorySlotCount];
         private readonly bool[] _slotEmpty = new bool[StorySlotCount];
-        private StyleBoxFlat _emptySlab;
         private float _subScale = -1f;
 
         private PanelContainer _heroSlab;
@@ -106,7 +105,6 @@ namespace FTT.UI {
 
             if (Mathf.IsEqualApprox(s, _subScale)) return;
             _subScale = s;
-            _emptySlab = null;
             for (int slot = 0; slot < StorySlotCount; slot++) {
                 Button button = _slotButtons[slot];
                 if (button == null || _slotSlabs[slot] == null) continue;
@@ -215,33 +213,14 @@ namespace FTT.UI {
             PaintSlotFrame(slot);
         }
 
-        // A filled slot is the glass slab (the theme's continue-card plate, paddings x s); an empty one a quiet slab with a dashed edge.
+        // A filled slot is the glass slab (the theme's continue-card plate); an empty one the theme's quiet empty slab
+        // (GlassPanelEmpty, folded by TG-CLOSE) with the frame's dashed edge; either with its paddings x s.
         private void PaintSlotFill(int slot) {
             PanelContainer slab = _slotSlabs[slot];
             if (slab == null) return;
-            float s = MenuScale;
-            if (_slotEmpty[slot]) {
-                slab.AddThemeStyleboxOverride("panel", EmptySlab(slab, s));
-                if (slab.GetNodeOrNull<GlassSheen>(GlassSheen.NodeName) is { } sheen) sheen.Visible = false;
-            } else {
-                ScalePlatePaddings(slab, s);
-                if (slab.GetNodeOrNull<GlassSheen>(GlassSheen.NodeName) is { } sheen) sheen.Visible = true;
-            }
-        }
-
-        private StyleBoxFlat EmptySlab(PanelContainer slab, float s) {
-            if (_emptySlab != null) return _emptySlab;
-            slab.RemoveThemeStyleboxOverride("panel");
-            StyleBox themed = slab.GetThemeStylebox("panel");
-            int cut = Mathf.RoundToInt(GlassSheen.Chamfer);
-            _emptySlab = new StyleBoxFlat {
-                BgColor = UIPalette.ButtonFillDisabled, AntiAliasing = true, CornerDetail = 1,
-                CornerRadiusTopLeft = cut, CornerRadiusBottomRight = cut
-            };
-            foreach (Side side in new[] { Side.Left, Side.Top, Side.Right, Side.Bottom }) {
-                _emptySlab.SetContentMargin(side, Mathf.Round(Mathf.Max(0f, themed?.GetContentMargin(side) ?? 0f) * s));
-            }
-            return _emptySlab;
+            slab.ThemeTypeVariation = _slotEmpty[slot] ? UIPalette.Variations.GlassPanelEmpty : UIPalette.Variations.GlassPanelContinue;
+            ScalePlatePaddings(slab, MenuScale);
+            if (slab.GetNodeOrNull<GlassSheen>(GlassSheen.NodeName) is { } sheen) sheen.Visible = !_slotEmpty[slot];
         }
 
         private void PaintSlotFrame(int slot) {

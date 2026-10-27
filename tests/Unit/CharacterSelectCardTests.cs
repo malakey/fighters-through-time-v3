@@ -250,6 +250,19 @@ public class CharacterSelectCardTests {
             if (!grid.GetNode<Button>("CharacterButton0").Size.IsEqualApprox(new Vector2(layout.Tile, layout.Tile))) problems.Add("the tiles grew with the UI scale");
             // The footer's buttons stay between the side panels, below the grid and on the screen.
             foreach (string name in new[] { "MoveListButton", "SystemsCardButton", "BackButton" }) {
+                // TG-CLOSE: the footer wears the compact footer variation (no local box), and its labels shrink to 4.2's
+                // 18 px floor at any scale (a 20 px floor scaled to 28 at 1.4): never below it, trimmed only when even 18
+                // px does not fit, so MOVE LIST and BACK read whole at 1.4. (SYSTEMS CARD needs about 178 px at 18 px and
+                // the 280 px button leaves 165 at 1.4, so it still ends in an ellipsis there: an open question, recorded.)
+                var footerButton = screen.GetNode<Button>(SelectRoot + "ButtonRow/" + name);
+                if (footerButton.ThemeTypeVariation.ToString() != UIPalette.Variations.PulpButtonCompactFooter) problems.Add($"{name} is {footerButton.ThemeTypeVariation}");
+                if (footerButton.HasThemeStyleboxOverride("normal")) problems.Add($"{name} carries its own normal box");
+                foreach (Node child in footerButton.GetChildren()) {
+                    if (child is not PulpButtonDecor footerDecor) continue;
+                    if (footerDecor.DrawnFontSize < UIPalette.MinLabelFontSize) problems.Add($"{name}'s label draws at {footerDecor.DrawnFontSize} px");
+                    if (footerDecor.LabelIsTrimmed && footerDecor.DrawnFontSize > UIPalette.MinLabelFontSize) problems.Add($"{name}'s label is trimmed at {footerDecor.DrawnFontSize} px, above the 18 px floor");
+                    if (name != "SystemsCardButton" && footerDecor.LabelIsTrimmed) problems.Add($"{name}'s label is trimmed at 1.4");
+                }
                 Rect2 button = screen.GetNode<Control>(SelectRoot + "ButtonRow/" + name).GetGlobalRect();
                 if (button.Position.X < CharacterSelectScreen.SideMargin + CharacterSelectScreen.SideWidth
                     || button.End.X > 1920f - CharacterSelectScreen.SideMargin - CharacterSelectScreen.SideWidth) problems.Add($"{name} {button} meets a side panel");

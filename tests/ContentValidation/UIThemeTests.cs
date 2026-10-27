@@ -521,6 +521,40 @@ public class UIThemeTests {
             || tag.GetContentMargin(Side.Top) != 3 || tag.GetContentMargin(Side.Bottom) != 3) {
             drift.Add("PanelTagPlate must carry the 6.4 content margins 14 / 3 / 14 / 3");
         }
+        // TG-CLOSE folds: the empty (disabled) slab is a quiet flat slab at the Continue card's padding with the slab's
+        // 18 px chamfer at top-left and bottom-right (its dashed edge is drawn by the slab frame); the compact footer
+        // chevron (no prompt badge) pads its label 30 on the right, not 40 (4.2's footer).
+        if (theme.GetTypeVariationBase(UIPalette.Variations.GlassPanelEmpty) != "PanelContainer"
+            || theme.GetStylebox("panel", UIPalette.Variations.GlassPanelEmpty) is not StyleBoxFlat empty) {
+            drift.Add("GlassPanelEmpty must be a flat PanelContainer slab");
+        } else {
+            if (!empty.BgColor.IsEqualApprox(UIPalette.ButtonFillDisabled)) drift.Add($"GlassPanelEmpty paints {empty.BgColor}");
+            if (empty.CornerRadiusTopLeft != 18 || empty.CornerRadiusBottomRight != 18 || empty.CornerRadiusTopRight != 0
+                || empty.CornerRadiusBottomLeft != 0 || empty.CornerDetail != 1) drift.Add("GlassPanelEmpty must carry the 18 px chamfer at TL and BR");
+            RequirePadding(UIPalette.Variations.GlassPanelEmpty, "panel", 16, 20, 16);
+        }
+        if (theme.GetTypeVariationBase(UIPalette.Variations.PulpButtonCompactFooter) != "Button") {
+            drift.Add("PulpButtonCompactFooter must be a Button variation");
+        } else {
+            StyleBox footer = theme.GetStylebox("normal", UIPalette.Variations.PulpButtonCompactFooter);
+            StyleBox compact = theme.GetStylebox("normal", UIPalette.Variations.PulpButtonCompact);
+            if (footer.GetContentMargin(Side.Right) != 30 || footer.GetContentMargin(Side.Left) != compact.GetContentMargin(Side.Left)) {
+                drift.Add($"PulpButtonCompactFooter pads {footer.GetContentMargin(Side.Left)} / {footer.GetContentMargin(Side.Right)}, not 52 / 30");
+            }
+            if (theme.GetFont("font", UIPalette.Variations.PulpButtonCompactFooter) != theme.GetFont("font", UIPalette.Variations.PulpButtonCompact)) {
+                drift.Add("PulpButtonCompactFooter must draw the compact chevron's font");
+            }
+        }
+        // The tag plate stands 24 px tall (6.4) around its PanelTag label (the role's line box trimmed to 18).
+        var tagPlate = new PanelContainer { Theme = theme, ThemeTypeVariation = UIPalette.Variations.PanelTagPlate };
+        tagPlate.AddChild(new Label { Text = "STORY MODE", ThemeTypeVariation = UIPalette.LabelRoles.PanelTag });
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(tagPlate);
+        try {
+            float height = tagPlate.GetCombinedMinimumSize().Y;
+            if (Mathf.Abs(height - 24f * UIPalette.AppliedUiScale) > 1f) drift.Add($"the tag plate is {height} px tall, not 24");
+        } finally {
+            tagPlate.Free();
+        }
         if (theme.GetTypeVariationBase(UIPalette.Variations.DialogueBodyRich) != "RichTextLabel") drift.Add("DialogueBodyRich must be a RichTextLabel variation");
         if (theme.GetFontSize("normal_font_size", UIPalette.Variations.DialogueBodyRich) != 33) drift.Add("DialogueBodyRich must be 33 px");
         if (!theme.HasStylebox("normal", UIPalette.LabelRoles.HintLinePlate)

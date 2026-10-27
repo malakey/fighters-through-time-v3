@@ -14,7 +14,7 @@ namespace FTT.UI.Pulp {
     /// <list type="bullet">
     /// <item>Label: <c>Tr(Text)</c> drawn upper-case in the button's own theme font, from the left padding (58, compact 52)
     /// to the right one (54, compact 40); colours per state from the theme (normal <c>ink2</c>, focus / hover / pressed white,
-    /// disabled <c>ink3</c>), selected <c>ink</c>. A label too long shrinks (floors 26 / 20 px at 100 %), then ellipsizes;
+    /// disabled <c>ink3</c>), selected <c>ink</c>. A label too long shrinks (floors 26 px at 100 % / 18 px), then ellipsizes;
     /// a multi-line or <see cref="GrowToFit"/> label wraps instead. <c>Button.Text</c> stays the raw key.</item>
     /// <item>Prompt badge: a 36 px ring with the confirm glyph (or a key-cap) in the label colour, at the label's right end,
     /// on the focused row only (<see cref="ShowPrompt"/> turns it off for footers, 3.2 D6).</item>
@@ -47,8 +47,11 @@ namespace FTT.UI.Pulp {
         public const float BadgeSize = 36f, BadgeGap = 16f;
         /// <summary>The badge and its gap: what a label leaves free on a row that can show the prompt.</summary>
         public const float BadgeReserve = BadgeSize + BadgeGap;
-        /// <summary>The shrink-to-fit floors at 100 % (3.2: T10 26 px, T11 20 px), scaled with the UI scale, never under 18.</summary>
-        public const float ShrinkFloor = 26f, CompactShrinkFloor = 20f;
+        /// <summary>
+        /// The shrink-to-fit floors (3.2: T10 26 px at 100 %, scaled with the UI scale; the compact chevron 4.2's 18 px at
+        /// every scale, TG-CLOSE: a 20 px floor scaled to 28 at 1.4 ellipsized the 280 px select footer).
+        /// </summary>
+        public const float ShrinkFloor = 26f, CompactShrinkFloor = 18f;
 
         private static readonly StringName FontName = "font", FontSizeName = "font_size", NormalName = "normal";
         private static readonly StringName HoverName = "hover", SelectedName = "selected", HSeparationName = "h_separation";
@@ -180,9 +183,10 @@ namespace FTT.UI.Pulp {
         public static float UiScaleFactor =>
             Mathf.Clamp(UIPalette.AppliedUiScale, GlobalSaveData.MinUiScale, GlobalSaveData.MaxUiScale);
 
-        /// <summary>The shrink floor for a chevron (26 px, compact 20) at the current UI scale, never under the 18 px floor.</summary>
-        public static int ShrinkFloorFor(bool compact) =>
-            Mathf.Max(UIPalette.MinLabelFontSize, Mathf.RoundToInt((compact ? CompactShrinkFloor : ShrinkFloor) * UiScaleFactor));
+        /// <summary>The shrink floor for a chevron: 26 px at the current UI scale; a compact chevron 18 px at any scale.</summary>
+        public static int ShrinkFloorFor(bool compact) => compact
+            ? Mathf.Max(UIPalette.MinLabelFontSize, Mathf.RoundToInt(CompactShrinkFloor))
+            : Mathf.Max(UIPalette.MinLabelFontSize, Mathf.RoundToInt(ShrinkFloor * UiScaleFactor));
 
         /// <summary>Which theme colour slot the label uses for a state (disabled, pressed, hover, focus, normal); selected is handled apart.</summary>
         public static string LabelColorSlot(bool disabled, BaseButton.DrawMode mode, bool focused) {

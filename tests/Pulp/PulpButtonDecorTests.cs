@@ -304,6 +304,9 @@ public class PulpButtonDecorTests {
             // 3.2: a label too long shrinks toward its floor (26 px for T10 at 100 %), then ellipsizes.
             AssertThat(decor.DrawnFontSize).IsEqual(PulpButtonDecor.ShrinkFloorFor(false));
             AssertThat(PulpButtonDecor.ShrinkFloorFor(false)).IsEqual(26);
+            // TG-CLOSE: the compact chevron's floor is UI_SPEC_GLASS 4.2's 18 px at every UI scale (a 20 px floor scaled
+            // with the UI scale ellipsized the 280 px select footer at 1.4); the T10 floor still follows the scale.
+            AssertThat(PulpButtonDecor.ShrinkFloorFor(true)).IsEqual(18);
             AssertThat(decor.LabelIsTrimmed).IsTrue();
             // A label that fits at a smaller size shrinks to it and is not trimmed.
             AssertThat(mid.DrawnFontSize < themeSize).IsTrue();

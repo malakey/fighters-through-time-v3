@@ -230,6 +230,8 @@ namespace FTT.UI {
             public const string PulpButton = "PulpButton";
             /// <summary>Button, T11: the compact chevron (58 px; legacy name).</summary>
             public const string PulpButtonCompact = "PulpButtonCompact";
+            /// <summary>Button, T11: the compact chevron of a footer with no prompt badge, label padded 30 on the right (4.2; legacy name).</summary>
+            public const string PulpButtonCompactFooter = "PulpButtonCompactFooter";
             /// <summary>Button, T10: the pause and list chevron row (64 px).</summary>
             public const string TemporalGlassButton = "TemporalGlassButton";
             /// <summary>Button: the glass field (3.3, chamfer 8), the same as the default Button.</summary>
@@ -242,6 +244,8 @@ namespace FTT.UI {
             public const string InkPanel = "InkPanel";
             /// <summary>PanelContainer: the glass slab G1, dialogue padding 22 / 26 / 22.</summary>
             public const string DialogueGlassPanel = "DialogueGlassPanel";
+            /// <summary>PanelContainer: the quiet empty (disabled) slab, the Continue card's padding (an empty save slot; 9.2).</summary>
+            public const string GlassPanelEmpty = "GlassPanelEmpty";
             /// <summary>PanelContainer: the glass slab G1 for the pause panel, padding 30 / 20 / 28.</summary>
             public const string GlassPanelPause = "GlassPanelPause";
             /// <summary>PanelContainer: the glass slab G1 for the Story Vitals panel, padding 20 / 26 / 20.</summary>
