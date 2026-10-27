@@ -80,8 +80,20 @@ namespace FTT.Diagnostics {
         [UiCaptureTarget("pause_story_ui14", SettleFrames = PauseSettle)]
         public static Node PauseStoryUiScale(UiCaptureContext context) => PauseAtUi14(context, PauseStory);
 
+        /// <summary>
+        /// The Fighter pause with Shakespeare (the widest short name a Move List row carries) against Mozart (the longest
+        /// full name), so its two Move List rows show the hardest case; set here because a pause reads the session's
+        /// fighters when it builds, and an earlier target's session would otherwise decide them (TG-CLOSE polish).
+        /// </summary>
         [UiCaptureTarget("pause_fighter", SettleFrames = PauseSettle)]
         public static Node PauseFighter(UiCaptureContext context) {
+            GameManager manager = GameManager.Instance;
+            if (manager != null) {
+                SessionData session = manager.CurrentSession;
+                session.SelectedCharacterID = "shakespeare";
+                session.OpponentCharacterID = "mozart";
+                manager.CurrentSession = session;
+            }
             Node stage = PauseStage(new LocalFighterPause { Name = "LocalFighterPause" });
             context.AfterReady = node => PauseFindIn<LocalFighterPause>(node)?.SetPaused(true);
             return stage;

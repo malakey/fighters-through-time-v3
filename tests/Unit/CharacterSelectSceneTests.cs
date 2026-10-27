@@ -912,6 +912,29 @@ public class CharacterSelectSceneTests {
     }
 
     /// <summary>
+    /// TG-CLOSE polish: the stage list joins a stage and its Open / Sealed layout with the spaced em dash ("Florence
+    /// Workshop — Sealed"), as HUD_CONTRACT and the rest of the copy do, through one translation format key (it was a
+    /// hyphen joined in code).
+    /// </summary>
+    [TestCase]
+    public void StageSelectJoinsEachStageAndItsLayoutWithASpacedEmDash() {
+        CharacterSelectScreen screen = Open(out Node host);
+        var problems = new List<string>();
+        try {
+            var stages = screen.GetNode<OptionButton>(StageRoot + "StageRow/StageSelect");
+            AssertThat(stages.ItemCount > 1).IsTrue();
+            for (int index = 0; index < stages.ItemCount; index++) {
+                if (stages.GetItemId(index) == CharacterSelectScreen.RandomStageItemID) continue;
+                string text = stages.GetItemText(index);
+                if (!text.Contains(" — ") || text.Contains(" - ")) problems.Add($"'{text}'");
+            }
+        } finally {
+            Teardown(host);
+        }
+        if (problems.Count > 0) AssertThat("not joined by ' — ': " + string.Join(", ", problems)).IsEqual("");
+    }
+
+    /// <summary>
     /// G15a: a Random character and a Random stage resolve from the per-match
     /// seed — the same seed the match then consumes — so a given seed always
     /// reveals the same picks.

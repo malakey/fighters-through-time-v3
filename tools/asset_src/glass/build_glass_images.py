@@ -212,7 +212,8 @@ def build_icons():
 def build_option_arrow():
     """TG-CLOSE: the OptionButton arrow, chevron_down's bold weight at its 18 px display size (an OptionButton draws its
     arrow at the texture's size), with the generic icon glow scaled to 18 px. Baked in ink2 / ink: the theme tints it by
-    the field's font colour (modulate_arrow), which lands it on ink2 at rest."""
+    the field's font colour (modulate_arrow), which lands it on ink2 at rest. The SpinBox's up arrow is its vertical
+    flip (TG-CLOSE polish), tinted the same way by the theme's SpinBox icon modulates."""
     kind, s_reg, s_bold, strength, rgb = G.ICON_TABLE["chevron_down"][3]
     art = load("icons/chevron_down_bold_18")
     sigma = s_bold * 18.0 / 64.0
@@ -221,6 +222,9 @@ def build_option_arrow():
     tint = np.asarray([b / a for a, b in zip(ink, ink2)], dtype=np.float64)
     art = np.concatenate([art[..., :3] * tint, art[..., 3:4]], axis=-1)
     save(art, "icons/chevron_down_18.png", bg=tuple(round(255 * t) for t in tint))
+    # TG-CLOSE polish: the SpinBox up arrow (UI_SPEC_GLASS 6.2, "arrows = the chevron_down icon"), the same bake
+    # flipped vertically, so the pair reads as one glyph pointing both ways; the down arrow is the one above.
+    save(art[::-1].copy(), "icons/chevron_up_18.png", bg=tuple(round(255 * t) for t in tint))
 
 
 # ---- gradient resources (7.3) ----------------------------------------------------------------------------------

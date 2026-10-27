@@ -191,8 +191,9 @@ namespace FTT.Core {
         private double _loadingDisplayTimer;
         private ScenePoolCatalog _scenePoolCatalog;
         private const double MinLoadingDisplayTime = 2.0;
-        // UR-THEME: the MOT-B diagonal wipe over the loading screen. It never lengthens the minimum
-        // display time (the cover starts a cover-length early) and never blocks a swap for long.
+        // TG-THEME: the MOT-A screen dissolve (UI_SPEC_GLASS 5 row 6: a full-screen bg0 layer fading in over 0.2 s, the
+        // swap behind it, then fading out; the class keeps the pulp ScreenWipe name) over the loading screen. It never
+        // lengthens the minimum display time (the cover starts a cover-length early) and never blocks a swap for long.
         private FTT.UI.Motion.ScreenWipe _wipe;
         private const double WipeGraceSeconds = 1.0;
 

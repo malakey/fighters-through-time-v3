@@ -399,7 +399,7 @@ public class MainMenuCoverTests {
         }
         var hero = menu.GetNode<PanelContainer>("CharacterScreen/Center/Panel/Layout/Body/HeroSlab");
         if (hero.ThemeTypeVariation.ToString() != UIPalette.Variations.GlassPanelStats) issues.Add("the hero slab is " + hero.ThemeTypeVariation);
-        if (menu.GetNode<GridContainer>("LevelSelectScreen/Center/Panel/Layout/Grid").Columns != MainMenu.LevelColumns) issues.Add("the level grid is not 4 x 4");
+        if (menu.GetNode<GridContainer>("LevelSelectScreen/Center/Panel/Layout/Grid").Columns != MainMenu.LevelColumns) issues.Add("the level grid does not have MainMenu.LevelColumns columns");
         // The focused character tile drives the side slab: its name and its style as the tag. (The screen is shown directly:
         // pressing a slot row would read this machine's saves.)
         menu.GetNode<Control>("RootScreen").Visible = false;

@@ -198,6 +198,56 @@ public class PulpBarDecorTests {
         if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
     }
 
+    private static float TrackerAlpha(PulpBarDecor decor) {
+        Color[] colors = decor.TrackerColors;
+        return colors.Length == 0 ? -1f : colors[0].A;
+    }
+
+    /// <summary>
+    /// TG-CLOSE polish, MOT-A row 7 under Reduced Temporal Effects: "tracker fades out over 200 ms instead of draining".
+    /// The damage tracker keeps its extent (no drain) while its alpha falls to nothing over 0.2 s, then it is gone and the
+    /// next hit's tracker shows at full strength again, a heal in the middle of a fade included. It used to sit unchanged
+    /// for 0.2 s and then snap (DropLagTo passed no fade).
+    /// </summary>
+    [TestCase]
+    public async Task UnderReducedEffectsTheDamageTrackerFadesOutOverTwoHundredMillisecondsInsteadOfDraining() {
+        bool reduced = FTT.Core.ComfortSettings.ReducedTemporalEffects;
+        ProgressBar bar = Bar(new Vector2(380f, 30f), UIPalette.Variations.PulpBar, 100);
+        var problems = new List<string>();
+        try {
+            FTT.Core.ComfortSettings.Apply(true);
+            PulpBarDecor decor = PulpBarDecor.Attach(bar);
+            decor.SnapLagTo(100f);
+            await Frames();
+            bar.Value = 60;
+            decor.DropLagTo(60f);
+            float full = TrackerAlpha(decor);
+            if (full < 0.5f) problems.Add($"the tracker starts at alpha {full}");
+            await Frames(6);   // 0.1 s in
+            float mid = TrackerAlpha(decor);
+            if (decor.LagValue != 100f) problems.Add($"the tracker drained to {decor.LagValue} (it should only fade)");
+            if (!(mid > full * 0.15f && mid < full * 0.85f)) problems.Add($"0.1 s in, the tracker's alpha is {mid} of {full} (fading over 0.2 s it is about half)");
+            await Frames(9);   // 0.25 s in
+            if (decor.LagValue != 60f) problems.Add($"after the fade the tracker is at {decor.LagValue}, not the fill");
+            if (decor.TrackerPolygon.Length != 0) problems.Add("after the fade the tracker still shows");
+
+            // A heal in the middle of a fade ends it, and the next hit's tracker is at full strength.
+            bar.Value = 30;
+            decor.DropLagTo(30f);
+            await Frames(4);
+            bar.Value = 50;
+            decor.SnapLagTo(50f);
+            bar.Value = 20;
+            decor.DropLagTo(20f);
+            float again = TrackerAlpha(decor);
+            if (Mathf.Abs(again - full) > 0.01f) problems.Add($"after a heal mid-fade the next tracker shows at alpha {again}, not {full}");
+        } finally {
+            FTT.Core.ComfortSettings.Apply(reduced);
+            bar.Free();
+        }
+        if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
+    }
+
     [TestCase]
     public async Task TheEchoBandRunsFromTheFillToHpPlusEchoInsetTwentyTwoPercent() {
         ProgressBar bar = Bar(new Vector2(380f, 30f), UIPalette.Variations.PulpBar, 60);

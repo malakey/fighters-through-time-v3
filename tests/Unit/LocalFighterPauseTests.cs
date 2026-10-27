@@ -1,5 +1,8 @@
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using FTT.Core;
 using FTT.UI;
+using FTT.UI.Pulp;
 using GdUnit4;
 using Godot;
 using static GdUnit4.Assertions;
@@ -190,6 +193,69 @@ public class LocalFighterPauseTests {
             tree.Paused = false;
             scene.QueueFree();
         }
+    }
+
+    /// <summary>
+    /// TG-CLOSE polish: the Fighter pause's two Move List rows name each fighter by the short name the select tiles use
+    /// (<c>character_&lt;id&gt;_card_name</c>, EINSTEIN ... TUBMAN), the same way in both rows, and every hero's row reads
+    /// whole at its role size (no shrink, no ellipsis) at UI scale 1.0 and 1.4. With the full name, "MOVE LIST — WOLFGANG
+    /// AMADEUS …" was shrunk and cut. Every hero is tested in both rows, a different one in each.
+    /// </summary>
+    [TestCase]
+    public async Task EveryHerosMoveListRowsNameItByItsShortNameAndReadWholeAtBothUiScales() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        GameManager manager = GameManager.Instance;
+        AssertObject(manager).IsNotNull();
+        SessionData saved = manager.CurrentSession;
+        float scale = UIPalette.AppliedUiScale;
+        string[] roster = CharacterRoster.ToArray();
+        string format = TranslationServer.Translate("movelist_title_for").ToString();
+        var problems = new List<string>();
+        try {
+            foreach (float ui in new[] { 1f, 1.4f }) {
+                UIPalette.ApplyUiScale(ui);
+                for (int i = 0; i < roster.Length; i++) {
+                    string p1 = roster[i], p2 = roster[roster.Length - 1 - i];
+                    SessionData session = saved;
+                    session.SelectedCharacterID = p1;
+                    session.OpponentCharacterID = p2;
+                    manager.CurrentSession = session;
+                    var host = new Node { Name = "MoveListRowHost" };
+                    tree.Root.AddChild(host);
+                    try {
+                        var pause = new LocalFighterPause { Name = "LocalFighterPause" };
+                        host.AddChild(pause);
+                        pause.SetPaused(true);
+                        for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+                        foreach ((string name, string id) in new[] { ("MoveListP1Button", p1), ("MoveListP2Button", p2) }) {
+                            var row = pause.FindChild(name, true, false) as Button;
+                            var decor = row?.GetNodeOrNull<PulpButtonDecor>("PulpButtonDecor");
+                            if (row == null || decor == null) {
+                                problems.Add($"{ui}: {name} or its decor is missing");
+                                continue;
+                            }
+                            string expected = string.Format(format, TranslationServer.Translate($"character_{id}_card_name").ToString());
+                            if (row.Text != expected) problems.Add($"{ui}: {name} for {id} reads '{row.Text}', not '{expected}'");
+                            int role = row.GetThemeFontSize("font_size");
+                            if (decor.DrawnFontSize != role || decor.LabelIsTrimmed) {
+                                problems.Add($"{ui}: {name} for {id} draws '{decor.DrawnText}' at {decor.DrawnFontSize} px of {role}" +
+                                    (decor.LabelIsTrimmed ? ", cut" : "") + $" (row {row.Size.X:0} wide)");
+                            }
+                        }
+                        pause.SetPaused(false);
+                    } finally {
+                        tree.Paused = false;
+                        host.GetParent()?.RemoveChild(host);
+                        host.Free();
+                    }
+                }
+            }
+        } finally {
+            tree.Paused = false;
+            manager.CurrentSession = saved;
+            UIPalette.ApplyUiScale(scale);
+        }
+        if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
     }
 
     private static void AddToTree(Node node) {

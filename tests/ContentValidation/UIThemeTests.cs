@@ -112,6 +112,64 @@ public class UIThemeTests {
         if (missing.Count > 0) AssertThat(string.Join(" | ", missing)).IsEqual("");
     }
 
+    /// <summary>
+    /// TG-CLOSE polish (UI_SPEC_GLASS 6.2: a spin box's arrows are the <c>chevron_down</c> icon): a SpinBox's up and down
+    /// buttons draw the kit's 18 px glass chevrons in every state, the down one the OptionButton's arrow and the up one its
+    /// vertical flip, tinted like the field's text (ink at rest, which the bake lands on ink2; white when lit; ink3
+    /// disabled). They were the engine's default glyphs (select_holodeck, select_stage). A live SpinBox resolves them.
+    /// </summary>
+    [TestCase]
+    public void SpinBoxArrowsAreTheGlassChevronsTheUpOneTheDownOneFlipped() {
+        Theme theme = LoadTheme();
+        var problems = new List<string>();
+        const string Down = "res://assets/sprites/ui/glass/icons/chevron_down_18.png";
+        const string Up = "res://assets/sprites/ui/glass/icons/chevron_up_18.png";
+        foreach (string state in new[] { "", "_hover", "_pressed", "_disabled" }) {
+            Texture2D up = theme.HasIcon("up" + state, "SpinBox") ? theme.GetIcon("up" + state, "SpinBox") : null;
+            Texture2D down = theme.HasIcon("down" + state, "SpinBox") ? theme.GetIcon("down" + state, "SpinBox") : null;
+            if (up?.ResourcePath != Up) problems.Add($"SpinBox/icons/up{state} is {up?.ResourcePath ?? "missing"}");
+            if (down?.ResourcePath != Down) problems.Add($"SpinBox/icons/down{state} is {down?.ResourcePath ?? "missing"}");
+        }
+        foreach ((string slot, Color expected) in new[] {
+                     ("up_icon_modulate", UIPalette.Ink), ("up_hover_icon_modulate", UIPalette.TextFocus),
+                     ("up_pressed_icon_modulate", UIPalette.TextFocus), ("up_disabled_icon_modulate", UIPalette.Ink3),
+                     ("down_icon_modulate", UIPalette.Ink), ("down_hover_icon_modulate", UIPalette.TextFocus),
+                     ("down_pressed_icon_modulate", UIPalette.TextFocus), ("down_disabled_icon_modulate", UIPalette.Ink3) }) {
+            if (!theme.HasColor(slot, "SpinBox") || !theme.GetColor(slot, "SpinBox").IsEqualApprox(expected)) {
+                problems.Add($"SpinBox/colors/{slot} is {(theme.HasColor(slot, "SpinBox") ? theme.GetColor(slot, "SpinBox").ToString() : "missing")}");
+            }
+        }
+        // The up chevron is the down one flipped vertically, pixel for pixel.
+        if (ResourceLoader.Exists(Up) && ResourceLoader.Exists(Down)) {
+            Image up = ResourceLoader.Load<Texture2D>(Up).GetImage();
+            Image down = ResourceLoader.Load<Texture2D>(Down).GetImage();
+            if (up.GetSize() != down.GetSize()) {
+                problems.Add($"the up chevron is {up.GetSize()}, the down one {down.GetSize()}");
+            } else {
+                int differ = 0;
+                for (int y = 0; y < down.GetHeight(); y++) {
+                    for (int x = 0; x < down.GetWidth(); x++) {
+                        Color a = up.GetPixel(x, y), b = down.GetPixel(x, down.GetHeight() - 1 - y);
+                        if (Mathf.Abs(a.A - b.A) > 0.02f || (b.A > 0.1f && (Mathf.Abs(a.R - b.R) > 0.02f || Mathf.Abs(a.G - b.G) > 0.02f || Mathf.Abs(a.B - b.B) > 0.02f))) differ++;
+                    }
+                }
+                if (differ > 0) problems.Add($"{differ} pixels of the up chevron are not the down one flipped");
+            }
+        }
+        // A live spin box (the Holodeck's and the stage phase's Stocks and Time fields) draws them.
+        var spin = new SpinBox { Name = "ThemedSpin" };
+        UIPalette.ApplyTheme(spin);
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(spin);
+        try {
+            if (spin.GetThemeIcon("up")?.ResourcePath != Up) problems.Add("a themed SpinBox does not draw the glass up chevron");
+            if (spin.GetThemeIcon("down")?.ResourcePath != Down) problems.Add("a themed SpinBox does not draw the glass down chevron");
+        } finally {
+            spin.GetParent()?.RemoveChild(spin);
+            spin.Free();
+        }
+        if (problems.Count > 0) AssertThat(string.Join(" | ", problems)).IsEqual("");
+    }
+
     [TestCase]
     public void EveryKeyboardNavigableTypeDrawsAFocusStyle() {
         Theme theme = LoadTheme();
