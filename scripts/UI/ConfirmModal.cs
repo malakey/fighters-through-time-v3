@@ -36,6 +36,35 @@ namespace FTT.UI {
         private Button _confirmButton;
         private Button _cancelButton;
         private Control _previousFocus;
+        private PanelContainer _shade;
+        private PausePanel _panel;
+        private bool _usesHostDim;
+
+        /// <summary>UI_SPEC_GLASS 9.2 (agent choice): the modal is a 760 px glass slab; its message is at most 680 wide.</summary>
+        public const float ModalPanelWidth = 760f;
+        public const float MessageWidth = 680f;
+
+        /// <summary>The two compact chevrons: at least 260 wide each (9.2), sharing the row; 58 tall (T11).</summary>
+        public const float ModalButtonMinWidth = 260f;
+        public const float ModalButtonHeight = 58f;
+
+        /// <summary>The slab's column gap: the title, the message and the button row.</summary>
+        public const int LayoutSeparation = 22;
+
+        /// <summary>
+        /// One dim (UI_SPEC_GLASS 9.2, the pause's child screens): a modal opened over a host that already dims the game (a
+        /// pause menu) draws none of its own and sits on the host's. Default false: the modal brings its 0.70 dim.
+        /// </summary>
+        public bool UsesHostDim {
+            get => _usesHostDim;
+            set {
+                _usesHostDim = value;
+                if (_shade != null) _shade.Visible = !value;
+            }
+        }
+
+        /// <summary>The modal's glass slab. Test surface.</summary>
+        internal PausePanel Panel => _panel;
 
         /// <summary>True while the modal is showing and holding focus.</summary>
         public bool IsOpen { get; private set; }
@@ -69,42 +98,54 @@ namespace FTT.UI {
             SetAnchorsPreset(LayoutPreset.FullRect);
             UIPalette.ApplyTheme(this);
 
-            AddChild(PulpScreenKit.MakeScrim());
+            _shade = PulpScreenKit.MakeScrim();
+            AddChild(_shade);
 
             var center = new CenterContainer { Name = "Center" };
             center.SetAnchorsPreset(LayoutPreset.FullRect);
             AddChild(center);
 
-            // UR-PAUSE: the pulp ink panel (no tag) with compact banner buttons.
-            var panel = new PausePanel { Name = "Panel" };
-            panel.CustomMinimumSize = new Vector2(ModalPanelWidth, 0);
-            center.AddChild(panel);
+            // TG-PAUSE (UI_SPEC_GLASS 9.2): a 760 px glass slab (the default slab padding, untagged) over the 0.70 dim, the
+            // panel title, the message in body copy and a row of two compact chevrons.
+            _panel = new PausePanel {
+                Name = "Panel",
+                ThemeTypeVariation = UIPalette.Variations.InkPanel,
+                CustomMinimumSize = new Vector2(ModalPanelWidth, 0)
+            };
+            center.AddChild(_panel);
+            PulpScreenKit.DressPanel(_panel, sheen: true, buttonInset: false);
 
             var layout = new VBoxContainer { Name = "Layout" };
-            layout.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);
-            panel.AddChild(layout);
+            layout.AddThemeConstantOverride("separation", LayoutSeparation);
+            _panel.AddChild(layout);
 
             if (!string.IsNullOrWhiteSpace(titleKey)) {
+                // 9.1 item 2: a panel title inside a slab (Cinzel 900 36, upper case, ink, centred).
                 var title = new Label {
                     Name = "Title",
                     Text = titleKey,
-                    HorizontalAlignment = HorizontalAlignment.Center
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Uppercase = true,
+                    AutowrapMode = TextServer.AutowrapMode.WordSmart,
+                    CustomMinimumSize = new Vector2(MessageWidth, 0)
                 };
-                title.ThemeTypeVariation = UIPalette.HeadingLabelVariation;
+                title.ThemeTypeVariation = UIPalette.TitleLabelVariation;
                 layout.AddChild(title);
             }
 
+            // 9.2: the message in Outfit 400 26 / 1.35, ink, centred, at most 680 wide.
             _prompt = new Label {
                 Name = "Prompt",
                 Text = promptKey,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
-                CustomMinimumSize = new Vector2(ModalPanelWidth - 90f, 0)
+                CustomMinimumSize = new Vector2(MessageWidth, 0),
+                SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter,
+                ThemeTypeVariation = UIPalette.LabelRoles.BodyLabel
             };
             layout.AddChild(_prompt);
 
             var buttons = new HBoxContainer { Name = "Buttons", Alignment = BoxContainer.AlignmentMode.Center };
-            buttons.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);
             layout.AddChild(buttons);
 
             _cancelButton = ModalButton("CancelButton", cancelKey);
@@ -115,19 +156,37 @@ namespace FTT.UI {
             _confirmButton.Pressed += Confirm;
             buttons.AddChild(_confirmButton);
             PulpScreenKit.SeparateFocusRow(buttons);
+
+            // 9.1 item 1: an overlay's prompt bar sits bottom-centre; B presses the cancel button, so it carries its words.
+            PulpScreenKit.AddBottomPromptBar(this, cancelKey);
         }
 
-        private const float ModalPanelWidth = 1000f;
-
+        /// <summary>
+        /// A compact chevron of the modal's row: at least 260 wide and sharing the row with its neighbour, its label never
+        /// trimmed (the UR-POLISH rule: a label too long for the line wraps and the button grows to hold it).
+        /// </summary>
         private static Button ModalButton(string name, string textKey) {
             var button = new Button {
                 Name = name,
                 Text = textKey,
-                CustomMinimumSize = new Vector2(440f, 58f),
+                CustomMinimumSize = new Vector2(ModalButtonMinWidth, ModalButtonHeight),
+                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
                 ThemeTypeVariation = UIPalette.Variations.PulpButtonCompact
             };
-            Pulp.PulpButtonDecor.Apply(button, compact: true).GrowToFit = true;
+            Pulp.PulpButtonDecor decor = Pulp.PulpButtonDecor.Apply(button, compact: true);
+            decor.GrowToFit = true;
+            // Kit gap (TG-WIDGETS, reported in docs/handoffs/TG_PAUSE.md): the decor sizes a wrapping row for its longest
+            // word against the prompt badge as it measures at that moment and caches the result, but the keyboard key-cap
+            // badge settles wider afterwards, which left the focused label's last word cut under it ("CALIBRATIO"). Re-running
+            // the decor's own rule whenever the badge changes size keeps the label whole; nothing here sets a width.
+            if (decor.Badge != null) decor.Badge.Resized += () => Callable.From(() => Remeasure(decor)).CallDeferred();
             return button;
+        }
+
+        private static void Remeasure(Pulp.PulpButtonDecor decor) {
+            if (!GodotObject.IsInstanceValid(decor) || !decor.GrowToFit) return;
+            decor.GrowToFit = false;
+            decor.GrowToFit = true;
         }
 
         /// <summary>Replaces the prompt copy, for reusing one modal across actions.</summary>
@@ -147,6 +206,9 @@ namespace FTT.UI {
                 FocusChainAxis.Horizontal,
                 wrap: true);
             _cancelButton?.GrabFocus();
+            // MOT-A row 4: the slab fades and rises (its own dim fading in with it unless it sits on a host's).
+            if (_shade != null) _shade.Visible = !_usesHostDim;
+            _panel?.PlayAppear(_usesHostDim ? null : _shade);
         }
 
         /// <summary>Hides the modal and hands focus back to its previous owner.</summary>
@@ -154,6 +216,7 @@ namespace FTT.UI {
             if (!IsOpen) return;
             IsOpen = false;
             Visible = false;
+            _panel?.StopAppear(_usesHostDim ? null : _shade);
 
             if (_previousFocus != null && IsInstanceValid(_previousFocus) &&
                 _previousFocus.IsInsideTree() && _previousFocus.IsVisibleInTree()) {

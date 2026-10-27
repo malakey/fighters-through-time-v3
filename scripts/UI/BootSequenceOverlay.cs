@@ -105,29 +105,64 @@ namespace FTT.UI {
             Input.JoyConnectionChanged -= OnJoyConnectionChanged;
         }
 
+        /// <summary>
+        /// Shows <paramref name="step"/> alone, whatever this launch's plan holds, without saving anything. Capture seam
+        /// (the first-run cards and the crash prompt only appear on a fresh install or after a crash).
+        /// </summary>
+        internal void ShowStepForPreview(BootStep step) {
+            _steps = new List<BootStep> { step, BootStep.Done };
+            _stepIndex = 0;
+            ShowStep();
+        }
+
+        /// <summary>UI_SPEC_GLASS 9.2: the overlay's slab is 1100 wide over <c>bg0</c> at .92.</summary>
+        public const float PanelWidth = 1100f;
+        public const float BackdropAlpha = 0.92f;
+
+        /// <summary>The gap between the slab's items; a section heading keeps a little more air above it.</summary>
+        public const int ContentGap = 16;
+        public const float SectionGap = 10f;
+
+        /// <summary>The slab. Test surface.</summary>
+        internal PausePanel Panel => _panel;
+
+        private PausePanel _panel;
+        private PanelContainer _backdrop;
+        private bool _shown;
+
+        // TG-PAUSE (UI_SPEC_GLASS 9.2, 9.1): bg0 at .92 over the menu, one 1100 glass slab (the 22 / 28 / 22 overlay slab
+        // with the sheen and the 14 px button inset), fitted to the screen at UI scale 1.4; panel titles Cinzel 900 36 upper
+        // case, body Outfit 400 ink, section headings with their rule, chevrons for every choice. The dim is a full-rect
+        // panel, so the slab can fade and rise in when the overlay first shows.
         private void BuildShell() {
             _root = new Control { Name = "Root", MouseFilter = Control.MouseFilterEnum.Stop };
             _root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
             UIPalette.ApplyTheme(_root);
             AddChild(_root);
 
-            var backdrop = new ColorRect { Name = "Backdrop", Color = UIPalette.Backdrop, MouseFilter = Control.MouseFilterEnum.Ignore };
-            backdrop.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-            _root.AddChild(backdrop);
+            _backdrop = new PanelContainer { Name = "Backdrop", MouseFilter = Control.MouseFilterEnum.Ignore };
+            var dim = new StyleBoxFlat { BgColor = new Color(UIPalette.Backdrop, BackdropAlpha) };
+            dim.SetContentMarginAll(0f);
+            _backdrop.AddThemeStyleboxOverride("panel", dim);
+            _backdrop.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+            _root.AddChild(_backdrop);
 
-            var center = new CenterContainer { Name = "Center" };
+            var center = new CenterContainer { Name = "Center", MouseFilter = Control.MouseFilterEnum.Ignore };
             center.SetAnchorsPreset(Control.LayoutPreset.FullRect);
             _root.AddChild(center);
 
-            var panel = new PausePanel {
+            _panel = new PausePanel {
                 Name = "Panel",
-                CustomMinimumSize = new Vector2(1000, 0)
+                ThemeTypeVariation = UIPalette.Variations.InkPanel,
+                CustomMinimumSize = new Vector2(PanelWidth, 0)
             };
-            center.AddChild(panel);
+            center.AddChild(_panel);
+            PulpScreenKit.DressPanel(_panel, sheen: true, buttonInset: true);
+            MenuSafeAreaFit.Attach(_panel);
 
             _content = new VBoxContainer { Name = "Content" };
-            _content.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);
-            panel.AddChild(_content);
+            _content.AddThemeConstantOverride("separation", ContentGap);
+            _panel.AddChild(_content);
         }
 
         private void ClearContent() {
@@ -156,20 +191,25 @@ namespace FTT.UI {
                 default: Finish(); return;
             }
             FocusChainBuilder.Apply(_content);
+            if (_shown) return;
+            // MOT-A row 4 on the overlay's first step only; a later step swaps the slab's content in place.
+            _shown = true;
+            _panel.PlayAppear();
         }
 
         // ---- Step 1: photosensitivity notice (G06) ---------------------------
 
         private void BuildNotice() {
             _noticeElapsed = 0f;
-            _content.AddChild(MakeLabel("NoticeTitle", "boot_photosensitivity_title", UIPalette.TitleLabelVariation, accent: true));
-            _content.AddChild(MakeLabel("NoticeBody", "boot_photosensitivity_body", null, wrap: true));
+            _content.AddChild(MakeTitle("NoticeTitle", "boot_photosensitivity_title"));
+            _content.AddChild(MakeLabel("NoticeBody", "boot_photosensitivity_body", UIPalette.LabelRoles.BodyLabel, wrap: true));
             _noticeProgress = new ProgressBar {
                 Name = "NoticeProgress", MinValue = 0, MaxValue = 1, Value = 0, ShowPercentage = false,
                 CustomMinimumSize = new Vector2(0, 8)
             };
             _content.AddChild(_noticeProgress);
-            _continueButton = MakeButton("ContinueButton", "boot_continue", AdvanceFromNotice);
+            // 9.2: "a focused chevron boot_continue", the full G3 chevron, centred.
+            _continueButton = MakeChevron("ContinueButton", "boot_continue", AdvanceFromNotice);
             // Skippable only after the first viewing (design Section 7 step 4).
             _continueButton.Disabled = !_noticeSkippable;
             _content.AddChild(_continueButton);
@@ -207,58 +247,72 @@ namespace FTT.UI {
 
         private void BuildFirstRunSetup() {
             GlobalSaveData data = SaveManager.Instance?.GlobalData;
-            _content.AddChild(MakeLabel("SetupTitle", "first_run_title", UIPalette.TitleLabelVariation, accent: true));
-            _content.AddChild(MakeLabel("SetupIntro", "first_run_intro", UIPalette.SmallLabelVariation, wrap: true));
+            _content.AddChild(MakeTitle("SetupTitle", "first_run_title"));
+            _content.AddChild(MakeLabel("SetupIntro", "first_run_intro", UIPalette.LabelRoles.BodySmallLabel, wrap: true, secondary: true));
 
             // Card 1: Reduced Temporal Effects, with a live preview.
-            _content.AddChild(MakeLabel("ComfortHeading", "first_run_card_comfort", UIPalette.HeadingLabelVariation));
+            AddSectionHeading("ComfortHeading", "first_run_card_comfort");
             var comfortRow = new HBoxContainer { Name = "ComfortRow" };
-            comfortRow.AddThemeConstantOverride("separation", 16);
+            comfortRow.AddThemeConstantOverride("separation", (int)SettingsRowLayout.SpecItemGap);
             _rteToggle = new CheckButton {
                 Name = "ReducedEffectsToggle",
                 Text = "settings_reduced_temporal_effects",
                 ButtonPressed = ComfortSettings.ReducedTemporalEffects
             };
             _rteToggle.Toggled += on => ComfortSettings.Apply(on);
-            _rteToggle.CustomMinimumSize = new Vector2(540f, 0f);
-            Pulp.PulpToggleDecor.Apply(_rteToggle);
-            comfortRow.AddChild(_rteToggle);
+            // The settings toggle row (3.3) in a row layout of its own, so the row is 62 tall and its label column 360 at
+            // every UI scale (the T52 label wraps to two lines at 1.0 and must not spill onto the copy below).
+            var toggleRow = new SettingsRowLayout {
+                Name = "ToggleRow",
+                ControlWidth = Pulp.PulpToggleDecor.TrackWidth,
+                FieldWidth = Pulp.PulpToggleDecor.TrackWidth,
+                ValueWidth = 0f
+            };
+            comfortRow.AddChild(toggleRow);
+            toggleRow.AddChild(_rteToggle);
+            SettingsMenu.SkinToggle(_rteToggle);
             _previewSwatch = new ColorRect {
                 Name = "PreviewSwatch",
                 CustomMinimumSize = new Vector2(160, 48),
                 Color = UIPalette.Accent,
-                MouseFilter = Control.MouseFilterEnum.Ignore
+                MouseFilter = Control.MouseFilterEnum.Ignore,
+                SizeFlagsVertical = Control.SizeFlags.ShrinkCenter
             };
             comfortRow.AddChild(_previewSwatch);
             _content.AddChild(comfortRow);
-            _content.AddChild(MakeLabel("ComfortHelp", "first_run_comfort_preview", UIPalette.SmallLabelVariation, wrap: true));
+            _content.AddChild(MakeLabel("ComfortHelp", "first_run_comfort_preview", UIPalette.LabelRoles.BodySmallLabel, wrap: true, secondary: true));
 
-            // Card 2: UI Scale, applied live to the shared theme.
-            _content.AddChild(MakeLabel("ScaleHeading", "first_run_card_ui_scale", UIPalette.HeadingLabelVariation));
+            // Card 2: UI Scale, applied live to the shared theme (3.3: a 360 px glass slider).
+            AddSectionHeading("ScaleHeading", "first_run_card_ui_scale");
             _uiScaleSlider = new HSlider {
                 Name = "UiScaleSlider",
                 MinValue = GlobalSaveData.MinUiScale,
                 MaxValue = GlobalSaveData.MaxUiScale,
                 Step = 0.05,
                 Value = data?.UiScale ?? 1f,
-                CustomMinimumSize = new Vector2(360, 44)
+                CustomMinimumSize = new Vector2(SettingsRowLayout.SpecSliderWidth, 44),
+                SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin
             };
             _uiScaleSlider.ValueChanged += value => UIPalette.ApplyUiScale((float)value);
             _content.AddChild(_uiScaleSlider);
 
             // Card 3: controller detection.
-            _content.AddChild(MakeLabel("ControllerHeading", "first_run_card_controller", UIPalette.HeadingLabelVariation));
-            _controllerLabel = MakeLabel("ControllerLabel", "", null, wrap: true);
+            AddSectionHeading("ControllerHeading", "first_run_card_controller");
+            _controllerLabel = MakeLabel("ControllerLabel", "", UIPalette.LabelRoles.BodySmallLabel, wrap: true);
+            _controllerLabel.HorizontalAlignment = HorizontalAlignment.Left;
             _controllerLabel.AutoTranslateMode = AutoTranslateModeEnum.Disabled;
             _content.AddChild(_controllerLabel);
             RefreshDetectedController();
-            _content.AddChild(MakeButton("ControllerTestButton", "first_run_controller_test", BeginControllerTest));
+            Button test = MakeButton("ControllerTestButton", "first_run_controller_test", BeginControllerTest);
+            test.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin;
+            _content.AddChild(test);
 
-            var footer = new HBoxContainer { Name = "Footer", Alignment = BoxContainer.AlignmentMode.End };
-            footer.AddThemeConstantOverride("separation", 12);
+            AddFooterGap();
+            var footer = new HBoxContainer { Name = "Footer", Alignment = BoxContainer.AlignmentMode.Center };
             footer.AddChild(MakeButton("SkipButton", "first_run_skip", SkipFirstRunSetup));
             _continueButton = MakeButton("ContinueButton", "boot_continue", ConfirmFirstRunSetup);
             footer.AddChild(_continueButton);
+            PulpScreenKit.SeparateFocusRow(footer);
             _content.AddChild(footer);
         }
 
@@ -356,14 +410,15 @@ namespace FTT.UI {
         // ---- Step 3: the local crash-report prompt (G09, D9(a)) --------------
 
         private void BuildCrashPrompt() {
-            _content.AddChild(MakeLabel("CrashTitle", "crash_prompt_title", UIPalette.TitleLabelVariation, accent: true));
-            _content.AddChild(MakeLabel("CrashBody", "crash_prompt_body", null, wrap: true));
-            var row = new HBoxContainer { Name = "Buttons", Alignment = BoxContainer.AlignmentMode.End };
-            row.AddThemeConstantOverride("separation", 12);
+            _content.AddChild(MakeTitle("CrashTitle", "crash_prompt_title"));
+            _content.AddChild(MakeLabel("CrashBody", "crash_prompt_body", UIPalette.LabelRoles.BodyLabel, wrap: true));
+            AddFooterGap();
+            var row = new HBoxContainer { Name = "Buttons", Alignment = BoxContainer.AlignmentMode.Center };
             row.AddChild(MakeButton("NeverButton", "crash_prompt_never", () => AnswerCrashPrompt(openFolder: false, never: true)));
             row.AddChild(MakeButton("DismissButton", "crash_prompt_dismiss", () => AnswerCrashPrompt(openFolder: false, never: false)));
             _continueButton = MakeButton("OpenLogsButton", "crash_prompt_open_logs", () => AnswerCrashPrompt(openFolder: true, never: false));
             row.AddChild(_continueButton);
+            PulpScreenKit.SeparateFocusRow(row);
             _content.AddChild(row);
         }
 
@@ -404,28 +459,83 @@ namespace FTT.UI {
 
         // ---- Widgets ---------------------------------------------------------
 
-        private static Label MakeLabel(string name, string key, string variation, bool wrap = false, bool accent = false) {
+        /// <summary>A panel title (9.1 item 2): Cinzel 900 36, upper case, ink, centred.</summary>
+        private static Label MakeTitle(string name, string key) => new() {
+            Name = name,
+            Text = key,
+            Uppercase = true,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            ThemeTypeVariation = UIPalette.TitleLabelVariation
+        };
+
+        /// <summary>
+        /// Body copy (9.1 item 3): Outfit 400 in ink, or ink2 for <paramref name="secondary"/> copy, centred. A wrapping line
+        /// takes the slab's full width from its container.
+        /// </summary>
+        private static Label MakeLabel(string name, string key, string variation, bool wrap = false, bool secondary = false) {
             var label = new Label {
                 Name = name,
                 Text = key,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                CustomMinimumSize = new Vector2(940, 0)
+                HorizontalAlignment = HorizontalAlignment.Center
             };
             if (!string.IsNullOrEmpty(variation)) label.ThemeTypeVariation = variation;
             if (wrap) label.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+            if (secondary) label.AddThemeColorOverride("font_color", UIPalette.Ink2);
             return label;
         }
 
+        /// <summary>
+        /// A section heading inside the slab (9.1 item 2): Cinzel 700 26, upper case, <c>accent</c>, with its 1 px rule
+        /// (<c>edge</c> to transparent, the full width) under it, and a little air above it.
+        /// </summary>
+        private void AddSectionHeading(string name, string key) {
+            _content.AddChild(new Control {
+                Name = $"{name}Gap", CustomMinimumSize = new Vector2(0f, SectionGap), MouseFilter = Control.MouseFilterEnum.Ignore
+            });
+            _content.AddChild(new Label {
+                Name = name,
+                Text = key,
+                Uppercase = true,
+                ThemeTypeVariation = UIPalette.HeadingLabelVariation
+            });
+            Pulp.GlassFlourish rule = Pulp.GlassFlourish.Create(Pulp.GlassFlourish.FlourishShape.Rule);
+            rule.Name = $"{name}Rule";
+            rule.RuleColor = UIPalette.Edge;
+            rule.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+            _content.AddChild(rule);
+        }
+
+        /// <summary>The air between the copy and a row of choices.</summary>
+        private void AddFooterGap() => _content.AddChild(new Control {
+            Name = "FooterGap", CustomMinimumSize = new Vector2(0f, SectionGap), MouseFilter = Control.MouseFilterEnum.Ignore
+        });
+
+        /// <summary>
+        /// The full chevron (3.2, G3: the 64 px row with the diamond marker, the focus pose and the prompt badge), centred.
+        /// Its width is its label's (the decor's), because the spec draws no width for it here.
+        /// </summary>
+        private static Button MakeChevron(string name, string key, Action handler) {
+            var button = new Button { Name = name, Text = key, SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter };
+            PulpScreenKit.StylePauseButton(button, width: 0f);
+            button.Pressed += handler;
+            return button;
+        }
+
+        /// <summary>A compact chevron (3.2): 58 tall, its width its label's; rows of them keep the 34 px focus gap.</summary>
         private static Button MakeButton(string name, string key, Action handler) {
             var button = new Button {
                 Name = name,
                 Text = key,
-                CustomMinimumSize = new Vector2(300f, 58f),
+                CustomMinimumSize = new Vector2(0f, CompactHeight),
                 ThemeTypeVariation = UIPalette.Variations.PulpButtonCompact
             };
             Pulp.PulpButtonDecor.Apply(button, compact: true);
             button.Pressed += handler;
             return button;
         }
+
+        /// <summary>The compact chevron's height (3.2).</summary>
+        public const float CompactHeight = 58f;
     }
 }

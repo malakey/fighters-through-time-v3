@@ -158,8 +158,9 @@ public class LocalFighterPauseTests {
 
     /// <summary>
     /// V7.3 UI-scale pass: the pause title and the disconnect modal's message
-    /// ride theme Label variations (TitleLabel / EmphasisLabel) instead of
-    /// font-size overrides, so they follow the accessibility UI scale.
+    /// ride theme Label variations instead of font-size overrides, so they
+    /// follow the accessibility UI scale. TG-PAUSE: the disconnect message is
+    /// the confirm modal's body copy (UI_SPEC_GLASS 9.2, BodyLabel).
     /// </summary>
     [TestCase]
     public void TitleAndDisconnectLabelUseThemeVariationsWithNoFontSizeOverride() {
@@ -183,7 +184,7 @@ public class LocalFighterPauseTests {
             var disconnect = pause.FindChild("DisconnectLabel", recursive: true, owned: false) as Label;
             AssertObject(disconnect).IsNotNull();
             AssertThat(disconnect.ThemeTypeVariation.ToString())
-                .IsEqual(UIPalette.EmphasisLabelVariation);
+                .IsEqual(UIPalette.LabelRoles.BodyLabel);
             AssertThat(disconnect.HasThemeFontSizeOverride("font_size")).IsFalse();
         } finally {
             tree.Paused = false;

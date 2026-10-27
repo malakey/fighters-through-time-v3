@@ -44,6 +44,14 @@ namespace FTT.UI {
         private PausePanel _pausePanel;
         private bool _awaitingController;
 
+        // TG-PAUSE: the dim, the prompt bar and the chevron rows the glass skin works on (both build paths).
+        private CanvasItem _shade;
+        private Control _promptBar;
+        private readonly List<Button> _rows = new();
+
+        /// <summary>The PAUSE-A rows in order, decorated on both build paths. Test surface.</summary>
+        internal IReadOnlyList<Button> Rows => _rows;
+
         /// <summary>Test seam: forces the hub check instead of reading the current scene.</summary>
         internal bool? AtHubOverrideForTesting;
 
@@ -180,6 +188,7 @@ namespace FTT.UI {
                 _lowerDifficultyConfirm = ConfirmModal.Create(
                     "pause_lower_difficulty_confirm", "common_confirm", "common_cancel", "pause_lower_difficulty");
                 _lowerDifficultyConfirm.Name = "LowerDifficultyConfirmModal";
+                _lowerDifficultyConfirm.UsesHostDim = true;
                 _lowerDifficultyConfirm.Confirmed += ConfirmLowerDifficulty;
                 _lowerDifficultyConfirm.Cancelled += RestoreMenuFocus;
                 _root?.AddChild(_lowerDifficultyConfirm);
@@ -190,11 +199,13 @@ namespace FTT.UI {
                 Tr(FTT.Core.CampaignDifficultyService.DifficultyNameKey(current)),
                 Tr(FTT.Core.CampaignDifficultyService.DifficultyNameKey(next))));
             _lowerDifficultyConfirm.Open();
+            HideMenuPanel();
         }
 
         private void ConfirmLowerDifficulty() {
             FTT.Core.CampaignDifficultyService.TryLowerActiveCampaign(IsAtHub());
             RefreshLowerDifficultyEntry();
+            ShowMenuPanel();
             _focusChain = FocusChainBuilder.Build(_menuPanel);
             FocusChainBuilder.GrabInitialFocus(_focusChain);
         }
@@ -203,11 +214,12 @@ namespace FTT.UI {
 
         private void OpenDialogueLog() {
             if (_logScreen == null || !IsInstanceValid(_logScreen)) {
-                _logScreen = new DialogueLogScreen { Name = "DialogueLogScreen" };
+                _logScreen = new DialogueLogScreen { Name = "DialogueLogScreen", UsesHostDim = true };
                 AddChild(_logScreen);
                 _logScreen.Closed += RestoreMenuFocus;
             }
             _logScreen.Open();
+            HideMenuPanel();
         }
 
         private void ResolveOrBuildUI() {
@@ -230,20 +242,56 @@ namespace FTT.UI {
             } else {
                 BuildFallbackUI();
             }
-            DecorateForPulp();
+            DecorateForGlass();
+        }
+
+        /// <summary>The PAUSE-A rows in their authored order (both build paths name them the same).</summary>
+        private static readonly string[] RowNames = {
+            "ResumeButton", "SettingsButton", "MoveListButton", "LogButton", "SaveButton", "RestartButton",
+            "LowerDifficultyButton", "QuitButton"
+        };
+
+        /// <summary>
+        /// TG-PAUSE (UI_SPEC_GLASS 4.3): what both build paths share. Every row is a 64 px glass chevron (the diamond
+        /// marker, the 14 px focus slide, the prompt badge), the stack shares the D6 width (the widest label decides: about
+        /// 610 on a keyboard at 1.0, the panel then 20 + 610 + 20 + the 14 px stack inset), the panel keeps the 14 px inset
+        /// for the focused row's slide and glow, the title's box is trimmed to the spec's, <see cref="MenuSafeAreaFit"/>
+        /// keeps the slab on screen and clear of the prompt bar at UI scale 1.4, and the bottom-centre prompt bar is added.
+        /// The authored scene and the fallback differ only in who made the nodes.
+        /// </summary>
+        private void DecorateForGlass() {
+            if (_root == null) return;
+            _rows.Clear();
+            foreach (string name in RowNames) {
+                if (_menuPanel?.GetNodeOrNull<Button>("Layout/" + name) is not { } button) continue;
+                PulpScreenKit.StylePauseButton(button);
+                _rows.Add(button);
+            }
+            PausePanel.ApplyRowWidths(_rows);
+            PausePanel.TrimTitleBox(_menuPanel?.GetNodeOrNull<Label>("Layout/Title"));
+            if (_menuPanel is PanelContainer panel) {
+                PulpScreenKit.DressPanel(panel, sheen: true, buttonInset: true);
+                MenuSafeAreaFit.Attach(panel, GlassScreenDressing.OverlayPromptClearance);
+            }
+            if (_root.GetNodeOrNull(PulpScreenKit.PromptBarName) == null) PulpScreenKit.AddBottomPromptBar(_root, "menu_resume");
+            _promptBar = _root.GetNodeOrNull<Control>(PulpScreenKit.PromptBarName);
+            _shade = _root.GetNodeOrNull<CanvasItem>("Shade");
         }
 
         /// <summary>
-        /// UR-PAUSE: what both build paths share — every row takes the banner decor (marker, focus pose, prompt badge)
-        /// and the bottom-centre prompt bar is added. The authored scene and the fallback differ only in who made the nodes.
+        /// One slab over one dim (UI_SPEC_GLASS 9.2, the pause's child screens): while Settings, the Move List, the Dialogue
+        /// Log or a confirmation is open over the pause, it sits on the pause's own dim and the pause panel and its prompt
+        /// bar stand down; they come back, and focus with them, when the child closes.
         /// </summary>
-        private void DecorateForPulp() {
-            if (_root == null) return;
-            foreach (string name in new[] { "ResumeButton", "SettingsButton", "MoveListButton", "LogButton", "SaveButton",
-                "RestartButton", "LowerDifficultyButton", "QuitButton" }) {
-                if (_menuPanel?.GetNodeOrNull<Button>("Layout/" + name) is { } button) PulpScreenKit.StylePauseButton(button);
-            }
-            if (_root.GetNodeOrNull(PulpScreenKit.PromptBarName) == null) PulpScreenKit.AddBottomPromptBar(_root, "menu_resume");
+        private void HideMenuPanel() {
+            if (_menuPanel != null) _menuPanel.Visible = false;
+            if (_promptBar != null) _promptBar.Visible = false;
+        }
+
+        private void ShowMenuPanel() {
+            if (_menuPanel != null) _menuPanel.Visible = true;
+            if (_promptBar != null) _promptBar.Visible = true;
+            PausePanel.ApplyRowWidths(_rows);
         }
 
         /// <summary>The level-name tag text: the current level's title up to its first dash, or the ship at the hub.</summary>
@@ -313,6 +361,11 @@ namespace FTT.UI {
             };
             layout.AddChild(_statusLine);
 
+            // 4.3: the list starts 24 px under the status strip (9 + this 6 + 9, the rows' own pitch being 64 + 9).
+            layout.AddChild(new Control {
+                Name = "ListGap", CustomMinimumSize = new Vector2(0f, 6f), MouseFilter = Control.MouseFilterEnum.Ignore
+            });
+
             _controllerNotice = new Label {
                 Name = "ControllerNotice",
                 Text = "pause_controller_disconnected",
@@ -351,12 +404,14 @@ namespace FTT.UI {
         private void BuildConfirmations() {
             if (_root == null) return;
             _quitConfirm = ConfirmModal.Create("pause_quit_confirm");
+            _quitConfirm.UsesHostDim = true;
             _quitConfirm.Confirmed += QuitToMainMenu;
             _quitConfirm.Cancelled += RestoreMenuFocus;
             _root.AddChild(_quitConfirm);
 
             _restartConfirm = ConfirmModal.Create("pause_restart_confirm");
             _restartConfirm.Name = "RestartConfirmModal";
+            _restartConfirm.UsesHostDim = true;
             _restartConfirm.Confirmed += RestartLevelFromBeginning;
             _restartConfirm.Cancelled += RestoreMenuFocus;
             _root.AddChild(_restartConfirm);
@@ -394,6 +449,7 @@ namespace FTT.UI {
                 return;
             }
             _restartConfirm.Open();
+            HideMenuPanel();
         }
 
         /// <summary>
@@ -490,6 +546,7 @@ namespace FTT.UI {
                 return;
             }
             _quitConfirm.Open();
+            HideMenuPanel();
         }
 
         private void QuitToMainMenu() {
@@ -539,7 +596,10 @@ namespace FTT.UI {
             FTT.Core.SessionExitGuard.ClearMarker();
         }
 
-        private void RestoreMenuFocus() => FocusChainBuilder.GrabInitialFocus(_focusChain);
+        private void RestoreMenuFocus() {
+            ShowMenuPanel();
+            FocusChainBuilder.GrabInitialFocus(_focusChain);
+        }
 
         /// <summary>
         /// A confirmation owns the player while it is open, so the pause button
@@ -563,6 +623,8 @@ namespace FTT.UI {
                 // Resuming by any route settles the controller notice.
                 _awaitingController = false;
                 if (_controllerNotice != null) _controllerNotice.Visible = false;
+                // The resume is immediate (the game is running again): a half-played open ends on its resting look.
+                _pausePanel?.StopAppear(_shade);
                 return;
             }
 
@@ -571,11 +633,16 @@ namespace FTT.UI {
             if (_saveButton != null) _saveButton.Text = "menu_save";
             RefreshLowerDifficultyEntry();
             RefreshStatus();
+            ShowMenuPanel();
 
             // Rebuilt on every open: the chain has to reflect what is actually
             // visible now, and the modal's buttons must not join the menu's chain.
             _focusChain = FocusChainBuilder.Build(_menuPanel);
             FocusChainBuilder.GrabInitialFocus(_focusChain);
+
+            // MOT-A row 14: the dim fades in to .70 over 0.16 s while the panel fades and rises (row 4); both tweens run
+            // while the tree is paused. Reduced Temporal Effects: fades only.
+            _pausePanel?.PlayAppear(_shade);
         }
 
         /// <summary>
@@ -586,7 +653,7 @@ namespace FTT.UI {
         /// </summary>
         private void OpenMoveList() {
             if (_moveList == null || !IsInstanceValid(_moveList)) {
-                _moveList = new MoveListScreen { Name = "MoveListScreen" };
+                _moveList = new MoveListScreen { Name = "MoveListScreen", UsesHostDim = true };
                 AddChild(_moveList);
                 _moveList.Closed += RestoreMenuFocus;
             }
@@ -596,17 +663,19 @@ namespace FTT.UI {
             // Legacy Unlock Schedule has not restored reads Dormant with no
             // frame data. The Fighter pause keeps the full kit.
             _moveList.Open(characterID, MoveListScreen.MoveListMode.Story);
+            HideMenuPanel();
         }
 
         private void OpenSettings() {
             if (_settingsMenu == null || !IsInstanceValid(_settingsMenu)) {
-                _settingsMenu = new SettingsMenu { Name = "SettingsMenu" };
+                _settingsMenu = new SettingsMenu { Name = "SettingsMenu", UsesHostDim = true };
                 AddChild(_settingsMenu);
                 // H-10: Settings holds focus while open; hand it back to this
                 // menu's chain on close (mirrors MainMenu's restore).
                 _settingsMenu.Closed += RestoreMenuFocus;
             }
             _settingsMenu.Show();
+            HideMenuPanel();
         }
     }
 }
