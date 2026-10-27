@@ -9,12 +9,12 @@ namespace FTT.UI {
     /// The shared Calibration Drills list (F18 Option B). Both entry points — the
     /// standalone Main Menu route through
     /// <see cref="CalibrationDrillPicker"/> and the Story hub's Holodeck console —
-    /// arrive here, and the content is identical: the six drills of
+    /// arrive here, and the content is identical: the five drills of
     /// <see cref="CalibrationDrillCatalog"/> run with the chosen character's
     /// <b>normalized Fighter kit</b>.
     ///
     /// <para>The rows are built here rather than authored one-per-drill because the
-    /// catalog is the single source of drill identity; authoring six fixed buttons
+    /// catalog is the single source of drill identity; authoring five fixed buttons
     /// would put a second copy of the drill order in a scene file. The row template
     /// and the static copy are authored.</para>
     /// </summary>
