@@ -249,17 +249,24 @@ namespace FTT.UI {
             _objectiveFlag = PulpIcon.Create("flag", UIPalette.Res2, ObjectiveFlagSize);
             _objectiveFlag.Visible = false;
             _objectiveLabel.AddChild(_objectiveFlag);
-            _objectiveFlag.AnchorTop = 0.5f;
-            _objectiveFlag.AnchorBottom = 0.5f;
+            // The flag sits on the first line (a long objective wraps under it), centred on that line's box.
+            Font font = _objectiveLabel.GetThemeFont(FontName);
+            int size = _objectiveLabel.GetThemeFontSize(FontSizeName);
+            float line = font != null && size > 0 ? font.GetHeight(size) : ObjectiveFlagSize;
+            _objectiveFlag.AnchorTop = 0f;
+            _objectiveFlag.AnchorBottom = 0f;
             _objectiveFlag.OffsetLeft = 0f;
             _objectiveFlag.OffsetRight = ObjectiveFlagSize;
-            _objectiveFlag.OffsetTop = -ObjectiveFlagSize / 2f;
-            _objectiveFlag.OffsetBottom = ObjectiveFlagSize / 2f;
+            _objectiveFlag.OffsetTop = (line - ObjectiveFlagSize) / 2f;
+            _objectiveFlag.OffsetBottom = (line + ObjectiveFlagSize) / 2f;
         }
 
         /// <summary>
         /// The level title and objective sit 12 px under the slab, indented 8 (the mock's .hc-loc). The slab does not move
         /// when they hide (a boss fight): they are a separate node placed from the slab's rect whenever the slab resizes.
+        /// The row is exactly as wide as the slab less its indent and both labels word-wrap inside it (Codex review 1 of
+        /// the compact HUD), so a long title or objective takes a second line instead of running into the free band the
+        /// checkpoint toast, the first-use tooltip and the boss bar keep to.
         /// </summary>
         private void PlaceTitleRow() {
             if (_topLeft == null || _hudPanel == null) return;
@@ -267,6 +274,8 @@ namespace FTT.UI {
             Vector2 origin = stack != null ? stack.Position + _hudPanel.Position : _hudPanel.Position;
             var at = new Vector2(origin.X + TitleRowIndent, origin.Y + _hudPanel.Size.Y + TitleRowGap);
             if (_topLeft.Position != at) _topLeft.Position = at;
+            float width = Mathf.Max(1f, _hudPanel.Size.X - TitleRowIndent);
+            if (!Mathf.IsEqualApprox(_topLeft.Size.X, width)) _topLeft.Size = new Vector2(width, _topLeft.Size.Y);
         }
 
         private void BuildVitals() {

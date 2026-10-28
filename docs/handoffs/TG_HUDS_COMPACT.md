@@ -210,3 +210,42 @@ dust plate's 13 px padding; the line trims; the time tools' tightened gaps; `Dus
 more digit, the same kind of allowance the old 264 / 308 was). The `HUD_CONTRACT.md` amendment is in place (dated). AGENTS.md, CLAUDE.md,
 the ledger, the glass plan and the design master are the orchestrator's. Nobody has looked at it in play, on a pad or at 140 %
 in a live level.
+
+## 6. Fix step (Codex review 1)
+
+**Finding (major, agreed by the orchestrator):** the title and objective moved under the slab but did not wrap, so a long
+production title ran past the slab into the free band. At UI scale 1.4, `florence_level_title` with the wrapped
+`tooltip_first_use_ledge` plate (y 140, growing down) put the tooltip over the title row near y 214. The bounds tests used
+the shorter `campaign_level_orleans` string and missed it.
+
+**Fix.** `SafeArea/TopLeft` is now exactly as wide as the slab less its 8 px indent: 476 at 100 %. `PlaceTitleRow` sets the
+width from the slab's live rect whenever the slab resizes. `LevelTitle` and `Objective` word-wrap (`autowrap_mode = 3`), so a
+long title or objective takes a second line instead of entering the band. The band holds the checkpoint toast, the first-use
+tooltip and the boss bar. The objective's 18 px flag now sits on the first line, centred on that line's box, instead of
+centring on the whole label. Sizes are unchanged (title 20 px, objective 18 px), so the 18 px floor holds. Files:
+`scenes/ui/StoryHUD.tscn` (the two autowrap flags and the header comment) and `scripts/UI/StoryHUD.Pulp.cs` (`PlaceTitleRow`,
+`BuildTitleRow`'s flag anchors).
+
+**Longest real values.** Titles: `gettysburg_level_title` ("LEVEL 11: THE GETTYSBURG BATTLEFIELD — PENNSYLVANIA, JULY
+1863") and `florence_level_title`, both two lines at 476 px. Level objectives: `gettysburg_objective_breach` (117 characters)
+and a dozen others above 100 characters, all two lines. The left cluster then ends lower (about y 300 at 100 % for two
+two-line values). That is below the slab and left of the band, so nothing overlaps. The mock's own Pompeii title is about
+503 px and now wraps too: see `captures-fix/huds_calm.png`.
+
+**Test (+1).** New case `StoryHudBoundsTests.EveryProductionTitleAndObjectiveStaysClearOfTheTooltipAndToastBand`. It reads
+every `*_level_title` key (16) and every non-drill `*_objective*` key from `en.csv`, at 1.0 and then after a live change to
+1.4 on the same HUD. The longest first-use tooltip and the checkpoint toast show the whole time. For each title and objective
+label it checks: no right edge past the slab's right edge, nothing inside the free band, no overlap with the tooltip plate or
+the toast, and the label stays inside the frame.
+- Fail-first: with the fix stashed (the `2eed38d3` HUD), it fails with 544 problems. The first is "1 florence_level_title (32,
+  214), (679, 24) runs past the slab's right edge 508", and the list includes overlaps "under the tooltip (532, 140), (900,
+  79)" (`test_fix_old.log`).
+- With the fix it passes.
+- `StoryHudCompactTests.TheTitleAndObjectiveSitUnderTheSlabAndTheLeftClusterEndsBy260` still passes on its string. No test
+  was changed.
+
+**Filtered run** (StoryHud*, EncounterLock*, Level06/07/10 content suites, which bind the objective, and UIThemeTests):
+`Passed! - Failed: 0, Passed: 203, Skipped: 0, Total: 203`. The `[TestCase]` count is 3771 (3770 + 1); the full suite was not
+run. Captures: `D:/Projects/ftt-scratch/hud-compact/captures-fix/` (`huds_calm`, `huds_calm_140`, `huds_toasts`,
+`huds_toasts_140`). I looked at all four: the title wraps under the slab at both scales, and at 1.4 the toast and the boss
+intro card are clear of it.
