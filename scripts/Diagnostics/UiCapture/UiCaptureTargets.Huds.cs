@@ -219,6 +219,37 @@ namespace FTT.Diagnostics {
             return page;
         }
 
+        /// <summary>
+        /// The compact HUD mock's third frame (HUD-COMPACT, 2026-10-27): Act III with two of three anchors, the Ultimate ready
+        /// with its READY pill and Defy armed, S1 cooling at 6.1, Time Freeze cooling (38 s), the damage slot empty while Time
+        /// Dilation runs.
+        /// </summary>
+        [UiCaptureTarget("huds_states", SettleFrames = 14)]
+        public static Node HudsStates(UiCaptureContext context) {
+            Control page = HudStage("einstein");
+            StoryHUD hud = AddCaptureHud(page);
+            context.AfterReady = _ => {
+                CalmState(hud);
+                EventBus bus = EventBus.Instance;
+                StoryManager story = StoryManager.Instance;
+                if (story != null) story.ChronalRewindsRemaining = 2;
+                hud.InitializePlayerVitals(46, 100, 100f);
+                hud.HpDecor.LagValue = 52f;
+                bus.RaiseBlockChargesChanged(new BlockChargesPayload { PlayerIndex = 0, CurrentCharges = 3, MaxCharges = 3 });
+                bus.RaiseStatusEffectCleared(new StatusEffectPayload { TargetIndex = 0, Type = StatusType.None });
+                bus.RaiseStatusEffectApplied(new StatusEffectPayload { TargetIndex = 0, Type = StatusType.TimeDilation, Duration = 3.4f, Intensity = 1f });
+                hud.Indicators.SyncCooldownRemaining(AbilitySlot.Special2, 0f);
+                hud.Indicators.StartCooldown(AbilitySlot.Special1, 8f);
+                hud.Indicators.SyncCooldownRemaining(AbilitySlot.Special1, 6.1f);
+                bus.RaiseUltimateMeterChanged(new UltimateMeterPayload { PlayerIndex = 0, CurrentValue = 100f, NormalizedValue = 1f, IsFull = true });
+                bus.RaiseDefySealChanged(new DefySealPayload { PlayerIndex = 0, State = DefySealState.Ready });
+                bus.RaiseTimeFreezeStateChanged(new TimeFreezePayload { State = TimeFreezeState.Cooldown, SecondsRemaining = 38f });
+                bus.RaiseTimelineIntegrityChanged(new IntegrityPayload { Percent = 31f, Tier = IntegrityTier.Fractured, LivingExtractors = 2 });
+                bus.RaiseAnchorChargesChanged(new AnchorChargesPayload { Charges = 2, Max = 3 });
+            };
+            return page;
+        }
+
         /// <summary>Act III at zero anchors: the hollow last-stand Beacon and three spent pips.</summary>
         [UiCaptureTarget("huds_anchors_zero", SettleFrames = 14)]
         public static Node HudsAnchorsZero(UiCaptureContext context) {
@@ -266,22 +297,22 @@ namespace FTT.Diagnostics {
 
         /// <summary>
         /// Every campaign boss's bar at <paramref name="scale"/>: one 1920 x 1080 HUD per name in its own viewport, the
-        /// top band around the bar cropped out at 1:1 and laid in a grid (the D11 fit at a glance): 2 x 8 at 1.0, where the
-        /// bar is 840 px wide, and 3 x 5 at 1.4, where it is 509 px wide and a dropped phase line makes it taller.
+        /// top band around the bar cropped out at 1:1 and laid in a grid (the D11 fit at a glance): 2 x 8 at both scales; the
+        /// compact bar (2026-10-27) is 640 px wide at 1.0 and 834 px on screen at 1.4, where a dropped phase line makes it taller.
         /// </summary>
         private static Control BossNamesPage(float scale) {
             Control page = HudStage("einstein");
             HudScale(scale);
             bool large = scale > 1.2f;
             var grid = new GridContainer {
-                Name = "Names", Columns = large ? 3 : 2, Position = large ? new Vector2(30f, 30f) : new Vector2(86f, 24f)
+                Name = "Names", Columns = 2, Position = large ? new Vector2(94f, 24f) : new Vector2(286f, 24f)
             };
             grid.AddThemeConstantOverride("h_separation", 20);
-            grid.AddThemeConstantOverride("v_separation", large ? 12 : 8);
+            grid.AddThemeConstantOverride("v_separation", large ? 6 : 8);
             page.AddChild(grid);
-            // The band's crop on screen: the bar spans 720-1560 at 1.0 (header from y 22, the notch diamond to y 127) and
-            // 946-1455 at 1.4 (from y 31, the diamond to about y 210 when the phase line drops below a long name).
-            var crop = large ? new Rect2(900f, 20f, 600f, 196f) : new Rect2(708f, 10f, 864f, 122f);
+            // The band's crop on screen: the compact bar spans 640-1280 at 1.0 (header from y 20, the notch diamond to about
+            // y 92) and 745-1578 at 1.4 (from y 28, the diamond to about y 140 when the phase line drops below a long name).
+            var crop = large ? new Rect2(735f, 20f, 856f, 124f) : new Rect2(628f, 12f, 664f, 90f);
             List<string> keys = BossKeys();
             foreach (string key in keys) {
                 var port = new SubViewport {

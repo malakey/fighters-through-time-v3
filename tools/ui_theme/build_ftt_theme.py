@@ -380,8 +380,8 @@ ROLES = [
     ("CoverBanner",        "cinzel", 700, 38, 0.6,  "Ink2", None, False, None, "T02"),
     ("BannerHeading",      "cinzel", 900, 56, 0.05, "Ink",  "L", False, None, "T03"),
     ("PauseTitle",         "cinzel", 900, 78, 0.14, "TextFocus", "L", False, None, "T04"),
-    ("LevelTitle",         "cinzel", 500, 26, 0.12, "Ink",  "S", False, None, "T05"),
-    ("ObjectiveLine",      "outfit", 400, 22, 0.0,  "Res2", "S", False, None, "T06"),
+    ("LevelTitle",         "cinzel", 500, 20, 0.12, "Ink",  "S", False, None, "T05 (26 until the compact Story HUD, 2026-10-27)"),
+    ("ObjectiveLine",      "outfit", 400, 18, 0.0,  "Res2", "S", False, None, "T06 (22 until the compact Story HUD)"),
     ("PanelTag",           "outfit", 500, 18, 0.16, "Ink",  None, False, None, "T07"),
     ("HeroName",           "cinzel", 700, 22, 0.13, "Ink",  None, False, None, "T08"),
     ("HeroNameScene",      "cinzel", 700, 28, 0.13, "Ink",  "S", False, None, "T09"),
@@ -393,7 +393,7 @@ ROLES = [
     ("StatusLine",         "outfit", 400, 18, 0.06, "Ink2", None, False, None, "T16"),
     # HUD
     ("HudNumeral",         "outfit", 600, 32, 0.0,  "TextFocus", "S", True, None, "T17, the Fighter numeral (31.68)"),
-    ("HudNumeralSmall",    "outfit", 600, 22, 0.0,  "TextFocus", "S", True, None, "T17, the Story numeral (21.6); the Fighter /max"),
+    ("HudNumeralSmall",    "outfit", 600, 20, 0.0,  "TextFocus", "S", True, None, "T17, the Story numeral (22 until the compact Story HUD)"),
     ("HudNumeralMax",      "outfit", 400, 18, 0.0,  "TextFocus", "S", True, None, "T17 / T32 /max (AC3; the widget dims it to .78 / .75)"),
     ("SlotKeyTag",         "outfit", 500, 18, 0.16, "Ink2", None, False, None, "T18 in Story (a plain label)"),
     ("SlotKeyTagScene",    "outfit", 500, 18, 0.16, "Ink2", "S", False, None, "T18 over the scene (Fighter)"),
@@ -401,15 +401,15 @@ ROLES = [
     ("StatusName",         "outfit", 500, 18, 0.16, "Ink",  "S", False, None, "T20"),
     ("StatusTime",         "outfit", 600, 21, 0.0,  "Ink2", "S", False, None, "T21 (20.7)"),
     ("DefyLabel",          "outfit", 500, 18, 0.16, "Ink2", None, False, None, "T22 (16.2 raised to 18)"),
-    ("RewindCount",        "outfit", 600, 32, 0.0,  "Ink",  None, True,  None, "T23 (31.5)"),
+    ("RewindCount",        "outfit", 600, 20, 0.0,  "Ink",  None, True,  None, "T23 (32 until the compact Story HUD)"),
     ("StateLabel",         "outfit", 600, 20, 0.10, "Ink",  None, False, None, "T25 (19.8)"),
-    ("DustTotal",          "outfit", 600, 38, 0.02, "Ink",  None, True,  None, "T26 (37.5)"),
-    ("DustFloat",          "outfit", 600, 26, 0.02, "Res2", None, True,  None, "T27 (25.5)"),
-    ("IntegrityPercent",   "outfit", 600, 23, 0.0,  "Ink",  "S", True,  None, "T28 (23.1)"),
+    ("DustTotal",          "outfit", 600, 28, 0.02, "Ink",  None, True,  None, "T26 (38 until the compact Story HUD)"),
+    ("DustFloat",          "outfit", 600, 21, 0.02, "Res2", None, True,  None, "T27 (26 until the compact Story HUD)"),
+    ("IntegrityPercent",   "outfit", 600, 18, 0.0,  "Ink",  "S", True,  None, "T28 (23 until the compact Story HUD)"),
     ("IntegrityCaption",   "outfit", 500, 18, 0.16, "Ink",  "S6", False, 1.15, "T29"),
-    ("BossName",           "cinzel", 900, 38, 0.08, "TextFocus", "L", False, None, "T30"),
+    ("BossName",           "cinzel", 900, 26, 0.08, "TextFocus", "L", False, None, "T30 (38 until the compact Story HUD)"),
     ("BossPhaseTag",       "outfit", 500, 18, 0.16, "Ink2", "S", False, None, "T31 (a plain label)"),
-    ("BossHpValue",        "outfit", 400, 24, 0.0,  "TextFocus", "S", True, None, "T32"),
+    ("BossHpValue",        "outfit", 400, 20, 0.0,  "TextFocus", "S", True, None, "T32 (24 until the compact Story HUD)"),
     ("NoteLabel",          "outfit", 500, 18, 0.16, "Ink2", "S", False, 1.35, "T33"),
     ("TimerDigits",        "outfit", 600, 60, 0.04, "Ink",  None, True,  None, "T34"),
     # select
@@ -447,6 +447,12 @@ ROLES = [
     ("LogSpeaker",         "cinzel", 700, 22, 0.13, "Accent", None, False, None, "9.2 the dialogue log's speaker"),
     ("CreditsHeading",     "cinzel", 700, 30, 0.13, "Accent", None, False, None, "9.2 the credits' role headings"),
     ("HudNumeralMaxScene", "outfit", 400, 21, 0.0,  "TextFocus", "S", True, None, "T17 /max of the Fighter numeral (20.9; HudNumeralSmall stood in)"),
+    # The compact Story HUD (2026-10-27, the user's request; the Fighter HUD unchanged): the Story-only status chip text
+    # (sentence case, 18 px, a trimmed line box so the name sits over the time inside the 30 px badge's row) and the Time
+    # Freeze state at 18 (StateLabel stays 20 for the results panel and the select).
+    ("HudStatusName",      "outfit", 500, 18, 0.01, "Ink",  "S", False, None, "compact Story HUD status name (sentence case)"),
+    ("HudStatusTime",      "outfit", 600, 18, 0.0,  "Ink2", "S", False, None, "compact Story HUD status time"),
+    ("HudStateLabel",      "outfit", 600, 18, 0.10, "Ink",  None, False, None, "compact Story HUD Time Freeze state"),
 ]
 
 # halo tier -> (outline px, outline colour, shadow offset y, shadow outline px, shadow colour)  (2.4)
@@ -459,7 +465,10 @@ HALOS = {
 
 # TG-CLOSE: roles whose single line box is trimmed toward the CSS line height (FontVariation spacing_top / spacing_bottom,
 # whole px): PanelTag's 22.7 px Outfit line to about 18, so the 6.4 tag plate (padding 3 + 3) stands 24 px tall.
-LINE_TRIM = {"PanelTag": (-2, -3)}
+# The compact Story HUD (2026-10-27): the status name and time trimmed to about 19 px lines, and the level title and
+# objective under the slab trimmed toward the mock's line boxes, so the left cluster ends near y 260.
+LINE_TRIM = {"PanelTag": (-2, -3), "HudStatusName": (-2, -2), "HudStatusTime": (-2, -2),
+             "LevelTitle": (-2, -2), "ObjectiveLine": (-1, -2)}
 
 
 def line_spacing(face, size, lh):
@@ -509,10 +518,8 @@ def put_button(type_, base, boxes, size, font_ref, color_map):
 # The 3.1 slab presets: name -> (top, sides, bottom).
 PANEL_PRESETS = [
     ("GlassPanelPause", (30, 20, 28), "the pause panel"),
-    ("GlassPanelVitals", (20, 26, 20), "the Story Vitals panel"),
-    ("GlassPanelAbilities", (22, 30, 14), "the Story Abilities panel"),
-    ("GlassPanelTimeTools", (14, 26, 14), "the Story time tools panel"),
-    ("GlassPanelDust", (14, 24, 14), "the dust plate"),
+    ("GlassPanelHud", (12, 14, 12), "the compact Story HUD slab (the Pad adds 2 on the right: 12 / 16 / 12 / 14)"),
+    ("GlassPanelDust", (13, 18, 13), "the dust plate (the mock's 9 / 18 around its 42 px row; Outfit's 35 px line needs 13 to stand as tall)"),
     ("GlassPanelTimer", (12, 32, 12), "the Fighter timer plate"),
     ("GlassPanelStats", (20, 26, 18), "the select stat panel"),
     ("GlassPanelContinue", (16, 20, 16), "the main menu Continue card"),

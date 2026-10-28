@@ -7,8 +7,8 @@ namespace FTT.UI {
     /// One Act III Beacon anchor charge on the Story HUD (M15, Package 12 W10).
     ///
     /// <para>HUD_CONTRACT: a gold <b>diamond</b>, a shape distinct from the round rewind glyph, so the count reads without
-    /// colour. Since the Temporal Glass rebuild (TG-HUDS, UI_SPEC_GLASS 3.4.4) the pip draws itself: an 18 x 18 diamond
-    /// (a 12.7 px square turned 45 degrees) filled <c>res</c> while the charge remains, a 1.5 px <c>ink3</c> outline once
+    /// colour. Since the Temporal Glass rebuild (TG-HUDS, UI_SPEC_GLASS 3.4.4) the pip draws itself: a 10 x 10 diamond
+    /// (18 x 18 until the compact Story HUD of 2026-10-27) filled <c>res</c> while the charge remains, a 1.5 px <c>ink3</c> outline once
     /// spent. An Anchor Snap <b>splits and fades</b> the spent pip over 600 ms (MOT-A row 18): its two halves part and fade
     /// while the spent outline comes up; under Reduced Temporal Effects a plain 150 ms fade. A pip that was already spent on
     /// load or bind is drawn spent without replaying the split.</para>
@@ -27,11 +27,14 @@ namespace FTT.UI {
             Spent
         }
 
-        /// <summary>The pip's edge length, in reference pixels: the 18 px diamond (HUD_CONTRACT, 8 before the 2026-10-26 redesign).</summary>
-        public const int PipSize = 18;
+        /// <summary>
+        /// The pip's edge length, in reference pixels: the 10 px diamond of the compact Story HUD (2026-10-27; 18 from the
+        /// 2026-10-26 redesign, 8 before it).
+        /// </summary>
+        public const int PipSize = 10;
 
-        /// <summary>The Beacon badge's edge length (24 before the 2026-10-26 redesign), the 46 px badge of the time tools.</summary>
-        public const int IconSize = 46;
+        /// <summary>The Beacon badge's edge length: the compact Story HUD's 26 px time-tool badge (46 from 2026-10-26, 24 before).</summary>
+        public const int IconSize = 26;
 
         /// <summary>Length of the split-and-fade beat (MOT-A row 18); <see cref="PulpMotionRules.AnchorSplitReducedSeconds"/> under Reduced Temporal Effects.</summary>
         public const float CrackSeconds = PulpMotionRules.AnchorSplitSeconds;
@@ -40,7 +43,7 @@ namespace FTT.UI {
         public const float OutlineWidth = 1.5f;
 
         /// <summary>How far each half of a splitting pip travels, in pixels.</summary>
-        public const float SplitPixels = 4f;
+        public const float SplitPixels = 2.5f;
 
         private PipState _state = PipState.Filled;
         private float _crackElapsed;

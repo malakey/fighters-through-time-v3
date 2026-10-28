@@ -7,7 +7,8 @@ namespace FTT.UI {
 
     /// <summary>
     /// TG-HUDS (Temporal Glass rebuild, 2026-10-27; first written by UR-HUDS for the pulp HUD, the file keeps its legacy
-    /// name). The HUD-S1 corner cluster and the BOSS-A boss bar in glass (UI_SPEC_GLASS 3.4, 3.6, 4.4, 9.2): the glass
+    /// name), made compact the same day (HUD-COMPACT, the user's request: one slab in place of three, everything smaller;
+    /// docs/handoffs/TG_HUDS_COMPACT.md). The HUD-S1 corner cluster and the BOSS-A boss bar in glass: the glass
     /// widgets that sit on the authored glyph Labels, the Vitals and value layouts, the thin-ring Integrity dial, the boss
     /// bar's band and its D11 name fit, the checkpoint toast and the boss intro card. Presentation only; every value is
     /// written by <see cref="StoryHUD"/>'s refreshers. The authored glyph Labels are kept with their Text and TooltipText
@@ -20,31 +21,36 @@ namespace FTT.UI {
 
         // ---- The boss bar (UI_SPEC_GLASS 3.6, 4.4) ----
 
-        /// <summary>The boss bar's widest (840 at 100 %) and, for very narrow canvases only, narrowest width.</summary>
-        public const float BossBarMaxWidth = 840f;
+        /// <summary>The boss bar's widest (640 at 100 %; 840 until the compact HUD) and, for very narrow canvases only, narrowest width.</summary>
+        public const float BossBarMaxWidth = 640f;
         public const float BossBarMinWidth = 320f;
-        /// <summary>The left stack's right edge (32 + 620) and the right cluster's reach from the right edge (dust plate 264 + margin 44).</summary>
-        public const float LeftClusterRight = 652f, DustPlateReach = 308f;
-        /// <summary>The free band keeps 24 px from the stack and from the dust plate: width = min(840, canvas - 1008).</summary>
+        /// <summary>
+        /// The slab's right edge (24 + 484) and the right cluster's reach from the right edge: the widest dust plate the
+        /// compact HUD draws (about 196 px for a five-digit balance and its "+N") plus its 24 px margin.
+        /// </summary>
+        public const float LeftClusterRight = 508f, DustPlateReach = 220f;
+        /// <summary>The free band keeps 24 px from the slab and from the dust plate: width = min(640, canvas - 776).</summary>
         public const float BossGap = 24f;
-        /// <summary>Where the mock hangs the bar (x 720) when the band has room; otherwise the band's left edge.</summary>
-        public const float BossPreferredX = 720f, BossTop = 22f;
-        /// <summary>The header row (T30, line height 1), the gap to the tube and the boss tube's height.</summary>
-        public const float BossHeaderHeight = 38f, BossTubeGap = 10f, BossTubeHeight = 34f;
-        /// <summary>The name diamond: 6 px of left padding, a 12 px square turned 45 degrees, 14 px to the name, 6 px above the baseline.</summary>
-        public const float BossDiamondInset = 6f, BossDiamondSize = 12f, BossNameGap = 14f, BossDiamondLift = 6f;
+        /// <summary>The bar's top (the slab's and the dust plate's top line, y 20); it is centred on the canvas when the band allows.</summary>
+        public const float BossTop = 20f;
+        /// <summary>The header row (T30 at 26, line height 1), the gap to the tube and the boss tube's height (20; 34 before).</summary>
+        public const float BossHeaderHeight = 26f, BossTubeGap = 7f, BossTubeHeight = 20f;
+        /// <summary>The name diamond: 4 px of left padding, a 10 px square turned 45 degrees, 12 px to the name, 4 px above the baseline.</summary>
+        public const float BossDiamondInset = 4f, BossDiamondSize = 10f, BossNameGap = 12f, BossDiamondLift = 4f;
+        /// <summary>The boss tube's lean (10 on its 20 px height) and its phase notches' scale (a 9 px diamond).</summary>
+        public const float BossTubeRun = 10f, BossNotchScale = 0.75f;
         /// <summary>The least gap between the name and the phase label on one row (the D11 measurement's 24 px).</summary>
         public const float BossPhaseGap = 24f;
         /// <summary>A dropped phase label: its gap below the name and the gap from it to the tube.</summary>
-        public const float BossPhaseDropGap = 4f, BossDroppedTubeGap = 8f;
-        /// <summary>The boss name's size at 100 % (T30) and its D11 floor in pixels: 0.6 of 38, 22.8 px on screen.</summary>
-        public const float BossNameSize = 38f, BossNameFloorPixels = 22.8f;
+        public const float BossPhaseDropGap = 4f, BossDroppedTubeGap = 6f;
+        /// <summary>The boss name's size at 100 % (T30 at 26) and its D11 floor in pixels, kept at 22.8 px on screen.</summary>
+        public const float BossNameSize = 26f, BossNameFloorPixels = 22.8f;
         /// <summary>The boss value's right padding inside the tube and the gap between the numeral and its "/max".</summary>
-        public const float BossValueRightPad = 16f, ValueMaxGap = 2f;
+        public const float BossValueRightPad = 12f, ValueMaxGap = 2f;
 
         /// <summary>
-        /// D11's floor as the name label's scale at UI scale <paramref name="uiScale"/>: 22.8 px on screen, so 0.6 at 100 %
-        /// and 0.43 at 140 % (the HUD canvas is already magnified by the UI scale).
+        /// D11's floor as the name label's scale at UI scale <paramref name="uiScale"/>: 22.8 px on screen, so 0.88 of the
+        /// 26 px name at 100 % and 0.63 at 140 % (the HUD canvas is already magnified by the UI scale).
         /// </summary>
         public static float BossNameFloorScale(float uiScale) =>
             Mathf.Min(1f, BossNameFloorPixels / (BossNameSize * Mathf.Max(0.01f, uiScale)));
@@ -57,7 +63,7 @@ namespace FTT.UI {
         public static (float Left, float Right) FreeBand(float canvasWidth) =>
             (LeftClusterRight + BossGap, canvasWidth - DustPlateReach - BossGap);
 
-        /// <summary>The boss bar's width in canvas units for a canvas <paramref name="canvasWidth"/> wide: min(840, canvas - 1008), floored at 320.</summary>
+        /// <summary>The boss bar's width in canvas units for a canvas <paramref name="canvasWidth"/> wide: min(640, canvas - 776), floored at 320.</summary>
         public static float BossBarWidthFor(float canvasWidth) =>
             Mathf.Clamp(canvasWidth - LeftClusterRight - DustPlateReach - 2f * BossGap, BossBarMinWidth, BossBarMaxWidth);
 
@@ -65,14 +71,48 @@ namespace FTT.UI {
 
         /// <summary>The hero name's box (T08, line height 1, 22 px) and its width; a longer name shrinks to its 18 px floor.</summary>
         public const float HeroNameBox = 22f, HeroNameWidth = 380f, HeroNameFloorPixels = 18f;
-        /// <summary>The HP value's right padding inside the tube (UI_SPEC_GLASS 3.4.1).</summary>
-        public const float HpValueRightPad = 14f;
-        /// <summary>The status chips sit 4 px inside the panel (4.4: the badge at x 62 in a 58 content box).</summary>
-        public const float ChipInset = 4f;
+        /// <summary>The HP value's right padding inside the tube (11 on the compact 22 px tube).</summary>
+        public const float HpValueRightPad = 11f;
+        /// <summary>The status chips start at the vitals column's left edge (the compact HUD drops the old 4 px inset).</summary>
+        public const float ChipInset = 0f;
+
+        // ---- the compact slab (2026-10-27; the mock's .hc-* rules) ----
+
+        /// <summary>The slab's size at 100 % (484 wide, about 182 tall; it grows a few pixels when Act III's anchors show).</summary>
+        public const float HudPanelWidth = 484f;
+        /// <summary>The portrait frame (68; 112 before).</summary>
+        public const float PortraitSize = 68f;
+        /// <summary>The HP tube (296 x 22; 380 x 30 before) and its lean (9).</summary>
+        public const float HpTubeWidth = 296f, HpTubeHeight = 22f, HpTubeRun = 9f;
+        /// <summary>The status badges (30; 44 before), their duration ring (2.5 px, its outer edge 4 px out) and their text gaps.</summary>
+        public const float ChipBadgeSize = 30f, ChipRingWidth = 2.5f, ChipRingOutset = 4f, ChipTextGap = 9f;
+        public const int ChipColumnGap = 2, ChipGlowSize = 10;
+        /// <summary>The status row's height: the 30 px badge beside its two 18 px lines.</summary>
+        public const float ChipRowHeight = 38f;
+        /// <summary>The ability lenses (48; 74 before), their ring (2.5 px, its outer edge 5 px out) and their centre seconds (18 px).</summary>
+        public const float AbilityLensSize = 48f, AbilityRingWidth = 2.5f, AbilityRingOutset = 5f, AbilityCenterSize = 18f;
+        /// <summary>The Ultimate lens (64; 92 before), its ring (4.5 px, its outer edge 7 px out: a 78 px box) and its centre percent (21 px).</summary>
+        public const float UltimateLensSize = 64f, UltimateRingWidth = 4.5f, UltimateRingOutset = 7f, UltimateCenterSize = 21f;
+        /// <summary>The Defy seal's badge on the Ultimate ring (a 28 px dark disc, the seal glyph at 20 px).</summary>
+        public const float DefyBadgeSize = 28f, DefyGlyphSize = 20f;
+        /// <summary>The time tools' badges (26; 46 before) and their ring (2 px, its outer edge 3 px out).</summary>
+        public const float TimeBadgeSize = 26f, TimeBadgeRingWidth = 2f, TimeBadgeRingOutset = 3f;
+        /// <summary>The hairline before the time tools: 1.5 px wide, 58 tall, fading at both ends.</summary>
+        public const float DividerWidth = 1.5f, DividerHeight = 58f;
+        /// <summary>The level title row's gap under the slab and its indent (12 and 8).</summary>
+        public const float TitleRowGap = 12f, TitleRowIndent = 8f;
+        /// <summary>The objective's flag (18 px; 22 before) and its gap to the text (8).</summary>
+        public const float ObjectiveFlagSize = 18f, ObjectiveFlagGap = 8f;
+        /// <summary>The dust plate's glyph (26; 38 before).</summary>
+        public const float DustGlyphSize = 26f;
+        /// <summary>The Integrity dial's diameter (64; 112 before) and its wedge annulus at that size (the G9 shares of the dial).</summary>
+        public const float IntegrityDialDiameter = 64f;
+        public const float WedgeOuterRadius = IntegrityDialDiameter / IntegrityDialLayer.DialSize * IntegrityDialLayer.WedgeOuterRadius;
+        public const float WedgeInnerRadius = WedgeOuterRadius * 0.53f;
         /// <summary>The wedge annulus's drawn alpha (rgba(glow, .85)) and the frozen wedge's (ink2 @0.6).</summary>
         public const float WedgeAlpha = 0.85f, FrozenWedgeAlpha = 0.6f;
         /// <summary>The caption's gap to the dial's left edge, and the sealed note's box (right-aligned under the dust plate).</summary>
-        public const float CaptionGap = 14f, SealedNoteWidth = 340f, SealedNoteTop = -16f;
+        public const float CaptionGap = 12f, SealedNoteWidth = 340f, SealedNoteTop = -6f;
         /// <summary>The checkpoint toast's flag (bold, res2) and its gap to the text (9.2).</summary>
         public const float ToastFlagSize = 22f, ToastFlagGap = 10f;
         /// <summary>The toast holds 2 s after its fade-rise and then fades over 300 ms (9.2, agent choice).</summary>
@@ -110,19 +150,29 @@ namespace FTT.UI {
         private Control _clockFace;
         private IntegrityDialLayer _dialFace;
         private IntegrityDialLayer _dialTicks;
-        private PulpTaggedPanel _vitalsPanel;
-        private PulpTaggedPanel _abilitiesPanel;
+        private PanelContainer _hudPanel;
+        private HudCapsule _specialsCapsule;
+        private HudCapsule _movementCapsule;
+        private Control _timeDivider;
+        private HudBadge _defyBadge;
         private PulpIcon _toastFlag;
         private GlassFlourish _introFlourish;
         private Label _dustFloatRise;
         private bool _dialShown = true;
         private float _fitScale = float.NaN;
 
-        /// <summary>The Vitals panel's tag, or null before the scene resolves. Test seam.</summary>
-        public PulpTaggedPanel VitalsPanel => _vitalsPanel;
+        /// <summary>The one glass slab (<c>GlassPanelHud</c>), or null before the scene resolves. Test seam.</summary>
+        public PanelContainer HudPanel => _hudPanel;
 
-        /// <summary>The Abilities panel's tag, or null before the scene resolves. Test seam.</summary>
-        public PulpTaggedPanel AbilitiesPanel => _abilitiesPanel;
+        /// <summary>The capsule holding Special 1 and Special 2, and the one holding the Movement ability. Test seam.</summary>
+        public HudCapsule SpecialsCapsule => _specialsCapsule;
+        public HudCapsule MovementCapsule => _movementCapsule;
+
+        /// <summary>The hairline before the time tools. Test seam.</summary>
+        public Control TimeDivider => _timeDivider;
+
+        /// <summary>The Defy seal's badge on the Ultimate ring. Test seam.</summary>
+        public HudBadge DefyBadge => _defyBadge;
 
         /// <summary>The glass lenses (Special 1, Special 2, Movement). Test seam.</summary>
         public System.Collections.Generic.IReadOnlyList<PulpAbilitySlot> SlotWidgets => _slots;
@@ -171,15 +221,14 @@ namespace FTT.UI {
         }
 
         private void BuildPulpWidgets() {
-            _vitalsPanel = GetNodeOrNull<PulpTaggedPanel>(VitalsPanelPath);
-            if (_vitalsPanel != null) _vitalsPanel.TagKey = "hud_vitals";
-            _abilitiesPanel = GetNodeOrNull<PulpTaggedPanel>(AbilitiesPanelPath);
-            if (_abilitiesPanel != null) _abilitiesPanel.TagKey = "hud_abilities";
-            // The glass slabs' sheen and streaks (3.1): over the slab, under the content.
-            PulpScreenKit.DressPanel(GetNodeOrNull<PanelContainer>($"{VitalsPanelPath}/Plate"));
-            PulpScreenKit.DressPanel(GetNodeOrNull<PanelContainer>($"{AbilitiesPanelPath}/Plate"));
-            PulpScreenKit.DressPanel(GetNodeOrNull<PanelContainer>($"{TopLeftPanelPath}/TimePanel"));
+            // The one slab (no panel tags: the compact HUD dropped VITALS and ABILITIES) and the dust plate wear the glass
+            // sheen and streaks (3.1): over the slab, under the content.
+            _hudPanel = GetNodeOrNull<PanelContainer>(HudPanelPath);
+            _specialsCapsule = GetNodeOrNull<HudCapsule>(SpecialsCapsulePath);
+            _movementCapsule = GetNodeOrNull<HudCapsule>(MovementCapsulePath);
+            PulpScreenKit.DressPanel(_hudPanel);
             PulpScreenKit.DressPanel(GetNodeOrNull<PanelContainer>($"{TopRightPanelPath}/DustPlate"));
+            if (_hudPanel != null) _hudPanel.Resized += PlaceTitleRow;
 
             BuildTitleRow();
             BuildVitals();
@@ -193,30 +242,43 @@ namespace FTT.UI {
 
         private void BuildTitleRow() {
             if (_objectiveLabel == null) return;
-            // The flag sits in a left margin of the objective's own text box (22 + 10, 4.4: text from x 76), so the label
-            // keeps its path and its Text for the level controllers and their tests.
-            var margin = new StyleBoxEmpty { ContentMarginLeft = ToastFlagSize + ToastFlagGap };
+            // The flag sits in a left margin of the objective's own text box (18 + 8), so the label keeps its path and its
+            // Text for the level controllers and their tests.
+            var margin = new StyleBoxEmpty { ContentMarginLeft = ObjectiveFlagSize + ObjectiveFlagGap };
             _objectiveLabel.AddThemeStyleboxOverride(NormalStyleName, margin);
-            _objectiveFlag = PulpIcon.Create("flag", UIPalette.Res2, ToastFlagSize);
+            _objectiveFlag = PulpIcon.Create("flag", UIPalette.Res2, ObjectiveFlagSize);
             _objectiveFlag.Visible = false;
             _objectiveLabel.AddChild(_objectiveFlag);
             _objectiveFlag.AnchorTop = 0.5f;
             _objectiveFlag.AnchorBottom = 0.5f;
             _objectiveFlag.OffsetLeft = 0f;
-            _objectiveFlag.OffsetRight = ToastFlagSize;
-            _objectiveFlag.OffsetTop = -ToastFlagSize / 2f;
-            _objectiveFlag.OffsetBottom = ToastFlagSize / 2f;
+            _objectiveFlag.OffsetRight = ObjectiveFlagSize;
+            _objectiveFlag.OffsetTop = -ObjectiveFlagSize / 2f;
+            _objectiveFlag.OffsetBottom = ObjectiveFlagSize / 2f;
+        }
+
+        /// <summary>
+        /// The level title and objective sit 12 px under the slab, indented 8 (the mock's .hc-loc). The slab does not move
+        /// when they hide (a boss fight): they are a separate node placed from the slab's rect whenever the slab resizes.
+        /// </summary>
+        private void PlaceTitleRow() {
+            if (_topLeft == null || _hudPanel == null) return;
+            Control stack = _hudPanel.GetParent<Control>();
+            Vector2 origin = stack != null ? stack.Position + _hudPanel.Position : _hudPanel.Position;
+            var at = new Vector2(origin.X + TitleRowIndent, origin.Y + _hudPanel.Size.Y + TitleRowGap);
+            if (_topLeft.Position != at) _topLeft.Position = at;
         }
 
         private void BuildVitals() {
             Control host = _portrait?.GetParent<Control>();
             if (host != null) {
-                _roundel = new PulpPortraitRoundel { Diameter = 112f };
+                _roundel = new PulpPortraitRoundel { Diameter = PortraitSize };
                 host.AddChild(_roundel);
                 host.MoveChild(_roundel, 0);
             }
             if (_hpBar != null) {
                 _hpDecor = PulpBarDecor.Attach(_hpBar);
+                _hpDecor.RunOverride = HpTubeRun;
                 _hpDecor.SnapLagTo((float)_hpBar.Value);
                 // The decor is the bar's last child; the numerals sit above it.
                 if (_hpText != null) _hpBar.MoveChild(_hpText, -1);
@@ -238,31 +300,39 @@ namespace FTT.UI {
         private static PulpStatusChip AddChip(Label host) {
             if (host == null) return null;
             HideGlyph(host);
-            var chip = new PulpStatusChip { BadgeSize = 44f, Empty = true, ShowRing = true, Position = new Vector2(ChipInset, 0f) };
+            // The compact badge: 30 px with a 2.5 px ring 4 px out, the name in sentence case over the time, both 18 px.
+            var chip = new PulpStatusChip {
+                BadgeSize = ChipBadgeSize, Empty = true, ShowRing = true, RingThickness = ChipRingWidth, RingOutsetPixels = ChipRingOutset,
+                TextGapPixels = ChipTextGap, ColumnGapPixels = ChipColumnGap, GlowSize = ChipGlowSize, UppercaseName = false,
+                NameRole = UIPalette.LabelRoles.HudStatusName, TimeRole = UIPalette.LabelRoles.HudStatusTime
+            };
             host.AddChild(chip);
+            // The chip fills its host's 38 px row, so the badge centres in it beside the two lines.
+            chip.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+            chip.OffsetLeft = ChipInset;
             return chip;
         }
 
         /// <summary>
-        /// Fixed chip positions (HUD_CONTRACT) that still keep the control chip 30 px after any damage chip's text
-        /// (UI_SPEC_GLASS 3.4.3): each host is as wide as its slot's widest chip in the current language.
+        /// Fixed chip positions (HUD_CONTRACT): each host is as wide as its slot's widest status name in the current
+        /// language (sentence case, the compact HUD's 18 px name), and the row keeps 16 px between the two hosts.
         /// </summary>
         private void SizeChipHosts() {
             if (_damageStatusIndicator == null || _controlStatusIndicator == null) return;
-            Font font = _damageStatusIndicator.GetThemeFont(FontName, UIPalette.LabelRoles.StatusName);
-            int size = _damageStatusIndicator.GetThemeFontSize(FontSizeName, UIPalette.LabelRoles.StatusName);
+            Font font = _damageStatusIndicator.GetThemeFont(FontName, UIPalette.LabelRoles.HudStatusName);
+            int size = _damageStatusIndicator.GetThemeFontSize(FontSizeName, UIPalette.LabelRoles.HudStatusName);
             if (font == null) return;
             float damage = 0f, control = 0f;
             foreach (StatusType type in System.Enum.GetValues<StatusType>()) {
                 if (type == StatusType.None) continue;
-                string name = Tr(HudAbilityIndicatorModel.StatusLabelKey(type)).ToUpperInvariant();
+                string name = Tr(HudAbilityIndicatorModel.StatusLabelKey(type));
                 float width = font.GetStringSize(name, HorizontalAlignment.Left, -1f, size).X;
                 if (HudAbilityIndicatorModel.IsDamageStatus(type)) damage = Mathf.Max(damage, width);
                 else control = Mathf.Max(control, width);
             }
-            float chip = 44f + PulpStatusChip.TextGap;
-            _damageStatusIndicator.CustomMinimumSize = new Vector2(Mathf.Ceil(ChipInset + chip + damage), 44f);
-            _controlStatusIndicator.CustomMinimumSize = new Vector2(Mathf.Ceil(ChipInset + chip + control), 44f);
+            float chip = ChipBadgeSize + ChipTextGap;
+            _damageStatusIndicator.CustomMinimumSize = new Vector2(Mathf.Ceil(ChipInset + chip + damage), ChipRowHeight);
+            _controlStatusIndicator.CustomMinimumSize = new Vector2(Mathf.Ceil(ChipInset + chip + control), ChipRowHeight);
         }
 
         /// <summary>
@@ -296,71 +366,115 @@ namespace FTT.UI {
                 HideGlyph(icon);
                 HideGlyph(_cooldownLockOverlays[index]);
                 if (_cooldownRadials[index] != null) _cooldownRadials[index].Visible = false;
+                // The compact lens: 48 px, no key label (the capsules group them), seconds at 18 px.
                 _slots[index] = new PulpAbilitySlot {
-                    SlotSize = 74f, KeyText = HudAbilityIndicatorModel.SlotLabelKey(CooldownSlots[index])
+                    SlotSize = AbilityLensSize, KeyText = "", RingWidthOverride = AbilityRingWidth, RingOutsetOverride = AbilityRingOutset,
+                    CenterTextSize = AbilityCenterSize, EffectScale = AbilityLensSize / 74f
                 };
                 icon.AddChild(_slots[index]);
                 icon.MoveChild(_slots[index], 0);
             }
             HideGlyph(_meterLockOverlay);
             if (_meterHost != null) {
-                // The host is the 92 px lens's layout box (4.4); the slot's 110 px ring box hangs 9 px outside it.
-                _ultSlot = new PulpAbilitySlot { Ultimate = true, KeyText = "hud_slot_ultimate" };
+                // The host is the 64 px lens's layout box; the slot's 78 px ring box hangs 7 px outside it. No "ULT" label;
+                // the ready state keeps its full gold ring plus the READY pill over the lens's bottom.
+                _ultSlot = new PulpAbilitySlot {
+                    Ultimate = true, UltimateLensSize = UltimateLensSize, RingWidthOverride = UltimateRingWidth,
+                    RingOutsetOverride = UltimateRingOutset, CenterTextSize = UltimateCenterSize,
+                    EffectScale = UltimateLensSize / PulpAbilitySlot.UltimateFrame, ReadyPill = true, KeyText = ""
+                };
                 _meterHost.AddChild(_ultSlot);
                 _meterHost.MoveChild(_ultSlot, 0);
                 _ultSlot.Position = -_ultSlot.LensOrigin;
             }
             if (_defySeal != null) {
+                // The Defy seal as a badge on the Ultimate ring's upper right (it lights at full meter): a 28 px dark glass
+                // disc with its 1.5 px edge and the seal glyph at 20 px; its four shape states as before.
                 HideGlyph(_defySeal);
-                _defyIcon = PulpIcon.Create("defy_notready", UIPalette.Ink3, 34f);
-                _defySeal.AddChild(_defyIcon);
+                _defyBadge = new HudBadge {
+                    Name = "DefyBadge", BadgeSize = DefyBadgeSize, IconShare = DefyGlyphSize / DefyBadgeSize,
+                    IconName = "defy_notready", Tint = UIPalette.Ink3
+                };
+                _defySeal.AddChild(_defyBadge);
+                _defyIcon = _defyBadge.Glyph;
             }
         }
 
         private void BuildTimeTools() {
             if (_rewindIcon != null) {
                 HideGlyph(_rewindIcon);
-                _rewindBadge = new HudBadge { IconName = "hourglass", Tint = UIPalette.Accent2 };
+                _rewindBadge = new HudBadge { IconName = "hourglass", Tint = UIPalette.Accent2, BadgeSize = TimeBadgeSize };
                 _rewindIcon.AddChild(_rewindBadge);
             }
             if (_freezeIcon != null) {
                 HideGlyph(_freezeIcon);
-                _freezeBadge = new HudBadge { IconName = "freeze", Tint = UIPalette.Accent2 };
+                _freezeBadge = new HudBadge {
+                    IconName = "freeze", Tint = UIPalette.Accent2, BadgeSize = TimeBadgeSize,
+                    RingThickness = TimeBadgeRingWidth, RingOutsetPixels = TimeBadgeRingOutset
+                };
                 _freezeIcon.AddChild(_freezeBadge);
             }
             if (_beaconIcon != null) _beaconIcon.CustomMinimumSize = new Vector2(AnchorPip.IconSize, AnchorPip.IconSize);
+            // The hairline before the time tools: 1.5 px of the gold glow at .55, fading to nothing at both ends.
+            _timeDivider = GetNodeOrNull<Control>($"{AbilitiesPath}/TimeDivider");
+            if (_timeDivider != null) {
+                var gradient = new Gradient {
+                    Offsets = new[] { 0f, 0.25f, 0.75f, 1f },
+                    Colors = new[] {
+                        new Color(UIPalette.Accent, 0f), new Color(UIPalette.Accent, 0.55f),
+                        new Color(UIPalette.Accent, 0.55f), new Color(UIPalette.Accent, 0f)
+                    }
+                };
+                var line = new TextureRect {
+                    Name = "Hairline", MouseFilter = Control.MouseFilterEnum.Ignore,
+                    ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.Scale,
+                    Texture = new GradientTexture2D {
+                        Gradient = gradient, Width = 1, Height = 64, FillFrom = new Vector2(0f, 0f), FillTo = new Vector2(0f, 1f)
+                    },
+                    Position = new Vector2((_timeDivider.CustomMinimumSize.X - DividerWidth) / 2f, 0f),
+                    Size = new Vector2(DividerWidth, DividerHeight)
+                };
+                _timeDivider.AddChild(line);
+            }
         }
 
         private void BuildTopRight() {
             Label dustIcon = GetNodeOrNull<Label>($"{CurrencyPath}/ChronalDustIcon");
             if (dustIcon != null) {
                 HideGlyph(dustIcon);
-                dustIcon.AddChild(PulpIcon.Create("dust", UIPalette.Res, 38f));
+                dustIcon.AddChild(PulpIcon.Create("dust", UIPalette.Res, DustGlyphSize));
             }
             BuildDustFloat();
             if (_integrityClock == null) return;
             _clockFace = GetNodeOrNull<Control>($"{TopRightPanelPath}/IntegrityClock/ClockFace");
             if (_clockFace != null) {
-                _dialFace = new IntegrityDialLayer(IntegrityDialLayer.DialPart.Face);
+                _dialFace = new IntegrityDialLayer(IntegrityDialLayer.DialPart.Face) {
+                    CustomMinimumSize = new Vector2(IntegrityDialDiameter, IntegrityDialDiameter)
+                };
                 _clockFace.AddChild(_dialFace);
+                _dialFace.Size = new Vector2(IntegrityDialDiameter, IntegrityDialDiameter);
             }
             if (_clockWedge != null) {
-                // The wedge annulus (3.4.4): a ring from radius 23.15 to 43.68, clockwise from 12 o'clock; its alpha lives
-                // on SelfModulate so FillColor keeps the semantic colour (gold, danger below the tremor threshold, ink2 frozen).
+                // The wedge annulus (3.4.4, at the 64 px dial: radius 13.23 to 24.96), clockwise from 12 o'clock; its alpha
+                // lives on SelfModulate so FillColor keeps the semantic colour (gold, danger below the tremor threshold, ink2 frozen).
                 _clockWedge.Pie = false;
-                _clockWedge.Thickness = IntegrityDialLayer.WedgeOuterRadius - IntegrityDialLayer.WedgeInnerRadius;
+                _clockWedge.Thickness = WedgeOuterRadius - WedgeInnerRadius;
                 _clockWedge.Segments = 96;
                 _clockWedge.GradientMode = RadialGradientMode.None;
                 _clockWedge.TrackColor = new Color(UIPalette.WedgeRemainder, UIPalette.WedgeRemainder.A / WedgeAlpha);
                 _clockWedge.FillColor = UIPalette.Res;
                 _clockWedge.SelfModulate = new Color(1f, 1f, 1f, WedgeAlpha);
-                _dialTicks = new IntegrityDialLayer(IntegrityDialLayer.DialPart.Ticks);
+                _dialTicks = new IntegrityDialLayer(IntegrityDialLayer.DialPart.Ticks) {
+                    CustomMinimumSize = new Vector2(IntegrityDialDiameter, IntegrityDialDiameter)
+                };
                 _integrityClock.AddChild(_dialTicks);
+                _dialTicks.Size = new Vector2(IntegrityDialDiameter, IntegrityDialDiameter);
                 _integrityClock.MoveChild(_dialTicks, _clockWedge.GetIndex() + 1);
             }
+            float dialShare = IntegrityDialDiameter / IntegrityDialLayer.DialSize;
             _siphonDraw = new SiphonStreamsLayer {
-                Position = new Vector2(IntegrityDialLayer.DialSize * 0.62f, -IntegrityDialLayer.DialSize * 0.36f),
-                Size = new Vector2(SiphonStreamsLayer.BoxSize, SiphonStreamsLayer.BoxSize)
+                Position = new Vector2(IntegrityDialDiameter * 0.62f, -IntegrityDialDiameter * 0.36f),
+                Size = new Vector2(SiphonStreamsLayer.BoxSize * dialShare, SiphonStreamsLayer.BoxSize * dialShare)
             };
             _integrityClock.AddChild(_siphonDraw);
             const float captionWidth = 320f, captionHeight = 40f;
@@ -368,7 +482,7 @@ namespace FTT.UI {
                 Name = "IntegrityCaption", Text = "hud_integrity_caption", Uppercase = true,
                 ThemeTypeVariation = UIPalette.LabelRoles.IntegrityCaption, MouseFilter = Control.MouseFilterEnum.Ignore,
                 HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center,
-                Position = new Vector2(-CaptionGap - captionWidth, IntegrityDialLayer.DialSize / 2f - captionHeight / 2f),
+                Position = new Vector2(-CaptionGap - captionWidth, IntegrityDialDiameter / 2f - captionHeight / 2f),
                 Size = new Vector2(captionWidth, captionHeight)
             };
             _integrityClock.AddChild(_integrityCaption);
@@ -422,7 +536,8 @@ namespace FTT.UI {
                     Name = "BossDiamond", Texture = PulpKit.Texture("glass_diamond_12"), Modulate = UIPalette.Boss,
                     MouseFilter = Control.MouseFilterEnum.Ignore, ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
                     StretchMode = TextureRect.StretchModeEnum.Scale, TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps,
-                    Size = new Vector2(GlassFlourish.DiamondCanvas, GlassFlourish.DiamondCanvas)
+                    // The kit's 12 px diamond drawn at the compact 10 px (its glow canvas scaled with it).
+                    Size = new Vector2(GlassFlourish.DiamondCanvas, GlassFlourish.DiamondCanvas) * (BossDiamondSize / 12f)
                 };
                 _bossPanel.AddChild(_bossDiamond);
                 _bossPanel.MoveChild(_bossDiamond, 0);
@@ -430,6 +545,8 @@ namespace FTT.UI {
             if (_bossBar != null) {
                 _bossBar.Modulate = Colors.White;
                 _bossDecor = PulpBarDecor.Attach(_bossBar, PulpBarStyle.Boss);
+                _bossDecor.RunOverride = BossTubeRun;
+                _bossDecor.NotchScale = BossNotchScale;
                 if (_bossHpValue != null) _bossBar.MoveChild(_bossHpValue, -1);
                 if (_bossHpMax != null) _bossBar.MoveChild(_bossHpMax, -1);
             }
@@ -621,7 +738,8 @@ namespace FTT.UI {
             float space = _root.Size.X > 1f ? _root.Size.X : 1920f / scale;
             (float left, float right) = FreeBand(space);
             float width = BossBarWidthFor(space);
-            float x = Mathf.Clamp(BossPreferredX, left, Mathf.Max(left, right - width));
+            // Centred on the canvas when the band allows (the mock's (1920 - 640) / 2), else kept inside the band.
+            float x = Mathf.Clamp((space - width) / 2f, left, Mathf.Max(left, right - width));
             float nameX = BossDiamondInset + BossDiamondSize + BossNameGap;
             float rowWidth = width - nameX;
             float baseline = BossHeaderHeight * 0.83f;
@@ -634,7 +752,7 @@ namespace FTT.UI {
                 float ascent = font?.GetAscent(size) ?? BossNameSize;
                 float descent = font?.GetDescent(size) ?? 0f;
                 float line = font?.GetHeight(size) ?? BossNameSize;
-                // The CSS line box is the 38 px header (line height 1): its baseline sits half the leading plus the ascent down.
+                // The CSS line box is the 26 px header (line height 1): its baseline sits half the leading plus the ascent down.
                 baseline = (BossHeaderHeight - line) / 2f + ascent;
                 // Measure unclipped: a clipped label reports about no minimum width, which would flip the rule each call.
                 _bossNameLabel.ClipText = false;

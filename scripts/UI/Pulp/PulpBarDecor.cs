@@ -57,6 +57,8 @@ namespace FTT.UI.Pulp {
         // The tracker tween's two callbacks, made once (a hit starts a tween; it does not allocate a closure each time).
         private Action<float> _applyLag, _fadeTracker;
         private double _clock;
+        private float _runOverride;
+        private float _notchScale = 1f;
 
         /// <summary>The spec's resonance glow, rgb(242, 204, 77): the full meter's glow and a ready lens's.</summary>
         public static readonly Color ResGlow = new(0.949f, 0.8f, 0.302f);
@@ -223,8 +225,20 @@ namespace FTT.UI.Pulp {
 
         // ---- the tube ----
 
-        /// <summary>The tube's lean in pixels: 12, the boss tube 16 (whatever the height).</summary>
-        public float Run => _style == PulpBarStyle.Boss ? BossRun : TubeRun;
+        /// <summary>
+        /// The tube's lean in pixels: 12, the boss tube 16 (whatever the height), or <see cref="RunOverride"/> when set (the
+        /// compact Story HUD's shorter tubes lean less: 9 on its 22 px HP tube, 10 on its 20 px boss tube).
+        /// </summary>
+        public float Run => _runOverride > 0f ? _runOverride : _style == PulpBarStyle.Boss ? BossRun : TubeRun;
+
+        /// <summary>The lean in pixels for this tube; 0 (default) keeps 12 / 16.</summary>
+        public float RunOverride { get => _runOverride; set { if (_runOverride == value) return; _runOverride = value; Invalidate(); } }
+
+        /// <summary>
+        /// Scales the boss phase notches' reach above and below the tube and their diamond (1 by default; the compact Story
+        /// HUD's 20 px boss tube uses 0.75: 6 above, 10.5 below, a 9 px diamond).
+        /// </summary>
+        public float NotchScale { get => _notchScale; set { if (_notchScale == value) return; _notchScale = value; Invalidate(); } }
 
         /// <summary>True when the bar fills from its end (<c>FillMode.EndToBegin</c>): the tube leans "\" and anchors on the right.</summary>
         public bool Mirrored => _bar != null && _bar.FillMode == (int)ProgressBar.FillModeEnum.EndToBegin;
@@ -434,10 +448,11 @@ namespace FTT.UI.Pulp {
                     continue;
                 }
                 float x = _notches[i] * box.Size.X;
-                Rect(new Rect2(x - 1f, -8f, 2f, box.Size.Y + 22f), _notchLines[i], NotchLine);
-                Rect(new Rect2(x - 3f, -10f, 6f, box.Size.Y + 26f), _notchGlows[i], NotchGlow);
-                var c = new Vector2(x, box.Size.Y + 16f);
-                float h = 6f * Mathf.Sqrt2;
+                float k = _notchScale;
+                Rect(new Rect2(x - 1f, -8f * k, 2f, box.Size.Y + 22f * k), _notchLines[i], NotchLine);
+                Rect(new Rect2(x - 3f, -10f * k, 6f, box.Size.Y + 26f * k), _notchGlows[i], NotchGlow);
+                var c = new Vector2(x, box.Size.Y + 16f * k);
+                float h = 6f * k * Mathf.Sqrt2;
                 _quad[0] = c + new Vector2(0f, -h); _quad[1] = c + new Vector2(h, 0f); _quad[2] = c + new Vector2(0f, h); _quad[3] = c + new Vector2(-h, 0f);
                 _notchDiamonds[i].Set(_quad, 4);
                 _notchDiamonds[i].Fill(UIPalette.Accent);

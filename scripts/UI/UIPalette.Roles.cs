@@ -21,9 +21,9 @@ namespace FTT.UI {
             public const string BannerHeading = "BannerHeading";
             /// <summary>Cinzel 900, 78 px, 0.14 em, TextFocus, halo L (T04).</summary>
             public const string PauseTitle = "PauseTitle";
-            /// <summary>Cinzel 500, 26 px, 0.12 em, Ink, halo S (T05).</summary>
+            /// <summary>Cinzel 500, 20 px, 0.12 em, Ink, halo S (T05 (26 until the compact Story HUD, 2026-10-27)).</summary>
             public const string LevelTitle = "LevelTitle";
-            /// <summary>Outfit 400, 22 px, 0.00 em, Res2, halo S (T06).</summary>
+            /// <summary>Outfit 400, 18 px, 0.00 em, Res2, halo S (T06 (22 until the compact Story HUD)).</summary>
             public const string ObjectiveLine = "ObjectiveLine";
             /// <summary>Outfit 500, 18 px, 0.16 em, Ink, plate (T07).</summary>
             public const string PanelTag = "PanelTag";
@@ -45,7 +45,7 @@ namespace FTT.UI {
             public const string StatusLine = "StatusLine";
             /// <summary>Outfit 600, 32 px, 0.00 em, TextFocus, halo S (T17, the Fighter numeral (31.68)).</summary>
             public const string HudNumeral = "HudNumeral";
-            /// <summary>Outfit 600, 22 px, 0.00 em, TextFocus, halo S (T17, the Story numeral (21.6); the Fighter /max).</summary>
+            /// <summary>Outfit 600, 20 px, 0.00 em, TextFocus, halo S (T17, the Story numeral (22 until the compact Story HUD)).</summary>
             public const string HudNumeralSmall = "HudNumeralSmall";
             /// <summary>Outfit 400, 18 px, 0.00 em, TextFocus, halo S (T17 / T32 /max (AC3; the widget dims it to .78 / .75)).</summary>
             public const string HudNumeralMax = "HudNumeralMax";
@@ -61,23 +61,23 @@ namespace FTT.UI {
             public const string StatusTime = "StatusTime";
             /// <summary>Outfit 500, 18 px, 0.16 em, Ink2, plate (T22 (16.2 raised to 18)).</summary>
             public const string DefyLabel = "DefyLabel";
-            /// <summary>Outfit 600, 32 px, 0.00 em, Ink, plate (T23 (31.5)).</summary>
+            /// <summary>Outfit 600, 20 px, 0.00 em, Ink, plate (T23 (32 until the compact Story HUD)).</summary>
             public const string RewindCount = "RewindCount";
             /// <summary>Outfit 600, 20 px, 0.10 em, Ink, plate (T25 (19.8)).</summary>
             public const string StateLabel = "StateLabel";
-            /// <summary>Outfit 600, 38 px, 0.02 em, Ink, plate (T26 (37.5)).</summary>
+            /// <summary>Outfit 600, 28 px, 0.02 em, Ink, plate (T26 (38 until the compact Story HUD)).</summary>
             public const string DustTotal = "DustTotal";
-            /// <summary>Outfit 600, 26 px, 0.02 em, Res2, plate (T27 (25.5)).</summary>
+            /// <summary>Outfit 600, 21 px, 0.02 em, Res2, plate (T27 (26 until the compact Story HUD)).</summary>
             public const string DustFloat = "DustFloat";
-            /// <summary>Outfit 600, 23 px, 0.00 em, Ink, halo S (T28 (23.1)).</summary>
+            /// <summary>Outfit 600, 18 px, 0.00 em, Ink, halo S (T28 (23 until the compact Story HUD)).</summary>
             public const string IntegrityPercent = "IntegrityPercent";
             /// <summary>Outfit 500, 18 px, 0.16 em, Ink, halo S6 (T29).</summary>
             public const string IntegrityCaption = "IntegrityCaption";
-            /// <summary>Cinzel 900, 38 px, 0.08 em, TextFocus, halo L (T30).</summary>
+            /// <summary>Cinzel 900, 26 px, 0.08 em, TextFocus, halo L (T30 (38 until the compact Story HUD)).</summary>
             public const string BossName = "BossName";
             /// <summary>Outfit 500, 18 px, 0.16 em, Ink2, halo S (T31 (a plain label)).</summary>
             public const string BossPhaseTag = "BossPhaseTag";
-            /// <summary>Outfit 400, 24 px, 0.00 em, TextFocus, halo S (T32).</summary>
+            /// <summary>Outfit 400, 20 px, 0.00 em, TextFocus, halo S (T32 (24 until the compact Story HUD)).</summary>
             public const string BossHpValue = "BossHpValue";
             /// <summary>Outfit 500, 18 px, 0.16 em, Ink2, halo S (T33).</summary>
             public const string NoteLabel = "NoteLabel";
@@ -145,6 +145,12 @@ namespace FTT.UI {
             public const string CreditsHeading = "CreditsHeading";
             /// <summary>Outfit 400, 21 px, 0.00 em, TextFocus, halo S (T17 /max of the Fighter numeral (20.9; HudNumeralSmall stood in)).</summary>
             public const string HudNumeralMaxScene = "HudNumeralMaxScene";
+            /// <summary>Outfit 500, 18 px, 0.01 em, Ink, halo S (compact Story HUD status name (sentence case)).</summary>
+            public const string HudStatusName = "HudStatusName";
+            /// <summary>Outfit 600, 18 px, 0.00 em, Ink2, halo S (compact Story HUD status time).</summary>
+            public const string HudStatusTime = "HudStatusTime";
+            /// <summary>Outfit 600, 18 px, 0.10 em, Ink, plate (compact Story HUD Time Freeze state).</summary>
+            public const string HudStateLabel = "HudStateLabel";
         }
 
         /// <summary>
@@ -160,8 +166,8 @@ namespace FTT.UI {
             ("CoverBanner", 38, "cinzel", 700, 0.6f, ""),
             ("BannerHeading", 56, "cinzel", 900, 0.05f, "L"),
             ("PauseTitle", 78, "cinzel", 900, 0.14f, "L"),
-            ("LevelTitle", 26, "cinzel", 500, 0.12f, "S"),
-            ("ObjectiveLine", 22, "outfit", 400, 0.0f, "S"),
+            ("LevelTitle", 20, "cinzel", 500, 0.12f, "S"),
+            ("ObjectiveLine", 18, "outfit", 400, 0.0f, "S"),
             ("PanelTag", 18, "outfit", 500, 0.16f, ""),
             ("HeroName", 22, "cinzel", 700, 0.13f, ""),
             ("HeroNameScene", 28, "cinzel", 700, 0.13f, "S"),
@@ -172,7 +178,7 @@ namespace FTT.UI {
             ("VersionCaption", 18, "outfit", 500, 0.16f, "S"),
             ("StatusLine", 18, "outfit", 400, 0.06f, ""),
             ("HudNumeral", 32, "outfit", 600, 0.0f, "S"),
-            ("HudNumeralSmall", 22, "outfit", 600, 0.0f, "S"),
+            ("HudNumeralSmall", 20, "outfit", 600, 0.0f, "S"),
             ("HudNumeralMax", 18, "outfit", 400, 0.0f, "S"),
             ("SlotKeyTag", 18, "outfit", 500, 0.16f, ""),
             ("SlotKeyTagScene", 18, "outfit", 500, 0.16f, "S"),
@@ -180,15 +186,15 @@ namespace FTT.UI {
             ("StatusName", 18, "outfit", 500, 0.16f, "S"),
             ("StatusTime", 21, "outfit", 600, 0.0f, "S"),
             ("DefyLabel", 18, "outfit", 500, 0.16f, ""),
-            ("RewindCount", 32, "outfit", 600, 0.0f, ""),
+            ("RewindCount", 20, "outfit", 600, 0.0f, ""),
             ("StateLabel", 20, "outfit", 600, 0.1f, ""),
-            ("DustTotal", 38, "outfit", 600, 0.02f, ""),
-            ("DustFloat", 26, "outfit", 600, 0.02f, ""),
-            ("IntegrityPercent", 23, "outfit", 600, 0.0f, "S"),
+            ("DustTotal", 28, "outfit", 600, 0.02f, ""),
+            ("DustFloat", 21, "outfit", 600, 0.02f, ""),
+            ("IntegrityPercent", 18, "outfit", 600, 0.0f, "S"),
             ("IntegrityCaption", 18, "outfit", 500, 0.16f, "S6"),
-            ("BossName", 38, "cinzel", 900, 0.08f, "L"),
+            ("BossName", 26, "cinzel", 900, 0.08f, "L"),
             ("BossPhaseTag", 18, "outfit", 500, 0.16f, "S"),
-            ("BossHpValue", 24, "outfit", 400, 0.0f, "S"),
+            ("BossHpValue", 20, "outfit", 400, 0.0f, "S"),
             ("NoteLabel", 18, "outfit", 500, 0.16f, "S"),
             ("TimerDigits", 60, "outfit", 600, 0.04f, ""),
             ("CardName", 18, "outfit", 600, 0.16f, ""),
@@ -222,6 +228,9 @@ namespace FTT.UI {
             ("LogSpeaker", 22, "cinzel", 700, 0.13f, ""),
             ("CreditsHeading", 30, "cinzel", 700, 0.13f, ""),
             ("HudNumeralMaxScene", 21, "outfit", 400, 0.0f, "S"),
+            ("HudStatusName", 18, "outfit", 500, 0.01f, "S"),
+            ("HudStatusTime", 18, "outfit", 600, 0.0f, "S"),
+            ("HudStateLabel", 18, "outfit", 600, 0.1f, ""),
         };
 
         /// <summary>Non-Label variations authored in the shared theme.</summary>
@@ -248,13 +257,9 @@ namespace FTT.UI {
             public const string GlassPanelEmpty = "GlassPanelEmpty";
             /// <summary>PanelContainer: the glass slab G1 for the pause panel, padding 30 / 20 / 28.</summary>
             public const string GlassPanelPause = "GlassPanelPause";
-            /// <summary>PanelContainer: the glass slab G1 for the Story Vitals panel, padding 20 / 26 / 20.</summary>
-            public const string GlassPanelVitals = "GlassPanelVitals";
-            /// <summary>PanelContainer: the glass slab G1 for the Story Abilities panel, padding 22 / 30 / 14.</summary>
-            public const string GlassPanelAbilities = "GlassPanelAbilities";
-            /// <summary>PanelContainer: the glass slab G1 for the Story time tools panel, padding 14 / 26 / 14.</summary>
-            public const string GlassPanelTimeTools = "GlassPanelTimeTools";
-            /// <summary>PanelContainer: the glass slab G1 for the dust plate, padding 14 / 24 / 14.</summary>
+            /// <summary>PanelContainer: the glass slab G1 for the compact Story HUD slab (the Pad adds 2 on the right: 12 / 16 / 12 / 14), padding 12 / 14 / 12.</summary>
+            public const string GlassPanelHud = "GlassPanelHud";
+            /// <summary>PanelContainer: the glass slab G1 for the dust plate (the mock's 9 / 18 around its 42 px row; Outfit's 35 px line needs 13 to stand as tall), padding 13 / 18 / 13.</summary>
             public const string GlassPanelDust = "GlassPanelDust";
             /// <summary>PanelContainer: the glass slab G1 for the Fighter timer plate, padding 12 / 32 / 12.</summary>
             public const string GlassPanelTimer = "GlassPanelTimer";

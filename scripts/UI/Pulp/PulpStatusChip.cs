@@ -30,6 +30,10 @@ namespace FTT.UI.Pulp {
         private bool _showRing = true;
         private bool _empty;
         private bool _showText = true;
+        private float _ringWidth = RingWidth;
+        private float _ringOutset = RingOutset;
+        private float _textGap = TextGap;
+        private int _glowSize = 14;
 
         private readonly PulpIcon _glyph;
         private readonly VBoxContainer _column;
@@ -89,6 +93,44 @@ namespace FTT.UI.Pulp {
         public string NameText { get => _name.Text; set { _name.Text = value ?? ""; Layout(); } }
         public string TimeText { get => _time.Text; set { _time.Text = value ?? ""; Layout(); } }
         public PulpIcon Glyph => _glyph;
+
+        // ---- the compact Story HUD's knobs (2026-10-27); every default is the chip as before ----
+
+        /// <summary>The duration ring's width (3 by default; the compact Story HUD's 30 px badge uses 2.5).</summary>
+        public float RingThickness { get => _ringWidth; set { _ringWidth = value; QueueRedraw(); } }
+
+        /// <summary>How far the ring's outer edge sits outside the badge (5 by default; the compact Story HUD uses 4).</summary>
+        public float RingOutsetPixels { get => _ringOutset; set { _ringOutset = value; QueueRedraw(); } }
+
+        /// <summary>The gap between the badge and the name / time column (12 by default; the compact Story HUD uses 9).</summary>
+        public float TextGapPixels { get => _textGap; set { _textGap = value; Layout(); } }
+
+        /// <summary>The gap between the name and the time (4 by default; the compact Story HUD uses 2).</summary>
+        public int ColumnGapPixels {
+            get => _column.GetThemeConstant("separation");
+            set { _column.AddThemeConstantOverride("separation", value); Layout(); }
+        }
+
+        /// <summary>The badge's outer glow (14 by default).</summary>
+        public int GlowSize { get => _glowSize; set { _glowSize = value; _glowBox.ShadowSize = value; QueueRedraw(); } }
+
+        /// <summary>True (default) draws the name in capitals; the compact Story HUD shows it in sentence case.</summary>
+        public bool UppercaseName { get => _name.Uppercase; set { _name.Uppercase = value; Layout(); } }
+
+        /// <summary>The name's Label role (<c>StatusName</c> by default; the compact Story HUD uses <c>HudStatusName</c>).</summary>
+        public string NameRole { get => _name.ThemeTypeVariation; set { _name.ThemeTypeVariation = value; Layout(); } }
+
+        /// <summary>The time's Label role (<c>StatusTime</c> by default; the compact Story HUD uses <c>HudStatusTime</c>).</summary>
+        public string TimeRole { get => _time.ThemeTypeVariation; set { _time.ThemeTypeVariation = value; Layout(); } }
+
+        /// <summary>The name label (test seam).</summary>
+        public Label NameLabel => _name;
+
+        /// <summary>The time label (test seam).</summary>
+        public Label TimeLabel => _time;
+
+        /// <summary>The duration ring's centre-line radius as drawn (<see cref="RingRadius"/> with this chip's ring).</summary>
+        public float DrawnRingRadius => _badge / 2f + _ringOutset - _ringWidth / 2f;
         /// <summary>
         /// The badge's top inside the chip's rect: centred when the rect is taller than the badge (TG-CLOSE, TG-HUDF kit gap 3:
         /// it sat at the top, so a row taller than the badge had to shrink-centre the chip).
@@ -98,7 +140,7 @@ namespace FTT.UI.Pulp {
 
         public override Vector2 _GetMinimumSize() {
             float width = _badge;
-            if (_showText) width += TextGap + _column.GetCombinedMinimumSize().X;
+            if (_showText) width += _textGap + _column.GetCombinedMinimumSize().X;
             return new Vector2(width, _badge);
         }
 
@@ -115,7 +157,7 @@ namespace FTT.UI.Pulp {
             _column.Modulate = new Color(1f, 1f, 1f, _empty ? 0.35f : 1f);
             if (_empty) _name.Text = "";
             _column.ResetSize();
-            _column.Position = new Vector2(_badge + TextGap, top + (_badge - _column.Size.Y) / 2f);
+            _column.Position = new Vector2(_badge + _textGap, top + (_badge - _column.Size.Y) / 2f);
             UpdateMinimumSize();
             QueueRedraw();
         }
@@ -156,7 +198,7 @@ namespace FTT.UI.Pulp {
             DrawArc(center, radius + GlassGeometry.EdgeWidth / 2f, 0f, Mathf.Tau, 64, UIPalette.Edge, GlassGeometry.EdgeWidth, true);
             float fraction = RingFraction(_empty, _showRing, _remaining);
             if (fraction > 0f) {
-                DrawArc(center, RingRadius(_badge), -Mathf.Pi / 2f, -Mathf.Pi / 2f + fraction * Mathf.Tau, 64, GlyphColor(_kind), RingWidth, true);
+                DrawArc(center, DrawnRingRadius, -Mathf.Pi / 2f, -Mathf.Pi / 2f + fraction * Mathf.Tau, 64, GlyphColor(_kind), _ringWidth, true);
             }
         }
     }

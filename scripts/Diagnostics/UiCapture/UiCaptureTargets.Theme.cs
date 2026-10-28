@@ -152,8 +152,7 @@ namespace FTT.Diagnostics {
             left.AddChild(panels);
             var names = new List<string> { UIPalette.Variations.InkPanel, UIPalette.Variations.DialogueGlassPanel,
                 UIPalette.Variations.PanelTagPlate, UIPalette.Variations.ReadyBadge, UIPalette.Variations.ReadyBadgeIdle };
-            names.AddRange(new[] { UIPalette.Variations.GlassPanelPause, UIPalette.Variations.GlassPanelVitals,
-                UIPalette.Variations.GlassPanelAbilities, UIPalette.Variations.GlassPanelTimeTools,
+            names.AddRange(new[] { UIPalette.Variations.GlassPanelPause, UIPalette.Variations.GlassPanelHud,
                 UIPalette.Variations.GlassPanelDust, UIPalette.Variations.GlassPanelTimer,
                 UIPalette.Variations.GlassPanelStats, UIPalette.Variations.GlassPanelContinue });
             foreach (string name in names) {
@@ -273,7 +272,7 @@ namespace FTT.Diagnostics {
             middle.AddThemeConstantOverride("separation", 26);
             columns.AddChild(middle);
             middle.AddChild(Heading("Slab G1 and its tag G2 at (26, -11)"));
-            var slab = new PanelContainer { ThemeTypeVariation = UIPalette.Variations.GlassPanelVitals, CustomMinimumSize = new Vector2(540, 160) };
+            var slab = new PanelContainer { ThemeTypeVariation = UIPalette.Variations.InkPanel, CustomMinimumSize = new Vector2(540, 160) };
             var slabColumn = new VBoxContainer();
             slab.AddChild(slabColumn);
             slabColumn.AddChild(new Label { Text = "JOAN OF ARC", ThemeTypeVariation = UIPalette.LabelRoles.HeroName });

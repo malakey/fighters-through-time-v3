@@ -41,8 +41,11 @@ namespace FTT.UI {
             FTT.Core.AbilitySlot.MovementAbility
         };
 
-        /// <summary>The 30 px shield pips (UI_SPEC_GLASS 3.4.4), gap 7: <c>shield</c> lit, <c>shield_off</c> at .28 spent.</summary>
-        private const int BlockPipSize = 30;
+        /// <summary>
+        /// The 18 px shield pips of the compact Story HUD (30 until 2026-10-27), 4 apart after the HP tube: <c>shield</c> lit,
+        /// <c>shield_off</c> at .28 spent.
+        /// </summary>
+        public const int BlockPipSize = 18;
 
         /// <summary>A spent block pip's opacity (UI_SPEC_GLASS 3.4.4).</summary>
         public const float SpentPipAlpha = 0.28f;
@@ -1169,15 +1172,35 @@ namespace FTT.UI {
 
         // === UI resolution ===
 
-        private const string TopLeftPanelPath = "SafeArea/TopLeft_Panel";
-        private const string VitalsPanelPath = "SafeArea/TopLeft_Panel/VitalsPanel";
-        private const string VitalsStackPath = "SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack";
-        private const string VitalsPath = "SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top/Vitals";
-        private const string AbilitiesPanelPath = "SafeArea/TopLeft_Panel/AbilitiesPanel";
-        private const string AbilitiesPath = "SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities";
-        private const string TemporalRowPath = "SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow";
-        private const string TopRightPanelPath = "SafeArea/TopRight_Panel";
-        private const string CurrencyPath = "SafeArea/TopRight_Panel/DustPlate/Pad/CurrencyContainer";
+        // The compact Story HUD's tree (2026-10-27): one slab, two tiers. Public so the tests bind the same paths.
+        /// <summary>The left stack (the one slab): its rect is the left cluster's.</summary>
+        public const string TopLeftPanelPath = "SafeArea/TopLeft_Panel";
+        /// <summary>The one glass slab (<c>GlassPanelHud</c>).</summary>
+        public const string HudPanelPath = "SafeArea/TopLeft_Panel/HudPanel";
+        /// <summary>The slab's two-tier stack.</summary>
+        public const string HudStackPath = "SafeArea/TopLeft_Panel/HudPanel/Pad/Stack";
+        /// <summary>Tier 1's vitals column: the HP row (tube and block pips) over the status badges.</summary>
+        public const string VitalsPath = "SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Top/Vitals";
+        /// <summary>The HP row: the HP tube, then the block pips.</summary>
+        public const string HpRowPath = "SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Top/Vitals/HpRow";
+        /// <summary>Tier 2: the Ultimate, the two capsules, the hairline and the time tools.</summary>
+        public const string AbilitiesPath = "SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities";
+        /// <summary>The capsule that holds Special 1 and Special 2.</summary>
+        public const string SpecialsCapsulePath = "SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsCapsule";
+        /// <summary>The capsule that holds the Movement ability alone.</summary>
+        public const string MovementCapsulePath = "SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/MovementCapsule";
+        /// <summary>The time tools column at the slab's right end (rewind and Beacon, then Time Freeze).</summary>
+        public const string TimeToolsPath = "SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/TimeTools";
+        /// <summary>The time tools' first row: the rewind counter, then (Act III) the Beacon anchors.</summary>
+        public const string RewindRowPath = "SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/TimeTools/RewindRow";
+        /// <summary>Each cooldown lens's host Label (Special 1, Special 2, Movement).</summary>
+        public static readonly string[] CooldownIconPaths = {
+            SpecialsCapsulePath + "/CooldownRow/Cooldown1_Icon",
+            SpecialsCapsulePath + "/CooldownRow/Cooldown2_Icon",
+            MovementCapsulePath + "/CooldownRow/Cooldown3_Icon"
+        };
+        public const string TopRightPanelPath = "SafeArea/TopRight_Panel";
+        public const string CurrencyPath = "SafeArea/TopRight_Panel/DustPlate/Pad/CurrencyContainer";
 
         private void ResolveUI() {
             _root = GetNodeOrNull<Control>("SafeArea");
@@ -1189,53 +1212,53 @@ namespace FTT.UI {
             _topLeft = GetNodeOrNull<Control>("SafeArea/TopLeft");
             _levelTitleLabel = GetNodeOrNull<Label>("SafeArea/TopLeft/LevelTitle");
             _objectiveLabel = GetNodeOrNull<Label>("SafeArea/TopLeft/Objective");
-            _portrait = GetNodeOrNull<TextureRect>($"{VitalsStackPath}/Top/PortraitHost/PlayerPortrait");
+            _portrait = GetNodeOrNull<TextureRect>($"{HudStackPath}/Top/PortraitHost/PlayerPortrait");
             _heroName = GetNodeOrNull<Label>($"{VitalsPath}/HeroName");
 
-            _hpBar = GetNodeOrNull<ProgressBar>($"{VitalsPath}/HealthBar_BG");
-            _echoBand = GetNodeOrNull<ColorRect>($"{VitalsPath}/HealthBar_BG/RallyEcho_Band");
-            _hpText = GetNodeOrNull<Label>($"{VitalsPath}/HealthBar_BG/HPText");
-            _hpMax = GetNodeOrNull<Label>($"{VitalsPath}/HealthBar_BG/HPMax");
-            _blockPipRow = GetNodeOrNull<HBoxContainer>($"{VitalsPath}/BlockCharges_Panel");
+            _hpBar = GetNodeOrNull<ProgressBar>($"{HpRowPath}/HealthBar_BG");
+            _echoBand = GetNodeOrNull<ColorRect>($"{HpRowPath}/HealthBar_BG/RallyEcho_Band");
+            _hpText = GetNodeOrNull<Label>($"{HpRowPath}/HealthBar_BG/HPText");
+            _hpMax = GetNodeOrNull<Label>($"{HpRowPath}/HealthBar_BG/HPMax");
+            _blockPipRow = GetNodeOrNull<HBoxContainer>($"{HpRowPath}/BlockCharges_Panel");
 
             _damageStatusIndicator =
-                GetNodeOrNull<Label>($"{VitalsStackPath}/StatusEffects_Panel/DamageStatus_Indicator");
+                GetNodeOrNull<Label>($"{VitalsPath}/StatusEffects_Panel/DamageStatus_Indicator");
             _damageStatusRadial = GetNodeOrNull<RadialProgress>(
-                $"{VitalsStackPath}/StatusEffects_Panel/DamageStatus_Indicator/DamageStatus_DurationRadial");
+                $"{VitalsPath}/StatusEffects_Panel/DamageStatus_Indicator/DamageStatus_DurationRadial");
             _controlStatusIndicator =
-                GetNodeOrNull<Label>($"{VitalsStackPath}/StatusEffects_Panel/ControlStatus_Indicator");
+                GetNodeOrNull<Label>($"{VitalsPath}/StatusEffects_Panel/ControlStatus_Indicator");
             _controlStatusRadial = GetNodeOrNull<RadialProgress>(
-                $"{VitalsStackPath}/StatusEffects_Panel/ControlStatus_Indicator/ControlStatus_DurationRadial");
+                $"{VitalsPath}/StatusEffects_Panel/ControlStatus_Indicator/ControlStatus_DurationRadial");
 
             _meterHost = GetNodeOrNull<Control>($"{AbilitiesPath}/MeterRow/UltimateMeter_BG");
             _meterFill = GetNodeOrNull<RadialProgress>(
                 $"{AbilitiesPath}/MeterRow/UltimateMeter_BG/UltimateMeter_Fill");
             _meterLockOverlay = GetNodeOrNull<Label>(
                 $"{AbilitiesPath}/MeterRow/UltimateMeter_BG/UltimateMeter_LockOverlay");
-            _defySeal = GetNodeOrNull<Label>($"{AbilitiesPath}/MeterRow/DefyStack/DefySeal");
+            _defySeal = GetNodeOrNull<Label>($"{AbilitiesPath}/MeterRow/DefySeal");
 
             for (int index = 0; index < CooldownSlots.Length; index++) {
                 string iconName = $"Cooldown{index + 1}_Icon";
-                _cooldownIcons[index] = GetNodeOrNull<Label>($"{AbilitiesPath}/CooldownRow/{iconName}");
+                _cooldownIcons[index] = GetNodeOrNull<Label>(CooldownIconPaths[index]);
                 _cooldownRadials[index] = GetNodeOrNull<RadialProgress>(
-                    $"{AbilitiesPath}/CooldownRow/{iconName}/Cooldown{index + 1}_Radial");
+                    $"{CooldownIconPaths[index]}/Cooldown{index + 1}_Radial");
                 _cooldownLockOverlays[index] = GetNodeOrNull<Label>(
-                    $"{AbilitiesPath}/CooldownRow/{iconName}/Cooldown{index + 1}_LockOverlay");
+                    $"{CooldownIconPaths[index]}/Cooldown{index + 1}_LockOverlay");
                 if (_cooldownIcons[index] != null) {
                     _cooldownIcons[index].Text =
                         Tr(HudAbilityIndicatorModel.SlotLabelKey(CooldownSlots[index]));
                 }
             }
 
-            _rewindIcon = GetNodeOrNull<Label>($"{TemporalRowPath}/RewindCounter/RewindIcon");
-            _rewindCountText = GetNodeOrNull<Label>($"{TemporalRowPath}/RewindCounter/RewindCountText");
-            _timeFreezeIndicator = GetNodeOrNull<Control>($"{TemporalRowPath}/TimeFreezeIndicator");
-            _freezeIcon = GetNodeOrNull<Label>($"{TemporalRowPath}/TimeFreezeIndicator/FreezeIcon");
+            _rewindIcon = GetNodeOrNull<Label>($"{RewindRowPath}/RewindCounter/RewindIcon");
+            _rewindCountText = GetNodeOrNull<Label>($"{RewindRowPath}/RewindCounter/RewindCountText");
+            _timeFreezeIndicator = GetNodeOrNull<Control>($"{TimeToolsPath}/TimeFreezeIndicator");
+            _freezeIcon = GetNodeOrNull<Label>($"{TimeToolsPath}/TimeFreezeIndicator/FreezeIcon");
             _freezeRemainingText =
-                GetNodeOrNull<Label>($"{TemporalRowPath}/TimeFreezeIndicator/FreezeColumn/FreezeRemainingText");
-            _beaconAnchors = GetNodeOrNull<Control>($"{TemporalRowPath}/BeaconAnchors");
-            _anchorPipRow = GetNodeOrNull<HBoxContainer>($"{TemporalRowPath}/BeaconAnchors/AnchorPips");
-            _beaconIcon = GetNodeOrNull<BeaconAnchorIcon>($"{TemporalRowPath}/BeaconAnchors/BeaconIcon");
+                GetNodeOrNull<Label>($"{TimeToolsPath}/TimeFreezeIndicator/FreezeColumn/FreezeRemainingText");
+            _beaconAnchors = GetNodeOrNull<Control>($"{RewindRowPath}/BeaconAnchors");
+            _anchorPipRow = GetNodeOrNull<HBoxContainer>($"{RewindRowPath}/BeaconAnchors/AnchorPips");
+            _beaconIcon = GetNodeOrNull<BeaconAnchorIcon>($"{RewindRowPath}/BeaconAnchors/BeaconIcon");
 
             _dustText = GetNodeOrNull<Label>($"{CurrencyPath}/ChronalDustText");
             _dustFloat = GetNodeOrNull<Label>($"{CurrencyPath}/DustPickup_Float");

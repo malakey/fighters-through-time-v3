@@ -47,6 +47,8 @@ namespace FTT.UI.Pulp {
         public const float KeyGap = 9f;
         /// <summary>The <c>SlotNumber</c> role's size at 100 % (T19 for the 54 lens), the base of the 0.36 x lens rule.</summary>
         public const int SlotNumberBaseSize = 19;
+        /// <summary>The compact Story HUD's READY pill: 8 px of padding a side, 22 px tall, its top 19 px above the lens's bottom.</summary>
+        public const float ReadyPillPadX = 8f, ReadyPillHeight = 22f, ReadyPillRise = 19f, ReadyPillSlant = 6f;
         private const int CircleSegments = 48;
 
         private static readonly Color RingTrack = new(UIPalette.Accent, 0.16f);
@@ -62,6 +64,12 @@ namespace FTT.UI.Pulp {
         private string _keyText = "";
         private Texture2D _art;
         private bool _keyOverScene;
+        private float _ultimateLens = UltimateFrame;
+        private float _ringWidthOverride;
+        private float _ringOutsetOverride;
+        private float _centerTextSize;
+        private float _effectScale = 1f;
+        private bool _readyPill;
 
         private readonly LensArt _artRect;
         private readonly SweepLayer _sweep;
@@ -70,6 +78,7 @@ namespace FTT.UI.Pulp {
         private readonly Label _center;
         private readonly Label _keyLabel;
         private readonly Label _readyLabel;
+        private readonly ReadyPillLayer _readyPillLayer;
         private readonly ShaderMaterial _artMaterial;
         private readonly StyleBoxFlat _glowBox = new() { DrawCenter = false, CornerDetail = 16 };
         private float _bloomGlow = 1f;
@@ -94,6 +103,8 @@ namespace FTT.UI.Pulp {
                 HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Visible = false
             };
             AddChild(_center);
+            _readyPillLayer = new ReadyPillLayer { Name = "ReadyPill", MouseFilter = MouseFilterEnum.Ignore, Visible = false };
+            AddChild(_readyPillLayer);
             _readyLabel = new Label {
                 Name = "ReadyLabel", Text = "common_ready", Uppercase = true, ThemeTypeVariation = UIPalette.LabelRoles.UltimateReadyLabel,
                 MouseFilter = MouseFilterEnum.Ignore, HorizontalAlignment = HorizontalAlignment.Center,
@@ -186,6 +197,46 @@ namespace FTT.UI.Pulp {
 
         // ---- the owner's properties ----
 
+        /// <summary>
+        /// The Ultimate lens's diameter: 92 by default (its ring box then 110); the compact Story HUD (2026-10-27) uses 64.
+        /// The ring box is the lens plus twice <see cref="RingOutset"/>.
+        /// </summary>
+        public float UltimateLensSize {
+            get => _ultimateLens;
+            set { if (_ultimateLens == value) return; _ultimateLens = value; _lookDirty = true; Relayout(); Refresh(); }
+        }
+
+        /// <summary>The readiness ring's width in pixels; 0 (default) keeps 3 (small) or 5 (the Ultimate).</summary>
+        public float RingWidthOverride { get => _ringWidthOverride; set { if (_ringWidthOverride == value) return; _ringWidthOverride = value; Relayout(); } }
+
+        /// <summary>How far the ring's outer edge sits outside the lens; 0 (default) keeps 6 (small) or 9 (the Ultimate).</summary>
+        public float RingOutsetOverride { get => _ringOutsetOverride; set { if (_ringOutsetOverride == value) return; _ringOutsetOverride = value; Relayout(); } }
+
+        /// <summary>
+        /// The centre number's size at 100 % in pixels; 0 (default) keeps the 0.36 x lens rule (<see cref="CenterFontSize"/>).
+        /// The compact Story HUD sets 18 for its 48 px lenses (the rule would give 17, under the HUD's 18 px floor) and 21 for
+        /// its 64 px Ultimate.
+        /// </summary>
+        public float CenterTextSize { get => _centerTextSize; set { if (_centerTextSize == value) return; _centerTextSize = value; Relayout(); } }
+
+        /// <summary>Scales the lens's inner and outer glow widths (1 by default); the compact Story HUD scales them with its lenses.</summary>
+        public float EffectScale { get => _effectScale; set { if (_effectScale == value) return; _effectScale = value; _builtGlowWidth = -1f; QueueRedraw(); } }
+
+        /// <summary>
+        /// The ready Ultimate's READY label as a pill laid over the bottom of the lens (the compact Story HUD) instead of
+        /// centred in the lens (default false).
+        /// </summary>
+        public bool ReadyPill { get => _readyPill; set { if (_readyPill == value) return; _readyPill = value; Relayout(); Refresh(); } }
+
+        /// <summary>The ring's width in use (the override, else 3 or 5).</summary>
+        public float RingThickness => _ringWidthOverride > 0f ? _ringWidthOverride : _ultimate ? RingWidth : SmallRingWidth;
+
+        /// <summary>The ring's outer edge outside the lens in use (the override, else 6 or 9).</summary>
+        public float RingOutset => _ringOutsetOverride > 0f ? _ringOutsetOverride : _ultimate ? UltimateRingOutset : SmallRingOutset;
+
+        /// <summary>The Ultimate's box side: the lens plus twice the ring outset (110 by default).</summary>
+        public float UltimateBoxSize => _ultimateLens + 2f * RingOutset;
+
         /// <summary>74 (Story), 54 (Fighter) or 56 (select). Ignored for the Ultimate (a 92 lens in a 110 box).</summary>
         public float SlotSize { get => _slotSize; set { if (_slotSize == value) return; _slotSize = value; _lookDirty = true; Relayout(); Refresh(); } }
         public bool Ultimate { get => _ultimate; set { if (_ultimate == value) return; _ultimate = value; _lookDirty = true; Relayout(); Refresh(); } }
@@ -248,10 +299,10 @@ namespace FTT.UI.Pulp {
         public TextureRect ArtNode => _artRect;
         /// <summary>The readiness ring (the not-yet circle's host).</summary>
         public RadialProgress Ring => _ring;
-        /// <summary>The lens diameter: <see cref="SlotSize"/>, or 92 for the Ultimate.</summary>
-        public float LensSize => _ultimate ? UltimateFrame : _slotSize;
-        /// <summary>Where the lens sits inside this control: (0, 0), or (9, 9) for the Ultimate's 110 box.</summary>
-        public Vector2 LensOrigin => _ultimate ? Vector2.One * UltimateRingOutset : Vector2.Zero;
+        /// <summary>The lens diameter: <see cref="SlotSize"/>, or <see cref="UltimateLensSize"/> (92) for the Ultimate.</summary>
+        public float LensSize => _ultimate ? _ultimateLens : _slotSize;
+        /// <summary>Where the lens sits inside this control: (0, 0), or (outset, outset) for the Ultimate's ring box (9 in 110).</summary>
+        public Vector2 LensOrigin => _ultimate ? Vector2.One * RingOutset : Vector2.Zero;
         /// <summary>How many times the lens geometry was rebuilt (once per size).</summary>
         public int GeometryBuilds { get; private set; }
         /// <summary>How many ready blooms were played (none under Reduced Temporal Effects).</summary>
@@ -261,7 +312,7 @@ namespace FTT.UI.Pulp {
 
         private void Relayout() {
             float lens = LensSize;
-            float box = _ultimate ? RingOuterDiameter : lens;
+            float box = _ultimate ? UltimateBoxSize : lens;
             CustomMinimumSize = new Vector2(box, box);
             Size = new Vector2(box, box);
             Vector2 origin = LensOrigin;
@@ -269,18 +320,36 @@ namespace FTT.UI.Pulp {
             _artRect.Size = new Vector2(lens, lens);
             _sweep.Position = origin;
             _sweep.Size = new Vector2(lens, lens);
-            Rect2 ring = RingRectFor(lens, _ultimate);
+            float outset = RingOutset;
+            var ring = new Rect2(-outset, -outset, lens + 2f * outset, lens + 2f * outset);
             _ring.Position = origin + ring.Position;
             _ring.Size = ring.Size;
-            _ring.Thickness = _ultimate ? RingWidth : SmallRingWidth;
+            _ring.Thickness = RingThickness;
             float lockSide = lens * (1f - 2f * LockInset);
             _glyph.Size = new Vector2(lockSide, lockSide);
             _glyph.Position = origin + Vector2.One * (lens * LockInset);
             _center.Position = origin;
             _center.Size = new Vector2(lens, lens);
-            _center.AddThemeFontSizeOverride(FontSizeName, CenterFontSize(lens, SlotNumberSizeInContext));
-            _readyLabel.Position = origin;
-            _readyLabel.Size = new Vector2(lens, lens);
+            int centerSize = _centerTextSize > 0f
+                ? Mathf.RoundToInt(_centerTextSize * SlotNumberSizeInContext / SlotNumberBaseSize)
+                : CenterFontSize(lens, SlotNumberSizeInContext);
+            _center.AddThemeFontSizeOverride(FontSizeName, centerSize);
+            if (_readyPill) {
+                // The compact Story HUD's pill: the label's text plus 8 px a side, 22 tall, its top 19 px above the
+                // lens's bottom, centred (the mock's translate(-50%, -19px) from the lens's bottom edge).
+                _readyLabel.ResetSize();
+                Vector2 text = _readyLabel.GetCombinedMinimumSize();
+                var pill = new Vector2(text.X + 2f * ReadyPillPadX, ReadyPillHeight);
+                var pillAt = new Vector2(origin.X + (lens - pill.X) / 2f, origin.Y + lens - ReadyPillRise);
+                _readyPillLayer.Position = pillAt;
+                _readyPillLayer.Size = pill;
+                _readyLabel.Position = pillAt;
+                _readyLabel.Size = pill;
+                _readyPillLayer.QueueRedraw();
+            } else {
+                _readyLabel.Position = origin;
+                _readyLabel.Size = new Vector2(lens, lens);
+            }
             _keyLabel.ResetSize();
             _keyLabel.Position = new Vector2(origin.X + (lens - _keyLabel.Size.X) / 2f, origin.Y + lens + KeyGap);
             QueueRedraw();
@@ -310,6 +379,7 @@ namespace FTT.UI.Pulp {
             }
             _center.Visible = look.CenterText.Length > 0;
             _readyLabel.Visible = look.ReadyTag;
+            _readyPillLayer.Visible = look.ReadyTag && _readyPill;
             bool glyph = look.GlyphName != null;
             _glyph.Visible = glyph;
             if (glyph && look.GlyphName != _appliedGlyph) {
@@ -431,12 +501,14 @@ namespace FTT.UI.Pulp {
                 : readyUltimate ? (18f, new Color(ResGlowColor, 0.35f))
                 : ready ? (14f, new Color(UIPalette.Accent, 0.30f))
                 : (14f, new Color(UIPalette.Accent, 0.22f));
+            inner.width *= _effectScale;
             EnsureLens(inner.width, inner.color);
 
             // The outer glow (OuterGlowOf): ready, the ready Ultimate and the suppressed Ultimate (round the ring).
             if (readyUltimate || ready || (suppressed && _ultimate)) {
-                float radius = suppressed ? r + UltimateRingOutset : r;
+                float radius = suppressed ? r + RingOutset : r;
                 (int size, Color glow) = OuterGlowOf(readyUltimate, suppressed, _bloomGlow);
+                if (_effectScale != 1f) size = Mathf.Max(1, Mathf.RoundToInt(size * _effectScale));
                 if (glow.A > 0f) {
                     int corner = Mathf.RoundToInt(radius);
                     _glowBox.CornerRadiusTopLeft = _glowBox.CornerRadiusTopRight = corner;
@@ -503,6 +575,32 @@ namespace FTT.UI.Pulp {
                 Array.Copy(_b, _points, n);
                 GlassGeometry.BoxUvs(_points, n, square, _uvs);
                 for (int i = 0; i < n; i++) _colors[i] = Colors.White;
+            }
+        }
+
+        /// <summary>
+        /// The READY pill's plate (the compact Story HUD): a parallelogram slanted 6 px, filled rgba(6, 10, 26, .94), a 1.5 px
+        /// <c>res</c> edge and a soft res glow. Its points are rebuilt only when its size changes; a draw allocates nothing.
+        /// </summary>
+        private sealed partial class ReadyPillLayer : Control {
+            private readonly Vector2[] _quad = new Vector2[4];
+            private readonly Vector2[] _edge = new Vector2[5];
+            private readonly StyleBoxFlat _glow = new() { DrawCenter = false, ShadowSize = 8, ShadowColor = new Color(ResGlowColor, 0.45f) };
+            private Vector2 _builtFor = new(-1f, -1f);
+            private static readonly Color Fill = new(6f / 255f, 10f / 255f, 26f / 255f, 0.94f);
+
+            public override void _Draw() {
+                if (Size != _builtFor) {
+                    _builtFor = Size;
+                    float w = Size.X, h = Size.Y, s = ReadyPillSlant;
+                    _quad[0] = new Vector2(s, 0f); _quad[1] = new Vector2(w, 0f); _quad[2] = new Vector2(w - s, h); _quad[3] = new Vector2(0f, h);
+                    for (int i = 0; i < 4; i++) _edge[i] = _quad[i];
+                    _edge[4] = _quad[0];
+                    _glow.Skew = new Vector2(s / Mathf.Max(1f, h), 0f);
+                }
+                DrawStyleBox(_glow, new Rect2(new Vector2(ReadyPillSlant / 2f, 0f), new Vector2(Mathf.Max(1f, Size.X - ReadyPillSlant), Size.Y)));
+                DrawColoredPolygon(_quad, Fill);
+                DrawPolyline(_edge, UIPalette.Res, EdgeWidth, true);
             }
         }
 

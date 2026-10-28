@@ -206,7 +206,7 @@ namespace FTT.Diagnostics {
             // Two glass slabs with the sheen: the 620 x 214 Vitals panel and a 600-wide list slab.
             var vitals = new PanelContainer {
                 Name = "Vitals", Position = new Vector2(80f, 80f), CustomMinimumSize = new Vector2(620f, 214f),
-                ThemeTypeVariation = UIPalette.Variations.GlassPanelVitals
+                ThemeTypeVariation = UIPalette.Variations.InkPanel
             };
             vitals.AddChild(new Label { Text = "VITALS PANEL 620 x 214", ThemeTypeVariation = UIPalette.LabelRoles.HeroName });
             page.AddChild(vitals);
@@ -270,7 +270,7 @@ namespace FTT.Diagnostics {
                 PulpScreenKit.DressPanel(tagged, key);
             }
             var taggedPanel = new PulpTaggedPanel { TagKey = "hud_abilities" };
-            var inner = new PanelContainer { CustomMinimumSize = new Vector2(440f, 150f), ThemeTypeVariation = UIPalette.Variations.GlassPanelAbilities };
+            var inner = new PanelContainer { CustomMinimumSize = new Vector2(440f, 150f), ThemeTypeVariation = UIPalette.Variations.InkPanel };
             inner.AddChild(new Label { Text = "PulpTaggedPanel", ThemeTypeVariation = UIPalette.LabelRoles.HeroName });
             taggedPanel.AddChild(inner);
             hosts.AddChild(taggedPanel);
