@@ -1,19 +1,21 @@
 [gd_scene load_steps=6 format=3]
 
-; TG-HUDS (Temporal Glass rebuild, 2026-10-27): HUD-S1 corner cluster in glass. Left column: three glass slabs
-; (GlassPanelVitals and GlassPanelAbilities with light tags, GlassPanelTimeTools untagged) under the level title,
-; laid out at UI_SPEC_GLASS 4.4's rects; right column: the dust plate (GlassPanelDust) and the thin-ring Integrity
-; dial; BossPanel is a plain Control laid out in code (top of the free band, BOSS-A). Every glyph Label (status,
-; Defy, cooldown, rewind, freeze, dust) keeps its Text and TooltipText for the tests and accessibility, its
-; characters hidden, and the glass widget is added in code as its child. The node paths the pulp build pinned are
-; kept; Vitals became a plain Control (its children are placed in code), HealthBar_BG gained HPMax, TemporalRow a
-; FreezeGap spacer and BossBar a BossHpMax label (docs/handoffs/TG_HUDS.md).
+; The compact Story HUD (2026-10-27, the user's request; first built by TG-HUDS as three glass slabs). Left: ONE glass
+; slab (GlassPanelHud, 484 x ~182 at 100 %, origin (24, 20)): tier 1 the 68 px portrait frame, the 296 x 22 HP tube with
+; its three 18 px block pips after it and the two 30 px status badges under it; tier 2 the 64 px Ultimate lens with the
+; Defy seal as a badge on its ring, a recessed capsule holding S1 and S2 (48 px lenses), a capsule holding MOV, then a
+; hairline and the time tools as a column (rewind and, in Act III, the Beacon; Time Freeze). The level title and the
+; objective sit under the slab (SafeArea/TopLeft, placed in code 12 px below it). Right: the dust plate and the 64 px
+; Integrity dial. BossPanel is laid out in code (640 wide at 100 %, centred in the free band). Every glyph Label keeps
+; its Text and TooltipText for the tests and accessibility, its characters hidden, and the glass widget is its child.
+; HeroName, DefyLabel and FreezeSubLabel are kept hidden: their nodes and keys stay, they draw nothing
+; (docs/handoffs/TG_HUDS_COMPACT.md).
 
 [ext_resource type="Script" path="res://scripts/UI/StoryHUD.cs" id="1_script"]
 [ext_resource type="Script" path="res://scripts/UI/BossPhaseNotchOverlay.cs" id="2_notches"]
 [ext_resource type="Script" path="res://scripts/UI/RadialProgress.cs" id="3_radial"]
 [ext_resource type="Script" path="res://scripts/UI/BeaconAnchorIcon.cs" id="4_beacon"]
-[ext_resource type="Script" path="res://scripts/UI/Pulp/PulpTaggedPanel.cs" id="5_tagged"]
+[ext_resource type="Script" path="res://scripts/UI/HudCapsule.cs" id="5_capsule"]
 
 [node name="StoryHUD" type="CanvasLayer"]
 layer = 10
@@ -30,12 +32,12 @@ mouse_filter = 2
 
 [node name="TopLeft" type="VBoxContainer" parent="SafeArea"]
 layout_mode = 0
-offset_left = 44.0
-offset_top = 22.0
-offset_right = 944.0
-offset_bottom = 90.0
+offset_left = 32.0
+offset_top = 214.0
+offset_right = 508.0
+offset_bottom = 262.0
 mouse_filter = 2
-theme_override_constants/separation = 5
+theme_override_constants/separation = 4
 
 [node name="LevelTitle" type="Label" parent="SafeArea/TopLeft"]
 layout_mode = 2
@@ -48,48 +50,44 @@ theme_type_variation = &"ObjectiveLine"
 
 [node name="TopLeft_Panel" type="VBoxContainer" parent="SafeArea"]
 layout_mode = 0
-offset_left = 32.0
-offset_top = 108.0
-offset_right = 652.0
-offset_bottom = 603.0
+offset_left = 24.0
+offset_top = 20.0
+offset_right = 508.0
+offset_bottom = 202.0
 mouse_filter = 2
-theme_override_constants/separation = 26
+theme_override_constants/separation = 0
 
-[node name="VitalsPanel" type="Container" parent="SafeArea/TopLeft_Panel"]
+[node name="HudPanel" type="PanelContainer" parent="SafeArea/TopLeft_Panel"]
+custom_minimum_size = Vector2(484, 0)
 layout_mode = 2
 mouse_filter = 2
-script = ExtResource("5_tagged")
+theme_type_variation = &"GlassPanelHud"
 
-[node name="Plate" type="PanelContainer" parent="SafeArea/TopLeft_Panel/VitalsPanel"]
-custom_minimum_size = Vector2(620, 0)
-layout_mode = 2
-mouse_filter = 2
-theme_type_variation = &"GlassPanelVitals"
-
-[node name="Pad" type="MarginContainer" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate"]
+[node name="Pad" type="MarginContainer" parent="SafeArea/TopLeft_Panel/HudPanel"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/margin_left = 0
 theme_override_constants/margin_top = 0
-theme_override_constants/margin_right = 0
+theme_override_constants/margin_right = 2
 theme_override_constants/margin_bottom = 0
 
-[node name="Stack" type="VBoxContainer" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad"]
+[node name="Stack" type="VBoxContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 18
+theme_override_constants/separation = 12
 
-[node name="Top" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack"]
+[node name="Top" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 22
+theme_override_constants/separation = 14
 
-[node name="PortraitHost" type="Control" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top"]
-custom_minimum_size = Vector2(112, 112)
+[node name="PortraitHost" type="Control" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Top"]
+custom_minimum_size = Vector2(68, 68)
 layout_mode = 2
+size_flags_vertical = 4
 mouse_filter = 2
 
-[node name="PlayerPortrait" type="TextureRect" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top/PortraitHost"]
+[node name="PlayerPortrait" type="TextureRect" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Top/PortraitHost"]
 modulate = Color(1, 1, 1, 0)
 layout_mode = 1
 anchors_preset = 15
@@ -101,33 +99,28 @@ mouse_filter = 2
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Vitals" type="Control" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top"]
-custom_minimum_size = Vector2(380, 106)
+[node name="Vitals" type="VBoxContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Top"]
 layout_mode = 2
-size_flags_horizontal = 3
+size_flags_vertical = 4
 mouse_filter = 2
+theme_override_constants/separation = 9
 
-[node name="HeroName" type="Label" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top/Vitals"]
-layout_mode = 0
-offset_top = -4.0
-offset_right = 380.0
-offset_bottom = 26.0
-theme_type_variation = &"HeroName"
-uppercase = true
+[node name="HpRow" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Top/Vitals"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 14
 
-[node name="HealthBar_BG" type="ProgressBar" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top/Vitals"]
-custom_minimum_size = Vector2(380, 30)
-layout_mode = 0
-offset_top = 30.0
-offset_right = 380.0
-offset_bottom = 60.0
+[node name="HealthBar_BG" type="ProgressBar" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Top/Vitals/HpRow"]
+custom_minimum_size = Vector2(296, 22)
+layout_mode = 2
+size_flags_vertical = 4
 mouse_filter = 2
 theme_type_variation = &"PulpBar"
 max_value = 100.0
 value = 100.0
 show_percentage = false
 
-[node name="RallyEcho_Band" type="ColorRect" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top/Vitals/HealthBar_BG"]
+[node name="RallyEcho_Band" type="ColorRect" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Top/Vitals/HpRow/HealthBar_BG"]
 visible = false
 layout_mode = 1
 anchors_preset = 15
@@ -138,165 +131,97 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(1, 0.92, 0.35, 0.55)
 
-[node name="HPText" type="Label" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top/Vitals/HealthBar_BG"]
+[node name="HPText" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Top/Vitals/HpRow/HealthBar_BG"]
 layout_mode = 0
 offset_right = 40.0
-offset_bottom = 30.0
+offset_bottom = 22.0
 mouse_filter = 2
 theme_type_variation = &"HudNumeralSmall"
 
-[node name="HPMax" type="Label" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top/Vitals/HealthBar_BG"]
-modulate = Color(1, 1, 1, 0.78)
+[node name="HPMax" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Top/Vitals/HpRow/HealthBar_BG"]
+modulate = Color(1, 1, 1, 0.72)
 layout_mode = 0
 offset_right = 40.0
-offset_bottom = 30.0
+offset_bottom = 22.0
 mouse_filter = 2
 theme_type_variation = &"HudNumeralMax"
 
-[node name="BlockCharges_Panel" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top/Vitals"]
-custom_minimum_size = Vector2(0, 30)
-layout_mode = 0
-offset_top = 76.0
-offset_right = 380.0
-offset_bottom = 106.0
-mouse_filter = 2
-theme_override_constants/separation = 7
-
-[node name="StatusEffects_Panel" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack"]
-custom_minimum_size = Vector2(0, 44)
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 30
-
-[node name="DamageStatus_Indicator" type="Label" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/StatusEffects_Panel"]
-custom_minimum_size = Vector2(200, 44)
-layout_mode = 2
-mouse_filter = 2
-horizontal_alignment = 1
-vertical_alignment = 1
-
-[node name="DamageStatus_DurationRadial" type="Control" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/StatusEffects_Panel/DamageStatus_Indicator"]
-visible = false
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-script = ExtResource("3_radial")
-
-[node name="ControlStatus_Indicator" type="Label" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/StatusEffects_Panel"]
-custom_minimum_size = Vector2(200, 44)
-layout_mode = 2
-mouse_filter = 2
-horizontal_alignment = 1
-vertical_alignment = 1
-
-[node name="ControlStatus_DurationRadial" type="Control" parent="SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/StatusEffects_Panel/ControlStatus_Indicator"]
-visible = false
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-script = ExtResource("3_radial")
-
-[node name="AbilitiesPanel" type="Container" parent="SafeArea/TopLeft_Panel"]
-layout_mode = 2
-mouse_filter = 2
-script = ExtResource("5_tagged")
-
-[node name="Plate" type="PanelContainer" parent="SafeArea/TopLeft_Panel/AbilitiesPanel"]
-custom_minimum_size = Vector2(620, 0)
-layout_mode = 2
-mouse_filter = 2
-theme_type_variation = &"GlassPanelAbilities"
-
-[node name="Pad" type="MarginContainer" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/margin_left = 12
-theme_override_constants/margin_top = 0
-theme_override_constants/margin_right = 0
-theme_override_constants/margin_bottom = 27
-
-[node name="Abilities" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 36
-
-[node name="MeterRow" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities"]
-layout_mode = 2
-size_flags_vertical = 0
-mouse_filter = 2
-theme_override_constants/separation = 28
-
-[node name="UltimateMeter_BG" type="Control" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/MeterRow"]
-custom_minimum_size = Vector2(92, 92)
-layout_mode = 2
-mouse_filter = 2
-
-[node name="UltimateMeter_Fill" type="Control" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/MeterRow/UltimateMeter_BG"]
-visible = false
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-script = ExtResource("3_radial")
-
-[node name="UltimateMeter_LockOverlay" type="Label" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/MeterRow/UltimateMeter_BG"]
-visible = false
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-horizontal_alignment = 1
-vertical_alignment = 1
-
-[node name="DefyStack" type="VBoxContainer" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/MeterRow"]
+[node name="BlockCharges_Panel" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Top/Vitals/HpRow"]
+custom_minimum_size = Vector2(0, 18)
 layout_mode = 2
 size_flags_vertical = 4
 mouse_filter = 2
-theme_override_constants/separation = 6
+theme_override_constants/separation = 4
 
-[node name="DefySeal" type="Label" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/MeterRow/DefyStack"]
-custom_minimum_size = Vector2(34, 34)
+[node name="StatusEffects_Panel" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Top/Vitals"]
+custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
-size_flags_horizontal = 4
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="DamageStatus_Indicator" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Top/Vitals/StatusEffects_Panel"]
+custom_minimum_size = Vector2(140, 38)
+layout_mode = 2
 mouse_filter = 2
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="DefyLabel" type="Label" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/MeterRow/DefyStack"]
+[node name="DamageStatus_DurationRadial" type="Control" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Top/Vitals/StatusEffects_Panel/DamageStatus_Indicator"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_radial")
+
+[node name="ControlStatus_Indicator" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Top/Vitals/StatusEffects_Panel"]
+custom_minimum_size = Vector2(140, 38)
 layout_mode = 2
-theme_type_variation = &"DefyLabel"
-text = "hud_defy_label"
+mouse_filter = 2
 horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ControlStatus_DurationRadial" type="Control" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Top/Vitals/StatusEffects_Panel/ControlStatus_Indicator"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_radial")
+
+[node name="HeroName" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Top/Vitals"]
+visible = false
+layout_mode = 2
+theme_type_variation = &"HeroName"
 uppercase = true
 
-[node name="CooldownRow" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities"]
-layout_mode = 2
-size_flags_vertical = 0
-mouse_filter = 2
-theme_override_constants/separation = 30
-
-[node name="Cooldown1_Icon" type="Label" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/CooldownRow"]
-custom_minimum_size = Vector2(74, 74)
+[node name="Abilities" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack"]
 layout_mode = 2
 mouse_filter = 2
-horizontal_alignment = 1
-vertical_alignment = 1
+theme_override_constants/separation = 12
 
-[node name="Cooldown1_Radial" type="Control" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/CooldownRow/Cooldown1_Icon"]
+[node name="MeterRow" type="Control" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities"]
+custom_minimum_size = Vector2(83, 78)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+
+[node name="UltimateMeter_BG" type="Control" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/MeterRow"]
+custom_minimum_size = Vector2(64, 64)
+layout_mode = 0
+offset_left = 11.0
+offset_top = 7.0
+offset_right = 75.0
+offset_bottom = 71.0
+mouse_filter = 2
+
+[node name="UltimateMeter_Fill" type="Control" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/MeterRow/UltimateMeter_BG"]
 visible = false
 layout_mode = 1
 anchors_preset = 15
@@ -307,7 +232,7 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("3_radial")
 
-[node name="Cooldown1_LockOverlay" type="Label" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/CooldownRow/Cooldown1_Icon"]
+[node name="UltimateMeter_LockOverlay" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/MeterRow/UltimateMeter_BG"]
 visible = false
 layout_mode = 1
 anchors_preset = 15
@@ -319,14 +244,43 @@ mouse_filter = 2
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Cooldown2_Icon" type="Label" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/CooldownRow"]
-custom_minimum_size = Vector2(74, 74)
+[node name="DefySeal" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/MeterRow"]
+custom_minimum_size = Vector2(28, 28)
+layout_mode = 0
+offset_left = 61.0
+offset_top = -5.0
+offset_right = 89.0
+offset_bottom = 23.0
+mouse_filter = 2
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="DefyLabel" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/MeterRow"]
+visible = false
+layout_mode = 0
+theme_type_variation = &"DefyLabel"
+text = "hud_defy_label"
+uppercase = true
+
+[node name="SpecialsCapsule" type="MarginContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+script = ExtResource("5_capsule")
+
+[node name="CooldownRow" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsCapsule"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 9
+
+[node name="Cooldown1_Icon" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsCapsule/CooldownRow"]
+custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
 mouse_filter = 2
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Cooldown2_Radial" type="Control" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/CooldownRow/Cooldown2_Icon"]
+[node name="Cooldown1_Radial" type="Control" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsCapsule/CooldownRow/Cooldown1_Icon"]
 visible = false
 layout_mode = 1
 anchors_preset = 15
@@ -337,7 +291,7 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("3_radial")
 
-[node name="Cooldown2_LockOverlay" type="Label" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/CooldownRow/Cooldown2_Icon"]
+[node name="Cooldown1_LockOverlay" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsCapsule/CooldownRow/Cooldown1_Icon"]
 visible = false
 layout_mode = 1
 anchors_preset = 15
@@ -349,14 +303,14 @@ mouse_filter = 2
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Cooldown3_Icon" type="Label" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/CooldownRow"]
-custom_minimum_size = Vector2(74, 74)
+[node name="Cooldown2_Icon" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsCapsule/CooldownRow"]
+custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
 mouse_filter = 2
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Cooldown3_Radial" type="Control" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/CooldownRow/Cooldown3_Icon"]
+[node name="Cooldown2_Radial" type="Control" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsCapsule/CooldownRow/Cooldown2_Icon"]
 visible = false
 layout_mode = 1
 anchors_preset = 15
@@ -367,7 +321,7 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("3_radial")
 
-[node name="Cooldown3_LockOverlay" type="Label" parent="SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/CooldownRow/Cooldown3_Icon"]
+[node name="Cooldown2_LockOverlay" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsCapsule/CooldownRow/Cooldown2_Icon"]
 visible = false
 layout_mode = 1
 anchors_preset = 15
@@ -379,32 +333,76 @@ mouse_filter = 2
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="TimePanel" type="PanelContainer" parent="SafeArea/TopLeft_Panel"]
-custom_minimum_size = Vector2(620, 0)
+[node name="MovementCapsule" type="MarginContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+script = ExtResource("5_capsule")
+
+[node name="CooldownRow" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/MovementCapsule"]
 layout_mode = 2
 mouse_filter = 2
-theme_type_variation = &"GlassPanelTimeTools"
+theme_override_constants/separation = 9
 
-[node name="Pad" type="MarginContainer" parent="SafeArea/TopLeft_Panel/TimePanel"]
+[node name="Cooldown3_Icon" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/MovementCapsule/CooldownRow"]
+custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/margin_left = 6
-theme_override_constants/margin_top = 0
-theme_override_constants/margin_right = 0
-theme_override_constants/margin_bottom = 0
+horizontal_alignment = 1
+vertical_alignment = 1
 
-[node name="TemporalRow" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/TimePanel/Pad"]
+[node name="Cooldown3_Radial" type="Control" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/MovementCapsule/CooldownRow/Cooldown3_Icon"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_radial")
+
+[node name="Cooldown3_LockOverlay" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/MovementCapsule/CooldownRow/Cooldown3_Icon"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="TimeSpacer" type="Control" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="TimeDivider" type="Control" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities"]
+custom_minimum_size = Vector2(1.5, 58)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+
+[node name="TimeTools" type="VBoxContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="RewindRow" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/TimeTools"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 24
+theme_override_constants/separation = 8
 
-[node name="RewindCounter" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow"]
+[node name="RewindCounter" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/TimeTools/RewindRow"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 10
+theme_override_constants/separation = 4
 
-[node name="RewindIcon" type="Label" parent="SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow/RewindCounter"]
-custom_minimum_size = Vector2(46, 46)
+[node name="RewindIcon" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/TimeTools/RewindRow/RewindCounter"]
+custom_minimum_size = Vector2(26, 26)
 layout_mode = 2
 size_flags_vertical = 4
 mouse_filter = 2
@@ -412,41 +410,37 @@ text = "⧗"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="RewindCountText" type="Label" parent="SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow/RewindCounter"]
+[node name="RewindCountText" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/TimeTools/RewindRow/RewindCounter"]
 layout_mode = 2
 mouse_filter = 2
 theme_type_variation = &"RewindCount"
 vertical_alignment = 1
 
-[node name="BeaconAnchors" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow"]
+[node name="BeaconAnchors" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/TimeTools/RewindRow"]
 visible = false
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 10
+theme_override_constants/separation = 4
 
-[node name="BeaconIcon" type="Control" parent="SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow/BeaconAnchors"]
-custom_minimum_size = Vector2(46, 46)
+[node name="BeaconIcon" type="Control" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/TimeTools/RewindRow/BeaconAnchors"]
+custom_minimum_size = Vector2(26, 26)
 layout_mode = 2
 size_flags_vertical = 4
 mouse_filter = 2
 script = ExtResource("4_beacon")
 
-[node name="AnchorPips" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow/BeaconAnchors"]
+[node name="AnchorPips" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/TimeTools/RewindRow/BeaconAnchors"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 3
+
+[node name="TimeFreezeIndicator" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/TimeTools"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 8
 
-[node name="FreezeGap" type="Control" parent="SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow"]
-layout_mode = 2
-mouse_filter = 2
-
-[node name="TimeFreezeIndicator" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 10
-
-[node name="FreezeIcon" type="Label" parent="SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow/TimeFreezeIndicator"]
-custom_minimum_size = Vector2(46, 46)
+[node name="FreezeIcon" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/TimeTools/TimeFreezeIndicator"]
+custom_minimum_size = Vector2(26, 26)
 layout_mode = 2
 size_flags_vertical = 4
 mouse_filter = 2
@@ -454,21 +448,22 @@ text = "❄"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="FreezeColumn" type="VBoxContainer" parent="SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow/TimeFreezeIndicator"]
+[node name="FreezeColumn" type="VBoxContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/TimeTools/TimeFreezeIndicator"]
 layout_mode = 2
 size_flags_vertical = 4
 mouse_filter = 2
-theme_override_constants/separation = -2
+theme_override_constants/separation = 0
 
-[node name="FreezeSubLabel" type="Label" parent="SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow/TimeFreezeIndicator/FreezeColumn"]
+[node name="FreezeSubLabel" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/TimeTools/TimeFreezeIndicator/FreezeColumn"]
+visible = false
 layout_mode = 2
 theme_type_variation = &"CaptionLabel"
 text = "hud_time_freeze_name"
 uppercase = true
 
-[node name="FreezeRemainingText" type="Label" parent="SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow/TimeFreezeIndicator/FreezeColumn"]
+[node name="FreezeRemainingText" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/TimeTools/TimeFreezeIndicator/FreezeColumn"]
 layout_mode = 2
-theme_type_variation = &"StateLabel"
+theme_type_variation = &"HudStateLabel"
 uppercase = true
 
 [node name="TopRight_Panel" type="VBoxContainer" parent="SafeArea"]
@@ -476,13 +471,13 @@ layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -340.0
-offset_top = 34.0
-offset_right = -44.0
-offset_bottom = 320.0
+offset_left = -384.0
+offset_top = 20.0
+offset_right = -24.0
+offset_bottom = 220.0
 grow_horizontal = 0
 mouse_filter = 2
-theme_override_constants/separation = 40
+theme_override_constants/separation = 18
 
 [node name="DustPlate" type="PanelContainer" parent="SafeArea/TopRight_Panel"]
 layout_mode = 2
@@ -501,10 +496,10 @@ theme_override_constants/margin_bottom = 0
 [node name="CurrencyContainer" type="HBoxContainer" parent="SafeArea/TopRight_Panel/DustPlate/Pad"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 9
 
 [node name="ChronalDustIcon" type="Label" parent="SafeArea/TopRight_Panel/DustPlate/Pad/CurrencyContainer"]
-custom_minimum_size = Vector2(38, 38)
+custom_minimum_size = Vector2(26, 26)
 layout_mode = 2
 size_flags_vertical = 4
 mouse_filter = 2
@@ -526,23 +521,23 @@ theme_type_variation = &"DustFloat"
 vertical_alignment = 1
 
 [node name="IntegrityClock" type="Control" parent="SafeArea/TopRight_Panel"]
-custom_minimum_size = Vector2(138, 150)
+custom_minimum_size = Vector2(78, 90)
 layout_mode = 2
 size_flags_horizontal = 8
 mouse_filter = 2
 
 [node name="ClockFace" type="Control" parent="SafeArea/TopRight_Panel/IntegrityClock"]
 layout_mode = 0
-offset_right = 112.0
-offset_bottom = 112.0
+offset_right = 64.0
+offset_bottom = 64.0
 mouse_filter = 2
 
 [node name="ClockWedge" type="Control" parent="SafeArea/TopRight_Panel/IntegrityClock"]
 layout_mode = 0
-offset_left = 12.32
-offset_top = 12.32
-offset_right = 99.68
-offset_bottom = 99.68
+offset_left = 7.04
+offset_top = 7.04
+offset_right = 56.96
+offset_bottom = 56.96
 mouse_filter = 2
 script = ExtResource("3_radial")
 
@@ -550,17 +545,17 @@ script = ExtResource("3_radial")
 visible = false
 layout_mode = 0
 offset_top = -20.0
-offset_right = 112.0
+offset_right = 64.0
 mouse_filter = 2
 self_modulate = Color(1, 1, 1, 0)
 horizontal_alignment = 1
 
 [node name="IntegrityText" type="Label" parent="SafeArea/TopRight_Panel/IntegrityClock"]
 layout_mode = 0
-offset_left = -19.0
-offset_top = 116.0
-offset_right = 131.0
-offset_bottom = 146.0
+offset_left = -28.0
+offset_top = 66.0
+offset_right = 92.0
+offset_bottom = 90.0
 mouse_filter = 2
 theme_type_variation = &"IntegrityPercent"
 horizontal_alignment = 1
@@ -569,10 +564,10 @@ vertical_alignment = 1
 [node name="BossPanel" type="Control" parent="SafeArea"]
 visible = false
 layout_mode = 0
-offset_left = 720.0
-offset_top = 22.0
-offset_right = 1560.0
-offset_bottom = 104.0
+offset_left = 640.0
+offset_top = 20.0
+offset_right = 1280.0
+offset_bottom = 82.0
 mouse_filter = 2
 
 [node name="BossName" type="Label" parent="SafeArea/BossPanel"]
@@ -596,7 +591,7 @@ show_percentage = false
 [node name="BossHpValue" type="Label" parent="SafeArea/BossPanel/BossBar"]
 layout_mode = 0
 offset_right = 40.0
-offset_bottom = 34.0
+offset_bottom = 20.0
 mouse_filter = 2
 theme_type_variation = &"BossHpValue"
 
@@ -604,7 +599,7 @@ theme_type_variation = &"BossHpValue"
 modulate = Color(1, 1, 1, 0.75)
 layout_mode = 0
 offset_right = 40.0
-offset_bottom = 34.0
+offset_bottom = 20.0
 mouse_filter = 2
 theme_type_variation = &"HudNumeralMax"
 

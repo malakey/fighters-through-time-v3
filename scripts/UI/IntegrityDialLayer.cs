@@ -95,6 +95,8 @@ namespace FTT.UI {
                 _glowColors[CircleSegments + i] = new Color(InnerGlowColor, 0f);
             }
             int corner = Mathf.RoundToInt(radius);
+            // The outer glow follows the dial's size (22 at 112; the compact Story HUD's 64 px dial draws 13).
+            _glowBox.ShadowSize = Mathf.Max(1, Mathf.RoundToInt(OuterGlowSize * scale));
             _glowBox.CornerRadiusTopLeft = _glowBox.CornerRadiusTopRight = corner;
             _glowBox.CornerRadiusBottomLeft = _glowBox.CornerRadiusBottomRight = corner;
             float half = Mathf.DegToRad(TickDegrees) / 2f;

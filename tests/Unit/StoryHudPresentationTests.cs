@@ -64,15 +64,15 @@ public class StoryHudPresentationTests {
             AssertObject(hud.BossNotches).IsNotNull();
 
             AssertObject(hud.GetNodeOrNull<TextureRect>(
-                "SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top/PortraitHost/PlayerPortrait")).IsNotNull();
+                "SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Top/PortraitHost/PlayerPortrait")).IsNotNull();
             AssertObject(hud.GetNodeOrNull<ProgressBar>(
-                "SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top/Vitals/HealthBar_BG")).IsNotNull();
+                "SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Top/Vitals/HpRow/HealthBar_BG")).IsNotNull();
             AssertObject(hud.GetNodeOrNull<ColorRect>(
-                "SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top/Vitals/HealthBar_BG/RallyEcho_Band")).IsNotNull();
+                "SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Top/Vitals/HpRow/HealthBar_BG/RallyEcho_Band")).IsNotNull();
             AssertObject(hud.GetNodeOrNull<HBoxContainer>(
-                "SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack/Top/Vitals/BlockCharges_Panel")).IsNotNull();
+                "SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Top/Vitals/HpRow/BlockCharges_Panel")).IsNotNull();
             AssertObject(hud.GetNodeOrNull<Label>(
-                "SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow/RewindCounter/RewindCountText")).IsNotNull();
+                "SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/TimeTools/RewindRow/RewindCounter/RewindCountText")).IsNotNull();
             AssertObject(hud.GetNodeOrNull<Label>(
                 "SafeArea/TopRight_Panel/DustPlate/Pad/CurrencyContainer/ChronalDustText")).IsNotNull();
         } finally {
@@ -277,9 +277,8 @@ public class StoryHudPresentationTests {
             StoryHUD hud = AddHud(host);
             EventBus bus = EventBus.Instance;
             AssertObject(bus).IsNotNull();
-            const string Row = "SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/CooldownRow";
-            var slotOne = hud.GetNode<Label>($"{Row}/Cooldown1_Icon");
-            var meterHost = hud.GetNode<Control>("SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities/MeterRow/UltimateMeter_BG");
+            var slotOne = hud.GetNode<Label>(StoryHUD.CooldownIconPaths[0]);
+            var meterHost = hud.GetNode<Control>($"{StoryHUD.AbilitiesPath}/MeterRow/UltimateMeter_BG");
             FTT.UI.Pulp.PulpAbilitySlot lensOne = hud.SlotWidgets[0], lensTwo = hud.SlotWidgets[1], ult = hud.UltimateSlotWidget;
             Color lensOneModulate = lensOne.Modulate;
 

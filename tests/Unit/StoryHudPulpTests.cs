@@ -20,9 +20,11 @@ namespace FTT.Tests.Unit;
 [RequireGodotRuntime]
 public class StoryHudPulpTests {
 
-    private const string Abilities = "SafeArea/TopLeft_Panel/AbilitiesPanel/Plate/Pad/Abilities";
-    private const string Stack = "SafeArea/TopLeft_Panel/VitalsPanel/Plate/Pad/Stack";
-    private const string TemporalRow = "SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow";
+    // The compact Story HUD's one slab (HUD-COMPACT, 2026-10-27): the paths come from the HUD's own constants.
+    private const string Abilities = StoryHUD.AbilitiesPath;
+    private const string HpRow = StoryHUD.HpRowPath;
+    private const string TimeTools = StoryHUD.TimeToolsPath;
+    private const string RewindRow = StoryHUD.RewindRowPath;
 
     private static Rect2 Bounds(Control control) => control.GetGlobalTransform() * new Rect2(Vector2.Zero, control.Size);
 
@@ -31,13 +33,12 @@ public class StoryHudPulpTests {
         Node host = CreateHost("StoryHudGlassBuildHost");
         try {
             StoryHUD hud = AddHud(host);
-            AssertThat(hud.VitalsPanel.TagLabel.Text).IsEqual("hud_vitals");
-            AssertThat(hud.AbilitiesPanel.TagLabel.Text).IsEqual("hud_abilities");
-            // The three slabs wear their 3.1 padding presets and each carries the sheen and streaks over the slab.
+            // The compact HUD: one slab with no panel tags (VITALS / ABILITIES went), and the dust plate; each wears its
+            // padding preset and carries the sheen and streaks over the slab.
+            AssertObject(hud.HudPanel).IsNotNull();
+            AssertObject(hud.HudPanel.GetNodeOrNull("PanelTag")).IsNull();
             foreach ((string path, string preset) in new[] {
-                ("SafeArea/TopLeft_Panel/VitalsPanel/Plate", UIPalette.Variations.GlassPanelVitals),
-                ("SafeArea/TopLeft_Panel/AbilitiesPanel/Plate", UIPalette.Variations.GlassPanelAbilities),
-                ("SafeArea/TopLeft_Panel/TimePanel", UIPalette.Variations.GlassPanelTimeTools),
+                (StoryHUD.HudPanelPath, UIPalette.Variations.GlassPanelHud),
                 ("SafeArea/TopRight_Panel/DustPlate", UIPalette.Variations.GlassPanelDust) }) {
                 var plate = hud.GetNode<PanelContainer>(path);
                 AssertThat(plate.ThemeTypeVariation.ToString()).OverrideFailureMessage($"{path} preset").IsEqual(preset);
@@ -46,28 +47,30 @@ public class StoryHudPulpTests {
             AssertThat(hud.SlotWidgets.Count).IsEqual(3);
             foreach (PulpAbilitySlot slot in hud.SlotWidgets) {
                 AssertObject(slot).IsNotNull();
-                AssertThat(slot.SlotSize).IsEqual(74f);
+                AssertThat(slot.SlotSize).IsEqual(StoryHUD.AbilityLensSize);
                 AssertThat(slot.Ultimate).IsFalse();
             }
-            // The Ultimate's layout box is its 92 px lens; the 110 px ring box hangs 9 px outside it (4.4).
+            // The Ultimate's layout box is its 64 px lens; the 78 px ring box hangs 7 px outside it (the compact HUD).
             PulpAbilitySlot ult = hud.UltimateSlotWidget;
             AssertThat(ult.Ultimate).IsTrue();
             var ultHost = hud.GetNode<Control>($"{Abilities}/MeterRow/UltimateMeter_BG");
-            AssertThat(ultHost.CustomMinimumSize).IsEqual(new Vector2(PulpAbilitySlot.UltimateFrame, PulpAbilitySlot.UltimateFrame));
-            AssertThat(ult.Size).IsEqual(new Vector2(PulpAbilitySlot.RingOuterDiameter, PulpAbilitySlot.RingOuterDiameter));
+            AssertThat(ultHost.CustomMinimumSize).IsEqual(new Vector2(StoryHUD.UltimateLensSize, StoryHUD.UltimateLensSize));
+            AssertThat(ult.Size).IsEqual(new Vector2(78f, 78f));
             AssertThat(ult.Position).IsEqual(-ult.LensOrigin);
-            AssertThat(hud.StatusChips.Damage.BadgeSize).IsEqual(44f);
+            AssertThat(hud.StatusChips.Damage.BadgeSize).IsEqual(StoryHUD.ChipBadgeSize);
             AssertObject(hud.HpDecor).IsNotNull();
-            AssertThat(hud.HpDecor.Bar == hud.GetNode<ProgressBar>($"{Stack}/Top/Vitals/HealthBar_BG")).IsTrue();
+            AssertThat(hud.HpDecor.Bar == hud.GetNode<ProgressBar>($"{HpRow}/HealthBar_BG")).IsTrue();
             AssertThat(hud.HpDecor.Style).IsEqual(PulpBarStyle.Hp);
 
             // The glyph Labels keep their Text and TooltipText but draw nothing; the widget is their child.
-            var slotOne = hud.GetNode<Label>($"{Abilities}/CooldownRow/Cooldown1_Icon");
+            var slotOne = hud.GetNode<Label>(StoryHUD.CooldownIconPaths[0]);
             AssertThat(slotOne.VisibleCharacters).IsEqual(0);
             AssertThat(hud.SlotWidgets[0].GetParent() == slotOne).IsTrue();
-            AssertThat(hud.SlotWidgets[0].KeyText).IsEqual("hud_slot_special1");
+            // No S1 / S2 / MOV / ULT labels in the compact HUD (the capsules group the lenses).
+            AssertThat(hud.SlotWidgets[0].KeyText).IsEqual("");
+            AssertThat(hud.UltimateSlotWidget.KeyText).IsEqual("");
             // The Rally band node stays for the path pins and never shows (the tube draws the band).
-            AssertThat(hud.GetNode<ColorRect>($"{Stack}/Top/Vitals/HealthBar_BG/RallyEcho_Band").Visible).IsFalse();
+            AssertThat(hud.GetNode<ColorRect>($"{HpRow}/HealthBar_BG/RallyEcho_Band").Visible).IsFalse();
         } finally {
             host.Free();
         }
@@ -131,7 +134,7 @@ public class StoryHudPulpTests {
             AssertThat(circle.Visible).IsTrue();
             AssertThat(circle.Scale).IsEqual(new Vector2(NotYetFlash.StartScale, NotYetFlash.StartScale));
             AssertThat(slot.SelfModulate).IsEqual(NotYetFlash.Tint);
-            var icon = hud.GetNode<Label>($"{Abilities}/CooldownRow/Cooldown1_Icon");
+            var icon = hud.GetNode<Label>(StoryHUD.CooldownIconPaths[0]);
             AssertObject(NotYetFlash.FrameOf(icon)).IsNull();
             AssertObject(NotYetFlash.CircleOf(hud.SlotWidgets[1].Ring)).IsNull();
 
@@ -168,18 +171,21 @@ public class StoryHudPulpTests {
             AssertThat(damage.NameText).IsEqual("status_venom");
             AssertThat(control.GlyphName).IsEqual("suppress");
             AssertThat(control.Kind).IsEqual(PulpChipKind.Suppression);
-            // The glyph is the glass icon at 62 % of the 44 px badge, so the bold weight (3.5).
+            // The glyph is the glass icon at 62 % of the 30 px badge, so the bold weight (3.5).
             AssertThat(damage.Glyph.GlassName).IsEqual("venom");
             AssertThat(damage.Glyph.DrawsBold).IsTrue();
 
-            // Fixed positions (HUD_CONTRACT) that keep the control chip 30 px after the widest damage name (3.4.3).
+            // Fixed positions (HUD_CONTRACT) that keep the control chip 16 px after the widest damage name (the compact
+            // HUD's slot gap), the name in sentence case.
+            AssertThat(damage.UppercaseName).IsFalse();
+            AssertThat(damage.NameLabel.Uppercase).IsFalse();
             bus.RaiseStatusEffectApplied(new StatusEffectPayload { TargetIndex = 0, Type = StatusType.RadiantBurn, Duration = 4f, Intensity = 1f });
             hud._Process(1.0 / 60.0);
             AssertThat(damage.GlyphName).IsEqual("burn");
             AssertFloat(control.GetGlobalTransform().Origin.X).IsEqualApprox(controlX, 0.01f);
             float damageRight = damage.GetGlobalTransform().Origin.X + damage.GetCombinedMinimumSize().X;
-            AssertThat(controlX - damageRight >= 30f - 0.5f)
-                .OverrideFailureMessage($"the control chip starts {controlX - damageRight} px after RADIANT BURN, under 30").IsTrue();
+            AssertThat(controlX - damageRight >= 16f - 0.5f)
+                .OverrideFailureMessage($"the control chip starts {controlX - damageRight} px after Radiant Burn, under 16").IsTrue();
             AssertThat(damage.Position).IsEqual(new Vector2(StoryHUD.ChipInset, 0f));
 
             // Every status has its own icon, and the icons exist in the glass kit.
@@ -207,8 +213,9 @@ public class StoryHudPulpTests {
         Node host = CreateHost("StoryHudGlassDefyHost");
         try {
             StoryHUD hud = AddHud(host);
-            var seal = hud.GetNode<Label>($"{Abilities}/MeterRow/DefyStack/DefySeal");
-            var icon = (PulpIcon)seal.GetChild(0);
+            // The compact HUD: the seal is a 28 px badge on the Ultimate ring; its glyph is the badge's icon.
+            var seal = hud.GetNode<Label>($"{Abilities}/MeterRow/DefySeal");
+            PulpIcon icon = seal.GetChild<HudBadge>(0).Glyph;
             var seen = new System.Collections.Generic.HashSet<string>();
             foreach (DefySealState state in new[] { DefySealState.Building, DefySealState.Ready, DefySealState.Spent, DefySealState.Barred }) {
                 EventBus.Instance.RaiseDefySealChanged(new DefySealPayload { PlayerIndex = 0, State = state });
@@ -234,19 +241,19 @@ public class StoryHudPulpTests {
         try {
             StoryHUD hud = AddHud(host);
             hud.InitializePlayerVitals(72, 100, 0f);
-            var bar = hud.GetNode<ProgressBar>($"{Stack}/Top/Vitals/HealthBar_BG");
+            var bar = hud.GetNode<ProgressBar>($"{HpRow}/HealthBar_BG");
             AssertFloat((float)bar.Value).IsEqual(72f);
             AssertThat(hud.HpDecor.Low).IsFalse();
             AssertFloat(hud.HpDecor.LagValue).IsEqualApprox(72f, 0.01f);
-            // T17 (3.4.1): the numeral, then "/max" at 18 px dimmed to .78, 2 px after it on its baseline, ending 14 px
-            // inside the tube; both over the tube.
-            var number = hud.GetNode<Label>($"{Stack}/Top/Vitals/HealthBar_BG/HPText");
-            var max = hud.GetNode<Label>($"{Stack}/Top/Vitals/HealthBar_BG/HPMax");
+            // T17: the numeral (20 px in the compact HUD), then "/max" at 18 px dimmed to .72, 2 px after it on its
+            // baseline, ending 11 px inside the tube; both over the tube.
+            var number = hud.GetNode<Label>($"{HpRow}/HealthBar_BG/HPText");
+            var max = hud.GetNode<Label>($"{HpRow}/HealthBar_BG/HPMax");
             AssertThat(number.Text).IsEqual("72");
             AssertThat(max.Text).IsEqual("/100");
             AssertThat(number.ThemeTypeVariation.ToString()).IsEqual(UIPalette.LabelRoles.HudNumeralSmall);
             AssertThat(max.ThemeTypeVariation.ToString()).IsEqual(UIPalette.LabelRoles.HudNumeralMax);
-            AssertFloat(max.Modulate.A).IsEqualApprox(0.78f, 0.001f);
+            AssertFloat(max.Modulate.A).IsEqualApprox(0.72f, 0.001f);
             AssertFloat(max.Position.X + max.Size.X).IsEqualApprox(bar.Size.X - StoryHUD.HpValueRightPad, 0.5f);
             AssertFloat(max.Position.X - (number.Position.X + number.Size.X)).IsEqualApprox(StoryHUD.ValueMaxGap, 0.5f);
             float numberBaseline = number.Position.Y + number.GetThemeFont("font").GetAscent(number.GetThemeFontSize("font_size"));
@@ -272,7 +279,7 @@ public class StoryHudPulpTests {
         Node host = CreateHost("StoryHudPulpFreezeCacheHost");
         try {
             StoryHUD hud = AddHud(host);
-            var freezeText = hud.GetNode<Label>($"{TemporalRow}/TimeFreezeIndicator/FreezeColumn/FreezeRemainingText");
+            var freezeText = hud.GetNode<Label>($"{TimeTools}/TimeFreezeIndicator/FreezeColumn/FreezeRemainingText");
             EventBus.Instance.RaiseTimeFreezeStateChanged(new TimeFreezePayload { State = TimeFreezeState.Cooldown, SecondsRemaining = 31f });
             hud._Process(0.001);
             int key = hud.FreezeTextKey;
@@ -305,12 +312,12 @@ public class StoryHudPulpTests {
             StoryHUD hud = AddHud(host);
             StoryManager story = StoryManager.Instance;
             AssertObject(story).IsNotNull();
-            var count = hud.GetNode<Label>($"{TemporalRow}/RewindCounter/RewindCountText");
+            var count = hud.GetNode<Label>($"{RewindRow}/RewindCounter/RewindCountText");
             story.ChronalRewindsRemaining = 3;
             hud._Process(1.0 / 60.0);
             AssertThat(count.Text.Contains("3")).IsTrue();
             AssertThat(count.HasThemeColorOverride("font_color")).IsFalse();
-            var rewindBadge = hud.GetNode<Label>($"{TemporalRow}/RewindCounter/RewindIcon").GetChild<HudBadge>(0);
+            var rewindBadge = hud.GetNode<Label>($"{RewindRow}/RewindCounter/RewindIcon").GetChild<HudBadge>(0);
             AssertThat(rewindBadge.IconName).IsEqual("hourglass");
             AssertThat(rewindBadge.Tint).IsEqual(UIPalette.Accent2);
             AssertFloat(rewindBadge.Ring).IsEqual(0f);
@@ -320,37 +327,43 @@ public class StoryHudPulpTests {
             AssertThat(count.GetThemeColor("font_color")).OverrideFailureMessage("one rewind left turns to danger").IsEqual(UIPalette.Danger);
             AssertThat(rewindBadge.Tint).IsEqual(UIPalette.Danger);
 
-            var freezeText = hud.GetNode<Label>($"{TemporalRow}/TimeFreezeIndicator/FreezeColumn/FreezeRemainingText");
+            var freezeText = hud.GetNode<Label>($"{TimeTools}/TimeFreezeIndicator/FreezeColumn/FreezeRemainingText");
             hud._Process(1.0 / 60.0);
             AssertThat(freezeText.Text).IsEqual(hud.Tr("common_ready"));
             EventBus.Instance.RaiseTimeFreezeStateChanged(new TimeFreezePayload { State = TimeFreezeState.Active, SecondsRemaining = 3.2f });
             AssertThat(hud.TimeFreeze).IsEqual(TimeFreezeState.Active);
             AssertThat(freezeText.Text.Contains("3.2")).IsTrue();
-            var badge = hud.GetNode<Label>($"{TemporalRow}/TimeFreezeIndicator/FreezeIcon").GetChild<HudBadge>(0);
+            var badge = hud.GetNode<Label>($"{TimeTools}/TimeFreezeIndicator/FreezeIcon").GetChild<HudBadge>(0);
             AssertFloat(badge.Ring).IsEqualApprox(3.2f / FTT.Environment.TimeFreezeController.FreezeSeconds, 0.01f);
-            // G7 (3.4.4): the duration ring is 3 px with its outer edge 5 px outside the 46 px badge.
-            AssertThat(HudBadge.RingWidth).IsEqual(3f);
-            AssertFloat(HudBadge.RingRadius(badge.BadgeSize) + HudBadge.RingWidth / 2f).IsEqualApprox(46f / 2f + 5f, 0.001f);
+            // The compact HUD: the 26 px badge's duration ring is 2 px with its outer edge 3 px outside it (G7's ring scaled).
+            AssertFloat(badge.BadgeSize).IsEqual(26f);
+            AssertFloat(badge.RingThickness).IsEqual(2f);
+            AssertFloat(badge.DrawnRingRadius + badge.RingThickness / 2f).IsEqualApprox(26f / 2f + 3f, 0.001f);
             EventBus.Instance.RaiseTimeFreezeStateChanged(new TimeFreezePayload { State = TimeFreezeState.Cooldown, SecondsRemaining = 31f });
             AssertThat(freezeText.Text.Contains("31")).IsTrue();
             AssertFloat(badge.Ring).IsEqualApprox(31f / FTT.Environment.TimeFreezeController.CooldownSeconds, 0.01f);
 
-            // 4.4: Time Freeze sits 48 px after the rewind counter; in Act III the Beacon sits 24 px after the counter.
+            // The compact HUD's time tools are a column right of the hairline: the rewind row, then Time Freeze 8 px under
+            // it, left-aligned; in Act III the Beacon sits 8 px after the counter on the rewind row.
             await Frames(2);
-            Rect2 rewind = Bounds(hud.GetNode<Control>($"{TemporalRow}/RewindCounter"));
-            Rect2 freeze = Bounds(hud.GetNode<Control>($"{TemporalRow}/TimeFreezeIndicator"));
-            AssertFloat(freeze.Position.X - rewind.End.X).IsEqualApprox(48f, 0.5f);
+            Rect2 rewind = Bounds(hud.GetNode<Control>($"{RewindRow}/RewindCounter"));
+            Rect2 freeze = Bounds(hud.GetNode<Control>($"{TimeTools}/TimeFreezeIndicator"));
+            Rect2 rewindRow = Bounds(hud.GetNode<Control>(RewindRow));
+            AssertFloat(freeze.Position.Y - rewindRow.End.Y).IsEqualApprox(8f, 0.5f);
+            AssertFloat(freeze.Position.X).IsEqualApprox(rewind.Position.X, 0.5f);
+            Rect2 divider = Bounds(hud.TimeDivider);
+            AssertThat(rewind.Position.X >= divider.End.X + 12f - 0.5f).OverrideFailureMessage("the time tools sit 12 px right of the hairline").IsTrue();
             EventBus.Instance.RaiseAnchorChargesChanged(new AnchorChargesPayload { Charges = 2, Max = 3 });
             await Frames(2);
-            Rect2 beacon = Bounds(hud.GetNode<Control>($"{TemporalRow}/BeaconAnchors"));
-            AssertFloat(beacon.Position.X - rewind.End.X).IsEqualApprox(24f, 0.5f);
-            freeze = Bounds(hud.GetNode<Control>($"{TemporalRow}/TimeFreezeIndicator"));
-            AssertFloat(freeze.Position.X - beacon.End.X).IsEqualApprox(48f, 0.5f);
+            rewind = Bounds(hud.GetNode<Control>($"{RewindRow}/RewindCounter"));
+            Rect2 beacon = Bounds(hud.GetNode<Control>($"{RewindRow}/BeaconAnchors"));
+            AssertFloat(beacon.Position.X - rewind.End.X).IsEqualApprox(8f, 0.5f);
+            AssertFloat(beacon.Position.Y + beacon.Size.Y / 2f).IsEqualApprox(rewind.Position.Y + rewind.Size.Y / 2f, 1f);
 
-            // The Beacon is a glass badge with the beacon_anchor glyph in accent2; its pips are 18 px drawn diamonds.
+            // The Beacon is a glass badge with the beacon_anchor glyph in accent2; its pips are 10 px drawn diamonds.
             AssertThat(hud.AnchorPipCount).IsEqual(3);
             AssertThat(hud.AnchorPips[0].CustomMinimumSize).IsEqual(new Vector2(AnchorPip.PipSize, AnchorPip.PipSize));
-            var icon = hud.GetNode<BeaconAnchorIcon>($"{TemporalRow}/BeaconAnchors/BeaconIcon");
+            var icon = hud.GetNode<BeaconAnchorIcon>($"{RewindRow}/BeaconAnchors/BeaconIcon");
             AssertThat(icon.CurrentGlyph).IsEqual("beacon_anchor");
             AssertThat(icon.Badge.Tint).IsEqual(UIPalette.Accent2);
             AssertThat(icon.Badge.Glyph.GlassName).IsEqual("beacon_anchor");
@@ -375,13 +388,16 @@ public class StoryHudPulpTests {
             bus.RaiseTimelineIntegrityChanged(new IntegrityPayload { Percent = 64f, Tier = IntegrityTier.Stabilized, LivingExtractors = 3 });
             AssertThat(hud.SiphonDraw.Count).IsEqual(3);
             AssertThat(hud.SiphonDraw.Visible).IsTrue();
-            // Each stream is a cold Line2D (1.92 px, miter joints) over its 6 px glow line; only the living count shows.
+            // Each stream is a cold Line2D (2.2 units of its box: 1.10 px at the compact dial's 49.9 px box, 1.92 at the
+            // old 87.36) with miter joints over its glow line; only the living count shows.
+            float strokeWidth = SiphonStreamsLayer.StrokeUnits * hud.SiphonDraw.Size.X / 100f;
+            AssertFloat(hud.SiphonDraw.Size.X).IsEqualApprox(SiphonStreamsLayer.BoxSize * StoryHUD.IntegrityDialDiameter / IntegrityDialLayer.DialSize, 0.01f);
             for (int k = 0; k < SiphonStreamsLayer.MaxStreams; k++) {
                 Line2D line = hud.SiphonDraw.StreamLines[k], glow = hud.SiphonDraw.GlowLines[k];
                 AssertThat(line.Visible).OverrideFailureMessage($"stream {k}").IsEqual(k < 3);
                 AssertThat(glow.Visible).OverrideFailureMessage($"glow {k}").IsEqual(k < 3);
                 if (k >= 3) continue;
-                AssertFloat(line.Width).IsEqualApprox(1.92f, 0.01f);
+                AssertFloat(line.Width).IsEqualApprox(strokeWidth, 0.01f);
                 AssertThat(line.JointMode).IsEqual(Line2D.LineJointMode.Sharp);
                 AssertThat(line.DefaultColor).IsEqual(UIPalette.UnboundCold);
                 AssertThat(glow.GetIndex()).IsLess(line.GetIndex());
@@ -441,10 +457,15 @@ public class StoryHudPulpTests {
             var face = hud.GetNode<Control>("SafeArea/TopRight_Panel/IntegrityClock/ClockFace");
             var percent = hud.GetNode<Label>("SafeArea/TopRight_Panel/IntegrityClock/IntegrityText");
             var dust = hud.GetNode<Control>("SafeArea/TopRight_Panel/DustPlate/Pad/CurrencyContainer");
-            // G9 (3.4.4): the wedge is the annulus from radius 23.15 to 43.68 drawn at rgba(glow, .85) over the .55 remainder.
-            AssertFloat(wedge.Size.X / 2f).IsEqualApprox(IntegrityDialLayer.WedgeOuterRadius, 0.01f);
-            AssertFloat(wedge.Thickness).IsEqualApprox(IntegrityDialLayer.WedgeOuterRadius - IntegrityDialLayer.WedgeInnerRadius, 0.01f);
+            // G9 at the compact 64 px dial: the wedge is the annulus from radius 13.23 to 24.96 (23.15 to 43.68 of the
+            // 112 px dial, scaled) drawn at rgba(glow, .85) over the .55 remainder.
+            AssertFloat(wedge.Size.X / 2f).IsEqualApprox(StoryHUD.WedgeOuterRadius, 0.01f);
+            AssertFloat(StoryHUD.WedgeOuterRadius).IsEqualApprox(24.96f, 0.01f);
+            AssertFloat(wedge.Thickness).IsEqualApprox(StoryHUD.WedgeOuterRadius - StoryHUD.WedgeInnerRadius, 0.01f);
+            AssertFloat(StoryHUD.WedgeInnerRadius).IsEqualApprox(13.23f, 0.01f);
             AssertFloat(IntegrityDialLayer.WedgeInnerRadius).IsEqualApprox(23.15f, 0.01f);
+            AssertThat(face.Size).IsEqual(new Vector2(StoryHUD.IntegrityDialDiameter, StoryHUD.IntegrityDialDiameter));
+            AssertThat(hud.DialFace.Size).IsEqual(new Vector2(StoryHUD.IntegrityDialDiameter, StoryHUD.IntegrityDialDiameter));
             AssertFloat(wedge.FillColor.A * wedge.SelfModulate.A).IsEqualApprox(0.85f, 0.001f);
             AssertFloat(wedge.TrackColor.A * wedge.SelfModulate.A).IsEqualApprox(0.55f, 0.001f);
             AssertThat(hud.DialTicks.TickPolygons.Length).IsEqual(IntegrityDialLayer.TickCount);
@@ -514,11 +535,15 @@ public class StoryHudPulpTests {
             AssertThat(value.Text).IsEqual("900");
             AssertThat(max.Text).IsEqual("/1200");
 
-            // 3.6: the boss tube (840 x 34 at 100 %), 10 px under the 38 px header; the notches on the tube.
+            // The compact boss tube (640 x 20 at 100 %; 840 x 34 before), 7 px under the 26 px header; the notches on the tube.
             AssertThat(hud.BossDecor.Style).IsEqual(PulpBarStyle.Boss);
             AssertFloat(panel.Size.X).IsEqualApprox(StoryHUD.BossBarWidthFor(hud.GetNode<Control>("SafeArea").Size.X), 0.5f);
-            AssertFloat(StoryHUD.BossBarWidthFor(1920f)).IsEqual(840f);
-            AssertFloat(StoryHUD.BossBarWidthFor(1920f / 1.4f)).IsEqualApprox(1920f / 1.4f - 1008f, 0.01f);
+            AssertFloat(StoryHUD.BossBarWidthFor(1920f)).IsEqual(640f);
+            float reserved = StoryHUD.LeftClusterRight + StoryHUD.DustPlateReach + 2f * StoryHUD.BossGap;
+            AssertFloat(StoryHUD.BossBarWidthFor(1920f / 1.4f)).IsEqualApprox(Mathf.Min(640f, 1920f / 1.4f - reserved), 0.01f);
+            AssertFloat(StoryHUD.BossTubeHeight).IsEqual(20f);
+            // Centred on the screen when the band allows.
+            AssertFloat(panel.Position.X + panel.Size.X / 2f).IsEqualApprox(hud.GetNode<Control>("SafeArea").Size.X / 2f, 0.5f);
             AssertFloat(bar.Size.Y).IsEqual(StoryHUD.BossTubeHeight);
             AssertFloat(bar.Position.Y).IsEqual(StoryHUD.BossHeaderHeight + StoryHUD.BossTubeGap);
             AssertThat(hud.BossDecor.PhaseNotches.Length).IsEqual(2);
@@ -581,7 +606,7 @@ public class StoryHudPulpTests {
         try {
             ComfortSettings.Apply(false);
             StoryHUD hud = AddHud(host);
-            var hpBar = hud.GetNode<ProgressBar>($"{Stack}/Top/Vitals/HealthBar_BG");
+            var hpBar = hud.GetNode<ProgressBar>($"{HpRow}/HealthBar_BG");
             var bossBar = hud.GetNode<ProgressBar>("SafeArea/BossPanel/BossBar");
             hud.InitializePlayerVitals(100, 100, 0f);
             hud.ShowBossBar("boss_archive_prime_name", 1200, 1200, new[] { 0.66f, 0.33f });
@@ -643,12 +668,12 @@ public class StoryHudPulpTests {
             AssertThat(flag.Visible).IsFalse();
             hud.SetObjective("florence_objective_reach_boss");
             AssertThat(flag.Visible).IsTrue();
-            // 4.4: the flag is 22 px (the bold weight) in res2, and the text starts 10 px after it.
+            // The compact HUD: the flag is 18 px (the bold weight) in res2, and the text starts 8 px after it.
             AssertThat(flag.Tint).IsEqual(UIPalette.Res2);
             AssertThat(flag.GlassName).IsEqual("flag");
-            AssertThat(flag.CustomMinimumSize).IsEqual(new Vector2(22f, 22f));
+            AssertThat(flag.CustomMinimumSize).IsEqual(new Vector2(18f, 18f));
             AssertThat(flag.DrawsBold).IsTrue();
-            AssertFloat(objective.GetThemeStylebox("normal").GetContentMargin(Side.Left)).IsEqual(32f);
+            AssertFloat(objective.GetThemeStylebox("normal").GetContentMargin(Side.Left)).IsEqual(26f);
         } finally {
             host.Free();
         }

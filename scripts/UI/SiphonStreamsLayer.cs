@@ -104,6 +104,7 @@ namespace FTT.UI {
                 Vector2[] stream = Stream(k, _count);
                 for (int i = 0; i < stream.Length; i++) stream[i] *= scale;
                 _lines[k].Width = StrokeUnits * scale;
+                _glows[k].Width = GlowWidth * Mathf.Min(1f, scale * 100f / BoxSize);
                 _lines[k].Points = stream;
                 _glows[k].Points = stream;
             }

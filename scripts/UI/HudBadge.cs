@@ -27,6 +27,9 @@ namespace FTT.UI {
         private float _size = 46f;
         private float _ring;
         private Color _ringColor = UIPalette.Accent;
+        private float _ringWidth = RingWidth;
+        private float _ringOutset = RingOutset;
+        private float _iconShare = GlyphShare;
         private readonly StyleBoxFlat _glowBox = new() { DrawCenter = false, CornerDetail = 16, ShadowSize = OuterGlowSize };
         private readonly Vector2[] _disc = new Vector2[CircleSegments];
         private readonly Vector2[] _discUvs = new Vector2[CircleSegments];
@@ -54,6 +57,21 @@ namespace FTT.UI {
         public float Ring { get => _ring; set { if (!Mathf.IsEqualApprox(_ring, value)) { _ring = Mathf.Clamp(value, 0f, 1f); QueueRedraw(); } } }
         public Color RingColor { get => _ringColor; set { if (_ringColor == value) return; _ringColor = value; QueueRedraw(); } }
         public PulpIcon Glyph => _icon;
+
+        /// <summary>The duration ring's width (3 by default; the compact Story HUD's 26 px badges use 2).</summary>
+        public float RingThickness { get => _ringWidth; set { _ringWidth = value; QueueRedraw(); } }
+
+        /// <summary>How far the ring's outer edge sits outside the badge (5 by default; the compact Story HUD uses 3).</summary>
+        public float RingOutsetPixels { get => _ringOutset; set { _ringOutset = value; QueueRedraw(); } }
+
+        /// <summary>The glyph as a share of the badge (0.62 by default; the compact Story HUD's Defy seal draws 20 in 28).</summary>
+        public float IconShare { get => _iconShare; set { _iconShare = value; Relayout(); } }
+
+        /// <summary>The duration ring's centre-line radius as drawn (this badge's ring; <see cref="RingRadius"/> for the defaults).</summary>
+        public float DrawnRingRadius => _size / 2f + _ringOutset - _ringWidth / 2f;
+
+        /// <summary>The glows' scale: 1 at 46 px and above, the badge over 46 below it (the compact Story HUD's 26 and 28 px badges).</summary>
+        public float EffectScale => Mathf.Min(1f, _size / 46f);
         /// <summary>How many times the disc geometry was built (once per size).</summary>
         public int GeometryBuilds { get; private set; }
 
@@ -63,7 +81,7 @@ namespace FTT.UI {
         private void Relayout() {
             CustomMinimumSize = new Vector2(_size, _size);
             Size = CustomMinimumSize;
-            float glyph = _size * GlyphShare;
+            float glyph = _size * _iconShare;
             _icon.Size = new Vector2(glyph, glyph);
             _icon.Position = Vector2.One * ((_size - glyph) / 2f);
             QueueRedraw();
@@ -86,7 +104,7 @@ namespace FTT.UI {
                     _glowIndices[i * 6 + 3] = a; _glowIndices[i * 6 + 4] = d; _glowIndices[i * 6 + 5] = c;
                 }
             }
-            float inner = Mathf.Max(0f, radius - InnerGlowWidth);
+            float inner = Mathf.Max(0f, radius - InnerGlowWidth * EffectScale);
             for (int i = 0; i < CircleSegments; i++) {
                 float angle = Mathf.Tau * i / CircleSegments;
                 var direction = new Vector2(Mathf.Sin(angle), -Mathf.Cos(angle));
@@ -96,6 +114,7 @@ namespace FTT.UI {
                 _glowColors[CircleSegments + i] = new Color(InnerGlowColor, 0f);
             }
             int corner = Mathf.RoundToInt(radius);
+            _glowBox.ShadowSize = Mathf.Max(1, Mathf.RoundToInt(OuterGlowSize * EffectScale));
             _glowBox.CornerRadiusTopLeft = _glowBox.CornerRadiusTopRight = corner;
             _glowBox.CornerRadiusBottomLeft = _glowBox.CornerRadiusBottomRight = corner;
         }
@@ -111,7 +130,7 @@ namespace FTT.UI {
             RenderingServer.CanvasItemAddTriangleArray(GetCanvasItem(), _glowIndices, _glowPoints, _glowColors);
             DrawArc(centre, radius + GlassGeometry.EdgeWidth / 2f, 0f, Mathf.Tau, 64, UIPalette.Edge, GlassGeometry.EdgeWidth, true);
             if (_ring > 0f) {
-                DrawArc(centre, RingRadius(_size), -Mathf.Pi / 2f, -Mathf.Pi / 2f + _ring * Mathf.Tau, 64, _ringColor, RingWidth, true);
+                DrawArc(centre, DrawnRingRadius, -Mathf.Pi / 2f, -Mathf.Pi / 2f + _ring * Mathf.Tau, 64, _ringColor, _ringWidth, true);
             }
         }
     }

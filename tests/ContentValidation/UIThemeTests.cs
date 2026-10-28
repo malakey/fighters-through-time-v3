@@ -33,8 +33,10 @@ public class UIThemeTests {
 
     /// <summary>The 3.1 slab presets: (top, sides, bottom) padding.</summary>
     private static readonly (string Name, int Top, int Sides, int Bottom)[] PanelPresets = {
-        ("GlassPanelPause", 30, 20, 28), ("GlassPanelVitals", 20, 26, 20), ("GlassPanelAbilities", 22, 30, 14),
-        ("GlassPanelTimeTools", 14, 26, 14), ("GlassPanelDust", 14, 24, 14), ("GlassPanelTimer", 12, 32, 12),
+        // The compact Story HUD (2026-10-27) replaced the Vitals, Abilities and time tools presets with the one slab
+        // GlassPanelHud and shrank the dust plate's padding (14 / 24 / 14 before).
+        ("GlassPanelPause", 30, 20, 28), ("GlassPanelHud", 12, 14, 12),
+        ("GlassPanelDust", 13, 18, 13), ("GlassPanelTimer", 12, 32, 12),
         ("GlassPanelStats", 20, 26, 18), ("GlassPanelContinue", 16, 20, 16),
     };
 
@@ -725,6 +727,7 @@ public class UIThemeTests {
         var haloS = new HashSet<string> {
             "LevelTitle", "ObjectiveLine", "HeroNameScene", "PromptCaption", "SceneCaption", "VersionCaption",
             "HudNumeral", "HudNumeralSmall", "HudNumeralMax", "HudNumeralMaxScene", "SlotKeyTagScene", "SlotNumber", "StatusName", "StatusTime",
+            "HudStatusName", "HudStatusTime",
             "IntegrityPercent", "IntegrityCaption", "BossPhaseTag", "BossHpValue", "NoteLabel", "HintLine",
             "SelectCountdown", "UltimateReadyLabel" };
         Theme theme = LoadTheme();

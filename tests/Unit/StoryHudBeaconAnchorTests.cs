@@ -16,7 +16,8 @@ namespace FTT.Tests.Unit;
 [TestSuite]
 [RequireGodotRuntime]
 public class StoryHudBeaconAnchorTests {
-    private const string TemporalRow = "SafeArea/TopLeft_Panel/TimePanel/Pad/TemporalRow";
+    // The compact Story HUD (2026-10-27): the time tools are a column; the rewind counter and the Beacon share its first row.
+    private const string TemporalRow = StoryHUD.RewindRowPath;
 
     [TestCase]
     public void TheBeaconSitsImmediatelyRightOfTheHourglassAheadOfTheFreezeIndicator() {
@@ -26,12 +27,15 @@ public class StoryHudBeaconAnchorTests {
             Node row = hud.GetNode(TemporalRow);
             Node rewind = hud.GetNode($"{TemporalRow}/RewindCounter");
             Node beacon = hud.GetNode($"{TemporalRow}/BeaconAnchors");
-            Node freeze = hud.GetNode($"{TemporalRow}/TimeFreezeIndicator");
+            Node column = hud.GetNode(StoryHUD.TimeToolsPath);
+            Node freeze = hud.GetNode($"{StoryHUD.TimeToolsPath}/TimeFreezeIndicator");
             AssertThat(beacon.GetIndex()).IsEqual(rewind.GetIndex() + 1);
-            // The Time Freeze indicator stays its own sibling, never a child of the
-            // rewind counter (F24), and follows the Beacon.
-            AssertObject(freeze.GetParent()).IsSame(row);
-            AssertThat(freeze.GetIndex()).IsGreater(beacon.GetIndex());
+            // The Time Freeze indicator stays its own node, never a child of the rewind counter (F24): in the compact
+            // HUD it is the time tools column's next row, after the row that holds the rewind counter and the Beacon.
+            AssertObject(freeze.GetParent()).IsSame(column);
+            AssertObject(row.GetParent()).IsSame(column);
+            AssertThat(freeze.GetIndex()).IsGreater(row.GetIndex());
+            AssertThat(rewind.IsAncestorOf(freeze)).IsFalse();
 
             var icon = hud.GetNode<Control>($"{TemporalRow}/BeaconAnchors/BeaconIcon");
             AssertObject(icon as BeaconAnchorIcon).IsNotNull();
@@ -41,7 +45,7 @@ public class StoryHudBeaconAnchorTests {
             AssertThat(hud.AnchorPipCount).IsEqual(3);
             foreach (AnchorPip pip in hud.AnchorPips) {
                 AssertThat(pip.CustomMinimumSize).IsEqual(new Vector2(AnchorPip.PipSize, AnchorPip.PipSize));
-                AssertThat(AnchorPip.PipSize).IsEqual(18);
+                AssertThat(AnchorPip.PipSize).IsEqual(10);
             }
         } finally {
             host.Free();
