@@ -26,7 +26,7 @@ namespace FTT.UI {
         public const float BossBarMinWidth = 320f;
         /// <summary>
         /// The slab's right edge (24 + 484) and the right cluster's reach from the right edge: the widest dust plate the
-        /// compact HUD draws (about 196 px for a five-digit balance and its "+N") plus its 24 px margin.
+        /// compact HUD draws (188 px for "1,250 +25", with room for about one more digit) plus its 24 px margin.
         /// </summary>
         public const float LeftClusterRight = 508f, DustPlateReach = 220f;
         /// <summary>The free band keeps 24 px from the slab and from the dust plate: width = min(640, canvas - 776).</summary>
