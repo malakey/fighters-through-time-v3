@@ -204,4 +204,91 @@ public class StoryHudBoundsTests {
             port.Free();
         }
     }
+
+    /// <summary>
+    /// Codex review 1 of the compact HUD: the level title and objective moved under the slab, and a long production title
+    /// ran past the slab into the free band, where the first-use tooltip (at y 140, wrapping downward) and the checkpoint
+    /// toast drew over it (florence_level_title with tooltip_first_use_ledge at 1.4). Every production level title and every
+    /// level objective in en.csv, at 1.0 and then after a live change to 1.4, with the longest first-use tooltip and the
+    /// toast showing: the title row stays within the slab's width, clear of the free band, and neither plate covers it.
+    /// </summary>
+    [TestCase]
+    public async Task EveryProductionTitleAndObjectiveStaysClearOfTheTooltipAndToastBand() {
+        SaveManager save = SaveManager.Instance;
+        AssertObject(save?.GlobalData).IsNotNull();
+        float original = save.GlobalData.UiScale;
+        float applied = UIPalette.AppliedUiScale;
+        var titles = new List<string>();
+        var objectives = new List<string>();
+        using (var csv = Godot.FileAccess.Open("res://localization/en.csv", Godot.FileAccess.ModeFlags.Read)) {
+            foreach (string line in csv.GetAsText().Split((char)10)) {
+                int comma = line.IndexOf(',');
+                if (comma <= 0) continue;
+                string key = line.Substring(0, comma).Trim();
+                if (key.EndsWith("_level_title")) titles.Add(key);
+                else if (System.Text.RegularExpressions.Regex.IsMatch(key, "^[a-z0-9_]+_objective(_[a-z0-9_]+)?$") && !key.StartsWith("drill_")) objectives.Add(key);
+            }
+        }
+        AssertThat(titles.Count).IsEqual(16);
+        AssertThat(objectives.Count).IsGreater(20);
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        var port = new SubViewport { Size = new Vector2I(1920, 1080), RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled };
+        tree.Root.AddChild(port);
+        var problems = new List<string>();
+        try {
+            save.GlobalData.UiScale = 1.0f;
+            UIPalette.ApplyUiScale(1.0f);
+            StoryHUD hud = StoryHUD.CreateDefault();
+            port.AddChild(hud);
+            var presenter = new FirstUseTooltipPresenter { Name = "FirstUseTooltips" };
+            port.AddChild(presenter);
+            await Frames(4);
+            // The longest first-use tooltip in the current language.
+            string tooltip = "";
+            foreach (string id in FirstUseTooltips.All) {
+                string key = FirstUseTooltips.KeyFor(id);
+                if (hud.Tr(key).Length > hud.Tr(tooltip).Length || tooltip == "") tooltip = key;
+            }
+            var title = hud.GetNode<Control>("SafeArea/TopLeft/LevelTitle");
+            var objective = hud.GetNode<Control>("SafeArea/TopLeft/Objective");
+            foreach (float scale in new[] { 1.0f, 1.4f }) {
+                // The 1.4 pass is a live change on the same HUD (pause, Settings, resume).
+                save.GlobalData.UiScale = scale;
+                UIPalette.ApplyUiScale(scale);
+                await Frames(4);
+                Rect2 slab = Bounds(hud.GetNode<Control>(StoryHUD.HudPanelPath));
+                float bandLeft = (StoryHUD.LeftClusterRight + StoryHUD.BossGap) * scale;
+                int count = Mathf.Max(titles.Count, objectives.Count);
+                for (int i = 0; i < count; i++) {
+                    if (i % 30 == 0) {
+                        presenter.PresentForPreview(tooltip);
+                        hud.HideBossBar();
+                        EventBus.Instance.RaiseCheckpointReached("story_hud_bounds_title_sweep_" + i);
+                        await Frames(20);   // past the appear (MOT-A row 4)
+                    }
+                    string titleKey = titles[i % titles.Count], objectiveKey = objectives[i % objectives.Count];
+                    hud.SetLevelTitle(titleKey);
+                    hud.SetObjective(objectiveKey);
+                    await Frames(2);
+                    Rect2 plate = Bounds(presenter.GetNode<Control>("TooltipPanel"));
+                    Rect2 toast = Bounds(hud.GetNode<Control>("SafeArea/CheckpointToast"));
+                    foreach ((string what, Control label) in new[] { (titleKey, title), (objectiveKey, objective) }) {
+                        Rect2 rect = Bounds(label);
+                        string at = $"{scale} {what} {rect}";
+                        if (rect.End.X > slab.End.X + 0.5f) problems.Add($"{at} runs past the slab's right edge {slab.End.X}");
+                        if (rect.End.X > bandLeft) problems.Add($"{at} enters the free band at {bandLeft}");
+                        if (presenter.GetNode<Control>("TooltipPanel").Visible && plate.Intersects(rect)) problems.Add($"{at} under the tooltip {plate}");
+                        if (hud.GetNode<Control>("SafeArea/CheckpointToast").Visible && toast.Intersects(rect)) problems.Add($"{at} under the toast {toast}");
+                        if (!Frame.Encloses(rect)) problems.Add($"{at} outside the frame");
+                    }
+                }
+            }
+            hud.QueueFree();
+        } finally {
+            save.GlobalData.UiScale = original;
+            UIPalette.ApplyUiScale(applied);
+            port.Free();
+        }
+        if (problems.Count > 0) AssertThat(string.Join(" | ", problems.GetRange(0, Mathf.Min(problems.Count, 12))) + $" ({problems.Count} in all)").IsEqual("");
+    }
 }

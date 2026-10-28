@@ -5,7 +5,8 @@
 ; its three 18 px block pips after it and the two 30 px status badges under it; tier 2 the 64 px Ultimate lens with the
 ; Defy seal as a badge on its ring, a recessed capsule holding S1 and S2 (48 px lenses), a capsule holding MOV, then a
 ; hairline and the time tools as a column (rewind and, in Act III, the Beacon; Time Freeze). The level title and the
-; objective sit under the slab (SafeArea/TopLeft, placed in code 12 px below it). Right: the dust plate and the 64 px
+; objective sit under the slab (SafeArea/TopLeft, placed in code 12 px below it, as wide as the slab less its 8 px
+; indent: a long title or objective wraps instead of running into the free band). Right: the dust plate and the 64 px
 ; Integrity dial. BossPanel is laid out in code (640 wide at 100 %, centred in the free band). Every glyph Label keeps
 ; its Text and TooltipText for the tests and accessibility, its characters hidden, and the glass widget is its child.
 ; HeroName, DefyLabel and FreezeSubLabel are kept hidden: their nodes and keys stay, they draw nothing
@@ -42,11 +43,13 @@ theme_override_constants/separation = 4
 [node name="LevelTitle" type="Label" parent="SafeArea/TopLeft"]
 layout_mode = 2
 theme_type_variation = &"LevelTitle"
+autowrap_mode = 3
 uppercase = true
 
 [node name="Objective" type="Label" parent="SafeArea/TopLeft"]
 layout_mode = 2
 theme_type_variation = &"ObjectiveLine"
+autowrap_mode = 3
 
 [node name="TopLeft_Panel" type="VBoxContainer" parent="SafeArea"]
 layout_mode = 0
