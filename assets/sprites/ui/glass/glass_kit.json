@@ -1807,291 +1807,465 @@
   }
  },
  "hero_cleopatra_idle_0": {
-  "feet_y": 219.0,
+  "feet_y": 229.0,
   "file": "select_heroes/cleopatra_idle_0.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 85.0,
-  "serves": "CARD-A select hero sprite: cleopatra's idle frame 0 of 4 (UI_SPEC_GLASS 3.7)",
+  "order": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   3,
+   2,
+   1
+  ],
+  "pivot_x": 121.0,
+  "serves": "CARD-A select hero sprite: cleopatra's idle pose 0 of 5 (UI_SPEC_GLASS 3.7)",
   "size": [
-   170,
-   223
+   242,
+   234
   ]
  },
  "hero_cleopatra_idle_1": {
-  "feet_y": 219.0,
+  "feet_y": 229.0,
   "file": "select_heroes/cleopatra_idle_1.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 85.0,
-  "serves": "CARD-A select hero sprite: cleopatra's idle frame 1 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 121.0,
+  "serves": "CARD-A select hero sprite: cleopatra's idle pose 1 of 5 (UI_SPEC_GLASS 3.7)",
   "size": [
-   170,
-   223
+   242,
+   234
   ]
  },
  "hero_cleopatra_idle_2": {
-  "feet_y": 219.0,
+  "feet_y": 229.0,
   "file": "select_heroes/cleopatra_idle_2.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 85.0,
-  "serves": "CARD-A select hero sprite: cleopatra's idle frame 2 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 121.0,
+  "serves": "CARD-A select hero sprite: cleopatra's idle pose 2 of 5 (UI_SPEC_GLASS 3.7)",
   "size": [
-   170,
-   223
+   242,
+   234
   ]
  },
  "hero_cleopatra_idle_3": {
-  "feet_y": 219.0,
+  "feet_y": 229.0,
   "file": "select_heroes/cleopatra_idle_3.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 85.0,
-  "serves": "CARD-A select hero sprite: cleopatra's idle frame 3 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 121.0,
+  "serves": "CARD-A select hero sprite: cleopatra's idle pose 3 of 5 (UI_SPEC_GLASS 3.7)",
   "size": [
-   170,
-   223
+   242,
+   234
+  ]
+ },
+ "hero_cleopatra_idle_4": {
+  "feet_y": 229.0,
+  "file": "select_heroes/cleopatra_idle_4.png",
+  "fps": 10.0,
+  "mipmaps": true,
+  "pivot_x": 121.0,
+  "serves": "CARD-A select hero sprite: cleopatra's idle pose 4 of 5 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   242,
+   234
   ]
  },
  "hero_einstein_idle_0": {
-  "feet_y": 229.0,
+  "feet_y": 237.0,
   "file": "select_heroes/einstein_idle_0.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 66.0,
-  "serves": "CARD-A select hero sprite: einstein's idle frame 0 of 4 (UI_SPEC_GLASS 3.7)",
+  "order": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   3,
+   2,
+   1
+  ],
+  "pivot_x": 96.0,
+  "serves": "CARD-A select hero sprite: einstein's idle pose 0 of 5 (UI_SPEC_GLASS 3.7)",
   "size": [
-   132,
-   234
+   192,
+   242
   ]
  },
  "hero_einstein_idle_1": {
-  "feet_y": 229.0,
+  "feet_y": 237.0,
   "file": "select_heroes/einstein_idle_1.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 66.0,
-  "serves": "CARD-A select hero sprite: einstein's idle frame 1 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 96.0,
+  "serves": "CARD-A select hero sprite: einstein's idle pose 1 of 5 (UI_SPEC_GLASS 3.7)",
   "size": [
-   132,
-   234
+   192,
+   242
   ]
  },
  "hero_einstein_idle_2": {
-  "feet_y": 229.0,
+  "feet_y": 237.0,
   "file": "select_heroes/einstein_idle_2.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 66.0,
-  "serves": "CARD-A select hero sprite: einstein's idle frame 2 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 96.0,
+  "serves": "CARD-A select hero sprite: einstein's idle pose 2 of 5 (UI_SPEC_GLASS 3.7)",
   "size": [
-   132,
-   234
+   192,
+   242
   ]
  },
  "hero_einstein_idle_3": {
-  "feet_y": 229.0,
+  "feet_y": 237.0,
   "file": "select_heroes/einstein_idle_3.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 66.0,
-  "serves": "CARD-A select hero sprite: einstein's idle frame 3 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 96.0,
+  "serves": "CARD-A select hero sprite: einstein's idle pose 3 of 5 (UI_SPEC_GLASS 3.7)",
   "size": [
-   132,
-   234
+   192,
+   242
+  ]
+ },
+ "hero_einstein_idle_4": {
+  "feet_y": 237.0,
+  "file": "select_heroes/einstein_idle_4.png",
+  "fps": 10.0,
+  "mipmaps": true,
+  "pivot_x": 96.0,
+  "serves": "CARD-A select hero sprite: einstein's idle pose 4 of 5 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   192,
+   242
   ]
  },
  "hero_joan_idle_0": {
-  "feet_y": 221.0,
+  "feet_y": 223.0,
   "file": "select_heroes/joan_idle_0.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 84.0,
-  "serves": "CARD-A select hero sprite: joan's idle frame 0 of 4 (UI_SPEC_GLASS 3.7)",
+  "order": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   3,
+   2,
+   1
+  ],
+  "pivot_x": 121.0,
+  "serves": "CARD-A select hero sprite: joan's idle pose 0 of 5 (UI_SPEC_GLASS 3.7)",
   "size": [
-   168,
-   225
+   242,
+   228
   ]
  },
  "hero_joan_idle_1": {
-  "feet_y": 221.0,
+  "feet_y": 223.0,
   "file": "select_heroes/joan_idle_1.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 84.0,
-  "serves": "CARD-A select hero sprite: joan's idle frame 1 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 121.0,
+  "serves": "CARD-A select hero sprite: joan's idle pose 1 of 5 (UI_SPEC_GLASS 3.7)",
   "size": [
-   168,
-   225
+   242,
+   228
   ]
  },
  "hero_joan_idle_2": {
-  "feet_y": 221.0,
+  "feet_y": 223.0,
   "file": "select_heroes/joan_idle_2.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 84.0,
-  "serves": "CARD-A select hero sprite: joan's idle frame 2 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 121.0,
+  "serves": "CARD-A select hero sprite: joan's idle pose 2 of 5 (UI_SPEC_GLASS 3.7)",
   "size": [
-   168,
-   225
+   242,
+   228
   ]
  },
  "hero_joan_idle_3": {
-  "feet_y": 221.0,
+  "feet_y": 223.0,
   "file": "select_heroes/joan_idle_3.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 84.0,
-  "serves": "CARD-A select hero sprite: joan's idle frame 3 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 121.0,
+  "serves": "CARD-A select hero sprite: joan's idle pose 3 of 5 (UI_SPEC_GLASS 3.7)",
   "size": [
-   168,
-   225
+   242,
+   228
+  ]
+ },
+ "hero_joan_idle_4": {
+  "feet_y": 223.0,
+  "file": "select_heroes/joan_idle_4.png",
+  "fps": 10.0,
+  "mipmaps": true,
+  "pivot_x": 121.0,
+  "serves": "CARD-A select hero sprite: joan's idle pose 4 of 5 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   242,
+   228
   ]
  },
  "hero_leonardo_idle_0": {
-  "feet_y": 231.0,
+  "feet_y": 236.0,
   "file": "select_heroes/leonardo_idle_0.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 73.0,
-  "serves": "CARD-A select hero sprite: leonardo's idle frame 0 of 4 (UI_SPEC_GLASS 3.7)",
+  "order": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   4,
+   3,
+   2,
+   1
+  ],
+  "pivot_x": 100.0,
+  "serves": "CARD-A select hero sprite: leonardo's idle pose 0 of 6 (UI_SPEC_GLASS 3.7)",
   "size": [
-   146,
-   236
+   200,
+   242
   ]
  },
  "hero_leonardo_idle_1": {
-  "feet_y": 231.0,
+  "feet_y": 236.0,
   "file": "select_heroes/leonardo_idle_1.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 73.0,
-  "serves": "CARD-A select hero sprite: leonardo's idle frame 1 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 100.0,
+  "serves": "CARD-A select hero sprite: leonardo's idle pose 1 of 6 (UI_SPEC_GLASS 3.7)",
   "size": [
-   146,
-   236
+   200,
+   242
   ]
  },
  "hero_leonardo_idle_2": {
-  "feet_y": 231.0,
+  "feet_y": 236.0,
   "file": "select_heroes/leonardo_idle_2.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 73.0,
-  "serves": "CARD-A select hero sprite: leonardo's idle frame 2 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 100.0,
+  "serves": "CARD-A select hero sprite: leonardo's idle pose 2 of 6 (UI_SPEC_GLASS 3.7)",
   "size": [
-   146,
-   236
+   200,
+   242
   ]
  },
  "hero_leonardo_idle_3": {
-  "feet_y": 231.0,
+  "feet_y": 236.0,
   "file": "select_heroes/leonardo_idle_3.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 73.0,
-  "serves": "CARD-A select hero sprite: leonardo's idle frame 3 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 100.0,
+  "serves": "CARD-A select hero sprite: leonardo's idle pose 3 of 6 (UI_SPEC_GLASS 3.7)",
   "size": [
-   146,
-   236
+   200,
+   242
+  ]
+ },
+ "hero_leonardo_idle_4": {
+  "feet_y": 236.0,
+  "file": "select_heroes/leonardo_idle_4.png",
+  "fps": 10.0,
+  "mipmaps": true,
+  "pivot_x": 100.0,
+  "serves": "CARD-A select hero sprite: leonardo's idle pose 4 of 6 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   200,
+   242
+  ]
+ },
+ "hero_leonardo_idle_5": {
+  "feet_y": 236.0,
+  "file": "select_heroes/leonardo_idle_5.png",
+  "fps": 10.0,
+  "mipmaps": true,
+  "pivot_x": 100.0,
+  "serves": "CARD-A select hero sprite: leonardo's idle pose 5 of 6 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   200,
+   242
   ]
  },
  "hero_lincoln_idle_0": {
-  "feet_y": 218.0,
+  "feet_y": 241.0,
   "file": "select_heroes/lincoln_idle_0.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 89.0,
-  "serves": "CARD-A select hero sprite: lincoln's idle frame 0 of 4 (UI_SPEC_GLASS 3.7)",
+  "order": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   5,
+   4,
+   3,
+   2,
+   1
+  ],
+  "pivot_x": 132.0,
+  "serves": "CARD-A select hero sprite: lincoln's idle pose 0 of 7 (UI_SPEC_GLASS 3.7)",
   "size": [
-   178,
-   223
+   264,
+   246
   ]
  },
  "hero_lincoln_idle_1": {
-  "feet_y": 218.0,
+  "feet_y": 241.0,
   "file": "select_heroes/lincoln_idle_1.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 89.0,
-  "serves": "CARD-A select hero sprite: lincoln's idle frame 1 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 132.0,
+  "serves": "CARD-A select hero sprite: lincoln's idle pose 1 of 7 (UI_SPEC_GLASS 3.7)",
   "size": [
-   178,
-   223
+   264,
+   246
   ]
  },
  "hero_lincoln_idle_2": {
-  "feet_y": 218.0,
+  "feet_y": 241.0,
   "file": "select_heroes/lincoln_idle_2.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 89.0,
-  "serves": "CARD-A select hero sprite: lincoln's idle frame 2 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 132.0,
+  "serves": "CARD-A select hero sprite: lincoln's idle pose 2 of 7 (UI_SPEC_GLASS 3.7)",
   "size": [
-   178,
-   223
+   264,
+   246
   ]
  },
  "hero_lincoln_idle_3": {
-  "feet_y": 218.0,
+  "feet_y": 241.0,
   "file": "select_heroes/lincoln_idle_3.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 89.0,
-  "serves": "CARD-A select hero sprite: lincoln's idle frame 3 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 132.0,
+  "serves": "CARD-A select hero sprite: lincoln's idle pose 3 of 7 (UI_SPEC_GLASS 3.7)",
   "size": [
-   178,
-   223
+   264,
+   246
+  ]
+ },
+ "hero_lincoln_idle_4": {
+  "feet_y": 241.0,
+  "file": "select_heroes/lincoln_idle_4.png",
+  "fps": 10.0,
+  "mipmaps": true,
+  "pivot_x": 132.0,
+  "serves": "CARD-A select hero sprite: lincoln's idle pose 4 of 7 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   264,
+   246
+  ]
+ },
+ "hero_lincoln_idle_5": {
+  "feet_y": 241.0,
+  "file": "select_heroes/lincoln_idle_5.png",
+  "fps": 10.0,
+  "mipmaps": true,
+  "pivot_x": 132.0,
+  "serves": "CARD-A select hero sprite: lincoln's idle pose 5 of 7 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   264,
+   246
+  ]
+ },
+ "hero_lincoln_idle_6": {
+  "feet_y": 241.0,
+  "file": "select_heroes/lincoln_idle_6.png",
+  "fps": 10.0,
+  "mipmaps": true,
+  "pivot_x": 132.0,
+  "serves": "CARD-A select hero sprite: lincoln's idle pose 6 of 7 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   264,
+   246
   ]
  },
  "hero_mozart_idle_0": {
-  "feet_y": 226.0,
+  "feet_y": 239.0,
   "file": "select_heroes/mozart_idle_0.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 62.0,
-  "serves": "CARD-A select hero sprite: mozart's idle frame 0 of 4 (UI_SPEC_GLASS 3.7)",
+  "order": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   3,
+   2,
+   1
+  ],
+  "pivot_x": 77.0,
+  "serves": "CARD-A select hero sprite: mozart's idle pose 0 of 5 (UI_SPEC_GLASS 3.7)",
   "size": [
-   124,
-   231
+   154,
+   245
   ]
  },
  "hero_mozart_idle_1": {
-  "feet_y": 226.0,
+  "feet_y": 239.0,
   "file": "select_heroes/mozart_idle_1.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 62.0,
-  "serves": "CARD-A select hero sprite: mozart's idle frame 1 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 77.0,
+  "serves": "CARD-A select hero sprite: mozart's idle pose 1 of 5 (UI_SPEC_GLASS 3.7)",
   "size": [
-   124,
-   231
+   154,
+   245
   ]
  },
  "hero_mozart_idle_2": {
-  "feet_y": 226.0,
+  "feet_y": 239.0,
   "file": "select_heroes/mozart_idle_2.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 62.0,
-  "serves": "CARD-A select hero sprite: mozart's idle frame 2 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 77.0,
+  "serves": "CARD-A select hero sprite: mozart's idle pose 2 of 5 (UI_SPEC_GLASS 3.7)",
   "size": [
-   124,
-   231
+   154,
+   245
   ]
  },
  "hero_mozart_idle_3": {
-  "feet_y": 226.0,
+  "feet_y": 239.0,
   "file": "select_heroes/mozart_idle_3.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 62.0,
-  "serves": "CARD-A select hero sprite: mozart's idle frame 3 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 77.0,
+  "serves": "CARD-A select hero sprite: mozart's idle pose 3 of 5 (UI_SPEC_GLASS 3.7)",
   "size": [
-   124,
-   231
+   154,
+   245
+  ]
+ },
+ "hero_mozart_idle_4": {
+  "feet_y": 239.0,
+  "file": "select_heroes/mozart_idle_4.png",
+  "fps": 10.0,
+  "mipmaps": true,
+  "pivot_x": 77.0,
+  "serves": "CARD-A select hero sprite: mozart's idle pose 4 of 5 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   154,
+   245
   ]
  },
  "hero_select_index": {
@@ -2109,150 +2283,244 @@
   ],
   "select_feet_y": 700,
   "select_scale": 2.05,
-  "serves": "the select hero layer's index: per hero the four frames, pivot_x and feet_y (image px from the top-left), the idle frame rate (6 fps) and the loop flag; the roster comes from content_manifest.csv, so a new member gets its frames on the next build"
+  "serves": "the select hero layer's index: per hero the unique idle poses, pivot_x and feet_y (image px from the top-left), the idle frame rate (10 fps), the play order and the loop flag; the roster comes from content_manifest.csv, so a new member gets its frames on the next build"
  },
  "hero_shakespeare_idle_0": {
-  "feet_y": 233.0,
+  "feet_y": 229.0,
   "file": "select_heroes/shakespeare_idle_0.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 105.0,
-  "serves": "CARD-A select hero sprite: shakespeare's idle frame 0 of 4 (UI_SPEC_GLASS 3.7)",
+  "order": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   4,
+   3,
+   2,
+   1
+  ],
+  "pivot_x": 156.0,
+  "serves": "CARD-A select hero sprite: shakespeare's idle pose 0 of 6 (UI_SPEC_GLASS 3.7)",
   "size": [
-   210,
-   238
+   312,
+   234
   ]
  },
  "hero_shakespeare_idle_1": {
-  "feet_y": 233.0,
+  "feet_y": 229.0,
   "file": "select_heroes/shakespeare_idle_1.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 105.0,
-  "serves": "CARD-A select hero sprite: shakespeare's idle frame 1 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 156.0,
+  "serves": "CARD-A select hero sprite: shakespeare's idle pose 1 of 6 (UI_SPEC_GLASS 3.7)",
   "size": [
-   210,
-   238
+   312,
+   234
   ]
  },
  "hero_shakespeare_idle_2": {
-  "feet_y": 233.0,
+  "feet_y": 229.0,
   "file": "select_heroes/shakespeare_idle_2.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 105.0,
-  "serves": "CARD-A select hero sprite: shakespeare's idle frame 2 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 156.0,
+  "serves": "CARD-A select hero sprite: shakespeare's idle pose 2 of 6 (UI_SPEC_GLASS 3.7)",
   "size": [
-   210,
-   238
+   312,
+   234
   ]
  },
  "hero_shakespeare_idle_3": {
-  "feet_y": 233.0,
+  "feet_y": 229.0,
   "file": "select_heroes/shakespeare_idle_3.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 105.0,
-  "serves": "CARD-A select hero sprite: shakespeare's idle frame 3 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 156.0,
+  "serves": "CARD-A select hero sprite: shakespeare's idle pose 3 of 6 (UI_SPEC_GLASS 3.7)",
   "size": [
-   210,
-   238
+   312,
+   234
+  ]
+ },
+ "hero_shakespeare_idle_4": {
+  "feet_y": 229.0,
+  "file": "select_heroes/shakespeare_idle_4.png",
+  "fps": 10.0,
+  "mipmaps": true,
+  "pivot_x": 156.0,
+  "serves": "CARD-A select hero sprite: shakespeare's idle pose 4 of 6 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   312,
+   234
+  ]
+ },
+ "hero_shakespeare_idle_5": {
+  "feet_y": 229.0,
+  "file": "select_heroes/shakespeare_idle_5.png",
+  "fps": 10.0,
+  "mipmaps": true,
+  "pivot_x": 156.0,
+  "serves": "CARD-A select hero sprite: shakespeare's idle pose 5 of 6 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   312,
+   234
   ]
  },
  "hero_tesla_idle_0": {
-  "feet_y": 233.0,
+  "feet_y": 241.0,
   "file": "select_heroes/tesla_idle_0.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 80.0,
-  "serves": "CARD-A select hero sprite: tesla's idle frame 0 of 4 (UI_SPEC_GLASS 3.7)",
+  "order": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   3,
+   2,
+   1
+  ],
+  "pivot_x": 119.0,
+  "serves": "CARD-A select hero sprite: tesla's idle pose 0 of 5 (UI_SPEC_GLASS 3.7)",
   "size": [
-   160,
-   238
+   238,
+   246
   ]
  },
  "hero_tesla_idle_1": {
-  "feet_y": 233.0,
+  "feet_y": 241.0,
   "file": "select_heroes/tesla_idle_1.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 80.0,
-  "serves": "CARD-A select hero sprite: tesla's idle frame 1 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 119.0,
+  "serves": "CARD-A select hero sprite: tesla's idle pose 1 of 5 (UI_SPEC_GLASS 3.7)",
   "size": [
-   160,
-   238
+   238,
+   246
   ]
  },
  "hero_tesla_idle_2": {
-  "feet_y": 233.0,
+  "feet_y": 241.0,
   "file": "select_heroes/tesla_idle_2.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 80.0,
-  "serves": "CARD-A select hero sprite: tesla's idle frame 2 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 119.0,
+  "serves": "CARD-A select hero sprite: tesla's idle pose 2 of 5 (UI_SPEC_GLASS 3.7)",
   "size": [
-   160,
-   238
+   238,
+   246
   ]
  },
  "hero_tesla_idle_3": {
-  "feet_y": 233.0,
+  "feet_y": 241.0,
   "file": "select_heroes/tesla_idle_3.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 80.0,
-  "serves": "CARD-A select hero sprite: tesla's idle frame 3 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 119.0,
+  "serves": "CARD-A select hero sprite: tesla's idle pose 3 of 5 (UI_SPEC_GLASS 3.7)",
   "size": [
-   160,
-   238
+   238,
+   246
+  ]
+ },
+ "hero_tesla_idle_4": {
+  "feet_y": 241.0,
+  "file": "select_heroes/tesla_idle_4.png",
+  "fps": 10.0,
+  "mipmaps": true,
+  "pivot_x": 119.0,
+  "serves": "CARD-A select hero sprite: tesla's idle pose 4 of 5 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   238,
+   246
   ]
  },
  "hero_tubman_idle_0": {
-  "feet_y": 213.0,
+  "feet_y": 229.0,
   "file": "select_heroes/tubman_idle_0.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 101.0,
-  "serves": "CARD-A select hero sprite: tubman's idle frame 0 of 4 (UI_SPEC_GLASS 3.7)",
+  "order": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   4,
+   3,
+   2,
+   1
+  ],
+  "pivot_x": 138.0,
+  "serves": "CARD-A select hero sprite: tubman's idle pose 0 of 6 (UI_SPEC_GLASS 3.7)",
   "size": [
-   202,
-   218
+   276,
+   234
   ]
  },
  "hero_tubman_idle_1": {
-  "feet_y": 213.0,
+  "feet_y": 229.0,
   "file": "select_heroes/tubman_idle_1.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 101.0,
-  "serves": "CARD-A select hero sprite: tubman's idle frame 1 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 138.0,
+  "serves": "CARD-A select hero sprite: tubman's idle pose 1 of 6 (UI_SPEC_GLASS 3.7)",
   "size": [
-   202,
-   218
+   276,
+   234
   ]
  },
  "hero_tubman_idle_2": {
-  "feet_y": 213.0,
+  "feet_y": 229.0,
   "file": "select_heroes/tubman_idle_2.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 101.0,
-  "serves": "CARD-A select hero sprite: tubman's idle frame 2 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 138.0,
+  "serves": "CARD-A select hero sprite: tubman's idle pose 2 of 6 (UI_SPEC_GLASS 3.7)",
   "size": [
-   202,
-   218
+   276,
+   234
   ]
  },
  "hero_tubman_idle_3": {
-  "feet_y": 213.0,
+  "feet_y": 229.0,
   "file": "select_heroes/tubman_idle_3.png",
-  "fps": 6.0,
+  "fps": 10.0,
   "mipmaps": true,
-  "pivot_x": 101.0,
-  "serves": "CARD-A select hero sprite: tubman's idle frame 3 of 4 (UI_SPEC_GLASS 3.7)",
+  "pivot_x": 138.0,
+  "serves": "CARD-A select hero sprite: tubman's idle pose 3 of 6 (UI_SPEC_GLASS 3.7)",
   "size": [
-   202,
-   218
+   276,
+   234
+  ]
+ },
+ "hero_tubman_idle_4": {
+  "feet_y": 229.0,
+  "file": "select_heroes/tubman_idle_4.png",
+  "fps": 10.0,
+  "mipmaps": true,
+  "pivot_x": 138.0,
+  "serves": "CARD-A select hero sprite: tubman's idle pose 4 of 6 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   276,
+   234
+  ]
+ },
+ "hero_tubman_idle_5": {
+  "feet_y": 229.0,
+  "file": "select_heroes/tubman_idle_5.png",
+  "fps": 10.0,
+  "mipmaps": true,
+  "pivot_x": 138.0,
+  "serves": "CARD-A select hero sprite: tubman's idle pose 5 of 6 (UI_SPEC_GLASS 3.7)",
+  "size": [
+   276,
+   234
   ]
  }
 }

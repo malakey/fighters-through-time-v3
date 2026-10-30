@@ -15,15 +15,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from roster_spec import JOBS, feet_mode
+from roster_spec import IDLE_POSES, feet_mode, job_for
 from prompts import figure_plan, row_counts
 
 # How each contract animation is produced. ``gen`` frames are drawn by the
 # image model; ``derive`` builds the rest from drawn poses (see pack.py).
 REQUIREMENTS: dict[str, dict] = {
-    # Four drawn bends of one fighting stance, replayed as a gentle bob
-    # (pack.py "bob").
-    "idle": {"gen": 4, "own_sheet": True, "derive": "bob"},
+    # N drawn poses of one fighting stance (roster_spec.IDLE_POSES, per
+    # character; "gen" is read through gen_count()), played forward and back as
+    # a ping-pong bob (pack.py "bob").
+    "idle": {"gen": None, "own_sheet": True, "derive": "bob"},
     "run": {"gen": 8, "own_sheet": True},
     "jump": {"gen": 3},
     # The fall settles into one held pose instead of looping (pack.py "settle").
@@ -58,6 +59,13 @@ FEET: dict[str, str] = {
 }
 
 
+def gen_count(character: str, anim: str) -> int:
+    """How many poses the image model draws for ``anim``."""
+    if anim == "idle":
+        return IDLE_POSES[character]
+    return REQUIREMENTS[anim].get("gen", 0)
+
+
 def raw_dir(raw_root: Path, character: str) -> Path:
     return raw_root / character / "raw"
 
@@ -77,7 +85,7 @@ def load_sidecars(raw_root: Path, character: str) -> list[tuple[Path, dict]]:
 
 def legacy_sidecar(character: str, job_name: str) -> dict:
     """Sidecar for a sheet generated with the first (per-animation) job list."""
-    job = next(j for j in JOBS if j["job"] == job_name)
+    job = job_for(character, job_name)
     figures = []
     for anim, index in figure_plan(job):
         if anim == "anchor":
@@ -93,7 +101,7 @@ def legacy_sidecar(character: str, job_name: str) -> dict:
         "figures": figures,
         "feet": {a: feet_mode(job, a, character) for a in anims},
         # Rows of the first layout carried their own reference figure.
-        "anchor_per_row": job["layout"] in ("rows",),
+        "anchor_per_row": job["layout"] == "rows" and all(r["anchor"] for r in job["rows"]),
     }
 
 
@@ -120,7 +128,7 @@ def needed(raw_root: Path, character: str) -> list[tuple[str, int, bool]]:
     have = covered(raw_root, character)
     out = []
     for anim, req in REQUIREMENTS.items():
-        for index in range(req.get("gen", 0)):
+        for index in range(gen_count(character, anim)):
             if index not in have.get(anim, set()):
                 out.append((anim, index, bool(req.get("wide"))))
     return out

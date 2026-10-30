@@ -42,7 +42,8 @@ from PIL import Image, ImageDraw, ImageFont
 
 from generate import RAW_ROOT
 from plan import REQUIREMENTS, load_sidecars, rejected
-from roster_spec import CHARACTERS, RUN_FLIGHT_FRAMES
+from roster_spec import (CHARACTERS, IDLE_FPS, IDLE_POSES, RUN_FLIGHT_FRAMES, idle_loop_frames,
+                         idle_loop_order)
 from segment import segment
 
 REPO = Path(__file__).resolve().parents[2]
@@ -70,13 +71,14 @@ SHEETS: dict[str, list[str]] = {
     "abilities": ["special_1", "special_2", "movement_ability", "ultimate"],
 }
 
-# (frames per second, loops). Looping locomotion carries more frames (idle 4
-# since 2026-10-18, run 8 since 2026-10-20); every other animation keeps three
-# key poses. The idle is a fighting stance bouncing in place; the run's speed is
+# (frames per second, loops). Looping locomotion carries more frames (the idle
+# is a ping-pong of roster_spec.IDLE_POSES[character] drawn poses, 2(N-1)
+# frames, at IDLE_FPS since 2026-10-28; run 8 since 2026-10-20); every other
+# animation keeps three key poses. The run's speed is
 # replaced per character by run_fps(); the fall plays once and holds its last
 # pose (2026-10-20: a looping fall pumped the legs until landing).
 PLAYBACK: dict[str, tuple[float, bool]] = {
-    "idle": (6.0, True), "run": (14.0, True), "jump": (8.0, False), "fall": (8.0, False),
+    "idle": (IDLE_FPS, True), "run": (14.0, True), "jump": (8.0, False), "fall": (8.0, False),
     "skid": (12.0, False), "crouch": (4.0, True),
     "roll_startup": (12.0, False), "roll": (12.0, False), "roll_recovery": (12.0, False),
     "ledge_hang": (3.0, True), "ledge_pull_up": (8.0, False), "ledge_drop": (8.0, False),
@@ -88,7 +90,14 @@ PLAYBACK: dict[str, tuple[float, bool]] = {
     "special_1": (8.0, False), "special_2": (8.0, False),
     "movement_ability": (10.0, False), "ultimate": (8.0, False),
 }
-FRAME_COUNT = {"idle": 4, "run": 8}
+FRAME_COUNT = {"run": 8}   # the idle's is per character: expected_frames()
+
+
+def expected_frames(character: str, anim: str) -> int:
+    """Frames the finished animation plays (the idle: its ping-pong loop, 2(N-1))."""
+    if anim == "idle":
+        return idle_loop_frames(character)
+    return FRAME_COUNT.get(anim, 3)
 
 # Loops show one pose breathing or cycling, so their frames are registered to
 # each other (upper-body profile correlation) instead of trusting each frame's
@@ -106,7 +115,7 @@ AREA_SLACK = 0.03
 
 # The deepest an idle bob may dip, as a share of the stance's height (see the
 # "bob" rule in derive); about 5 world pixels on a 100-pixel figure.
-BOB_MAX_DIP = 0.06
+BOB_MAX_DIP = 0.14
 
 # The run's frame rate follows the hero's run speed so a stride covers about
 # the ground the body does (a fixed rate made Lincoln's feet skate forward and
@@ -305,7 +314,42 @@ def _figure_height(frame: Frame) -> float:
     return frame.feet - float(rows.min()) if rows.size else 0.0
 
 
-def derive(frames: dict[str, dict[int, Frame]], log: list[str]) -> dict[str, list[Frame]]:
+def select_bob(heights: list[float], n: int, max_dip: float = BOB_MAX_DIP) -> dict:
+    """The ping-pong bob's pose selection, on figure heights alone.
+
+    ``heights`` are the drawn poses' figure heights in drawn order; ``n`` is
+    how many poses the character should have (IDLE_POSES). Returns ``kept``
+    (drawn indices, tallest first: a model that drew the poses out of order
+    still plays correctly, and equal heights, rounded to a texel, keep their
+    drawn order), ``order`` (indices into ``kept``: 0..k-1 then k-2..1),
+    ``warnings`` and ``complete`` (all ``n`` poses survived)."""
+    warnings: list[str] = []
+    ranked = sorted(range(len(heights)), key=lambda i: (-round(heights[i]), i))
+    if ranked != list(range(len(heights))):
+        warnings.append("poses were drawn out of order (tallest to shortest by drawn index "
+                        f"{[i + 1 for i in ranked]}); played tallest first")
+    tallest = heights[ranked[0]] if ranked else 0.0
+    kept = []
+    for i in ranked:
+        dip = (tallest - heights[i]) / tallest if tallest else 0.0
+        if dip > max_dip:
+            warnings.append(f"pose {i + 1} dropped: dips {dip * 100:.1f}% below the tallest "
+                            f"(limit {max_dip * 100:.0f}%)")
+        else:
+            kept.append(i)
+    if len(kept) > n:
+        warnings.append(f"{len(kept)} usable poses drawn, more than the {n} wanted; "
+                        f"kept the {n} tallest, dropped pose(s) {[i + 1 for i in kept[n:]]}")
+        kept = kept[:n]
+    complete = len(kept) == n
+    if not complete:
+        warnings.append(f"incomplete: {len(kept)} usable poses of {n}")
+    return {"kept": kept, "order": idle_loop_order(len(kept)), "warnings": warnings,
+            "complete": complete}
+
+
+def derive(frames: dict[str, dict[int, Frame]], log: list[str], character: str,
+           orders: dict[str, list[int]] | None = None) -> dict[str, list[Frame]]:
     out: dict[str, list[Frame]] = {}
     for anim, req in REQUIREMENTS.items():
         have = frames.get(anim, {})
@@ -318,27 +362,24 @@ def derive(frames: dict[str, dict[int, Frame]], log: list[str]) -> dict[str, lis
             elif rule == "breathe" and gen:
                 base = gen[0]
                 out[anim] = [base, _stretch(base, 1.014), _stretch(base, 1.007)]
-            elif rule == "bob" and len(gen) >= 4:
-                # The four drawn bends of the fighting stance in their drawn
-                # order (top, sinking, bottom, rising), which also carries the
-                # drawn sway: forward on the way down, back on the way up. When
-                # the deepest bend dips more than BOB_MAX_DIP below the top (the
-                # first sheets overshot to 9-15 %, a squat rather than a bounce)
-                # it is left out and the loop rests a beat on the top frame.
-                heights = [_figure_height(f) for f in gen[:4]]
-                deepest = int(np.argmin(heights))
-                if heights[0] - heights[deepest] <= BOB_MAX_DIP * heights[0] or deepest == 0:
-                    out[anim] = gen[:4]
-                else:
-                    kept = [f for i, f in enumerate(gen[:4]) if i != deepest]
-                    out[anim] = kept + [gen[0].copy()]
+            elif rule == "bob" and gen:
+                # N drawn poses of the stance (IDLE_POSES), played as a
+                # ping-pong bob (select_bob): tallest first, over-deep poses
+                # dropped, the unique poses packed once and the play order
+                # kept in ``orders`` (the manifest repeats their regions).
+                heights = [_figure_height(f) for f in gen]
+                picked = select_bob(heights, IDLE_POSES[character])
+                out[anim] = [gen[i] for i in picked["kept"]]
+                if orders is not None:
+                    orders[anim] = picked["order"]
+                log.extend(f"  idle: {w}" for w in picked["warnings"])
             elif rule == "settle" and len(gen) >= 3:
                 # Played once and held (PLAYBACK): the knees-bent pose leads out
                 # of the jump's apex tuck, then the two legs-extended poses, the
                 # last of which holds until landing. Looping these pumped the legs.
                 out[anim] = [gen[2], gen[0], gen[1]]
-            elif rule == "then_idle" and len(gen) >= 2 and frames.get("idle"):
-                out[anim] = gen[:2] + [frames["idle"][0].copy()]
+            elif rule == "then_idle" and len(gen) >= 2 and out.get("idle"):
+                out[anim] = gen[:2] + [out["idle"][0].copy()]   # the tallest idle pose
             elif rule == "sway_from_hands" and gen:
                 base = gen[0]
                 top = np.nonzero(np.array(base.image)[..., 3].any(axis=1))[0].min()
@@ -351,8 +392,8 @@ def derive(frames: dict[str, dict[int, Frame]], log: list[str]) -> dict[str, lis
             elif rule == "ledge_drop" and frames.get("ledge_hang") and len(frames.get("fall", {})) >= 3:
                 out[anim] = [frames["ledge_hang"][0].copy(), frames["fall"][0].copy(),
                              frames["fall"][2].copy()]
-            elif rule == "respawn" and frames.get("idle"):
-                base = frames["idle"][0]
+            elif rule == "respawn" and out.get("idle"):
+                base = out["idle"][0]                           # the tallest idle pose
                 out[anim] = [_hologram(base, 0.0), _hologram(base, 0.5), base.copy()]
         except (KeyError, IndexError) as error:
             log.append(f"  derive {anim}: {error}")
@@ -508,10 +549,14 @@ def pack(character: str, allow_missing: bool) -> dict:
     overrides_path = TOOLS / "overrides" / f"{character}.json"
     overrides = json.loads(overrides_path.read_text()) if overrides_path.exists() else {}
     log: list[str] = []
-    animations = derive(collect(character, overrides, log), log)
+    orders: dict[str, list[int]] = {}
+    animations = derive(collect(character, overrides, log), log, character, orders)
+
+    def played(a: str) -> int:
+        return len(orders[a]) if a in orders else len(animations[a])
 
     missing = [a for a in PLAYBACK if a not in animations
-               or len(animations[a]) != FRAME_COUNT.get(a, 3)]
+               or played(a) != expected_frames(character, a)]
     if missing and not allow_missing:
         raise SystemExit(f"{character}: incomplete animations {missing}")
 
@@ -540,17 +585,21 @@ def pack(character: str, allow_missing: bool) -> dict:
         atlas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
         for anim in present:
             cells, w, h, gap = built[anim]
-            regions = []
+            unique = []
             for i, cell in enumerate(cells):
                 x, y = places[(anim, i)]
                 atlas.alpha_composite(cell, (x, y))
-                regions.append([x, y, w, h])
+                unique.append([x, y, w, h])
+            # A ping-pong repeats cells: the manifest lists the play order, each
+            # entry naming the one packed region (no duplicate pixels).
+            order = orders.get(anim, list(range(len(unique))))
+            regions = [list(unique[i]) for i in order]
             speed, loop = PLAYBACK[anim]
             if anim == "run":
                 speed = run_fps(character)
             manifest["animations"][anim] = {
                 "sheet": sheet, "regions": regions, "feet_gap": gap, "speed": speed, "loop": loop,
-                "sources": [f.source for f in animations[anim]],
+                "sources": [animations[anim][i].source for i in order],
             }
         manifest["sheets"][sheet] = [width, height]
         if not allow_missing:
@@ -629,12 +678,75 @@ def review(character: str, built: dict) -> None:
             out / f"{character}_review_{p + 1}.png")
 
 
+def idle_preview(character: str, caps: list[float]) -> None:
+    """Review only: an animated GIF and a pose strip of the idle bob per dip cap.
+
+    Runs the real pack's idle path (collect, select_bob, register, build_cells)
+    and writes only to RAW_ROOT/<character>/review/."""
+    overrides_path = TOOLS / "overrides" / f"{character}.json"
+    overrides = json.loads(overrides_path.read_text()) if overrides_path.exists() else {}
+    log: list[str] = []
+    have = collect(character, overrides, log).get("idle", {})
+    gen = [have[i] for i in sorted(have)]
+    if not gen:
+        raise SystemExit(f"{character}: no idle frames")
+    heights = [_figure_height(f) for f in gen]
+    tallest = max(heights)
+    out = RAW_ROOT / character / "review"
+    out.mkdir(parents=True, exist_ok=True)
+    print("drawn dips: " + ", ".join(f"pose {i + 1} {(tallest - h) / tallest * 100:.1f}%"
+                                     for i, h in enumerate(heights)))
+    spec = overrides.get("idle", {})
+    for cap in caps:
+        picked = select_bob(heights, IDLE_POSES[character], cap)
+        kept = [gen[i].copy() for i in picked["kept"]]
+        for i, frame in enumerate(kept):
+            frame.dx = (spec.get("dx") or [0] * len(kept))[i]
+            frame.dy = (spec.get("dy") or [0] * len(kept))[i]
+        if not spec.get("no_register"):
+            register(kept, REGISTER_BANDS["idle"])
+        cells, w, h, gap = build_cells(kept)
+        tag = f"{round(cap * 100):02d}"
+        bg = (128, 128, 128, 255)
+
+        def flat(cell: Image.Image) -> Image.Image:
+            base = Image.new("RGBA", cell.size, bg)
+            base.alpha_composite(cell)
+            return base.resize((cell.width * 2, cell.height * 2), Image.NEAREST)
+
+        frames = [flat(cells[i]).convert("RGB") for i in picked["order"]]
+        gif = out / f"{character}_idle_preview_dip{tag}.gif"
+        frames[0].save(gif, save_all=True, append_images=frames[1:], duration=round(1000 / IDLE_FPS),
+                       loop=0, disposal=2)
+        strip = Image.new("RGBA", (w * 2 * len(cells), h * 2), bg)
+        for i, cell in enumerate(cells):
+            strip.alpha_composite(flat(cell), (i * w * 2, 0))
+        top = int(np.nonzero(np.array(cells[0])[..., 3].any(axis=1))[0].min()) * 2
+        ImageDraw.Draw(strip).line((0, top, strip.width - 1, top), fill=(230, 80, 80, 255))
+        png = out / f"{character}_idle_preview_dip{tag}_poses.png"
+        strip.convert("RGB").save(png)
+        dips = ", ".join(f"pose {i + 1} {(tallest - heights[i]) / tallest * 100:.1f}%"
+                         for i in picked["kept"])
+        print(f"cap {cap * 100:.0f}%: kept drawn {[i + 1 for i in picked['kept']]} ({dips}); "
+              f"loop {len(frames)} frames; order {picked['order']}")
+        for w_ in picked["warnings"]:
+            print(f"    {w_}")
+        print(f"    {gif}\n    {png}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("character")
     parser.add_argument("--allow-missing", action="store_true",
                         help="review a partial set without writing atlases or the manifest")
+    parser.add_argument("--idle-preview", action="store_true",
+                        help="review only: write idle bob GIFs and pose strips to RAW_ROOT/<id>/review/")
+    parser.add_argument("--max-dip", default=str(BOB_MAX_DIP),
+                        help="comma-separated bob dip caps for --idle-preview (e.g. 0.06,0.10,1.0)")
     args = parser.parse_args()
+    if args.idle_preview:
+        idle_preview(args.character, [float(v) for v in args.max_dip.split(",")])
+        return
     manifest = pack(args.character, args.allow_missing)
     for sheet, size in manifest.get("sheets", {}).items():
         print(f"{sheet}: {size[0]}x{size[1]}")

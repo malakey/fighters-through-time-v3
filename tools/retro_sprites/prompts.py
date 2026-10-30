@@ -21,6 +21,12 @@ LAYOUT_TEXT = {
         "own cell with clear empty space all around it; leave a wide empty band between the "
         "two rows. Both rows use the same character scale."
     ),
+    "rows_uneven": (
+        "Canvas: landscape 3:2. Two rows of full-body figures ({counts}), read left to right, "
+        "top row first, on an invisible grid of {cols} columns. Each figure stays inside its "
+        "own cell with clear empty space all around it; leave a wide empty band between the "
+        "two rows. Both rows use the same character scale."
+    ),
     "grid": (
         "Canvas: landscape 3:2, divided into an invisible 2x2 grid of four equal quadrants (read "
         "left to right, top row first). One full-body figure centred in each quadrant with clear "
@@ -68,6 +74,16 @@ def row_counts(job: dict) -> list[int]:
     return [int(row["anchor"]) + sum(c for _, c in row["anims"]) for row in job["rows"]]
 
 
+def _layout_text(job: dict, n_figures: int) -> str:
+    counts = row_counts(job)
+    layout = job["layout"]
+    if layout == "rows" and len(set(counts)) > 1:
+        layout = "rows_uneven"
+    return LAYOUT_TEXT[layout].format(
+        n=n_figures, cols=max(counts),
+        counts="row 1: " + f"{counts[0]} figures; row 2: " + f"{counts[1]} figures" if len(counts) == 2 else "")
+
+
 def image_prompt(character: str, job: dict) -> str:
     entry = CHARACTERS[character]
     plan = figure_plan(job)
@@ -78,7 +94,7 @@ def image_prompt(character: str, job: dict) -> str:
     lines = [
         "Use case: stylized-concept",
         "Asset type: 2D side-scrolling action game sprite sheet (animation key poses)",
-        LAYOUT_TEXT[job["layout"]].format(n=len(plan), cols=max(row_counts(job))),
+        _layout_text(job, len(plan)),
         f"Character (match Image 1 exactly): {entry['identity']}; {entry['prop']}.",
         "Every figure faces screen-right (looks and moves toward the right edge) in the same "
         "three-quarter side view as a side-scrolling gameplay sprite, and shows the same "
@@ -90,8 +106,8 @@ def image_prompt(character: str, job: dict) -> str:
         if anim == "anchor":
             lines.append(
                 f"  Figure {number} (scale reference, not part of the animation): "
-                f"{entry['name']} standing calmly facing right, arms relaxed, "
-                f"{entry['prop_low']}; exactly the height and proportions of the full-body "
+                f"{entry['name']} standing calmly upright facing right, legs straight, arms relaxed, "
+                f"{entry['prop_low']}; not in any fighting stance, so it looks different from every other figure; exactly the height and proportions of the full-body "
                 "figures in Image 1.")
         elif anim == "run_check":
             lines.append(
@@ -118,9 +134,9 @@ def sheet_prompt(character: str, sidecar: dict, canvas: str = "landscape 3:2") -
     counts = sidecar["counts"]
     rows, cols = sidecar["shape"]
     totals: dict[str, int] = {}
-    from plan import REQUIREMENTS  # local import: plan imports this module
+    from plan import gen_count  # local import: plan imports this module
     for anim in {f["anim"] for f in sidecar["figures"]} - {"anchor"}:
-        totals[anim] = REQUIREMENTS[anim].get("gen", 3)
+        totals[anim] = gen_count(character, anim) or 3
     row_lines = []
     start = 1
     for r, count in enumerate(counts, start=1):
@@ -152,8 +168,9 @@ def sheet_prompt(character: str, sidecar: dict, canvas: str = "landscape 3:2") -
         if anim == "anchor":
             lines.append(
                 f"  Figure {number} (scale reference, not part of any animation): "
-                f"{entry['name']} standing calmly facing right, arms relaxed, "
-                f"{entry['prop_low']}; exactly the height and proportions of the full-body "
+                f"{entry['name']} standing calmly upright facing right, legs straight, arms relaxed, "
+                f"{entry['prop_low']}; not in any fighting stance, so it looks different from every "
+                "other figure; exactly the height and proportions of the full-body "
                 "figures in Image 1.")
             continue
         index = figure["index"]

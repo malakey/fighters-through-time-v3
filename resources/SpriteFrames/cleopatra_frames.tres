@@ -1,4 +1,4 @@
-[gd_resource type="SpriteFrames" load_steps=103 format=3]
+[gd_resource type="SpriteFrames" load_steps=107 format=3]
 
 [ext_resource type="Texture2D" path="res://assets/sprites/characters/cleopatra/retro/cleopatra_locomotion_atlas.png" id="1_locomotion"]
 [ext_resource type="Texture2D" path="res://assets/sprites/characters/cleopatra/retro/cleopatra_traversal_atlas.png" id="2_traversal"]
@@ -9,51 +9,67 @@
 
 [sub_resource type="AtlasTexture" id="idle_0"]
 atlas = ExtResource("1_locomotion")
-region = Rect2(480, 1408, 192, 240)
+region = Rect2(232, 608, 264, 256)
 
 [sub_resource type="AtlasTexture" id="idle_1"]
 atlas = ExtResource("1_locomotion")
-region = Rect2(0, 1648, 192, 240)
+region = Rect2(496, 608, 264, 256)
 
 [sub_resource type="AtlasTexture" id="idle_2"]
 atlas = ExtResource("1_locomotion")
-region = Rect2(192, 1648, 192, 240)
+region = Rect2(760, 608, 264, 256)
 
 [sub_resource type="AtlasTexture" id="idle_3"]
 atlas = ExtResource("1_locomotion")
-region = Rect2(384, 1648, 192, 240)
+region = Rect2(1024, 608, 264, 256)
+
+[sub_resource type="AtlasTexture" id="idle_4"]
+atlas = ExtResource("1_locomotion")
+region = Rect2(1288, 608, 264, 256)
+
+[sub_resource type="AtlasTexture" id="idle_5"]
+atlas = ExtResource("1_locomotion")
+region = Rect2(1024, 608, 264, 256)
+
+[sub_resource type="AtlasTexture" id="idle_6"]
+atlas = ExtResource("1_locomotion")
+region = Rect2(760, 608, 264, 256)
+
+[sub_resource type="AtlasTexture" id="idle_7"]
+atlas = ExtResource("1_locomotion")
+region = Rect2(496, 608, 264, 256)
 
 [sub_resource type="AtlasTexture" id="run_0"]
 atlas = ExtResource("1_locomotion")
-region = Rect2(0, 616, 232, 264)
+region = Rect2(1320, 0, 232, 264)
 
 [sub_resource type="AtlasTexture" id="run_1"]
 atlas = ExtResource("1_locomotion")
-region = Rect2(232, 616, 232, 264)
+region = Rect2(0, 344, 232, 264)
 
 [sub_resource type="AtlasTexture" id="run_2"]
 atlas = ExtResource("1_locomotion")
-region = Rect2(464, 616, 232, 264)
+region = Rect2(232, 344, 232, 264)
 
 [sub_resource type="AtlasTexture" id="run_3"]
 atlas = ExtResource("1_locomotion")
-region = Rect2(0, 880, 232, 264)
+region = Rect2(464, 344, 232, 264)
 
 [sub_resource type="AtlasTexture" id="run_4"]
 atlas = ExtResource("1_locomotion")
-region = Rect2(232, 880, 232, 264)
+region = Rect2(696, 344, 232, 264)
 
 [sub_resource type="AtlasTexture" id="run_5"]
 atlas = ExtResource("1_locomotion")
-region = Rect2(464, 880, 232, 264)
+region = Rect2(928, 344, 232, 264)
 
 [sub_resource type="AtlasTexture" id="run_6"]
 atlas = ExtResource("1_locomotion")
-region = Rect2(0, 1144, 232, 264)
+region = Rect2(1160, 344, 232, 264)
 
 [sub_resource type="AtlasTexture" id="run_7"]
 atlas = ExtResource("1_locomotion")
-region = Rect2(232, 1144, 232, 264)
+region = Rect2(0, 608, 232, 264)
 
 [sub_resource type="AtlasTexture" id="jump_0"]
 atlas = ExtResource("1_locomotion")
@@ -69,87 +85,87 @@ region = Rect2(464, 0, 232, 344)
 
 [sub_resource type="AtlasTexture" id="fall_0"]
 atlas = ExtResource("1_locomotion")
-region = Rect2(0, 344, 208, 272)
+region = Rect2(696, 0, 208, 272)
 
 [sub_resource type="AtlasTexture" id="fall_1"]
 atlas = ExtResource("1_locomotion")
-region = Rect2(208, 344, 208, 272)
+region = Rect2(904, 0, 208, 272)
 
 [sub_resource type="AtlasTexture" id="fall_2"]
 atlas = ExtResource("1_locomotion")
-region = Rect2(416, 344, 208, 272)
+region = Rect2(1112, 0, 208, 272)
 
 [sub_resource type="AtlasTexture" id="skid_0"]
 atlas = ExtResource("1_locomotion")
-region = Rect2(464, 1144, 240, 240)
+region = Rect2(0, 872, 240, 240)
 
 [sub_resource type="AtlasTexture" id="skid_1"]
 atlas = ExtResource("1_locomotion")
-region = Rect2(0, 1408, 240, 240)
+region = Rect2(240, 872, 240, 240)
 
 [sub_resource type="AtlasTexture" id="skid_2"]
 atlas = ExtResource("1_locomotion")
-region = Rect2(240, 1408, 240, 240)
+region = Rect2(480, 872, 240, 240)
 
 [sub_resource type="AtlasTexture" id="crouch_0"]
 atlas = ExtResource("1_locomotion")
-region = Rect2(0, 1888, 200, 216)
+region = Rect2(720, 872, 200, 216)
 
 [sub_resource type="AtlasTexture" id="crouch_1"]
 atlas = ExtResource("1_locomotion")
-region = Rect2(200, 1888, 200, 216)
+region = Rect2(920, 872, 200, 216)
 
 [sub_resource type="AtlasTexture" id="crouch_2"]
 atlas = ExtResource("1_locomotion")
-region = Rect2(400, 1888, 200, 216)
+region = Rect2(1120, 872, 200, 216)
 
 [sub_resource type="AtlasTexture" id="roll_startup_0"]
 atlas = ExtResource("2_traversal")
-region = Rect2(0, 1112, 248, 200)
+region = Rect2(192, 912, 248, 200)
 
 [sub_resource type="AtlasTexture" id="roll_startup_1"]
 atlas = ExtResource("2_traversal")
-region = Rect2(248, 1112, 248, 200)
+region = Rect2(440, 912, 248, 200)
 
 [sub_resource type="AtlasTexture" id="roll_startup_2"]
 atlas = ExtResource("2_traversal")
-region = Rect2(496, 1112, 248, 200)
+region = Rect2(688, 912, 248, 200)
 
 [sub_resource type="AtlasTexture" id="roll_0"]
 atlas = ExtResource("2_traversal")
-region = Rect2(0, 904, 192, 208)
+region = Rect2(528, 656, 192, 208)
 
 [sub_resource type="AtlasTexture" id="roll_1"]
 atlas = ExtResource("2_traversal")
-region = Rect2(192, 904, 192, 208)
+region = Rect2(720, 656, 192, 208)
 
 [sub_resource type="AtlasTexture" id="roll_2"]
 atlas = ExtResource("2_traversal")
-region = Rect2(384, 904, 192, 208)
+region = Rect2(0, 912, 192, 208)
 
 [sub_resource type="AtlasTexture" id="roll_recovery_0"]
 atlas = ExtResource("2_traversal")
-region = Rect2(0, 656, 256, 248)
+region = Rect2(544, 376, 264, 256)
 
 [sub_resource type="AtlasTexture" id="roll_recovery_1"]
 atlas = ExtResource("2_traversal")
-region = Rect2(256, 656, 256, 248)
+region = Rect2(0, 656, 264, 256)
 
 [sub_resource type="AtlasTexture" id="roll_recovery_2"]
 atlas = ExtResource("2_traversal")
-region = Rect2(512, 656, 256, 248)
+region = Rect2(264, 656, 264, 256)
 
 [sub_resource type="AtlasTexture" id="ledge_hang_0"]
 atlas = ExtResource("2_traversal")
-region = Rect2(368, 376, 120, 264)
+region = Rect2(184, 376, 120, 264)
 
 [sub_resource type="AtlasTexture" id="ledge_hang_1"]
 atlas = ExtResource("2_traversal")
-region = Rect2(488, 376, 120, 264)
+region = Rect2(304, 376, 120, 264)
 
 [sub_resource type="AtlasTexture" id="ledge_hang_2"]
 atlas = ExtResource("2_traversal")
-region = Rect2(608, 376, 120, 264)
+region = Rect2(424, 376, 120, 264)
 
 [sub_resource type="AtlasTexture" id="ledge_pull_up_0"]
 atlas = ExtResource("2_traversal")
@@ -157,11 +173,11 @@ region = Rect2(576, 0, 184, 280)
 
 [sub_resource type="AtlasTexture" id="ledge_pull_up_1"]
 atlas = ExtResource("2_traversal")
-region = Rect2(0, 376, 184, 280)
+region = Rect2(760, 0, 184, 280)
 
 [sub_resource type="AtlasTexture" id="ledge_pull_up_2"]
 atlas = ExtResource("2_traversal")
-region = Rect2(184, 376, 184, 280)
+region = Rect2(0, 376, 184, 280)
 
 [sub_resource type="AtlasTexture" id="ledge_drop_0"]
 atlas = ExtResource("2_traversal")
@@ -237,39 +253,39 @@ region = Rect2(1120, 1360, 256, 216)
 
 [sub_resource type="AtlasTexture" id="dazed_0"]
 atlas = ExtResource("5_states")
-region = Rect2(1584, 0, 160, 232)
+region = Rect2(792, 312, 160, 232)
 
 [sub_resource type="AtlasTexture" id="dazed_1"]
 atlas = ExtResource("5_states")
-region = Rect2(1744, 0, 160, 232)
+region = Rect2(952, 312, 160, 232)
 
 [sub_resource type="AtlasTexture" id="dazed_2"]
 atlas = ExtResource("5_states")
-region = Rect2(1904, 0, 160, 232)
+region = Rect2(0, 568, 160, 232)
 
 [sub_resource type="AtlasTexture" id="death_0"]
 atlas = ExtResource("5_states")
-region = Rect2(0, 312, 448, 224)
+region = Rect2(160, 568, 448, 224)
 
 [sub_resource type="AtlasTexture" id="death_1"]
 atlas = ExtResource("5_states")
-region = Rect2(448, 312, 448, 224)
+region = Rect2(608, 568, 448, 224)
 
 [sub_resource type="AtlasTexture" id="death_2"]
 atlas = ExtResource("5_states")
-region = Rect2(896, 312, 448, 224)
+region = Rect2(0, 800, 448, 224)
 
 [sub_resource type="AtlasTexture" id="respawn_0"]
 atlas = ExtResource("5_states")
-region = Rect2(1008, 0, 192, 240)
+region = Rect2(0, 312, 264, 256)
 
 [sub_resource type="AtlasTexture" id="respawn_1"]
 atlas = ExtResource("5_states")
-region = Rect2(1200, 0, 192, 240)
+region = Rect2(264, 312, 264, 256)
 
 [sub_resource type="AtlasTexture" id="respawn_2"]
 atlas = ExtResource("5_states")
-region = Rect2(1392, 0, 192, 240)
+region = Rect2(528, 312, 264, 256)
 
 [sub_resource type="AtlasTexture" id="victory_0"]
 atlas = ExtResource("5_states")
@@ -285,15 +301,15 @@ region = Rect2(672, 0, 336, 312)
 
 [sub_resource type="AtlasTexture" id="defeat_0"]
 atlas = ExtResource("5_states")
-region = Rect2(1344, 312, 240, 208)
+region = Rect2(448, 800, 240, 208)
 
 [sub_resource type="AtlasTexture" id="defeat_1"]
 atlas = ExtResource("5_states")
-region = Rect2(1584, 312, 240, 208)
+region = Rect2(688, 800, 240, 208)
 
 [sub_resource type="AtlasTexture" id="defeat_2"]
 atlas = ExtResource("5_states")
-region = Rect2(1824, 312, 240, 208)
+region = Rect2(928, 800, 240, 208)
 
 [sub_resource type="AtlasTexture" id="special_1_0"]
 atlas = ExtResource("6_abilities")
@@ -394,10 +410,10 @@ region = Rect2(480, 840, 480, 264)
 [resource]
 animations = [
 {
-"frames": [{"duration": 1.0, "texture": SubResource("idle_0")}, {"duration": 1.0, "texture": SubResource("idle_1")}, {"duration": 1.0, "texture": SubResource("idle_2")}, {"duration": 1.0, "texture": SubResource("idle_3")}],
+"frames": [{"duration": 1.0, "texture": SubResource("idle_0")}, {"duration": 1.0, "texture": SubResource("idle_1")}, {"duration": 1.0, "texture": SubResource("idle_2")}, {"duration": 1.0, "texture": SubResource("idle_3")}, {"duration": 1.0, "texture": SubResource("idle_4")}, {"duration": 1.0, "texture": SubResource("idle_5")}, {"duration": 1.0, "texture": SubResource("idle_6")}, {"duration": 1.0, "texture": SubResource("idle_7")}],
 "loop": true,
 "name": &"idle",
-"speed": 6.0
+"speed": 10.0
 }, {
 "frames": [{"duration": 1.0, "texture": SubResource("run_0")}, {"duration": 1.0, "texture": SubResource("run_1")}, {"duration": 1.0, "texture": SubResource("run_2")}, {"duration": 1.0, "texture": SubResource("run_3")}, {"duration": 1.0, "texture": SubResource("run_4")}, {"duration": 1.0, "texture": SubResource("run_5")}, {"duration": 1.0, "texture": SubResource("run_6")}, {"duration": 1.0, "texture": SubResource("run_7")}],
 "loop": true,
@@ -547,4 +563,4 @@ animations = [
 ]
 metadata/retro_texel_scale = 2.0
 metadata/retro_baked_scale = true
-metadata/retro_feet_gaps = {"idle": 13, "run": 14, "jump": 15, "fall": 14, "skid": 13, "crouch": 12, "roll_startup": 13, "roll": 15, "roll_recovery": 14, "ledge_hang": 123, "ledge_pull_up": 15, "ledge_drop": 122, "basic_attack_1": 14, "basic_attack_2": 15, "basic_attack_3": 15, "block": 14, "hitstun": 14, "dazed": 17, "death": 12, "respawn": 13, "victory": 14, "defeat": 12, "special_1": 18, "special_2": 14, "movement_ability": 14, "ultimate": 16, "up_attack": 16, "down_air": 101, "grab": 15, "throw": 14}
+metadata/retro_feet_gaps = {"idle": 14, "run": 14, "jump": 15, "fall": 14, "skid": 13, "crouch": 12, "roll_startup": 13, "roll": 15, "roll_recovery": 14, "ledge_hang": 123, "ledge_pull_up": 15, "ledge_drop": 122, "basic_attack_1": 14, "basic_attack_2": 15, "basic_attack_3": 15, "block": 14, "hitstun": 14, "dazed": 17, "death": 12, "respawn": 14, "victory": 14, "defeat": 12, "special_1": 18, "special_2": 14, "movement_ability": 14, "ultimate": 16, "up_attack": 16, "down_air": 101, "grab": 15, "throw": 14}

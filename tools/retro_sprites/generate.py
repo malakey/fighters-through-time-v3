@@ -23,7 +23,7 @@ import json
 
 from plan import legacy_sidecar, plan_sheets, sheet_sidecar, sidecar_path
 from prompts import codex_session, image_prompt, model_sheet_prompt, sheet_prompt
-from roster_spec import JOBS
+from roster_spec import JOBS, job_for
 
 REPO = Path(__file__).resolve().parents[2]
 DOCS = Path("D:/Projects/fighters-through-time-docs-2/mockups")
@@ -159,8 +159,8 @@ def generate_jobs(character: str, jobs: list[str]) -> None:
     """The first, one-animation-per-sheet job list (still used for idle and run)."""
     workdir = character_dir(character)
     refs = references(character)
-    by_name = {job["job"]: job for job in JOBS}
-    assets = [(f"{character}__{name}.png", image_prompt(character, by_name[name])) for name in jobs]
+    assets = [(f"{character}__{name}.png", image_prompt(character, job_for(character, name)))
+              for name in jobs]
     code = run_codex(workdir, codex_session(character, assets, [str(r) for r in refs]), refs,
                      "_".join(jobs) if len(jobs) <= 3 else f"{jobs[0]}_plus{len(jobs) - 1}")
     print(f"{character} {jobs}: codex exit {code}")

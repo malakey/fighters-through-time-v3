@@ -274,21 +274,80 @@ CHARACTERS: dict[str, dict] = {
 }
 
 # ---------------------------------------------------------------------------
+# The idle: a ping-pong bob. The model draws IDLE_POSES[character] unique poses
+# from standing tall (pose 1) to the deepest bend (pose N); pack.py plays them
+# forward then back without repeating the ends (0..N-1, N-2..1), 2(N-1) frames
+# at IDLE_FPS. THE ONE PLACE this table lives: the job's figure count, plan.py's
+# gen count, pack.py's expected frame count and the select-hero bake all derive
+# from it.
+# ---------------------------------------------------------------------------
+
+IDLE_POSES: dict[str, int] = {
+    "joan": 5, "cleopatra": 5, "mozart": 5, "einstein": 5, "tesla": 5,
+    "leonardo": 6, "shakespeare": 6, "tubman": 6,
+    "lincoln": 7,
+}
+IDLE_FPS = 10.0
+NUMBER_WORDS = {5: "five", 6: "six", 7: "seven"}
+
+
+def idle_loop_order(unique: int) -> list[int]:
+    """Indices into the unique poses, in play order: 0..N-1 then N-2..1."""
+    if unique <= 1:
+        return [0] * max(unique, 0)
+    return list(range(unique)) + list(range(unique - 2, 0, -1))
+
+
+def idle_loop_frames(character: str) -> int:
+    return len(idle_loop_order(IDLE_POSES[character]))
+
+
+def idle_pose_texts(n: int) -> list[str]:
+    """Pose descriptions, tallest to deepest, eased in and out (smoothstep)."""
+    word = NUMBER_WORDS[n]
+    out = [f"idle pose 1 of {word}: {{stance}}; standing tall in this stance, the knees only "
+           "lightly bent, the upper body at its highest (the tallest pose)"]
+    for i in range(1, n - 1):
+        t = i / (n - 1)
+        share = round(100 * t * t * (3 - 2 * t))
+        out.append(
+            f"idle pose {i + 1} of {word}: the same stance, about {share}% of the way down "
+            f"the small drop from pose 1 to pose {n}: the knees bent a tiny bit more than in pose {i} and the "
+            "whole upper body, arms and prop moved straight down with it, same drawing")
+    out.append(f"idle pose {n} of {word}: the same stance at its deepest bend, the knees bent "
+               "the most and the upper body at its lowest, yet only a little lower than pose 1 "
+               "and never a squat or a lunge")
+    return out
+
+
+def idle_job(character: str) -> dict:
+    """The idle job for one character: anchor + N poses over two rows of at most
+    four figures (anchor+2 / 3 for N=5, anchor+3 / 3 for 6, anchor+3 / 4 for 7)."""
+    n = IDLE_POSES[character]
+    first = -(-(n + 1) // 2)           # figures in row 1, the anchor included
+    return {"job": "idle", "layout": "rows",
+            "rows": [{"anchor": True, "anims": [("idle", first - 1)]},
+                     {"anchor": False, "anims": [("idle", n - (first - 1))]}],
+            "feet": {"idle": "lowest"}}
+
+
+def job_for(character: str, name: str) -> dict:
+    if name == "idle":
+        return idle_job(character)
+    return next(j for j in JOBS if j["job"] == name)
+
+
+# ---------------------------------------------------------------------------
 # Shared animations. {prop}, {prop_low}, {stance}, {arms_a}, {arms_b},
 # {arms_pass}, {guard}, {effect} and {name} are filled from the character
 # entry. Each value is a list of frame descriptions in order.
 # ---------------------------------------------------------------------------
 
 SHARED_POSES: dict[str, list[str]] = {
-    # 2026-10-20 (user): the idle is a fighting stance with the hands up, not a
-    # breathing stand. One stance bouncing gently in place; JOB_NOTES holds the
-    # stance itself and the "only the knees and the body height move" rule.
-    "idle": [
-        "{stance}; the top of a small, springy bounce, the upper body at its highest",
-        "the same stance sinking: the knees bend a little more and the upper body drops a few pixels",
-        "the same stance at the bottom of the bounce: only slightly lower than the frame before, a small dip and never a squat",
-        "the same stance rising: halfway back up to the first frame",
-    ],
+    # The idle's descriptions depend on how many poses the character draws
+    # (IDLE_POSES), so poses() builds them with idle_pose_texts(); this entry
+    # only marks the animation as shared.
+    "idle": [],
     # 2026-10-20 (user): the 6-frame run read as jerky and incomplete. A classic
     # 8-frame cycle, contact / down / passing / flight for each leg; near means
     # the side closer to the viewer. The arm phrases come from the character
@@ -969,8 +1028,9 @@ JOBS: list[dict] = [
     # the row opens with the standing figure every other sheet is scaled by.
     # Each stance frame stands on its own soles ("lowest"): the reference's
     # feet sit a few pixels off the stance's, which floated the idle.
-    {"job": "idle", "layout": "row", "rows": [{"anchor": True, "anims": [("idle", 4)]}],
-     "feet": {"idle": "lowest"}},
+    # Per-character pose count and rows: see idle_job() (the template here is
+    # replaced by it; its rows are never read directly).
+    {"job": "idle", "layout": "rows", "rows": [], "feet": {"idle": "lowest"}},
     # Two rows of anchor + four. "cycle" feet: see feet modes above.
     {"job": "run", "layout": "rows", "rows": [
         {"anchor": True, "anims": [("run", 4)]},
@@ -1018,13 +1078,21 @@ JOBS: list[dict] = [
 # of a loop must agree with each other, which per-figure lines cannot say.
 JOB_NOTES: dict[str, str] = {
     "idle": (
-        "The four idle frames are one fighting stance bouncing gently in place, like a 2D "
-        "fighting-game idle loop: {stance}. It is a ready-to-attack stance, not a defensive "
-        "block. The feet stay planted on exactly the same spots, and the head, both arms, the "
-        "hands and {prop_short} keep exactly the same pose and angle in every frame; only the "
-        "knee bend and the height of the upper body change. The bounce is small: from frame 1 "
-        "to frame 3 the head drops by no more than one twentieth of the character's height, "
-        "and frame 4 flows straight back into frame 1."
+        "The {idle_words} idle poses are one fighting stance sinking gradually from standing "
+        "tall to its deepest bend, like the two ends of a gentle 2D fighting-game idle bob: "
+        "{stance}. It is a ready-to-attack stance, not a defensive block. The poses are in "
+        "strict order from the tallest (pose 1) to the lowest (pose {idle_n}); each pose is "
+        "lower than the one before it, and no pose is higher than an earlier one. The steps are "
+        "small near the top and the bottom and larger in the middle (ease in and out). The "
+        "feet stay planted on exactly the same spots, and the head, both arms, the hands and "
+        "{prop_short} keep exactly the same pose, angle, grip, expression and facing in every "
+        "pose; only the knee bend and the height of the upper body change. Redraw the upper "
+        "body, the arms and {prop_short} as the very same drawing moved straight down, with no "
+        "change of angle. This is a very small movement: from pose 1 to pose {idle_n} the head "
+        "drops only by about the height of the character's chin to mouth (about one fortieth of "
+        "the character's height); the knees in pose {idle_n} are only slightly more bent than in "
+        "pose 1, the feet never spread wider, and the body never squats or lunges. Side by side, "
+        "the poses look almost identical, like the frames of a subtle breathing bounce."
     ),
     "run": (
         "The eight run frames are one complete, seamless looping run cycle, like a professional "
@@ -1040,7 +1108,13 @@ JOB_NOTES: dict[str, str] = {
 
 def job_notes(character: str, job_name: str) -> str:
     note = JOB_NOTES.get(job_name)
-    return note.format(**CHARACTERS[character]) if note else ""
+    if not note:
+        return ""
+    extra = {}
+    if job_name == "idle":
+        n = IDLE_POSES[character]
+        extra = {"idle_n": n, "idle_words": NUMBER_WORDS[n]}
+    return note.format(**CHARACTERS[character], **extra)
 
 
 def feet_mode(job: dict, anim: str, character: str) -> str:
@@ -1052,6 +1126,8 @@ def feet_mode(job: dict, anim: str, character: str) -> str:
 
 def poses(character: str, anim: str) -> list[str]:
     entry = CHARACTERS[character]
+    if anim == "idle":
+        return [f.format(**entry) for f in idle_pose_texts(IDLE_POSES[character])]
     if anim in CHARACTER_POSES[character]:
         frames = CHARACTER_POSES[character][anim]
     else:

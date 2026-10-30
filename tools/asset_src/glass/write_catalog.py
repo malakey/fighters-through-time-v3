@@ -110,18 +110,21 @@ def hero_entries():
     doc = json.load(open(os.path.join(KIT_DIR, "select_heroes", "select_heroes.json"), encoding="utf-8"))
     out = {}
     for hero in doc["heroes"]:
+        total = len(hero["frames"])
         for n, fr in enumerate(hero["frames"]):
             if png_size(fr["file"]) != fr["size"]:
                 raise SystemExit(f"{fr['file']} does not match select_heroes.json")
             out[f"hero_{hero['id']}_idle_{n}"] = {
                 "file": fr["file"], "size": fr["size"], "mipmaps": True, "pivot_x": fr["pivot_x"],
                 "feet_y": fr["feet_y"], "fps": hero["fps"],
-                "serves": f"CARD-A select hero sprite: {hero['id']}'s idle frame {n} of 4 (UI_SPEC_GLASS 3.7)"}
+                "serves": f"CARD-A select hero sprite: {hero['id']}'s idle pose {n} of {total} (UI_SPEC_GLASS 3.7)"}
+            if n == 0:   # the play order (indices into the unique poses) rides on pose 0
+                out[f"hero_{hero['id']}_idle_0"]["order"] = hero["order"]
     out["hero_select_index"] = {
         "file": "select_heroes/select_heroes.json", "heroes": [h["id"] for h in doc["heroes"]],
         "select_scale": doc["select_scale"], "select_feet_y": doc["select_feet_y"],
-        "serves": "the select hero layer's index: per hero the four frames, pivot_x and feet_y (image px from the "
-                  "top-left), the idle frame rate (6 fps) and the loop flag; the roster comes from "
+        "serves": "the select hero layer's index: per hero the unique idle poses, pivot_x and feet_y (image px from the "
+                  "top-left), the idle frame rate (10 fps), the play order and the loop flag; the roster comes from "
                   "content_manifest.csv, so a new member gets its frames on the next build"}
     return out
 

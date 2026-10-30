@@ -260,7 +260,7 @@ public class GlassKitContentTests {
     }
 
     [TestCase]
-    public void EveryRosterMemberHasFourBakedIdleFramesAndAFeetLine() {
+    public void EveryRosterMemberHasItsBakedIdlePosesPlayOrderAndAFeetLine() {
         var issues = new List<string>();
         using JsonDocument doc = Read(Root + "select_heroes/select_heroes.json");
         var heroes = new Dictionary<string, JsonElement>();
@@ -276,8 +276,21 @@ public class GlassKitContentTests {
                 issues.Add($"{id}: no idle frame rate");
             }
             JsonElement frames = hero.GetProperty("frames");
-            if (frames.GetArrayLength() != 4) {
-                issues.Add($"{id}: {frames.GetArrayLength()} idle frames, not 4");
+            // The idle is a ping-pong of N unique poses (roster_spec.IDLE_POSES): 0..N-1 then N-2..1.
+            int poses = FTT.Tests.ContentValidation.CharacterPresentationTests.IdlePoseCount(id);
+            if (frames.GetArrayLength() != poses) {
+                issues.Add($"{id}: {frames.GetArrayLength()} baked idle poses, not {poses}");
+            }
+            var order = new List<int>();
+            foreach (JsonElement i in hero.GetProperty("order").EnumerateArray()) order.Add(i.GetInt32());
+            var expectedOrder = new List<int>();
+            for (int i = 0; i < poses; i++) expectedOrder.Add(i);
+            for (int i = poses - 2; i >= 1; i--) expectedOrder.Add(i);
+            if (string.Join(",", order) != string.Join(",", expectedOrder)) {
+                issues.Add($"{id}: play order [{string.Join(",", order)}], not [{string.Join(",", expectedOrder)}]");
+            }
+            if (hero.GetProperty("fps").GetDouble() != 10.0) {
+                issues.Add($"{id}: idle plays at {hero.GetProperty("fps").GetDouble()} fps, not 10");
             }
             int n = 0;
             foreach (JsonElement f in frames.EnumerateArray()) {

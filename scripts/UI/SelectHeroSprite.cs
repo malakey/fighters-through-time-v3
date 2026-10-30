@@ -7,7 +7,7 @@ namespace FTT.UI {
 
     /// <summary>
     /// TG-SELECT (CARD-A layer 3, UI_SPEC_GLASS 3.7, 4.2): the hovered or locked hero standing beside its player's side of the
-    /// Fighter select, playing its idle loop at the hero's own rate. It draws TG-ART's baked idle frames
+    /// Fighter select, playing its idle loop at the hero's own rate (a ping-pong of the baked unique poses, in the catalog's recorded play order). It draws TG-ART's baked idle frames
     /// (<c>assets/sprites/ui/glass/select_heroes/</c>, catalog stems <c>hero_&lt;id&gt;_idle_&lt;n&gt;</c>), never the roster's
     /// <c>SpriteFrames</c>, which would load all six of a hero's atlases (41-51 MiB each). The frame is drawn at the catalog's
     /// <c>select_scale</c> (2.05) with its pivot and feet line on <see cref="FeetPoint"/> (4.2: x 260 / 1660, y 700), mirrored for
@@ -27,6 +27,7 @@ namespace FTT.UI {
         private sealed class HeroFrames {
             public Texture2D[] Textures;
             public Vector2[] Pivots;     // (pivot_x, feet_y) per frame, image pixels
+            public int[] Order;          // play order, indices into Textures (e.g. 0 1 2 3 2 1)
             public float Fps;
         }
 
@@ -37,7 +38,7 @@ namespace FTT.UI {
         private string _heroId;
         private bool _mirrored;
         private Vector2 _feet;
-        private int _frame;
+        private int _frame;             // the unique pose drawn
         private double _clock;
         private static readonly Color ShadowTint = new(0f, 0f, 0f, ShadowTapAlpha);
 
@@ -56,12 +57,14 @@ namespace FTT.UI {
         /// <summary>Where the frame's pivot and feet line land, in this control's coordinates.</summary>
         public Vector2 FeetPoint { get => _feet; set { if (_feet == value) return; _feet = value; QueueRedraw(); } }
 
-        /// <summary>The current idle frame (0 to 3) and its texture.</summary>
+        /// <summary>The current idle pose (an index into the baked unique poses) and its texture.</summary>
         public int FrameIndex => _frame;
         public Texture2D FrameTexture => _frames?.Textures[_frame];
-        /// <summary>The hero's idle rate from the catalog (6 fps today).</summary>
+        /// <summary>The hero's idle rate from the catalog (10 fps today).</summary>
         public float FramesPerSecond => _frames?.Fps ?? 0f;
+        /// <summary>How many unique poses are baked, and how many steps the loop plays (the ping-pong repeats poses).</summary>
         public int FrameCount => _frames?.Textures.Length ?? 0;
+        public int LoopLength => _frames?.Order.Length ?? 0;
 
         /// <summary>The frame's drawn rectangle in this control's coordinates (unmirrored extent; a mirrored frame covers the reflection about <see cref="FeetPoint"/>'s x).</summary>
         public Rect2 DrawnRect {
@@ -83,7 +86,8 @@ namespace FTT.UI {
             _frames = heroId == null ? null : FramesFor(heroId);
             _frame = 0;
             _clock = 0d;
-            SetProcess(_frames != null && _frames.Textures.Length > 1 && _frames.Fps > 0f);
+            SetProcess(_frames != null && _frames.Order.Length > 1 && _frames.Fps > 0f);
+            if (_frames != null) _frame = _frames.Order[0];
             QueueRedraw();
         }
 
@@ -93,7 +97,7 @@ namespace FTT.UI {
         public override void _Process(double delta) {
             if (_frames == null) return;
             _clock += delta;
-            int frame = (int)(_clock * _frames.Fps) % _frames.Textures.Length;
+            int frame = _frames.Order[(int)(_clock * _frames.Fps) % _frames.Order.Length];
             if (frame == _frame) return;
             _frame = frame;
             QueueRedraw();
@@ -134,6 +138,7 @@ namespace FTT.UI {
             var textures = new List<Texture2D>();
             var pivots = new List<Vector2>();
             float fps = 0f;
+            int[] order = null;
             for (int n = 0; ; n++) {
                 string stem = $"hero_{heroId}_idle_{n}";
                 if (!PulpKit.TryEntry(stem, out JsonElement entry)) break;
@@ -142,9 +147,24 @@ namespace FTT.UI {
                 textures.Add(texture);
                 pivots.Add(new Vector2(Read(entry, "pivot_x"), Read(entry, "feet_y")));
                 if (fps <= 0f) fps = Read(entry, "fps");
+                // The play order rides on pose 0's entry; a missing one plays the poses straight through.
+                if (n == 0 && entry.TryGetProperty("order", out JsonElement o) && o.ValueKind == JsonValueKind.Array) {
+                    // Any element that is not a whole number discards the whole order (straight-through fallback).
+                    var list = new List<int>();
+                    bool valid = true;
+                    foreach (JsonElement i in o.EnumerateArray()) {
+                        if (i.ValueKind != JsonValueKind.Number || !i.TryGetInt32(out int v)) { valid = false; break; }
+                        list.Add(v);
+                    }
+                    if (valid && list.Count > 0) order = list.ToArray();
+                }
+            }
+            if (textures.Count > 0) {
+                if (order != null) foreach (int i in order) if (i < 0 || i >= textures.Count) { order = null; break; }
+                if (order == null) { order = new int[textures.Count]; for (int i = 0; i < order.Length; i++) order[i] = i; }
             }
             HeroFrames frames = textures.Count == 0 ? null
-                : new HeroFrames { Textures = textures.ToArray(), Pivots = pivots.ToArray(), Fps = fps };
+                : new HeroFrames { Textures = textures.ToArray(), Pivots = pivots.ToArray(), Order = order, Fps = fps };
             Cache[heroId] = frames;
             return frames;
         }

@@ -580,7 +580,8 @@ public class CharacterSelectCardTests {
             SelectHeroSprite p1 = screen.HeroSprite(0);
             int frame = p1.FrameIndex;
             p1._Process(1.0 / p1.FramesPerSecond + 0.01);
-            if (p1.FrameIndex == frame || p1.FrameCount != 4) problems.Add($"the idle did not step (frame {p1.FrameIndex} of {p1.FrameCount})");
+            int poses = FTT.Tests.ContentValidation.CharacterPresentationTests.IdlePoseCount(p1.HeroID);
+            if (p1.FrameIndex == frame || p1.FrameCount != poses || p1.LoopLength != 2 * (poses - 1)) problems.Add($"the idle did not step (pose {p1.FrameIndex} of {p1.FrameCount}, loop of {p1.LoopLength}; expected {poses} poses)");
             // The Random tile shows no hero.
             while (screen.SelectedIndex != screen.RandomTileIndex) screen.TryMoveCursor(0, 0, 1);
             if (p1.HeroID != null || p1.FrameTexture != null) problems.Add("Random shows a hero");

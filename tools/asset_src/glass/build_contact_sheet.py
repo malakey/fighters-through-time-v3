@@ -433,7 +433,7 @@ def sheet_heroes():
     heroes = data["heroes"]
     row_h = 330
     im = Image.new("RGBA", (1900, 40 + row_h * len(heroes)), BG0)
-    caption(im, (10, 10), "select heroes: the four baked idle frames 1:1 (feet line red, pivot cyan), then frame 0 "
+    caption(im, (10, 10), "select heroes: the baked unique idle poses 1:1 (feet line red, pivot cyan), then frame 0 "
                           "at the select's 2.05 x on a feet line, mirrored for P2")
     for r, hero in enumerate(heroes):
         y = 40 + r * row_h

@@ -1,16 +1,21 @@
 """TG-ART: bakes the character select's hero sprites (UI_SPEC_GLASS 3.7, 7.5; plan 2.3).
 
 The select shows the hovered or locked hero's retro v2 idle loop per side. Loading a hero's SpriteFrames loads
-all six of its atlases (41-51 MiB a hero), so this bakes the idle animation's four frames into small PNGs instead.
+all six of its atlases (41-51 MiB a hero), so this bakes the idle animation's frames into small PNGs instead.
+The idle is a ping-pong bob (tools/retro_sprites/roster_spec.IDLE_POSES): N drawn poses played 0..N-1, N-2..1, so
+the manifest lists 2(N-1) regions that repeat the N unique cells. Each unique pose is baked once, and the play
+order and rate are recorded.
 
 The roster is read from resources/Content/content_manifest.csv (its `Character` rows, in grid order), never
 listed here. For each member, tools/retro_sprites/manifests/<id>.json gives the idle animation's atlas sheet, its
-four cell regions, its feet gap (the sole line's distance above the cell bottom) and its frame rate. The four frames
-share one crop: the union of their art, padded, symmetric about the cell's horizontal centre (the pivot), so the
-loop stays registered and a horizontal flip keeps the pivot in place. Output, all at the atlases' own 2x texels:
+cell regions in play order, its feet gap (the sole line's distance above the cell bottom) and its frame rate. The
+unique frames share one crop: the union of their art, padded, symmetric about the cell's horizontal centre (the
+pivot), so the loop stays registered and a horizontal flip keeps the pivot in place. Output, all at the atlases'
+own 2x texels:
 
-  assets/sprites/ui/glass/select_heroes/<id>_idle_<n>.png     n = 0..3, mipmapped (apply_import_settings.py)
-  assets/sprites/ui/glass/select_heroes/select_heroes.json    per hero: fps, loop, texel scale, and per frame the
+  assets/sprites/ui/glass/select_heroes/<id>_idle_<n>.png     n = 0..N-1 (unique poses), mipmapped (apply_import_settings.py)
+  assets/sprites/ui/glass/select_heroes/select_heroes.json    per hero: fps, loop, texel scale, order (the play order
+                                                              as indices into frames) and per unique frame the
                                                               file, size, pivot_x and feet_y (image px from the top)
 
 Drawing (the mock, _build/lib.py spr()): scale the PNG by 2.05, put its (pivot_x, feet_y) on the screen point
@@ -55,9 +60,19 @@ def bake(cid: str) -> dict:
     an = m["animations"]["idle"]
     atlas = Image.open(os.path.join(G.REPO, "assets", "sprites", "characters", cid, "retro",
                                     f"{cid}_{an['sheet']}_atlas.png")).convert("RGBA")
-    cells = [atlas.crop((x, y, x + w, y + h)) for x, y, w, h in an["regions"]]
-    if len(cells) != 4 or len({c.size for c in cells}) != 1:
-        raise SystemExit(f"{cid}: idle must be four equal cells, got {[c.size for c in cells]}")
+    # The manifest lists the loop in play order, repeating a pose's region; bake each unique region once.
+    unique, order = [], []
+    for region in an["regions"]:
+        key = tuple(region)
+        if key not in unique:
+            unique.append(key)
+        order.append(unique.index(key))
+    sources = {}
+    for region, source in zip(an["regions"], an["sources"]):
+        sources.setdefault(tuple(region), source)
+    cells = [atlas.crop((x, y, x + w, y + h)) for x, y, w, h in unique]
+    if len(cells) < 2 or len({c.size for c in cells}) != 1:
+        raise SystemExit(f"{cid}: idle must be two or more equal cells, got {[c.size for c in cells]}")
     cw, ch = cells[0].size
     alpha = np.maximum.reduce([np.asarray(c.getchannel("A")) for c in cells])
     ys, xs = np.nonzero(alpha > ALPHA_FLOOR)
@@ -79,9 +94,9 @@ def bake(cid: str) -> dict:
         Image.fromarray(a, "RGBA").save(os.path.join(OUT, name), optimize=False, compress_level=9)
         frames.append({"file": f"select_heroes/{name}", "size": [img.width, img.height],
                        "pivot_x": pivot - x0, "feet_y": feet - y0,
-                       "source": f"{an['sheet']} atlas region {an['regions'][n]} ({an['sources'][n]})"})
+                       "source": f"{an['sheet']} atlas region {list(unique[n])} ({sources[unique[n]]})"})
     return {"id": cid, "fps": float(an["speed"]), "loop": bool(an["loop"]), "texel_scale": m.get("texel_scale", 2.0),
-            "frames": frames}
+            "order": order, "frames": frames}
 
 
 def main():
@@ -100,7 +115,7 @@ def main():
     for h in heroes:
         f = h["frames"][0]
         print(f"{h['id']:12s} {f['size'][0]:4d} x {f['size'][1]:4d}  pivot {f['pivot_x']:6.1f}  feet {f['feet_y']:6.1f}"
-              f"  fps {h['fps']}")
+              f"  fps {h['fps']}  {len(h['frames'])} poses, loop {h['order']}")
 
 
 if __name__ == "__main__":

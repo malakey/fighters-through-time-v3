@@ -45,8 +45,23 @@ public class CharacterPresentationTests {
     /// with the run raised to an 8-frame cycle on 2026-10-20 (the user found 6
     /// jerky and incomplete).
     /// </summary>
-    private static int ExpectedFrameCount(string animationName) => animationName switch {
-        "idle" => 4,
+    /// <summary>
+    /// 2026-10-28: the idle is a ping-pong bob. The image model draws N unique
+    /// poses per character (tools/retro_sprites/roster_spec.py IDLE_POSES, the
+    /// one table in the pipeline; mirrored here once), played 0..N-1 then N-2..1,
+    /// so the idle has 2(N-1) frames at 10 fps.
+    /// </summary>
+    private static readonly Dictionary<string, int> IdlePoses = new() {
+        ["joan"] = 5, ["cleopatra"] = 5, ["mozart"] = 5,
+        ["einstein"] = 5, ["leonardo"] = 6, ["tesla"] = 5, ["shakespeare"] = 6, ["tubman"] = 6,
+        ["lincoln"] = 7
+    };
+
+    /// <summary>The number of unique drawn idle poses for a roster character.</summary>
+    internal static int IdlePoseCount(string characterID) => IdlePoses[characterID];
+
+    private static int ExpectedFrameCount(string characterID, string animationName) => animationName switch {
+        "idle" => 2 * (IdlePoses[characterID] - 1),
         "run" => 8,
         _ => 3
     };
@@ -75,13 +90,13 @@ public class CharacterPresentationTests {
                 AssertThat(frames.HasAnimation(animationName)).IsTrue();
                 AssertThat(frames.GetFrameCount(animationName))
                     .OverrideFailureMessage($"{characterID}:{animationName} has the wrong retro frame count")
-                    .IsEqual(ExpectedFrameCount(animationName));
+                    .IsEqual(ExpectedFrameCount(characterID, animationName));
             }
             foreach (string animationName in RuntimeOnlyAnimationNames) {
                 AssertThat(frames.HasAnimation(animationName)).IsTrue();
                 AssertThat(frames.GetFrameCount(animationName))
                     .OverrideFailureMessage($"{characterID}:{animationName} has the wrong retro frame count")
-                    .IsEqual(ExpectedFrameCount(animationName));
+                    .IsEqual(ExpectedFrameCount(characterID, animationName));
             }
             // 2026-10-20 (user): the fall plays once and holds its pose until
             // landing; looping it pumped the legs. The idle and the run loop.

@@ -51,7 +51,7 @@ ROSTER_ABILITIES = {
 }
 
 CHARACTER_ANIMATIONS = [
-    ("idle", "locomotion", 0, 6.0, True),
+    ("idle", "locomotion", 0, 10.0, True),
     ("run", "locomotion", 1, 12.0, True),
     ("jump", "locomotion", 2, 8.0, False),
     ("fall", "locomotion", 3, 8.0, True),
