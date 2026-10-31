@@ -61,6 +61,7 @@ public class SuppressionTests {
         try {
             player.CurrentUltimateMeter = 100f;
             player.SetAbilityCastSuppressed(true);
+            float pipsBefore = player.MomentumPips;
 
             foreach (GameplayButtons button in new[] {
                 GameplayButtons.Special1, GameplayButtons.Special2,
@@ -76,6 +77,9 @@ public class SuppressionTests {
                 AssertThat(player.SpecialOneCooldownTimer).IsEqual(0f);
                 AssertThat(player.SpecialTwoCooldownTimer).IsEqual(0f);
                 AssertThat(player.MovementAbilityCooldownTimer).IsEqual(0f);
+                AssertThat(player.MomentumPips >= pipsBefore)
+                    .OverrideFailureMessage($"A suppressed {button} press must spend no Momentum pip.")
+                    .IsTrue();
                 AssertThat(player.CurrentUltimateMeter)
                     .OverrideFailureMessage("A refused ultimate must not spend the meter.")
                     .IsEqual(100f);

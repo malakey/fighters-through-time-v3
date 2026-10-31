@@ -171,7 +171,9 @@ public class PuzzleEnvironmentToolkitTests {
                 * FTT.Combat.UltimateMeter.PointsPerDamageTaken;
             // D5: at the campaign hero's Story meter-gain factor.
             earned *= player.StoryMeterGainFactor;
-            AssertThat(player.CurrentUltimateMeter).IsEqualApprox(30f + earned, 0.01f);
+            // The Extractor's flat drain is halved on the campaign hero (Momentum update 2026-10-31).
+            AssertThat(player.CurrentUltimateMeter)
+                .IsEqualApprox(50f - player.ScaleStoryFlatMeter(extractor.UltimateDrain) + earned, 0.01f);
 
             extractor.TakeEnvironmentDamage(60f);
             AssertThat(extractor.CurrentHP).IsEqual(40);

@@ -172,7 +172,7 @@ namespace FTT.Environment {
                 float direction = player.GlobalPosition.X >= GlobalPosition.X ? 1f : -1f;
                 player.Velocity += new Vector2(HazardKnockback.X * direction, HazardKnockback.Y);
             }
-            player.DrainUltimateMeter(UltimateDrain);
+            player.DrainUltimateMeter(player.ScaleStoryFlatMeter(UltimateDrain));
         }
 
         protected override void OnDamaged(int appliedDamage) {

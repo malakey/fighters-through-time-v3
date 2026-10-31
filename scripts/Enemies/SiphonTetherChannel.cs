@@ -264,8 +264,12 @@ namespace FTT.Enemies {
             if (reason != SiphonBreakReason.None) { Break(reason); return; }
 
             ChannelSeconds += delta;
-            float wanted = DrainPerSecond * delta;
-            float remainingCap = Mathf.Max(0f, DrainCap - DrainedTotal);
+            // Momentum update 6.2 (O27): the campaign hero loses half as much to the siphon, rate and
+            // cap alike; the Mirror clone and every other target stay unscaled.
+            float flatScale = Target.ScaleStoryFlatMeter(1f);
+            float scaledCap = DrainCap * flatScale;
+            float wanted = DrainPerSecond * flatScale * delta;
+            float remainingCap = Mathf.Max(0f, scaledCap - DrainedTotal);
             float available = Mathf.Max(0f, Target.CurrentUltimateMeter);
             float taken = Mathf.Min(wanted, Mathf.Min(remainingCap, available));
             if (taken > 0f) {
@@ -273,7 +277,7 @@ namespace FTT.Enemies {
                 DrainedTotal += taken;
             }
 
-            if (DrainedTotal >= DrainCap - 0.0001f) { Break(SiphonBreakReason.CapReached); return; }
+            if (DrainedTotal >= scaledCap - 0.0001f) { Break(SiphonBreakReason.CapReached); return; }
             if (Target.CurrentUltimateMeter <= 0.0001f) { Break(SiphonBreakReason.MeterEmpty); return; }
             if (ChannelSeconds >= MaxChannelSeconds) Break(SiphonBreakReason.DurationElapsed);
         }

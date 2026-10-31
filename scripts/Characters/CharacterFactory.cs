@@ -254,6 +254,7 @@ namespace FTT.Characters {
 			player.StoryRallyEchoFractionMultiplier = storyStats.RallyEchoFractionMultiplier;
 			player.StoryUltimateBuildRateMultiplier = storyStats.UltimateBuildRateMultiplier;
 			player.StoryExtractorDamageMultiplier = storyStats.ExtractorDamageMultiplier;
+			player.MomentumRegenMultiplier = storyStats.MomentumRegenMultiplier;
 			player.StoryScopedStats = new FTT.Environment.ScopedStoryStats(storyStats.ScopedMultipliers);
 			// Clears the set before refilling it, so a respec drops every perk.
 			FTT.Environment.ResonanceProgression.TryCollectActiveAbilityModifiers(

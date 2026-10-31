@@ -12,16 +12,16 @@ using static GdUnit4.Assertions;
 namespace FTT.Tests.Unit;
 
 /// <summary>
-/// The hit-confirm cancel (D1), the landed-contact definition (D1a), per-hit
-/// Momentum (D2) and the freeze-only Special buffer (user rulings 2026-10-11),
+/// The hit-confirm cancel (D1), the landed-contact definition (D1a), the
+/// Momentum gauge's landed-swing gains (user rulings 2026-10-11, D2 replaced by
+/// the Momentum gauge on 2026-10-31) and the freeze-only Special buffer,
 /// Story side. A swing whose contact LANDS — the receiver applied damage, or a
 /// shield absorbed it on a body that was not invulnerable — releases Special 1
 /// and Special 2 from its own lockout; the Ultimate keeps the whole 30 frames.
 /// A strike surface, a drill-invulnerable mob, a warded boss, a block, an
 /// invulnerable hero and a Time Freeze discard do not land. Every landed swing
-/// refunds both running Special cooldowns once — hits 1-2, the Up-Attack and
-/// the Down-Air 20 frames, the finisher 60 — up to 120 frames per slot per
-/// cycle, bosses included. A Special pressed inside a landed swing's freeze
+/// adds to the Momentum gauge once — hits 1-2, the Up-Attack and the Down-Air
+/// 0.05 pip, the finisher 0.2 — bosses included. A Special pressed inside a landed swing's freeze
 /// fires on the first tick after it, if it is legal then.
 ///
 /// <para>Contacts are driven by emitting the melee hitbox's AreaEntered on the
@@ -188,7 +188,7 @@ public class StoryHitConfirmTests {
     // === D1a: what lands ======================================================
 
     [TestCase]
-    public void PropsDrillInvulnerableAndWardedTargetsNeitherConfirmNorRefundButADummyDoes() {
+    public void PropsDrillInvulnerableAndWardedTargetsNeitherConfirmNorGainButADummyDoes() {
         // A strike surface (a checkpoint fracture, an extractor) takes damage but never lands.
         Run((player, host) => {
             var surface = new EnvironmentHurtboxAdapter {
@@ -234,30 +234,29 @@ public class StoryHitConfirmTests {
         Run((player, host) => {
             var dummy = new TrainingDummy { Name = "ConfirmDummy", Position = Origin + new Vector2(40f, 0f) };
             host.AddChild(dummy);
-            AssertSwingLandsAndRefunds(player, dummy, BasicComboRules.MomentumStringHitRefundFrames);
+            AssertSwingLandsAndGains(player, dummy, BasicComboRules.MomentumStringHitGainUnits);
         });
 
         // A live mob lands.
         Run((player, host) => {
             EnemyController mob = Mob(host, Origin + new Vector2(40f, 0f));
-            AssertSwingLandsAndRefunds(player, mob, BasicComboRules.MomentumStringHitRefundFrames);
+            AssertSwingLandsAndGains(player, mob, BasicComboRules.MomentumStringHitGainUnits);
         });
     }
 
     [TestCase]
-    public void AShieldAbsorbedHitConfirmsAndRefundsButABlockedOrInvulnerableOneDoesNot() {
+    public void AShieldAbsorbedHitConfirmsAndGainsButABlockedOrInvulnerableOneDoesNot() {
         // Temporal Aegis absorbs the whole contact: it LANDED (D1a).
         RunDuel((hero, attacker) => {
             hero.GrantTemporalAegis();
             int hp = hero.CurrentHP;
-            bool contactLanded = SwingAtHero(attacker, hero, out float oneBefore, out float twoBefore);
+            bool contactLanded = SwingAtHero(attacker, hero, out float pipsBefore);
             AssertThat(hero.HasTemporalAegis).OverrideFailureMessage("Harness: Aegis must take the contact.").IsFalse();
             AssertThat(hero.CurrentHP).IsEqual(hp);
             AssertThat(contactLanded).IsTrue();
             AssertThat(attacker.SwingLanded).IsTrue();
-            AssertThat(attacker.SpecialOneCooldownTimer).IsEqual(oneBefore - 20f / 60f);
-            AssertThat(attacker.SpecialTwoCooldownTimer).IsEqual(twoBefore - 20f / 60f);
-            AssertThat(attacker.MomentumRefundedFramesSlotOne).IsEqual(20);
+            AssertFloat(attacker.MomentumPips)
+                .IsEqualApprox(pipsBefore + BasicComboRules.MomentumStringHitGainUnits / 7200f, 0.0001f);
         });
 
         // The hero's block stance takes it: no landing.
@@ -271,12 +270,11 @@ public class StoryHitConfirmTests {
             for (int tick = 0; tick < BasicComboRules.PerfectBlockWindowFrames; tick++) Tick(hero, GameplayButtons.Block);
             AssertThat(hero.IsPerfectBlockWindowOpen).IsFalse();
             int hp = hero.CurrentHP;
-            bool contactLanded = SwingAtHero(attacker, hero, out float oneBefore, out float twoBefore);
+            bool contactLanded = SwingAtHero(attacker, hero, out float pipsBefore);
             AssertThat(hero.CurrentHP).OverrideFailureMessage("Harness: the swing must be blocked.").IsEqual(hp);
             AssertThat(contactLanded).IsFalse();
             AssertThat(attacker.SwingLanded).IsFalse();
-            AssertThat(attacker.SpecialOneCooldownTimer).IsEqual(oneBefore);
-            AssertThat(attacker.SpecialTwoCooldownTimer).IsEqual(twoBefore);
+            AssertThat(attacker.MomentumPips).IsEqual(pipsBefore);
         });
 
         // Aegis on a post-rewind-invulnerable hero: the shield is spent (a
@@ -289,72 +287,58 @@ public class StoryHitConfirmTests {
             AssertThat(hero.IsPostRewindInvulnerable).IsTrue();
             hero.GrantTemporalAegis();
             int hp = hero.CurrentHP;
-            bool contactLanded = SwingAtHero(attacker, hero, out float oneBefore, out float twoBefore);
+            bool contactLanded = SwingAtHero(attacker, hero, out float pipsBefore);
             AssertThat(hero.CurrentHP).IsEqual(hp);
             AssertThat(contactLanded)
                 .OverrideFailureMessage("An absorption on an invulnerable body is not a landed contact.")
                 .IsFalse();
             AssertThat(attacker.SwingLanded).IsFalse();
-            AssertThat(attacker.SpecialOneCooldownTimer).IsEqual(oneBefore);
-            AssertThat(attacker.SpecialTwoCooldownTimer).IsEqual(twoBefore);
+            AssertThat(attacker.MomentumPips).IsEqual(pipsBefore);
         });
     }
 
-    // === D2: per-hit Momentum =================================================
+    // === The Momentum gauge's gains ===========================================
 
     [TestCase]
-    public void ALandedHitRefundsOncePerSwingEvenWhenItCleavesTwoMobs() {
+    public void ALandedHitGainsOncePerSwingEvenWhenItCleavesTwoMobs() {
         Run((player, host) => {
             EnemyController first = Mob(host, Origin + new Vector2(40f, 0f));
             EnemyController second = Mob(host, Origin + new Vector2(60f, 0f));
             int firstHP = first.CurrentHP;
             int secondHP = second.CurrentHP;
             Hitbox box = OpenBox(player);
-            player.SpecialOneCooldownTimer = 5f;
-            player.SpecialTwoCooldownTimer = 5f;
+            player.RestoreMomentumPips(0f);
             Contact(box, first);
             Contact(box, second);
             AssertThat(first.CurrentHP < firstHP && second.CurrentHP < secondHP)
                 .OverrideFailureMessage("Harness: the opener must cleave both mobs.")
                 .IsTrue();
-            AssertThat(player.SpecialOneCooldownTimer).IsEqual(5f - 20f / 60f);
-            AssertThat(player.SpecialTwoCooldownTimer).IsEqual(5f - 20f / 60f);
-            AssertThat(player.MomentumRefundedFramesSlotOne).IsEqual(20);
-            AssertThat(player.MomentumRefundedFramesSlotTwo).IsEqual(20);
+            AssertFloat(player.MomentumPips)
+                .OverrideFailureMessage("A swing that cleaves two mobs still pays 0.05 pip once.")
+                .IsEqualApprox(BasicComboRules.MomentumStringHitGainUnits / 7200f, 0.0001f);
         });
     }
 
     [TestCase]
-    public void TheFinisherRefundsSixtyAndTheCycleStopsAtOneHundredTwentyFrames() {
+    public void TheFinisherGainsTwoTenthsAndAFullLandedStringThreeTenthsOfAPip() {
         Run((player, host) => {
             EnemyController mob = Mob(host, Origin + new Vector2(40f, 0f));
-            // Long enough that no grant below is capped by the time left.
-            player.SpecialOneCooldownTimer = 8f;
-            player.SpecialTwoCooldownTimer = 8f;
-            int[] refunds = LandString(player, mob, hits: 3);
-            AssertThat(refunds[0]).IsEqual(20);
-            AssertThat(refunds[1]).IsEqual(20);
-            AssertThat(refunds[2]).OverrideFailureMessage("The landed finisher refunds a full second.").IsEqual(60);
-            AssertThat(player.MomentumRefundedFramesSlotOne).IsEqual(100);
-            AssertThat(player.MomentumRefundedFramesSlotTwo).IsEqual(100);
-            for (int tick = 0; tick < 120 && player.CurrentState != CharacterState.Idle; tick++) Tick(player, GameplayButtons.None);
-            AssertThat(player.CurrentState).IsEqual(CharacterState.Idle);
-
-            int[] second = LandString(player, mob, hits: 2);
-            AssertThat(second[0]).OverrideFailureMessage("The next opener tops the cycle up to 120.").IsEqual(20);
-            AssertThat(second[1]).OverrideFailureMessage("The cycle's 120 frames are spent.").IsEqual(0);
-            AssertThat(player.MomentumRefundedFramesSlotOne).IsEqual(BasicComboRules.MomentumRefundCapFramesPerCycle);
-            AssertThat(player.MomentumRefundedFramesSlotTwo).IsEqual(BasicComboRules.MomentumRefundCapFramesPerCycle);
+            player.RestoreMomentumPips(0f);
+            int[] gains = LandString(player, mob, hits: 3);
+            AssertThat(gains[0]).IsEqual(BasicComboRules.MomentumStringHitGainUnits);
+            AssertThat(gains[1]).IsEqual(BasicComboRules.MomentumStringHitGainUnits);
+            AssertThat(gains[2]).OverrideFailureMessage("The landed finisher adds a fifth of a pip.")
+                .IsEqual(BasicComboRules.MomentumFinisherGainUnits);
+            AssertFloat(player.MomentumPips).OverrideFailureMessage("A full landed string is 0.3 pip.")
+                .IsEqualApprox(2160f / 7200f, 0.0001f);
         });
 
-        // A grant that covers the remaining frames sets the timer to exactly 0,
-        // so the slot casts on the first tick it can.
+        // The landed swing releases Special 1 from its lockout the first tick after the freeze, and
+        // the gauge (2 pips at the start) pays for it.
         Run((player, host) => {
             EnemyController mob = Mob(host, Origin + new Vector2(40f, 0f));
             Hitbox box = OpenBox(player);
-            player.SpecialOneCooldownTimer = 1f / 3f;
             Contact(box, mob);
-            AssertThat(player.SpecialOneCooldownTimer).IsEqual(0f);
             int freeze = player.HitstopFramesRemaining;
             for (int tick = 0; tick < freeze; tick++) Tick(player, GameplayButtons.None);
             Tick(player, GameplayButtons.Special1);
@@ -363,40 +347,34 @@ public class StoryHitConfirmTests {
     }
 
     [TestCase]
-    public void TheUpAttackAndTheDownAirEachRefundTwenty() {
+    public void TheUpAttackAndTheDownAirEachGainAFiftiethOfAPip() {
         Run((player, host) => {
             EnemyController mob = Mob(host, Origin + new Vector2(40f, 0f));
-            player.SpecialOneCooldownTimer = 5f;
-            player.SpecialTwoCooldownTimer = 5f;
             Hitbox up = OpenBox(player, GameplayButtons.BasicAttack, vertical: -1f);
             AssertThat(up.HitboxID).IsEqual(BasicComboRules.UpAttackHitboxID);
-            float before = player.SpecialOneCooldownTimer;
+            player.RestoreMomentumPips(0f);
             Contact(up, mob);
-            AssertThat(player.SpecialOneCooldownTimer).IsEqual(before - 20f / 60f);
-            AssertThat(player.MomentumRefundedFramesSlotOne).IsEqual(20);
-            AssertThat(player.MomentumRefundedFramesSlotTwo).IsEqual(20);
+            AssertFloat(player.MomentumPips).IsEqualApprox(BasicComboRules.MomentumDirectionalGainUnits / 7200f, 0.0001f);
             for (int tick = 0; tick < 120 && player.CurrentState != CharacterState.Idle; tick++) Tick(player, GameplayButtons.None);
 
             LiftIntoTheAir(player, 300f);
             Hitbox down = OpenBox(player, GameplayButtons.BasicAttack | GameplayButtons.Down, vertical: 1f);
             AssertThat(down.HitboxID).IsEqual(BasicComboRules.DownAirHitboxID);
-            float beforeTwo = player.SpecialTwoCooldownTimer;
             Contact(down, mob);
-            AssertThat(player.SpecialTwoCooldownTimer).IsEqual(beforeTwo - 20f / 60f);
-            AssertThat(player.MomentumRefundedFramesSlotOne).IsEqual(40);
-            AssertThat(player.MomentumRefundedFramesSlotTwo).IsEqual(40);
+            AssertFloat(player.MomentumPips)
+                .IsEqualApprox(2f * BasicComboRules.MomentumDirectionalGainUnits / 7200f, 0.0001f);
         });
     }
 
     [TestCase]
-    public void ALandedHitOnABossRefundsLikeAnyEnemy() {
-        // Addendum ruling (2026-10-11): per-hit Momentum counts hits on bosses.
+    public void ALandedHitOnABossGainsLikeAnyEnemy() {
+        // Addendum ruling (2026-10-11): a landed swing on a boss pays the gauge.
         Run((player, host) => {
             BossController boss = CreateBoss(host, ScratchBoss("confirm_open_boss", shoveable: false));
             boss.GlobalPosition = Origin + new Vector2(60f, 0f);
             AssertThat(boss.IsArenaWarded).IsFalse();
             int hp = boss.CurrentHP;
-            AssertSwingLandsAndRefunds(player, boss, BasicComboRules.MomentumStringHitRefundFrames);
+            AssertSwingLandsAndGains(player, boss, BasicComboRules.MomentumStringHitGainUnits);
             AssertThat(boss.CurrentHP < hp).IsTrue();
         });
     }
@@ -479,7 +457,7 @@ public class StoryHitConfirmTests {
                 AssertThat(player.SwingLanded)
                     .OverrideFailureMessage("A Time Freeze discard is not a landed contact.")
                     .IsFalse();
-                AssertThat(player.MomentumRefundedFramesSlotOne).IsEqual(0);
+                AssertThat(player.MomentumPips).IsEqual(BasicComboRules.MomentumStartPips);
             } finally {
                 if (freeze.IsFrozen) freeze.EndFreeze(early: true);
                 StoryManager.Instance?.SetTimeFreezeCooldown(0f);
@@ -542,8 +520,9 @@ public class StoryHitConfirmTests {
             AssertThat(player.SwingLanded)
                 .OverrideFailureMessage("A Special's own hit never stands in for a landed swing.")
                 .IsFalse();
-            AssertThat(player.MomentumRefundedFramesSlotOne).IsEqual(0);
-            AssertThat(player.MomentumRefundedFramesSlotTwo).IsEqual(0);
+            AssertThat(player.MomentumPips)
+                .OverrideFailureMessage("A Special's own hits pay the gauge nothing (G2.4).")
+                .IsEqual(BasicComboRules.MomentumStartPips);
             AssertThat(player.SpecialTwoCooldownTimer).IsEqual(5f);
         });
     }
@@ -636,11 +615,8 @@ public class StoryHitConfirmTests {
     // === helpers ==============================================================
 
     private static void AssertSwingDoesNotLand(PlayerController player, Node target, Func<bool> reached, string what) {
-        player.SpecialOneCooldownTimer = 5f;
-        player.SpecialTwoCooldownTimer = 5f;
         Hitbox box = OpenBox(player);
-        float one = player.SpecialOneCooldownTimer;
-        float two = player.SpecialTwoCooldownTimer;
+        player.RestoreMomentumPips(1f);
         bool contactLanded = true;
         void OnConfirmed(HitPayload payload, float dealt) => contactLanded = payload.ContactLanded;
         box.HitConfirmed += OnConfirmed;
@@ -652,17 +628,12 @@ public class StoryHitConfirmTests {
         AssertThat(reached()).OverrideFailureMessage($"Harness: the contact must reach {what}.").IsTrue();
         AssertThat(contactLanded).OverrideFailureMessage($"{what} must not report a landed contact.").IsFalse();
         AssertThat(player.SwingLanded).OverrideFailureMessage($"{what} must not confirm.").IsFalse();
-        AssertThat(player.SpecialOneCooldownTimer).OverrideFailureMessage($"{what} refunds nothing.").IsEqual(one);
-        AssertThat(player.SpecialTwoCooldownTimer).IsEqual(two);
-        AssertThat(player.MomentumRefundedFramesSlotOne).IsEqual(0);
+        AssertThat(player.MomentumPips).OverrideFailureMessage($"{what} pays the gauge nothing.").IsEqual(1f);
     }
 
-    private static void AssertSwingLandsAndRefunds(PlayerController player, Node target, int refundFrames) {
-        player.SpecialOneCooldownTimer = 5f;
-        player.SpecialTwoCooldownTimer = 5f;
+    private static void AssertSwingLandsAndGains(PlayerController player, Node target, int gainUnits) {
         Hitbox box = OpenBox(player);
-        float one = player.SpecialOneCooldownTimer;
-        float two = player.SpecialTwoCooldownTimer;
+        player.RestoreMomentumPips(1f);
         bool contactLanded = false;
         void OnConfirmed(HitPayload payload, float dealt) => contactLanded = payload.ContactLanded;
         box.HitConfirmed += OnConfirmed;
@@ -673,10 +644,7 @@ public class StoryHitConfirmTests {
         }
         AssertThat(contactLanded).IsTrue();
         AssertThat(player.SwingLanded).IsTrue();
-        AssertThat(player.SpecialOneCooldownTimer).IsEqual(one - refundFrames / 60f);
-        AssertThat(player.SpecialTwoCooldownTimer).IsEqual(two - refundFrames / 60f);
-        AssertThat(player.MomentumRefundedFramesSlotOne).IsEqual(refundFrames);
-        AssertThat(player.MomentumRefundedFramesSlotTwo).IsEqual(refundFrames);
+        AssertFloat(player.MomentumPips).IsEqualApprox(1f + gainUnits / 7200f, 0.0001f);
     }
 
     /// <summary>The opener lands and Special 1 is pressed until it is accepted (the hit-confirm).</summary>
@@ -694,10 +662,10 @@ public class StoryHitConfirmTests {
 
     /// <summary>
     /// Lands <paramref name="hits"/> chained string hits on <paramref name="mob"/>,
-    /// returning each landing's Special 1 refund in frames.
+    /// returning each landing's gauge gain in units (7200 to a pip).
     /// </summary>
     private static int[] LandString(PlayerController player, EnemyController mob, int hits) {
-        var refunds = new int[hits];
+        var gains = new int[hits];
         Hitbox box = player.GetNode<Hitbox>("MeleeHitbox");
         Tick(player, GameplayButtons.BasicAttack);
         int contacts = 0;
@@ -708,16 +676,16 @@ public class StoryHitConfirmTests {
             pressNext = false;
             Tick(player, press);
             if (!box.IsActive || player.ComboCounter == contactedHit) continue;
-            int refundedBefore = player.MomentumRefundedFramesSlotOne;
+            float pipsBefore = player.MomentumPips;
             Contact(box, mob);
-            refunds[contacts] = player.MomentumRefundedFramesSlotOne - refundedBefore;
+            gains[contacts] = (int)Math.Round((player.MomentumPips - pipsBefore) * 7200f);
             contactedHit = player.ComboCounter;
             contacts++;
             // The next press lands in the freeze and buffers the next hit (F3).
             pressNext = contacts < hits;
         }
         AssertThat(contacts).OverrideFailureMessage("Harness: the string never reached its length.").IsEqual(hits);
-        return refunds;
+        return gains;
     }
 
     /// <summary>Starts a swing and ticks until its box opens.</summary>
@@ -752,12 +720,10 @@ public class StoryHitConfirmTests {
     }
 
     /// <summary>Points the attacker's swing at the hero and returns the contact's D1a report.</summary>
-    private static bool SwingAtHero(PlayerController attacker, PlayerController hero, out float oneBefore, out float twoBefore) {
-        attacker.SpecialOneCooldownTimer = 5f;
-        attacker.SpecialTwoCooldownTimer = 5f;
+    private static bool SwingAtHero(PlayerController attacker, PlayerController hero, out float pipsBefore) {
         Hitbox box = OpenBox(attacker);
-        oneBefore = attacker.SpecialOneCooldownTimer;
-        twoBefore = attacker.SpecialTwoCooldownTimer;
+        attacker.RestoreMomentumPips(1f);
+        pipsBefore = attacker.MomentumPips;
         bool contactLanded = false;
         void OnConfirmed(HitPayload payload, float dealt) => contactLanded = payload.ContactLanded;
         box.HitConfirmed += OnConfirmed;
@@ -817,6 +783,9 @@ public class StoryHitConfirmTests {
         host.AddChild(player);
         try {
             Settle(player);
+            // The gauge's regen would blur the exact gain these cases pin: hold it still.
+            player.MomentumRegenMultiplier = 0f;
+            player.RestoreMomentumPips(BasicComboRules.MomentumStartPips);
             body(player, host);
         } finally {
             InputManager.Instance?.ClearInputSource(0);
@@ -835,6 +804,7 @@ public class StoryHitConfirmTests {
             attacker.Position = Origin + new Vector2(-100f, -8f);
             host.AddChild(attacker);
             Settle(attacker);
+            attacker.MomentumRegenMultiplier = 0f;
             attacker.IsFacingRight = true;
             hero.IsFacingRight = false;
             body(hero, attacker);

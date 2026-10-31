@@ -10,7 +10,7 @@ namespace FTT.Tests.Unit;
 /// Package 13 W7b — the Story halves of the four reworked kits' rules that do
 /// not need a level: Desert Mirage's 8-way rush direction (C03), Sonata
 /// Drift's rising glissando direction (M04), the Requiem Chord's
-/// once-per-execution Fortissimo shave (M02), and Joan's Wing-Dive and
+/// Fortissimo shave (M02, a documented no-op since the Momentum update), and Joan's Wing-Dive and
 /// Divine Piercing lunge geometry (A08/J01). Each reads the same
 /// <c>KitReachRules</c> value the Fighter sim reads.
 /// </summary>
@@ -42,18 +42,19 @@ public class StoryReachKitTests {
     }
 
     [TestCase]
-    public void TheRequiemChordShavesFortissimoOncePerExecution() {
+    public void TheRequiemChordLeavesFortissimoUntouched() {
         PlayerController player = CharacterFactory.CreateCharacter("mozart");
         Node host = Attach(player);
         try {
             var chord = player.GetNode<MozartRequiemChord>("Special1");
             player.SpecialTwoCooldownTimer = 5f;
             chord.ShaveFortissimo();
-            AssertFloat(player.SpecialTwoCooldownTimer).IsEqualApprox(3f, 0.0001f);
-            AssertThat(chord.ExecutionShavedFortissimo).IsTrue();
-            // The contact and every pulse of one execution share the one shave.
+            AssertFloat(player.SpecialTwoCooldownTimer)
+                .OverrideFailureMessage("A Special has no cooldown to shave and the 2 s reuse delay is not shaved either (P17).")
+                .IsEqualApprox(5f, 0.0001f);
+            AssertThat(chord.ExecutionShavedFortissimo).IsFalse();
             chord.ShaveFortissimo();
-            AssertFloat(player.SpecialTwoCooldownTimer).IsEqualApprox(3f, 0.0001f);
+            AssertFloat(player.SpecialTwoCooldownTimer).IsEqualApprox(5f, 0.0001f);
             // M03: the burst radius is 1.2 units.
             AssertFloat(MozartRequiemChord.BurstRadiusPixels).IsEqualApprox(72f, 0.001f);
         } finally {

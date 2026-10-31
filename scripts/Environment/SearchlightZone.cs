@@ -101,7 +101,7 @@ namespace FTT.Environment {
                 float elapsed = _exposure[player] + dt;
                 _exposure[player] = elapsed;
                 if (Mode == SearchlightMode.UltimateDrain) {
-                    player.DrainUltimateMeter(UltimateDrainPerSecond * dt);
+                    player.DrainUltimateMeter(player.ScaleStoryFlatMeter(UltimateDrainPerSecond * dt));
                 } else if (elapsed >= ExposureGraceSeconds) {
                     TriggerStrike(player);
                 }

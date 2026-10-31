@@ -73,7 +73,8 @@ public class ResonanceReaderCoverageTests {
         [ResonanceStatKeys.StatusDamage] = nameof(PlayerController.StoryStatusIntensityMultiplier),
         [ResonanceStatKeys.RallyEchoFraction] = nameof(PlayerController.StoryRallyEchoFractionMultiplier),
         [ResonanceStatKeys.UltimateBuildRate] = nameof(PlayerController.StoryUltimateBuildRateMultiplier),
-        [ResonanceStatKeys.ExtractorDamage] = nameof(PlayerController.StoryExtractorDamageMultiplier)
+        [ResonanceStatKeys.ExtractorDamage] = nameof(PlayerController.StoryExtractorDamageMultiplier),
+        [ResonanceStatKeys.MomentumRegen] = nameof(PlayerController.MomentumRegenMultiplier)
     };
 
     /// <summary>The identifiers <c>scripts/FighterSim/</c> may never name.</summary>
@@ -197,39 +198,35 @@ public class ResonanceReaderCoverageTests {
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 
+    /// <summary>
+    /// The Momentum update (2026-10-31, plan P16) turned Joan's, Mozart's and Lincoln's scoped Special 2
+    /// cooldown minors into character-wide MomentumRegen nodes: each resolves above one on the regen lane,
+    /// carries no scope, keeps its Special 2 dormant gate, and no authored scoped CooldownReduction remains.
+    /// </summary>
     [TestCase]
-    public void EveryCooldownMinorResolvesBelowOneOnACooldownBearingSlot() {
+    public void EveryAuthoredCooldownMinorIsNowACharacterWideMomentumRegenNode() {
         var issues = new List<string>();
-        int scopedCooldownNodes = 0;
+        int regenNodes = 0;
         foreach ((string characterID, ResonanceNodeData node) in AuthoredNodes()) {
-            if (node.StatModifierKey != ResonanceStatKeys.CooldownReduction) continue;
+            if (node.StatModifierKey == ResonanceStatKeys.CooldownReduction
+                && !string.IsNullOrWhiteSpace(node.AbilityScope)) {
+                issues.Add($"{node.NodeID}: a scoped CooldownReduction is still authored");
+            }
+            if (node.StatModifierKey != ResonanceStatKeys.MomentumRegen) continue;
+            regenNodes++;
+            if (!string.IsNullOrWhiteSpace(node.AbilityScope)) issues.Add($"{node.NodeID}: MomentumRegen must be character-wide");
+            if (node.GatedAbilityID != "special2") issues.Add($"{node.NodeID}: must stay gated on special2");
             ResonanceGridData grid = ResonanceProgression.LoadGrid(characterID);
             var save = new StorySaveData { SelectedCharacterID = characterID };
             save.GridProgress[characterID] = new List<string> { node.NodeID };
             StoryStatProfile profile = ResonanceProgression.Resolve(grid, save);
-            if (string.IsNullOrWhiteSpace(node.AbilityScope)) {
-                if (!(profile.CooldownMultiplier < 1f)) {
-                    issues.Add($"{node.NodeID}: character-wide cooldown resolves to {profile.CooldownMultiplier}");
-                }
-                continue;
+            if (!(profile.MomentumRegenMultiplier > 1f)) {
+                issues.Add($"{node.NodeID}: regen resolves to {profile.MomentumRegenMultiplier}");
             }
-            scopedCooldownNodes++;
-            float scoped = profile.GetScoped(ResonanceStatKeys.CooldownReduction, node.AbilityScope);
-            if (!(scoped < 1f) || !(scoped >= ResonanceProgression.MinimumCooldownMultiplier)) {
-                issues.Add($"{node.NodeID}: scoped cooldown resolves to {scoped}, not into [0.05, 1)");
-            }
-            if (!(profile.CooldownMultiplier == 1f)) {
-                issues.Add($"{node.NodeID}: a scoped reduction leaked into the character-wide lane");
-            }
-            AbilityData ability = AbilityByID(characterID, node.AbilityScope);
-            if (ability == null) {
-                issues.Add($"{node.NodeID}: scope '{node.AbilityScope}' is not one of {characterID}'s abilities");
-            } else if (ability.Slot == AbilitySlot.Ultimate) {
-                issues.Add($"{node.NodeID}: '{node.AbilityScope}' is the Ultimate, which arms no cooldown");
-            }
+            if (!(profile.CooldownMultiplier == 1f)) issues.Add($"{node.NodeID}: leaked into the cooldown lane");
         }
         // Joan's Piercing, Mozart's Wave and Lincoln's Splitting minors.
-        AssertThat(scopedCooldownNodes >= 3).IsTrue();
+        AssertThat(regenNodes).IsEqual(3);
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 

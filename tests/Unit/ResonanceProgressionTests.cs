@@ -297,7 +297,8 @@ public class ResonanceProgressionTests {
             .IsEqual(1f);
         AssertThat(profile.GetScoped(ResonanceStatKeys.CooldownReduction, "relativity_rift")).IsEqual(1f);
 
-        // The three authored scoped cooldown minors: -10% each, on their own Special only.
+        // The three authored cooldown minors are Momentum regen nodes since 2026-10-31 (plan P16):
+        // character-wide x1.1, and no scoped cooldown reduction remains.
         string[][] authored = {
             new[] { "joan", "joan_piercing_cooldown", "joan_divine_piercing" },
             new[] { "mozart", "mozart_wave_cooldown", "mozart_fortissimo_wave" },
@@ -307,19 +308,45 @@ public class ResonanceProgressionTests {
             StorySaveData owned = BuildSave(0, row[0]);
             owned.GridProgress[row[0]] = new List<string> { row[1] };
             StoryStatProfile resolved = ResonanceProgression.Resolve(LoadGrid(row[0]), owned);
-            AssertFloat(resolved.GetScoped(ResonanceStatKeys.CooldownReduction, row[2]))
-                .OverrideFailureMessage($"{row[1]} must shorten {row[2]}'s cooldown by 10%.")
-                .IsEqualApprox(0.9f, 0.0001f);
+            AssertFloat(resolved.MomentumRegenMultiplier)
+                .OverrideFailureMessage($"{row[1]} must refill the Momentum gauge 10% faster.")
+                .IsEqualApprox(1.1f, 0.0001f);
+            AssertThat(resolved.GetScoped(ResonanceStatKeys.CooldownReduction, row[2])).IsEqual(1f);
             AssertThat(resolved.CooldownMultiplier).IsEqual(1f);
         }
     }
 
     /// <summary>
-    /// The scoped cooldown through the cast: each authored minor shortens its
-    /// own Special 2 to 90% of the authored cooldown and leaves Special 1 alone.
+    /// A MomentumRegen node is a character-wide additive lane resolved to 1 + sum, and touches no other
+    /// lane (the Momentum update, plan P16).
     /// </summary>
     [TestCase]
-    public void AScopedCooldownMinorShortensItsOwnCastAndNoOther() {
+    public void AMomentumRegenNodeResolvesToAMultiplierAboveOneAndTouchesNoOtherLane() {
+        var grid = new ResonanceGridData {
+            GridID = "test_regen_grid",
+            CharacterID = "einstein",
+            Nodes = new[] {
+                ScopedNode("regen_a", ResonanceStatKeys.MomentumRegen, "", 0.1f),
+                ScopedNode("regen_b", ResonanceStatKeys.MomentumRegen, "", 0.25f)
+            }
+        };
+        StorySaveData save = BuildSave(0);
+        save.GridProgress["einstein"] = new List<string> { "regen_a", "regen_b" };
+        StoryStatProfile profile = ResonanceProgression.Resolve(grid, save);
+        AssertFloat(profile.MomentumRegenMultiplier).IsEqualApprox(1.35f, 0.0001f);
+        AssertThat(profile.CooldownMultiplier).OverrideFailureMessage("Regen is not the cooldown lane.").IsEqual(1f);
+        AssertThat(profile.UltimateBuildRateMultiplier).IsEqual(1f);
+        AssertThat(ResonanceStatKeys.All).Contains(ResonanceStatKeys.MomentumRegen);
+        AssertThat(StoryStatProfile.Default.MomentumRegenMultiplier).IsEqual(1f);
+    }
+
+    /// <summary>
+    /// Through the cast: a Special arms the 2 s reuse delay whatever scoped cooldown multiplier the hero
+    /// carries (the Specials no longer read the authored cooldown or the lane), and each authored minor
+    /// hands the hero its regen multiplier.
+    /// </summary>
+    [TestCase]
+    public void EveryAuthoredCooldownMinorLeavesTheSpecialsOnTheTwoSecondReuseDelay() {
         string[][] authored = {
             new[] { "joan", "joan_piercing_cooldown" },
             new[] { "mozart", "mozart_wave_cooldown" },
@@ -335,17 +362,21 @@ public class ResonanceProgressionTests {
                 FTT.Characters.CharacterFactory.CreateCharacter(row[0], 0, applyStoryProgression: false);
             tree.Root.AddChild(hero);
             try {
-                hero.StoryScopedStats = new ScopedStoryStats(resolved.ScopedMultipliers);
+                hero.StoryScopedStats = new ScopedStoryStats(new Dictionary<ScopedStatKey, float> {
+                    [new ScopedStatKey(ResonanceStatKeys.CooldownReduction, "anything")] = 0.5f
+                });
+                hero.MomentumRegenMultiplier = resolved.MomentumRegenMultiplier;
+                AssertFloat(hero.MomentumRegenMultiplier).IsEqualApprox(1.1f, 0.0001f);
                 var special2 = hero.GetNode<FTT.Combat.BaseSpecial>("Special2");
                 var special1 = hero.GetNode<FTT.Combat.BaseSpecial>("Special1");
                 AssertThat(special2.TryExecute()).IsTrue();
                 AssertFloat(hero.SpecialTwoCooldownTimer)
-                    .OverrideFailureMessage($"{row[1]}: Special 2 must arm 90% of its authored cooldown.")
-                    .IsEqualApprox(special2.Data.CooldownDuration * 0.9f, 0.0001f);
+                    .OverrideFailureMessage($"{row[1]}: Special 2 arms the 2 s reuse delay.")
+                    .IsEqualApprox(FTT.Combat.BasicComboRules.SpecialReuseDelayFrames / 60f, 0.0001f);
                 AssertThat(special1.TryExecute()).IsTrue();
                 AssertFloat(hero.SpecialOneCooldownTimer)
-                    .OverrideFailureMessage($"{row[1]}: Special 1 keeps its authored cooldown.")
-                    .IsEqualApprox(special1.Data.CooldownDuration, 0.0001f);
+                    .OverrideFailureMessage($"{row[1]}: Special 1 arms the 2 s reuse delay.")
+                    .IsEqualApprox(FTT.Combat.BasicComboRules.SpecialReuseDelayFrames / 60f, 0.0001f);
             } finally {
                 hero.Free();
             }

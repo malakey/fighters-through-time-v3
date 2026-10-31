@@ -395,6 +395,7 @@ namespace FTT.Environment {
             float rallyEchoFraction = 1f;
             float ultimateBuildRate = 1f;
             float extractorDamage = 1f;
+            float momentumRegen = 1f;
             Dictionary<ScopedStatKey, float> scoped = null;
             Dictionary<ScopedStatKey, float> scopedCooldownReduction = null;
             foreach (ResonanceNodeData node in grid.Nodes ?? Array.Empty<ResonanceNodeData>()) {
@@ -452,6 +453,7 @@ namespace FTT.Environment {
                     case "RallyEchoFraction": rallyEchoFraction += PercentValue(node); break;
                     case "UltimateBuildRate": ultimateBuildRate += PercentValue(node); break;
                     case "ExtractorDamage": extractorDamage += PercentValue(node); break;
+                    case "MomentumRegen": momentumRegen += PercentValue(node); break;
                     // An unknown or empty key resolves neutral. Traversal nodes
                     // deliberately carry no stat key at all - they land in
                     // StoryAbilityPerks through AbilityModifierKey instead.
@@ -484,6 +486,7 @@ namespace FTT.Environment {
                 rallyEchoFractionMultiplier: rallyEchoFraction,
                 ultimateBuildRateMultiplier: ultimateBuildRate,
                 extractorDamageMultiplier: extractorDamage,
+                momentumRegenMultiplier: momentumRegen,
                 scopedMultipliers: scoped);
         }
 

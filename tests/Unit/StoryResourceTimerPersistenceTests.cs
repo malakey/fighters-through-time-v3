@@ -35,7 +35,7 @@ public class StoryResourceTimerPersistenceTests {
 
     private sealed record Depleted(
         int Charges, float Lockout, float Regen, float Special1, float Special2, float Movement,
-        float Rally, float Meter, float Wardenclyffe);
+        float Rally, float Meter, float Wardenclyffe, float Momentum);
 
     [TestCase]
     public void ARealDepletedHeroSurvivesSaveReloadAndRepeatedReloadWithRallySettledOnce() {
@@ -156,8 +156,49 @@ public class StoryResourceTimerPersistenceTests {
             AssertThat(level.ResumedMidLevel).IsFalse();
             AssertThat(level.Player.CurrentBlockCharges).IsEqual(level.Player.MaximumBlockCharges);
             AssertThat(level.Player.SpecialOneCooldownTimer).IsEqual(0f);
+            AssertThat(level.Player.MomentumPips).IsEqual(BasicComboRules.MomentumStartPips);
         } finally {
             session.FreeLevel(level);
+        }
+    }
+
+    [TestCase]
+    public void AnAbsentMomentumKeyRestoresTheStartFillAndALongOldReuseDelayClampsToTwoSeconds() {
+        var host = new Node2D { Name = "MomentumRestoreHost" };
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(host);
+        PlayerController player = CharacterFactory.CreateCharacter("einstein", 0, applyStoryProgression: false);
+        host.AddChild(player);
+        try {
+            // An older save: the long Special cooldowns, no "momentum" key.
+            var older = new StoryPlayerResourceTimers { BlockCharges = 3 };
+            older.AbilityCooldowns[LegacyUnlockSchedule.SpecialOneKey] = 9f;
+            older.AbilityCooldowns[LegacyUnlockSchedule.SpecialTwoKey] = 1.25f;
+            player.RestoreMomentumPips(0.5f);
+            player.RestoreStoryResourceTimers(older);
+            AssertThat(player.MomentumPips)
+                .OverrideFailureMessage("An absent key is the start fill, not 0 and not 4.")
+                .IsEqual(BasicComboRules.MomentumStartPips);
+            AssertThat(player.SpecialOneCooldownTimer)
+                .OverrideFailureMessage("A long cooldown from before the gauge clamps to the 2 s reuse delay.")
+                .IsEqual(BasicComboRules.SpecialReuseDelayFrames / 60f);
+            AssertThat(player.SpecialTwoCooldownTimer).IsEqualApprox(1.25f, 0.001f);
+
+            // The key itself round trips through capture and restore, clamped to the cap.
+            player.RestoreMomentumPips(3.25f);
+            var captured = new StoryPlayerResourceTimers { BlockCharges = 3 };
+            player.CaptureStoryResourceTimers(captured);
+            AssertThat(captured.AbilityCooldowns[PlayerController.MomentumTimerKey]).IsEqual(3.25f);
+            player.RestoreMomentumPips(0f);
+            player.RestoreStoryResourceTimers(captured);
+            AssertThat(player.MomentumPips).IsEqual(3.25f);
+            captured.AbilityCooldowns[PlayerController.MomentumTimerKey] = 9f;
+            player.RestoreStoryResourceTimers(captured);
+            AssertThat(player.MomentumPips).IsEqual((float)BasicComboRules.MomentumMaxPips);
+        } finally {
+            host.RemoveChild(player);
+            player.Free();
+            host.GetParent()?.RemoveChild(host);
+            host.Free();
         }
     }
 
@@ -186,8 +227,10 @@ public class StoryResourceTimerPersistenceTests {
             block.DepleteCharges(1);                              // 2 charges left
             block._PhysicsProcess(1.5);                           // 1.5 s regen progress
         }
-        player.SpecialOneCooldownTimer = 6.5f;
-        player.SpecialTwoCooldownTimer = 3.25f;
+        // The Specials' 2 s reuse delay, and a part-filled Momentum gauge (2026-10-31).
+        player.SpecialOneCooldownTimer = 1.5f;
+        player.SpecialTwoCooldownTimer = 1.25f;
+        player.RestoreMomentumPips(0.75f);
         player.MovementAbilityCooldownTimer = 1.5f;
         player.WardenclyffeDamageDelaySeconds = 2.25f;
         player.ApplyEnvironmentalDamage(30);
@@ -195,7 +238,7 @@ public class StoryResourceTimerPersistenceTests {
             block.CurrentCharges, block.LockoutRemainingSeconds, block.RegenProgressSeconds,
             player.SpecialOneCooldownTimer, player.SpecialTwoCooldownTimer, player.MovementAbilityCooldownTimer,
             player.RallyUncreditedMeter, player.CurrentUltimateMeter,
-            player.WardenclyffeDamageDelaySeconds);
+            player.WardenclyffeDamageDelaySeconds, player.MomentumPips);
     }
 
     private static void AssertRestored(PlayerController player, Depleted expected, float settledMeter, string when) {
@@ -211,6 +254,9 @@ public class StoryResourceTimerPersistenceTests {
         AssertThat(player.SpecialTwoCooldownTimer).IsEqualApprox(expected.Special2, 0.001f);
         AssertThat(player.MovementAbilityCooldownTimer).IsEqualApprox(expected.Movement, 0.001f);
         AssertThat(player.WardenclyffeDamageDelaySeconds).IsEqualApprox(expected.Wardenclyffe, 0.001f);
+        AssertThat(player.MomentumPips)
+            .OverrideFailureMessage($"{when}: the Momentum gauge was not preserved.")
+            .IsEqualApprox(expected.Momentum, 0.001f);
         AssertThat(player.EchoPool)
             .OverrideFailureMessage($"{when}: the Rally pool must be discarded on reconstruction.")
             .IsEqual(0f);

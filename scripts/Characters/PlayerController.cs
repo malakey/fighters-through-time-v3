@@ -98,7 +98,9 @@ namespace FTT.Characters {
 		public float CurrentUltimateMeter;
 		public bool IsFacingRight = true;
 		public int RemainingJumps;
+		/// <summary>Special 1's 2 s reuse delay in seconds (Momentum update 2026-10-31; was the cooldown). See PlayerController.Momentum.cs.</summary>
 		public float SpecialOneCooldownTimer;
+		/// <summary>Special 2's 2 s reuse delay in seconds (Momentum update 2026-10-31; was the cooldown).</summary>
 		public float SpecialTwoCooldownTimer;
 		public float MovementAbilityCooldownTimer;
 		public List<Node2D> ActivePersistentObjects = new();
@@ -1008,7 +1010,7 @@ namespace FTT.Characters {
 				Slot = slot
 			});
 
-		/// <summary>True when this tick's Special press would cast but for the lockout.</summary>
+		/// <summary>True when this tick's Special press would cast but for the lockout (the reuse delay is clear; the pip is read apart).</summary>
 		private bool SpecialPressIsReady(FTT.Core.AbilitySlot slot) {
 			bool one = slot == FTT.Core.AbilitySlot.Special1;
 			return CurrentInputFrame.IsPressed(one ? FTT.Core.GameplayButtons.Special1 : FTT.Core.GameplayButtons.Special2)
@@ -1043,19 +1045,6 @@ namespace FTT.Characters {
 			}
 			ReportReadySpecialRefusals();
 		}
-
-		// === Per-hit Momentum (user direction 2026-10-11, D2) ===
-		// Frames refunded on each slot this cooldown cycle (0-120); reset when
-		// that slot's cooldown is armed. Not persisted (a reload mid-cycle
-		// reopens the cap; PROVISIONAL-HIT-CONFIRM-RULES (8)).
-		private int _momentumRefundedFramesSlotOne;
-		private int _momentumRefundedFramesSlotTwo;
-
-		/// <summary>Frames per-hit Momentum has refunded on Special 1 this cycle. Test seam.</summary>
-		public int MomentumRefundedFramesSlotOne => _momentumRefundedFramesSlotOne;
-
-		/// <summary>Frames per-hit Momentum has refunded on Special 2 this cycle. Test seam.</summary>
-		public int MomentumRefundedFramesSlotTwo => _momentumRefundedFramesSlotTwo;
 
 		// === V7.2 Grabs & Throws (Story side) ===
 		// Phase mirrors the sim's FighterGrabRules: 1 startup · 2 active ·
@@ -2046,7 +2035,7 @@ namespace FTT.Characters {
 			}
 			PruneShieldOfOrleansExecutions();
 			_shieldOfOrleansExecutions[execution] = _storyFrame;
-			_ultimateMeter?.AddFlat(ShieldOfOrleansMeterPerBlock);
+			_ultimateMeter?.AddFlat(ScaleStoryFlatMeter(ShieldOfOrleansMeterPerBlock));
 			CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
 			// The Guard-Crush refund runs AFTER normal consumption and after
 			// any shatter, and deliberately does not cancel the daze, the
@@ -3019,47 +3008,14 @@ namespace FTT.Characters {
 		}
 
 		/// <summary>
-		/// D1 / D2 (2026-10-11): the current swing's first landed contact sets
-		/// the hit-confirm latch and pays its per-hit Momentum, once per swing.
+		/// D1 (2026-10-11) and the Momentum gauge (2026-10-31): the current swing's first landed contact
+		/// sets the hit-confirm latch and adds its gain to the gauge (0.05 pip for a string hit 1-2 or a
+		/// directional strike, 0.2 for the finisher), once per swing.
 		/// </summary>
 		private void NoteSwingLanded(string hitboxID) {
 			if (_swingLanded) return;
 			_swingLanded = true;
-			int nominal = FTT.Combat.BasicComboRules.MomentumRefundFramesForHitbox(hitboxID);
-			if (nominal > 0) ApplyMomentumRefund(nominal);
-		}
-
-		/// <summary>
-		/// Per-hit Momentum (D2, 2026-10-11): <paramref name="nominalFrames"/> off
-		/// each running special cooldown, the grant capped so a slot refunds at
-		/// most 120 frames per cooldown cycle (counted in frames actually
-		/// removed). A ready slot takes nothing and spends none of its cap. A
-		/// grant that covers the remaining frames sets the timer to exactly 0, so
-		/// no float remainder keeps the slot locked for a tick. Story timers are
-		/// timer-seconds: under a Story cooldown multiplier a refunded frame is a
-		/// timer frame, as the V7.1 refund already was.
-		/// </summary>
-		private void ApplyMomentumRefund(int nominalFrames) {
-			SpecialOneCooldownTimer = RefundMomentum(
-				SpecialOneCooldownTimer, nominalFrames, ref _momentumRefundedFramesSlotOne);
-			SpecialTwoCooldownTimer = RefundMomentum(
-				SpecialTwoCooldownTimer, nominalFrames, ref _momentumRefundedFramesSlotTwo);
-		}
-
-		private static float RefundMomentum(float timerSeconds, int nominalFrames, ref int refundedThisCycle) {
-			if (timerSeconds <= 0f) return timerSeconds;
-			int remainingFrames = Mathf.CeilToInt(timerSeconds * 60f - 0.001f);
-			int grant = FTT.Combat.BasicComboRules.MomentumGrant(nominalFrames, refundedThisCycle, remainingFrames);
-			if (grant <= 0) return timerSeconds;
-			refundedThisCycle += grant;
-			return grant >= remainingFrames ? 0f : Mathf.Max(0f, timerSeconds - grant / 60f);
-		}
-
-		/// <summary>Called by BaseSpecial when a slot's cooldown is armed: a fresh
-		/// cycle re-opens its 120-frame Momentum cap.</summary>
-		public void OnSpecialCooldownArmed(FTT.Core.AbilitySlot slot) {
-			if (slot == FTT.Core.AbilitySlot.Special1) _momentumRefundedFramesSlotOne = 0;
-			else if (slot == FTT.Core.AbilitySlot.Special2) _momentumRefundedFramesSlotTwo = 0;
+			GainMomentumUnits(FTT.Combat.BasicComboRules.MomentumGainUnitsForHitbox(hitboxID));
 		}
 
 		/// <summary>Resets the string counter — the whole chain, not one swing.</summary>
@@ -5385,7 +5341,10 @@ namespace FTT.Characters {
 			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Special1)
 				&& IsAbilityUnlocked(FTT.Core.AbilitySlot.Special1)
 				&& SpecialOneCooldownTimer <= 0) {
-				if (_special1 != null && _special1.TryExecute()) {
+				if (_special1 != null && !HasSpecialPip) {
+					// R2 / P14: a press refused for want of a pip plays the not-yet flash.
+					ReportLockoutRefusal(FTT.Core.AbilitySlot.Special1);
+				} else if (_special1 != null && TryExecuteSpecialSpendingPip(_special1)) {
 					ArmAbilityLockout();
 					_pendingSpecialSlot = 1;
 					_specialStartedAerial = !IsOnFloor();
@@ -5398,7 +5357,9 @@ namespace FTT.Characters {
 			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Special2)
 				&& IsAbilityUnlocked(FTT.Core.AbilitySlot.Special2)
 				&& SpecialTwoCooldownTimer <= 0) {
-				if (_special2 != null && _special2.TryExecute()) {
+				if (_special2 != null && !HasSpecialPip) {
+					ReportLockoutRefusal(FTT.Core.AbilitySlot.Special2);
+				} else if (_special2 != null && TryExecuteSpecialSpendingPip(_special2)) {
 					ArmAbilityLockout();
 					_pendingSpecialSlot = 2;
 					_specialStartedAerial = !IsOnFloor();
@@ -5973,8 +5934,13 @@ namespace FTT.Characters {
 			// authored CooldownDuration so the .tres numbers stay canonical.
 			float cooldownDt = dt / Mathf.Max(
 				FTT.Environment.ResonanceProgression.MinimumCooldownMultiplier, StoryCooldownMultiplier);
-			if (SpecialOneCooldownTimer > 0) SpecialOneCooldownTimer -= cooldownDt;
-			if (SpecialTwoCooldownTimer > 0) SpecialTwoCooldownTimer -= cooldownDt;
+			// Momentum update 2026-10-31 (P3): the Specials' 2 s reuse delay ticks in plain seconds
+			// and the gauge regenerates here, so both share the cooldowns' pauses (the hero's own
+			// hitstop, Time Freeze, the tree pause); only the movement ability's cooldown keeps the
+			// Story cooldown multiplier.
+			if (SpecialOneCooldownTimer > 0) SpecialOneCooldownTimer -= dt;
+			if (SpecialTwoCooldownTimer > 0) SpecialTwoCooldownTimer -= dt;
+			RegenMomentum(dt);
 			if (MovementAbilityCooldownTimer > 0) MovementAbilityCooldownTimer -= cooldownDt;
 		}
 
@@ -6012,6 +5978,7 @@ namespace FTT.Characters {
 			timers.AbilityCooldowns[FTT.Core.LegacyUnlockSchedule.SpecialOneKey] = MathF.Max(0f, SpecialOneCooldownTimer);
 			timers.AbilityCooldowns[FTT.Core.LegacyUnlockSchedule.SpecialTwoKey] = MathF.Max(0f, SpecialTwoCooldownTimer);
 			timers.AbilityCooldowns[FTT.Core.LegacyUnlockSchedule.MovementKey] = MathF.Max(0f, MovementAbilityCooldownTimer);
+			CaptureMomentumTimer(timers.AbilityCooldowns);
 			timers.RallyUncreditedMeter = RallyUncreditedMeter;
 			timers.WardenclyffeRechargeSeconds = MathF.Max(0f, WardenclyffeDamageDelaySeconds);
 		}
@@ -6045,6 +6012,7 @@ namespace FTT.Characters {
 				if (timers.AbilityCooldowns.TryGetValue(FTT.Core.LegacyUnlockSchedule.MovementKey, out float movement)) {
 					MovementAbilityCooldownTimer = MathF.Max(0f, movement);
 				}
+				RestoreMomentumTimers(timers.AbilityCooldowns);
 			}
 			WardenclyffeDamageDelaySeconds = MathF.Max(0f, timers.WardenclyffeRechargeSeconds);
 		}

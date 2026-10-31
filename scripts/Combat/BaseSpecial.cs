@@ -213,10 +213,11 @@ namespace FTT.Combat {
         /// <summary>
         /// Design 776: the cooldown starts on the first frame of the cast action,
         /// matching the Fighter sim's press-time cooldown start. Centralized here
-        /// so no kit re-authors the timing; the authored
-        /// <c>AbilityData.CooldownDuration</c> stays the canonical number, and an
-        /// interrupted cast (H-4) still burns its cooldown. Ultimates are
-        /// meter-gated and carry no cooldown timer.
+        /// so no kit re-authors the timing. Since the Momentum update (2026-10-31)
+        /// a Special arms the 2 s reuse delay instead of its authored cooldown
+        /// (the movement ability keeps <c>AbilityData.CooldownDuration</c>), and
+        /// an interrupted cast (H-4) still burns it. Ultimates are meter-gated
+        /// and carry no timer.
         /// </summary>
         /// <summary>
         /// Package 11 A4 (Resonance V7.6). A per-CAST cooldown multiplier an
@@ -236,27 +237,27 @@ namespace FTT.Combat {
 
         private void StartCooldown() {
             if (Owner == null || Data == null) return;
-            // Package 11 A4 (Resonance V7.6): CooldownReduction is now
-            // ability-SCOPED (Joan's Divine Piercing, Mozart's Fortissimo Wave,
-            // Lincoln's Splitting Strike). One lookup here covers all three -
-            // the character-wide StoryCooldownMultiplier still ticks the timers
-            // down in PlayerController, and an unscoped grid reads neutral 1.0.
-            // The resolver stores a scoped reduction as the cooldown MULTIPLIER
-            // max(0.05, 1 - sum), so a -10% minor reads 0.9 here.
-            float cooldown = Data.CooldownDuration
-                * Owner.StoryScoped(FTT.Environment.ResonanceStatKeys.CooldownReduction, Data.AbilityID ?? "")
-                * CooldownScaleForThisCast;
+            // Momentum update 2026-10-31: a Special no longer arms its authored cooldown. The
+            // gauge pays for it (PlayerController.CheckSpecialInput) and this arms the per-slot
+            // 2 s reuse delay (BasicComboRules.SpecialReuseDelayFrames), unscaled by any grid
+            // minor. The movement ability keeps its authored cooldown, the CooldownReduction
+            // lane and the cast's own scale (Vortex Step, R1).
+            float cooldown;
             switch (Data.Slot) {
                 case FTT.Core.AbilitySlot.Special1:
+                    cooldown = PlayerController.SpecialReuseDelaySeconds;
                     Owner.SpecialOneCooldownTimer = cooldown;
-                    // A fresh cooldown cycle re-arms its Resonance Momentum refunds.
-                    Owner.OnSpecialCooldownArmed(FTT.Core.AbilitySlot.Special1);
                     break;
                 case FTT.Core.AbilitySlot.Special2:
+                    cooldown = PlayerController.SpecialReuseDelaySeconds;
                     Owner.SpecialTwoCooldownTimer = cooldown;
-                    Owner.OnSpecialCooldownArmed(FTT.Core.AbilitySlot.Special2);
                     break;
                 case FTT.Core.AbilitySlot.MovementAbility:
+                    // Package 11 A4: CooldownReduction is ability-scoped where authored; the
+                    // resolver stores a scoped reduction as the multiplier max(0.05, 1 - sum).
+                    cooldown = Data.CooldownDuration
+                        * Owner.StoryScoped(FTT.Environment.ResonanceStatKeys.CooldownReduction, Data.AbilityID ?? "")
+                        * CooldownScaleForThisCast;
                     Owner.MovementAbilityCooldownTimer = cooldown;
                     break;
                 default:

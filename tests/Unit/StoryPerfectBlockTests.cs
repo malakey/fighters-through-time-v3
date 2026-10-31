@@ -234,7 +234,8 @@ public class StoryPerfectBlockTests {
             AssertThat(hero.IsPerfectBlockWindowOpen).IsFalse();
             hero.GetNode<Hurtbox>("Hurtbox").TakeHit(MobHit(hero, damage: 6f));
             AssertThat(hero.GetNode<BlockSystem>("BlockSystem").LastBlockWasPerfect).IsFalse();
-            AssertThat(hero.CurrentUltimateMeter).IsEqual(PlayerController.ShieldOfOrleansMeterPerBlock);
+            // The flat grant is halved on the campaign hero (Momentum update 2026-10-31).
+            AssertThat(hero.CurrentUltimateMeter).IsEqual(hero.ScaleStoryFlatMeter(PlayerController.ShieldOfOrleansMeterPerBlock));
         } finally {
             Teardown(control);
         }
