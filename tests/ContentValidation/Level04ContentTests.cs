@@ -377,16 +377,17 @@ public class Level04ContentTests {
         AssertThat(beam.AddPlayer(level.Player)).IsTrue();
         AssertThat(level.SearchlightAlarmCount).IsEqual(1);
 
+        // The authored 5 a second is halved on the campaign hero (Momentum update 2026-10-31).
         beam.TickExposure(1f);
-        AssertFloat(level.Player.CurrentUltimateMeter).IsEqualApprox(45f, 0.001f);
+        AssertFloat(level.Player.CurrentUltimateMeter).IsEqualApprox(47.5f, 0.001f);
         beam.TickExposure(2f);
-        AssertFloat(level.Player.CurrentUltimateMeter).IsEqualApprox(35f, 0.001f);
+        AssertFloat(level.Player.CurrentUltimateMeter).IsEqualApprox(42.5f, 0.001f);
 
         // Leaving the beam stops the drain; the meter is never damage.
         int hpBefore = level.Player.CurrentHP;
         AssertThat(beam.RemovePlayer(level.Player)).IsTrue();
         beam.TickExposure(3f);
-        AssertFloat(level.Player.CurrentUltimateMeter).IsEqualApprox(35f, 0.001f);
+        AssertFloat(level.Player.CurrentUltimateMeter).IsEqualApprox(42.5f, 0.001f);
         AssertThat(level.Player.CurrentHP).IsEqual(hpBefore);
     }
 

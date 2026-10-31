@@ -113,14 +113,13 @@ namespace FTT.Characters.Abilities {
         }
 
         /// <summary>
-        /// M02: shortens Fortissimo Wave's remaining cooldown by two seconds,
-        /// once per Requiem execution (stacking with Resonance Momentum).
+        /// A documented no-op since the Momentum update (2026-10-31, ledger
+        /// <c>USER-REQUIEM-SHAVE-DISABLED</c>, plan P17): the Requiem Chord used to shave two seconds off
+        /// Fortissimo Wave's cooldown once per execution (M02). A Special no longer has a cooldown to
+        /// shave, and shaving the 2 s reuse delay would be wrong, so a landed chord or burst pulse leaves
+        /// the timer alone. The call sites stay for the kit pass (<c>DEFER-REQUIEM-FORTISSIMO-REDESIGN</c>).
         /// </summary>
         public void ShaveFortissimo() {
-            if (_executionShaved || Owner == null) return;
-            _executionShaved = true;
-            Owner.SpecialTwoCooldownTimer = Mathf.Max(
-                0f, Owner.SpecialTwoCooldownTimer - (float)KitReachRules.RequiemFortissimoShaveSeconds);
         }
 
         public override void _PhysicsProcess(double delta) {

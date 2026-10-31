@@ -148,17 +148,15 @@ public class StoryAirAttackTests {
     }
 
     [TestCase]
-    public void ALandedAirStrikeConfirmsAndRefundsTwentyLikeStringHitOne() {
+    public void ALandedAirStrikeConfirmsAndGainsAFiftiethOfAPipLikeStringHitOne() {
         Run((player, host) => {
             EnemyController mob = Mob(host, Origin + new Vector2(40f, 0f));
-            player.SpecialOneCooldownTimer = 5f;
-            player.SpecialTwoCooldownTimer = 5f;
+            player.MomentumRegenMultiplier = 0f;
+            player.RestoreMomentumPips(0f);
             LiftIntoTheAir(player, 240f);
             Hitbox box = OpenBox(player);
             AssertThat(box.HitboxID).IsEqual(BasicComboRules.AirAttackHitboxID);
             AssertThat(player.SwingLanded).IsFalse();
-            float one = player.SpecialOneCooldownTimer;
-            float two = player.SpecialTwoCooldownTimer;
             int hpBefore = mob.CurrentHP;
 
             Contact(box, mob);
@@ -169,10 +167,8 @@ public class StoryAirAttackTests {
             AssertThat(player.SwingLanded)
                 .OverrideFailureMessage("A landed air strike opens the D1 hit-confirm like any basic swing.")
                 .IsTrue();
-            AssertThat(player.SpecialOneCooldownTimer).IsEqual(one - 20f / 60f);
-            AssertThat(player.SpecialTwoCooldownTimer).IsEqual(two - 20f / 60f);
-            AssertThat(player.MomentumRefundedFramesSlotOne).IsEqual(BasicComboRules.MomentumStringHitRefundFrames);
-            AssertThat(player.MomentumRefundedFramesSlotTwo).IsEqual(BasicComboRules.MomentumStringHitRefundFrames);
+            AssertFloat(player.MomentumPips)
+                .IsEqualApprox(BasicComboRules.MomentumStringHitGainUnits / 7200f, 0.0001f);
             AssertThat(player.IsInHitstop)
                 .OverrideFailureMessage("A landed air strike freezes the attacker like any landed basic.")
                 .IsTrue();

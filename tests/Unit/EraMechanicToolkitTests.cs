@@ -47,12 +47,12 @@ public class EraMechanicToolkitTests {
             AssertThat(detections).IsEqual(1);
             AssertThat(drain.AddPlayer(player)).IsFalse();
 
-            // 1 second of exposure at 5%/s.
+            // 1 second of exposure at 5%/s, halved on the campaign hero (Momentum update 2026-10-31).
             drain.TickExposure(1f);
-            AssertFloat(player.CurrentUltimateMeter).IsEqualApprox(45f, 0.001f);
+            AssertFloat(player.CurrentUltimateMeter).IsEqualApprox(47.5f, 0.001f);
             AssertThat(drain.RemovePlayer(player)).IsTrue();
             drain.TickExposure(1f);
-            AssertFloat(player.CurrentUltimateMeter).IsEqualApprox(45f, 0.001f);
+            AssertFloat(player.CurrentUltimateMeter).IsEqualApprox(47.5f, 0.001f);
 
             int startingHP = player.CurrentHP;
             strike.AddPlayer(player);

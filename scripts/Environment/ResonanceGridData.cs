@@ -78,6 +78,11 @@ namespace FTT.Environment {
         /// no authored minor uses this lane. Do not invent one.
         /// </summary>
         public const string ExtractorDamage = "ExtractorDamage";
+        /// <summary>
+        /// Scales the Story Momentum gauge's regen (Momentum update 2026-10-31, plan P16): character-wide,
+        /// +10% is regen x1.1. Joan's, Mozart's and Lincoln's old Special 2 cooldown minors carry it.
+        /// </summary>
+        public const string MomentumRegen = "MomentumRegen";
 
         // === V7.6 ability-scoped lanes (always paired with AbilityScope) ===
         public const string AbilityDamage = "AbilityDamage";
@@ -107,7 +112,7 @@ namespace FTT.Environment {
             ProjectileSpeed, ProjectileDamage, GlideSpeed, GlideDuration, ZoneRadius,
             ZoneDuration, PersistentDuration, PersistentRange, PersistentHealth,
             StatusDuration, StatusDamage, RallyEchoFraction, UltimateBuildRate,
-            ExtractorDamage, AbilityDamage, AbilityRange, AbilityDuration, ConstructHP
+            ExtractorDamage, MomentumRegen, AbilityDamage, AbilityRange, AbilityDuration, ConstructHP
         };
 
         /// <summary>
@@ -171,6 +176,8 @@ namespace FTT.Environment {
         public readonly float UltimateBuildRateMultiplier;
         /// <summary>V7.6 lane: scales damage dealt to Chronal Extractors.</summary>
         public readonly float ExtractorDamageMultiplier;
+        /// <summary>Momentum update lane: scales the Story Momentum gauge's regen (1 + sum of MomentumRegen nodes).</summary>
+        public readonly float MomentumRegenMultiplier;
 
         /// <summary>
         /// V7.6 ability-scoped lanes, keyed (statKey, abilityScope). One
@@ -224,10 +231,12 @@ namespace FTT.Environment {
             float rallyEchoFractionMultiplier = 1f,
             float ultimateBuildRateMultiplier = 1f,
             float extractorDamageMultiplier = 1f,
+            float momentumRegenMultiplier = 1f,
             IReadOnlyDictionary<ScopedStatKey, float> scopedMultipliers = null) {
             RallyEchoFractionMultiplier = rallyEchoFractionMultiplier;
             UltimateBuildRateMultiplier = ultimateBuildRateMultiplier;
             ExtractorDamageMultiplier = extractorDamageMultiplier;
+            MomentumRegenMultiplier = momentumRegenMultiplier;
             ScopedMultipliers = scopedMultipliers ?? EmptyScopes;
             MaxHPBonus = maxHPBonus;
             BlockChargeBonus = blockChargeBonus;

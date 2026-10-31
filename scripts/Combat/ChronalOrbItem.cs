@@ -126,11 +126,12 @@ namespace FTT.Combat {
                 case OrbEffect.MeterBoost:
                     var meter = player.GetNodeOrNull<UltimateMeter>("UltimateMeter");
                     if (meter != null) {
-                        meter.AddFlat(Data.Value);
+                        // Momentum update 6.2: a flat grant scales on the campaign hero.
+                        meter.AddFlat(player.ScaleStoryFlatMeter(Data.Value));
                         player.CurrentUltimateMeter = meter.CurrentValue;
                     } else {
                         player.CurrentUltimateMeter = Mathf.Min(
-                            player.CurrentUltimateMeter + Data.Value, InfluenceMeterRules.MaxValue);
+                            player.CurrentUltimateMeter + player.ScaleStoryFlatMeter(Data.Value), InfluenceMeterRules.MaxValue);
                     }
                     break;
                 case OrbEffect.ShieldRestore:

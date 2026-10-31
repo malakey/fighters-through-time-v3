@@ -65,30 +65,31 @@ public class SiphonSnareTests {
     // === Drain arithmetic: the three authored starting meters ===
 
     [TestCase]
-    public void AFullMeterPlayerWhoDoesNothingEndsAtExactlySeventy() {
+    public void AFullMeterPlayerWhoDoesNothingEndsAtExactlyEightyFive() {
         using var world = new SnareWorld(playerMeter: 100f);
         AssertThat(world.Cast()).IsEqual(SiphonAttachResult.Attached);
         SiphonTetherChannel channel = world.Channel;
 
-        // Three live seconds at ten points a second, and not a point more.
+        // Three live seconds at five points a second (the authored ten, halved for the campaign hero
+        // by the Momentum update's flat-effect scale), and not a point more.
         for (int frame = 0; frame < 180; frame++) channel.TickChannel(Step);
 
-        AssertFloat(world.Player.CurrentUltimateMeter).IsEqualApprox(70f, 0.01f);
-        AssertFloat(channel.DrainedTotal).IsEqualApprox(30f, 0.01f);
+        AssertFloat(world.Player.CurrentUltimateMeter).IsEqualApprox(85f, 0.01f);
+        AssertFloat(channel.DrainedTotal).IsEqualApprox(15f, 0.01f);
         AssertThat(channel.IsLive).IsFalse();
     }
 
     [TestCase]
-    public void TheThirtyPointCapHoldsEvenIfTheChannelIsTickedPastItsDuration() {
+    public void TheFifteenPointCapHoldsEvenIfTheChannelIsTickedPastItsDuration() {
         using var world = new SnareWorld(playerMeter: 100f);
         world.Cast();
         SiphonTetherChannel channel = world.Channel;
         for (int frame = 0; frame < 600; frame++) channel.TickChannel(Step);
 
         AssertFloat(channel.DrainedTotal)
-            .OverrideFailureMessage("A single cast may never take more than 30 points.")
-            .IsEqualApprox(30f, 0.01f);
-        AssertFloat(world.Player.CurrentUltimateMeter).IsEqualApprox(70f, 0.01f);
+            .OverrideFailureMessage("A single cast may never take more than the scaled 15 points.")
+            .IsEqualApprox(15f, 0.01f);
+        AssertFloat(world.Player.CurrentUltimateMeter).IsEqualApprox(85f, 0.01f);
     }
 
     [TestCase]
@@ -156,7 +157,7 @@ public class SiphonSnareTests {
             .IsEqual(chargesBefore);
 
         for (int frame = 0; frame < 60; frame++) world.Channel.TickChannel(Step);
-        AssertFloat(world.Player.CurrentUltimateMeter).IsEqualApprox(90f, 0.05f);
+        AssertFloat(world.Player.CurrentUltimateMeter).IsEqualApprox(95f, 0.05f);
     }
 
     [TestCase]
@@ -316,7 +317,7 @@ public class SiphonSnareTests {
         channel.TickChannel(Step);
         AssertFloat(channel.DrainedTotal)
             .OverrideFailureMessage("The tether kept draining through the armored hit.")
-            .IsEqualApprox(2f * 10f * Step, 0.01f);
+            .IsEqualApprox(2f * 5f * Step, 0.01f);
     }
 
     // === Channelling gate, overlap, freeze, reconstruction, mode isolation ===
@@ -389,7 +390,7 @@ public class SiphonSnareTests {
         channel.TickChannel(Step);
         AssertFloat(world.Player.CurrentUltimateMeter)
             .OverrideFailureMessage("Thaw drains exactly one tick — a freeze is a pause, never a debt.")
-            .IsEqualApprox(meterAtFreeze - 10f * Step, 0.01f);
+            .IsEqualApprox(meterAtFreeze - 5f * Step, 0.01f);
     }
 
     [TestCase]
@@ -399,7 +400,7 @@ public class SiphonSnareTests {
         SiphonTetherChannel channel = world.Channel;
         for (int frame = 0; frame < 60; frame++) channel.TickChannel(Step);
         float meterAfterOneSecond = world.Player.CurrentUltimateMeter;
-        AssertFloat(meterAfterOneSecond).IsEqualApprox(90f, 0.05f);
+        AssertFloat(meterAfterOneSecond).IsEqualApprox(95f, 0.05f);
 
         // F10 reconstruction / room departure ends the transient tether and keeps
         // the latest durable meter. Nothing is repeated and nothing is refunded.

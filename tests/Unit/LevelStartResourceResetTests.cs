@@ -111,6 +111,31 @@ public class LevelStartResourceResetTests {
     }
 
     [TestCase]
+    public void AFreshEntryAfterADrainedMomentumGaugeStartsAtTwoPips() {
+        using var scope = new Scope();
+        StoryManager story = StoryManager.Instance;
+        StorySaveData save = scope.Begin(CampaignLevel.Florence);
+
+        PlayerController florenceHero = scope.AddHero();
+        florenceHero.RestoreMomentumPips(0.25f);
+        story.CaptureDurableSnapshot();
+        EventBus.Instance.RaiseLevelComplete(StoryManager.GetLevelID(CampaignLevel.Florence));
+        scope.Free(florenceHero);
+
+        story.LoadCurrentLevel();
+        AssertThat(story.IsFreshAttemptHeroPending).IsTrue();
+        FrameworkTestLevelController level = scope.BuildOrleans();
+        try {
+            AssertThat(level.ResumedMidLevel).IsFalse();
+            AssertThat(level.Player.MomentumPips)
+                .OverrideFailureMessage("A fresh entry must not inherit the previous level's drained gauge.")
+                .IsEqual(FTT.Combat.BasicComboRules.MomentumStartPips);
+        } finally {
+            scope.Free(level);
+        }
+    }
+
+    [TestCase]
     public void FlorenceAfterTheTutorialStartsAtFullHPAndZeroMeter() {
         // Florence predates StoryLevelControllerBase and calls the shared
         // RestoreDurableResources itself; the Tutorial's calibration fills and
@@ -547,6 +572,9 @@ public class LevelStartResourceResetTests {
         AssertThat(player.SpecialOneCooldownTimer).IsEqual(0f);
         AssertThat(player.SpecialTwoCooldownTimer).IsEqual(0f);
         AssertThat(player.MovementAbilityCooldownTimer).IsEqual(0f);
+        AssertThat(player.MomentumPips)
+            .OverrideFailureMessage($"{when}: the Momentum gauge did not start at two pips.")
+            .IsEqual(FTT.Combat.BasicComboRules.MomentumStartPips);
         AssertThat(save.CurrentHP)
             .OverrideFailureMessage($"{when}: the save root HP was not reset.")
             .IsEqual(player.MaximumHP);
