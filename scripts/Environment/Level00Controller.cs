@@ -1,4 +1,6 @@
-﻿using Godot;
+﻿using System;
+using System.Collections.Generic;
+using Godot;
 using FTT.Characters;
 using FTT.Core;
 using FTT.Enemies;
@@ -97,9 +99,14 @@ namespace FTT.Environment {
         private bool _firstApproachFreezeSpent;
 
         // === V7.6 Meter & Defy History Calibration =======================
-        /// <summary>Frames the lit seal is held before the scripted lethal hit lands.</summary>
+        /// <summary>Frames the objective is read before the drone swarm comes.</summary>
         private const int DefyBeatDelayFrames = 120;
         private int _defyCountdownFrames = -1;
+        private readonly List<EnemyController> _defyDrones = new();
+        private bool _defySwarmActive;
+        private static readonly Vector2[] DefySwarmOffsets = {
+            new Vector2(-220f, -40f), new Vector2(220f, -40f), new Vector2(340f, -40f)
+        };
 
         private bool _levelComplete;
 
@@ -127,6 +134,7 @@ namespace FTT.Environment {
                 EventBus.Instance.OnRewindTriggered += OnRewindTriggered;
                 EventBus.Instance.OnBlockAbsorbed += OnBlockAbsorbed;
                 EventBus.Instance.OnBlockBroken += OnBlockBroken;
+                EventBus.Instance.OnDefyExecuted += OnDefyExecuted;
             }
 
             // Defer one frame so the dialogue UI is fully in the tree before pausing.
@@ -140,12 +148,17 @@ namespace FTT.Environment {
                 EventBus.Instance.OnRewindTriggered -= OnRewindTriggered;
                 EventBus.Instance.OnBlockAbsorbed -= OnBlockAbsorbed;
                 EventBus.Instance.OnBlockBroken -= OnBlockBroken;
+                EventBus.Instance.OnDefyExecuted -= OnDefyExecuted;
             }
             if (_dummy != null && IsInstanceValid(_dummy)) _dummy.HitLanded -= OnDummyHit;
             // The hold's seams are scene-scoped: never leave a floor or a player
             // freeze behind (the player is ours, but be explicit).
-            if (_player != null && IsInstanceValid(_player)) _player.ScriptedHPFloor = 0;
+            if (_player != null && IsInstanceValid(_player)) {
+                _player.ScriptedHPFloor = 0;
+                _player.DefyDisabledByScript = false;
+            }
             ResetHoldLocalPresentation();
+            ReleaseDefyDrones();
             // Pooled combat-trial enemies are parented here; hand them back or the
             // pool keeps freed references once this scene unloads.
             PoolManager.Instance?.ReleaseActiveUnder(this);
@@ -178,6 +191,9 @@ namespace FTT.Environment {
 
         /// <summary>The Full / Skip prompt, while Wren's offer is open. Test seam.</summary>
         public TwoOptionPrompt CalibrationPrompt => _calibrationPrompt;
+
+        /// <summary>The calibration script. Test seam.</summary>
+        internal TutorialCalibrationScript CalibrationScript => _calibration;
 
         /// <summary>Where the hold's locals walk out of the tear.</summary>
         public static readonly Vector2[] HoldLocalSpawns = {
@@ -224,6 +240,8 @@ namespace FTT.Environment {
             _holdStarted = true;
             if (_player != null && IsInstanceValid(_player)) {
                 _player.ScriptedHPFloor = Level00HoldFight.HeroHPFloor;
+                // P21: the unlosable hold fight does not offer Defy.
+                _player.DefyDisabledByScript = true;
                 _holdMeterBaseline = _player.CurrentUltimateMeter;
             }
             _services?.HUD?.SetObjective("tutorial_objective_hold");
@@ -393,7 +411,10 @@ namespace FTT.Environment {
         public void BreakTheBeam() {
             if (_phase != TutorialPhase.Hold) return;
             _phase = TutorialPhase.Rift;
-            if (_player != null && IsInstanceValid(_player)) _player.ScriptedHPFloor = 0;
+            if (_player != null && IsInstanceValid(_player)) {
+                _player.ScriptedHPFloor = 0;
+                _player.DefyDisabledByScript = false;
+            }
             PlayBeamBreak();
             ShowEraserWatcher();
             _riftGate = BuildGateZone("WardenRiftGate", RiftGatePosition, new Vector2(120, 200),
@@ -864,48 +885,73 @@ namespace FTT.Environment {
         // === V7.6 Meter & Defy History Calibration ======================
 
         /// <summary>
-        /// Fills the Influence Meter to 100% and lights the F13 Defy seal, then
-        /// arms the scripted lethal-tagged hit that Defy History refuses. No
-        /// extra meter award, no extra Defy use: the calibration spends exactly
-        /// the one the player is being shown.
+        /// The active Defy lesson (meter and Defy update 2026-10-31, plan 2.14). The Influence
+        /// Meter is set straight to the Defy cost (a direct, unscaled grant), a swarm of drones
+        /// pins the hero in a string with its HP floored at 1 so it cannot be lost, and the step
+        /// completes only when the hero presses Defy and the blast fires.
         /// </summary>
         private void BeginMeterAndDefyLesson() {
             if (_player == null || !IsInstanceValid(_player)) return;
-            if (_player.StoryDefyHistoryUsed) {
-                // A resumed attempt already spent it; the lesson closes on its
-                // coaching text rather than stranding the player.
-                if (_calibration.SkipDefyLesson()) BeginRewindDemonstration();
-                return;
-            }
-            // A scripted meter grant, not a landed hit: a direct set to the full
-            // bar — never a Rally reclaim, and never scaled by a Story gain factor
-            // (Mozart's build rate), so the lesson always lights a full bar.
-            _player.SetUltimateMeter(FTT.Combat.InfluenceMeterRules.MaxValue);
-            PublishDefySeal(DefySealState.Ready);
-            _services.HUD?.SetObjective("tutorial_step_defy");
+            // A scripted meter grant, not a landed hit: a direct set, never a Rally reclaim and
+            // never scaled by a Story gain factor.
+            _player.SetUltimateMeter(FTT.Combat.BasicComboRules.DefyInfluenceCost);
+            _services.HUD?.SetObjective("tutorial_step_defy", DefyButtonLabel());
             _defyCountdownFrames = DefyBeatDelayFrames;
         }
 
         private void ProcessMeterAndDefyLesson() {
             if (_calibration.Step != TutorialCalibrationStep.MeterAndDefy) return;
-            if (_defyCountdownFrames < 0) return;
+            if (_player == null || !IsInstanceValid(_player)) return;
             if (_defyCountdownFrames > 0) {
                 _defyCountdownFrames--;
                 return;
             }
-            _defyCountdownFrames = -1;
-            if (_player == null || !IsInstanceValid(_player)) {
-                if (_calibration.SkipDefyLesson()) BeginRewindDemonstration();
-                return;
+            if (_defyCountdownFrames == 0) {
+                _defyCountdownFrames = -1;
+                _defySwarmActive = true;
+                // The step cannot be lost: the floor is restored on every exit.
+                _player.ScriptedHPFloor = Level00HoldFight.HeroHPFloor;
             }
-            // The lethal-tagged hit. ApplyEnvironmentalDamage is the V7.3
-            // chokepoint: it runs the whole victim-side pipeline, so Defy
-            // History fires and consumes its own flag rather than leaking into
-            // the next hit's accounting.
-            _player.ApplyEnvironmentalDamage(_player.CurrentHP);
-            PublishDefySeal(_player.StoryDefyHistoryUsed ? DefySealState.Spent : DefySealState.Building);
+            if (!_defySwarmActive) return;
+            // Never strand the lesson: the swarm refills when it is cleared, and the bar stays
+            // at the cost however the fight went (a spend only happens in the Defy itself).
+            if (_player.CurrentUltimateMeter < FTT.Combat.BasicComboRules.DefyInfluenceCost && !_player.IsDefying) {
+                _player.SetUltimateMeter(FTT.Combat.BasicComboRules.DefyInfluenceCost);
+            }
+            bool anyAlive = false;
+            foreach (EnemyController drone in _defyDrones) {
+                if (drone != null && IsInstanceValid(drone) && drone.CurrentState != EnemyState.Dead) anyAlive = true;
+            }
+            if (!anyAlive) SpawnDefySwarm();
+        }
+
+        private void SpawnDefySwarm() {
+            ReleaseDefyDrones();
+            foreach (Vector2 offset in DefySwarmOffsets) {
+                EnemyController drone = EnemyFactory.SpawnSummoned("hologram_drone", this, _player.GlobalPosition + offset);
+                if (drone != null) _defyDrones.Add(drone);
+            }
+        }
+
+        private void ReleaseDefyDrones() {
+            foreach (EnemyController drone in _defyDrones) {
+                if (drone == null || !IsInstanceValid(drone)) continue;
+                if (PoolManager.Instance != null) PoolManager.Instance.Release(drone);
+                else drone.QueueFree();
+            }
+            _defyDrones.Clear();
+        }
+
+        /// <summary>The hero's Defy blast fired: the lesson is learned (TutorialCalibration.RegisterDefyExecuted).</summary>
+        private void OnDefyExecuted(DefyExecutedPayload payload) {
+            if (_player == null || !IsInstanceValid(_player) || payload.PlayerIndex != _player.PlayerIndex) return;
+            if (_calibration.Step != TutorialCalibrationStep.MeterAndDefy) return;
+            _defySwarmActive = false;
+            _defyCountdownFrames = -1;
+            _player.ScriptedHPFloor = 0;
+            ReleaseDefyDrones();
             _services.HUD?.SetObjective("tutorial_step_defy_spent");
-            if (_calibration.RegisterDefyProc()) {
+            if (_calibration.RegisterDefyExecuted()) {
                 // S08: the Meter & Defy station's flavour line, then the rewind.
                 if (_services?.Dialogue == null || !_services.Dialogue.StartSequence("level_00.station_defy")) {
                     BeginRewindDemonstration();
@@ -913,16 +959,22 @@ namespace FTT.Environment {
             }
         }
 
-        /// <summary>
-        /// A5 publishes the F13 seal for the tutorial's forced states. A1b takes
-        /// over as the general publisher in Wave 2 (plan §2.9); the payload and
-        /// the enum are shared, so nothing here changes when it does.
-        /// </summary>
-        private void PublishDefySeal(DefySealState state) {
-            EventBus.Instance?.RaiseDefySealChanged(new DefySealPayload {
-                PlayerIndex = 0,
-                State = state
-            });
+        // The bound Defy button(s) for the objective text: the first keyboard and the first
+        // gamepad binding of gameplay_defy, or the plain word when the action is not bound.
+        private static string DefyButtonLabel() {
+            const string Action = "gameplay_defy";
+            if (!InputMap.HasAction(Action)) return "Defy";
+            string keyboard = null;
+            string pad = null;
+            foreach (InputEvent inputEvent in InputMap.ActionGetEvents(Action)) {
+                string text = inputEvent.AsText();
+                int paren = text.IndexOf(" (", StringComparison.Ordinal);
+                if (paren > 0) text = text.Substring(0, paren);
+                if (inputEvent is InputEventKey) keyboard ??= text;
+                else if (inputEvent is InputEventJoypadButton or InputEventJoypadMotion) pad ??= text;
+            }
+            if (keyboard != null && pad != null) return keyboard + " / " + pad;
+            return keyboard ?? pad ?? "Defy";
         }
 
         /// <summary>

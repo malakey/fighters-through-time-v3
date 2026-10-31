@@ -655,7 +655,7 @@ public class TimeFreezeTests {
             script.RegisterGrabThrow();
             script.RegisterDirectionalInfluenceBeat();
             script.RegisterLandingTech();
-            script.RegisterDefyProc();
+            script.RegisterDefyExecuted();
             script.RegisterRewindComplete();
         }
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.UseTimeFreeze);

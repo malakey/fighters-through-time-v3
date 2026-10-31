@@ -141,6 +141,70 @@ public class Level00FlowSceneTests {
     }
 
     /// <summary>
+    /// MM-SDEFY (plan 2.14): the Meter &amp; Defy lesson sets the bar to exactly the Defy cost, a
+    /// drone swarm comes with the hero's HP floored at 1, and the step completes only when the
+    /// hero presses Defy and the blast fires.
+    /// </summary>
+    [TestCase]
+    public void TheDefyLessonNeedsTheButtonAndTheSwarmCannotKillTheHero() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        bool originalPaused = tree.Paused;
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
+        Level00Controller level = null;
+        try {
+            level = ResourceLoader.Load<PackedScene>(ScenePath).Instantiate<Level00Controller>();
+            tree.Root.AddChild(level);
+            var player = level.GetNode<PlayerController>("Player");
+            level.BreakTheBeam();
+            level.TranslateToBay();
+            EventBus.Instance.RaiseDialogueComplete("level_00.intro");
+            EventBus.Instance.RaiseDialogueComplete("level_00.wren_offer");
+            level.CalibrationPrompt.ChooseFirst();
+            AssertThat(level.Phase).IsEqual(Level00Controller.TutorialPhase.Calibration);
+            TutorialCalibrationScript script = level.CalibrationScript;
+            while (script.Step != TutorialCalibrationStep.MeterAndDefy) {
+                script.RegisterBasicHit();
+                script.RegisterRallyReclaimHit();
+                script.RegisterBlockedHit();
+                script.RegisterGrabThrow();
+                script.RegisterDirectionalInfluenceBeat();
+                script.RegisterLandingTech();
+            }
+            player.SetUltimateMeter(0f);
+            EventBus.Instance.RaiseDialogueComplete("level_00.ultimate_intro");
+            AssertThat(player.CurrentUltimateMeter)
+                .OverrideFailureMessage("The lesson sets the bar to exactly the Defy cost.")
+                .IsEqual(FTT.Combat.BasicComboRules.DefyInfluenceCost);
+
+            // The swarm comes after the objective has been read; the hero cannot be lost.
+            for (int frame = 0; frame < 125; frame++) level._PhysicsProcess(1.0 / 60.0);
+            AssertThat(player.ScriptedHPFloor).IsEqual(Level00HoldFight.HeroHPFloor);
+            player.ApplyDamage(player.MaximumHP * 5);
+            AssertThat(player.CurrentHP).IsEqual(1);
+            AssertThat(script.Step)
+                .OverrideFailureMessage("Nothing but the Defy blast completes the step.")
+                .IsEqual(TutorialCalibrationStep.MeterAndDefy);
+
+            // Press Defy: the blast completes the lesson and gives the floor back.
+            var source = new BufferedInputSource();
+            source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, GameplayButtons.Defy));
+            InputManager.Instance.SetInputSource(player.PlayerIndex, source);
+            for (int frame = 0; frame < 10 && script.Step == TutorialCalibrationStep.MeterAndDefy; frame++) {
+                player._PhysicsProcess(1.0 / 60.0);
+                source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, GameplayButtons.None));
+            }
+            AssertThat(script.Step).IsEqual(TutorialCalibrationStep.UseRewind);
+            AssertThat(player.ScriptedHPFloor).IsEqual(0);
+        } finally {
+            if (level != null) InputManager.Instance?.ClearInputSource(0);
+            FreeLevel(level);
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+            tree.Paused = originalPaused;
+        }
+    }
+
+    /// <summary>
     /// D13 (PROVISIONAL-FONT-PLACEMENT): the Tutorial's Restoration Font is built
     /// only when the Combat Trial starts, past the trial anchor — never during the
     /// Part 1 hold, so no Warden wellspring stands in the hero's own era.

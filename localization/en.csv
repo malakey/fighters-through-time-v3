@@ -993,8 +993,8 @@ tutorial_step_grab_complete,Grabs beat blocks. Strikes beat grabs.
 tutorial_step_di,Calibration: hold a direction as the blow lands to steer where you fly
 tutorial_step_tech,Calibration: hold Block as you land to recover on your feet
 tutorial_step_tech_retry,"That one put you down - hold Block through the landing and try again"
-tutorial_step_defy,"Calibration: meter charged - a full meter can also refuse death itself, once"
-tutorial_step_defy_spent,"The seal is broken - refilling the meter will not restore it this level"
+tutorial_step_defy,"Calibration: pinned down - press {0} to Defy and blast them off you"
+tutorial_step_defy_spent,"Defy breaks the hold, throws them back and wins back some of what they took"
 # Package 11 A3
 integrity_drain_slowed,Integrity drain slowed
 tremor_first_crossing_bark,"Sarah: The timeline's coming apart around you - move!"
