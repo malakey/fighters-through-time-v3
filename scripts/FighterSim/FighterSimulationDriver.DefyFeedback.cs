@@ -20,11 +20,20 @@ namespace FTT.FighterSim {
         /// <summary>Pixels above the feet where the burst is centred (the hurtbox's middle).</summary>
         public const float DefyBurstRisePixels = 60f;
 
+        /// <summary>No sim tick known (headless tests): the replay guard is skipped.</summary>
+        public const int UnknownSimTick = int.MinValue;
+
         private readonly int[] _presentedDefyCount = { -1, -1 };
+
+        // The sim tick of the last burst each player presented. A rollback correction can lower the
+        // counter and then step it forward again (0, 1, 0, 1) without a new Defy; a fighter cannot
+        // begin another Defy until its 30-frame action has ended, so a forward step within that
+        // many ticks of the last presented burst is the same Defy replayed. Cosmetic only.
+        private readonly int[] _lastDefyBurstTick = { UnknownSimTick, UnknownSimTick };
 
         private void SyncDefyFeedback(PlayerController player, int playerID) {
             if (Simulation == null || !Simulation.TryGetFighterActionState(playerID, out FighterActionStateComponent action)) return;
-            PresentDefyCounter(player, playerID, in action);
+            PresentDefyCounter(player, playerID, in action, Simulation.CurrentTick);
         }
 
         /// <summary>
@@ -32,7 +41,8 @@ namespace FTT.FighterSim {
         /// it plays the burst once and returns true; an unchanged or lowered counter plays
         /// nothing. Public for headless tests, which step the counter directly.
         /// </summary>
-        public bool PresentDefyCounter(PlayerController player, int playerID, in FighterActionStateComponent action) {
+        public bool PresentDefyCounter(
+            PlayerController player, int playerID, in FighterActionStateComponent action, int simTick = UnknownSimTick) {
             int count = (action.ActionFlags & FighterActionStateComponent.DefyCounterMask)
                 >> FighterActionStateComponent.DefyCounterShift;
             int previous = _presentedDefyCount[playerID];
@@ -43,6 +53,10 @@ namespace FTT.FighterSim {
             // A rollback correction can lower the counter; that is not a Defy either.
             if (!IsForwardCounterStep(previous, count, DefyCounterRing)) return false;
             if (player == null) return false;
+            // The same Defy replayed after a correction is not a new burst.
+            if (simTick != UnknownSimTick && _lastDefyBurstTick[playerID] != UnknownSimTick
+                && simTick - _lastDefyBurstTick[playerID] < BasicComboRules.DefyTotalFrames) return false;
+            _lastDefyBurstTick[playerID] = simTick;
 
             Vector2 center = player.GlobalPosition + new Vector2(0f, -DefyBurstRisePixels);
             DefyPresentation.Play(center, GetParent(), DefyBurstEffect.FighterRadiusPixels);

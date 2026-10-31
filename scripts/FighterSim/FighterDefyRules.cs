@@ -88,7 +88,13 @@ namespace FTT.FighterSim {
             ref FighterKnockdownComponent knockdown,
             ref FighterCounterComponent counter) {
             fighter.Influence -= CostRaw;
-            if (fighter.InvulnerabilityFrames < BasicComboRules.DefyInvulnerableFrames) {
+            // Invulnerability on the shared counter belongs to the action this press cancels (the
+            // knockdown, tech, roll, air dodge, throw animation, Foresight sidestep, a ledge grant),
+            // so it is replaced by Defy's own six frames; otherwise a Defy out of a knockdown would
+            // keep its remaining frames over the whole vulnerable recovery. Respawn protection is
+            // independent (Defy is not offensive and ends nothing): it keeps its longer grant.
+            bool respawnProtected = (action.ActionFlags & FighterActionStateComponent.ActionFlagRespawnProtection) != 0;
+            if (!respawnProtected || fighter.InvulnerabilityFrames < BasicComboRules.DefyInvulnerableFrames) {
                 fighter.InvulnerabilityFrames = BasicComboRules.DefyInvulnerableFrames;
             }
             fighter.Velocity = FPVector2.Zero;

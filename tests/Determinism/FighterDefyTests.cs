@@ -160,6 +160,41 @@ public class FighterDefyTests {
     }
 
     [TestCase]
+    public void ADefyDropsTheInvulnerabilityOfTheActionItCancelsSoRecoveryFramesSevenToThirtyAreHittable() {
+        // Knockdown (31), landing tech (13), roll (8) and air dodge (8) all ride the shared counter.
+        foreach (int cancelled in new[] { 31, 13, 8, 8 }) {
+            FighterSimulation simulation = NewSimulation(seed: 930 + cancelled, spawnDistance: 4);
+            AssertThat(simulation.SeedFighterInfluenceForTest(0, 80)).IsTrue();
+            AssertThat(simulation.SeedFighterInvulnerabilityForTest(0, cancelled)).IsTrue();
+            Step(simulation, GameplayButtons.Defy);
+            AssertThat(Fighter(simulation, 0).InvulnerabilityFrames).IsEqual(Invulnerable);
+            while (Action(simulation, 0).DefyFrames < Invulnerable + 1) Step(simulation, GameplayButtons.None);
+            for (int frame = Action(simulation, 0).DefyFrames; frame <= Total && Action(simulation, 0).DefyFrames > 0; frame++) {
+                AssertThat(Fighter(simulation, 0).InvulnerabilityFrames)
+                    .OverrideFailureMessage($"A Defy out of a {cancelled}-frame grant: recovery frame {Action(simulation, 0).DefyFrames} must be hittable.")
+                    .IsEqual(0);
+                Step(simulation, GameplayButtons.None);
+            }
+        }
+    }
+
+    [TestCase]
+    public void ADefyKeepsTheLongerRespawnProtectionBecauseItIsIndependentAndNotOffensive() {
+        FighterSimulation simulation = NewSimulation(seed: 940, spawnDistance: 4);
+        AssertThat(simulation.SeedFighterInfluenceForTest(0, 80)).IsTrue();
+        AssertThat(simulation.SeedFighterInvulnerabilityForTest(0, 100)).IsTrue();
+        FighterActionStateComponent protectedAction = Action(simulation, 0);
+        protectedAction.ActionFlags |= FighterActionStateComponent.ActionFlagRespawnProtection;
+        AssertThat(simulation.SeedFighterActionStateForTest(0, in protectedAction)).IsTrue();
+        Step(simulation, GameplayButtons.Defy);
+        for (int tick = 0; tick < Invulnerable + 3; tick++) Step(simulation, GameplayButtons.None);
+        AssertThat(Fighter(simulation, 0).InvulnerabilityFrames)
+            .OverrideFailureMessage("Respawn protection outlives Defy's own six frames.")
+            .IsGreater(60);
+        AssertThat((Action(simulation, 0).ActionFlags & FighterActionStateComponent.ActionFlagRespawnProtection) != 0).IsTrue();
+    }
+
+    [TestCase]
     public void TheLegalityMatrixRefusesOnlyTheDeadTheCapturedTheUltimateOwnerTheBrokeAndTheDefying() {
         FighterStateComponent alive = new() {
             PlayerID = 0, Stocks = 3, MaxHP = 100, CurrentHP = 100, Influence = FP64.FromInt(50)

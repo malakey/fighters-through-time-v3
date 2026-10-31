@@ -149,6 +149,48 @@ public class DefyPresentationTests {
     }
 
     [TestCase]
+    public void ARollbackReplayOfOneDefyPlaysOneBurstAndALaterDefyStillPlays() {
+        if (InputManager.Instance == null) return;
+        GameManager manager = GameManager.Instance;
+        SessionData saved = manager.CurrentSession;
+        var host = new Node2D { Name = "DefyReplayHost" };
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(host);
+        try {
+            PlayerController one = CharacterFactory.CreateCharacter("einstein", 0, applyStoryProgression: false);
+            PlayerController two = CharacterFactory.CreateCharacter("joan", 1, applyStoryProgression: false);
+            host.AddChild(one);
+            host.AddChild(two);
+            var driver = new FighterSimulationDriver { Name = "Driver" };
+            host.AddChild(driver);
+            MatchSettings settings = MatchSettings.GetDefault();
+            settings.StageHazardsEnabled = false;
+            driver.Initialize(one, two, settings, stageHazardTypeID: 1, stageID: "florence_workshop", matchSeed: 2027);
+
+            FighterActionStateComponent At(int count, int defyFrames) => new() {
+                ActionFlags = count << FighterActionStateComponent.DefyCounterShift,
+                DefyFrames = defyFrames
+            };
+
+            driver.PresentDefyCounter(one, 0, At(0, 0), 100);
+            AssertThat(driver.PresentDefyCounter(one, 0, At(1, 6), 110)).IsTrue();
+            // A correction lowers the counter and the resimulation raises it again: 0, 1, 0, 1.
+            AssertThat(driver.PresentDefyCounter(one, 0, At(0, 0), 112)).IsFalse();
+            AssertThat(driver.PresentDefyCounter(one, 0, At(1, 6), 113))
+                .OverrideFailureMessage("The same Defy replayed after a correction is not a new burst.")
+                .IsFalse();
+            AssertThat(CountActiveRings(host)).IsEqual(1);
+            // A genuinely new Defy, after the first one's whole action, still plays.
+            driver.PresentDefyCounter(one, 0, At(1, 0), 140);
+            AssertThat(driver.PresentDefyCounter(one, 0, At(2, 6), 150)).IsTrue();
+            AssertThat(CountActiveRings(host)).IsEqual(2);
+        } finally {
+            AudioManager.Instance?.CoreCues?.ResetTransient();
+            host.Free();
+            manager.CurrentSession = saved;
+        }
+    }
+
+    [TestCase]
     public void TheDefyInvulnerableFramesAreOneToSixAndTheWorldLabelResolves() {
         var inv = new List<int>();
         for (int f = 0; f <= BasicComboRules.DefyTotalFrames; f++) {

@@ -1811,6 +1811,8 @@ namespace FTT.Enemies {
                 Executor.CancelIntoRecovery();
             }
             if (Data?.IsKnockbackImmune != true) Velocity += push;
+            // The blast's freeze reaches every victim it touches, a boss included (no stun).
+            ApplyHitstop(FTT.Combat.BasicComboRules.DefyBlastHitstopFrames);
             return true;
         }
 

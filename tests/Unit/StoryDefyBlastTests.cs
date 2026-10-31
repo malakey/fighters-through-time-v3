@@ -175,6 +175,56 @@ public class StoryDefyBlastTests {
     }
 
     [TestCase]
+    public void TheBlastStaggerCannotBeBlockCancelledByAGroundedBlockHoldingVictim() {
+        Run((hero, tree) => {
+            // The hero stands in for any victim: the blast lands, the player holds Block throughout.
+            AssertThat(hero.ApplyDefyBlast(new Vector2(360f, -360f), BasicComboRules.DefyBlastStaggerFrames, 0)).IsTrue();
+            for (int frame = 0; frame < BasicComboRules.DefyBlastStaggerFrames - 2; frame++) {
+                Step(hero, GameplayButtons.Block);
+                AssertThat(hero.CurrentState)
+                    .OverrideFailureMessage($"Frame {frame}: the blast stagger is not Block-cancellable (the sim sets the same gate).")
+                    .IsEqual(CharacterState.Stunned);
+            }
+        });
+    }
+
+    [TestCase]
+    public void ALaunchBufferedBeforeTheBlastNeverReplacesTheAssignedPush() {
+        Run((hero, tree) => {
+            // An earlier launching hit: a stashed launch waiting out a long freeze, flying left.
+            hero.ApplyTutorialScriptedLaunch(new Vector2(-5f, 0f), 1f, 20);
+            AssertThat(hero.HasPendingLaunch).IsTrue();
+            AssertThat(hero.ApplyDefyBlast(new Vector2(360f, -360f), BasicComboRules.DefyBlastStaggerFrames, BasicComboRules.DefyBlastHitstopFrames)).IsTrue();
+            AssertThat(hero.HasPendingLaunch)
+                .OverrideFailureMessage("The blast clears the buffered launch the way the sim does.")
+                .IsFalse();
+            for (int frame = 0; frame < 60 && hero.HitstopFramesRemaining > 0; frame++) Step(hero, GameplayButtons.None);
+            Step(hero, GameplayButtons.None);
+            AssertThat(hero.Velocity.X)
+                .OverrideFailureMessage("After the freeze the hero moves by the blast's push, not the earlier launch.")
+                .IsGreater(0f);
+        });
+    }
+
+    [TestCase]
+    public void ABossTakesTheBlastsEightFrameFreezeWithoutBeingStunned() {
+        Run((hero, tree) => {
+            BossController boss = CreateBoss(tree, Inside, knockbackImmune: true, out _);
+            try {
+                AssertThat(boss.HitstopFramesRemaining).IsEqual(0);
+                Defy(hero, untilBlast: true);
+                AssertThat(boss.HitstopFramesRemaining)
+                    .OverrideFailureMessage("The 8-frame freeze reaches every victim, a boss included.")
+                    .IsGreater(0);
+                AssertThat(boss.HitstopFramesRemaining).IsLessEqual(BasicComboRules.DefyBlastHitstopFrames);
+                AssertThat(boss.CurrentState).IsNotEqual(BossState.Dead);
+            } finally {
+                boss.Free();
+            }
+        });
+    }
+
+    [TestCase]
     public void TheMirrorCloneIsStaggeredButAnInvulnerableCloneIsNot() {
         Run((hero, tree) => {
             PlayerController clone = CreateClone(tree, Inside);

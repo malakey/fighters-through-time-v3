@@ -1032,7 +1032,7 @@ resonance_joan_wings_refresh_name,Wings Refresh
 resonance_joan_wings_refresh_description,"Traversal: a connecting combo finisher or Righteous Smite resets Ascendant Wings' cooldown. Once per attack execution; never on a whiff, a blocked hit, or an invulnerable target."
 resonance_joan_smite_damage_name,Minor Smite Damage
 resonance_joan_smite_damage_description,Righteous Smite damage +10%.
-resonance_joan_piercing_cooldown_name,Minor Momentum Regeneration
+resonance_joan_piercing_cooldown_name,Minor Momentum
 resonance_joan_piercing_cooldown_description,+10% Momentum regeneration.
 resonance_joan_unstoppable_crusade_name,Unstoppable Crusade
 resonance_joan_unstoppable_crusade_description,"Righteous Smite's active frames carry hyper-armor, and Joan ignores knockback and hitstun for 1.5 seconds after the cast."
@@ -1104,7 +1104,7 @@ resonance_mozart_chord_damage_name,Minor Chord Damage
 resonance_mozart_chord_damage_description,Fa. The Requiem Chord deals +10%.
 resonance_mozart_extra_note_name,Extra Note
 resonance_mozart_extra_note_description,Sol. Traversal: two Sonata Drift staff platforms may stand at once.
-resonance_mozart_wave_cooldown_name,Minor Wave Regen
+resonance_mozart_wave_cooldown_name,Minor Momentum
 resonance_mozart_wave_cooldown_description,La. +10% Momentum regeneration.
 resonance_mozart_rest_shield_name,Rest Shield
 resonance_mozart_rest_shield_description,The Third. Standing still or blocking for 1.5 seconds raises a silent bubble that stops physical projectiles until Mozart moves or attacks.
@@ -1140,7 +1140,7 @@ resonance_lincoln_shockwave_damage_name,Minor Shockwave Damage
 resonance_lincoln_shockwave_damage_description,The Emancipator's shockwave deals +15%.
 resonance_lincoln_rail_breaker_name,Rail Breaker
 resonance_lincoln_rail_breaker_description,"Traversal: each Rail Charge destroys one breakable hostile projectile during its travel, before that projectile can land."
-resonance_lincoln_splitting_cooldown_name,Minor Momentum Regeneration
+resonance_lincoln_splitting_cooldown_name,Minor Momentum
 resonance_lincoln_splitting_cooldown_description,The crossbar. +10% Momentum regeneration.
 resonance_lincoln_executive_order_name,Executive Order
 resonance_lincoln_executive_order_description,The Emancipator's shockwave travels 50% further and deals +20%.

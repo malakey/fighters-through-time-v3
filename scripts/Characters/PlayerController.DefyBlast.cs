@@ -96,6 +96,14 @@ namespace FTT.Characters {
 			// active window included) and a grab, and leaves the block stance for hitstun.
 			ApplyStun(staggerFrames / 60f);
 			_stunTumble = false;
+			// The blast replaces whatever launch state the body carried (the sim clears it too): a
+			// launch buffered under an earlier hit's freeze must not replay over the assigned push
+			// when that freeze ends, and an owed slam bounce is dead.
+			_hasPendingLaunch = false;
+			_slamBouncePending = false;
+			_slamBounceSpeed = 0f;
+			// The stagger cannot be Block-cancelled (the sim's blast sets the same gate).
+			_hitstunBlockCancelBlocked = true;
 			Velocity = push;
 			ApplyHitstop(hitstopFrames);
 			return true;
