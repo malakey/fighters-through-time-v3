@@ -259,7 +259,7 @@ public class MirrorParadoxTests {
                 xpTURN.Klotho.Deterministic.Math.FP64.Zero)
         };
         var selfRuntime = new FighterRuntimeComponent {
-            SpecialOneCooldownFrames = 11, SpecialTwoCooldownFrames = 22, MovementCooldownFrames = 33,
+            SpecialOneReuseFrames = 11, SpecialTwoReuseFrames = 22, MovementCooldownFrames = 33,
             AbilityLockoutFrames = 17, AttackPhase = FighterBasicAttackRules.PhaseChainHold,
             SpecialLockoutFrames = 6, SwingLanded = 1
         };

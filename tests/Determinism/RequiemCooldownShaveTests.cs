@@ -29,25 +29,25 @@ public class RequiemCooldownShaveTests {
         int chordTick = IdleUntilAbilityReady(simulation, 1);
         simulation.Advance(Frame(chordTick, 0, GameplayButtons.Special1), Frame(chordTick, 0, GameplayButtons.None));
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent start)).IsTrue();
-        AssertThat(start.SpecialOneCooldownFrames > 0).OverrideFailureMessage("The chord was not cast.").IsTrue();
+        AssertThat(start.SpecialOneReuseFrames > 0).OverrideFailureMessage("The chord was not cast.").IsTrue();
         // 720 frames, minus the ticks spent waiting: the shave still has room.
-        AssertThat(start.SpecialTwoCooldownFrames > 600).IsTrue();
+        AssertThat(start.SpecialTwoReuseFrames > 600).IsTrue();
         // Decision 1.2 (2026-10-16): the chord leaves on the cast's active entry.
         int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, chordTick + 1);
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent leaving)).IsTrue();
-        int previous = leaving.SpecialTwoCooldownFrames;
+        int previous = leaving.SpecialTwoReuseFrames;
 
         int shaves = 0;
         for (int tick = fired; tick < fired + 89; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
-            int drop = previous - runtime.SpecialTwoCooldownFrames;
+            int drop = previous - runtime.SpecialTwoReuseFrames;
             if (drop >= 100) {
                 // One tick's countdown plus the 120-frame shave.
                 AssertThat(drop == 120 || drop == 121).IsTrue();
                 shaves++;
             }
-            previous = runtime.SpecialTwoCooldownFrames;
+            previous = runtime.SpecialTwoReuseFrames;
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
         // Contact 4 + three 4-damage pulses.
@@ -66,18 +66,18 @@ public class RequiemCooldownShaveTests {
         int chordTick = turnTick + 1;
         simulation.Advance(Frame(chordTick, 0, GameplayButtons.Special1), Frame(chordTick, 0, GameplayButtons.None));
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent start)).IsTrue();
-        AssertThat(start.SpecialOneCooldownFrames > 0).OverrideFailureMessage("The chord was not cast.").IsTrue();
+        AssertThat(start.SpecialOneReuseFrames > 0).OverrideFailureMessage("The chord was not cast.").IsTrue();
         int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, chordTick + 1);
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent leaving)).IsTrue();
-        int previous = leaving.SpecialTwoCooldownFrames;
+        int previous = leaving.SpecialTwoReuseFrames;
 
         bool burstAtWall = false;
         var zones = new List<FighterZoneComponent>();
         for (int tick = fired; tick < fired + 58; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
-            AssertThat(previous - runtime.SpecialTwoCooldownFrames <= 1).IsTrue();
-            previous = runtime.SpecialTwoCooldownFrames;
+            AssertThat(previous - runtime.SpecialTwoReuseFrames <= 1).IsTrue();
+            previous = runtime.SpecialTwoReuseFrames;
             zones.Clear();
             simulation.CopyZonesTo(zones);
             foreach (FighterZoneComponent zone in zones) {

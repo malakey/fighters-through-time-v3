@@ -334,7 +334,7 @@ public class DefyProtectedRecoveryTests {
             AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)).IsTrue();
             bool accepted = offence == GameplayButtons.BasicAttack
                 ? FighterBasicAttackRules.IsSwinging(in runtime)
-                : runtime.SpecialOneCooldownFrames > 0;
+                : runtime.SpecialOneReuseFrames > 0;
             AssertThat(accepted).OverrideFailureMessage($"The survivor's {offence} must be accepted.").IsTrue();
             AssertThat(simulation.TryGetFighterDefense(1, out FighterDefenseComponent defense)).IsTrue();
             AssertThat(FighterDefenseRules.IsDefyProtected(in defense))

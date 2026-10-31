@@ -245,7 +245,7 @@ public class FighterSpecialRecoveryCancelTests {
     [TestCase]
     public void NoSpecialOrUltimateComesOutOfALandedRecovery() {
         var rows = new (string Name, PlayerInputFrame Input, Func<FighterSimulation, bool> Started)[] {
-            ("Special 1", In(GameplayButtons.Special1), sim => Runtime(sim, 0).SpecialOneCooldownFrames > 0),
+            ("Special 1", In(GameplayButtons.Special1), sim => Runtime(sim, 0).SpecialOneReuseFrames > 0),
             ("Special 2", In(GameplayButtons.Special2), sim => Cast(sim, 0).SpecialSlot == 2 && Cast(sim, 0).SpecialPhase == FighterSpecialCastRules.PhaseStartup),
             ("the Ultimate", In(GameplayButtons.Ultimate), sim => UltimateActivationTestKit.Phase(sim, 0) != FighterUltimateActivationRules.PhaseNone),
         };
@@ -620,7 +620,7 @@ public class FighterSpecialRecoveryCancelTests {
                 basicPressed = true;
             }
             simulation.Advance(input, Neutral());
-            int cooldown = Runtime(simulation, 0).SpecialTwoCooldownFrames;
+            int cooldown = Runtime(simulation, 0).SpecialTwoReuseFrames;
             if (cooldown > previousCooldown) splittingCasts++;
             previousCooldown = cooldown;
             if (FighterSpecialCastRules.IsBusy(Cast(simulation, 0))) castSeen = true;

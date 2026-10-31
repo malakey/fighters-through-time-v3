@@ -390,7 +390,7 @@ public class FighterHitConfirmTests {
 
         // A cast re-arms Special 1's cycle (cast facing away so the shot never
         // lands); Special 2's stays spent. A ready slot spends nothing.
-        int specialTwoBefore = Runtime(simulation, 0).SpecialTwoCooldownFrames;
+        int specialTwoBefore = Runtime(simulation, 0).SpecialTwoReuseFrames;
         AssertThat(simulation.SeedFighterSpecialCooldownsForTest(0, 0, specialTwoBefore)).IsTrue();
         Step(simulation, GameplayButtons.None, moveX: -127);
         Step(simulation, GameplayButtons.Special1);
@@ -402,7 +402,7 @@ public class FighterHitConfirmTests {
         Step(simulation, GameplayButtons.None, moveX: 127);
         Settle(simulation);
         Approach(simulation);
-        int slotOneCooldown = Runtime(simulation, 0).SpecialOneCooldownFrames;
+        int slotOneCooldown = Runtime(simulation, 0).SpecialOneReuseFrames;
         AssertThat(slotOneCooldown).OverrideFailureMessage("Harness: the 1-frame slot is ready again.").IsEqual(0);
         AssertThat(simulation.SeedFighterSpecialCooldownsForTest(0, LongCooldown, 0)).IsTrue();
         List<Landing> resumed = LandString(simulation, hits: 1);
@@ -422,7 +422,7 @@ public class FighterHitConfirmTests {
         AssertThat(StepAccepts(held, GameplayButtons.Special2 | GameplayButtons.Ultimate, 2))
             .OverrideFailureMessage("The held-back Ultimate claims the tick.")
             .IsFalse();
-        AssertThat(Runtime(held, 0).SpecialTwoCooldownFrames).IsEqual(0);
+        AssertThat(Runtime(held, 0).SpecialTwoReuseFrames).IsEqual(0);
         AssertThat(Fighter(held, 0).Influence).IsEqual(FP64.FromInt(100));
         AssertThat(UltimatePhase(held, 0)).IsEqual(FighterUltimateActivationRules.PhaseNone);
         AssertThat(StepAccepts(held, GameplayButtons.Special2, 2))
@@ -698,10 +698,10 @@ public class FighterHitConfirmTests {
                 in self, in selfRuntime, in target, in targetRuntime);
             PlayerInputFrame frame = cpu.Sample((uint)tick, in observation, in previous);
             previous = frame;
-            int cooldownBefore = selfRuntime.SpecialOneCooldownFrames;
+            int cooldownBefore = selfRuntime.SpecialOneReuseFrames;
             simulation.Advance(frame, Input(tick, GameplayButtons.None));
             FighterRuntimeComponent after = Runtime(simulation, 0);
-            if (after.SpecialOneCooldownFrames > cooldownBefore && previousLockout >= 2) confirms++;
+            if (after.SpecialOneReuseFrames > cooldownBefore && previousLockout >= 2) confirms++;
             previousLockout = after.AbilityLockoutFrames;
         }
         AssertThat(confirms > 0)
@@ -877,8 +877,8 @@ public class FighterHitConfirmTests {
             bool resolvedNow = !resolvedBefore
                 && ((runtimeAfter.AttackFlags & FighterBasicAttackRules.FlagHitResolved) != 0 || counteredNow);
             if (!resolvedNow) continue;
-            outcome.SlotOneDelta = runtimeBefore.SpecialOneCooldownFrames - runtimeAfter.SpecialOneCooldownFrames;
-            outcome.SlotTwoDelta = runtimeBefore.SpecialTwoCooldownFrames - runtimeAfter.SpecialTwoCooldownFrames;
+            outcome.SlotOneDelta = runtimeBefore.SpecialOneReuseFrames - runtimeAfter.SpecialOneReuseFrames;
+            outcome.SlotTwoDelta = runtimeBefore.SpecialTwoReuseFrames - runtimeAfter.SpecialTwoReuseFrames;
             outcome.SwingLanded = runtimeAfter.SwingLanded;
             outcome.LockoutAfter = runtimeAfter.AbilityLockoutFrames;
             outcome.SpecialGateAfter = BasicComboRules.SpecialGateFrames(
@@ -928,8 +928,8 @@ public class FighterHitConfirmTests {
             FighterRuntimeComponent after = Runtime(simulation, 0);
             landings.Add(new Landing {
                 ComboIndex = after.ComboIndex,
-                SlotOneDelta = before.SpecialOneCooldownFrames - after.SpecialOneCooldownFrames,
-                SlotTwoDelta = before.SpecialTwoCooldownFrames - after.SpecialTwoCooldownFrames
+                SlotOneDelta = before.SpecialOneReuseFrames - after.SpecialOneReuseFrames,
+                SlotTwoDelta = before.SpecialTwoReuseFrames - after.SpecialTwoReuseFrames
             });
         }
         return landings;
@@ -951,8 +951,8 @@ public class FighterHitConfirmTests {
             Step(simulation, heldAfter);
             if (Fighter(simulation, 1).CurrentHP >= hp) continue;
             FighterRuntimeComponent after = Runtime(simulation, 0);
-            landing.SlotOneDelta = before.SpecialOneCooldownFrames - after.SpecialOneCooldownFrames;
-            landing.SlotTwoDelta = before.SpecialTwoCooldownFrames - after.SpecialTwoCooldownFrames;
+            landing.SlotOneDelta = before.SpecialOneReuseFrames - after.SpecialOneReuseFrames;
+            landing.SlotTwoDelta = before.SpecialTwoReuseFrames - after.SpecialTwoReuseFrames;
             return landing;
         }
         AssertThat(false).OverrideFailureMessage("Harness: the swing never landed.").IsTrue();
@@ -1238,8 +1238,8 @@ public class FighterHitConfirmTests {
     private static int Lock(FighterSimulation simulation) => Runtime(simulation, 0).AbilityLockoutFrames;
 
     private static int Cooldown(FighterSimulation simulation, int slot) => slot == 1
-        ? Runtime(simulation, 0).SpecialOneCooldownFrames
-        : Runtime(simulation, 0).SpecialTwoCooldownFrames;
+        ? Runtime(simulation, 0).SpecialOneReuseFrames
+        : Runtime(simulation, 0).SpecialTwoReuseFrames;
 
     /// <summary>
     /// One step; true when it armed player one's <paramref name="slot"/>

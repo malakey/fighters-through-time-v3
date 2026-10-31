@@ -107,8 +107,8 @@ public class FighterHudSceneTests {
             hud.ConfigurePlayer(0, null, 3, 3);
 
             FighterRuntimeComponent cooling = Runtime();
-            cooling.SpecialOneCooldownFrames = 120;
-            cooling.SpecialTwoCooldownFrames = 0;
+            cooling.SpecialOneReuseFrames = 120;
+            cooling.SpecialTwoReuseFrames = 0;
             cooling.MovementCooldownFrames = 30;
             hud.ApplyPlayerState(0, State(influence: 40f), cooling, TickRate);
 
@@ -121,7 +121,7 @@ public class FighterHudSceneTests {
 
             // Half-way through the cooldown the radial is half full: the arc reads
             // the authoritative remaining count against the count it started from.
-            cooling.SpecialOneCooldownFrames = 60;
+            cooling.SpecialOneReuseFrames = 60;
             hud.ApplyPlayerState(0, State(influence: 40f), cooling, TickRate);
             AssertFloat(hud.CooldownFraction(0, FighterCooldownSlot.SpecialOne)).IsEqualApprox(0.5f, 0.001f);
 
@@ -152,7 +152,7 @@ public class FighterHudSceneTests {
             hud.ConfigurePlayer(0, null, 3, 3);
             hud.ConfigurePlayer(1, null, 3, 3);
             FighterRuntimeComponent cooling = Runtime();
-            cooling.SpecialOneCooldownFrames = 90;
+            cooling.SpecialOneReuseFrames = 90;
             hud.ApplyPlayerState(0, State(influence: 40f), Runtime(), TickRate);
             hud.ApplyPlayerState(1, State(influence: 100f), cooling, TickRate);
 

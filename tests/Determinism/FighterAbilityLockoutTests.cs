@@ -46,7 +46,7 @@ public class FighterAbilityLockoutTests {
             AssertThat(Shots(simulation, 0, 1))
                 .OverrideFailureMessage($"Special 1 on T+{elapsed} must be refused.")
                 .IsEqual(0);
-            AssertThat(Runtime(simulation, 0).SpecialOneCooldownFrames)
+            AssertThat(Runtime(simulation, 0).SpecialOneReuseFrames)
                 .OverrideFailureMessage("A refused press spends no cooldown.")
                 .IsEqual(0);
         }
@@ -55,7 +55,7 @@ public class FighterAbilityLockoutTests {
         AssertThat(Shots(simulation, 0, 1))
             .OverrideFailureMessage("Special 1 is legal again on T+30.")
             .IsEqual(1);
-        AssertThat(Runtime(simulation, 0).SpecialOneCooldownFrames > 0).IsTrue();
+        AssertThat(Runtime(simulation, 0).SpecialOneReuseFrames > 0).IsTrue();
         AssertThat(LockoutOf(simulation, 0))
             .OverrideFailureMessage("The accepted cast re-arms the lockout.")
             .IsEqual(Lockout);
@@ -70,7 +70,7 @@ public class FighterAbilityLockoutTests {
             .OverrideFailureMessage("The swing wins the tick.")
             .IsEqual(FighterBasicAttackRules.PhaseStartup);
         AssertThat(Shots(simulation, 0, 1)).IsEqual(0);
-        AssertThat(Runtime(simulation, 0).SpecialOneCooldownFrames).IsEqual(0);
+        AssertThat(Runtime(simulation, 0).SpecialOneReuseFrames).IsEqual(0);
         AssertThat(LockoutOf(simulation, 0)).IsEqual(Lockout);
     }
 
@@ -83,8 +83,8 @@ public class FighterAbilityLockoutTests {
         AssertThat(Shots(simulation, 0, 2))
             .OverrideFailureMessage("Special 1 beats Special 2 and locks it out.")
             .IsEqual(0);
-        AssertThat(Runtime(simulation, 0).SpecialOneCooldownFrames > 0).IsTrue();
-        AssertThat(Runtime(simulation, 0).SpecialTwoCooldownFrames).IsEqual(0);
+        AssertThat(Runtime(simulation, 0).SpecialOneReuseFrames > 0).IsTrue();
+        AssertThat(Runtime(simulation, 0).SpecialTwoReuseFrames).IsEqual(0);
         AssertThat(LockoutOf(simulation, 0)).IsEqual(Lockout);
     }
 
@@ -96,7 +96,7 @@ public class FighterAbilityLockoutTests {
         Idle(other, Lockout - 2);
         Step(other, GameplayButtons.Special2);
         AssertThat(Shots(other, 0, 2)).OverrideFailureMessage("Special 2 on t+29 must be refused.").IsEqual(0);
-        AssertThat(Runtime(other, 0).SpecialTwoCooldownFrames).IsEqual(0);
+        AssertThat(Runtime(other, 0).SpecialTwoReuseFrames).IsEqual(0);
         AssertThat(LockoutOf(other, 0)).IsEqual(1);
         Step(other, GameplayButtons.Special2);
         AssertThat(Shots(other, 0, 2)).OverrideFailureMessage("Special 2 on t+30 is accepted.").IsEqual(1);
@@ -107,7 +107,7 @@ public class FighterAbilityLockoutTests {
         FighterSimulation recast = NewSimulation(seed: 105);
         Step(recast, GameplayButtons.Special1);
         Step(recast, GameplayButtons.None);
-        AssertThat(Runtime(recast, 0).SpecialOneCooldownFrames)
+        AssertThat(Runtime(recast, 0).SpecialOneReuseFrames)
             .OverrideFailureMessage("Harness: the slot cooldown is a single frame.")
             .IsEqual(0);
         Idle(recast, Lockout - 3);
@@ -153,8 +153,8 @@ public class FighterAbilityLockoutTests {
             .IsEqual(FighterUltimateActivationRules.PhaseWindup);
         AssertThat(Shots(chord, 0, 1)).IsEqual(0);
         AssertThat(Shots(chord, 0, 2)).IsEqual(0);
-        AssertThat(Runtime(chord, 0).SpecialOneCooldownFrames).IsEqual(0);
-        AssertThat(Runtime(chord, 0).SpecialTwoCooldownFrames).IsEqual(0);
+        AssertThat(Runtime(chord, 0).SpecialOneReuseFrames).IsEqual(0);
+        AssertThat(Runtime(chord, 0).SpecialTwoReuseFrames).IsEqual(0);
         AssertThat(Runtime(chord, 0).MovementCooldownFrames)
             .OverrideFailureMessage("The movement ability yields to the Ultimate too.")
             .IsEqual(0);
@@ -198,7 +198,7 @@ public class FighterAbilityLockoutTests {
         AssertThat(Fighter(simulation, 1).CurrentHP)
             .OverrideFailureMessage("A fighter captured this tick must not land its held-back special as a melee hit.")
             .IsEqual(opponentMaxHP);
-        AssertThat(Runtime(simulation, 0).SpecialOneCooldownFrames).IsEqual(0);
+        AssertThat(Runtime(simulation, 0).SpecialOneReuseFrames).IsEqual(0);
         AssertThat(Shots(simulation, 0, 1)).IsEqual(0);
         AssertThat(Fighter(simulation, 0).Influence)
             .OverrideFailureMessage("The refused Ultimate keeps its meter.")
@@ -230,7 +230,7 @@ public class FighterAbilityLockoutTests {
         AssertThat(Fighter(unpaid, 1).CurrentHP < maxHP)
             .OverrideFailureMessage("Splitting Strike lands when the Ultimate cannot be paid for.")
             .IsTrue();
-        AssertThat(Runtime(unpaid, 0).SpecialTwoCooldownFrames > 0).IsTrue();
+        AssertThat(Runtime(unpaid, 0).SpecialTwoReuseFrames > 0).IsTrue();
         AssertThat(LockoutOf(unpaid, 0)).IsEqual(Lockout);
 
         FighterSimulation paid = Lincoln(119);
@@ -238,7 +238,7 @@ public class FighterAbilityLockoutTests {
         AssertThat(paid.SeedFighterInfluenceForTest(0, 100)).IsTrue();
         Step(paid, GameplayButtons.Special2 | GameplayButtons.Ultimate);
         AssertThat(UltimatePhase(paid, 0)).IsEqual(FighterUltimateActivationRules.PhaseWindup);
-        AssertThat(Runtime(paid, 0).SpecialTwoCooldownFrames)
+        AssertThat(Runtime(paid, 0).SpecialTwoReuseFrames)
             .OverrideFailureMessage("A paid Ultimate claims the tick from Splitting Strike.")
             .IsEqual(0);
     }
@@ -422,7 +422,7 @@ public class FighterAbilityLockoutTests {
         AssertThat(Fighter(simulation, 1).CurrentHP)
             .OverrideFailureMessage("A melee Special inside the lockout builds no intent.")
             .IsEqual(maxHP);
-        AssertThat(Runtime(simulation, 0).SpecialOneCooldownFrames).IsEqual(0);
+        AssertThat(Runtime(simulation, 0).SpecialOneReuseFrames).IsEqual(0);
 
         Idle(simulation, 14);
         AssertThat(Fighter(simulation, 1).CurrentHP)
@@ -432,7 +432,7 @@ public class FighterAbilityLockoutTests {
         AssertThat(Fighter(simulation, 1).CurrentHP < maxHP)
             .OverrideFailureMessage("The melee Special lands on T+30.")
             .IsTrue();
-        AssertThat(Runtime(simulation, 0).SpecialOneCooldownFrames > 0).IsTrue();
+        AssertThat(Runtime(simulation, 0).SpecialOneReuseFrames > 0).IsTrue();
         AssertThat(LockoutOf(simulation, 0)).IsEqual(Lockout);
     }
 
@@ -448,7 +448,7 @@ public class FighterAbilityLockoutTests {
         AssertThat(counter.Phase)
             .OverrideFailureMessage("Special 1 resolves before Foresight and locks it out.")
             .IsEqual(FighterForesightRules.PhaseNone);
-        AssertThat(Runtime(both, 0).SpecialTwoCooldownFrames).IsEqual(0);
+        AssertThat(Runtime(both, 0).SpecialTwoReuseFrames).IsEqual(0);
         AssertThat(LockoutOf(both, 0)).IsEqual(Lockout);
 
         // Control: Special 2 alone reaches Foresight and arms the lockout.
@@ -456,7 +456,7 @@ public class FighterAbilityLockoutTests {
         Step(alone, GameplayButtons.Special2);
         AssertThat(alone.TryGetFighterCounter(0, out FighterCounterComponent stance)).IsTrue();
         AssertThat(stance.Phase).IsEqual(FighterForesightRules.PhaseStartup);
-        AssertThat(Runtime(alone, 0).SpecialTwoCooldownFrames > 0).IsTrue();
+        AssertThat(Runtime(alone, 0).SpecialTwoReuseFrames > 0).IsTrue();
         AssertThat(LockoutOf(alone, 0)).IsEqual(Lockout);
     }
 

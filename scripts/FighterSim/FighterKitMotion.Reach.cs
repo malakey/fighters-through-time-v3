@@ -545,8 +545,8 @@ namespace FTT.FighterSim {
         /// Wave's remaining cooldown by two seconds, once per execution.
         /// </summary>
         public static void ShaveFortissimo(ref FighterRuntimeComponent ownerRuntime) {
-            int remaining = ownerRuntime.SpecialTwoCooldownFrames - KitReachRules.RequiemFortissimoShaveFrames;
-            ownerRuntime.SpecialTwoCooldownFrames = remaining > 0 ? remaining : 0;
+            int remaining = ownerRuntime.SpecialTwoReuseFrames - KitReachRules.RequiemFortissimoShaveFrames;
+            ownerRuntime.SpecialTwoReuseFrames = remaining > 0 ? remaining : 0;
         }
 
         // --- C01 Sandstorm Vortex ----------------------------------------------

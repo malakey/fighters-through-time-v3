@@ -134,8 +134,8 @@ public class MozartKitTests {
                 : GameplayButtons.None;
             uninterrupted.Advance(Frame(tick, 0, mozart), Frame(tick, tick < 3 ? (sbyte)0 : (sbyte)-127, GameplayButtons.None));
             AssertThat(uninterrupted.TryGetFighterRuntime(0, out FighterRuntimeComponent after)).IsTrue();
-            chordCast |= after.SpecialOneCooldownFrames > 0;
-            waveCast |= after.SpecialTwoCooldownFrames > 0;
+            chordCast |= after.SpecialOneReuseFrames > 0;
+            waveCast |= after.SpecialTwoReuseFrames > 0;
         }
         AssertThat(chordCast).OverrideFailureMessage("The chord was not cast before the snapshot.").IsTrue();
         AssertThat(waveCast).OverrideFailureMessage("The wave was not cast before the snapshot.").IsTrue();

@@ -212,10 +212,10 @@ public class ShakespeareKitTests {
                 Frame(tick, 0, press ? GameplayButtons.Special1 : GameplayButtons.None),
                 Frame(tick, tick < 3 ? (sbyte)0 : (sbyte)-127, GameplayButtons.None));
             AssertThat(uninterrupted.TryGetFighterRuntime(0, out FighterRuntimeComponent after)).IsTrue();
-            lamentCast |= after.SpecialOneCooldownFrames > 0;
+            lamentCast |= after.SpecialOneReuseFrames > 0;
         }
         AssertThat(uninterrupted.TryGetFighterRuntime(0, out FighterRuntimeComponent cast)).IsTrue();
-        AssertThat(cast.SpecialTwoCooldownFrames > 0).OverrideFailureMessage("The Tempest was not cast.").IsTrue();
+        AssertThat(cast.SpecialTwoReuseFrames > 0).OverrideFailureMessage("The Tempest was not cast.").IsTrue();
         AssertThat(lamentCast).OverrideFailureMessage("Yorick's Lament was not cast before the snapshot.").IsTrue();
 
         byte[] snapshot = uninterrupted.CaptureFullState();

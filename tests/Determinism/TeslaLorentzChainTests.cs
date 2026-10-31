@@ -192,7 +192,7 @@ public class TeslaLorentzChainTests {
         }
         simulation.Advance(Frame(pulseTick, GameplayButtons.Special2), Frame(pulseTick, GameplayButtons.None));
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent pulsed)).IsTrue();
-        AssertThat(pulsed.SpecialTwoCooldownFrames > 0).OverrideFailureMessage("The pulse was not cast.").IsTrue();
+        AssertThat(pulsed.SpecialTwoReuseFrames > 0).OverrideFailureMessage("The pulse was not cast.").IsTrue();
         for (int tick = pulseTick + 1; tick < pulseTick + 25; tick++) {
             simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
         }

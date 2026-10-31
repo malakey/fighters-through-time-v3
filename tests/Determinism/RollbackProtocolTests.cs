@@ -63,10 +63,10 @@ public class RollbackProtocolTests {
             reference.Advance(Input(tick, 0), Input(tick, 1));
             for (int player = 0; player < 2; player++) {
                 reference.TryGetFighterRuntime(player, out FighterRuntimeComponent runtime);
-                if (runtime.SpecialOneCooldownFrames > lastCooldowns[player * 2]) acceptedSpecials++;
-                if (runtime.SpecialTwoCooldownFrames > lastCooldowns[player * 2 + 1]) acceptedSpecials++;
-                lastCooldowns[player * 2] = runtime.SpecialOneCooldownFrames;
-                lastCooldowns[player * 2 + 1] = runtime.SpecialTwoCooldownFrames;
+                if (runtime.SpecialOneReuseFrames > lastCooldowns[player * 2]) acceptedSpecials++;
+                if (runtime.SpecialTwoReuseFrames > lastCooldowns[player * 2 + 1]) acceptedSpecials++;
+                lastCooldowns[player * 2] = runtime.SpecialOneReuseFrames;
+                lastCooldowns[player * 2 + 1] = runtime.SpecialTwoReuseFrames;
             }
         }
         AssertThat(reference.CurrentHash).IsEqual(firstSimulation.CurrentHash);

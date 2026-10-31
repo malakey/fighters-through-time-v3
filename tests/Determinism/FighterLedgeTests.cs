@@ -459,8 +459,8 @@ public class FighterLedgeTests {
         AssertThat(FighterLedgeRules.IsHanging(in runtime)).IsTrue();
         AssertThat(runtime.AttackPhase).IsEqual(0);
         AssertThat(runtime.UniversalMovementState).IsEqual((int)UniversalMovementPhase.None);
-        AssertThat(runtime.SpecialOneCooldownFrames).IsEqual(0);
-        AssertThat(runtime.SpecialTwoCooldownFrames).IsEqual(0);
+        AssertThat(runtime.SpecialOneReuseFrames).IsEqual(0);
+        AssertThat(runtime.SpecialTwoReuseFrames).IsEqual(0);
         AssertThat(runtime.MovementCooldownFrames).IsEqual(0);
         AssertThat(simulation.ProjectileCount + simulation.PersistentObjectCount + simulation.ZoneCount)
             .IsEqual(0);

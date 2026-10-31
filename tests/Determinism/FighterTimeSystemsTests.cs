@@ -23,14 +23,14 @@ public class FighterTimeSystemsTests {
     public void MomentumRefundArithmeticRespectsTheFloorAndTheCap() {
         int finisher = BasicComboRules.MomentumFinisherRefundFrames;
         var runtime = new FighterRuntimeComponent {
-            SpecialOneCooldownFrames = 300,
-            SpecialTwoCooldownFrames = 50
+            SpecialOneReuseFrames = 300,
+            SpecialTwoReuseFrames = 50
         };
         var verb = new FighterVerbComponent();
 
         FighterCombatSystem.ApplyMomentumRefund(ref runtime, ref verb, finisher);
-        AssertThat(runtime.SpecialOneCooldownFrames).IsEqual(300 - finisher);
-        AssertThat(runtime.SpecialTwoCooldownFrames)
+        AssertThat(runtime.SpecialOneReuseFrames).IsEqual(300 - finisher);
+        AssertThat(runtime.SpecialTwoReuseFrames)
             .OverrideFailureMessage("A refund larger than the remaining cooldown floors at zero.")
             .IsEqual(0);
         AssertThat(verb.MomentumRefundedFramesSlotOne).IsEqual(finisher);
@@ -39,7 +39,7 @@ public class FighterTimeSystemsTests {
             .IsEqual(50);
 
         FighterCombatSystem.ApplyMomentumRefund(ref runtime, ref verb, finisher);
-        AssertThat(runtime.SpecialOneCooldownFrames).IsEqual(300 - 2 * finisher);
+        AssertThat(runtime.SpecialOneReuseFrames).IsEqual(300 - 2 * finisher);
         AssertThat(verb.MomentumRefundedFramesSlotOne).IsEqual(2 * finisher);
         // Slot two's cooldown already reached zero, so nothing is consumed.
         AssertThat(verb.MomentumRefundedFramesSlotTwo).IsEqual(50);
@@ -47,7 +47,7 @@ public class FighterTimeSystemsTests {
         // The cap: 120 frames per cycle, so a third finisher refunds nothing on slot one.
         AssertThat(2 * finisher).IsEqual(BasicComboRules.MomentumRefundCapFramesPerCycle);
         FighterCombatSystem.ApplyMomentumRefund(ref runtime, ref verb, finisher);
-        AssertThat(runtime.SpecialOneCooldownFrames).IsEqual(300 - 2 * finisher);
+        AssertThat(runtime.SpecialOneReuseFrames).IsEqual(300 - 2 * finisher);
         AssertThat(verb.MomentumRefundedFramesSlotOne).IsEqual(BasicComboRules.MomentumRefundCapFramesPerCycle);
     }
 
@@ -60,7 +60,7 @@ public class FighterTimeSystemsTests {
         // authored cooldown cycle.
         simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent armed)).IsTrue();
-        AssertThat(armed.SpecialOneCooldownFrames > BasicComboRules.MomentumRefundCapFramesPerCycle).IsTrue();
+        AssertThat(armed.SpecialOneReuseFrames > BasicComboRules.MomentumRefundCapFramesPerCycle).IsTrue();
 
         // Decision 1.2 (2026-10-16): the melee Special lands on its active
         // entry and its cast holds every input until its recovery ends, so run
@@ -90,7 +90,7 @@ public class FighterTimeSystemsTests {
         }
         AssertThat(hits).IsEqual(3);
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent after)).IsTrue();
-        AssertThat(after.SpecialOneCooldownFrames > 0)
+        AssertThat(after.SpecialOneReuseFrames > 0)
             .OverrideFailureMessage("Harness: slot one must still be cooling, so every grant was its full nominal.")
             .IsTrue();
         AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent verb)).IsTrue();

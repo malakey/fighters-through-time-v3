@@ -174,7 +174,7 @@ public class JoanKitTests {
         }
         uninterrupted.Advance(Frame(piercingTick, 0, GameplayButtons.Special2), Frame(piercingTick, 0, GameplayButtons.Block));
         AssertThat(uninterrupted.TryGetFighterRuntime(0, out FighterRuntimeComponent pierced)).IsTrue();
-        AssertThat(pierced.SpecialTwoCooldownFrames > 0)
+        AssertThat(pierced.SpecialTwoReuseFrames > 0)
             .OverrideFailureMessage("Divine Piercing was not cast before the snapshot.")
             .IsTrue();
         for (int tick = piercingTick + 1; tick < 60; tick++) {

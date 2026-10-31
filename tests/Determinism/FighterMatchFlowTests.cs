@@ -329,7 +329,7 @@ public class FighterMatchFlowTests {
             AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)).IsTrue();
             bool accepted = offence == GameplayButtons.BasicAttack
                 ? FighterBasicAttackRules.IsSwinging(in runtime)
-                : runtime.SpecialOneCooldownFrames > 0;
+                : runtime.SpecialOneReuseFrames > 0;
             AssertThat(accepted).OverrideFailureMessage($"{offence} must be accepted off the platform.").IsTrue();
             AssertThat(acting.InvulnerabilityFrames)
                 .OverrideFailureMessage($"{offence} ends the respawn protection on its acceptance tick.")
@@ -1350,8 +1350,8 @@ public class FighterMatchFlowTests {
                 .IsEqual(0);
             AssertThat(state.RespawnFramesRemaining).IsEqual(0);
             AssertThat(state.BlockCharges > 0).IsTrue();
-            AssertThat(runtime.SpecialOneCooldownFrames).IsEqual(0);
-            AssertThat(runtime.SpecialTwoCooldownFrames).IsEqual(0);
+            AssertThat(runtime.SpecialOneReuseFrames).IsEqual(0);
+            AssertThat(runtime.SpecialTwoReuseFrames).IsEqual(0);
             AssertThat(runtime.MovementCooldownFrames).IsEqual(0);
             AssertThat(runtime.AbilityLockoutFrames)
                 .OverrideFailureMessage("The ability lockout must be cleared with the cooldowns.")

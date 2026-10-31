@@ -1222,8 +1222,8 @@ namespace FTT.UI {
             for (int index = 0; index < Slots.Length; index++) {
                 FighterCooldownSlot slot = Slots[index];
                 int frames = slot switch {
-                    FighterCooldownSlot.SpecialOne => runtime.SpecialOneCooldownFrames,
-                    FighterCooldownSlot.SpecialTwo => runtime.SpecialTwoCooldownFrames,
+                    FighterCooldownSlot.SpecialOne => runtime.SpecialOneReuseFrames,
+                    FighterCooldownSlot.SpecialTwo => runtime.SpecialTwoReuseFrames,
                     _ => runtime.MovementCooldownFrames
                 };
                 if (frames < 0) frames = 0;

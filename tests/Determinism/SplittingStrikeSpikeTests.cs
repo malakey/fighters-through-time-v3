@@ -77,7 +77,7 @@ public class SplittingStrikeSpikeTests {
             seed: 98, spawnDistance: 6, rules: FighterMatchRules.Disabled);
         simulation.Advance(Frame(0, GameplayButtons.Special2), Frame(0, GameplayButtons.None));
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent spent)).IsTrue();
-        AssertThat(spent.SpecialTwoCooldownFrames > 0)
+        AssertThat(spent.SpecialTwoReuseFrames > 0)
             .OverrideFailureMessage("An out-of-reach press spends its cooldown.")
             .IsTrue();
         AssertThat(spent.AbilityLockoutFrames).IsEqual(BasicComboRules.AbilityLockoutFrames);
@@ -116,7 +116,7 @@ public class SplittingStrikeSpikeTests {
         AssertThat(cast.SpecialSlot).IsEqual(2);
         AssertThat(FighterSpecialCastRules.IsStartup(in cast)).IsTrue();
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
-        AssertThat(runtime.SpecialTwoCooldownFrames > 0).IsTrue();
+        AssertThat(runtime.SpecialTwoReuseFrames > 0).IsTrue();
         AssertThat(runtime.MovementCooldownFrames)
             .OverrideFailureMessage("The accepted Special takes the tick from the movement ability.")
             .IsEqual(0);

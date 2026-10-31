@@ -65,17 +65,17 @@ namespace FTT.Diagnostics {
         /// <summary>rec_06's mid-match state. The cooldowns and the trackers need two passes: the HUD latches a cooldown's
         /// start from the first count it sees and holds the tracker at the HP before a drop.</summary>
         private static void HudfMidMatch(FighterHUD hud, int matchMode, bool suddenDeath) {
-            FighterRuntimeComponent p1 = new() { StatusType = (int)StatusType.None, SpecialTwoCooldownFrames = 310 };
+            FighterRuntimeComponent p1 = new() { StatusType = (int)StatusType.None, SpecialTwoReuseFrames = 310 };
             FighterRuntimeComponent p2 = new() {
                 StatusType = (int)StatusType.None,
                 DamageStatusType = (int)StatusType.RadiantBurn, DamageStatusFrames = 2 * HudfTick,
-                SpecialOneCooldownFrames = 360, KnockoutsSuffered = 1
+                SpecialOneReuseFrames = 360, KnockoutsSuffered = 1
             };
             hud.ApplyMatchState(true, 136 * HudfTick, HudfTick, matchMode, suddenDeath);
             hud.ApplyPlayerState(0, HudfState(92, 110, 3, 3, 100f), p1, HudfTick);
             hud.ApplyPlayerState(1, HudfState(70, 90, 2, 2, 38f), p2, HudfTick);
-            p1.SpecialTwoCooldownFrames = 186;   // 3.1 s left, 40 % elapsed
-            p2.SpecialOneCooldownFrames = 108;   // 1.8 s left, 70 % elapsed
+            p1.SpecialTwoReuseFrames = 186;   // 3.1 s left, 40 % elapsed
+            p2.SpecialOneReuseFrames = 108;   // 1.8 s left, 70 % elapsed
             hud.ApplyPlayerState(0, HudfState(86, 110, 3, 3, 100f), p1, HudfTick);
             hud.ApplyPlayerState(1, HudfState(63, 90, 2, 2, 38f), p2, HudfTick);
         }
@@ -195,13 +195,13 @@ namespace FTT.Diagnostics {
                 };
                 FighterRuntimeComponent two = new() {
                     DamageStatusType = (int)StatusType.RadiantBurn, DamageStatusFrames = 3 * HudfTick,
-                    StatusType = (int)StatusType.StaticCharge, StatusFrames = 6 * HudfTick, SpecialTwoCooldownFrames = 600
+                    StatusType = (int)StatusType.StaticCharge, StatusFrames = 6 * HudfTick, SpecialTwoReuseFrames = 600
                 };
                 hud.ApplyMatchState(true, 95 * HudfTick, HudfTick, 0, false);
                 hud.ApplyPlayerState(0, HudfState(72, 100, 3, 2, 55f), one, HudfTick);
                 hud.ApplyPlayerState(1, HudfState(118, 130, 3, 3, 90f), two, HudfTick, echoPool: 7f);
                 one.MovementCooldownFrames = 96;
-                two.SpecialTwoCooldownFrames = 420;
+                two.SpecialTwoReuseFrames = 420;
                 hud.ApplyPlayerState(0, HudfState(72, 100, 3, 2, 55f), one, HudfTick);
                 hud.ApplyPlayerState(1, HudfState(118, 130, 3, 3, 90f), two, HudfTick, echoPool: 7f);
             };

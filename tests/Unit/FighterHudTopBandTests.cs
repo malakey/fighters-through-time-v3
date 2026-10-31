@@ -131,7 +131,7 @@ public class FighterHudTopBandTests {
 
             // A cooling lens shows its sweep: the lens follows the authoritative cooldown.
             FighterRuntimeComponent cooling = Runtime();
-            cooling.SpecialOneCooldownFrames = 120;
+            cooling.SpecialOneReuseFrames = 120;
             hud.ApplyPlayerState(0, State(), cooling, TickRate);
             var s1 = (PulpAbilitySlot)hud.GetNode<Control>("SafeArea/P1_Slots").GetChild(0);
             AssertThat(s1.State).IsEqual(PulpSlotState.Cooling);

@@ -252,7 +252,7 @@ public class UltimateActivationTests {
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
         AssertThat(caster.Influence.RawValue).IsEqual(FP64.FromInt(100).RawValue);
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
-        AssertThat(runtime.SpecialTwoCooldownFrames).IsEqual(0);
+        AssertThat(runtime.SpecialTwoReuseFrames).IsEqual(0);
         AssertThat(runtime.MovementCooldownFrames).IsEqual(0);
         AssertThat(simulation.ZoneCount + simulation.ProjectileCount).IsEqual(0);
 
@@ -632,7 +632,7 @@ public class UltimateActivationTests {
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent fighter)).IsTrue();
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
         AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent verb)).IsTrue();
-        if ((pressed & GameplayButtons.Special2) != 0) return runtime.SpecialTwoCooldownFrames > 0;
+        if ((pressed & GameplayButtons.Special2) != 0) return runtime.SpecialTwoReuseFrames > 0;
         if ((pressed & GameplayButtons.MovementAbility) != 0) return runtime.MovementCooldownFrames > 0;
         if ((pressed & (GameplayButtons.Grab | GameplayButtons.BasicAttack)) != 0) return verb.GrabPhase != 0;
         return (held & GameplayButtons.Block) != 0 && FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb);

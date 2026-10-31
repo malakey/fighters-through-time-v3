@@ -81,7 +81,7 @@ public class RiftCollapseSimTests {
         int castTick = IdleUntilAbilityReady(simulation, 1, victimHeld: GameplayButtons.Block);
         simulation.Advance(Frame(castTick, GameplayButtons.Special1), Frame(castTick, GameplayButtons.Block));
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent cast)).IsTrue();
-        AssertThat(cast.SpecialOneCooldownFrames > 0).OverrideFailureMessage("E=mc² was not cast.").IsTrue();
+        AssertThat(cast.SpecialOneReuseFrames > 0).OverrideFailureMessage("E=mc² was not cast.").IsTrue();
         int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, castTick + 1, t => (
             SpecialCastTestKit.Neutral(t), Frame(t, GameplayButtons.Block)));
         AssertThat(simulation.ZoneCount).IsEqual(1);

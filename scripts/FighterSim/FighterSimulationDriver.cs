@@ -963,8 +963,8 @@ namespace FTT.FighterSim {
             player.SyncPresentationFacing();
             player.RemainingJumps = state.RemainingJumps;
             player.ComboCounter = runtime.ComboIndex;
-            player.SpecialOneCooldownTimer = runtime.SpecialOneCooldownFrames / (float)FighterSimulation.TickRate;
-            player.SpecialTwoCooldownTimer = runtime.SpecialTwoCooldownFrames / (float)FighterSimulation.TickRate;
+            player.SpecialOneCooldownTimer = runtime.SpecialOneReuseFrames / (float)FighterSimulation.TickRate;
+            player.SpecialTwoCooldownTimer = runtime.SpecialTwoReuseFrames / (float)FighterSimulation.TickRate;
             player.MovementAbilityCooldownTimer = runtime.MovementCooldownFrames / (float)FighterSimulation.TickRate;
             // F1 (2026-10-04 feel pass): an attack sheet is posed from the swing's
             // phase (wind-up through startup, strike through active,
@@ -1256,14 +1256,14 @@ namespace FTT.FighterSim {
             // PressedButtons is an input-system scratch value and may already be
             // consumed by the time presentation synchronizes. A cooldown rising
             // from its prior presented value is the stable, accepted-cast edge.
-            bool specialOneStarted = runtime.SpecialOneCooldownFrames
+            bool specialOneStarted = runtime.SpecialOneReuseFrames
                 > _presentedSpecialOneCooldown[playerID];
-            bool specialTwoStarted = runtime.SpecialTwoCooldownFrames
+            bool specialTwoStarted = runtime.SpecialTwoReuseFrames
                 > _presentedSpecialTwoCooldown[playerID];
             bool movementStarted = runtime.MovementCooldownFrames
                 > _presentedMovementCooldown[playerID];
-            _presentedSpecialOneCooldown[playerID] = runtime.SpecialOneCooldownFrames;
-            _presentedSpecialTwoCooldown[playerID] = runtime.SpecialTwoCooldownFrames;
+            _presentedSpecialOneCooldown[playerID] = runtime.SpecialOneReuseFrames;
+            _presentedSpecialTwoCooldown[playerID] = runtime.SpecialTwoReuseFrames;
             _presentedMovementCooldown[playerID] = runtime.MovementCooldownFrames;
 
             // A02 (Package 13 W6): the activation strike holds the ultimate sheet

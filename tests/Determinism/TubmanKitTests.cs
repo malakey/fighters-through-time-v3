@@ -175,7 +175,7 @@ public class TubmanKitTests {
             seed: 1405, spawnDistance: 4, rules: FighterMatchRules.Disabled);
         simulation.Advance(Frame(0, GameplayButtons.Special2), Frame(0, GameplayButtons.None));
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent armed)).IsTrue();
-        AssertThat(armed.SpecialTwoCooldownFrames).IsEqual(tubman.SpecialTwoCooldownFrames);
+        AssertThat(armed.SpecialTwoReuseFrames).IsEqual(tubman.SpecialTwoCooldownFrames);
         AssertThat(tubman.SpecialTwoCooldownFrames).IsEqual(600);
 
         int startup = 0, window = 0, whiff = 0;

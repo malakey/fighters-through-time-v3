@@ -555,10 +555,10 @@ public class FighterKnockdownTests {
         AssertThat(simulation.TryGetFighterUltimateActivation(1, out FighterUltimateActivationComponent activation)).IsTrue();
         AssertThat(simulation.TryGetFighterActionState(1, out FighterActionStateComponent cast)).IsTrue();
         if ((pressed & GameplayButtons.Special1) != 0) {
-            return runtime.SpecialOneCooldownFrames > 0 || FighterSpecialCastRules.IsBusy(in cast);
+            return runtime.SpecialOneReuseFrames > 0 || FighterSpecialCastRules.IsBusy(in cast);
         }
         if ((pressed & GameplayButtons.Special2) != 0) {
-            return runtime.SpecialTwoCooldownFrames > 0 || FighterSpecialCastRules.IsBusy(in cast);
+            return runtime.SpecialTwoReuseFrames > 0 || FighterSpecialCastRules.IsBusy(in cast);
         }
         if ((pressed & GameplayButtons.MovementAbility) != 0) return runtime.MovementCooldownFrames > 0;
         if ((pressed & GameplayButtons.Ultimate) != 0) return activation.Phase != FighterUltimateActivationRules.PhaseNone;

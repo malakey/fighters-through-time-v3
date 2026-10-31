@@ -1474,8 +1474,8 @@ namespace FTT.FighterSim {
             } else {
                 runtime.BlockRegenFrames = FTT.Combat.BasicComboRules.BlockChargeRegenFrames;
             }
-            if (runtime.SpecialOneCooldownFrames > 0) runtime.SpecialOneCooldownFrames--;
-            if (runtime.SpecialTwoCooldownFrames > 0) runtime.SpecialTwoCooldownFrames--;
+            if (runtime.SpecialOneReuseFrames > 0) runtime.SpecialOneReuseFrames--;
+            if (runtime.SpecialTwoReuseFrames > 0) runtime.SpecialTwoReuseFrames--;
             if (runtime.MovementCooldownFrames > 0) runtime.MovementCooldownFrames--;
             if (runtime.SpeedBuffFrames > 0) runtime.SpeedBuffFrames--;
             if (runtime.JumpBuffFrames > 0) runtime.JumpBuffFrames--;
@@ -2467,12 +2467,12 @@ namespace FTT.FighterSim {
             ref FighterVerbComponent verb,
             int nominalFrames) {
             int grantOne = FTT.Combat.BasicComboRules.MomentumGrant(
-                nominalFrames, verb.MomentumRefundedFramesSlotOne, runtime.SpecialOneCooldownFrames);
-            runtime.SpecialOneCooldownFrames -= grantOne;
+                nominalFrames, verb.MomentumRefundedFramesSlotOne, runtime.SpecialOneReuseFrames);
+            runtime.SpecialOneReuseFrames -= grantOne;
             verb.MomentumRefundedFramesSlotOne += grantOne;
             int grantTwo = FTT.Combat.BasicComboRules.MomentumGrant(
-                nominalFrames, verb.MomentumRefundedFramesSlotTwo, runtime.SpecialTwoCooldownFrames);
-            runtime.SpecialTwoCooldownFrames -= grantTwo;
+                nominalFrames, verb.MomentumRefundedFramesSlotTwo, runtime.SpecialTwoReuseFrames);
+            runtime.SpecialTwoReuseFrames -= grantTwo;
             verb.MomentumRefundedFramesSlotTwo += grantTwo;
         }
 
@@ -3499,8 +3499,8 @@ namespace FTT.FighterSim {
                 // match.SuddenDeathActive at the read site, so entry consumes no
                 // new use and restoring a snapshot cannot resurrect a stale copy.
 
-                runtime.SpecialOneCooldownFrames = 0;
-                runtime.SpecialTwoCooldownFrames = 0;
+                runtime.SpecialOneReuseFrames = 0;
+                runtime.SpecialTwoReuseFrames = 0;
                 runtime.MovementCooldownFrames = 0;
                 // The ability lockout and its D1 hit-confirm state (S, C, the
                 // freeze-only Special buffer).

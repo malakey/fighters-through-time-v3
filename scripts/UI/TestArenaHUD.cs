@@ -145,8 +145,8 @@ namespace FTT.UI {
             if (_cooldownLabel != null) {
                 _cooldownLabel.Text = string.Format(
                     Tr("test_arena_cooldowns"),
-                    CooldownText(runtime.SpecialOneCooldownFrames),
-                    CooldownText(runtime.SpecialTwoCooldownFrames),
+                    CooldownText(runtime.SpecialOneReuseFrames),
+                    CooldownText(runtime.SpecialTwoReuseFrames),
                     Tr(FighterHudModel.StatusKey((StatusType)runtime.PresentedStatusType)));
             }
 

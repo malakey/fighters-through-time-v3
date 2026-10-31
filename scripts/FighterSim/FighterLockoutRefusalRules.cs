@@ -44,8 +44,8 @@ namespace FTT.FighterSim {
             in FighterStateComponent fighter,
             in FighterUltimateActivationComponent activation) => new() {
                 HitstopFrames = verb.HitstopFrames,
-                SpecialOneCooldownFrames = runtime.SpecialOneCooldownFrames,
-                SpecialTwoCooldownFrames = runtime.SpecialTwoCooldownFrames,
+                SpecialOneCooldownFrames = runtime.SpecialOneReuseFrames,
+                SpecialTwoCooldownFrames = runtime.SpecialTwoReuseFrames,
                 Influence = fighter.Influence,
                 UltimateBusy = FighterUltimateActivationRules.IsCasterBusy(in activation)
             };
@@ -121,8 +121,8 @@ namespace FTT.FighterSim {
             bool lastFreezeTick = before.HitstopFrames == 1;
             int specialOneRead = ReadTimeCooldown(before.SpecialOneCooldownFrames, lastFreezeTick);
             int specialTwoRead = ReadTimeCooldown(before.SpecialTwoCooldownFrames, lastFreezeTick);
-            if (runtime.SpecialOneCooldownFrames > specialOneRead
-                || runtime.SpecialTwoCooldownFrames > specialTwoRead) return FighterLockoutRefusal.None;
+            if (runtime.SpecialOneReuseFrames > specialOneRead
+                || runtime.SpecialTwoReuseFrames > specialTwoRead) return FighterLockoutRefusal.None;
             if (!before.UltimateBusy && FighterUltimateActivationRules.IsCasterBusy(in activation)) {
                 return FighterLockoutRefusal.None;
             }

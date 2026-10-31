@@ -130,7 +130,7 @@ public class FighterCombatContractW3Tests {
         simulation.Advance(Frame(tick, GameplayButtons.Special1), Frame(tick, GameplayButtons.None));
         tick++;
         simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent cast);
-        AssertThat(cast.SpecialOneCooldownFrames > 0)
+        AssertThat(cast.SpecialOneReuseFrames > 0)
             .OverrideFailureMessage("The special must have been accepted (cooldown armed).")
             .IsTrue();
 
@@ -229,8 +229,8 @@ public class FighterCombatContractW3Tests {
             UsesStocks = 1,
             ZoneSpeedBonusFrames = 40,
             FloatFrames = 12,
-            SpecialOneCooldownFrames = 300,
-            SpecialTwoCooldownFrames = 200,
+            SpecialOneReuseFrames = 300,
+            SpecialTwoReuseFrames = 200,
             MovementCooldownFrames = 90,
             StatusType = (int)StatusType.Root,
             StatusFrames = 30
@@ -251,8 +251,8 @@ public class FighterCombatContractW3Tests {
         AssertThat(runtime.FloatFrames).OverrideFailureMessage("M09: the float window must clear.").IsEqual(0);
         AssertThat(runtime.StatusType).IsEqual((int)StatusType.None);
         AssertThat(verb.EchoPool.RawValue).IsEqual(FP64.Zero.RawValue);
-        AssertThat(runtime.SpecialOneCooldownFrames).OverrideFailureMessage("Cooldowns keep their time.").IsEqual(300);
-        AssertThat(runtime.SpecialTwoCooldownFrames).IsEqual(200);
+        AssertThat(runtime.SpecialOneReuseFrames).OverrideFailureMessage("Cooldowns keep their time.").IsEqual(300);
+        AssertThat(runtime.SpecialTwoReuseFrames).IsEqual(200);
         AssertThat(runtime.MovementCooldownFrames).IsEqual(90);
         AssertThat(verb.DefyHistoryUsed).OverrideFailureMessage("Defy is once per match.").IsEqual(1);
         AssertThat(fighter.RespawnFramesRemaining > 0).IsTrue();

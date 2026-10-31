@@ -376,8 +376,8 @@ namespace FTT.FighterSim {
                 ref readonly FighterStateComponent fighter = ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
                 if (fighter.PlayerID != playerID) continue;
                 ref FighterRuntimeComponent runtime = ref _simulation.Frame.Get<FighterRuntimeComponent>(entity);
-                runtime.SpecialOneCooldownFrames = specialOneFrames;
-                runtime.SpecialTwoCooldownFrames = specialTwoFrames;
+                runtime.SpecialOneReuseFrames = specialOneFrames;
+                runtime.SpecialTwoReuseFrames = specialTwoFrames;
                 return true;
             }
             return false;

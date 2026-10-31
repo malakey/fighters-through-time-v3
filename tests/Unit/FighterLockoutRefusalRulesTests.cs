@@ -42,7 +42,7 @@ public class FighterLockoutRefusalRulesTests {
         LockoutRefusalBaseline cooling = ready;
         cooling.SpecialOneCooldownFrames = 5;
         Components coolingAfter = locked;
-        coolingAfter.Runtime.SpecialOneCooldownFrames = 4;
+        coolingAfter.Runtime.SpecialOneReuseFrames = 4;
         AssertThat(Evaluate(cooling, coolingAfter))
             .OverrideFailureMessage("A slot still cooling was refused by its cooldown, not the lockout.")
             .IsEqual(FighterLockoutRefusal.None);
@@ -80,7 +80,7 @@ public class FighterLockoutRefusalRulesTests {
         // A Special accepted this tick flashes nothing, not even a same-tick
         // Special 2 the acceptance's own lockout refused.
         Components acceptedOne = LockedIdle(SpecialOneBit | SpecialTwoBit);
-        acceptedOne.Runtime.SpecialOneCooldownFrames = 60;
+        acceptedOne.Runtime.SpecialOneReuseFrames = 60;
         AssertThat(Evaluate(ready, acceptedOne)).IsEqual(FighterLockoutRefusal.None);
 
         // And in a real match: a whiffed swing's lockout refuses Special 1 on
@@ -170,7 +170,7 @@ public class FighterLockoutRefusalRulesTests {
         AssertThat(simulation.TryGetFighterCounter(0, out counter)).IsTrue();
         AssertThat(FighterForesightRules.IsBusy(in counter)).IsTrue();
         AssertThat(after.Runtime.AbilityLockoutFrames > 0).OverrideFailureMessage("Harness: the lockout runs.").IsTrue();
-        AssertThat(after.Runtime.SpecialOneCooldownFrames).OverrideFailureMessage("Harness: Special 1 is ready.").IsEqual(0);
+        AssertThat(after.Runtime.SpecialOneReuseFrames).OverrideFailureMessage("Harness: Special 1 is ready.").IsEqual(0);
         AssertThat(after.Runtime.PressedButtons & SpecialOneBit)
             .OverrideFailureMessage("The stance discards the press before the ability system reads it.")
             .IsEqual(0);
@@ -208,7 +208,7 @@ public class FighterLockoutRefusalRulesTests {
         // a same-tick Momentum refund has it at 0 after the tick.
         LockoutRefusalBaseline refunded = Ready();
         refunded.SpecialOneCooldownFrames = 2;
-        AssertThat(locked.Runtime.SpecialOneCooldownFrames).IsEqual(0);
+        AssertThat(locked.Runtime.SpecialOneReuseFrames).IsEqual(0);
         AssertThat(Evaluate(refunded, locked))
             .OverrideFailureMessage("A refund after the read cannot make a cooldown refusal flash.")
             .IsEqual(FighterLockoutRefusal.None);
@@ -312,8 +312,8 @@ public class FighterLockoutRefusalRulesTests {
         components.Runtime.AbilityLockoutFrames = Lockout - 5;
         components.Runtime.SpecialLockoutFrames = 0;
         components.Runtime.SwingLanded = 0;
-        components.Runtime.SpecialOneCooldownFrames = 0;
-        components.Runtime.SpecialTwoCooldownFrames = 0;
+        components.Runtime.SpecialOneReuseFrames = 0;
+        components.Runtime.SpecialTwoReuseFrames = 0;
         return components;
     }
 

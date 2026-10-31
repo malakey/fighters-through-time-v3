@@ -600,8 +600,8 @@ public class FighterVerbLayerTests {
         AssertThat(simulation.TryGetFighterRuntime(playerID, out FighterRuntimeComponent runtime)).IsTrue();
         AssertThat(simulation.TryGetFighterVerb(playerID, out FighterVerbComponent verb)).IsTrue();
         AssertThat(simulation.TryGetFighterUltimateActivation(playerID, out FighterUltimateActivationComponent activation)).IsTrue();
-        if ((pressed & GameplayButtons.Special1) != 0) return runtime.SpecialOneCooldownFrames > 0;
-        if ((pressed & GameplayButtons.Special2) != 0) return runtime.SpecialTwoCooldownFrames > 0;
+        if ((pressed & GameplayButtons.Special1) != 0) return runtime.SpecialOneReuseFrames > 0;
+        if ((pressed & GameplayButtons.Special2) != 0) return runtime.SpecialTwoReuseFrames > 0;
         if ((pressed & GameplayButtons.MovementAbility) != 0) return runtime.MovementCooldownFrames > 0;
         if ((pressed & GameplayButtons.Ultimate) != 0) return activation.Phase != FighterUltimateActivationRules.PhaseNone;
         if ((pressed & GameplayButtons.Grab) != 0 || (held & GameplayButtons.Block) != 0) return verb.GrabPhase != 0;

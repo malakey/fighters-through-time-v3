@@ -1379,20 +1379,20 @@ namespace FTT.FighterSim {
                 if (!ultimateClaimsTick
                     && !ultimateHeldBack
                     && FighterAbilityLockoutRules.AllowsSpecial(in runtime)) {
-                    if ((runtime.PressedButtons & SpecialOneButton) != 0 && runtime.SpecialOneCooldownFrames <= 0) {
+                    if ((runtime.PressedButtons & SpecialOneButton) != 0 && runtime.SpecialOneReuseFrames <= 0) {
                         acceptedSlot = FighterHitContractTable.SlotSpecialOne;
-                    } else if ((runtime.PressedButtons & SpecialTwoButton) != 0 && runtime.SpecialTwoCooldownFrames <= 0) {
+                    } else if ((runtime.PressedButtons & SpecialTwoButton) != 0 && runtime.SpecialTwoReuseFrames <= 0) {
                         acceptedSlot = FighterHitContractTable.SlotSpecialTwo;
                     }
                 }
                 if (acceptedSlot != 0) {
                     ref FighterVerbComponent verb = ref frame.Get<FighterVerbComponent>(entity);
                     if (acceptedSlot == FighterHitContractTable.SlotSpecialOne) {
-                        runtime.SpecialOneCooldownFrames = PositiveCooldown(tuning.SpecialOneCooldownFrames);
+                        runtime.SpecialOneReuseFrames = PositiveCooldown(tuning.SpecialOneCooldownFrames);
                         // A fresh cooldown cycle re-arms its Momentum refunds.
                         verb.MomentumRefundedFramesSlotOne = 0;
                     } else {
-                        runtime.SpecialTwoCooldownFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
+                        runtime.SpecialTwoReuseFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
                         verb.MomentumRefundedFramesSlotTwo = 0;
                     }
                     FighterAbilityLockoutRules.ArmAbility(ref runtime);

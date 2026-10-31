@@ -524,8 +524,15 @@ namespace FTT.FighterSim {
         /// component stays exactly 128 bytes.
         /// </summary>
         public int AbilityLockoutFrames;
-        public int SpecialOneCooldownFrames;
-        public int SpecialTwoCooldownFrames;
+        /// <summary>
+        /// Special 1's reuse delay (meter and Defy update 2026-10-31): armed to
+        /// <see cref="FTT.Combat.BasicComboRules.SpecialReuseDelayFrames"/> when the slot
+        /// is accepted and ticked in TickCounters. Until MM-SIM it is still armed from
+        /// the authored cooldown (a rename only).
+        /// </summary>
+        public int SpecialOneReuseFrames;
+        /// <summary>Special 2's reuse delay (see <see cref="SpecialOneReuseFrames"/>).</summary>
+        public int SpecialTwoReuseFrames;
         public int MovementCooldownFrames;
         public int ComboIndex;
         // V7 two-slot status (mirrors StatusController): a control status

@@ -180,10 +180,10 @@ public class RollbackReadinessTests {
         public void Observe(FighterSimulation simulation) {
             for (int player = 0; player < 2; player++) {
                 if (!simulation.TryGetFighterRuntime(player, out FighterRuntimeComponent runtime)) continue;
-                if (runtime.SpecialOneCooldownFrames > _lastOne[player]) PerPlayer[player]++;
-                if (runtime.SpecialTwoCooldownFrames > _lastTwo[player]) PerPlayer[player]++;
-                _lastOne[player] = runtime.SpecialOneCooldownFrames;
-                _lastTwo[player] = runtime.SpecialTwoCooldownFrames;
+                if (runtime.SpecialOneReuseFrames > _lastOne[player]) PerPlayer[player]++;
+                if (runtime.SpecialTwoReuseFrames > _lastTwo[player]) PerPlayer[player]++;
+                _lastOne[player] = runtime.SpecialOneReuseFrames;
+                _lastTwo[player] = runtime.SpecialTwoReuseFrames;
             }
         }
     }

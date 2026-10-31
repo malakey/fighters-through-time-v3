@@ -99,7 +99,7 @@ public class FighterSpecialTimingTests {
         Idle(simulation, 2);
         simulation.Advance(In(GameplayButtons.Special2), Neutral());
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent pressed)).IsTrue();
-        int cooldown = pressed.SpecialTwoCooldownFrames;
+        int cooldown = pressed.SpecialTwoReuseFrames;
         AssertThat(cooldown > 0).OverrideFailureMessage("The press spends its cooldown at acceptance.").IsTrue();
 
         int hitOn = -1;
@@ -120,7 +120,7 @@ public class FighterSpecialTimingTests {
             .OverrideFailureMessage("A hit in the startup ends the cast.")
             .IsFalse();
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent spent)).IsTrue();
-        AssertThat(spent.SpecialTwoCooldownFrames > 0)
+        AssertThat(spent.SpecialTwoReuseFrames > 0)
             .OverrideFailureMessage("The cooldown stays spent.")
             .IsTrue();
         for (int step = 0; step < 60; step++) {
@@ -597,7 +597,7 @@ public class FighterSpecialTimingTests {
             // The chord carries Block, so in recovery it is the Block cancel.
             ("grab chord", In(GameplayButtons.BasicAttack, held: GameplayButtons.Block), sim => Verb(sim).GrabPhase != 0, true, true),
             ("direct grab", In(GameplayButtons.Grab), sim => Verb(sim).GrabPhase != 0, true, false),
-            ("Special 2", In(GameplayButtons.Special2), sim => Runtime(sim).SpecialTwoCooldownFrames > 0, true, false),
+            ("Special 2", In(GameplayButtons.Special2), sim => Runtime(sim).SpecialTwoReuseFrames > 0, true, false),
             ("the Ultimate", In(GameplayButtons.Ultimate), sim => UltimateActivationTestKit.Phase(sim, 0) != FighterUltimateActivationRules.PhaseNone, true, false),
             ("the movement ability", In(GameplayButtons.MovementAbility), sim => Runtime(sim).MovementCooldownFrames > 0, true, false)
         };
@@ -1052,7 +1052,7 @@ public class FighterSpecialTimingTests {
             pressing.Advance(In(pressed), Neutral());
             AssertThat(Fighter(pressing).Stocks).OverrideFailureMessage("Harness: the press tick is the KO tick.").IsEqual(stocks - 1);
             FighterRuntimeComponent runtime = Runtime(pressing);
-            AssertThat(runtime.SpecialTwoCooldownFrames + runtime.MovementCooldownFrames + runtime.AbilityLockoutFrames)
+            AssertThat(runtime.SpecialTwoReuseFrames + runtime.MovementCooldownFrames + runtime.AbilityLockoutFrames)
                 .OverrideFailureMessage($"{name} pressed on the KO tick spent a cooldown or armed the lockout on the platform.")
                 .IsEqual(0);
             AssertThat(FighterSpecialCastRules.IsBusy(Cast(pressing, 0))).IsFalse();

@@ -25,7 +25,7 @@ public class DivinePiercingLungeTests {
         simulation.Advance(Frame(0, GameplayButtons.Special2), Frame(0, GameplayButtons.None));
         // J03: the 11 s cooldown is armed on the press.
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent pressed)).IsTrue();
-        AssertThat(pressed.SpecialTwoCooldownFrames).IsEqual(660);
+        AssertThat(pressed.SpecialTwoReuseFrames).IsEqual(660);
         // Decision 1.2 (2026-10-16): the lunge starts on the cast's active
         // entry, after Divine Piercing's authored 13-frame startup.
         int lungeStart = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);
@@ -116,7 +116,7 @@ public class DivinePiercingLungeTests {
         }
         AssertThat(hit).OverrideFailureMessage("Harness: the opener never landed in the startup.").IsTrue();
         AssertThat(interrupted.TryGetFighterRuntime(0, out FighterRuntimeComponent spent)).IsTrue();
-        AssertThat(spent.SpecialTwoCooldownFrames > 0).OverrideFailureMessage("The cost stays spent.").IsTrue();
+        AssertThat(spent.SpecialTwoReuseFrames > 0).OverrideFailureMessage("The cost stays spent.").IsTrue();
     }
 
     private static FighterSimulation NewMatch(int spawnDistance) => new(
