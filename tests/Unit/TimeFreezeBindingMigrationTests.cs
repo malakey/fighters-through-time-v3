@@ -82,4 +82,25 @@ public class TimeFreezeBindingMigrationTests {
         AssertThat(untouched.MigrateLegacyRewindAction()).IsFalse();
         AssertThat(untouched.For(InputManager.Actions.TimeFreeze)[0].Matches(chosen)).IsTrue();
     }
+
+    /// <summary>
+    /// Meter and Defy update (VERIFY-TIME-FREEZE-ON-BACK-SHARED): a saved Time Freeze
+    /// row on Back now shares it with the Dialogue Log. No repair touches it.
+    /// </summary>
+    [TestCase]
+    public void ASavedTimeFreezeRowOnBackIsKeptByEveryRepair() {
+        var set = new InputBindingSet();
+        var key = new InputBindingEvent(InputBindingKind.Key, 82);
+        var back = new InputBindingEvent(InputBindingKind.JoyButton, 4);
+        set.Set(InputManager.Actions.TimeFreeze, new[] { key, back });
+        var defaults = new InputBindingSet();
+        defaults.Set(InputManager.Actions.TimeFreeze, new[] { key, new InputBindingEvent(InputBindingKind.JoyButton, 7) });
+        defaults.Set(InputManager.Actions.Defy, new[] { new InputBindingEvent(InputBindingKind.Key, 70), new InputBindingEvent(InputBindingKind.JoyButton, 8) });
+
+        AssertThat(set.RepairGodot3ShoulderRows(defaults)).IsFalse();
+        AssertThat(set.RepairDefyPadDefaultCollision(defaults)).IsFalse();
+        AssertThat(set.For(InputManager.Actions.TimeFreeze).Count).IsEqual(2);
+        AssertThat(set.For(InputManager.Actions.TimeFreeze)[1].Matches(back)).IsTrue();
+        AssertThat(set.IsUnbound(InputManager.Actions.Defy, InputDeviceKind.Joypad)).IsFalse();
+    }
 }

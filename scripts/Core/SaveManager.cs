@@ -1135,6 +1135,12 @@ namespace FTT.Core {
             if (saved != null && saved.RepairGodot3ShoulderRows(InputBindingService.ProjectDefaults)) {
                 GD.Print("[SaveManager] Repaired saved gamepad binding rows that still used the Godot 3 shoulder numbers.");
             }
+            // 2026-10-31 (MM-INPUT): Defy's pad default is R3; a saved row that already
+            // holds it keeps it and Defy's pad half goes Unbound, with a notice.
+            if (saved != null && saved.RepairDefyPadDefaultCollision(InputBindingService.ProjectDefaults)) {
+                GD.Print("[SaveManager] Defy History's pad default (R3) is held by a saved binding; Defy's pad half was left Unbound.");
+                SetNotice("save_notice_defy_pad_unbound");
+            }
             // 9.2 (CM-FIXA-INPUT): a gamepad Ultimate chord switched off before
             // the pad Ultimate became the chord left the Ultimate with no pad route
             // at all. Re-enable it; idempotent, and runs after the shoulder repair,

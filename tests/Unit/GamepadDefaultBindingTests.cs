@@ -207,4 +207,26 @@ public class GamepadDefaultBindingTests {
             AssertThat("Shared default gamepad buttons: " + string.Join(" | ", shared)).IsEqual("");
         }
     }
+
+    /// <summary>
+    /// Meter and Defy update (2026-10-31, ledger <c>USER-DEFY-OWN-BUTTON</c>):
+    /// Defy History defaults to keyboard F and R3 (button 8); the Dialogue Log's pad
+    /// half moved from R3 to Back (4) to free it, and keeps Tab.
+    /// </summary>
+    [TestCase]
+    public void DefyDefaultsToR3AndTheDialogueLogToBack() {
+        AssertThat((int)JoyButton.RightStick).IsEqual(8);
+        string defy = Describe(AuthoredJoyButtons(InputManager.Actions.Defy));
+        AssertThat(defy)
+            .OverrideFailureMessage($"Defy must default to R3 alone, not {defy}.")
+            .IsEqual(Describe(new[] { (int)JoyButton.RightStick }));
+        AssertThat(AuthoredEvents(InputManager.Actions.Defy)
+            .Any(binding => binding.Kind == InputBindingKind.Key && binding.Code == (int)Key.F)).IsTrue();
+        string log = Describe(AuthoredJoyButtons(InputManager.Actions.DialogueLog));
+        AssertThat(log)
+            .OverrideFailureMessage($"The Dialogue Log must default to Back, not {log}.")
+            .IsEqual(Describe(new[] { (int)JoyButton.Back }));
+        AssertThat(AuthoredEvents(InputManager.Actions.DialogueLog)
+            .Any(binding => binding.Kind == InputBindingKind.Key && binding.Code == (int)Key.Tab)).IsTrue();
+    }
 }
