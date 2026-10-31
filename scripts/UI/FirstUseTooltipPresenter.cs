@@ -18,7 +18,7 @@ namespace FTT.UI {
     /// <para>Triggers (placeholder proxies where the engine has no single event):
     /// the first HP loss (a Rally echo forms), the first guard break, the first
     /// absorbed block (a grab opportunity — the guard is up at close range), the
-    /// first airborne hitstun (a launch), the Defy seal going Ready or Spent, the
+    /// first airborne hitstun (a launch), the meter first reaching the Defy cost, the
     /// first ledge hang, the first stand on a one-way platform, the first death
     /// rewind, and the first level with a Time Freeze controller.</para>
     /// </summary>
@@ -118,7 +118,6 @@ namespace FTT.UI {
                 EventBus.Instance.OnPlayerHPChanged += OnPlayerHPChanged;
                 EventBus.Instance.OnBlockBroken += OnBlockBroken;
                 EventBus.Instance.OnBlockAbsorbed += OnBlockAbsorbed;
-                EventBus.Instance.OnDefySealChanged += OnDefySealChanged;
                 EventBus.Instance.OnRewindTriggered += OnRewindTriggered;
                 _bound = true;
             }
@@ -130,7 +129,6 @@ namespace FTT.UI {
             EventBus.Instance.OnPlayerHPChanged -= OnPlayerHPChanged;
             EventBus.Instance.OnBlockBroken -= OnBlockBroken;
             EventBus.Instance.OnBlockAbsorbed -= OnBlockAbsorbed;
-            EventBus.Instance.OnDefySealChanged -= OnDefySealChanged;
             EventBus.Instance.OnRewindTriggered -= OnRewindTriggered;
             _bound = false;
         }
@@ -288,6 +286,7 @@ namespace FTT.UI {
             if (save == null || !save.SkippedCalibration) return;
             PlayerController player = FindPlayer();
             if (player == null) return;
+            if (FirstUseTooltips.DefyButtonDue(player.CurrentUltimateMeter)) Offer(FirstUseTooltips.DefyButton);
             if (player.CurrentState == CharacterState.LedgeHanging) Offer(FirstUseTooltips.Ledge);
             if (player.CurrentState == CharacterState.Stunned && !player.IsOnFloor()) Offer(FirstUseTooltips.Launch);
             if (FirstUseTooltips.ShouldShow(save, FirstUseTooltips.OneWayPlatform) && StandsOnOneWay(player)) {
@@ -322,13 +321,6 @@ namespace FTT.UI {
 
         private void OnBlockAbsorbed(int playerIndex, int remainingCharges) {
             if (playerIndex == 0) Offer(FirstUseTooltips.Grab);
-        }
-
-        private void OnDefySealChanged(DefySealPayload payload) {
-            if (payload.PlayerIndex == 0
-                && (payload.State == DefySealState.Ready || payload.State == DefySealState.Spent)) {
-                Offer(FirstUseTooltips.Defy);
-            }
         }
 
         private void OnRewindTriggered(Vector2 _) => Offer(FirstUseTooltips.DeathRewind);

@@ -284,6 +284,10 @@ namespace FTT.UI {
             AddAbility("movelist_slot_special2", data?.SpecialAttackTwo, AbilitySlot.Special2, unlocked);
             AddAbility("movelist_slot_movement", data?.MovementAbility, AbilitySlot.MovementAbility, unlocked);
             AddAbility("movelist_slot_ultimate", data?.UltimateAttack, AbilitySlot.Ultimate, unlocked);
+            // MM-TEXT (O25, 5.3): Defy is universal in both modes and never Dormant; its cost is the rulebook's.
+            AddRow("Defy", string.Format(
+                Tr("movelist_defy_row"), Tr("movelist_defy_title"),
+                string.Format(Tr("movelist_defy_body"), BasicComboRules.DefyInfluenceCost)));
 
             // -- Universal movement.
             AddSectionTitle("movelist_section_movement");
@@ -418,8 +422,7 @@ namespace FTT.UI {
                 Text = dormant
                     ? string.Format(
                         Tr("movelist_dormant_until"), LegacyUnlockSchedule.MilestoneLevelFor(slot))
-                    : string.Format(
-                        Tr("movelist_ability_stats"), ability.BaseDamage, ability.CooldownDuration),
+                    : SpecialStatsLine(slot, ability),
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
                 ThemeTypeVariation = UIPalette.LabelRoles.BodySmallDimLabel
             };
@@ -435,6 +438,23 @@ namespace FTT.UI {
                 };
                 body.AddChild(description);
             }
+        }
+
+        /// <summary>
+        /// The stats line of an unlocked ability row. A Special costs Momentum (every number read live from
+        /// <see cref="BasicComboRules"/>, no cooldown); the movement ability and the Ultimate keep damage and cooldown.
+        /// </summary>
+        internal static string SpecialStatsLine(AbilitySlot slot, AbilityData ability) {
+            if (slot == AbilitySlot.Special1 || slot == AbilitySlot.Special2) {
+                return string.Format(
+                    TranslationServer.Translate("movelist_ability_momentum").ToString(),
+                    ability.BaseDamage,
+                    (float)BasicComboRules.MomentumSpecialCostUnits / BasicComboRules.MomentumUnitsPerPip,
+                    BasicComboRules.SpecialReuseDelayFrames / 60f);
+            }
+            return string.Format(
+                TranslationServer.Translate("movelist_ability_stats").ToString(),
+                ability.BaseDamage, ability.CooldownDuration);
         }
 
         /// <summary>The ability icon beside an ability row.</summary>

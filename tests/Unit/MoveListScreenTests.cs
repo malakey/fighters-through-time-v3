@@ -132,6 +132,38 @@ public class MoveListScreenTests {
         }
     }
 
+        /// <summary>
+    /// MM-TEXT (O25, 5.3): a Special row shows the Momentum cost line read from the rulebook and no cooldown; the movement
+    /// ability keeps damage and cooldown; a Defy row is in both modes, with the rulebook's cost.
+    /// </summary>
+    [TestCase]
+    public void SpecialsShowTheMomentumLineAndBothModesShowADefyRow() {
+        TranslationServer.SetLocale("en");
+        MoveListScreen screen = Mount();
+        try {
+            foreach (MoveListScreen.MoveListMode mode in new[] { MoveListScreen.MoveListMode.Fighter, MoveListScreen.MoveListMode.Story }) {
+                screen.Populate("joan", mode);
+                var sections = screen.Root.GetNode<VBoxContainer>("Center/Panel/Layout/Scroll/Sections");
+                var defy = sections.GetNodeOrNull<Label>("Defy");
+                AssertObject(defy).OverrideFailureMessage($"{mode}: no Defy row.").IsNotNull();
+                AssertThat(defy.Text.Contains(BasicComboRules.DefyInfluenceCost.ToString())).IsTrue();
+            }
+            screen.Populate("joan", MoveListScreen.MoveListMode.Fighter);
+            var joan = AuthoredResources.Load<CharacterData>("res://resources/Characters/joan_data.tres");
+            string line = MoveListScreen.SpecialStatsLine(AbilitySlot.Special1, joan.SpecialAttackOne);
+            string expected = string.Format(
+                TranslationServer.Translate("movelist_ability_momentum").ToString(),
+                joan.SpecialAttackOne.BaseDamage,
+                (float)BasicComboRules.MomentumSpecialCostUnits / BasicComboRules.MomentumUnitsPerPip,
+                BasicComboRules.SpecialReuseDelayFrames / 60f);
+            AssertThat(line).IsEqual(expected);
+            AssertThat(line.Contains("cooldown")).IsFalse();
+            AssertThat(MoveListScreen.SpecialStatsLine(AbilitySlot.MovementAbility, joan.MovementAbility).Contains("cooldown")).IsTrue();
+        } finally {
+            screen.Free();
+        }
+    }
+
     private static MoveListScreen Mount() {
         var screen = new MoveListScreen { Name = "MoveListScreenUnderTest" };
         ((SceneTree)Engine.GetMainLoop()).Root.AddChild(screen);

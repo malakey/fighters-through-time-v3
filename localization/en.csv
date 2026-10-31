@@ -103,7 +103,7 @@ ability_shakespeare_prosperos_flight_description,Ride a single strong gust forwa
 ability_shakespeare_all_the_worlds_a_stage_name,All the World's a Stage
 ability_shakespeare_all_the_worlds_a_stage_description,Summon tragic phantoms for sequential strikes.
 ability_mozart_requiem_chord_name,Requiem Chord
-ability_mozart_requiem_chord_description,"Fire a fast chord that bursts into a sonic shockwave; a hit hastens the Fortissimo Wave."
+ability_mozart_requiem_chord_description,Fire a fast chord that bursts into a sonic shockwave.
 ability_mozart_fortissimo_wave_name,Fortissimo Wave
 ability_mozart_fortissimo_wave_description,Send a slow wall of sound rolling along the ground with heavy pushback.
 ability_mozart_sonata_drift_name,Sonata Drift
@@ -933,6 +933,10 @@ movelist_slot_special2,Special 2
 movelist_slot_movement,Movement
 movelist_slot_ultimate,Ultimate
 movelist_ability_stats,"Damage {0:0.#} — cooldown {1:0.#} s"
+movelist_ability_momentum,"Damage {0:0.#}, costs {1:0.#} Momentum, rests {2:0.#} s"
+movelist_defy_row,{0}: {1}
+movelist_defy_title,Defy History
+movelist_defy_body,"Costs {0} Influence, shared with your Ultimate. Press Defy to break free of almost anything: you are untouchable for an instant, a shockwave blasts nearby enemies away and staggers them, and you reclaim your Rally echo."
 movelist_section_movement,Universal Movement
 movelist_roll,"Roll: {0}/{1}/{2} frames — first {3} travel frames invulnerable. In the air, Roll is an air dodge: 4/8/10 frames, 8 invulnerable, once per airtime"
 movelist_jumps,"Jumps: {0} (double jump)"
@@ -956,15 +960,15 @@ systems_card_tech_body,"Hold Block as a launch carries you into the ground for a
 systems_card_rally_title,Rally & Desperation
 systems_card_rally_body,"20–50% of damage taken lingers as a reclaimable echo; a direct hit reclaims up to 2× its damage before the echo drains."
 systems_card_defy_title,Defy History
-systems_card_defy_body,"At 100 meter, a lethal hit shatters the meter instead of you — survive at 1 HP, once per match."
+systems_card_defy_body,"Press Defy with at least half a bar of Influence (50) to break free of almost anything. You are untouchable for an instant, then a shockwave blasts nearby enemies away and staggers them, and you reclaim your Rally echo (at least a tenth of your health). It shares the bar with your Ultimate."
 systems_card_momentum_title,Momentum
-systems_card_momentum_body,"Every basic hit that lands takes time off both special cooldowns (a third of a second; a full second for the finisher), up to 2 seconds per cooldown."
+systems_card_momentum_body,"Land hits to build Momentum, spend it on Specials. You hold up to four pips and every Special costs one. Momentum refills slowly on its own and faster when your basic attacks land. Each Special then rests for 2 seconds before it can be used again."
 systems_card_overtime_title,Overtime
 systems_card_overtime_body,"The final 60 seconds of a timed match double the hazard cadence and raise the Rally echo by half."
 dialogue_hold_skip,"Hold {0} to skip"
 # Package 11 A1
 status_suppression,Suppression
-status_suppression_tooltip,"Specials, Movement and Ultimate are locked. Cooldowns keep running."
+status_suppression_tooltip,"Specials, Movement and Ultimate are locked."
 status_conductive,Conductive
 status_conductive_tooltip,"Primed for Lorentz chains. Does not restrict actions."
 # Package 11 A2 — V7.6 Time Freeze (F03)
@@ -1028,8 +1032,8 @@ resonance_joan_wings_refresh_name,Wings Refresh
 resonance_joan_wings_refresh_description,"Traversal: a connecting combo finisher or Righteous Smite resets Ascendant Wings' cooldown. Once per attack execution; never on a whiff, a blocked hit, or an invulnerable target."
 resonance_joan_smite_damage_name,Minor Smite Damage
 resonance_joan_smite_damage_description,Righteous Smite damage +10%.
-resonance_joan_piercing_cooldown_name,Minor Piercing Cooldown
-resonance_joan_piercing_cooldown_description,Divine Piercing's cooldown -10%.
+resonance_joan_piercing_cooldown_name,Minor Momentum Regeneration
+resonance_joan_piercing_cooldown_description,+10% Momentum regeneration.
 resonance_joan_unstoppable_crusade_name,Unstoppable Crusade
 resonance_joan_unstoppable_crusade_description,"Righteous Smite's active frames carry hyper-armor, and Joan ignores knockback and hitstun for 1.5 seconds after the cast."
 resonance_joan_zealous_vigor_name,Zealous Vigor
@@ -1100,8 +1104,8 @@ resonance_mozart_chord_damage_name,Minor Chord Damage
 resonance_mozart_chord_damage_description,Fa. The Requiem Chord deals +10%.
 resonance_mozart_extra_note_name,Extra Note
 resonance_mozart_extra_note_description,Sol. Traversal: two Sonata Drift staff platforms may stand at once.
-resonance_mozart_wave_cooldown_name,Minor Wave Cooldown
-resonance_mozart_wave_cooldown_description,La. The Fortissimo Wave's cooldown -10%.
+resonance_mozart_wave_cooldown_name,Minor Momentum Regeneration
+resonance_mozart_wave_cooldown_description,La. +10% Momentum regeneration.
 resonance_mozart_rest_shield_name,Rest Shield
 resonance_mozart_rest_shield_description,The Third. Standing still or blocking for 1.5 seconds raises a silent bubble that stops physical projectiles until Mozart moves or attacks.
 resonance_mozart_virtuoso_drift_name,Virtuoso Drift
@@ -1136,8 +1140,8 @@ resonance_lincoln_shockwave_damage_name,Minor Shockwave Damage
 resonance_lincoln_shockwave_damage_description,The Emancipator's shockwave deals +15%.
 resonance_lincoln_rail_breaker_name,Rail Breaker
 resonance_lincoln_rail_breaker_description,"Traversal: each Rail Charge destroys one breakable hostile projectile during its travel, before that projectile can land."
-resonance_lincoln_splitting_cooldown_name,Minor Splitting Cooldown
-resonance_lincoln_splitting_cooldown_description,The crossbar. Splitting Strike's cooldown -10%.
+resonance_lincoln_splitting_cooldown_name,Minor Momentum Regeneration
+resonance_lincoln_splitting_cooldown_description,The crossbar. +10% Momentum regeneration.
 resonance_lincoln_executive_order_name,Executive Order
 resonance_lincoln_executive_order_description,The Emancipator's shockwave travels 50% further and deals +20%.
 resonance_lincoln_homestead_bulwark_name,Homestead Bulwark
@@ -1532,7 +1536,7 @@ level00_choice_full,Full calibration
 level00_choice_skip,Skip — I'll learn in the field
 dlg_l00_station_rally,The Wardens are oath-keepers. We guard the past so that no one can touch it. Fine work — until someone does.
 dlg_l00_station_grab,Wren built this bay to train Wardens. Wren will tell you you're the first recruit to make that dummy look foolish.
-dlg_l00_station_defy,History refused to let them take you once. It seems it's willing to do it again.
+dlg_l00_station_defy,"When they pin you down, Defy. Half a bar breaks history's grip on you, and buys back what they took."
 dlg_l00_station_rewind,"That rewind is yours, not ours — your own time folding back to catch you. Don't make me watch it too often. I've watched enough today."
 tutorial_objective_hold,Fight them off — chain the 3-hit string
 tutorial_step_hold_guard,Hold Block to guard the telegraphed swing
@@ -1542,7 +1546,7 @@ tooltip_first_use_rally_echo,Part of every blow lingers as an echo — strike ba
 tooltip_first_use_shield_break,"Three absorbed hits exhaust your shield and break your guard, leaving you dazed."
 tooltip_first_use_grab,"A raised shield stops a blade, not a hand — hold Block and press Attack to grab."
 tooltip_first_use_launch,"Hold a direction as the blow lands to steer where you fly, and hold Block as you land to recover on your feet."
-tooltip_first_use_defy,A full meter can also refuse death itself — once.
+tooltip_first_use_defy_button,"Half a bar of Influence: press Defy to break free of a hold and blast the enemies around you."
 tooltip_first_use_ledge,"Move toward the ledge while falling or rising slowly — you will grab and hang automatically. Press Jump to climb up, or Down to drop."
 tooltip_first_use_one_way,"Double-tap Down, or press Jump while holding Down, to drop through thin platforms."
 tooltip_first_use_death_rewind,Your own time folds back to catch you. Each rewind spends a charge — and the last one still saves you.
