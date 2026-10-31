@@ -104,6 +104,7 @@ namespace FTT.Diagnostics {
             EventBus bus = EventBus.Instance;
             if (bus == null) return;
             _unsubscribeLockoutRefused = PlaytestWorld.SubscribeLockoutRefused(OnLockoutRefused);
+            _unsubscribeDefyExecuted = PlaytestWorld.SubscribeDefyExecuted(OnDefyExecuted);
             bus.OnUltimateActivation += OnUltimateActivation;
             bus.OnPlayerHPChanged += OnPlayerHP;
             bus.OnPlayerDied += OnPlayerDied;
@@ -127,6 +128,8 @@ namespace FTT.Diagnostics {
             UnsubscribeMobs();
             _unsubscribeLockoutRefused?.Invoke();
             _unsubscribeLockoutRefused = null;
+            _unsubscribeDefyExecuted?.Invoke();
+            _unsubscribeDefyExecuted = null;
             EventBus bus = EventBus.Instance;
             if (bus == null) return;
             bus.OnUltimateActivation -= OnUltimateActivation;
@@ -208,7 +211,9 @@ namespace FTT.Diagnostics {
                             : "",
                         // D6d: the Ultimate meter and the ability lockout.
                         ["meter"] = Math.Round(player.CurrentUltimateMeter, 1),
-                        ["lock"] = player.AbilityLockoutFramesRemaining
+                        ["lock"] = player.AbilityLockoutFramesRemaining,
+                        // MM-BOTS: the Momentum gauge in pips (trace.py prints it as mo=).
+                        ["mo"] = Math.Round(PlaytestWorld.MomentumPips(player), 2)
                     });
                     if (PlaytestWorld.HasHitConfirmGate && Trace[^1] is Dictionary<string, object> sample) {
                         sample["sgate"] = PlaytestWorld.SpecialGateFrames(player);
@@ -255,6 +260,7 @@ namespace FTT.Diagnostics {
                 NoteFinisherTargetHealth();
                 TrackSwing(player);
                 TrackAbilitySerials(player);
+                TrackMomentum(player);
                 TrackPresses(player);
                 SampleFinisherTarget(player);
                 _finishers.Tick(Frame);
@@ -445,6 +451,7 @@ namespace FTT.Diagnostics {
         private void OnPlayerDied(int playerIndex) {
             if (playerIndex != 0) return;
             _finishers.OnHeroDied(Frame);
+            _defy.RecordDeath(Frame);
             PlayerDeaths++;
             PlayerController player = _world?.Player;
             var detail = new Dictionary<string, object> {
@@ -507,6 +514,11 @@ namespace FTT.Diagnostics {
         private readonly FinisherReapproachTracker _finishers = new();
         private readonly AbilityPressTracker _presses = new();
         private readonly MeterTracker _meter = new();
+        private readonly MomentumTracker _momentum = new();
+        private readonly DefyTracker _defy = new();
+        private Action _unsubscribeDefyExecuted;
+        /// <summary>The hitbox ID of a swing that first landed since the last Momentum sample (the gain's source).</summary>
+        private string _pendingMomentumSource;
         private readonly int[] _lastSerial = new int[3];
         private readonly int[] _serialNow = new int[3];
         private ulong _lastPlayerId;
@@ -528,6 +540,8 @@ namespace FTT.Diagnostics {
         public FinisherReapproachTracker Finishers => _finishers;
         public AbilityPressTracker Presses => _presses;
         public MeterTracker Meter => _meter;
+        public MomentumTracker Momentum => _momentum;
+        public DefyTracker Defy => _defy;
         /// <summary>Basic hit confirms the bus carried minus the damaging melee contacts heard; 0 unless a hitbox was missed.</summary>
         public int OrphanBasicHits => _busBasicConfirms - _meleeDamagingContacts;
         /// <summary>Lockout refusals the hero reported per slot (group A's event; always 0 before it lands). C3 reports them.</summary>
@@ -596,14 +610,29 @@ namespace FTT.Diagnostics {
                 _lastPlayerId = id;
                 _trackedPlayer = player;
                 ReadSerials(player, _lastSerial);
-                _meter.Rebaseline(Frame, player.CurrentUltimateMeter, player.StoryDefyHistoryUsed);
+                _meter.Rebaseline(Frame, player.CurrentUltimateMeter);
+                _momentum.Rebaseline(PlaytestWorld.MomentumPips(player));
             }
             EnsureMeleeSubscription(player);
             EnsureDamageSubscription(player);
         }
 
         private void TrackMeter(PlayerController player) =>
-            _meter.Sample(Frame, player.CurrentUltimateMeter, player.StoryDefyHistoryUsed);
+            _meter.Sample(Frame, player.CurrentUltimateMeter);
+
+        /// <summary>
+        /// The Momentum gauge, read after <see cref="TrackAbilitySerials"/> (this tick's Special
+        /// casts are the serial steps) and before <see cref="TrackPresses"/> copies the serials on.
+        /// </summary>
+        private void TrackMomentum(PlayerController player) {
+            _momentum.Sample(PlaytestWorld.MomentumPips(player), PlaytestWorld.MomentumRegenPerTick(player),
+                _serialNow[0] > _lastSerial[0], _serialNow[1] > _lastSerial[1], _pendingMomentumSource);
+            _pendingMomentumSource = null;
+        }
+
+        /// <summary>A Defy blast: the hero's own (index 0), booked on the hit-frame clock.</summary>
+        private void OnDefyExecuted(DefyExecutedPayload payload) =>
+            _defy.RecordExecution(ObservationFrame(), payload.MeterBefore, payload.TargetsBlasted, payload.Healed);
 
         private static void ReadSerials(PlayerController player, int[] into) {
             into[0] = player.GetNodeOrNull<BaseSpecial>("Special1")?.ExecutionSerial ?? 0;
@@ -736,6 +765,8 @@ namespace FTT.Diagnostics {
                 return;
             }
             bool firstLanded = swing.Landed == 0;
+            // Momentum: the gain is paid on a swing's first landed contact, so that tick's rise is this hit's.
+            if (firstLanded) _pendingMomentumSource = hit;
             swing.Landed++;
             swing.Damage += dealt;
             if (firstLanded && hit == "combo_3" && swing.TargetId != 0UL) {
@@ -771,6 +802,9 @@ namespace FTT.Diagnostics {
             if (_bot != null && _bot.SampleCount != _lastPressSample) {
                 _lastPressSample = _bot.SampleCount;
                 GameplayButtons pressed = _bot.LastPressed;
+                if ((pressed & GameplayButtons.Defy) != 0) {
+                    _defy.RecordPress(PlaytestWorld.CanDefy(player), player.CurrentUltimateMeter);
+                }
                 if ((pressed & GameplayButtons.Special1) != 0) {
                     _presses.Register(Frame, PressSlot.Special1, _serialNow[0], SnapshotFor(player, PressSlot.Special1));
                 }
@@ -812,11 +846,12 @@ namespace FTT.Diagnostics {
                 Suppressed = player.HasStatusEffect(StatusType.Suppression),
                 GateFrames = ultimate ? player.AbilityLockoutFramesRemaining : PlaytestWorld.SpecialGateFrames(player),
                 SlotUnlocked = player.IsAbilityUnlocked(abilitySlot),
-                CooldownSeconds = slot switch {
-                    PressSlot.Special1 => player.SpecialOneCooldownTimer,
-                    PressSlot.Special2 => player.SpecialTwoCooldownTimer,
+                ReuseSeconds = slot switch {
+                    PressSlot.Special1 => PlaytestWorld.SpecialReuseRemaining(player, AbilitySlot.Special1),
+                    PressSlot.Special2 => PlaytestWorld.SpecialReuseRemaining(player, AbilitySlot.Special2),
                     _ => 0f
                 },
+                MomentumPips = PlaytestWorld.MomentumPips(player),
                 MeterFull = player.CurrentUltimateMeter >= InfluenceMeterRules.MaxValue,
                 AbilityExecuting = player.GetNodeOrNull<BaseSpecial>(SlotNodeName(slot))?.IsExecuting ?? false
             };
@@ -1015,6 +1050,7 @@ namespace FTT.Diagnostics {
             (string source, string label, string kind) = RehitSourceOf(in observation);
             _rehits.Record(ObservationFrame(), source, kind, observation.Damage, label,
                 tick: observation.Delivery == HitDelivery.Tick);
+            if (observation.Delivery != HitDelivery.Tick) _defy.RecordHit(ObservationFrame());
         }
 
         /// <summary>
@@ -1563,8 +1599,67 @@ namespace FTT.Diagnostics {
                 ["fills_dirty"] = _meter.FillsDirty,
                 ["fill_seconds_median"] = fillMedian >= 0 ? Math.Round(fillMedian / 60.0, 2) : -1.0,
                 ["ultimates_cast"] = _ultimateFrames.Count,
-                ["ultimate_frames"] = Boxed(_ultimateFrames),
-                ["defy_procs"] = _meter.DefyProcs
+                ["ultimate_frames"] = Boxed(_ultimateFrames)
+            };
+        }
+
+        /// <summary>
+        /// The active Defy (plan 2.13): presses, executions and, per execution, the frame, the meter
+        /// before, the targets blasted, the HP healed, the hits taken in the 180 frames before and
+        /// after, and <c>died_within_3s</c>. Replaces the old passive <c>defy_procs</c>.
+        /// </summary>
+        private Dictionary<string, object> DefyReport() {
+            List<DefyTracker.Resolved> resolved = _defy.Resolve(Frame);
+            return new Dictionary<string, object> {
+                ["policy"] = _bot is StoryBot story && PlaytestDefyPolicy.StyleDefies(story.Style) ? "play" : "never",
+                ["window_frames"] = DefyTracker.WindowFrames,
+                ["pressed"] = _defy.Pressed,
+                ["executed"] = _defy.Executed,
+                ["refused_by"] = Table(_defy.RefusedBy),
+                ["died_within_3s"] = resolved.Count(r => r.DiedWithin3s),
+                ["hits_before"] = resolved.Sum(r => r.HitsBefore),
+                ["hits_after"] = resolved.Sum(r => r.HitsAfter),
+                ["targets_blasted"] = resolved.Sum(r => r.Execution.Targets),
+                ["healed"] = resolved.Sum(r => r.Execution.Healed),
+                ["log"] = resolved.Select(r => (object)new Dictionary<string, object> {
+                    ["f"] = r.Execution.Frame,
+                    ["meter_before"] = Math.Round(r.Execution.MeterBefore, 1),
+                    ["targets"] = r.Execution.Targets,
+                    ["healed"] = r.Execution.Healed,
+                    ["hits_before"] = r.HitsBefore,
+                    ["hits_after"] = r.HitsAfter,
+                    ["died_within_3s"] = r.DiedWithin3s,
+                    ["after_truncated"] = r.AfterTruncated
+                }).ToList()
+            };
+        }
+
+        /// <summary>
+        /// The Momentum gauge (plan 2.13): pips at level start (2.0 on a fresh level, like
+        /// <c>meter.level_start</c>), gained by source (<c>regen</c>, or the landing swing's hitbox ID),
+        /// spent per Special, Specials cast per minute, presses refused for want of a pip, and the
+        /// frames spent under one whole pip and full.
+        /// </summary>
+        private Dictionary<string, object> MomentumReport() {
+            double minutes = _momentum.TrackedFrames / 3600.0;
+            int starvedPresses = _presses.For(PressSlot.Special1).RefusedWith.GetValueOrDefault("no_momentum")
+                + _presses.For(PressSlot.Special2).RefusedWith.GetValueOrDefault("no_momentum");
+            return new Dictionary<string, object> {
+                ["pips_start"] = Math.Round(_momentum.Start, 2),
+                ["pips_end"] = Math.Round(_momentum.End, 2),
+                ["gained"] = Math.Round(_momentum.Gained, 2),
+                ["gained_by"] = _momentum.GainedBy.OrderBy(kv => kv.Key, StringComparer.Ordinal)
+                    .ToDictionary(kv => kv.Key, kv => (object)Math.Round(kv.Value, 3)),
+                ["spent"] = new Dictionary<string, object> {
+                    ["special1"] = _momentum.SpentSpecial1,
+                    ["special2"] = _momentum.SpentSpecial2
+                },
+                ["specials_cast"] = _momentum.SpecialsCast,
+                ["specials_per_min"] = minutes > 0 ? Math.Round(_momentum.SpecialsCast / minutes, 2) : -1.0,
+                ["starved_presses"] = starvedPresses,
+                ["frames_starved"] = _momentum.FramesStarved,
+                ["frames_full"] = _momentum.FramesFull,
+                ["tracked_frames"] = _momentum.TrackedFrames
             };
         }
 
@@ -1649,6 +1744,16 @@ namespace FTT.Diagnostics {
                 ["reapproach_med"] = PlaytestCombatMath.Median(_finishers.SwingFrames()),
                 ["ults"] = _ultimateFrames.Count,
                 ["meter_start"] = Math.Round(_meter.LevelStart, 1),
+                // Meter and Defy update (MM-BOTS): Defies executed, those followed by a death within
+                // 3 s, Specials refused for want of a pip, the gauge at level start and Specials a minute.
+                ["defies"] = _defy.Executed,
+                ["defy_died3s"] = _defy.Resolve(Frame).Count(r => r.DiedWithin3s),
+                ["starved"] = _presses.For(PressSlot.Special1).RefusedWith.GetValueOrDefault("no_momentum")
+                    + _presses.For(PressSlot.Special2).RefusedWith.GetValueOrDefault("no_momentum"),
+                ["momentum0"] = Math.Round(_momentum.Start, 2),
+                ["specials_per_min"] = _momentum.TrackedFrames > 0
+                    ? Math.Round(_momentum.SpecialsCast / (_momentum.TrackedFrames / 3600.0), 2)
+                    : -1.0,
                 ["s_refused"] = _presses.For(PressSlot.Special1).Refused + _presses.For(PressSlot.Special2).Refused,
                 // C3: natural mob melee swings that whiffed, and the bot's Special press policy.
                 ["mob_whiff_pct"] = MobWhiffPercent(),
@@ -1746,6 +1851,9 @@ namespace FTT.Diagnostics {
                 ["swing_log"] = SwingLog(),
                 ["finishers"] = FinishersReport(),
                 ["meter"] = MeterReport(),
+                // Meter and Defy update (MM-BOTS): the active Defy and the Momentum gauge.
+                ["defy"] = DefyReport(),
+                ["momentum"] = MomentumReport(),
                 ["ability_presses"] = PressesReport(),
                 // C3 (§4.3 step 2.4): mob MeleeStrike/ChargeDash active windows.
                 ["mob_swings"] = MobSwingsReport(),

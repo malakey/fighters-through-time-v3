@@ -73,6 +73,15 @@ def main(argv):
         print("finishers", json.dumps({k: v for k, v in report["finishers"].items() if k != "log"}))
     if report.get("ability_presses") is not None:
         print("ability_presses", json.dumps(report.get("ability_presses")))
+    # MM-BOTS (2026-10-31): the active Defy (log of executions below) and the Momentum gauge.
+    if isinstance(report.get("defy"), dict):
+        print("defy", json.dumps({k: v for k, v in report["defy"].items() if k != "log"}))
+        for d in report["defy"].get("log") or []:
+            print(f"  defy {d.get('f', 0) / 60:.1f}s meter={d.get('meter_before')} targets={d.get('targets')} "
+                  f"healed={d.get('healed')} hits {d.get('hits_before')}->{d.get('hits_after')} "
+                  f"died_within_3s={d.get('died_within_3s')}{' (run ended inside the window)' if d.get('after_truncated') else ''}")
+    if isinstance(report.get("momentum"), dict):
+        print("momentum", json.dumps(report["momentum"]))
     # C3 (2026-10-11): mob melee swings, without the per-enemy table and the log.
     if isinstance(report.get("mob_swings"), dict):
         print("mob_swings", json.dumps({k: v for k, v in report["mob_swings"].items() if k not in ("by_enemy", "log")}))
@@ -126,10 +135,12 @@ def main(argv):
         sec = t["f"] / 60
         if sec < start or sec > end or i % every:
             continue
-        extra = " ".join(f"{k}={v}" for k, v in t.items() if k not in ("f", "x", "y", "hp", "state", "bot", "climb", "target", "nav", "vx", "vy", "meter", "lock", "sgate") and v not in ("", None))
+        extra = " ".join(f"{k}={v}" for k, v in t.items() if k not in ("f", "x", "y", "hp", "state", "bot", "climb", "target", "nav", "vx", "vy", "meter", "lock", "sgate", "mo") and v not in ("", None))
         meter = ""
         if t.get("meter") is not None:
             meter = f" m={t['meter']:5.1f}"
+            if t.get("mo") is not None:
+                meter += f" mo={t['mo']:4.2f}"
             if (t.get("lock") or 0) > 0:
                 meter += f" lk={t['lock']}"
             if (t.get("sgate") or 0) > 0:

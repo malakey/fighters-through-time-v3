@@ -89,11 +89,17 @@ namespace FTT.Diagnostics {
         }
 
         /// <summary>
-        /// One physics tick in seconds. The hero ticks its Special cooldowns before
-        /// it polls a press (spec C §1.4 fact 7), so a timer at or below this at the
-        /// snapshot is ready by the poll and is not a <c>cooldown</c> refusal.
+        /// One physics tick in seconds. The hero ticks its Special reuse delays (plain seconds,
+        /// P3) before it polls a press (spec C §1.4 fact 7), so a delay at or below this at the
+        /// snapshot is clear by the poll and is not a <c>reuse_delay</c> refusal.
         /// </summary>
-        public const float CooldownTickSeconds = 1f / 60f;
+        public const float ReuseTickSeconds = 1f / 60f;
+
+        /// <summary>Float slack so a gauge at 0.99999 pips still pays (the hero's own slack).</summary>
+        public const float PipSlack = 0.0001f;
+
+        /// <summary>One pip: the cost of a Special.</summary>
+        public const float SpecialCostPips = 1f;
 
         /// <summary>
         /// The smallest gate reading that still refuses a press: the gate ticks
@@ -103,7 +109,7 @@ namespace FTT.Diagnostics {
 
         /// <summary>The refusal labels, in the order <see cref="RefusalConditions"/> reports them.</summary>
         public static readonly string[] RefusalLabels = {
-            "hitstop", "time_freeze", "suppressed", "lockout", "dormant", "cooldown", "meter", "executing"
+            "hitstop", "time_freeze", "suppressed", "lockout", "dormant", "reuse_delay", "no_momentum", "meter", "executing"
         };
 
         /// <summary>
@@ -123,7 +129,8 @@ namespace FTT.Diagnostics {
             if (s.Suppressed) labels.Add("suppressed");
             if (s.GateFrames >= GateRefusesFromFrames) labels.Add("lockout");
             if (!s.SlotUnlocked) labels.Add("dormant");
-            if (!ultimate && s.CooldownSeconds > CooldownTickSeconds) labels.Add("cooldown");
+            if (!ultimate && s.ReuseSeconds > ReuseTickSeconds) labels.Add("reuse_delay");
+            if (!ultimate && s.MomentumPips < SpecialCostPips - PipSlack) labels.Add("no_momentum");
             if (ultimate && !s.MeterFull) labels.Add("meter");
             if (s.AbilityExecuting) labels.Add("executing");
             return labels;
@@ -146,8 +153,10 @@ namespace FTT.Diagnostics {
         public bool Suppressed;
         public int GateFrames;
         public bool SlotUnlocked;
-        /// <summary>The slot's cooldown timer in seconds (Specials; 0 for the Ultimate).</summary>
-        public float CooldownSeconds;
+        /// <summary>The slot's 2 s reuse delay left, in seconds (Specials; 0 for the Ultimate).</summary>
+        public float ReuseSeconds;
+        /// <summary>The Momentum gauge in pips (read for the Specials only).</summary>
+        public float MomentumPips;
         /// <summary>The meter is at the cap (read for the Ultimate only).</summary>
         public bool MeterFull;
         /// <summary>That slot's ability node is executing.</summary>
@@ -158,7 +167,8 @@ namespace FTT.Diagnostics {
             Slot = slot,
             State = state,
             SlotUnlocked = true,
-            MeterFull = true
+            MeterFull = true,
+            MomentumPips = BasicComboRules.MomentumMaxPips
         };
     }
 
@@ -805,7 +815,7 @@ namespace FTT.Diagnostics {
 
     /// <summary>
     /// The hero's Ultimate meter over a run: level start, gained and spent,
-    /// time at full, clean bar-fill times and Defy History procs. "Full" is
+    /// time at full and clean bar-fill times. "Full" is
     /// <see cref="InfluenceMeterRules.MaxValue"/>. A rebuilt hero (an Anchor
     /// Snap) is rebaselined without booking the jump.
     /// </summary>
@@ -822,25 +832,22 @@ namespace FTT.Diagnostics {
         public readonly List<int> FillFrames = new();
         /// <summary>Rising edges to full whose window saw a decrease (a Siphon, the Extractor) or began unknown.</summary>
         public int FillsDirty;
-        public int DefyProcs;
         public int TrackedFrames;
 
         private bool _started;
         private float _last;
-        private bool _lastDefy;
         private bool _wasFull;
         private int _windowStart = -1;
         private bool _dirty = true;
 
         private static float Full => InfluenceMeterRules.MaxValue;
 
-        public void Rebaseline(int frame, float meter, bool defyUsed) {
+        public void Rebaseline(int frame, float meter) {
             if (!_started) {
                 _started = true;
                 LevelStart = meter;
             }
             _last = meter;
-            _lastDefy = defyUsed;
             _wasFull = meter >= Full;
             End = meter;
             if (meter <= PlaytestCombatMath.FillWindowFloor) {
@@ -852,8 +859,8 @@ namespace FTT.Diagnostics {
             }
         }
 
-        public void Sample(int frame, float meter, bool defyUsed) {
-            if (!_started) Rebaseline(frame, meter, defyUsed);
+        public void Sample(int frame, float meter) {
+            if (!_started) Rebaseline(frame, meter);
             TrackedFrames++;
             float delta = meter - _last;
             if (delta > 0f) Gained += delta;
@@ -874,11 +881,157 @@ namespace FTT.Diagnostics {
                     else FillsDirty++;
                 }
             }
-            if (defyUsed && !_lastDefy) DefyProcs++;
             _wasFull = full;
             _last = meter;
-            _lastDefy = defyUsed;
             End = meter;
         }
+    }
+
+    /// <summary>
+    /// The active Defy over a run (meter and Defy update 2026-10-31, plan 2.13, O24;
+    /// ledger <c>PROVISIONAL-BOT-DEFY-POLICY</c>), replacing the passive-proc count the old
+    /// <c>StoryDefyHistoryUsed</c> latch fed. Each execution (the blast frame) is booked with the
+    /// meter before the 50 was spent, the targets blasted and the HP healed; the hero's discrete
+    /// hits and deaths are kept as frames so each execution can be resolved against the
+    /// <see cref="WindowFrames"/> before and after it, and <c>died_within_3s</c> (the user's
+    /// original complaint) read off the deaths. Periodic ticks are not hits.
+    /// </summary>
+    public sealed class DefyTracker {
+        /// <summary>The before and after window: three seconds.</summary>
+        public const int WindowFrames = 180;
+
+        /// <summary>One executed Defy, as the blast reported it.</summary>
+        public sealed class Execution {
+            public int Frame;
+            public float MeterBefore;
+            public int Targets;
+            public int Healed;
+        }
+
+        /// <summary>An execution resolved against the hits and deaths around it.</summary>
+        public sealed class Resolved {
+            public Execution Execution;
+            public int HitsBefore;
+            public int HitsAfter;
+            public bool DiedWithin3s;
+            /// <summary>The run ended inside the after window, so <see cref="HitsAfter"/> and the death flag may be short.</summary>
+            public bool AfterTruncated;
+        }
+
+        private readonly List<Execution> _executions = new();
+        private readonly List<int> _hits = new();
+        private readonly List<int> _deaths = new();
+
+        /// <summary>Defy presses the bot made.</summary>
+        public int Pressed;
+        /// <summary>Presses the hero was not able to take, by the label of the first reason.</summary>
+        public readonly Dictionary<string, int> RefusedBy = new();
+
+        public IReadOnlyList<Execution> Executions => _executions;
+        public int Executed => _executions.Count;
+
+        public void RecordHit(int frame) => _hits.Add(frame);
+        public void RecordDeath(int frame) => _deaths.Add(frame);
+
+        public void RecordExecution(int frame, float meterBefore, int targets, int healed) =>
+            _executions.Add(new Execution { Frame = frame, MeterBefore = meterBefore, Targets = targets, Healed = healed });
+
+        /// <summary>A press: books it, and its refusal label when the hero could not take it.</summary>
+        public void RecordPress(bool canDefy, float meter) {
+            Pressed++;
+            if (canDefy) return;
+            string label = meter < BasicComboRules.DefyInfluenceCost ? "meter" : "state";
+            RefusedBy[label] = RefusedBy.GetValueOrDefault(label) + 1;
+        }
+
+        /// <summary>Every execution with the hits taken in the 180 frames before and after and whether the hero died within them.</summary>
+        public List<Resolved> Resolve(int endFrame) {
+            var list = new List<Resolved>(_executions.Count);
+            foreach (Execution e in _executions) {
+                int before = 0, after = 0;
+                foreach (int h in _hits) {
+                    if (h >= e.Frame - WindowFrames && h < e.Frame) before++;
+                    else if (h > e.Frame && h <= e.Frame + WindowFrames) after++;
+                }
+                bool died = false;
+                foreach (int d in _deaths) if (d > e.Frame && d <= e.Frame + WindowFrames) died = true;
+                list.Add(new Resolved {
+                    Execution = e, HitsBefore = before, HitsAfter = after, DiedWithin3s = died,
+                    AfterTruncated = endFrame < e.Frame + WindowFrames
+                });
+            }
+            return list;
+        }
+    }
+
+    /// <summary>
+    /// The Momentum gauge over a run (meter and Defy update 2026-10-31, plan 2.13): where it
+    /// started (2.0 at a fresh level, the analogue of <c>meter0</c>), what it gained and from
+    /// where, what the Specials spent, and how long it sat starved (under one whole pip) or full.
+    /// The hero raises no gain event, so a tick's rise is split from the readable pieces: up to
+    /// one tick of regen is booked as <c>regen</c>, and anything above it to the hit the telemetry
+    /// heard land that tick (the swing's hitbox ID; <c>other</c> without one). A tick that carries
+    /// both a regen and a hit gain therefore mis-books at most 1/720 pip, and a gain lost to the cap
+    /// is not seen. Spends are the Specials' execution serials, not a negative step.
+    /// </summary>
+    public sealed class MomentumTracker {
+        public const string RegenSource = "regen";
+        public const string OtherSource = "other";
+        private const float Epsilon = 0.0001f;
+
+        /// <summary>Pips on the first tracked tick; -1 until then.</summary>
+        public float Start = -1f;
+        public float End = -1f;
+        public readonly Dictionary<string, double> GainedBy = new();
+        public int SpentSpecial1;
+        public int SpentSpecial2;
+        public int TrackedFrames;
+        /// <summary>Ticks with under one whole pip (a Special cannot be paid).</summary>
+        public int FramesStarved;
+        /// <summary>Ticks with the gauge full.</summary>
+        public int FramesFull;
+
+        private bool _started;
+        private float _last;
+
+        public int SpecialsCast => SpentSpecial1 + SpentSpecial2;
+        public double Gained { get { double sum = 0; foreach (double v in GainedBy.Values) sum += v; return sum; } }
+
+        /// <summary>Sets the baseline without booking the jump (the first tick, or a rebuilt hero).</summary>
+        public void Rebaseline(float pips) {
+            if (!_started) {
+                _started = true;
+                Start = pips;
+            }
+            _last = pips;
+            End = pips;
+        }
+
+        /// <param name="pips">The gauge now.</param>
+        /// <param name="regenPerTick">One tick of regen at the hero's multiplier.</param>
+        /// <param name="cast1">Special 1 was accepted this tick.</param>
+        /// <param name="cast2">Special 2 was accepted this tick.</param>
+        /// <param name="hitSource">The hitbox ID of a swing that first landed this tick, or null.</param>
+        public void Sample(float pips, float regenPerTick, bool cast1, bool cast2, string hitSource) {
+            if (!_started) Rebaseline(pips);
+            TrackedFrames++;
+            if (cast1) SpentSpecial1++;
+            if (cast2) SpentSpecial2++;
+            float spent = (cast1 ? PlaytestCombatMath.SpecialCostPips : 0f) + (cast2 ? PlaytestCombatMath.SpecialCostPips : 0f);
+            float gross = pips - _last + spent;
+            if (gross > Epsilon) {
+                float regen = Math.Min(gross, regenPerTick);
+                Add(RegenSource, regen);
+                float excess = gross - regen;
+                if (excess > Epsilon) Add(string.IsNullOrEmpty(hitSource) ? OtherSource : hitSource, excess);
+            }
+            if (pips < PlaytestCombatMath.SpecialCostPips - PlaytestCombatMath.PipSlack) FramesStarved++;
+            if (pips >= BasicComboRules.MomentumMaxPips - Epsilon) FramesFull++;
+            _last = pips;
+            End = pips;
+        }
+
+        private void Add(string source, float amount) =>
+            GainedBy[source] = GainedBy.GetValueOrDefault(source) + amount;
     }
 }

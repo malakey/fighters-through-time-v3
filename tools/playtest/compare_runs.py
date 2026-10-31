@@ -11,7 +11,7 @@ Since 2026-10-11 (D6d) each tag also gets a "combat" table (combat swings,
 connect / contact-without-landing / whiff rates, finisher re-approach frames,
 standard-mob carry and landing gap, both over the finishers whose re-approach
 ended in a swing) and a "meter and presses" table (meter at level start, gain
-per minute, clean bar-fill seconds, Ultimates and Defy procs per run, Special
+per minute, clean bar-fill seconds, Ultimates per run, Special
 and Ultimate presses refused). Raw samples are pooled across
 runs, never medians of medians; reports without the new keys contribute
 nothing, and a cell with no data prints "-". --swings adds a per-hit table.
@@ -28,6 +28,17 @@ The run name does not carry the policy, so compare policies under different tags
 C2 (2026-10-11) adds a "scale" column to "meter and presses": the run's D5 Story
 meter-gain scale (--story-meter-scale, "on" / "off", "-" for older reports). The
 run name does not carry it either, so an A/B uses two tags.
+
+MM-BOTS (2026-10-31 meter and Defy update) adds two tables per tag, "defy" and "momentum".
+Batches from before and after that update are NOT comparable: the Momentum gauge replaced the
+Special cooldowns, Story meter gain is x0.5, and Defy is an active burst the play bot presses
+(the old defy/run column counted the passive proc and is gone; its report key defy_procs with it).
+  "defy" - the active Defy (the report's defy block): presses and executions per run, hits
+    taken in the 180 frames before and after an execution (per execution), targets blasted and HP
+    healed (per execution), and the executions after which the hero died within 3 s.
+  "momentum" - the Momentum gauge (the momentum block): pips at level start (2.0 on a fresh
+    level), gained per run by source, Specials cast per minute, presses refused for want of a
+    pip, and the share of ticks starved (under one pip) or full.
 
 GU-BOT (2026-10-12 gameplay update) adds two tables per tag:
   "locks" - encounter locks per run, the share cleared, runs ended
@@ -265,7 +276,7 @@ def meter_rows(tag_pattern):
     """
     rows = []
     for bot, runs in by_bot(tag_pattern):
-        starts, gains, fills, dirty, ults, defy = [], [], [], 0, [], []
+        starts, gains, fills, dirty, ults = [], [], [], 0, []
         s_pressed = s_refused = ult_pressed = ult_refused = 0
         have_presses = False
         policies, s_with, ult_with = set(), {}, {}
@@ -301,7 +312,6 @@ def meter_rows(tag_pattern):
                 fills.extend(meter.get("fill_frames") or [])
                 dirty += num(meter.get("fills_dirty"), 0)
                 ults.append(num(meter.get("ultimates_cast"), 0))
-                defy.append(num(meter.get("defy_procs"), 0))
             presses = r.get("ability_presses")
             if isinstance(presses, dict):
                 have_presses = True
@@ -320,7 +330,6 @@ def meter_rows(tag_pattern):
             "bar_s_med": round(statistics.median(fills) / 60, 1) if fills else "-",
             "dirty_fills": dirty if ults else "-",
             "ults/run": mean(ults),
-            "defy/run": mean(defy),
             "s_pressed": s_pressed if have_presses else "-",
             "s_refused": s_refused if have_presses else "-",
             "ult_pressed": ult_pressed if have_presses else "-",
@@ -331,6 +340,76 @@ def meter_rows(tag_pattern):
             "lk_events": lk_events if have_lk_events else "-",
             "ult_top_refusal": top_counts(ult_with, 1) if have_refusals else "-",
             "scale": "/".join(sorted(scales)) if scales else "-",
+        })
+    return rows
+
+
+def defy_rows(tag_pattern):
+    """MM-BOTS: one row per bot from the defy block (the active Defy; "-" before the meter and Defy update)."""
+    rows = []
+    for bot, runs in by_bot(tag_pattern):
+        blocks = [r["defy"] for r in runs if isinstance(r.get("defy"), dict)]
+        if not blocks:
+            rows.append({"bot": bot, "runs": len(runs), "policy": "-", "pressed/run": "-", "defies/run": "-",
+                         "refused": "-", "hits_before/def": "-", "hits_after/def": "-", "targets/def": "-",
+                         "healed/def": "-", "died_3s": "-", "died_3s%": "-", "truncated": "-"})
+            continue
+        executed = sum(num(b.get("executed"), 0) for b in blocks)
+        refused = {}
+        for b in blocks:
+            add_counts(refused, b.get("refused_by") or {})
+        truncated = sum(1 for b in blocks for e in (b.get("log") or []) if e.get("after_truncated"))
+        died = sum(num(b.get("died_within_3s"), 0) for b in blocks)
+
+        def per(key):
+            return round(sum(num(b.get(key), 0) for b in blocks) / executed, 2) if executed else "-"
+
+        rows.append({
+            "bot": bot,
+            "runs": len(runs),
+            "policy": "/".join(sorted({b.get("policy", "-") for b in blocks})),
+            "pressed/run": mean([num(b.get("pressed"), 0) for b in blocks]),
+            "defies/run": mean([num(b.get("executed"), 0) for b in blocks]),
+            "refused": top_counts(refused, 2),
+            "hits_before/def": per("hits_before"),
+            "hits_after/def": per("hits_after"),
+            "targets/def": per("targets_blasted"),
+            "healed/def": per("healed"),
+            "died_3s": died,
+            "died_3s%": pct(died, executed) if executed else "-",
+            "truncated": truncated,
+        })
+    return rows
+
+
+def momentum_rows(tag_pattern):
+    """MM-BOTS: one row per bot from the momentum block (the Momentum gauge; "-" before the update)."""
+    rows = []
+    for bot, runs in by_bot(tag_pattern):
+        blocks = [r["momentum"] for r in runs if isinstance(r.get("momentum"), dict)]
+        if not blocks:
+            rows.append({"bot": bot, "runs": len(runs), "pips0": "-", "gained/run": "-", "top_sources": "-",
+                         "cast/min": "-", "s1/run": "-", "s2/run": "-", "starved_presses": "-",
+                         "starved%": "-", "full%": "-"})
+            continue
+        sources = {}
+        for b in blocks:
+            for key, value in (b.get("gained_by") or {}).items():
+                sources[key] = sources.get(key, 0) + value / len(blocks)
+        frames = sum(num(b.get("tracked_frames"), 0) for b in blocks)
+        casts = sum(num(b.get("specials_cast"), 0) for b in blocks)
+        rows.append({
+            "bot": bot,
+            "runs": len(runs),
+            "pips0": mean([b["pips_start"] for b in blocks if num(b.get("pips_start")) >= 0], 2),
+            "gained/run": mean([num(b.get("gained"), 0) for b in blocks]),
+            "top_sources": " ".join(f"{k}:{v:.2f}" for k, v in sorted(sources.items(), key=lambda kv: -kv[1])[:3]) or "-",
+            "cast/min": round(casts / (frames / 3600), 2) if frames else "-",
+            "s1/run": mean([num((b.get("spent") or {}).get("special1"), 0) for b in blocks]),
+            "s2/run": mean([num((b.get("spent") or {}).get("special2"), 0) for b in blocks]),
+            "starved_presses": sum(num(b.get("starved_presses"), 0) for b in blocks),
+            "starved%": pct(sum(num(b.get("frames_starved"), 0) for b in blocks), frames) if frames else "-",
+            "full%": pct(sum(num(b.get("frames_full"), 0) for b in blocks), frames) if frames else "-",
         })
     return rows
 
@@ -606,10 +685,19 @@ def main(tags, swings=False):
                      "reapp_med", "reapp_p90", "std_carry_med", "std_land_gap_med", "orphans", "basis"],
                     combat_rows(tag))
         print("\n#### meter and presses\n")
-        print_table(["bot", "runs", "meter0", "gain/min", "bar_s_med", "dirty_fills", "ults/run", "defy/run",
+        print_table(["bot", "runs", "meter0", "gain/min", "bar_s_med", "dirty_fills", "ults/run",
                      "s_pressed", "s_refused", "ult_pressed", "ult_refused", "policy", "top_refusals",
                      "sole_lockout", "lk_events", "ult_top_refusal", "scale"],
                     meter_rows(tag))
+        # MM-BOTS (2026-10-31): the active Defy and the Momentum gauge.
+        print("\n#### defy\n")
+        print_table(["bot", "runs", "policy", "pressed/run", "defies/run", "refused", "hits_before/def", "hits_after/def",
+                     "targets/def", "healed/def", "died_3s", "died_3s%", "truncated"],
+                    defy_rows(tag))
+        print("\n#### momentum\n")
+        print_table(["bot", "runs", "pips0", "gained/run", "top_sources", "cast/min", "s1/run", "s2/run",
+                     "starved_presses", "starved%", "full%"],
+                    momentum_rows(tag))
         # C3 (2026-10-11): mob MeleeStrike / ChargeDash swings.
         print("\n#### mobs\n")
         print_table(["bot", "runs", "mob_swings/run", "mob_whiff%", "out_of_reach%", "mob_whiff_gap_med",

@@ -153,23 +153,23 @@ public class PlaytestCombatStatsTests {
     public void TheMeterTrackerBooksOnlyRealChangesAndTimesOnlyCleanFills() {
         var meter = new MeterTracker();
 
-        meter.Rebaseline(1, 0f, false);
+        meter.Rebaseline(1, 0f);
         AssertThat(meter.LevelStart).IsEqual(0f);
 
-        meter.Sample(2, 0f, false);
-        meter.Sample(3, 50f, false);
-        meter.Sample(61, InfluenceMeterRules.MaxValue, false);
+        meter.Sample(2, 0f);
+        meter.Sample(3, 50f);
+        meter.Sample(61, InfluenceMeterRules.MaxValue);
         AssertThat(meter.FillFrames.Count).IsEqual(1);
         AssertThat(meter.FillFrames[0])
             .OverrideFailureMessage("The window starts at the latest sample at or below 1.0 (frame 2).")
             .IsEqual(59);
         AssertThat(meter.FirstFullFrame).IsEqual(61);
 
-        meter.Sample(62, 0f, false);
+        meter.Sample(62, 0f);
         AssertThat(meter.Spent).IsEqual(100f);
-        meter.Sample(63, 40f, false);
-        meter.Sample(64, 20f, false);
-        meter.Sample(65, InfluenceMeterRules.MaxValue, false);
+        meter.Sample(63, 40f);
+        meter.Sample(64, 20f);
+        meter.Sample(65, InfluenceMeterRules.MaxValue);
         AssertThat(meter.FillFrames.Count)
             .OverrideFailureMessage("A fill whose window saw a decrease is not timed.")
             .IsEqual(1);
@@ -178,18 +178,15 @@ public class PlaytestCombatStatsTests {
         AssertThat(meter.Spent).IsEqual(120f);
 
         // A rebuilt hero carrying a durable 60: the jump is not booked.
-        meter.Rebaseline(200, 60f, false);
+        meter.Rebaseline(200, 60f);
         AssertThat(meter.Gained).IsEqual(220f);
         AssertThat(meter.Spent).IsEqual(120f);
         AssertThat(meter.LevelStart).IsEqual(0f);
 
-        meter.Sample(201, 60f, true);
-        AssertThat(meter.DefyProcs).IsEqual(1);
-
-        // A rebuilt hero that inherits a spent Defy is not a proc.
-        meter.Rebaseline(300, 0f, true);
-        meter.Sample(301, 0f, true);
-        AssertThat(meter.DefyProcs).IsEqual(1);
+        // A rebuilt hero resets the baseline again: still no booked jump.
+        meter.Rebaseline(300, 0f);
+        meter.Sample(301, 0f);
+        AssertThat(meter.Gained).IsEqual(220f);
         AssertThat(meter.End).IsEqual(0f);
     }
 
@@ -200,8 +197,8 @@ public class PlaytestCombatStatsTests {
         PressSnapshot mixed = PressSnapshot.Clear(PressSlot.Special1);
         mixed.HitstopFrames = 3;
         mixed.GateFrames = 20;
-        mixed.CooldownSeconds = 0.5f;
-        AssertLabels(mixed, "hitstop", "lockout", "cooldown");
+        mixed.ReuseSeconds = 0.5f;
+        AssertLabels(mixed, "hitstop", "lockout", "reuse_delay");
 
         PressSnapshot gateTwo = PressSnapshot.Clear(PressSlot.Special2);
         gateTwo.GateFrames = 2;
@@ -212,14 +209,29 @@ public class PlaytestCombatStatsTests {
         gateOne.GateFrames = 1;
         AssertLabels(gateOne);
 
-        // So does the cooldown timer: exactly one tick left is ready by the poll.
+        // So does the reuse delay: exactly one tick left is ready by the poll.
         PressSnapshot lastTick = PressSnapshot.Clear(PressSlot.Special1);
-        lastTick.CooldownSeconds = PlaytestCombatMath.CooldownTickSeconds;
+        lastTick.ReuseSeconds = PlaytestCombatMath.ReuseTickSeconds;
         AssertLabels(lastTick);
+
+        // The Momentum gauge: under one pip is no_momentum, whatever the reuse delay; a gauge a hair
+        // under a pip still pays (the hero's own slack); both can hold at once; the Ultimate never reads it.
+        PressSnapshot starved = PressSnapshot.Clear(PressSlot.Special2);
+        starved.MomentumPips = 0.6f;
+        AssertLabels(starved, "no_momentum");
+        PressSnapshot starvedAndResting = starved;
+        starvedAndResting.ReuseSeconds = 1.5f;
+        AssertLabels(starvedAndResting, "reuse_delay", "no_momentum");
+        PressSnapshot almostAPip = PressSnapshot.Clear(PressSlot.Special1);
+        almostAPip.MomentumPips = 0.99999f;
+        AssertLabels(almostAPip);
+        PressSnapshot ultimateNoPips = PressSnapshot.Clear(PressSlot.Ultimate);
+        ultimateNoPips.MomentumPips = 0f;
+        AssertLabels(ultimateNoPips);
 
         PressSnapshot ultimate = PressSnapshot.Clear(PressSlot.Ultimate);
         ultimate.MeterFull = 99f >= InfluenceMeterRules.MaxValue;
-        ultimate.CooldownSeconds = 0.5f; // never a cooldown label for the Ultimate
+        ultimate.ReuseSeconds = 0.5f; // never a reuse_delay label for the Ultimate
         AssertLabels(ultimate, "meter");
 
         // A full meter is never a label for a Special.
@@ -250,7 +262,7 @@ public class PlaytestCombatStatsTests {
         PressSnapshot gated = PressSnapshot.Clear(PressSlot.Special1);
         gated.GateFrames = 20;
         PressSnapshot gatedCooling = gated;
-        gatedCooling.CooldownSeconds = 0.5f;
+        gatedCooling.ReuseSeconds = 0.5f;
         PressSnapshot casting = PressSnapshot.Clear(PressSlot.Special1, "UsingSpecial");
         presses.Register(10, PressSlot.Special1, 4, gated);
         presses.Register(11, PressSlot.Special1, 4, gatedCooling);
@@ -264,7 +276,7 @@ public class PlaytestCombatStatsTests {
         AbilityPressTracker.Counts s1 = presses.For(PressSlot.Special1);
         AssertCounts(s1, pressed: 4, accepted: 1, refused: 3, unresolved: 0);
         AssertThat(s1.RefusedWith.GetValueOrDefault("lockout")).IsEqual(2);
-        AssertThat(s1.RefusedWith.GetValueOrDefault("cooldown")).IsEqual(1);
+        AssertThat(s1.RefusedWith.GetValueOrDefault("reuse_delay")).IsEqual(1);
         AssertThat(s1.RefusedWith.Count).IsEqual(2);
         AssertThat(s1.RefusedSole.GetValueOrDefault("lockout"))
             .OverrideFailureMessage("Only the press whose sole readable reason was the lockout is a sole lockout refusal.")
@@ -281,6 +293,80 @@ public class PlaytestCombatStatsTests {
         AssertThat(s2.RefusedWith.Count + s2.RefusedSole.Count + s2.RefusedState.Count + s2.RefusedNone)
             .OverrideFailureMessage("A press registered without a snapshot books counts only.")
             .IsEqual(0);
+    }
+
+    [TestCase]
+    public void TheDefyTrackerCountsAnExecutionItsHitsBeforeAndAfterAndADeathWithinThreeSeconds() {
+        var defy = new DefyTracker();
+        // Hits at 100, 130, 160 (before a Defy at 200), 230 and 330 (after), 400 (181 frames after: outside).
+        foreach (int hit in new[] { 20, 100, 130, 160, 200, 230, 330, 381 }) defy.RecordHit(hit);
+        defy.RecordPress(canDefy: true, meter: 80f);
+        defy.RecordExecution(200, meterBefore: 80f, targets: 3, healed: 22);
+        // A second Defy near the end of the run; the hero dies 100 frames after it.
+        defy.RecordPress(canDefy: false, meter: 10f);
+        defy.RecordPress(canDefy: false, meter: 90f);
+        defy.RecordExecution(1000, meterBefore: 55f, targets: 0, healed: 9);
+        defy.RecordDeath(1100);
+        defy.RecordDeath(1500);
+
+        AssertThat(defy.Executed).IsEqual(2);
+        AssertThat(defy.Pressed).IsEqual(3);
+        AssertThat(defy.RefusedBy.GetValueOrDefault("meter")).IsEqual(1);
+        AssertThat(defy.RefusedBy.GetValueOrDefault("state")).IsEqual(1);
+
+        List<DefyTracker.Resolved> resolved = defy.Resolve(endFrame: 1050);
+        AssertThat(resolved.Count).IsEqual(2);
+        AssertThat(resolved[0].HitsBefore)
+            .OverrideFailureMessage("Hits 20 (180 frames before is frame 20: inside) through 160 are before; the one at the Defy's own frame is neither.")
+            .IsEqual(4);
+        AssertThat(resolved[0].HitsAfter).OverrideFailureMessage("230 and 330 are inside; 381 is one frame past the window.").IsEqual(2);
+        AssertThat(resolved[0].DiedWithin3s).IsFalse();
+        AssertThat(resolved[0].AfterTruncated).IsFalse();
+        AssertThat(resolved[1].DiedWithin3s).OverrideFailureMessage("Death at 1100 is within 180 of 1000; the one at 1500 is not.").IsTrue();
+        AssertThat(resolved[1].AfterTruncated).OverrideFailureMessage("The run ended at 1050, inside the window.").IsTrue();
+        AssertThat(resolved[0].Execution.Targets).IsEqual(3);
+        AssertThat(resolved[0].Execution.Healed).IsEqual(22);
+        AssertThat(resolved[0].Execution.MeterBefore).IsEqual(80f);
+    }
+
+    [TestCase]
+    public void TheMomentumBlockStartsAtTwoPipsAndBooksGainsBySourceAndSpendsBySpecial() {
+        const float regen = 1f / 720f;
+        var momentum = new MomentumTracker();
+        momentum.Rebaseline(2f);
+        AssertThat(momentum.Start).OverrideFailureMessage("A fresh level starts at two pips, the analogue of meter0.").IsEqual(2f);
+
+        // Two quiet ticks of regen, a string hit landing (+0.05 on top of the tick's regen), a
+        // Special 1 cast (-1 pip) and a Special 2 cast with a finisher gain on the same tick.
+        float pips = 2f;
+        pips += regen; momentum.Sample(pips, regen, false, false, null);
+        pips += regen; momentum.Sample(pips, regen, false, false, null);
+        pips += regen + 0.05f; momentum.Sample(pips, regen, false, false, "combo_1");
+        pips += regen - 1f; momentum.Sample(pips, regen, true, false, null);
+        pips += regen + 0.2f - 1f; momentum.Sample(pips, regen, false, true, "combo_3");
+
+        AssertThat(momentum.SpentSpecial1).IsEqual(1);
+        AssertThat(momentum.SpentSpecial2).IsEqual(1);
+        AssertThat(momentum.SpecialsCast).IsEqual(2);
+        AssertThat((float)momentum.GainedBy["combo_1"]).IsEqualApprox(0.05f, 0.0005f);
+        AssertThat((float)momentum.GainedBy["combo_3"]).IsEqualApprox(0.2f, 0.0005f);
+        AssertThat((float)momentum.GainedBy["regen"]).OverrideFailureMessage("Five ticks of regen, none of it hidden by a spend.").IsEqualApprox(5 * regen, 0.0002f);
+        AssertThat(momentum.GainedBy.ContainsKey("other")).IsFalse();
+        AssertThat(momentum.End).IsEqualApprox(pips, 0.0001f);
+        AssertThat(momentum.FramesStarved).OverrideFailureMessage("Only the last tick (0.25 pips) is under one pip.").IsEqual(1);
+
+        // A rise with no heard hit books to "other"; a gauge under a pip is starved; a full one is counted.
+        momentum.Sample(pips + 0.1f, regen, false, false, null);
+        AssertThat(momentum.GainedBy.ContainsKey("other")).IsTrue();
+        var drained = new MomentumTracker();
+        drained.Rebaseline(0.4f);
+        drained.Sample(0.4f, regen, false, false, null);
+        AssertThat(drained.FramesStarved).IsEqual(1);
+        var full = new MomentumTracker();
+        full.Rebaseline(4f);
+        full.Sample(4f, regen, false, false, null);
+        AssertThat(full.FramesFull).IsEqual(1);
+        AssertThat(full.Gained).IsEqual(0.0);
     }
 
     [TestCase]
