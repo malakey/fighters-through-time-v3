@@ -596,6 +596,7 @@ public class InputBindingSchemaTests {
     public void ADirectGrabBindRoundTripsAndAStaleEchoStepRowIsIgnored() {
         AssertThat((ushort)GameplayButtons.Grab).IsEqual((ushort)(1 << 13));
         AssertThat((ushort)GameplayButtons.DirectOrigin).IsEqual((ushort)(1 << 14));
+        AssertThat((ushort)GameplayButtons.Defy).IsEqual((ushort)(1 << 15));
         AssertThat((ushort)GameplayButtons.Dash).IsEqual((ushort)(1 << 11));
         AssertThat(PlayerInputFrame.SerializedSize).IsEqual(12);
 

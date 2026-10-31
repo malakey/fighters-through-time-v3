@@ -33,8 +33,13 @@ namespace FTT.Networking {
         /// into snapshots and match setup, so a v3 peer would build a different
         /// fighter from the same match; the packet layout and both serialized
         /// sizes are unchanged.</para>
+        ///
+        /// <para><b>v5 (meter and Defy update 2026-10-31, O2).</b> The Defy History button took
+        /// the last <c>GameplayButtons</c> bit (15). A v4 peer would read the bit as nothing
+        /// and desync silently, so the version moved; the packet layout and both serialized
+        /// sizes are unchanged.</para>
         /// </summary>
-        public const ushort ProtocolVersion = 4;
+        public const ushort ProtocolVersion = 5;
         public const int SerializedSize = 47;
         public readonly uint SessionID;
         public readonly uint Sequence;

@@ -29,6 +29,25 @@ public class PlayerInputFrameTests {
     }
 
     [TestCase]
+    public void TheDefyButtonIsTheLastWireBitAndRoundTripsWithoutGrowingTheFrame() {
+        AssertThat((ushort)GameplayButtons.Defy).IsEqual((ushort)(1 << 15));
+        AssertThat(PlayerInputFrame.SerializedSize).IsEqual(12);
+
+        PlayerInputFrame original = PlayerInputFrame.Create(
+            9, 0f, 0f, GameplayButtons.Defy | GameplayButtons.Block, GameplayButtons.Block);
+        PlayerInputFrame restored = PlayerInputFrame.Deserialize(original.Serialize());
+
+        AssertThat(restored.Equals(original)).IsTrue();
+        AssertThat(restored.IsHeld(GameplayButtons.Defy)).IsTrue();
+        AssertThat(restored.IsPressed(GameplayButtons.Defy)).IsTrue();
+        AssertThat(restored.IsPressed(GameplayButtons.Block)).IsFalse();
+        // Releasing it is an edge too.
+        PlayerInputFrame released = PlayerInputFrame.Deserialize(
+            PlayerInputFrame.Create(10, 0f, 0f, GameplayButtons.None, GameplayButtons.Defy).Serialize());
+        AssertThat(released.IsReleased(GameplayButtons.Defy)).IsTrue();
+    }
+
+    [TestCase]
     public void EdgeBitsAreDerivedFromPriorHeldBits() {
         GameplayButtons previous = GameplayButtons.Block | GameplayButtons.Jump;
         GameplayButtons current = GameplayButtons.Block | GameplayButtons.Special1;

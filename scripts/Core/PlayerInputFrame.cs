@@ -47,8 +47,17 @@ namespace FTT.Core {
         /// request plus this flag — never local key codes — is what makes two peers
         /// replay identically.</para>
         /// </summary>
-        DirectOrigin = 1 << 14
-        // Bit 15 is free.
+        DirectOrigin = 1 << 14,
+
+        /// <summary>
+        /// The Defy History button (meter and Defy update 2026-10-31, ledger USER-DEFY-ACTIVE-BURST):
+        /// with at least 50 Influence meter the fighter spends it for an invulnerable burst
+        /// that staggers nearby opponents and heals. The last wire bit: after this the
+        /// 16-bit button word has no free bit, and the next Fighter verb forces a
+        /// packet-size change (DEFER-INPUT-WIRE-FULL). Protocol v5.
+        /// </summary>
+        Defy = 1 << 15
+        // No free bit remains.
     }
 
     /// <summary>

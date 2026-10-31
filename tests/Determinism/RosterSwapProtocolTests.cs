@@ -38,8 +38,8 @@ public class RosterSwapProtocolTests {
     }
 
     [TestCase]
-    public void TheProtocolIsVersionFourAndRefusesAVersionThreePacket() {
-        AssertThat(RollbackInputPacket.ProtocolVersion).IsEqual((ushort)4);
+    public void TheProtocolIsVersionFiveAndRefusesAVersionThreePacket() {
+        AssertThat(RollbackInputPacket.ProtocolVersion).IsEqual((ushort)5);
         var packet = new RollbackInputPacket(7, 1, 0, 1, 42, default, 40, 123456789L);
         byte[] bytes = packet.Serialize();
         AssertThat(bytes.Length).IsEqual(RollbackInputPacket.SerializedSize);
