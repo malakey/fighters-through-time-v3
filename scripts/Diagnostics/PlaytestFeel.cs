@@ -71,6 +71,10 @@ namespace FTT.Diagnostics {
             if (_t == 0) {
                 _startX = player.GlobalPosition.X;
                 ClearLevelEnemies(player);
+                // Momentum (meter and Defy update 2026-10-31): a Special costs a pip and the hero starts
+                // with two; the string's gains are small, so seed the full gauge. Each Special then has
+                // its pip whatever the earlier segments did, and the lockout segment measures the lockout.
+                PlaytestWorld.SeedMomentum(player, BasicComboRules.MomentumMaxPips);
             }
             CaptureActive = _t >= WhiffStart - 10 && _t < End;
             if (_t < JumpStart) {
@@ -122,10 +126,10 @@ namespace FTT.Diagnostics {
                 // whose previous frame was released, so the bot holds off until a
                 // cast can land (see CastCanLand) and the first legal tick always
                 // carries a fresh press.
-                if (_t >= Special1At && _t < Special2At && player.SpecialOneCooldownTimer <= 0f && CastCanLand(player)) {
+                if (_t >= Special1At && _t < Special2At && PlaytestWorld.SpecialReady(player, AbilitySlot.Special1) && CastCanLand(player)) {
                     intent.Tap |= GameplayButtons.Special1;
                 }
-                if (_t >= Special2At && player.SpecialTwoCooldownTimer <= 0f && CastCanLand(player)) {
+                if (_t >= Special2At && PlaytestWorld.SpecialReady(player, AbilitySlot.Special2) && CastCanLand(player)) {
                     intent.Tap |= GameplayButtons.Special2;
                 }
                 if (_target != null && GodotObject.IsInstanceValid(_target) && _target.IsAlive) {

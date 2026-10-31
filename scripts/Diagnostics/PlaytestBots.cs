@@ -198,6 +198,39 @@ namespace FTT.Diagnostics {
             _ => "play"
         };
 
+        // =================================================================
+        // Defy (meter and Defy update 2026-10-31, O24, P26; PROVISIONAL-BOT-DEFY-POLICY)
+        // =================================================================
+
+        private readonly PlaytestDefyPolicy _defy = new();
+        private ulong _defyHeroId;
+        private System.Action _defyUnsubscribe;
+
+        /// <summary>
+        /// The <c>play</c> bot's Defy: pressed once per qualifying moment (see
+        /// <see cref="PlaytestDefyPolicy"/>). Every other style does nothing here, and the press goes
+        /// through the same <see cref="GameplayButtons.Defy"/> bit a player's button does.
+        /// </summary>
+        private void PressDefyIfNeeded(PlayerController player, ref BotIntent intent) {
+            if (!PlaytestDefyPolicy.StyleDefies(_style)) return;
+            ulong id = player.GetInstanceId();
+            if (id != _defyHeroId) {
+                _defyUnsubscribe?.Invoke();
+                _defyHeroId = id;
+                _defyUnsubscribe = PlaytestWorld.SubscribeDamageTaken(player, o => {
+                    if (o.Delivery != HitDelivery.Tick) _defy.NoteHit(Frame);
+                });
+            }
+            bool canDefy = PlaytestWorld.CanDefy(player);
+            if (!canDefy) return;
+            bool hitstun = player.CurrentState == CharacterState.Stunned;
+            int near = hitstun ? World.FoesWithin(player.GlobalPosition, PlaytestDefyPolicy.EnemyRadiusPixels) : 0;
+            if (!_defy.ShouldDefy(_style, Frame, canDefy, hitstun, near)) return;
+            _defy.NoteDefyPressed(Frame);
+            intent.Tap |= GameplayButtons.Defy;
+            CurrentAction = "defy";
+        }
+
         private bool Fights => _style != FightStyle.Bypass;
         private bool Defends => _style is FightStyle.Basics or FightStyle.Play;
 
@@ -207,6 +240,7 @@ namespace FTT.Diagnostics {
             Node2D swingTarget = CurrentTarget;
             CurrentTarget = null;
             UpdateSwingCounter(player, swingTarget);
+            PressDefyIfNeeded(player, ref intent);
 
             if (player.CurrentState == CharacterState.LedgeHanging) {
                 // On a swinging rope the agent times the release toward the
@@ -809,10 +843,10 @@ namespace FTT.Diagnostics {
             if (_policy != SpecialPressPolicy.Confirm || _style is not (FightStyle.Spam or FightStyle.Play)) return false;
             if (_confirmPressedThisSwing || player.HitstopFramesRemaining != 0
                 || player.CurrentState == CharacterState.UsingSpecial || !CurrentSwingLanded(player, target)) return false;
-            if (player.IsAbilityUnlocked(AbilitySlot.Special1) && player.SpecialOneCooldownTimer <= 0f) {
+            if (player.IsAbilityUnlocked(AbilitySlot.Special1) && PlaytestWorld.SpecialReady(player, AbilitySlot.Special1)) {
                 intent.Tap |= GameplayButtons.Special1;
                 CurrentAction = "confirm_special1";
-            } else if (player.IsAbilityUnlocked(AbilitySlot.Special2) && player.SpecialTwoCooldownTimer <= 0f) {
+            } else if (player.IsAbilityUnlocked(AbilitySlot.Special2) && PlaytestWorld.SpecialReady(player, AbilitySlot.Special2)) {
                 intent.Tap |= GameplayButtons.Special2;
                 CurrentAction = "confirm_special2";
             } else {
@@ -1058,7 +1092,7 @@ namespace FTT.Diagnostics {
                 return;
             }
 
-            // Phase.Specials: each Special as soon as it is off cooldown and the
+            // Phase.Specials: each Special as soon as it is ready (a pip in the Momentum gauge and its 2 s reuse delay clear) and the
             // hero is free to cast. Since 2026-10-08 a swing start or a cast
             // locks specials for 30 frames (BasicComboRules.AbilityLockoutFrames),
             // so the bot waits the hero's own Special gate out rather than
@@ -1076,21 +1110,22 @@ namespace FTT.Diagnostics {
                 _phase = Phase.Idle;
                 return;
             }
-            if (!_special1Done && free && player.SpecialOneCooldownTimer <= 0f) {
+            if (!_special1Done && free && PlaytestWorld.SpecialReady(player, AbilitySlot.Special1)) {
                 intent.Tap |= GameplayButtons.Special1;
                 _special1Done = true;
                 CurrentAction = "special1";
-            } else if (_special1Done && !_special2Done && free && phaseFrame > 4 && player.SpecialTwoCooldownTimer <= 0f) {
+            } else if (_special1Done && !_special2Done && free && phaseFrame > 4 && PlaytestWorld.SpecialReady(player, AbilitySlot.Special2)) {
                 intent.Tap |= GameplayButtons.Special2;
                 _special2Done = true;
                 CurrentAction = "special2";
-            } else if ((_special1Done || player.SpecialOneCooldownTimer > 0f)
-                && (_special2Done || player.SpecialTwoCooldownTimer > 0f) && free) {
+            } else if ((_special1Done || !PlaytestWorld.SpecialReady(player, AbilitySlot.Special1))
+                && (_special2Done || !PlaytestWorld.SpecialReady(player, AbilitySlot.Special2)) && free) {
                 _phase = Phase.Idle;
             } else if (phaseFrame > 120) {
                 _phase = Phase.Idle;
             }
-            if (player.SpecialOneCooldownTimer > 0f && !_special1Done) _special1Done = true;
+            // A Special on its reuse delay was cast already (or is not worth waiting for): move on.
+            if (PlaytestWorld.SpecialReuseRemaining(player, AbilitySlot.Special1) > 0f && !_special1Done) _special1Done = true;
         }
 
         /// <summary>Jump under a target overhead and swing the up-attack near the top of the jump.</summary>

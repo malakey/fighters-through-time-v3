@@ -50,6 +50,15 @@
     re-hit nor a predecessor - and xsrc_rehits_combat is the same figure
     with hazard contacts left out on both sides.
 
+    Since MM-BOTS (2026-10-31, the meter and Defy update) the CSV also carries
+    defies (Defies the hero executed; only the play bot presses Defy),
+    defy_died3s (executions after which the hero died within 3 s), starved
+    (Special presses refused for want of a Momentum pip), momentum0 (the gauge
+    at level start, 2.0 on a fresh level) and specials_per_min. The report's
+    defy and momentum blocks have the rest. Batches from before and after that
+    update are NOT comparable (the gauge, the 0.5 Story meter scale, the
+    active Defy): compare within one side of it.
+
     The runner uses the developer direct-launch path and suppresses save
     writes, so no save slot or global save is touched. Build first:
     dotnet build FightersThroughTime.csproj
@@ -135,6 +144,12 @@ foreach ($r in $done) {
         ults = $(if ($c) { $c.ults } else { $null })
         s_refused = $(if ($c) { $c.s_refused } else { $null })
         meter0 = $(if ($c) { $c.meter_start } else { $null })
+        # MM-BOTS (2026-10-31): the active Defy and the Momentum gauge (absent before the update).
+        defies = $(if ($c) { $c.defies } else { $null })
+        defy_died3s = $(if ($c) { $c.defy_died3s } else { $null })
+        starved = $(if ($c) { $c.starved } else { $null })
+        momentum0 = $(if ($c) { $c.momentum0 } else { $null })
+        specials_per_min = $(if ($c) { $c.specials_per_min } else { $null })
         # C3 (2026-10-11): mob melee whiff % and the Special press policy (--special-press).
         mob_whiff_pct = $(if ($c) { $c.mob_whiff_pct } else { $null })
         policy = $(if ($c) { $c.policy } else { $null })

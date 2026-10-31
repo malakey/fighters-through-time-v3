@@ -214,6 +214,49 @@ namespace FTT.Diagnostics {
             hero.DamageTaken += handler;
             return () => hero.DamageTaken -= handler;
         }
+
+        // Meter and Defy update 2026-10-31 (MM-BOTS): the Momentum gauge and the active Defy,
+        // the only place in scripts/Diagnostics/ that names them.
+        /// <summary>True when the Special in <paramref name="slot"/> is past its reuse delay and the gauge holds a pip.</summary>
+        public static bool SpecialReady(PlayerController p, AbilitySlot slot) => p.IsSpecialReady(slot);
+
+        /// <summary>Seconds left on the Special's 2 s reuse delay (0 when ready).</summary>
+        public static float SpecialReuseRemaining(PlayerController p, AbilitySlot slot) => p.SpecialReuseRemainingSeconds(slot);
+
+        /// <summary>The Momentum gauge in pips (0 to 4; 2.0 at a fresh start).</summary>
+        public static float MomentumPips(PlayerController p) => p.MomentumPips;
+
+        /// <summary>The feel probe's seed: fills the gauge so every Special has its pip.</summary>
+        public static void SeedMomentum(PlayerController p, float pips) => p.RestoreMomentumPips(pips);
+
+        /// <summary>The regen the gauge gains each tick at this hero's multiplier (1 pip per 720 frames).</summary>
+        public static float MomentumRegenPerTick(PlayerController p) =>
+            p.MomentumRegenMultiplier / BasicComboRules.MomentumRegenFramesPerPip;
+
+        /// <summary>True when a Defy press would begin now (50 Influence and the state refusals).</summary>
+        public static bool CanDefy(PlayerController p) => p.CanDefyNow;
+
+        /// <summary>Defies the hero has executed.</summary>
+        public static int DefyExecutions(PlayerController p) => p.DefyExecutionCount;
+
+        /// <summary>Subscribes to the hero's Defy blasts (player index 0 only); returns the unsubscribe action.</summary>
+        public static Action SubscribeDefyExecuted(Action<DefyExecutedPayload> handler) {
+            EventBus bus = EventBus.Instance;
+            if (bus == null || handler == null) return () => { };
+            Action<DefyExecutedPayload> forward = e => { if (e.PlayerIndex == 0) handler(e); };
+            bus.OnDefyExecuted += forward;
+            return () => { if (EventBus.Instance != null) EventBus.Instance.OnDefyExecuted -= forward; };
+        }
+
+        /// <summary>Live, awake foes within <paramref name="radius"/> of <paramref name="at"/> (pivot to pivot).</summary>
+        public int FoesWithin(Vector2 at, float radius) {
+            int count = 0;
+            foreach (Node2D foe in Foes()) {
+                if (IsDormantMember(foe)) continue;
+                if (foe.GlobalPosition.DistanceTo(at) <= radius) count++;
+            }
+            return count;
+        }
         #endregion
 
         #region Encounter locks and the engagement director — the 2026-10-12 gameplay update's seams (GU-BOT)
