@@ -154,10 +154,9 @@ public class CoreMechanicCueCatalogTests {
             bus.RaiseTimeFreezeStateChanged(new TimeFreezePayload { State = TimeFreezeState.Cooldown, SecondsRemaining = 45f });
             AssertThat(cues.LastCueID).IsEqual(CoreMechanicCueIDs.TimeFreezeThawRelease);
 
-            // Defy: Ready -> Spent tolls and shatters the seal, on the clear path.
-            bus.RaiseDefySealChanged(new DefySealPayload { PlayerIndex = 0, State = DefySealState.Ready });
-            bus.RaiseDefySealChanged(new DefySealPayload { PlayerIndex = 0, State = DefySealState.Spent });
-            AssertThat(cues.LastCueID).IsEqual(CoreMechanicCueIDs.DefySealShatter);
+            // Defy (MM-FX): a burst plays the Critical defy_burst cue on the clear path.
+            bus.RaiseDefyExecuted(new DefyExecutedPayload { PlayerIndex = 0, Position = Vector2.Zero });
+            AssertThat(cues.LastCueID).IsEqual(CoreMechanicCueIDs.DefyBurst);
             AssertThat(cues.LastRoutedBus).IsEqual(AudioBuses.CriticalCues);
 
             // The Ultimate-ready chord plays once per fill.
@@ -188,6 +187,24 @@ public class CoreMechanicCueCatalogTests {
             cues.ResetTransient();
             audio.ReleaseAllVoices();
         }
+    }
+
+    /// <summary>
+    /// MM-FX (P29): the Defy burst is a Critical row and the two retired seal cues are gone
+    /// from the catalog and from the ID lists.
+    /// </summary>
+    [TestCase]
+    public void TheDefyBurstIsCriticalAndTheRetiredSealCuesAreGone() {
+        CoreMechanicCueCatalog catalog = Catalog();
+        CoreMechanicCueEntry burst = catalog.Find(CoreMechanicCueIDs.DefyBurst);
+        AssertObject(burst).IsNotNull();
+        AssertThat(CoreMechanicCueIDs.DefyBurst).IsEqual("defy_burst");
+        AssertThat(burst.Critical).IsTrue();
+        AssertThat(burst.ResolvedBus).IsEqual(AudioBuses.CriticalCues);
+        AssertThat(new List<string>(CoreMechanicCueIDs.Critical).Contains(CoreMechanicCueIDs.DefyBurst)).IsTrue();
+        AssertObject(catalog.Find("defy_toll")).IsNull();
+        AssertObject(catalog.Find("defy_seal_shatter")).IsNull();
+        AssertThat(new List<string>(CoreMechanicCueIDs.All).Contains("defy_toll")).IsFalse();
     }
 
     /// <summary>

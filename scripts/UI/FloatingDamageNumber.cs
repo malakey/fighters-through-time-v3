@@ -77,6 +77,27 @@ namespace FTT.UI {
             return number;
         }
 
+        /// <summary>
+        /// MM-FX (meter and Defy update, plan section 2.11): a word instead of a number, such
+        /// as the Defy's "DEFIED". It is a mechanic cue, so it shows even when damage numbers
+        /// are switched off. Same pool, motion and fade as a damage number.
+        /// </summary>
+        public static FloatingDamageNumber ShowText(
+            string text, Vector2 position, Node parent = null, Color? tint = null, float scale = 1f) {
+            if (string.IsNullOrEmpty(text) || FTT.Core.PoolManager.Instance == null) return null;
+            _scene ??= GD.Load<PackedScene>(ScenePath);
+            if (_scene == null) return null;
+            FTT.Core.PoolManager.Instance.RegisterPool(
+                _scene, WarmUpCount, MaxCapacity, FTT.Core.PoolOverflowPolicy.RecycleOldest);
+            var number = FTT.Core.PoolManager.Instance.Spawn(_scene, position, parent) as FloatingDamageNumber;
+            number?.Initialize(0, position, tint, scale);
+            if (number?._label != null) number._label.Text = text;
+            return number;
+        }
+
+        /// <summary>The text on screen right now. Test seam.</summary>
+        public string DisplayedText => _label?.Text ?? "";
+
         public void OnSpawn() {
             _lifetime = MaxLifetime;
             _velocity = Vector2.Zero;
