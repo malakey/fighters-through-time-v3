@@ -31,8 +31,8 @@ namespace FTT.Environment {
         HitstunDI,
         /// <summary>V7.6: the landing tech, repeating until one lands.</summary>
         LandingTech,
-        /// <summary>V7.6: the meter fills to 100%, then a scripted lethal hit is
-        /// refused by Defy History — the F13 seal goes lit, then broken.</summary>
+        /// <summary>2026-10-31: the meter is set to the Defy cost, a drone swarm pins the
+        /// hero, and the step completes only when the hero presses Defy and the blast fires.</summary>
         MeterAndDefy,
         UseRewind,
         /// <summary>V7.2: one manual scrubbed rewind (free). A2's Time Freeze
@@ -190,11 +190,10 @@ namespace FTT.Environment {
         }
 
         /// <summary>
-        /// V7.6 Meter &amp; Defy: the scripted lethal-tagged hit was refused by
-        /// Defy History, spending the meter and breaking the F13 seal. True when
-        /// this advanced the step.
+        /// Meter &amp; Defy (2026-10-31): the hero pressed Defy and the blast fired
+        /// (<c>EventBus.OnDefyExecuted</c> from the hero). True when this advanced the step.
         /// </summary>
-        public bool RegisterDefyProc() {
+        public bool RegisterDefyExecuted() {
             if (Step != TutorialCalibrationStep.MeterAndDefy) return false;
             Step = TutorialCalibrationStep.UseRewind;
             return true;
@@ -230,17 +229,6 @@ namespace FTT.Environment {
         public bool SkipTimeFreezeLesson() {
             if (Step != TutorialCalibrationStep.UseTimeFreeze) return false;
             Step = TutorialCalibrationStep.Done;
-            return true;
-        }
-
-        /// <summary>
-        /// Never-strand fallback for the V7.6 Defy beat: a save that already
-        /// spent Defy History this level (a mid-level resume) cannot show the
-        /// proc, so the lesson closes on its coaching text alone.
-        /// </summary>
-        public bool SkipDefyLesson() {
-            if (Step != TutorialCalibrationStep.MeterAndDefy) return false;
-            Step = TutorialCalibrationStep.UseRewind;
             return true;
         }
     }

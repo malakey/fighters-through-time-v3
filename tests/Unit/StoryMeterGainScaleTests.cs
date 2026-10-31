@@ -105,9 +105,6 @@ public class StoryMeterGainScaleTests {
     public void FlatGrantsDirectSetsAndSpendsAreNotScaledOnTheCampaignHero() {
         PlayerController hero = SpawnCampaignHero();
         try {
-            // A stale live attempt from another suite can seed a spent Defy; this
-            // case is about the meter, so it starts from an unspent one.
-            hero.SetStoryDefyHistoryUsed(false);
             hero.SetUltimateMeter(50f);
             Meter(hero).AddFlat(5f);
             AssertThat(hero.CurrentUltimateMeter)
@@ -123,10 +120,8 @@ public class StoryMeterGainScaleTests {
 
             hero.ApplyDamage(hero.MaximumHP);
             AssertThat(hero.CurrentHP)
-                .OverrideFailureMessage("A full bar set directly still arms Defy History.")
-                .IsEqual(1);
-            AssertThat(hero.StoryDefyHistoryUsed).IsTrue();
-            AssertThat(hero.CurrentUltimateMeter).IsEqual(0f);
+                .OverrideFailureMessage("The passive Defy is gone: a lethal hit on a full bar kills.")
+                .IsEqual(0);
         } finally {
             Free(hero);
         }
@@ -179,61 +174,6 @@ public class StoryMeterGainScaleTests {
         } finally {
             Free(normalized);
             Free(mirrorShaped);
-        }
-    }
-
-    [TestCase]
-    public void TheMeterAndDefyLessonsLethalHitIsDefiedOnTheScaledCampaignHero() {
-        SceneTree tree = (SceneTree)Engine.GetMainLoop();
-        bool originalPaused = tree.Paused;
-        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
-        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
-        Level00Controller level = null;
-        try {
-            level = ResourceLoader.Load<PackedScene>(Level00ScenePath).Instantiate<Level00Controller>();
-            tree.Root.AddChild(level);
-            var player = level.GetNode<PlayerController>("Player");
-
-            // Level00FlowSceneTests' Full-calibration path. Breaking the beam ends
-            // the hold, which clears its unlosable ScriptedHPFloor.
-            level.BreakTheBeam();
-            level.TranslateToBay();
-            EventBus.Instance.RaiseDialogueComplete("level_00.intro");
-            EventBus.Instance.RaiseDialogueComplete("level_00.wren_offer");
-            TwoOptionPrompt prompt = level.CalibrationPrompt;
-            AssertObject(prompt).IsNotNull();
-            prompt.ChooseFirst();
-            AssertThat(level.Phase).IsEqual(Level00Controller.TutorialPhase.Calibration);
-            AssertThat(player.ScriptedHPFloor).IsEqual(0);
-
-            AssertThat(player.AppliesStoryMeterGainScale)
-                .OverrideFailureMessage("The Level 0 hero is the campaign hero.")
-                .IsTrue();
-            player.StoryUltimateBuildRateMultiplier = 1f;
-            AssertFloat(player.StoryMeterGainFactor).IsEqualApprox(StoryCombatRules.MeterGainScale, 0.0001f);
-            // A stale live attempt from another suite can seed a spent Defy, which
-            // makes the lesson (correctly) skip its grant; this case starts from
-            // the fresh attempt the lesson is written for.
-            player.SetStoryDefyHistoryUsed(false);
-            player.SetUltimateMeter(0f);
-
-            EventBus.Instance.RaiseDialogueComplete("level_00.ultimate_intro");
-            AssertThat(Meter(player).CurrentValue)
-                .OverrideFailureMessage("The lesson's grant is a direct set, so D5's scale never short-fills it.")
-                .IsEqual(InfluenceMeterRules.MaxValue);
-            AssertThat(player.CurrentUltimateMeter).IsEqual(InfluenceMeterRules.MaxValue);
-
-            // The lesson's own lethal-tagged hit.
-            player.ApplyEnvironmentalDamage(player.CurrentHP);
-            AssertThat(player.CurrentHP)
-                .OverrideFailureMessage("A full bar on the scaled campaign hero must still defy the lesson's lethal hit.")
-                .IsEqual(1);
-            AssertThat(player.StoryDefyHistoryUsed).IsTrue();
-            AssertThat(player.CurrentUltimateMeter).IsEqual(0f);
-        } finally {
-            Free(level);
-            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
-            tree.Paused = originalPaused;
         }
     }
 

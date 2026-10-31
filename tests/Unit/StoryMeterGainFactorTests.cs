@@ -183,7 +183,7 @@ public class StoryMeterGainFactorTests {
     }
 
     [TestCase]
-    public void TheLevel0DefyLessonFillsTheBarToExactlyOneHundredWhateverTheGainFactor() {
+    public void TheLevel0DefyLessonSetsTheBarToExactlyTheDefyCostWhateverTheGainFactor() {
         // The lesson's grant used to be a damage-dealt gain of 100, which a
         // gain factor below 1 would have short-filled (the bar unlit, the
         // scripted lethal hit then killing the hero instead of being defied).
@@ -200,23 +200,14 @@ public class StoryMeterGainFactorTests {
                 var player = level.GetNode<PlayerController>("Player");
                 player.StoryUltimateBuildRateMultiplier = rate;
                 player.SetUltimateMeter(0f);
-                // CharacterFactory seeds a spent Defy when StoryManager holds a live
-                // attempt that spent it, and an earlier suite can leave one behind;
-                // the lesson then (correctly) skips its grant. This case is about the
-                // grant, so it starts from the fresh attempt the lesson is written for.
-                // The spent-Defy skip is pinned in TutorialCalibrationTests.
-                bool seededSpent = player.StoryDefyHistoryUsed;
-                player.SetStoryDefyHistoryUsed(false);
 
                 EventBus.Instance.RaiseDialogueComplete("level_00.ultimate_intro");
 
                 AssertThat(player.CurrentUltimateMeter)
                     .OverrideFailureMessage(
-                        $"At a gain factor of {rate} the lesson must still light a full bar (Defy seeded spent: {seededSpent}).")
-                    .IsEqual(InfluenceMeterRules.MaxValue);
-                AssertThat(Meter(player).CurrentValue).IsEqual(InfluenceMeterRules.MaxValue);
-                AssertThat(Meter(player).IsFull).IsTrue();
-                AssertThat(player.StoryDefyHistoryUsed).IsFalse();
+                        $"At a gain factor of {rate} the lesson must still set exactly the Defy cost.")
+                    .IsEqual(BasicComboRules.DefyInfluenceCost);
+                AssertThat(Meter(player).CurrentValue).IsEqual(BasicComboRules.DefyInfluenceCost);
             } finally {
                 Free(level);
                 GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;

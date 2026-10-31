@@ -829,24 +829,13 @@ public class FeelPassStoryTests {
             AssertThat(joan.CurrentUltimateMeter)
                 .OverrideFailureMessage("A write to the meter node must reach the controller's field.")
                 .IsEqual(UltimateMeter.MaxValue);
-            AssertThat(joan.DefySeal).IsEqual(DefySealState.Ready);
-
             SendInput(joan, GameplayButtons.Ultimate);
             AssertThat(joan.CurrentState).IsEqual(CharacterState.UsingUltimate);
             AssertThat(meter.CurrentValue).IsEqual(0f);
             AssertThat(joan.CurrentUltimateMeter)
                 .OverrideFailureMessage("The Ultimate spent the meter node; the field must read the same 0.")
                 .IsEqual(meter.CurrentValue);
-            AssertThat(joan.DefySeal)
-                .OverrideFailureMessage("A spent meter cannot light the Defy seal.")
-                .IsEqual(DefySealState.Building);
 
-            // A lethal blow on the spent meter is not defied.
-            joan.ApplyDamage(joan.MaximumHP * 2);
-            AssertThat(joan.StoryDefyHistoryUsed)
-                .OverrideFailureMessage("Defy History fired on a meter the Ultimate had already spent.")
-                .IsFalse();
-            AssertThat(joan.CurrentHP).IsEqual(0);
         } finally {
             InputManager.Instance?.ClearInputSource(joan.PlayerIndex);
             joan.Free();

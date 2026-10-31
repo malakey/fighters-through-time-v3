@@ -572,76 +572,17 @@ namespace FTT.Characters {
 		private bool _temporalAegisActive;
 
 		/// <summary>
-		/// V7.6 D04: true while a Defy survivor is protected — through the
-		/// presentation (awaiting control) and for the 60 resumed control ticks.
-		/// The gate rejects damaging hits, damaging status ticks and damaging
-		/// stage hazards BEFORE Aegis, HP barriers and block; a rejected contact
-		/// spends no protection, applies no effects and grants no reward.
-		/// It is not immunity to non-hit deaths (pits, Integrity zero).
+		/// The active Defy History's invulnerable startup (meter and Defy update
+		/// 2026-10-31, <c>USER-DEFY-FRAMES</c>): true exactly on Defy frames 1 to
+		/// <see cref="FTT.Combat.BasicComboRules.DefyInvulnerableFrames"/>. The gate
+		/// rejects damaging hits, damaging status ticks and damaging stage hazards
+		/// BEFORE Aegis, HP barriers and block, as the passive window did; it is not
+		/// immunity to non-hit deaths (pits, Integrity zero). The old 60-frame
+		/// post-proc window is gone.
 		/// </summary>
-		public bool IsDefyProtected => _defyProtectionAwaitControl || _defyProtectionFrames > 0;
-
-		/// <summary>Remaining protected ticks once control has resumed. Test seam.</summary>
-		public int DefyProtectionFramesRemaining => _defyProtectionFrames;
-
-		/// <summary>True while the survivor is still inside the Defy presentation.</summary>
-		public bool DefyProtectionAwaitingControl => _defyProtectionAwaitControl;
-
-		private bool _defyProtectionAwaitControl;
-		private int _defyProtectionFrames;
-		// Set for the duration of one hit's resolution when that hit fired Defy:
-		// the defied blow may not launch, stun or re-lock the survivor it spared.
-		private bool _defySuppressHitEffects;
-
-		/// <summary>
-		/// F10 persistence: "once per level" means once per ATTEMPT. Restored by
-		/// <c>StoryManager.ApplyResumedAttemptState</c> so a mid-level quit and
-		/// resume, or a death rewind that rebuilds the player, cannot hand the
-		/// run a second saved life. Only a fresh entry or a full Restart Level
-		/// resets it.
-		/// </summary>
-		public void SetStoryDefyHistoryUsed(bool used) => _storyDefyHistoryUsed = used;
-
-		/// <summary>
-		/// F10 checkpoint reconstruction clears the transient protection and the
-		/// pending presentation while retaining committed HP, meter and the
-		/// spent use. Loading never replays the proc or grants a fresh second.
-		/// </summary>
-		public void ClearDefyProtection() {
-			_defyProtectionAwaitControl = false;
-			_defyProtectionFrames = 0;
-		}
-
-		/// <summary>
-		/// The F13 seal read-model, derived from authoritative meter / Defy-used
-		/// / life state at the end of the gameplay update. Never persisted as a
-		/// separate cosmetic flag; recomputed on gain, spend, drain, proc,
-		/// death/respawn, load and rollback.
-		/// </summary>
-		public FTT.Core.DefySealState DefySeal =>
-			CurrentState == CharacterState.Dead || CurrentState == CharacterState.Respawning
-				? FTT.Core.DefySealState.Barred
-				: _storyDefyHistoryUsed
-					? FTT.Core.DefySealState.Spent
-					: CurrentUltimateMeter >= FTT.Combat.UltimateMeter.MaxValue
-						? FTT.Core.DefySealState.Ready
-						: FTT.Core.DefySealState.Building;
-
-		private FTT.Core.DefySealState _publishedDefySeal = (FTT.Core.DefySealState)(-1);
-
-		/// <summary>
-		/// Publishes the seal only when it actually changes, so the HUD never
-		/// sees a per-frame storm. Called at the end of the gameplay update.
-		/// </summary>
-		private void PublishDefySealIfChanged() {
-			FTT.Core.DefySealState state = DefySeal;
-			if (state == _publishedDefySeal) return;
-			_publishedDefySeal = state;
-			FTT.Core.EventBus.Instance?.RaiseDefySealChanged(new FTT.Core.DefySealPayload {
-				PlayerIndex = PlayerIndex,
-				State = state
-			});
-		}
+		public bool IsDefyProtected =>
+			CurrentState == CharacterState.Defying
+			&& _defyFrame >= 1 && _defyFrame <= FTT.Combat.BasicComboRules.DefyInvulnerableFrames;
 
 		/// <summary>
 		/// The ONE ordered resolution of the D01/D02b protection stack for one
@@ -699,17 +640,6 @@ namespace FTT.Characters {
 				WardenclyffeDamageDelaySeconds = MathF.Max(
 					0f, WardenclyffeDamageDelaySeconds - 1f / 60f);
 			}
-			if (_defyProtectionAwaitControl) {
-				// The window opens at the first RESUMED NORMAL-CONTROL tick, not
-				// on the player's first input and not while stunned or dead.
-				bool actionable = CurrentState != CharacterState.Dead
-					&& CurrentState != CharacterState.Respawning
-					&& CurrentState != CharacterState.Stunned
-					&& CurrentState != CharacterState.Dazed;
-				if (!actionable) return;
-				_defyProtectionAwaitControl = false;
-			}
-			if (_defyProtectionFrames > 0) _defyProtectionFrames--;
 		}
 
 		// === end Package 11 A1b region (defensive state) =====================
@@ -874,11 +804,6 @@ namespace FTT.Characters {
 		// not rally — this state exists only on the player.
 		private float _echoPool;
 		private float _echoDrainPerFrame;
-		private bool _storyDefyHistoryUsed;
-		// Set by ApplyDamage when Defy History fires, read (and cleared) by
-		// OnHurtboxHit: a defied hit generates neither echo nor victim meter —
-		// the shattered meter consumed the entire blow.
-		private bool _defyFiredThisHit;
 
 		// === Ability lockout: the special global cooldown (user direction 2026-10-08) ===
 		// A basic swing start, a special cast or an accepted Ultimate arms it;
@@ -937,9 +862,6 @@ namespace FTT.Characters {
 		private void ArmAbilityLockout() {
 			_abilityLockoutFrames = FTT.Combat.BasicComboRules.AbilityLockoutFrames;
 			_specialLockoutFrames = FTT.Combat.BasicComboRules.AbilityLockoutFrames;
-			// CM-HIT (decision 4.3, amending D04): a Special or the Ultimate ends
-			// the Defy survivor's protected window (the sim's EndOnOffence).
-			ClearDefyProtection();
 		}
 
 		/// <summary>A basic swing start: arms A and clears the landed latch C.</summary>
@@ -947,8 +869,6 @@ namespace FTT.Characters {
 			_abilityLockoutFrames = FTT.Combat.BasicComboRules.AbilityLockoutFrames;
 			_swingLanded = false;
 			_freezeBufferArmed = false;
-			// CM-HIT (4.3): so does any basic swing.
-			ClearDefyProtection();
 		}
 
 		/// <summary>Death rewind and checkpoint restore: A, S and C (and the freeze buffer) to zero.</summary>
@@ -1101,8 +1021,11 @@ namespace FTT.Characters {
 		/// <summary>Reclaimable Rally echo remaining, in HP. Test seam / HUD.</summary>
 		public float EchoPool => _echoPool;
 
-		/// <summary>Whether Defy History already fired this level. Test seam.</summary>
-		public bool StoryDefyHistoryUsed => _storyDefyHistoryUsed;
+		/// <summary>
+		/// Dead since the meter and Defy update (2026-10-31): the passive Defy is
+		/// gone and nothing is spent per level. MM-SWEEP deletes this getter.
+		/// </summary>
+		public bool StoryDefyHistoryUsed => false;
 
 		// Jump tracking
 		private bool _jumpHeld;
@@ -1669,19 +1592,13 @@ namespace FTT.Characters {
 				TransitionTo(CharacterState.Airborne);
 			}
 
-			// V7.6 D04: the defied hit imposes no forced motion, no stun and no
-			// new attached control/status effect on the survivor it spared. The
-			// flag is consumed here, once, by the hit that set it.
-			bool defySuppressed = _defySuppressHitEffects;
-			_defySuppressHitEffects = false;
-
 			bool hasHyperArmor = HasActiveHyperArmorAgainst(hit.AttackClass);
 			// M05 (Package 12 W3b): only an authored launcher launches. F7: a
 			// Standard-tier mob's hit no longer does. F6: the same flag adds the
 			// launch bonus to the victim's freeze below (the sim reads its hit's
 			// launch flag the same way, armored or not).
 			bool launches = ResolveHitLaunches(in hit);
-			if (!hasHyperArmor && !defySuppressed) {
+			if (!hasHyperArmor) {
 				// An impulse-free hit (construct arcs/bites carry zero
 				// knockback) must not replace the velocity — a zero vector
 				// would freeze the victim mid-motion.
@@ -1758,15 +1675,14 @@ namespace FTT.Characters {
 				_hasPendingLaunch = false;
 			}
 
-			if (hit.AppliedStatus != FTT.Core.StatusType.None && !defySuppressed
+			if (hit.AppliedStatus != FTT.Core.StatusType.None
 				&& CurrentState != CharacterState.Dead) {
 				ApplyHitStatus(in hit, hasHyperArmor);
 			}
 
 			// V7.6 F07: the caster-owned combo mark rides the same hit but is not
 			// a status — no slot, no action lock, no stagger budget.
-			if (!defySuppressed
-				&& hit.ComboMark == FTT.Combat.ComboMarkType.Conductive && hit.ComboMarkFrames > 0) {
+			if (hit.ComboMark == FTT.Combat.ComboMarkType.Conductive && hit.ComboMarkFrames > 0) {
 				ApplyConductiveMark(hit.AttackerIndex, hit.ComboMarkFrames);
 			}
 
@@ -1777,9 +1693,7 @@ namespace FTT.Characters {
 			// accrues only on the permanent (non-echo) portion here; the echo
 			// portion's meter accrues if and when it drains (no double-earning).
 			float echoAmount = 0f;
-			bool defied = _defyFiredThisHit;
-			_defyFiredThisHit = false;
-			if (!defied && CurrentState != CharacterState.Dead && CurrentHP > 0 && MaximumHP > 0) {
+			if (CurrentState != CharacterState.Dead && CurrentHP > 0 && MaximumHP > 0) {
 				float missing = (MaximumHP - CurrentHP) / (float)MaximumHP;
 				// Package 11 A4: the V7.6 RallyEchoFraction lane (Einstein,
 				// Joan, Shakespeare, Lincoln) scales the echo share alongside
@@ -1794,10 +1708,8 @@ namespace FTT.Characters {
 				_echoDrainPerFrame = _echoPool / FTT.Combat.BasicComboRules.EchoDrainFrames;
 			}
 
-			if (!defied) {
-				_ultimateMeter?.AddFromDamageTaken(damageApplied - echoAmount);
-				CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
-			}
+			_ultimateMeter?.AddFromDamageTaken(damageApplied - echoAmount);
+			CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
 			float shakeIntensity = hit.ScreenShakeIntensity > 0f
 				? hit.ScreenShakeIntensity * FTT.Combat.StoryEnemyCombatRules.AuthoredShakePixelsPerIntensity
 				: damageApplied * 0.25f;
@@ -2088,6 +2000,8 @@ namespace FTT.Characters {
 				// D3 (2026-10-11): a cancel press made in a Special's freeze (the
 				// caster freeze of its landed hit) is buffered without aging.
 				BufferSpecialCancelPress(hitstopTick: true);
+				// O10: a Defy press made inside the hero's own freeze begins on the thaw tick.
+				BufferDefyPress();
 				SetCastClocksSuspended(true);
 				_hitstopFramesRemaining--;
 				if (_animatedSprite != null) _animatedSprite.SpeedScale = 0f;
@@ -2141,10 +2055,6 @@ namespace FTT.Characters {
 			// Wardenclyffe's recharge delay and the Defy protected second all
 			// run on the suspended-effect clock.
 			TickStoryDefense();
-			// F13: the Defy seal is DERIVED from authoritative meter / Defy-used
-			// / life state after the gameplay update, never persisted as its own
-			// cosmetic flag.
-			PublishDefySealIfChanged();
 
 			// CM-BLOCK (3.4): the perfect-block window and its lowered age. Hitstop
 			// pauses them (the early return above); since CM-FIXB-STORY (finding
@@ -2167,6 +2077,10 @@ namespace FTT.Characters {
 			// status — it ticks on its own frame counter and locks nothing.
 			TickConductiveMark();
 			if (_downTapFramesRemaining > 0) _downTapFramesRemaining--;
+
+			// The active Defy History (2026-10-31): legal from any state, so it is read
+			// before the tech-lock return and the state switch, and claims the tick.
+			TryBeginDefy();
 
 			// V7.3 landing-tech lock: the 12-frame recovery holds the player in
 			// place — invulnerable (the ApplyDamage gate), no actions, no
@@ -2235,6 +2149,9 @@ namespace FTT.Characters {
 					break;
 				case CharacterState.Thrown:
 					ProcessThrown(dt);
+					break;
+				case CharacterState.Defying:
+					ProcessDefying(dt);
 					break;
 			}
 
@@ -3285,8 +3202,6 @@ namespace FTT.Characters {
 			_grabbedEnemy = null;
 			PlayAnimation("grab");
 			TransitionTo(CharacterState.Grabbing);
-			// CM-HIT (4.3): a grab is an offensive action — it ends Defy protection.
-			ClearDefyProtection();
 			return true;
 		}
 
@@ -3754,6 +3669,8 @@ namespace FTT.Characters {
 				_attackStartedCrouched = false;
 			}
 			CurrentState = newState;
+			// Any exit from a Defy (a hit, death) ends its frame clock.
+			if (oldState == CharacterState.Defying && newState != CharacterState.Defying) _defyFrame = 0;
 			// CM-HIT (3.2): any state but Airborne (drift, fast-fall) and Stunned
 			// (the tumble landing itself) leaves the post-hitstun tumble — the air
 			// dodge, the air strike, a Special, the Ultimate, the movement ability,
@@ -4129,15 +4046,11 @@ namespace FTT.Characters {
 		/// </summary>
 		private int ApplyEnvironmentalRemainder(int remaining, bool appliesHitstop, bool periodicTick) {
 			int damageApplied = ApplyDamage(remaining);
-			// Consume the Defy flag whether or not damage landed — the flag
-			// belongs to this hit's accounting alone.
-			bool defied = _defyFiredThisHit;
-			_defyFiredThisHit = false;
 			if (damageApplied <= 0) return damageApplied;
 			ObserveDamageTaken(DamageObservationKind.Hazard, damageApplied, periodicTick); // CM-BOT (7.2): observation only
 
 			float echoAmount = 0f;
-			if (!defied && CurrentState != CharacterState.Dead && CurrentHP > 0 && MaximumHP > 0) {
+			if (CurrentState != CharacterState.Dead && CurrentHP > 0 && MaximumHP > 0) {
 				float missing = (MaximumHP - CurrentHP) / (float)MaximumHP;
 				// Package 11 A4: the V7.6 RallyEchoFraction lane (Einstein,
 				// Joan, Shakespeare, Lincoln) scales the echo share alongside
@@ -4151,10 +4064,8 @@ namespace FTT.Characters {
 				_echoPool += echoAmount;
 				_echoDrainPerFrame = _echoPool / FTT.Combat.BasicComboRules.EchoDrainFrames;
 			}
-			if (!defied) {
-				_ultimateMeter?.AddFromDamageTaken(damageApplied - echoAmount);
-				CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
-			}
+			_ultimateMeter?.AddFromDamageTaken(damageApplied - echoAmount);
+			CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
 			if (appliesHitstop && CurrentState != CharacterState.Dead) {
 				ApplyHitstop(FTT.Combat.BasicComboRules.HitstopFrames(damageApplied));
 			}
@@ -4194,52 +4105,6 @@ namespace FTT.Characters {
 				&& _storyShield.EffectId == FTT.Combat.StoryShieldEffect.Wardenclyffe) {
 				WardenclyffeDamageDelaySeconds =
 					FTT.Combat.StoryDefenseRules.WardenclyffeDamageDelaySeconds;
-			}
-
-			// V7.1 Defy History: a lethal hit against a full Ultimate Meter does
-			// not kill — the meter shatters to 0 and the player survives at
-			// 1 HP. Once per level; fires before the Chronal Rewind would, so
-			// no rewind charge is spent. (Should a true blast-zone/pit death
-			// path ever be added, it must bypass this — falling is not a hit.)
-			if (CurrentHP <= 0 && !_storyDefyHistoryUsed
-				&& CurrentUltimateMeter >= FTT.Combat.UltimateMeter.MaxValue) {
-				_storyDefyHistoryUsed = true;
-				// F10: commit the spent use to the per-attempt registry in the
-				// same breath as HP and meter, so a quit-and-resume or a death
-				// rewind that rebuilds this controller cannot restore it.
-				// Only a live campaign attempt records the spent use; a proc outside
-				// one (Test Arena, fixtures) must not leave stale singleton state.
-				if (FTT.Core.StoryManager.Instance != null
-					&& FTT.Core.StoryManager.Instance.HasLiveAttempt) {
-					FTT.Core.StoryManager.Instance.StoryDefyHistoryUsed = true;
-				}
-				_defyFiredThisHit = true;
-				CurrentHP = 1;
-				damageApplied = previousHP - CurrentHP;
-				_ultimateMeter?.Consume();
-				CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? 0f;
-				// The saved life reads as a hard moment: an extended freeze and
-				// a heavy shake (the sim applies the same 12-frame hitstop).
-				ApplyHitstop(12);
-				FTT.Core.CameraShake.Instance?.Shake(10f, 0.35f);
-				// V7.6 D04 (Package 11 A1b): protected recovery. The survivor is
-				// RELEASED from the triggering hit's forced hitstun, stagger,
-				// knockback/launch and capture — it may not be launched or
-				// stunned by the very blow it defied — keeps its current legal
-				// position (no teleport, no granted jumps, cooldowns or
-				// resources), and is invulnerable through the presentation plus
-				// 60 active ticks once normal control resumes.
-				_defyProtectionAwaitControl = true;
-				_defyProtectionFrames = FTT.Combat.StoryDefenseRules.DefyProtectionFrames;
-				_defySuppressHitEffects = true;
-				_hasPendingLaunch = false;
-				_stunTumble = false;
-				// CM-HIT (3.2): a Defy releases the survivor from a post-hitstun tumble too.
-				ClearTumbleAfterHitstun();
-				ReleaseGrabState();
-				if (CurrentState == CharacterState.Stunned || CurrentState == CharacterState.Dazed) {
-					TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
-				}
 			}
 
 			FTT.Core.EventBus.Instance?.RaisePlayerHPChanged(new FTT.Core.PlayerHPPayload {
@@ -4363,13 +4228,12 @@ namespace FTT.Characters {
 		/// 2026-10-04 fix pass (G2): called by this controller's own
 		/// <see cref="FTT.Combat.UltimateMeter"/> node on every write, so
 		/// <see cref="CurrentUltimateMeter"/> — Defy History's full-meter test, the
-		/// <see cref="DefySeal"/> read-model and the save writers' source — can
+		/// save writers' source — can
 		/// never lag the node. Before this an Ultimate that spent the node inside
 		/// its own startup (<c>JoanGrandCrusade.OnStartup</c>'s <c>Consume</c>)
 		/// left the field at 100 until the next controller-side meter event, so a
 		/// lethal hit right after the cast was defied on an empty meter and a
-		/// checkpoint saved a full one. The seal itself is still published once
-		/// per update by <c>PublishDefySealIfChanged</c>.
+		/// checkpoint saved a full one.
 		/// </summary>
 		internal void SyncUltimateMeterFromNode(float value) => CurrentUltimateMeter = value;
 
@@ -4594,7 +4458,6 @@ namespace FTT.Characters {
 			// preserved, so a reload cannot accelerate recovery (D02d).
 			ClearStoryShield();
 			ClearTemporalAegis();
-			ClearDefyProtection();
 			ReleaseGrabState();
 			// Package 11 A4: a stock loss / respawn clears every per-airtime
 			// Resonance traversal latch and the Shield of Orleans dedup ledger.

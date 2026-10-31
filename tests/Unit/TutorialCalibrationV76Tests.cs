@@ -217,46 +217,17 @@ public class TutorialCalibrationV76Tests {
     // === Meter & Defy History ==========================================
 
     [TestCase]
-    public void TheDefyBeatSpendsExactlyOneUseAndLeavesTheSealBroken() {
+    public void TheDefyBeatNeedsTheButtonAndNoLethalHitIsDefiedAnyMore() {
         PlayerController player = Spawn();
         try {
-            // The calibration's scripted meter grant: never a landed hit, so it
-            // can never be mistaken for a Rally reclaim.
-            player.AddInfluenceFromDamageDealt(UltimateMeter.MaxValue, collectsEcho: false);
-            AssertThat(player.CurrentUltimateMeter).IsEqual(UltimateMeter.MaxValue);
-            AssertThat(player.StoryDefyHistoryUsed)
-                .OverrideFailureMessage("The seal starts lit, not spent.")
-                .IsFalse();
+            // The scripted meter grant: a direct set to the Defy cost, never a landed hit.
+            player.SetUltimateMeter(BasicComboRules.DefyInfluenceCost);
+            AssertThat(player.CurrentUltimateMeter).IsEqual(BasicComboRules.DefyInfluenceCost);
 
-            // The scripted lethal-tagged hit, through the V7.3 environmental
-            // chokepoint the calibration uses.
-            player.ApplyEnvironmentalDamage(player.CurrentHP);
-
-            AssertThat(player.StoryDefyHistoryUsed)
-                .OverrideFailureMessage("A full meter must refuse the lethal hit.")
-                .IsTrue();
-            AssertThat(player.CurrentHP)
-                .OverrideFailureMessage("Defy History survives at 1 HP.")
-                .IsEqual(1);
-            AssertThat(player.CurrentUltimateMeter)
-                .OverrideFailureMessage("The meter shatters to zero — that is what the broken seal means.")
-                .IsEqual(0f);
-
-            // V7.6 D04 (Package 11 A1b): the survivor is invulnerable through
-            // the presentation and for 60 resumed control ticks, so the second
-            // lethal hit has to wait that window out. Clearing it directly keeps
-            // this case about the SEAL rather than about the timer, which
-            // DefyProtectedRecoveryTests pins on its own.
-            player.ClearDefyProtection();
-            AssertThat(player.IsDefyProtected).IsFalse();
-
-            // Refilling the meter does NOT restore the spent Defy: the next
-            // lethal hit kills.
-            player.AddInfluenceFromDamageDealt(UltimateMeter.MaxValue, collectsEcho: false);
-            AssertThat(player.CurrentUltimateMeter).IsEqual(UltimateMeter.MaxValue);
+            // The passive save is gone: a lethal hit on a funded bar kills.
             player.ApplyEnvironmentalDamage(player.CurrentHP);
             AssertThat(player.CurrentHP)
-                .OverrideFailureMessage("A refilled meter must not resurrect a spent Defy History.")
+                .OverrideFailureMessage("There is no passive Defy: the lethal hit must kill.")
                 .IsEqual(0);
         } finally {
             Free(player);

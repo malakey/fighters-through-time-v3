@@ -15,7 +15,7 @@ namespace FTT.Tests.Unit;
 /// <see cref="CharacterState.Airborne"/> with control back but still tumbling
 /// (<see cref="PlayerController.IsTumblingAfterHitstun"/>). Doing nothing lands
 /// in the tumble — held Block techs it, otherwise it is the M05 knockdown; an
-/// air jump, the air dodge, the air strike or a Special leaves it; a Defy proc
+/// air jump, the air dodge, the air strike or a Special leaves it; a Defy press
 /// clears it. The Fighter half is <c>tests/Determinism/FighterTumbleTests.cs</c>.
 /// </summary>
 [TestSuite]
@@ -111,19 +111,17 @@ public class StoryTumbleTests {
     public void ADefyMidTumbleClearsIt() {
         Run(player => {
             RideToTumbleAfterHitstun(player);
-            player.ApplyDamage(player.CurrentHP - 1);
-            player.CurrentUltimateMeter = UltimateMeter.MaxValue;
-            player.GetNode<UltimateMeter>("UltimateMeter").SetValue(UltimateMeter.MaxValue);
+            player.SetUltimateMeter(BasicComboRules.DefyInfluenceCost);
             AssertThat(player.IsTumblingAfterHitstun).IsTrue();
-            player.ApplyDamage(player.MaximumHP);
-            AssertThat(player.StoryDefyHistoryUsed)
-                .OverrideFailureMessage("setup: the lethal blow must fire Defy.")
+            Step(player, GameplayButtons.Defy);
+            AssertThat(player.IsDefying)
+                .OverrideFailureMessage("setup: the Defy press must begin a Defy mid-tumble.")
                 .IsTrue();
             AssertThat(player.IsTumblingAfterHitstun)
-                .OverrideFailureMessage("D04: a Defy releases the survivor from the tumble.")
+                .OverrideFailureMessage("A Defy releases the hero from the tumble.")
                 .IsFalse();
             bool knockedDown = false;
-            for (int frame = 0; frame < 240 && !player.IsOnFloor(); frame++) {
+            for (int frame = 0; frame < 300 && !(player.IsOnFloor() && !player.IsDefying); frame++) {
                 Step(player, GameplayButtons.None);
                 knockedDown |= player.IsKnockedDown;
             }

@@ -36,7 +36,7 @@ public class TutorialCalibrationTests {
         if (target == TutorialCalibrationStep.LandingTech) return script;
         script.RegisterLandingTech();
         if (target == TutorialCalibrationStep.MeterAndDefy) return script;
-        script.RegisterDefyProc();
+        script.RegisterDefyExecuted();
         if (target == TutorialCalibrationStep.UseRewind) return script;
         script.RegisterRewindComplete();
         if (target == TutorialCalibrationStep.UseTimeFreeze) return script;
@@ -73,7 +73,7 @@ public class TutorialCalibrationTests {
         AssertThat(script.RegisterLandingTech()).IsTrue();
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.MeterAndDefy);
 
-        AssertThat(script.RegisterDefyProc()).IsTrue();
+        AssertThat(script.RegisterDefyExecuted()).IsTrue();
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.UseRewind);
 
         // V7.2: the scripted death-rewind demo hands off to the player's own
@@ -127,7 +127,7 @@ public class TutorialCalibrationTests {
         visited.Add(script.Step);
         script.RegisterLandingTech();
         visited.Add(script.Step);
-        script.RegisterDefyProc();
+        script.RegisterDefyExecuted();
         visited.Add(script.Step);
         script.RegisterRewindComplete();
         visited.Add(script.Step);
@@ -146,7 +146,7 @@ public class TutorialCalibrationTests {
     }
 
     [TestCase]
-    public void TheDefyStepAdvancesOnlyOnADefyProc() {
+    public void TheDefyStepAdvancesOnlyOnTheHerosDefyBlast() {
         TutorialCalibrationScript script = AdvanceToStep(TutorialCalibrationStep.MeterAndDefy);
 
         // Nothing else moves the step forward.
@@ -157,7 +157,7 @@ public class TutorialCalibrationTests {
         AssertThat(script.RegisterRewindComplete()).IsFalse();
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.MeterAndDefy);
 
-        AssertThat(script.RegisterDefyProc()).IsTrue();
+        AssertThat(script.RegisterDefyExecuted()).IsTrue();
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.UseRewind);
     }
 
@@ -175,10 +175,9 @@ public class TutorialCalibrationTests {
         AssertThat(script.RegisterDirectionalInfluenceBeat()).IsFalse();
         AssertThat(script.RegisterLandingTech()).IsFalse();
         AssertThat(script.RegisterLandingTechMissed()).IsFalse();
-        AssertThat(script.RegisterDefyProc()).IsFalse();
+        AssertThat(script.RegisterDefyExecuted()).IsFalse();
         AssertThat(script.RegisterRewindComplete()).IsFalse();
         AssertThat(script.RegisterTimeFreezeComplete()).IsFalse();
-        AssertThat(script.SkipDefyLesson()).IsFalse();
         AssertThat(script.SkipRewindDemonstration()).IsFalse();
         AssertThat(script.SkipTimeFreezeLesson()).IsFalse();
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.BasicHits);
@@ -189,7 +188,7 @@ public class TutorialCalibrationTests {
     public void TheRewindStepsCompleteInSequenceWithNeverStrandFallbacks() {
         // The scripted rewind demonstration (ScriptedRewindTests) is preserved
         // and hands off to the player's own rewind lesson; both carry a
-        // never-strand skip, and so does the V7.6 Defy beat.
+        // never-strand skip, The Defy beat has no skip: it needs the button.
         TutorialCalibrationScript script = AdvanceToStep(TutorialCalibrationStep.UseRewind);
         AssertThat(script.RegisterRewindComplete()).IsTrue();
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.UseTimeFreeze);
@@ -205,12 +204,6 @@ public class TutorialCalibrationTests {
         TutorialCalibrationScript manualStranded = AdvanceToStep(TutorialCalibrationStep.UseTimeFreeze);
         AssertThat(manualStranded.SkipTimeFreezeLesson()).IsTrue();
         AssertThat(manualStranded.Step).IsEqual(TutorialCalibrationStep.Done);
-
-        // A resumed attempt that already spent Defy History cannot show the
-        // proc; the lesson closes on its coaching text instead.
-        TutorialCalibrationScript spentDefy = AdvanceToStep(TutorialCalibrationStep.MeterAndDefy);
-        AssertThat(spentDefy.SkipDefyLesson()).IsTrue();
-        AssertThat(spentDefy.Step).IsEqual(TutorialCalibrationStep.UseRewind);
     }
 
     [TestCase]
