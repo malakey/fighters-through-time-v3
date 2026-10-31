@@ -185,13 +185,9 @@ namespace FTT.FighterSim {
             // perfect-block clock, the Down tap and the action flags. All zero is
             // idle; every fighter carries it.
             frame.Add(entity, new FighterActionStateComponent());
-            // V7.6 D01-D04 (Package 11 A1b): the defensive layer - Defy
-            // protected recovery, the Temporal Aegis flag and the D02b HP
-            // barrier. Snapshot and hash state like every other component.
+            // V7.6 D02 (Package 11 A1b): the defensive layer - the Temporal Aegis
+            // flag and the D02b HP barrier. Snapshot and hash state like every other component.
             frame.Add(entity, new FighterDefenseComponent {
-                DefyProtectionAwaitControl = 0,
-                DefyProtectionFrames = 0,
-                DefyProcIdentity = 0,
                 AegisActive = 0,
                 BarrierPoints = 0,
                 BarrierCapacity = 0,
@@ -1892,16 +1888,10 @@ namespace FTT.FighterSim {
             ClearMarkIfRespawning(in fighterTwo, ref conductiveTwo);
             FighterConductiveRules.Tick(ref conductiveOne, verbOne.HitstopFrames > 0);
             FighterConductiveRules.Tick(ref conductiveTwo, verbTwo.HitstopFrames > 0);
-            // V7.6 D04 (Package 11 A1b): the protected second does not start
-            // until the survivor's first resumed NORMAL-CONTROL tick, and its
-            // countdown pauses during global hitstop and suspended-combat
-            // presentations. Attacking never refreshes it, and since CM-HIT
-            // (decision 4.3, amending D04) the survivor's first offensive action
-            // ends it (FighterActionRules.OnActionAccepted).
-            FighterDefenseRules.Tick(
-                ref defenseOne, verbOne.HitstopFrames > 0, IsDefyActionable(in fighterOne, in verbOne));
-            FighterDefenseRules.Tick(
-                ref defenseTwo, verbTwo.HitstopFrames > 0, IsDefyActionable(in fighterTwo, in verbTwo));
+            // D02c: the HP barrier's lifetime counts down once per tick and
+            // pauses in the holder's own hitstop.
+            FighterDefenseRules.TickBarrier(ref defenseOne, verbOne.HitstopFrames > 0);
+            FighterDefenseRules.TickBarrier(ref defenseTwo, verbTwo.HitstopFrames > 0);
             // A12 (Package 13 W1): a Down-Air slam owes its victim one forced
             // ground bounce, recorded on the victim's component 320.
             ref FighterKnockdownComponent knockdownOne = ref frame.Get<FighterKnockdownComponent>(first);
@@ -1938,21 +1928,6 @@ namespace FTT.FighterSim {
                 FighterConductiveRules.Clear(ref mark);
             }
         }
-
-        /// <summary>
-        /// The D04 "normal player control has resumed" test: alive, out of the
-        /// Defy presentation freeze, free of hitstun/daze/respawn, and not held.
-        /// Deliberately NOT an input test - the contract says the window opens
-        /// at the first resumed control tick, "not on the player's first input".
-        /// </summary>
-        private static bool IsDefyActionable(
-            in FighterStateComponent fighter, in FighterVerbComponent verb) =>
-            fighter.Stocks > 0
-            && fighter.HitstunFrames <= 0
-            && fighter.DazeFrames <= 0
-            && fighter.RespawnFramesRemaining <= 0
-            && verb.HitstopFrames <= 0
-            && verb.BeingHeld == 0;
 
         /// <summary>
         /// V7.2 grabs &amp; throws, both fighters per tick: initiation from the
@@ -2796,11 +2771,9 @@ namespace FTT.FighterSim {
             ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
 
             if (activation.Phase == FighterUltimateActivationRules.PhaseCinematic) {
-                // The victim is gone (KO, Defy's protected recovery, or someone
-                // else's hold): the cinematic ends with no finale.
+                // The victim is gone (KO, respawn, or someone else's hold): the cinematic ends with no finale.
                 if (target.Stocks <= 0
                     || target.RespawnFramesRemaining > 0
-                    || FighterDefenseRules.IsDefyProtected(in targetDefense)
                     || targetActivation.CaptorSlot != captorSlot) {
                     if (targetActivation.CaptorSlot == captorSlot) {
                         FighterUltimateActivationRules.ReleaseCapture(ref targetActivation);
@@ -3458,13 +3431,6 @@ namespace FTT.FighterSim {
                 verb.BlockLockoutFrames = 0;
                 verb.HitstunBlockCancelBlocked = 0;
                 verb.LedgeGrabsThisAirtime = 0;
-                // V7.6 F22/F13 (Package 11 A1b): Sudden Death BARS Defy without
-                // marking it SPENT. The seal read-model must distinguish
-                // "unavailable in this context" from "already used", and
-                // pre-marking DefyHistoryUsed = 1 conflated them. The bar is
-                // derived from match.SuddenDeathActive at the read site
-                // (FighterDefenseRules / FighterDefySeal), so the underlying
-                // spent flag is left exactly as the match left it.
                 verb.GrabPhase = FighterGrabRules.PhaseNone;
                 verb.GrabPhaseFrames = 0;
                 verb.BeingHeld = 0;
@@ -3475,11 +3441,6 @@ namespace FTT.FighterSim {
                 verb.MomentumUnits = FighterMomentumRules.SuddenDeathUnits;
                 // No Overtime multiplier inside the phase.
                 verb.OvertimeActive = 0;
-                // "Preserve its spent flag": DefyHistoryUsed is deliberately NOT
-                // written here. The phase disable is derived from
-                // match.SuddenDeathActive at the read site, so entry consumes no
-                // new use and restoring a snapshot cannot resurrect a stale copy.
-
                 runtime.SpecialOneReuseFrames = 0;
                 runtime.SpecialTwoReuseFrames = 0;
                 runtime.MovementCooldownFrames = 0;
@@ -3509,14 +3470,12 @@ namespace FTT.FighterSim {
                 FighterUniversalMovementRules.Cancel(ref runtime);
                 FighterBasicAttackRules.CancelString(ref runtime);
                 FighterLedgeRules.ClearHang(ref runtime);
-                // D04/D02e: Sudden Death cleanup clears the transient Defy
-                // window, the Aegis bubble and any barrier.
+                // D02e: Sudden Death cleanup clears the Aegis bubble and any
+                // barrier. Defy is NOT barred any more (meter and Defy update,
+                // 5.2): the Influence restart at 0 is the only limit, so a Defy
+                // is legal once 50 is earned again.
                 if (frame.Has<FighterDefenseComponent>(entity)) {
-                    ref FighterDefenseComponent defense = ref frame.Get<FighterDefenseComponent>(entity);
-                    FighterDefenseRules.Clear(ref defense);
-                    // F22: Defy is BARRED for the rest of the match, and the bar
-                    // survives the stock losses Sudden Death produces.
-                    defense.DefyBarred = 1;
+                    FighterDefenseRules.Clear(ref frame.Get<FighterDefenseComponent>(entity));
                 }
                 runtime.LedgeRegrabLockoutFrames = 0;
                 if (frame.Has<FighterConductiveComponent>(entity)) {

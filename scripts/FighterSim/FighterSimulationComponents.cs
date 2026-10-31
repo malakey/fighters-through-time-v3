@@ -830,43 +830,25 @@ namespace FTT.FighterSim {
     }
 
     /// <summary>
-    /// V7.6 D01–D04 defensive layer (Package 11 A1b), deterministic half.
-    /// <see cref="FighterRuntimeComponent"/> is exactly full at 128 bytes and
-    /// <see cref="FighterVerbComponent"/> has four bytes of headroom, so the
-    /// defensive contract's new snapshot state lives here. Klotho component ID
-    /// assigned by Package 11 §2.7 — A1b only.
+    /// V7.6 D02 defensive layer (Package 11 A1b), deterministic half: the
+    /// Temporal Aegis flag and the finite HP barrier. Klotho component ID
+    /// assigned by Package 11 section 2.7 (A1b) only.
     ///
-    /// <para><b>D04 protected recovery.</b> A successful Defy sets
-    /// <see cref="DefyProtectionAwaitControl"/> and <see cref="DefyProtectionFrames"/>
-    /// (60) together with <see cref="DefyProcIdentity"/>. The countdown does not
-    /// start until the survivor's first resumed normal-control tick, and pauses
-    /// during hitstop and suspended-combat presentations. The proc identity is
-    /// the resimulation dedupe: a rollback that replays the same proc must not
-    /// stage a second presentation.</para>
+    /// <para>The four D04 passive-Defy fields (the awaiting-control flag, the 60
+    /// protected frames, the proc identity and the Sudden Death bar) were deleted
+    /// with the passive Defy by the meter and Defy update (2026-10-31, O16): the
+    /// component is 20 bytes per fighter now. The active Defy keeps its state on
+    /// component 323.</para>
     ///
     /// <para><b>D02b barrier layer.</b> The simulation has no Story grid perks,
-    /// so <see cref="BarrierPoints"/> is zero in every shipped Fighter match —
+    /// so <see cref="BarrierPoints"/> is zero in every shipped Fighter match -
     /// but D02b's ordering is authored here rather than left implicit, so a
     /// future authored Fighter barrier resolves in the contract's order
-    /// (invulnerability → Aegis → barrier → block) without another rewrite.</para>
+    /// (invulnerability, Aegis, barrier, block) without another rewrite.</para>
     /// </summary>
     [KlothoComponent(312, MaxCount = 2)]
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
     public partial struct FighterDefenseComponent : IComponent {
-        /// <summary>1 while a Defy survivor is still in its presentation and has not resumed control.</summary>
-        public int DefyProtectionAwaitControl;
-        /// <summary>Remaining protected ticks once control resumed; 60 on a fresh proc.</summary>
-        public int DefyProtectionFrames;
-        /// <summary>Deterministic identity of the proc that installed this window; 0 when none.</summary>
-        public int DefyProcIdentity;
-        /// <summary>
-        /// V7.6 F22/F13: 1 while this context BARS Defy — Sudden Death today.
-        /// Deliberately separate from <c>FighterVerbComponent.DefyHistoryUsed</c>
-        /// so the seal can show <b>Unavailable</b> without the underlying
-        /// <b>Spent</b> flag being overwritten, which is exactly what the old
-        /// pre-mark on Sudden Death entry conflated.
-        /// </summary>
-        public int DefyBarred;
         /// <summary>D02e: one active Temporal Aegis per recipient, a flag and never a count.</summary>
         public int AegisActive;
         /// <summary>D02b finite HP barrier: remaining absorption.</summary>

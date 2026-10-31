@@ -280,7 +280,6 @@ public class FighterHitConfirmTests {
     public void ResolveFighterHitNamesRefusedBlockedAbsorbedAndLanded() {
         AssertThat((int)new Fixture().With(f => f.Target.InvulnerabilityFrames = 5).Resolve(8)).IsEqual((int)FighterHitOutcome.Refused);
         AssertThat((int)new Fixture().With(f => f.Target.Stocks = 0).Resolve(8)).IsEqual((int)FighterHitOutcome.Refused);
-        AssertThat((int)new Fixture().With(f => FighterDefenseRules.BeginDefyProtection(ref f.Defense, 1)).Resolve(8)).IsEqual((int)FighterHitOutcome.Refused);
 
         AssertThat((int)new Fixture().With(f => f.Defense.AegisActive = 1).Resolve(8)).IsEqual((int)FighterHitOutcome.Absorbed);
         AssertThat((int)new Fixture().With(f => {

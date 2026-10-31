@@ -13,8 +13,7 @@ namespace FTT.Tests.Determinism;
 /// (both parties freeze, scaled by damage), directional influence (the held
 /// direction at hitstop end bends a launch by up to ±15° without changing its
 /// magnitude), Rally / Desperation Resonance (a fraction of every hit becomes
-/// a briefly reclaimable echo with no meter double-earning), and Defy History
-/// (a full meter refuses one lethal hit). All numbers come from
+/// a briefly reclaimable echo with no meter double-earning). All numbers come from
 /// <see cref="BasicComboRules"/> and <c>FighterDamageRules</c> — the same
 /// tables Story reads.
 /// </summary>
@@ -320,109 +319,6 @@ public class FighterVerbLayerTests {
         AssertThat(remainder.EchoDrainPerFrame > FP64.Zero)
             .OverrideFailureMessage("The persisting remainder must keep draining at the unchanged rate.")
             .IsTrue();
-    }
-
-    [TestCase]
-    public void ADefiedHitGeneratesNoRallyEcho() {
-        // V7.3 guardrail pin: the meter consumed the entire defied blow —
-        // "shatters to 0" must read as exactly that, so the survivor gets
-        // neither a Rally echo nor victim meter from the hit.
-        var simulation = NewSimulation(
-            BuildAttacker(damage: 125f, knockback: 0f, maxHP: 400),
-            BuildAttacker(damage: 125f, knockback: 0f, maxHP: 100),
-            seed: 907);
-
-        // Victim (player 1) lands first: +100 influence, full meter.
-        int tick = 0;
-        simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.BasicAttack));
-        for (int step = 0; step < 60; step++) {
-            tick++;
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-        }
-        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent charged)).IsTrue();
-        AssertThat(charged.Influence.RawValue).IsEqual(FP64.FromInt(100).RawValue);
-
-        // The lethal answer: Defy History fires instead of the KO.
-        tick++;
-        simulation.Advance(Frame(tick, 0, GameplayButtons.BasicAttack), Frame(tick, 0, GameplayButtons.None));
-        for (int step = 0; step < 60; step++) {
-            tick++;
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-        }
-        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent survivor)).IsTrue();
-        AssertThat(survivor.CurrentHP).IsEqual(1);
-        AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent verb)).IsTrue();
-        AssertThat(verb.DefyHistoryUsed).IsEqual(1);
-        AssertThat(verb.EchoPool.RawValue)
-            .OverrideFailureMessage("A defied hit must stash no Rally echo.")
-            .IsEqual(0L);
-        AssertThat(survivor.Influence.RawValue)
-            .OverrideFailureMessage("A defied hit must accrue no victim meter — the meter shattered to zero.")
-            .IsEqual(0L);
-    }
-
-    [TestCase]
-    public void DefyHistorySavesExactlyOneLethalHitAtFullMeter() {
-        // The victim's own 100-damage opener fills their meter in one hit;
-        // the attacker's identical opener is lethal against their 100 HP.
-        var simulation = NewSimulation(
-            BuildAttacker(damage: 125f, knockback: 0f, maxHP: 400),
-            BuildAttacker(damage: 125f, knockback: 0f, maxHP: 100),
-            seed: 906);
-
-        // Victim (player 1) lands first: +100 influence, full meter.
-        int tick = 0;
-        simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.BasicAttack));
-        for (int step = 0; step < 60; step++) {
-            tick++;
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-        }
-        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent charged)).IsTrue();
-        AssertThat(charged.Influence.RawValue).IsEqual(FP64.FromInt(100).RawValue);
-
-        // The lethal answer: Defy History fires instead of the KO.
-        tick++;
-        simulation.Advance(Frame(tick, 0, GameplayButtons.BasicAttack), Frame(tick, 0, GameplayButtons.None));
-        for (int step = 0; step < 60; step++) {
-            tick++;
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-        }
-        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent survivor)).IsTrue();
-        AssertThat(survivor.Stocks)
-            .OverrideFailureMessage("A lethal hit against a full meter must not KO.")
-            .IsEqual(3);
-        AssertThat(survivor.CurrentHP).IsEqual(1);
-        AssertThat(survivor.Influence.RawValue)
-            .OverrideFailureMessage("Defy History shatters the meter to zero.")
-            .IsEqual(0L);
-        AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent used)).IsTrue();
-        AssertThat(used.DefyHistoryUsed).IsEqual(1);
-
-        // V7.6 D04 (Package 11 A1b): the survivor is invulnerable through the
-        // Defy presentation and for 60 resumed control ticks afterwards, so the
-        // follow-up has to wait that window out before "once per match" can be
-        // observed at all. The 60 idle steps above are consumed partly by the
-        // 12-frame Defy hitstop, which pauses the countdown.
-        for (int step = 0; step < 60; step++) {
-            tick++;
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-        }
-        AssertThat(simulation.TryGetFighterDefense(1, out FighterDefenseComponent window)).IsTrue();
-        AssertThat(FighterDefenseRules.IsDefyProtected(in window))
-            .OverrideFailureMessage("The protected second must have elapsed before the follow-up.")
-            .IsFalse();
-
-        // Once per match: the next lethal hit kills normally.
-        tick++;
-        simulation.Advance(Frame(tick, 0, GameplayButtons.BasicAttack), Frame(tick, 0, GameplayButtons.None));
-        for (int step = 0; step < 60; step++) {
-            tick++;
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-        }
-        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent defeated)).IsTrue();
-        AssertThat(defeated.Stocks)
-            .OverrideFailureMessage("Defy History is once per match — the second lethal hit lands.")
-            .IsEqual(2);
     }
 
     // ---- 1.1(3): the landing tech locks every action (combat and movement update 2026-10-16) ----

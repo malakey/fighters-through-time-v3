@@ -81,10 +81,11 @@ namespace FTT.FighterSim {
         /// (<see cref="FighterVerbRules.ExitTumbleOnAction"/>): a launched
         /// fighter that acts out of tumble lands plainly;</item>
         /// <item><b>4.2</b> — an offensive kind ends the respawn protection
-        /// (<see cref="FighterMatchFlowRules.EndRespawnProtectionOnOffence"/>);</item>
-        /// <item><b>4.3</b> — an offensive kind ends the D04 Defy protection
-        /// (<see cref="FighterDefenseRules.EndOnOffence"/>).</item>
+        /// (<see cref="FighterMatchFlowRules.EndRespawnProtectionOnOffence"/>).</item>
         /// </list>
+        /// (Decision 4.3's early end of the passive Defy protection went with
+        /// the passive Defy on 2026-10-31; <paramref name="defense"/> is kept
+        /// only so the call surface does not change.)
         /// A site that grants its own invulnerability (a ledge get-up's climb
         /// frames) calls this BEFORE it max-assigns that grant, so the grant
         /// survives the respawn protection's zeroing.
@@ -98,7 +99,6 @@ namespace FTT.FighterSim {
             FighterVerbRules.ExitTumbleOnAction(in fighter, ref verb);
             if (!IsOffensive(kind)) return;
             FighterMatchFlowRules.EndRespawnProtectionOnOffence(ref fighter, ref action);
-            FighterDefenseRules.EndOnOffence(ref defense);
         }
     }
 }

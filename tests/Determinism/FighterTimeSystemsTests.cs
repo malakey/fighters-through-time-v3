@@ -68,18 +68,10 @@ public class FighterTimeSystemsTests {
                 .OverrideFailureMessage("F22: a living fighter keeps its real HP — the 1-HP clamp is retired.")
                 .IsEqual(fighter.MaxHP);
             AssertThat(fighter.Position.x.RawValue).IsEqual(fighter.SpawnPosition.x.RawValue);
-            // V7.6 F22/F13 (Package 11 A1b): Defy is BARRED in Sudden Death
-            // rather than pre-marked SPENT - the seal must be able to show
-            // "unavailable in this context" without overwriting the underlying
-            // spent flag, which the old pre-mark conflated.
+            // Meter and Defy update 2026-10-31: the passive Defy and its Sudden Death bar are
+            // gone; the round restarts the Momentum gauge at two pips instead.
             AssertThat(simulation.TryGetFighterVerb(playerID, out FighterVerbComponent verb)).IsTrue();
-            AssertThat(verb.DefyHistoryUsed)
-                .OverrideFailureMessage("Sudden Death must not mark an unused Defy as spent.")
-                .IsEqual(0);
-            AssertThat(simulation.TryGetFighterDefense(playerID, out FighterDefenseComponent defense)).IsTrue();
-            AssertThat(defense.DefyBarred)
-                .OverrideFailureMessage("Defy History is disabled during Sudden Death.")
-                .IsEqual(1);
+            AssertThat(verb.MomentumUnits).IsEqual(BasicComboRules.MomentumStartUnits);
         }
 
         // The ready countdown freezes controls for both players and discards their
