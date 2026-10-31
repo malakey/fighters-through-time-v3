@@ -1132,7 +1132,7 @@ Two single strikes exist alongside the 3-hit chain, selected at swing start by h
     *   **Same-move reuse delay:** using Special 1 locks Special 1 alone for **2 s** (120 frames); Special 2 stays free, and vice versa. The delay ticks where the cooldown used to tick.
     *   **The lockouts are kept:** the **30-frame ability lockout** (armed by every basic swing, Special acceptance and Ultimate acceptance) with the **hit-confirm release** — a swing that lands releases Special 1 and 2 at once, a whiff keeps the 30 frames, Special → Special keeps the full 30 — the Ultimate refused while the lockout runs, and the freeze-only Special buffer (a Special pressed inside the attacker's own hit-freeze starts on the thaw tick) all stand beside the gauge as the pace limit. Defy neither reads nor arms them.
     *   **"Not yet" feedback:** a Special press refused by the lockout alone, or by an empty gauge (under one pip) with its reuse delay clear, flashes that slot's HUD lens in both modes; a reuse-delay refusal does not flash, because the slot's sweep shows it.
-    *   **Story:** the gauge is visible from Level 0, dimmed under the Dormant overlay until Special 1 is restored (after Level 2), and it fills normally meanwhile. The Resonance Grid's three Special cooldown minors (Joan's Divine Piercing, Mozart's Fortissimo Wave and Lincoln's Splitting Strike) became **"Minor Momentum"**: +10 % regeneration, character-wide and still gated on Special 2, a placeholder until the kit pass. Mozart's Requiem Chord no longer shortens Fortissimo Wave (there is no cooldown to shorten; the rule is disabled until Mozart's kit pass); Cleopatra's Vortex Step is kept, because it acts on Desert Mirage, a movement ability.
+    *   **Story:** the gauge is visible from Level 0, dimmed under the Dormant overlay until Special 1 is restored (after Level 2), and it fills normally meanwhile. The Resonance Grid's three Special cooldown minors (Joan's Divine Piercing, Mozart's Fortissimo Wave and Lincoln's Splitting Strike) became **"Minor Recharge"**: +10 % regeneration, character-wide and still gated on Special 2, a placeholder until the kit pass. Mozart's Requiem Chord no longer shortens Fortissimo Wave (there is no cooldown to shorten; the rule is disabled until Mozart's kit pass); Cleopatra's Vortex Step is kept, because it acts on Desert Mirage, a movement ability.
     *   **Data:** no Special authors a cooldown (`CooldownDuration` is 0 on all eighteen, and a content test pins it; the 6–14 s band is retired). Movement abilities keep 5.0 s and Ultimates none. The Move List shows each Special's Momentum cost and reuse delay.
     *   **HUD:** four pips under the Specials (Story) and under each fighter's Special lenses (Fighter). The Special lenses sweep only the reuse delay and the lockout and dim when no pip is left; the movement lens keeps its cooldown sweep (HUD sections).
     *   **Interactions and status:** hit-confirm cancels, D3 and the Ultimate rules are unchanged. Nobody has played the gauge: every number the user did not state — the directional-strike gain, the unit, the pre-GO rule — is provisional.
@@ -2531,7 +2531,7 @@ graph TD
 
 | Node | Tier | Effect | Stat / gate |
 |---|---|---|---|
-| Minor Momentum | 1 | +2% move speed (a move-speed node, unrelated to the Momentum gauge, whose regeneration minors are Joan's, Mozart's and Lincoln's) | `MoveSpeed` |
+| Minor Momentum | 1 | +2% move speed (a move-speed node) | `MoveSpeed` |
 | Minor Chalk Edge | 1 | +5% basic-string damage | `BasicAttackDamage` |
 | Minor Mass | 1 | +15 max HP | `MaxHP` |
 | Extended Float | 2 (traversal) | Warp's reduced-gravity float window is 20 frames longer | flag; gated on Movement |
@@ -2582,7 +2582,7 @@ graph LR
     S4 --> S5{Major: Unstoppable Crusade}
     S2 --> A1(T1: Minor Martyr's Resolve +10% Rally echo)
     A1 --> A2{Major: Zealous Vigor}
-    S4 --> B1(T2: Minor Momentum +10% regen)
+    S4 --> B1(T2: Minor Recharge +10% regen)
     B1 --> B2{Major: Shield of Orléans}
 ```
 
@@ -2593,7 +2593,7 @@ graph LR
 | Minor Martyr's Resolve | 1 | Rally echo fraction +10% | `RallyEchoFraction` |
 | Wings Refresh | 2 (traversal; 75 dust) | Purchased Story perk: a direct Hit 3 or Righteous Smite hit resets Ascendant Wings cooldown; absent from the baseline kit (F06 Option C) | flag; gated on Movement; existing prerequisites |
 | Minor Smite Damage | 2 | Righteous Smite +10% | `AbilityDamage` (smite); gated on Special 1 |
-| Minor Momentum (formerly Minor Piercing Cooldown) | 2 | Momentum regenerates 10 % faster, character-wide (a placeholder until Joan's kit pass) | `MomentumRegen`; gated on Special 2 |
+| Minor Recharge (formerly Minor Piercing Cooldown) | 2 | Momentum regenerates 10 % faster, character-wide (a placeholder until Joan's kit pass) | `MomentumRegen`; gated on Special 2 |
 
 **Major Node Details:**
 
@@ -2821,7 +2821,7 @@ graph LR
     N2 --> N3(T1 Mi: Minor Resonance +10% Meter Build)
     N3 --> N4(T2 Fa: Minor Chord Damage +10%)
     N4 --> N5(T2 Sol Traversal: Extra Note)
-    N5 --> N6(T2 La: Minor Momentum +10% regen)
+    N5 --> N6(T2 La: Minor Recharge +10% regen)
     N6 --> MO{Major Octave: Requiem Crescendo}
     N3 --> MT{Major Third: Rest Shield}
     N5 --> MF{Major Fifth: Virtuoso Drift}
@@ -2834,7 +2834,7 @@ graph LR
 | Minor Resonance | 1 | Ultimate Meter builds +10% faster | `UltimateBuildRate` |
 | Minor Chord Damage | 2 | Requiem Chord +10% | `AbilityDamage` (chord); gated on Special 1 |
 | Extra Note | 2 (traversal) | Sonata Drift gains a **second charge**: two uses before recharge, so two staff platforms (3 s each) can stand at once. Charges recharge one at a time on the 5 s cooldown; landing on his own platform refunds half of the recharging charge's remaining time (Low-item decision, 2026-09-26) | charges = 2; gated on Movement |
-| Minor Momentum (formerly Minor Wave Cooldown) | 2 | Momentum regenerates 10 % faster, character-wide (a placeholder until Mozart's kit pass) | `MomentumRegen`; gated on Special 2 |
+| Minor Recharge (formerly Minor Wave Cooldown) | 2 | Momentum regenerates 10 % faster, character-wide (a placeholder until Mozart's kit pass) | `MomentumRegen`; gated on Special 2 |
 
 **Major Node Details:**
 
@@ -2942,7 +2942,7 @@ graph LR
     R0 --> B1(T1: Minor Wrestler's Rally +15% echo)
     B1 --> B2(T2 Traversal: Rail Breaker)
     B2 --> MB{Major: Homestead Bulwark}
-    R0 --> C(T2 crossbar: Minor Momentum +10% regen)
+    R0 --> C(T2 crossbar: Minor Recharge +10% regen)
     C --> MC{Major: Kinetic Splitting}
 ```
 
@@ -2953,7 +2953,7 @@ graph LR
 | Minor Wrestler's Rally | 1 | Rally echo fraction +15% (the roster's largest — he takes the most hits) | `RallyEchoFraction` |
 | Minor Shockwave Damage | 2 | The Emancipator +15% | `AbilityDamage` (emancipator); gated on Special 1 |
 | Rail Breaker | 2 (traversal; 75 dust) | Purchased Story perk: Rail Charge destroys one breakable hostile projectile per activation; absent from baseline and universal roll (F06 Option A) | flag; gated on Movement; existing prerequisites |
-| Minor Momentum (formerly Minor Splitting Cooldown) | 2 | Momentum regenerates 10 % faster, character-wide (a placeholder until Lincoln's kit pass) | `MomentumRegen`; gated on Special 2 |
+| Minor Recharge (formerly Minor Splitting Cooldown) | 2 | Momentum regenerates 10 % faster, character-wide (a placeholder until Lincoln's kit pass) | `MomentumRegen`; gated on Special 2 |
 
 *(The V6 "Block Health" node is retired — no such stat exists.)*
 

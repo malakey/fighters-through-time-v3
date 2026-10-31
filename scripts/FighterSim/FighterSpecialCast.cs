@@ -94,6 +94,15 @@ namespace FTT.FighterSim {
         /// MM-RULES; MM-SIM writes it. Appended last, so 323 grows 36 to 40 bytes.
         /// </summary>
         public int DefyFrames;
+        /// <summary>
+        /// The identity of the Special cast in progress (MM-FIXB2C, FIX-SIM-DIRECT-HIT-CAST-ATTRIBUTION):
+        /// the match's <c>NextEntityID</c> read when the cast begins. Every entity the cast spawns takes a
+        /// later ID, so no later cast of the fighter reads the same value while a shot or zone of this one
+        /// lives. Projectiles and zones carry it (<c>CastId</c>), and D3's landed-direct-hit flag arms only for
+        /// a contact whose stamp equals it. Appended last: 323 grows 40 to 44 bytes. Not cleared with the
+        /// cast; the respawn platform and the F22 setup zero it with the rest of the component.
+        /// </summary>
+        public int SpecialCastId;
 
         /// <summary><see cref="ActionFlags"/> bit 0: Fighter respawn protection is live (CM-HIT, 2.4.2).</summary>
         public const int ActionFlagRespawnProtection = 1;
@@ -220,9 +229,11 @@ namespace FTT.FighterSim {
         /// caller at acceptance, never here.
         /// </summary>
         public static void Begin(
-            ref FighterActionStateComponent cast, int slot, in FighterAbilityHitData contract, bool startedAerial) {
+            ref FighterActionStateComponent cast, int slot, in FighterAbilityHitData contract, bool startedAerial,
+            int castId = 0) {
             Frames(in contract, out int startup, out int active, out _);
             cast.SpecialSlot = slot;
+            cast.SpecialCastId = castId;
             cast.SpecialPhaseElapsed = 0;
             cast.SpecialFlags = (startedAerial ? FlagStartedAerial : 0)
                 | (IsFallback(in contract) ? FlagFallbackTiming : 0);
@@ -241,8 +252,10 @@ namespace FTT.FighterSim {
         /// <see cref="FlagStartedAerial"/> like any other Special, so it falls at
         /// the aerial-Special half gravity through its startup and window.
         /// </summary>
-        public static void BeginDelegated(ref FighterActionStateComponent cast, int slot, bool startedAerial) {
+        public static void BeginDelegated(
+            ref FighterActionStateComponent cast, int slot, bool startedAerial, int castId = 0) {
             cast.SpecialSlot = slot;
+            cast.SpecialCastId = castId;
             cast.SpecialPhase = PhaseDelegated;
             cast.SpecialPhaseFrames = 0;
             cast.SpecialPhaseElapsed = 0;
@@ -282,6 +295,15 @@ namespace FTT.FighterSim {
                     return false;
             }
         }
+
+        /// <summary>
+        /// The cast identity to stamp on a projectile or zone a fighter's Special spawns now: the owner's
+        /// <see cref="FighterActionStateComponent.SpecialCastId"/> (0 when the owner cannot be found).
+        /// </summary>
+        public static int CastIdOf(ref Frame frame, int ownerPlayerID) =>
+            FighterEntityQueries.TryFindFighter(ref frame, ownerPlayerID, out EntityRef owner)
+                ? frame.GetReadOnly<FighterActionStateComponent>(owner).SpecialCastId
+                : 0;
 
         /// <summary>Ends the cast: the slot, the phase, its clock and the cast flags. The other 323 fields are left alone.</summary>
         public static void Clear(ref FighterActionStateComponent cast) {

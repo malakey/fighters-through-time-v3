@@ -17,8 +17,8 @@ public class FighterActionStateTests {
 
     [TestCase]
     public void EveryFighterSpawnsWithAnAllZeroActionState() {
-        // Ten ints since the meter and Defy update appended DefyFrames (36 to 40 bytes).
-        AssertThat(System.Runtime.CompilerServices.Unsafe.SizeOf<FighterActionStateComponent>()).IsEqual(40);
+        // Ten ints since the meter and Defy update appended DefyFrames (36 to 40 bytes); eleven with MM-FIXB2C's SpecialCastId (44).
+        AssertThat(System.Runtime.CompilerServices.Unsafe.SizeOf<FighterActionStateComponent>()).IsEqual(44);
         var simulation = new FighterSimulation(rules: FighterMatchRules.Disabled);
         for (int playerID = 0; playerID < 2; playerID++) {
             AssertThat(simulation.TryGetFighterActionState(playerID, out FighterActionStateComponent state))
@@ -110,10 +110,11 @@ public class FighterActionStateTests {
         AssertThat(restored.DownTapFrames).IsEqual(seeded.DownTapFrames);
         AssertThat(restored.ActionFlags).IsEqual(seeded.ActionFlags);
         AssertThat(restored.DefyFrames).IsEqual(seeded.DefyFrames);
+        AssertThat(restored.SpecialCastId).IsEqual(seeded.SpecialCastId);
         AssertThat(simulation.CurrentHash).IsEqual(withState);
     }
 
-    /// <summary>Distinct non-zero values in all ten fields.</summary>
+    /// <summary>Distinct non-zero values in all eleven fields.</summary>
     private static FighterActionStateComponent NonZeroState() => new() {
         SpecialSlot = 2,
         SpecialPhase = 3,
@@ -124,7 +125,8 @@ public class FighterActionStateTests {
         BlockTiming = 0x10203,
         DownTapFrames = 11,
         ActionFlags = 0x5,
-        DefyFrames = 9
+        DefyFrames = 9,
+        SpecialCastId = 2013
     };
 
     private static bool IsAllZero(in FighterActionStateComponent state) =>
@@ -137,7 +139,8 @@ public class FighterActionStateTests {
         && state.BlockTiming == 0
         && state.DownTapFrames == 0
         && state.ActionFlags == 0
-        && state.DefyFrames == 0;
+        && state.DefyFrames == 0
+        && state.SpecialCastId == 0;
 
     /// <summary>Drop-through on the legacy flat arena falls straight to the blast zone.</summary>
     private static void DriveOffTheBottom(FighterSimulation simulation, int playerID) {

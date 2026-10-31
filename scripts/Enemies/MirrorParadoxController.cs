@@ -626,7 +626,11 @@ namespace FTT.Enemies {
         private int _hitsProjected;
         private int _projectedHitstun;
 
-        private void OnSelfDamaged(PlayerDamageObservation observation) => _hitsTaken++;
+        private void OnSelfDamaged(PlayerDamageObservation observation) {
+            // Periodic damage (a Venom tick, a zone pulse, a drowning tick) opens no hitstun instance.
+            if (observation.Kind == DamageObservationKind.Status || observation.Delivery == HitDelivery.Tick) return;
+            _hitsTaken++;
+        }
 
         private void AdvanceHitstunProjection() {
             if (_self.CurrentState != CharacterState.Stunned) {

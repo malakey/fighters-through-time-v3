@@ -193,7 +193,7 @@ namespace FTT.FighterSim {
         /// <summary>P25: hitstun instances with at most this many actionable frames between them are one string.</summary>
         public const int DefyStringGapFrames = 8;
         /// <summary>P25: the neutral Defy triggers need the opponent within 3.0 u (the blast radius is 2.5 u).</summary>
-        private static readonly long DefyTriggerRangeRaw = FP64.FromInt(3).RawValue;
+        private static readonly FP64 DefyTriggerRangeSquared = FP64.FromInt(9);
         private static readonly long DefyInfluenceCostRaw = FP64.FromInt(FTT.Combat.BasicComboRules.DefyInfluenceCost).RawValue;
 
         // === F19 recovery episode (Package 11 A9b; input-side latch, not sim state) ===
@@ -616,16 +616,16 @@ namespace FTT.FighterSim {
 
         /// <summary>
         /// Self-state legality of a Defy press, read at the gate and again every tick it is emitted: Influence
-        /// 50+, not already Defying, not captured or busy in an A02, alive, live match, not dazed.
+        /// 50+, not already Defying, not captured or busy in an A02, alive, live match (daze is legal, as in FighterDefyRules.CanBegin).
         /// </summary>
         private static bool DefyLegalForSelf(in CpuDecisionObservation observation) =>
-            observation.SuppressGameplayInput == 0
-            && observation.Stocks > 0
-            && observation.DazeFrames <= 0
-            && observation.InfluenceRaw >= DefyInfluenceCostRaw
-            && observation.SelfDefyFrames <= 0
-            && observation.SelfUltimateCaptured == 0
-            && observation.SelfUltimateCasterBusy == 0;
+            FighterDefyRules.CanBeginCore(
+                observation.SuppressGameplayInput == 0,
+                observation.SelfDefyFrames,
+                observation.Stocks,
+                observation.InfluenceRaw,
+                observation.SelfUltimateCaptured != 0,
+                observation.SelfUltimateCasterBusy != 0);
 
         /// <summary>
         /// Writes the Defy onto the output frame. The reflex and a scheduled neutral Defy edge both win
@@ -654,8 +654,10 @@ namespace FTT.FighterSim {
         private bool TryDecideNeutralDefy(in CpuDecisionObservation observation) {
             if (!_tuning.DefyBeatsUltimateWindup && !_tuning.DefyCornerEscape) return false;
             if (!DefyLegalForSelf(in observation)) return false;
-            long gap = Absolute(observation.TargetPositionXRaw - observation.SelfPositionXRaw);
-            if (gap > DefyTriggerRangeRaw) return false;
+            // Squared distance including Y (fixed-point, no Sqrt): a target 3+ units above is out of range.
+            FP64 dx = FP64.FromRaw(observation.TargetPositionXRaw - observation.SelfPositionXRaw);
+            FP64 dy = FP64.FromRaw(observation.TargetPositionYRaw - observation.SelfPositionYRaw);
+            if (dx * dx + dy * dy > DefyTriggerRangeSquared) return false;
             if (_tuning.DefyBeatsUltimateWindup
                 && observation.HasTargetVerbState != 0
                 && observation.TargetUltimateActivationPhase == FighterUltimateActivationRules.PhaseWindup) {

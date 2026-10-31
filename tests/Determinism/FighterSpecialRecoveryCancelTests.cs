@@ -691,52 +691,67 @@ public class FighterSpecialRecoveryCancelTests {
     // === 12. the projectile-lifetime invariant ================================
 
     /// <summary>
-    /// Until the meter and Defy update the slot attribution needed no per-projectile
-    /// execution record: no Special shot, ground wave, zone or Requiem burst of a
-    /// DirectHit slot outlived its slot's earliest re-cast (the cooldown less the
-    /// Momentum cap). A Special's earliest re-cast is now the 2 s reuse delay (120
-    /// frames), so a shot with a longer flight can still be in the air when the same
-    /// slot casts again. This pins exactly which slots can (a tripwire: a new one, or
-    /// one that stops, fails here) and the ledger row records the consequence, an
-    /// earlier cast's hit that lands during the next cast's recovery arming the D3
-    /// landed-hit flag.
+    /// MM-FIXB2C (FIX-SIM-DIRECT-HIT-CAST-ATTRIBUTION): a DirectHit shot or zone carries the cast identity of the
+    /// cast that fired it, and only a contact from the cast in progress arms D3. The same shot's own cast arms
+    /// it; once a different cast is in progress (its <c>SpecialCastId</c> differs, as for a later re-cast
+    /// during the earlier shot's flight) the late hit lands and arms nothing. Einstein's E=mc² (a shot with
+    /// a burst), Mozart's Requiem Chord (a shot whose burst rides a zone).
     /// </summary>
     [TestCase]
-    public void OnlyTheKnownDirectHitSlotsCanOutliveTheReuseDelay() {
+    public void OnlyAContactFromTheCurrentCastArmsTheLandedDirectHitFlag() {
         var failures = new List<string>();
-        int checkedSlots = 0;
-        foreach (string hero in Heroes) {
-            CharacterData data = Data(hero);
-            FighterLoadout loadout = FighterLoadoutFactory.FromCharacterData(data);
-            FighterAbilityLoadout modes = loadout.AbilityModes;
-            for (int slot = 1; slot <= 2; slot++) {
-                FighterAbilityHitData contract = slot == 1 ? modes.SpecialOneHit : modes.SpecialTwoHit;
-                int executionType = slot == 1 ? modes.SpecialOneExecutionType : modes.SpecialTwoExecutionType;
-                // Melee slots (Splitting Strike, Divine Piercing, Foresight) hit
-                // only inside their own cast; constructs are never DirectHit.
-                bool outlivesTheCast = executionType == 1 || executionType == 2;
-                if (contract.Delivery != (int)HitDelivery.DirectHit || !outlivesTheCast) continue;
-                checkedSlots++;
-                int lifetime = Math.Max(
-                    slot == 1 ? modes.SpecialOneProjectileLifetimeFrames : modes.SpecialTwoProjectileLifetimeFrames,
-                    slot == 1 ? modes.SpecialOnePersistentLifetimeFrames : modes.SpecialTwoPersistentLifetimeFrames);
-                int window = contract.StartupFrames + lifetime;
-                if (hero == "mozart" && slot == 1) {
-                    // The Requiem burst rides a zone after the contact.
-                    int pulses = Math.Max(1, contract.HitCount);
-                    window += KitReachRules.RequiemPulseIntervalFrames * pulses + 1;
+        foreach ((string hero, int slot, GameplayButtons press, int distance) in new[] {
+            ("einstein", 1, GameplayButtons.Special1, 3),
+            ("mozart", 1, GameplayButtons.Special1, 3) }) {
+            for (int variant = 0; variant < 2; variant++) {
+                bool laterCast = variant == 1;
+                var simulation = new FighterSimulation(
+                    Authored(hero), FighterLoadout.Default(FighterCharacterID.Joan),
+                    seed: 11601, spawnDistance: distance, rules: FighterMatchRules.Disabled);
+                Idle(simulation, 2);
+                int targetHP = Fighter(simulation, 1).CurrentHP;
+                bool reseeded = false;
+                bool landed = false;
+                bool armed = false;
+                for (int offset = 0; offset < 200 && !landed; offset++) {
+                    simulation.Advance(offset == 0 ? In(press) : Neutral(), Neutral());
+                    FighterActionStateComponent cast = Cast(simulation, 0);
+                    if (laterCast && !reseeded && FighterSpecialCastRules.HasFlag(in cast, FighterSpecialCastRules.FlagEffectFired)) {
+                        if (Fighter(simulation, 1).CurrentHP < targetHP) {
+                            failures.Add($"Harness ({hero} S{slot}): the hit landed on the tick the shot was fired");
+                            break;
+                        }
+                        cast.SpecialCastId += 1000;   // a later cast is now in progress
+                        AssertThat(simulation.SeedFighterActionStateForTest(0, in cast)).IsTrue();
+                        reseeded = true;
+                    }
+                    if (Fighter(simulation, 1).CurrentHP < targetHP) {
+                        landed = true;
+                        armed = FighterSpecialCancelRules.LandedDirectHit(Cast(simulation, 0));
+                        if (!FighterSpecialCastRules.IsBusy(Cast(simulation, 0))) {
+                            failures.Add($"Harness ({hero} S{slot}): the cast ended before the hit");
+                        }
+                    }
                 }
-                int earliestRecast = BasicComboRules.SpecialReuseDelayFrames;
-                if (window >= earliestRecast) failures.Add($"{hero} S{slot}");
+                if (!landed) { failures.Add($"Harness ({hero} S{slot}): the attack never landed"); continue; }
+                if (!laterCast && !armed) failures.Add($"{hero} S{slot}: its own cast's contact did not arm D3");
+                if (laterCast && armed) failures.Add($"{hero} S{slot}: an earlier cast's late contact armed a later cast's D3");
             }
         }
-        AssertThat(checkedSlots >= 8)
-            .OverrideFailureMessage($"Harness: only {checkedSlots} DirectHit projectile/zone slots were checked.")
-            .IsTrue();
-        failures.Sort(StringComparer.Ordinal);
-        AssertThat(string.Join(" | ", failures))
-            .OverrideFailureMessage("The DirectHit slots whose shot or zone can outlive the 120-frame reuse delay changed.")
-            .IsEqual("einstein S1 | leonardo S1 | mozart S1 | tesla S2");
+        if (failures.Count > 0) AssertThat(string.Join(" | ", failures)).IsEqual("");
+    }
+
+    /// <summary>The rule itself: a report carrying another cast's identity arms nothing, its own arms.</summary>
+    [TestCase]
+    public void NoteLandedArmsOnlyForTheCastInProgress() {
+        var contract = new FighterAbilityHitData { Delivery = (int)HitDelivery.DirectHit };
+        var cast = new FighterActionStateComponent {
+            SpecialSlot = 1, SpecialPhase = FighterSpecialCastRules.PhaseRecovery, SpecialPhaseFrames = 5, SpecialCastId = 2040
+        };
+        AssertThat(FighterSpecialCancelRules.NoteLanded(ref cast, 1, FighterHitOutcome.Landed, 10, in contract, 2013)).IsFalse();
+        AssertThat(FighterSpecialCancelRules.LandedDirectHit(in cast)).IsFalse();
+        AssertThat(FighterSpecialCancelRules.NoteLanded(ref cast, 1, FighterHitOutcome.Landed, 10, in contract, 2040)).IsTrue();
+        AssertThat(FighterSpecialCancelRules.LandedDirectHit(in cast)).IsTrue();
     }
 
     // === 13. real input: only an edge is a press ================================

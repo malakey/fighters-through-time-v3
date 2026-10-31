@@ -451,7 +451,7 @@ namespace FTT.Diagnostics {
         private void OnPlayerDied(int playerIndex) {
             if (playerIndex != 0) return;
             _finishers.OnHeroDied(Frame);
-            _defy.RecordDeath(Frame);
+            _defy.RecordDeath(ObservationFrame());
             PlayerDeaths++;
             PlayerController player = _world?.Player;
             var detail = new Dictionary<string, object> {

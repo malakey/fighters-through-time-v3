@@ -795,4 +795,61 @@ public class PlaytestCombatStatsTests {
         ((SceneTree)Engine.GetMainLoop()).Root.AddChild(floor);
         return floor;
     }
+
+    /// <summary>
+    /// MM-FIXB2C (Codex minor): a death in the Defy window is booked on the same observation clock as the
+    /// execution and the hits. Raised before a physics frame's telemetry tick it belongs to Frame + 1, so a
+    /// death at Frame = E + 180 (observed E + 181) is outside the 180-frame window and one at E + 179 is inside.
+    /// </summary>
+    [TestCase]
+    public async Task ADeathBeforeTheTickIsBookedOnTheObservationFrameAtTheDefyWindowBoundary() {
+        var tree = (SceneTree)Engine.GetMainLoop();
+        var probe = new TelemetryTickProbe { Name = "TelemetryTickProbe" };
+        tree.Root.AddChild(probe);
+        StaticBody2D floor = CreateFloor();
+        PlayerController hero = null;
+        PlaytestWorld world = null;
+        PlaytestTelemetry telemetry = null;
+        try {
+            hero = CharacterFactory.CreateCharacter("joan", 0);
+            hero.Position = new Vector2(OriginX, -2f);
+            tree.Root.AddChild(hero);
+            hero.GlobalPosition = new Vector2(OriginX, -2f);
+            var source = new BufferedInputSource();
+            InputManager.Instance.SetInputSource(0, source);
+            source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, GameplayButtons.None));
+            for (int frame = 0; frame < 5; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            world = new PlaytestWorld(tree);
+            telemetry = new PlaytestTelemetry();
+            telemetry.Attach(world, bot: null);
+            probe.Telemetry = telemetry;
+            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+
+            // Before this physics frame's tick: the observation belongs to Frame + 1.
+            int inside = telemetry.Frame + 1;
+            telemetry.Defy.RecordExecution(inside, 80f, 0, 0);
+            while (telemetry.Frame < inside + 179) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            EventBus.Instance.RaisePlayerDied(0);   // Frame = E + 179, observed E + 180: inside
+            int outsideExec = telemetry.Frame + 1;
+            telemetry.Defy.RecordExecution(outsideExec, 80f, 0, 0);
+            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            while (telemetry.Frame < outsideExec + 180) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            EventBus.Instance.RaisePlayerDied(0);   // Frame = E2 + 180, observed E2 + 181: outside
+
+            List<DefyTracker.Resolved> resolved = telemetry.Defy.Resolve(telemetry.Frame);
+            AssertThat(resolved.Count).IsEqual(2);
+            AssertThat(resolved[0].DiedWithin3s).OverrideFailureMessage("Observed E + 180 is inside the window.").IsTrue();
+            AssertThat(resolved[1].DiedWithin3s)
+                .OverrideFailureMessage("Observed E + 181 is outside; booking it on Frame (E + 180) counted it inside.").IsFalse();
+        } finally {
+            probe.Telemetry = null;
+            telemetry?.FinishPending();
+            telemetry?.Detach();
+            world?.Detach();
+            InputManager.Instance?.ClearInputSource(0);
+            if (hero != null && GodotObject.IsInstanceValid(hero)) hero.Free();
+            floor.Free();
+            probe.Free();
+        }
+    }
 }

@@ -398,6 +398,7 @@ namespace FTT.FighterSim {
                 StatusType = statusType,
                 StatusFrames = statusFrames,
                 HitstunFrames = contract.HitstunFrames > 0 ? contract.HitstunFrames : 18,
+                CastId = FighterSpecialCastRules.CastIdOf(ref frame, owner.PlayerID),
                 StatusIntensity = statusIntensity,
                 Position = new FPVector2(originX, surfaceY + halfExtents.y),
                 Velocity = new FPVector2((speed > FP64.Zero ? speed : FP64.FromInt(10)) * FP64.FromInt(facing), FP64.Zero),
@@ -517,7 +518,8 @@ namespace FTT.FighterSim {
         /// frames after the burst), riding a zone (309) of type 71.
         /// </summary>
         public static void SpawnRequiemBurst(
-            ref Frame frame, int ownerPlayerID, in FPVector2 position, in FighterAbilityHitData contract, bool alreadyShaved) {
+            ref Frame frame, int ownerPlayerID, in FPVector2 position, in FighterAbilityHitData contract, bool alreadyShaved,
+            int castId) {
             int pulses = contract.HitCount > 0 ? contract.HitCount : 3;
             int interval = KitReachRules.RequiemPulseIntervalFrames;
             ref FighterMatchComponent match = ref frame.GetSingleton<FighterMatchComponent>();
@@ -536,7 +538,8 @@ namespace FTT.FighterSim {
                 StatusIntensity = FP64.One,
                 Position = position,
                 HalfExtents = new FPVector2(BurstRadius, BurstRadius),
-                ExecutionFlags = alreadyShaved ? FlagFortissimoShaved : 0
+                ExecutionFlags = alreadyShaved ? FlagFortissimoShaved : 0,
+                CastId = castId
             });
         }
 

@@ -1055,6 +1055,8 @@ namespace FTT.FighterSim {
         /// survive the cinematic ending, owner interruption and rollback.
         /// </summary>
         public int UltimateOrigin;
+        /// <summary>The owner's <c>SpecialCastId</c> when this shot was fired (MM-FIXB2C); 0 for other sources.</summary>
+        public int CastId;
         public FP64 StatusIntensity;
         /// <summary>Downward pull in units/s² for lobbed arcs (Mozart's Fortissimo Wave); zero = flat flight.</summary>
         public FP64 GravityPerSecond;
@@ -1176,6 +1178,8 @@ namespace FTT.FighterSim {
         /// cooldown — M02's once-per-execution rule). Zero for every other zone.
         /// </summary>
         public int ExecutionFlags;
+        /// <summary>The owner's <c>SpecialCastId</c> when this zone was spawned (MM-FIXB2C); 0 for other sources.</summary>
+        public int CastId;
         public FP64 StatusIntensity;
         public FPVector2 Position;
         public FPVector2 HalfExtents;

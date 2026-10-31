@@ -192,7 +192,8 @@ namespace FTT.FighterSim {
                     if (projectile.UltimateOrigin == 0) {
                         FighterSpecialCancelRules.NoteLanded(
                             ref frame.Get<FighterActionStateComponent>(ownerEntity),
-                            projectile.ProjectileTypeID % 10, burstOutcome, projectile.Damage, in contract);
+                            projectile.ProjectileTypeID % 10, burstOutcome, projectile.Damage, in contract,
+                            projectile.CastId);
                     }
                 }
             }

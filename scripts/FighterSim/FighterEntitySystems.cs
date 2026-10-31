@@ -1234,11 +1234,13 @@ namespace FTT.FighterSim {
                         // Package 13 W5: the 4 / 20 / 24 stance on component 322.
                         FighterForesightRules.Begin(ref frame.Get<FighterCounterComponent>(entity));
                         FighterSpecialCastRules.BeginDelegated(
-                            ref actionState, acceptedSlot, startedAerial: fighter.IsGrounded == 0);
+                            ref actionState, acceptedSlot, startedAerial: fighter.IsGrounded == 0,
+                            castId: frame.GetSingleton<FighterMatchComponent>().NextEntityID);
                     } else {
                         FighterSpecialCastRules.Begin(
                             ref actionState, acceptedSlot, _contracts.For(fighter.PlayerID, acceptedSlot),
-                            startedAerial: fighter.IsGrounded == 0);
+                            startedAerial: fighter.IsGrounded == 0,
+                            castId: frame.GetSingleton<FighterMatchComponent>().NextEntityID);
                     }
                     // Plan §1.5: the action chokepoint, once per accepted Special.
                     FighterActionRules.OnActionAccepted(
@@ -1550,6 +1552,7 @@ namespace FTT.FighterSim {
                 // V7.6 D03h: origin rides the projectile, so a delayed Ultimate
                 // shot landing long after the cinematic still earns zero meter.
                 UltimateOrigin = ultimateOrigin ? 1 : 0,
+                CastId = FighterSpecialCastRules.CastIdOf(ref frame, owner.PlayerID),
                 StatusIntensity = statusIntensity,
                 GravityPerSecond = FP64.Zero,
                 Position = owner.Position + new FPVector2(FP64.FromInt(facing), FP64.One),
@@ -1744,6 +1747,7 @@ namespace FTT.FighterSim {
                 StatusType = statusType,
                 StatusFrames = statusFrames,
                 GrantsOwnerSpeedBonus = grantsOwnerSpeedBonus,
+                CastId = FighterSpecialCastRules.CastIdOf(ref frame, owner.PlayerID),
                 StatusIntensity = statusIntensity,
                 Position = zonePosition,
                 HalfExtents = halfExtents
@@ -2097,7 +2101,7 @@ namespace FTT.FighterSim {
                     FighterReachKitRules.SpawnRequiemBurst(
                         ref frame, projectile.OwnerPlayerID, new FPVector2(wallX, projectile.Position.y),
                         _contracts.For(projectile.OwnerPlayerID, FighterHitContractTable.SlotSpecialOne),
-                        alreadyShaved: false);
+                        alreadyShaved: false, castId: projectile.CastId);
                     frame.DestroyEntity(projectileEntity);
                     continue;
                 }
@@ -2202,7 +2206,8 @@ namespace FTT.FighterSim {
                         FighterSpecialCancelRules.NoteLanded(
                             ref frame.Get<FighterActionStateComponent>(ownerEntity),
                             shotSlot, projectileOutcome, contactDamage,
-                            _contracts.For(projectile.OwnerPlayerID, shotSlot));
+                            _contracts.For(projectile.OwnerPlayerID, shotSlot),
+                            projectile.CastId);
                     }
                 }
                 if (bursting) {
@@ -2217,7 +2222,7 @@ namespace FTT.FighterSim {
                     FighterReachKitRules.SpawnRequiemBurst(
                         ref frame, projectile.OwnerPlayerID, in projectile.Position,
                         _contracts.For(projectile.OwnerPlayerID, FighterHitContractTable.SlotSpecialOne),
-                        alreadyShaved: projectileLanded);
+                        alreadyShaved: projectileLanded, castId: projectile.CastId);
                 }
                 frame.DestroyEntity(projectileEntity);
             }
@@ -3342,7 +3347,8 @@ namespace FTT.FighterSim {
                         || pulseSlot == FighterHitContractTable.SlotSpecialTwo)) {
                     FighterSpecialCancelRules.NoteLanded(
                         ref frame.Get<FighterActionStateComponent>(attackerEntity),
-                        pulseSlot, pulseOutcome, pulseDamage, _contracts.For(zone.OwnerPlayerID, pulseSlot));
+                        pulseSlot, pulseOutcome, pulseDamage, _contracts.For(zone.OwnerPlayerID, pulseSlot),
+                        zone.CastId);
                 }
 
                 // M02: the first pulse of a chord execution that lands shaves

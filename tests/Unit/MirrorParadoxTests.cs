@@ -1326,6 +1326,59 @@ public class MirrorParadoxTests {
         }
     }
 
+    /// <summary>
+    /// MM-FIXB2C (Codex minor): the clone's projected hitstun instance opens only on a real hit. A periodic
+    /// tick (a Venom or zone tick, a drown or stage-hazard tick) during a continuous stun neither resets the
+    /// projection nor adds a string hit; a second real hit still does.
+    /// </summary>
+    [TestCase]
+    public void APeriodicTickDuringAContinuousStunAddsNoStringHitToTheProjection() {
+        Difficulty original = GameManager.Instance.CurrentSession.Difficulty;
+        GameManager.Instance.CurrentSession.Difficulty = Difficulty.Hard;
+        MirrorParadoxController mirror = CreateMirror();
+        int cloneIndex = mirror.Clone.PlayerIndex;
+        PlayerController hero = FTT.Characters.CharacterFactory.CreateCharacter(
+            MirroredCharacter, 0, applyStoryProgression: false, applyLegacyUnlockLocks: false);
+        try {
+            ((SceneTree)Engine.GetMainLoop()).Root.AddChild(hero);
+            if (!hero.IsInGroup("StoryPlayer")) hero.AddToGroup("StoryPlayer");
+            PlayerController clone = mirror.Clone;
+            clone.GlobalPosition = new Vector2(0f, 0f);
+            hero.GlobalPosition = new Vector2(600f, 0f);
+            mirror.Decisions.Bind(clone, hero);
+            uint tick = 1;
+            PlayerInputFrame previous = default;
+            void Step() {
+                previous = mirror.Decisions.Sample(tick++, in previous);
+                var source = new BufferedInputSource();
+                source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, GameplayButtons.None));
+                InputManager.Instance.SetInputSource(cloneIndex, source);
+                clone._PhysicsProcess(1.0 / 60.0);
+            }
+            Strike(clone);
+            for (int i = 0; i < 6; i++) Step();
+            AssertThat(clone.CurrentState).OverrideFailureMessage("Harness fault: the strike must stun the clone.")
+                .IsEqual(CharacterState.Stunned);
+            int beforeTick = mirror.Decisions.Observe().HitstunFrames;
+            clone.ApplyEnvironmentalDamage(3, false, periodicTick: true);
+            Step();
+            int afterTick = mirror.Decisions.Observe().HitstunFrames;
+            AssertThat(afterTick)
+                .OverrideFailureMessage("A periodic tick reset the projected hitstun (it counted as a new hit).")
+                .IsLess(beforeTick);
+            Strike(clone);
+            Step();
+            AssertThat(mirror.Decisions.Observe().HitstunFrames).OverrideFailureMessage("A real hit still opens a new instance.")
+                .IsGreater(afterTick);
+        } finally {
+            GameManager.Instance.CurrentSession.Difficulty = original;
+            InputManager.Instance?.ClearInputSource(cloneIndex);
+            InputManager.Instance?.ClearInputSource(hero.PlayerIndex);
+            DetachAndFree(hero);
+            FreeMirror(mirror);
+        }
+    }
+
     private static void Strike(PlayerController clone) {
         clone.GetNode<FTT.Combat.Hurtbox>("Hurtbox").TakeHit(new FTT.Combat.HitPayload {
             AttackerIndex = 0, TargetIndex = clone.PlayerIndex, AttackID = "test.string", HitboxID = "test",

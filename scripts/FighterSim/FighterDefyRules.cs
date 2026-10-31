@@ -61,14 +61,25 @@ namespace FTT.FighterSim {
             in FighterActionStateComponent action,
             in FighterUltimateActivationComponent activation,
             bool matchLive) =>
-            matchLive
-            && action.DefyFrames == 0
-            && fighter.Stocks > 0
-            && fighter.CurrentHP > 0
+            fighter.CurrentHP > 0
             && fighter.RespawnFramesRemaining <= 0
-            && fighter.Influence >= CostRaw
-            && !FighterUltimateActivationRules.IsCaptured(in activation)
-            && !FighterUltimateActivationRules.IsCasterBusy(in activation);
+            && CanBeginCore(
+                matchLive, action.DefyFrames, fighter.Stocks, fighter.Influence.RawValue,
+                FighterUltimateActivationRules.IsCaptured(in activation),
+                FighterUltimateActivationRules.IsCasterBusy(in activation));
+
+        /// <summary>
+        /// The part of <see cref="CanBegin"/> the CPU can read off its observation: one predicate, so the
+        /// CPU's legality cannot drift from the sim's (daze, hitstun and the rest are deliberately not read).
+        /// </summary>
+        public static bool CanBeginCore(
+            bool matchLive, int defyFrames, int stocks, long influenceRaw, bool captured, bool casterBusy) =>
+            matchLive
+            && defyFrames == 0
+            && stocks > 0
+            && influenceRaw >= CostRaw.RawValue
+            && !captured
+            && !casterBusy;
 
         /// <summary>
         /// The fighter's own state change on acceptance: spends the Influence, grants the

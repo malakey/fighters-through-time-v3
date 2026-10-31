@@ -126,7 +126,23 @@ namespace FTT.FighterSim {
             int hitSlot,
             FighterHitOutcome outcome,
             int damage,
-            in FighterAbilityHitData contract) {
+            in FighterAbilityHitData contract) =>
+            NoteLanded(ref cast, hitSlot, outcome, damage, in contract, cast.SpecialCastId);
+
+        /// <summary>
+        /// The same report from a projectile, burst or zone pulse that outlives its cast
+        /// (MM-FIXB2C, FIX-SIM-DIRECT-HIT-CAST-ATTRIBUTION): it arms the flag only when
+        /// <paramref name="sourceCastId"/>, the cast identity stamped on the shot or zone when it spawned,
+        /// is the cast in progress. An earlier cast's late hit therefore never arms a later cast's D3.
+        /// </summary>
+        internal static bool NoteLanded(
+            ref FighterActionStateComponent cast,
+            int hitSlot,
+            FighterHitOutcome outcome,
+            int damage,
+            in FighterAbilityHitData contract,
+            int sourceCastId) {
+            if (sourceCastId != cast.SpecialCastId) return false;
             if (outcome != FighterHitOutcome.Landed && outcome != FighterHitOutcome.Absorbed) return false;
             if (damage <= 0) return false;
             if (!FighterSpecialCastRules.IsBusy(in cast) || cast.SpecialSlot != hitSlot) return false;

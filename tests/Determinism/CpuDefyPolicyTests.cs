@@ -117,6 +117,49 @@ public class CpuDefyPolicyTests {
     }
 
     [TestCase]
+    public void ADefyScheduledBeforeADazeIsDeliveredDuringItBecauseTheSimAllowsDefyInDaze() {
+        // Decided on tick 0 (cornered, target on the open side), delivered after the 4-8 tick reaction delay
+        // while the CPU is dazed. FighterDefyRules.CanBegin permits Defy in daze, so the press must go out.
+        CpuDecisionObservation cornered = Neutral(selfX: -9.0, targetX: -7.0, influence: 100);
+        CpuDecisionObservation dazed = cornered;
+        dazed.DazeFrames = 60;
+        var cpu = new FighterCpuController(CpuDifficulty.Hard, 4242, null, null, CpuBandTuning.Hard);
+        PlayerInputFrame previous = default;
+        int presses = 0;
+        for (uint tick = 0; tick < 90; tick++) {
+            CpuDecisionObservation observation = tick == 0 ? cornered : dazed;
+            PlayerInputFrame frame = cpu.Sample(tick, in observation, in previous);
+            previous = frame;
+            if (frame.IsPressed(GameplayButtons.Defy)) presses++;
+        }
+        AssertThat(presses).OverrideFailureMessage("A Defy scheduled before a daze is stripped by the CPU's own legality check.").IsGreater(0);
+    }
+
+    [TestCase]
+    public void TheThreeUnitDefyTriggersMeasureDistanceInBothAxes() {
+        // Same X as a cornered CPU's open-side target, 3+ units above: out of range.
+        CpuDecisionObservation cornered = Neutral(-9.0, -7.0, 100);
+        AssertThat(CountDefyPresses(CpuBandTuning.Hard, cornered, 90)).IsGreater(0);
+        CpuDecisionObservation above = cornered;
+        above.TargetPositionYRaw = FP64.FromInt(3).RawValue;
+        AssertThat(CountDefyPresses(CpuBandTuning.Hard, above, 90))
+            .OverrideFailureMessage("A target 3 u above (3.6 u away) is not within 3.0 u.").IsEqual(0);
+        CpuDecisionObservation slightlyAbove = cornered;
+        slightlyAbove.TargetPositionYRaw = FP64.FromDouble(1.5).RawValue;
+        AssertThat(CountDefyPresses(CpuBandTuning.Hard, slightlyAbove, 90)).IsGreater(0);
+
+        CpuDecisionObservation windup = Neutral(0.0, 0.0, 100, bounds: false);
+        windup.HasTargetVerbState = 1;
+        windup.TargetUltimateActivationPhase = FighterUltimateActivationRules.PhaseWindup;
+        windup.TargetUltimateActivationPhaseFrames = 18;
+        windup.TargetPositionYRaw = FP64.FromDouble(2.5).RawValue;
+        AssertThat(CountDefyPresses(CpuBandTuning.Hard, windup, 60)).IsGreater(0);
+        windup.TargetPositionYRaw = FP64.FromInt(3).RawValue + 1;
+        AssertThat(CountDefyPresses(CpuBandTuning.Hard, windup, 60))
+            .OverrideFailureMessage("A wind-up 3+ u above at the same X is out of range.").IsEqual(0);
+    }
+
+    [TestCase]
     public void HardDefiesAnUltimateWindupWithinThreeUnitsAndOtherwiseBanksItsMeter() {
         CpuDecisionObservation windup = Neutral(0.0, 2.5, 100, bounds: false);
         windup.HasTargetVerbState = 1;
