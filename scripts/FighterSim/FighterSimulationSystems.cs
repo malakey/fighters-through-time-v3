@@ -1833,6 +1833,10 @@ namespace FTT.FighterSim {
             }
             if (!foundFirst || !foundSecond) return;
 
+            // Meter and Defy update 2026-10-31: a Defy blast resolves first, so what it
+            // staggers is cancelled before any grab, strike or intent acts (P4, P6).
+            ResolveDefyBlasts(ref frame, first, second);
+
             ref FighterStateComponent fighterOne = ref frame.Get<FighterStateComponent>(first);
             ref FighterStateComponent fighterTwo = ref frame.Get<FighterStateComponent>(second);
             ref FighterRuntimeComponent runtimeOne = ref frame.Get<FighterRuntimeComponent>(first);

@@ -42,6 +42,65 @@ public class FighterDefyTests {
     }
 
     [TestCase]
+    public void TheClockRunsOneToThirtyWithTheBlastFreezeInsideAndFreeAtTheThirtyEighthTick() {
+        FighterSimulation simulation = NewSimulation(seed: 902, spawnDistance: 4);
+        AssertThat(simulation.SeedFighterInfluenceForTest(0, 50)).IsTrue();
+        var frames = new List<int>();
+        var invulnerable = new List<int>();
+        Step(simulation, GameplayButtons.Defy);
+        frames.Add(Action(simulation, 0).DefyFrames);
+        invulnerable.Add(Fighter(simulation, 0).InvulnerabilityFrames);
+        for (int tick = 1; tick < 60; tick++) {
+            Step(simulation, GameplayButtons.None);
+            frames.Add(Action(simulation, 0).DefyFrames);
+            invulnerable.Add(Fighter(simulation, 0).InvulnerabilityFrames);
+        }
+
+        // Frames 1 to 6 on ticks 0 to 5.
+        for (int tick = 0; tick < BlastFrame; tick++) AssertThat(frames[tick]).IsEqual(tick + 1);
+        // The blast's 8-frame freeze holds frame 6 on ticks 5 to 13 (both clocks pause).
+        for (int tick = BlastFrame - 1; tick <= BlastFrame + 7; tick++) {
+            AssertThat(frames[tick]).OverrideFailureMessage($"tick {tick}: the freeze holds frame 6").IsEqual(BlastFrame);
+        }
+        // Frames 7 to 30 on ticks 14 to 37, and free on tick 38: the press plus 38 frames.
+        for (int tick = BlastFrame + 8; tick <= 37; tick++) AssertThat(frames[tick]).IsEqual(tick - 7);
+        AssertThat(frames[37]).IsEqual(Total);
+        AssertThat(frames[38]).OverrideFailureMessage("Free again 38 frames after the press (P11).").IsEqual(0);
+        AssertThat(frames[39]).IsEqual(0);
+
+        // Fully invulnerable through frame 6 (the freeze included), hittable from frame 7.
+        for (int tick = 0; tick <= BlastFrame + 7; tick++) {
+            AssertThat(invulnerable[tick] > 0).OverrideFailureMessage($"tick {tick}: invulnerable").IsTrue();
+        }
+        AssertThat(invulnerable[BlastFrame + 8]).OverrideFailureMessage("Frame 7 is vulnerable.").IsEqual(0);
+    }
+
+    [TestCase]
+    public void TheStartupHoldsAnAirborneFighterInPlaceAndTheRecoveryFallsUnderGravity() {
+        FighterSimulation simulation = NewSimulation(seed: 903, spawnDistance: 4);
+        AssertThat(simulation.SeedFighterInfluenceForTest(0, 50)).IsTrue();
+        Step(simulation, GameplayButtons.Jump);
+        for (int tick = 0; tick < 6; tick++) Step(simulation, GameplayButtons.None);
+        AssertThat(Fighter(simulation, 0).IsGrounded).OverrideFailureMessage("Harness: airborne.").IsEqual(0);
+
+        Step(simulation, GameplayButtons.Defy);
+        FP64 pinnedY = Fighter(simulation, 0).Position.y;
+        AssertThat(Fighter(simulation, 0).Velocity.y.RawValue).IsEqual(0L);
+        for (int tick = 1; tick < BlastFrame + 8; tick++) {
+            Step(simulation, GameplayButtons.None);
+            AssertThat(Fighter(simulation, 0).Position.y.RawValue)
+                .OverrideFailureMessage($"tick {tick}: no gravity through the startup and the freeze.")
+                .IsEqual(pinnedY.RawValue);
+        }
+        Step(simulation, GameplayButtons.None);
+        Step(simulation, GameplayButtons.None);
+        AssertThat(Action(simulation, 0).DefyFrames > Invulnerable).IsTrue();
+        AssertThat(Fighter(simulation, 0).Position.y < pinnedY)
+            .OverrideFailureMessage("The vulnerable recovery falls.")
+            .IsTrue();
+    }
+
+    [TestCase]
     public void UnderFiftyInfluenceAndAPressInTheRecoveryAreRefusedAndSpendNothing() {
         FighterSimulation poor = NewSimulation(seed: 904, spawnDistance: 4);
         AssertThat(poor.SeedFighterInfluenceForTest(0, 49)).IsTrue();
@@ -300,6 +359,34 @@ public class FighterDefyTests {
                 .IsEqual(expected);
         }
         AssertThat(expected).OverrideFailureMessage("17 Defies wrap a 4-bit counter to 1.").IsEqual(1);
+    }
+
+    [TestCase]
+    public void TheBlastFiresOnceHoweverLongTheFreezeHoldsFrameSix() {
+        FighterSimulation simulation = NewSimulation(seed: 915, spawnDistance: 1);
+        AssertThat(simulation.SeedFighterInfluenceForTest(0, 50)).IsTrue();
+        Step(simulation, GameplayButtons.Defy);
+        for (int tick = 1; tick <= BlastFrame - 1; tick++) Step(simulation, GameplayButtons.None);
+        AssertThat(Verb(simulation, 1).HitstopFrames).IsEqual(BasicComboRules.DefyBlastHitstopFrames);
+        AssertThat((Action(simulation, 0).ActionFlags & FighterActionStateComponent.ActionFlagDefyBlastFired) != 0).IsTrue();
+
+        // The freeze counts down 8 to 0 on the victim and the Defier alike; it is never re-armed,
+        // and the stagger is not reassigned once the freeze lifts.
+        int previousStun = Fighter(simulation, 1).HitstunFrames;
+        for (int expected = BasicComboRules.DefyBlastHitstopFrames - 1; expected >= 0; expected--) {
+            Step(simulation, GameplayButtons.None);
+            AssertThat(Verb(simulation, 1).HitstopFrames).IsEqual(expected);
+            AssertThat(Verb(simulation, 0).HitstopFrames).IsEqual(expected);
+            AssertThat(Fighter(simulation, 1).HitstunFrames <= previousStun).IsTrue();
+            previousStun = Fighter(simulation, 1).HitstunFrames;
+        }
+        for (int tick = 0; tick < 6; tick++) {
+            Step(simulation, GameplayButtons.None);
+            AssertThat(Fighter(simulation, 1).HitstunFrames < previousStun)
+                .OverrideFailureMessage("After the freeze the stagger only counts down.")
+                .IsTrue();
+            previousStun = Fighter(simulation, 1).HitstunFrames;
+        }
     }
 
     // === helpers ==============================================================
