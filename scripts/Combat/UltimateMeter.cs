@@ -7,14 +7,11 @@ namespace FTT.Combat {
     public partial class UltimateMeter : Node {
         public float CurrentValue { get; private set; }
         // The numbers live once, in InfluenceMeterRules (shared with the Fighter
-        // sim); these names forward to it for the Story call sites. The stock-loss
-        // retention has no Story caller today (Story has no stocks); it is kept,
-        // forwarding to the same rulebook value the sim applies, for
-        // ApplyStockLossRetention and its pin in UltimateMeterTests.
+        // sim); these names forward to it for the Story call sites. Story has no
+        // stocks, so the dead stock-loss retention path was deleted on 2026-10-31.
         public const float MaxValue = InfluenceMeterRules.MaxValue;
         public const float PointsPerDamageDealt = InfluenceMeterRules.PointsPerDamageDealt;
         public const float PointsPerDamageTaken = InfluenceMeterRules.PointsPerDamageTaken;
-        public const float StockLossRetention = InfluenceMeterRules.StockLossRetention;
 
         private int _playerIndex;
         /// <summary>The controller whose <c>CurrentUltimateMeter</c> mirrors this node (G2).</summary>
@@ -49,8 +46,6 @@ namespace FTT.Combat {
         public void AddFlat(float points) => SetValue(CurrentValue + Mathf.Max(0f, points));
 
         public void Consume() => SetValue(0f);
-
-        public void ApplyStockLossRetention() => SetValue(CurrentValue * StockLossRetention);
 
         public void Reset() => SetValue(0f);
 

@@ -11,7 +11,8 @@ namespace FTT.Tests.Unit;
 
 /// <summary>
 /// D5 (user direction 2026-10-11, ledger <c>USER-STORY-METER-SCALE</c>): "The
-/// Ultimate is harder to get: Story meter gain ×0.35." The campaign hero — any
+/// Ultimate is harder to get: Story meter gain ×0.35" (×0.5 since the 2026-10-31 meter and Defy update, ledger
+/// <c>USER-STORY-METER-SCALE-HALF</c>). The campaign hero — any
 /// build on <c>CharacterFactory</c>'s <c>applyStoryProgression &amp;&amp;
 /// applyLegacyUnlockLocks</c> branch — earns every meter GAIN (damage dealt,
 /// damage taken, drained Rally echo) at
@@ -34,9 +35,9 @@ public class StoryMeterGainScaleTests {
 
     [TestCase]
     public void TheStoryMeterGainFactorIsTheScaleOnTheCampaignHeroTimesItsLane() {
-        AssertThat(StoryCombatRules.MeterGainScale).IsEqual(0.35f);
-        AssertFloat(StoryCombatRules.MeterGainFactor(true, 1f)).IsEqualApprox(0.35f, 0.00001f);
-        AssertFloat(StoryCombatRules.MeterGainFactor(true, MinorResonanceRate)).IsEqualApprox(0.385f, 0.00001f);
+        AssertThat(StoryCombatRules.MeterGainScale).IsEqual(0.5f);
+        AssertFloat(StoryCombatRules.MeterGainFactor(true, 1f)).IsEqualApprox(0.5f, 0.00001f);
+        AssertFloat(StoryCombatRules.MeterGainFactor(true, MinorResonanceRate)).IsEqualApprox(0.55f, 0.00001f);
         AssertThat(StoryCombatRules.MeterGainFactor(true, -1f)).IsEqual(0f);
         AssertFloat(StoryCombatRules.MeterGainFactor(false, MinorResonanceRate)).IsEqualApprox(MinorResonanceRate, 0.00001f);
         AssertThat(StoryCombatRules.MeterGainFactor(false, 1f)).IsEqual(1f);
@@ -53,7 +54,7 @@ public class StoryMeterGainScaleTests {
             hero.AddInfluenceFromDamageDealt(20f, collectsEcho: false);
             float expected = 20f * StoryCombatRules.MeterGainScale;
             AssertFloat(Meter(hero).CurrentValue)
-                .OverrideFailureMessage("20 HP dealt by the campaign hero earns 20 x 0.35 = 7 meter.")
+                .OverrideFailureMessage("20 HP dealt by the campaign hero earns 20 x 0.5 = 10 meter.")
                 .IsEqualApprox(expected, 0.001f);
             AssertFloat(hero.CurrentUltimateMeter).IsEqualApprox(expected, 0.001f);
         } finally {
@@ -76,7 +77,7 @@ public class StoryMeterGainScaleTests {
                 BasicComboRules.HitstopFrames(20) + BasicComboRules.EchoDrainFrames + 10);
             AssertThat(hero.EchoPool).IsEqual(0f);
             AssertFloat(hero.CurrentUltimateMeter)
-                .OverrideFailureMessage("Drained to empty: exactly 20 x 0.25 x 0.35 = 1.75 in total, echo included.")
+                .OverrideFailureMessage("Drained to empty: exactly 20 x 0.25 x 0.5 = 2.5 in total, echo included.")
                 .IsEqualApprox(20f * InfluenceMeterRules.PointsPerDamageTaken * StoryCombatRules.MeterGainScale, 0.02f);
         } finally {
             InputManager.Instance?.ClearInputSource(hero.PlayerIndex);
@@ -93,7 +94,7 @@ public class StoryMeterGainScaleTests {
                 .IsEqualApprox(StoryCombatRules.MeterGainScale * MinorResonanceRate, 0.0001f);
             hero.AddInfluenceFromDamageDealt(20f, collectsEcho: false);
             AssertFloat(hero.CurrentUltimateMeter)
-                .OverrideFailureMessage("The Minor Resonance multiplies D5's scale: 20 x 0.35 x 1.1 = 7.7.")
+                .OverrideFailureMessage("The Minor Resonance multiplies D5's scale: 20 x 0.5 x 1.1 = 11.")
                 .IsEqualApprox(20f * StoryCombatRules.MeterGainScale * MinorResonanceRate, 0.001f);
         } finally {
             Free(hero);

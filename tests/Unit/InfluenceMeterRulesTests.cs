@@ -26,26 +26,25 @@ public class InfluenceMeterRulesTests {
     [TestCase]
     public void TheRulebookHoldsTheDesignedCapAndRatesAsIntegerRationals() {
         // Design §"Influence Meter": 0-100, 1 point per HP dealt, 0.25 per HP
-        // taken, and a Fighter stock loss keeps 75%.
+        // taken, and a Fighter stock loss keeps 50% (1/2 since the 2026-10-31 meter and Defy update).
         AssertThat(InfluenceMeterRules.Cap).IsEqual(100);
         AssertThat(InfluenceMeterRules.DamageDealtNumerator).IsEqual(1);
         AssertThat(InfluenceMeterRules.DamageDealtDenominator).IsEqual(1);
         AssertThat(InfluenceMeterRules.DamageTakenNumerator).IsEqual(1);
         AssertThat(InfluenceMeterRules.DamageTakenDenominator).IsEqual(4);
-        AssertThat(InfluenceMeterRules.StockLossRetentionNumerator).IsEqual(3);
-        AssertThat(InfluenceMeterRules.StockLossRetentionDenominator).IsEqual(4);
+        AssertThat(InfluenceMeterRules.StockLossRetentionNumerator).IsEqual(1);
+        AssertThat(InfluenceMeterRules.StockLossRetentionDenominator).IsEqual(2);
 
         // The float views are exact (every value is a power-of-two fraction).
         AssertThat(InfluenceMeterRules.MaxValue).IsEqual(100f);
         AssertThat(InfluenceMeterRules.PointsPerDamageDealt).IsEqual(1f);
         AssertThat(InfluenceMeterRules.PointsPerDamageTaken).IsEqual(0.25f);
-        AssertThat(InfluenceMeterRules.StockLossRetention).IsEqual(0.75f);
+        AssertThat(InfluenceMeterRules.StockLossRetention).IsEqual(0.5f);
 
         // The Story node's names are forwarders, not a second copy.
         AssertThat(UltimateMeter.MaxValue).IsEqual(InfluenceMeterRules.MaxValue);
         AssertThat(UltimateMeter.PointsPerDamageDealt).IsEqual(InfluenceMeterRules.PointsPerDamageDealt);
         AssertThat(UltimateMeter.PointsPerDamageTaken).IsEqual(InfluenceMeterRules.PointsPerDamageTaken);
-        AssertThat(UltimateMeter.StockLossRetention).IsEqual(InfluenceMeterRules.StockLossRetention);
     }
 
     [TestCase]
@@ -76,7 +75,7 @@ public class InfluenceMeterRulesTests {
                 if (taken != takenBefore && mismatches++ == 0) first = $"taken {value}: {taken} != {takenBefore}";
 
                 long kept = FighterMeterRules.RetainOnStockLoss(value).RawValue;
-                long keptBefore = (value * FP64.FromInt(3) / FP64.FromInt(4)).RawValue;
+                long keptBefore = (value * FP64.FromInt(1) / FP64.FromInt(2)).RawValue;
                 if (kept != keptBefore && mismatches++ == 0) first = $"retain {value}: {kept} != {keptBefore}";
             }
         }

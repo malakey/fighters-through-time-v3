@@ -4475,12 +4475,6 @@ namespace FTT.Characters {
 			if (_storyHyperArmorFrames > 0) _storyHyperArmorFrames--;
 		}
 
-		public void ApplyStockLossMeterRetention() {
-			_ultimateMeter?.ApplyStockLossRetention();
-			CurrentUltimateMeter = _ultimateMeter?.CurrentValue
-				?? CurrentUltimateMeter * FTT.Combat.InfluenceMeterRules.StockLossRetention;
-		}
-
 		public bool HasActiveHyperArmor =>
 			StoryHyperArmorActive ||
 			AbilityHasActiveHyperArmor(_special1) ||

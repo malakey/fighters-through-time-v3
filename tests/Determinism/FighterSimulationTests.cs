@@ -78,11 +78,11 @@ public class FighterSimulationTests {
     }
 
     [TestCase]
-    public void StockLossRetainsSeventyFivePercentOfInfluence() {
+    public void StockLossRetainsHalfOfInfluence() {
         // One 100-damage opener (125 x tesla's 0.8 shape) fells the 100 HP
         // victim outright. A lethal hit accrues no Rally echo (V7.1), so the
         // victim's meter credit is exactly damage/4 = 25 — and the stock loss
-        // must retain 75% of it: 18.75.
+        // must retain half of it (1/2 since the 2026-10-31 meter and Defy update): 12.5.
         var simulation = new FighterSimulation(
             FighterLoadoutFactory.FromCharacterData(BuildLethalOpenerAttacker()),
             FighterLoadoutFactory.FromCharacterData(BuildHundredHpVictim()),
@@ -97,7 +97,7 @@ public class FighterSimulationTests {
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent defeated)).IsTrue();
         AssertThat(defeated.Stocks).IsEqual(2);
         AssertThat(defeated.Influence.RawValue).IsEqual(
-            xpTURN.Klotho.Deterministic.Math.FP64.FromDouble(18.75).RawValue);
+            xpTURN.Klotho.Deterministic.Math.FP64.FromDouble(12.5).RawValue);
     }
 
     private static CharacterData BuildLethalOpenerAttacker() => new() {

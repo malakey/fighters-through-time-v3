@@ -20,17 +20,6 @@ public class UltimateMeterTests {
     }
 
     [TestCase]
-    public void StockLossRetainsSeventyFivePercent() {
-        var meter = new UltimateMeter();
-        meter.SetValue(80f);
-
-        meter.ApplyStockLossRetention();
-
-        AssertThat(meter.CurrentValue).IsEqual(60f);
-        meter.Free();
-    }
-
-    [TestCase]
     public void ConsumeResetsMeter() {
         var meter = new UltimateMeter();
         meter.SetValue(100f);

@@ -35,9 +35,13 @@ namespace FTT.Combat {
         public const int DamageTakenNumerator = 1;
         public const int DamageTakenDenominator = 4;
 
-        /// <summary>Share of the meter a Fighter keeps through a stock loss: <c>3 / 4</c>.</summary>
-        public const int StockLossRetentionNumerator = 3;
-        public const int StockLossRetentionDenominator = 4;
+        /// <summary>
+        /// Share of the meter a Fighter keeps through a stock loss: <c>1 / 2</c> (meter and
+        /// Defy update 2026-10-31, ledger USER-STOCK-LOSS-RETENTION-HALF; was 3 / 4). A full
+        /// bar becomes exactly one Defy.
+        /// </summary>
+        public const int StockLossRetentionNumerator = 1;
+        public const int StockLossRetentionDenominator = 2;
 
         // === Exact float views (Story, UI, engine-free save clamps) ===
 
@@ -52,7 +56,7 @@ namespace FTT.Combat {
         public const float PointsPerDamageTaken =
             (float)DamageTakenNumerator / DamageTakenDenominator;
 
-        /// <summary>0.75 of the meter kept through a stock loss.</summary>
+        /// <summary>0.5 of the meter kept through a stock loss.</summary>
         public const float StockLossRetention =
             (float)StockLossRetentionNumerator / StockLossRetentionDenominator;
 

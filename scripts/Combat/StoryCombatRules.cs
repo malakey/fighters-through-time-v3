@@ -34,8 +34,23 @@ namespace FTT.Combat {
         // scripts/FighterSim/ or by the shared InfluenceMeterRules (source-scanned,
         // InfluenceMeterSourceScanTests).
 
-        /// <summary>D5 (user direction): the campaign hero's Story meter-gain scale.</summary>
-        public const float MeterGainScale = 0.35f;
+        /// <summary>D5 (user direction): the campaign hero's Story meter-gain scale (0.35 until the meter and Defy update 2026-10-31, then 0.5).</summary>
+        public const float MeterGainScale = 0.5f;
+
+        /// <summary>
+        /// The scale Story's FLAT meter effects take (an Extractor discharge, the searchlight,
+        /// the Siphon Snare, Shield of Orléans, a MeterBoost orb): the D5 scale alone, never
+        /// Mozart's build-rate lane (meter and Defy update 2026-10-31, ledger
+        /// USER-STORY-FLAT-EFFECTS-SCALED). Applied at the call sites, never inside
+        /// DrainUltimateMeter.
+        /// </summary>
+        public const float FlatEffectScale = MeterGainScale;
+
+        /// <summary>
+        /// The factor a flat meter effect is multiplied by: <see cref="FlatEffectScale"/> on
+        /// the campaign hero only, 1 on every other build (the Mirror clone, drills, Fighter).
+        /// </summary>
+        public static float FlatMeterScale(bool storyScaled) => storyScaled ? FlatEffectScale : 1f;
 
         /// <summary>
         /// The one Story meter-gain factor: D5's scale on the campaign hero only,

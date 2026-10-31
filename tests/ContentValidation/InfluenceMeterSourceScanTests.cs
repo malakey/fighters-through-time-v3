@@ -171,7 +171,7 @@ public class InfluenceMeterSourceScanTests {
             string code = Code(file);
             foreach (string forbidden in new[] {
                          "StoryCombatRules", "MeterGainScale", "MeterGainFactor", "AppliesStoryMeterGainScale",
-                         "StoryMeterGainFactor", "StoryUltimateBuildRateMultiplier" }) {
+                         "StoryMeterGainFactor", "StoryUltimateBuildRateMultiplier", "FlatEffectScale", "FlatMeterScale" }) {
                 if (code.Contains(forbidden, System.StringComparison.Ordinal)) {
                     issues.Add($"{file} names the Story-only {forbidden}");
                 }

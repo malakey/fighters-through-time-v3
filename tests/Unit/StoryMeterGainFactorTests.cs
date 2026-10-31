@@ -93,8 +93,6 @@ public class StoryMeterGainFactorTests {
             AssertThat(hero.CurrentUltimateMeter).IsEqual(40f);
             hero.DrainUltimateMeter(10f);
             AssertThat(hero.CurrentUltimateMeter).IsEqual(30f);
-            hero.ApplyStockLossMeterRetention();
-            AssertThat(hero.CurrentUltimateMeter).IsEqual(30f * InfluenceMeterRules.StockLossRetention);
             hero.SetUltimateMeter(InfluenceMeterRules.MaxValue + 50f);
             AssertThat(hero.CurrentUltimateMeter).IsEqual(InfluenceMeterRules.MaxValue);
             meter.Consume();
