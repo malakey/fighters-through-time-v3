@@ -215,8 +215,7 @@ public class StoryDefyBlastTests {
                 Defy(hero, untilBlast: true);
                 AssertThat(boss.HitstopFramesRemaining)
                     .OverrideFailureMessage("The 8-frame freeze reaches every victim, a boss included.")
-                    .IsGreater(0);
-                AssertThat(boss.HitstopFramesRemaining).IsLessEqual(BasicComboRules.DefyBlastHitstopFrames);
+                    .IsEqual(BasicComboRules.DefyBlastHitstopFrames);
                 AssertThat(boss.CurrentState).IsNotEqual(BossState.Dead);
             } finally {
                 boss.Free();

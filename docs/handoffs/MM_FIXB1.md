@@ -15,3 +15,14 @@ Orchestrator ruling: `resonance_{joan_piercing,mozart_wave,lincoln_splitting}_co
 Totals: pre-fix filtered run (FighterDefyTests, StoryDefyBlastTests, DefyPresentationTests): 5 failed of 31. Post-fix filtered run (FighterDefy, StoryDefy, DefyPresentation, BossController, ResonanceGridFit, CampaignLocalization, TranslationCsvShape): `Passed: 89, Failed: 0`. Full suite: `Failed: 0, Passed: 3857, Total: 3857` (3851 + 6 new cases).
 
 Nobody played the build.
+
+## Round 2 (finding 4 redone, boss test tightened)
+
+The 30-tick window swallowed a legitimate second Defy (interrupted recovery, then Defy out of the hitstun). Replaced by identity/lifecycle dedupe in `FighterSimulationDriver.DefyFeedback.cs`, presentation-only:
+- Per player: last presented counter value, and whether the counter went backwards since (a rollback correction). A forward step is suppressed only when a backward step was seen since the last presentation AND it lands back on the presented value; any other value plays (including presented+1 after an interrupted Defy).
+- Lifecycle resets (`ResetDefyPresentation(playerID)`): `SyncDefyFeedback` calls it while the fighter is on the respawn platform (`RespawnFramesRemaining > 0`) and for both players the first time `SuddenDeathActive` is seen, since 323 is zeroed there. A rematch builds a new driver (`Initialize` refuses re-initialisation), so its memory starts empty. Nothing is written into sim state; the tick parameter and `UnknownSimTick` are gone.
+- Known limit (per spec): after a correction that removes the Defy entirely, a later genuine Defy that lands on the same counter value is suppressed once.
+
+Tests (replace the round-1 driver case; net +3): `AnInterruptedDefyFollowedByAnotherWithinThirtyTicksPlaysTwoBursts`, `ARollbackCorrectionReplayOfOneDefyPlaysOneBurst`, `ACorrectionFollowedByAGenuinelyNewDefyPlaysTwoBursts`, `AStockResetClearsTheMemory...`. Fail-first: against the original driver (no guard) the replay and correction-then-new cases failed (2 of 8). The time guard has no tick parameter to exercise in the new API, so the interrupted-recovery case is the contract it would break (second Defy within 30 ticks dropped); it passes now. The stock-reset case documents the reset contract. Boss test now asserts exactly `DefyBlastHitstopFrames` (8).
+
+Totals: filtered (FighterDefy, StoryDefy, DefyPresentation, BossController) 78 passed; full suite `Failed: 0, Passed: 3860, Total: 3860` (3857 + 3).

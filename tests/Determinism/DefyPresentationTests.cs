@@ -149,7 +149,61 @@ public class DefyPresentationTests {
     }
 
     [TestCase]
-    public void ARollbackReplayOfOneDefyPlaysOneBurstAndALaterDefyStillPlays() {
+    public void AnInterruptedDefyFollowedByAnotherWithinThirtyTicksPlaysTwoBursts() {
+        RunDefyCounterCase((driver, one, host, at) => {
+            driver.PresentDefyCounter(one, 0, at(0, 0));
+            AssertThat(driver.PresentDefyCounter(one, 0, at(1, 6))).IsTrue();
+            // Hit in the vulnerable recovery: the action ends, the counter stays; Defy again out of the hitstun.
+            driver.PresentDefyCounter(one, 0, at(1, 0));
+            AssertThat(driver.PresentDefyCounter(one, 0, at(2, 6)))
+                .OverrideFailureMessage("A second Defy with no correction between is a genuine new Defy.")
+                .IsTrue();
+            AssertThat(CountActiveRings(host)).IsEqual(2);
+        });
+    }
+
+    [TestCase]
+    public void ARollbackCorrectionReplayOfOneDefyPlaysOneBurst() {
+        RunDefyCounterCase((driver, one, host, at) => {
+            driver.PresentDefyCounter(one, 0, at(0, 0));
+            AssertThat(driver.PresentDefyCounter(one, 0, at(1, 6))).IsTrue();
+            driver.PresentDefyCounter(one, 0, at(0, 0));
+            AssertThat(driver.PresentDefyCounter(one, 0, at(1, 6)))
+                .OverrideFailureMessage("0, 1, 0, 1 is the same Defy replayed.")
+                .IsFalse();
+            AssertThat(CountActiveRings(host)).IsEqual(1);
+        });
+    }
+
+    [TestCase]
+    public void ACorrectionFollowedByAGenuinelyNewDefyPlaysTwoBursts() {
+        RunDefyCounterCase((driver, one, host, at) => {
+            driver.PresentDefyCounter(one, 0, at(0, 0));
+            AssertThat(driver.PresentDefyCounter(one, 0, at(1, 6))).IsTrue();
+            driver.PresentDefyCounter(one, 0, at(0, 0));
+            AssertThat(driver.PresentDefyCounter(one, 0, at(1, 6))).IsFalse();
+            AssertThat(driver.PresentDefyCounter(one, 0, at(2, 6))).IsTrue();
+            AssertThat(CountActiveRings(host)).IsEqual(2);
+        });
+    }
+
+    [TestCase]
+    public void AStockResetClearsTheMemorySoTheNextGenuineDefyPlays() {
+        RunDefyCounterCase((driver, one, host, at) => {
+            driver.PresentDefyCounter(one, 0, at(0, 0));
+            AssertThat(driver.PresentDefyCounter(one, 0, at(1, 6))).IsTrue();
+            // The stock is lost: 323 is zeroed (a lifecycle reset, not a correction).
+            driver.ResetDefyPresentation(0);
+            driver.PresentDefyCounter(one, 0, at(0, 0));
+            AssertThat(driver.PresentDefyCounter(one, 0, at(1, 6)))
+                .OverrideFailureMessage("After a reset the first Defy of the new stock plays even at the old value.")
+                .IsTrue();
+            AssertThat(CountActiveRings(host)).IsEqual(2);
+        });
+    }
+
+    private static void RunDefyCounterCase(
+        System.Action<FighterSimulationDriver, PlayerController, Node2D, System.Func<int, int, FighterActionStateComponent>> body) {
         if (InputManager.Instance == null) return;
         GameManager manager = GameManager.Instance;
         SessionData saved = manager.CurrentSession;
@@ -165,24 +219,10 @@ public class DefyPresentationTests {
             MatchSettings settings = MatchSettings.GetDefault();
             settings.StageHazardsEnabled = false;
             driver.Initialize(one, two, settings, stageHazardTypeID: 1, stageID: "florence_workshop", matchSeed: 2027);
-
-            FighterActionStateComponent At(int count, int defyFrames) => new() {
+            body(driver, one, host, (count, defyFrames) => new FighterActionStateComponent {
                 ActionFlags = count << FighterActionStateComponent.DefyCounterShift,
                 DefyFrames = defyFrames
-            };
-
-            driver.PresentDefyCounter(one, 0, At(0, 0), 100);
-            AssertThat(driver.PresentDefyCounter(one, 0, At(1, 6), 110)).IsTrue();
-            // A correction lowers the counter and the resimulation raises it again: 0, 1, 0, 1.
-            AssertThat(driver.PresentDefyCounter(one, 0, At(0, 0), 112)).IsFalse();
-            AssertThat(driver.PresentDefyCounter(one, 0, At(1, 6), 113))
-                .OverrideFailureMessage("The same Defy replayed after a correction is not a new burst.")
-                .IsFalse();
-            AssertThat(CountActiveRings(host)).IsEqual(1);
-            // A genuinely new Defy, after the first one's whole action, still plays.
-            driver.PresentDefyCounter(one, 0, At(1, 0), 140);
-            AssertThat(driver.PresentDefyCounter(one, 0, At(2, 6), 150)).IsTrue();
-            AssertThat(CountActiveRings(host)).IsEqual(2);
+            });
         } finally {
             AudioManager.Instance?.CoreCues?.ResetTransient();
             host.Free();
