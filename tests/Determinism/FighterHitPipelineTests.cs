@@ -146,10 +146,10 @@ public class FighterHitPipelineTests {
     }
 
     [TestCase]
-    public void VenomCannotKillThroughAFullDefyMeter() {
-        // The unattributed-damage chokepoint runs Defy History first: a lethal
-        // venom tick against a full meter shatters the meter and leaves the
-        // victim at 1 HP — once per match, like any hit.
+    public void AFullMeterNoLongerSavesAFighterFromALethalVenomTick() {
+        // The meter and Defy update (2026-10-31, O16) deleted the passive save:
+        // a lethal tick against a full meter takes the stock like any other.
+        // The active Defy is a button, tested in FighterDefyTests.
         FighterStateComponent fighter = NewFighter(1);
         fighter.CurrentHP = 1;
         fighter.Influence = FP64.FromInt(100);
@@ -160,67 +160,10 @@ public class FighterHitPipelineTests {
 
         FighterDamageRules.ApplyUnattributedDamage(ref fighter, ref runtime, ref verb, ref defense, in tuning, 2);
 
-        AssertThat(fighter.CurrentHP)
-            .OverrideFailureMessage("A lethal venom tick against a full meter must not KO.")
-            .IsEqual(1);
-        AssertThat(fighter.Stocks).IsEqual(3);
-        AssertThat(runtime.KnockoutsSuffered).IsEqual(0);
-        AssertThat(fighter.Influence.RawValue)
-            .OverrideFailureMessage("Defy History shatters the meter to zero.")
-            .IsEqual(0L);
-        AssertThat(verb.DefyHistoryUsed).IsEqual(1);
-
-        // V7.6 D04 (Package 11 A1b): the Defy survivor is protected through
-        // the presentation and for 60 resumed control ticks, so the follow-up
-        // tick has to wait the window out before "once per match" can bite.
-        for (int tick = 0; tick < 61; tick++) {
-            FighterDefenseRules.Tick(ref defense, suspended: false, actionable: true);
-        }
-        AssertThat(FighterDefenseRules.IsDefyProtected(in defense))
-            .OverrideFailureMessage("Tick 61 must be unprotected.")
-            .IsFalse();
-
-        // Once per match: the next lethal tick takes the stock.
-        FighterDamageRules.ApplyUnattributedDamage(ref fighter, ref runtime, ref verb, ref defense, in tuning, 2);
-        AssertThat(runtime.KnockoutsSuffered).IsEqual(1);
-        AssertThat(fighter.Stocks).IsEqual(2);
-    }
-
-    [TestCase]
-    public void ALethalVenomTickInSuddenDeathRespectsTheDefyBar() {
-        // CM-HIT (decision 1.1(4), FIX-SIM-VENOM-DEFY-BARRED): F22's "no Defy
-        // survival proc" holds for damage-over-time ticks too. With the Sudden
-        // Death bar set and a full meter, a lethal venom tick takes the stock,
-        // Defy stays unspent and no protected window opens.
-        FighterStateComponent fighter = NewFighter(1);
-        fighter.CurrentHP = 1;
-        fighter.Influence = FP64.FromInt(100);
-        var runtime = new FighterRuntimeComponent { UsesStocks = 1 };
-        FighterVerbComponent verb = default;
-        var defense = new FighterDefenseComponent { DefyBarred = 1 };
-        FighterTuningComponent tuning = default;
-
-        FighterDamageRules.ApplyUnattributedDamage(ref fighter, ref runtime, ref verb, ref defense, in tuning, 2);
-
         AssertThat(runtime.KnockoutsSuffered)
-            .OverrideFailureMessage("A barred Defy cannot save the fighter from a lethal venom tick.")
+            .OverrideFailureMessage("A lethal venom tick against a full meter must take the stock.")
             .IsEqual(1);
         AssertThat(fighter.Stocks).IsEqual(2);
-        AssertThat(verb.DefyHistoryUsed)
-            .OverrideFailureMessage("The bar never spends the use (F13: Unavailable, not Spent).")
-            .IsEqual(0);
-        AssertThat(FighterDefenseRules.IsDefyProtected(in defense))
-            .OverrideFailureMessage("No protected window opens.")
-            .IsFalse();
-        AssertThat(defense.DefyProcIdentity).IsEqual(0);
-        AssertThat(defense.DefyBarred)
-            .OverrideFailureMessage("The Sudden Death bar survives the stock loss it produced.")
-            .IsEqual(1);
-        // The direct-hit path reads the same test.
-        AssertThat(FighterDefenseRules.CanDefy(in fighter, in verb, in defense)).IsFalse();
-        defense.DefyBarred = 0;
-        fighter.Influence = FP64.FromInt(100);
-        AssertThat(FighterDefenseRules.CanDefy(in fighter, in verb, in defense)).IsTrue();
     }
 
     [TestCase]

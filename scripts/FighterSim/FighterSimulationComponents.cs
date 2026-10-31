@@ -350,6 +350,7 @@ namespace FTT.FighterSim {
         public readonly int SpecialOneDamage;
         public readonly int SpecialTwoDamage;
         public readonly int UltimateDamage;
+        /// <summary>Dead since the meter and Defy update (2026-10-31): the authored cooldown no longer reaches the simulation (the Momentum gauge pays for Specials). Kept only so the positional constructor stays stable; MM-SWEEP deletes it with its readers.</summary>
         public readonly int SpecialOneCooldownFrames;
         public readonly int SpecialTwoCooldownFrames;
         public readonly int SpecialOneStatusType;
@@ -527,8 +528,9 @@ namespace FTT.FighterSim {
         /// <summary>
         /// Special 1's reuse delay (meter and Defy update 2026-10-31): armed to
         /// <see cref="FTT.Combat.BasicComboRules.SpecialReuseDelayFrames"/> when the slot
-        /// is accepted and ticked in TickCounters. Until MM-SIM it is still armed from
-        /// the authored cooldown (a rename only).
+        /// is accepted and ticked in TickCounters (so it pauses in the fighter's own
+        /// hitstop, as the cooldown did). It is the only per-slot Special timer: the
+        /// authored cooldowns are gone and the gauge pays for the cast.
         /// </summary>
         public int SpecialOneReuseFrames;
         /// <summary>Special 2's reuse delay (see <see cref="SpecialOneReuseFrames"/>).</summary>
@@ -690,8 +692,6 @@ namespace FTT.FighterSim {
         public int UltimateDamage;
         public int MaxBlockCharges;
         public int MaxJumpCount;
-        public int SpecialOneCooldownFrames;
-        public int SpecialTwoCooldownFrames;
         public int SpecialOneStatusType;
         public int SpecialOneStatusFrames;
         public int SpecialTwoStatusType;
@@ -768,10 +768,17 @@ namespace FTT.FighterSim {
         public int DefyHistoryUsed;
         /// <summary>1 while the match is in Overtime (final minute of a timed match).</summary>
         public int OvertimeActive;
-        // --- Per-hit Momentum (V7.1; D2 2026-10-11: FRAMES refunded this
-        // cooldown cycle, 0..120, no longer a refund count) ---
-        public int MomentumRefundedFramesSlotOne;
-        public int MomentumRefundedFramesSlotTwo;
+        // --- The Momentum gauge (meter and Defy update 2026-10-31) ---
+        /// <summary>
+        /// The Momentum gauge in units (7200 to the pip, 0..28 800; see
+        /// <see cref="FighterMomentumRules"/>). Replaces the per-cycle refund counter
+        /// this slot held until 2026-10-31. It survives a stock loss (G3.2), is
+        /// set to the start fill at spawn and by the Sudden Death setup, and is
+        /// never written by a Story identifier.
+        /// </summary>
+        public int MomentumUnits;
+        /// <summary>Free since 2026-10-31 (the second refund counter); always 0.</summary>
+        public int SpareInt0;
         // --- Grabs & Throws (V7.2) ---
         /// <summary>0 none, 1 startup, 2 active, 3 whiff recovery, 4 holding, 5 throw animation.</summary>
         public int GrabPhase;
@@ -823,43 +830,25 @@ namespace FTT.FighterSim {
     }
 
     /// <summary>
-    /// V7.6 D01–D04 defensive layer (Package 11 A1b), deterministic half.
-    /// <see cref="FighterRuntimeComponent"/> is exactly full at 128 bytes and
-    /// <see cref="FighterVerbComponent"/> has four bytes of headroom, so the
-    /// defensive contract's new snapshot state lives here. Klotho component ID
-    /// assigned by Package 11 §2.7 — A1b only.
+    /// V7.6 D02 defensive layer (Package 11 A1b), deterministic half: the
+    /// Temporal Aegis flag and the finite HP barrier. Klotho component ID
+    /// assigned by Package 11 section 2.7 (A1b) only.
     ///
-    /// <para><b>D04 protected recovery.</b> A successful Defy sets
-    /// <see cref="DefyProtectionAwaitControl"/> and <see cref="DefyProtectionFrames"/>
-    /// (60) together with <see cref="DefyProcIdentity"/>. The countdown does not
-    /// start until the survivor's first resumed normal-control tick, and pauses
-    /// during hitstop and suspended-combat presentations. The proc identity is
-    /// the resimulation dedupe: a rollback that replays the same proc must not
-    /// stage a second presentation.</para>
+    /// <para>The four D04 passive-Defy fields (the awaiting-control flag, the 60
+    /// protected frames, the proc identity and the Sudden Death bar) were deleted
+    /// with the passive Defy by the meter and Defy update (2026-10-31, O16): the
+    /// component is 20 bytes per fighter now. The active Defy keeps its state on
+    /// component 323.</para>
     ///
     /// <para><b>D02b barrier layer.</b> The simulation has no Story grid perks,
-    /// so <see cref="BarrierPoints"/> is zero in every shipped Fighter match —
+    /// so <see cref="BarrierPoints"/> is zero in every shipped Fighter match -
     /// but D02b's ordering is authored here rather than left implicit, so a
     /// future authored Fighter barrier resolves in the contract's order
-    /// (invulnerability → Aegis → barrier → block) without another rewrite.</para>
+    /// (invulnerability, Aegis, barrier, block) without another rewrite.</para>
     /// </summary>
     [KlothoComponent(312, MaxCount = 2)]
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
     public partial struct FighterDefenseComponent : IComponent {
-        /// <summary>1 while a Defy survivor is still in its presentation and has not resumed control.</summary>
-        public int DefyProtectionAwaitControl;
-        /// <summary>Remaining protected ticks once control resumed; 60 on a fresh proc.</summary>
-        public int DefyProtectionFrames;
-        /// <summary>Deterministic identity of the proc that installed this window; 0 when none.</summary>
-        public int DefyProcIdentity;
-        /// <summary>
-        /// V7.6 F22/F13: 1 while this context BARS Defy — Sudden Death today.
-        /// Deliberately separate from <c>FighterVerbComponent.DefyHistoryUsed</c>
-        /// so the seal can show <b>Unavailable</b> without the underlying
-        /// <b>Spent</b> flag being overwritten, which is exactly what the old
-        /// pre-mark on Sudden Death entry conflated.
-        /// </summary>
-        public int DefyBarred;
         /// <summary>D02e: one active Temporal Aegis per recipient, a flag and never a count.</summary>
         public int AegisActive;
         /// <summary>D02b finite HP barrier: remaining absorption.</summary>

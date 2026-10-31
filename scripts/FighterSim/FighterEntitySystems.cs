@@ -231,57 +231,25 @@ namespace FTT.FighterSim {
     }
 
     /// <summary>
-    /// V7.6 D01–D04 defensive rules (Package 11 A1b), deterministic half. Pure
-    /// integer state transitions on <see cref="FighterDefenseComponent"/> — no
-    /// float math, no wall clock, no Godot types — so a rollback replays them
-    /// bit-identically.
+    /// V7.6 D02 defensive rules (Package 11 A1b), deterministic half: the
+    /// Temporal Aegis flag and the HP barrier on <see cref="FighterDefenseComponent"/>.
+    /// Pure integer state transitions — no float math, no wall clock, no Godot
+    /// types — so a rollback replays them bit-identically. The passive D04 Defy
+    /// (the lethal-hit save, its 60-tick protected window and the Sudden Death
+    /// bar) was deleted by the meter and Defy update (2026-10-31, O16); the active
+    /// Defy lives in <see cref="FighterDefyRules"/>.
     /// </summary>
     internal static class FighterDefenseRules {
-        /// <summary>D04: 60 active gameplay ticks (1 s at 60 Hz) once control resumes.</summary>
-        public const int DefyProtectionTicks = 60;
         /// <summary>D02c: eight seconds of live gameplay for a granted HP shield.</summary>
         public const int GrantedShieldLifetimeTicks = 480;
 
         /// <summary>
-        /// True while a Defy survivor is protected: through the presentation
-        /// (awaiting control) and for the resumed ticks 1–60. Tick 61 is
-        /// unprotected.
+        /// Advances the barrier's lifetime once per authoritative tick.
+        /// <paramref name="suspended"/> covers global hitstop: the countdown
+        /// pauses, it never banks catch-up ticks.
         /// </summary>
-        public static bool IsDefyProtected(in FighterDefenseComponent defense) =>
-            defense.DefyProtectionAwaitControl != 0 || defense.DefyProtectionFrames > 0;
-
-        /// <summary>
-        /// Installs the window on a successful proc. The identity is derived
-        /// from the player rather than a counter so a resimulated proc produces
-        /// the same value and cannot stage a duplicate presentation.
-        /// </summary>
-        public static void BeginDefyProtection(ref FighterDefenseComponent defense, int playerID) {
-            defense.DefyProtectionAwaitControl = 1;
-            defense.DefyProtectionFrames = DefyProtectionTicks;
-            defense.DefyProcIdentity = playerID + 1;
-        }
-
-        /// <summary>
-        /// Advances the window once per authoritative tick.
-        /// <paramref name="suspended"/> covers global hitstop, menus, Time
-        /// Freeze and suspended-combat presentations — the countdown pauses,
-        /// it never banks catch-up ticks. <paramref name="actionable"/> is the
-        /// first resumed normal-control tick that starts the countdown.
-        /// Attacking never refreshes it, and since the combat and movement
-        /// update (2026-10-16, decision 4.3, amending D04) the survivor's first
-        /// offensive action ends it (<see cref="EndOnOffence"/>).
-        /// </summary>
-        public static void Tick(ref FighterDefenseComponent defense, bool suspended, bool actionable) {
+        public static void TickBarrier(ref FighterDefenseComponent defense, bool suspended) {
             if (suspended) return;
-            if (defense.DefyProtectionAwaitControl != 0) {
-                if (!actionable) return;
-                defense.DefyProtectionAwaitControl = 0;
-                // Resumed tick 1 is protected; the decrement happens at tick end.
-            }
-            if (defense.DefyProtectionFrames > 0) {
-                defense.DefyProtectionFrames--;
-                if (defense.DefyProtectionFrames <= 0) defense.DefyProcIdentity = 0;
-            }
             if (defense.BarrierRemainingFrames > 0) {
                 defense.BarrierRemainingFrames--;
                 // D02c expiry: the remaining absorption is discarded with no
@@ -289,43 +257,6 @@ namespace FTT.FighterSim {
                 if (defense.BarrierRemainingFrames <= 0) ClearBarrier(ref defense);
             }
         }
-
-        /// <summary>
-        /// CM-HIT (decision 4.3, both modes; amends D04): the Defy survivor's
-        /// first offensive action — a swing, a Special, the Ultimate or a grab
-        /// (<see cref="FighterActionRules.IsOffensive"/>) — ends the protected
-        /// window, presentation wait included: the await flag, the frames and
-        /// the proc identity all go to zero. Movement, the roll, the air dodge,
-        /// jumps and the block keep it. Called from
-        /// <see cref="FighterActionRules.OnActionAccepted"/>.
-        /// </summary>
-        public static void EndOnOffence(ref FighterDefenseComponent defense) {
-            defense.DefyProtectionAwaitControl = 0;
-            defense.DefyProtectionFrames = 0;
-            defense.DefyProcIdentity = 0;
-        }
-
-        /// <summary>
-        /// The one Defy History eligibility test both damage paths read
-        /// (CM-HIT, decision 1.1(4)): unspent, not barred by the F22 Sudden Death
-        /// phase, and a full meter. The caller tests that the blow was lethal.
-        /// Before this the unattributed path (a Venom tick) skipped the
-        /// <c>DefyBarred</c> term, so a Sudden Death DoT tick could still proc.
-        /// </summary>
-        public static bool CanDefy(
-            in FighterStateComponent fighter,
-            in FighterVerbComponent verb,
-            in FighterDefenseComponent defense) =>
-            IsDefyUnspentAndUnbarred(verb.DefyHistoryUsed, defense.DefyBarred)
-            && fighter.Influence >= FighterMeterRules.Cap;
-
-        /// <summary>
-        /// <see cref="CanDefy"/> without its meter term: unspent and not barred
-        /// by Sudden Death. The CPU's Defy reserve valuation reads it
-        /// (CM-FIXB-CPU), so it and both damage paths share one rule.
-        /// </summary>
-        public static bool IsDefyUnspentAndUnbarred(int defyHistoryUsed, int defyBarred) =>
-            defyHistoryUsed == 0 && defyBarred == 0;
 
         public static void ClearBarrier(ref FighterDefenseComponent defense) {
             defense.BarrierPoints = 0;
@@ -336,31 +267,11 @@ namespace FTT.FighterSim {
 
         /// <summary>
         /// Death, stock loss, Death Rewind cleanup, scene reconstruction and
-        /// F22 Sudden Death all clear the transient window and the barrier.
-        /// The spent Defy flag itself lives on the verb component and is
-        /// deliberately untouched here.
+        /// F22 Sudden Death all clear the Aegis bubble and the barrier.
         /// </summary>
         public static void Clear(ref FighterDefenseComponent defense) {
-            defense.DefyProtectionAwaitControl = 0;
-            defense.DefyProtectionFrames = 0;
-            defense.DefyProcIdentity = 0;
             defense.AegisActive = 0;
             ClearBarrier(ref defense);
-            // The Sudden Death bar is a PHASE property, not per-life state: a
-            // stock loss inside Sudden Death must not lift it.
-        }
-
-        /// <summary>
-        /// The F13 read-model source. <c>Spent</c> and <c>Unavailable</c> are
-        /// distinct states and the bar never clears the spent flag.
-        /// </summary>
-        public static FTT.Core.DefySealState Seal(
-            in FighterDefenseComponent defense, bool defyUsed, bool alive, FP64 influence) {
-            if (!alive || defense.DefyBarred != 0) return FTT.Core.DefySealState.Barred;
-            if (defyUsed) return FTT.Core.DefySealState.Spent;
-            return influence >= FighterMeterRules.Cap
-                ? FTT.Core.DefySealState.Ready
-                : FTT.Core.DefySealState.Building;
         }
     }
 
@@ -664,14 +575,6 @@ namespace FTT.FighterSim {
             // form stands: one magnitude on both axes, the vertical biased by
             // verticalKnockbackScale.
             if (target.InvulnerabilityFrames > 0 || target.Stocks <= 0) return FighterHitOutcome.Refused;
-            // V7.6 D04 (Package 11 A1b): the Defy protected-recovery gate sits
-            // ABOVE every other layer. A rejected contact spends no Aegis, no
-            // barrier capacity and no block charge, applies no hitstun, launch
-            // or status, and grants the attacker no damage, Rally or block
-            // reward. It covers every attacker, damaging status tick and
-            // damaging stage hazard, and is not immunity to non-hit deaths.
-            if (FighterDefenseRules.IsDefyProtected(in targetDefense)) return FighterHitOutcome.Refused;
-
             // V7.6 D02b (Package 11 A1b): eligible projectile immunity →
             // Temporal Aegis → HP barriers → ordinary block, stopping at the
             // first layer that fully prevents the hit. The simulation has no
@@ -797,45 +700,6 @@ namespace FTT.FighterSim {
             int remainingHP = target.CurrentHP - resolvedDamage;
             target.CurrentHP = remainingHP > 0 ? remainingHP : 0;
 
-            // Defy History (V7.1): a lethal *hit* against a full meter does not
-            // KO — the meter shatters to 0 and the fighter survives at 1 HP.
-            // Once per match. V7.6 F22: "the next actual death decides the
-            // match; there is no Defy survival proc" in Sudden Death — the phase
-            // BARS it (DefyBarred, set by the Sudden Death setup) without
-            // marking it spent, so a fighter who never used Defy still shows
-            // Unavailable rather than Spent (F13). CM-HIT (1.1(4)): the one
-            // eligibility test, shared with the Venom-tick path.
-            bool defied = false;
-            if (target.CurrentHP <= 0
-                && FighterDefenseRules.CanDefy(in target, in targetVerb, in targetDefense)) {
-                defied = true;
-                targetVerb.DefyHistoryUsed = 1;
-                target.Influence = FP64.Zero;
-                target.CurrentHP = 1;
-                // The saved life reads as a hard moment: an extended freeze.
-                FighterVerbRules.ApplyHitstop(ref attackerVerb, ref targetVerb, 12);
-                // V7.6 D04 (Package 11 A1b): protected recovery. The survivor is
-                // RELEASED from the triggering hit — it may not be launched or
-                // stunned by the very blow it defied — and from any capture,
-                // then is invulnerable through the presentation and for 60
-                // active ticks once normal control resumes.
-                FighterDefenseRules.BeginDefyProtection(ref targetDefense, target.PlayerID);
-                target.HitstunFrames = 0;
-                target.DazeFrames = 0;
-                targetVerb.PendingLaunchActive = 0;
-                targetVerb.Tumble = 0;
-                targetVerb.ShieldStunFrames = 0;
-                targetVerb.BeingHeld = 0;
-                targetVerb.GrabPhase = 0;
-                targetVerb.GrabPhaseFrames = 0;
-                // The defied hit contributes no forced motion and imposes no new
-                // attached control/status effect. Position is kept as it stands.
-                knockback = FP64.Zero;
-                hitstunFrames = 0;
-                statusType = (int)StatusType.None;
-                statusFrames = 0;
-            }
-
             int actualDamage = previousHP - target.CurrentHP;
             if (creditInfluence) {
                 attacker.Influence = FP64.Min(
@@ -849,11 +713,8 @@ namespace FTT.FighterSim {
             // restarts the 150-frame linear drain. Victim meter-from-damage
             // accrues only on the permanent (non-echo) portion at hit time — the
             // echo portion's meter accrues if and when it drains (TickCounters).
-            // A defied hit generates neither echo nor victim meter: the
-            // shattered meter consumed the entire blow, and "shatters to 0"
-            // must read as exactly that on the HUD.
             FP64 echoAmount = FP64.Zero;
-            if (!defied && actualDamage > 0 && target.CurrentHP > 0 && target.MaxHP > 0) {
+            if (actualDamage > 0 && target.CurrentHP > 0 && target.MaxHP > 0) {
                 FP64 missing = FP64.FromInt(target.MaxHP - target.CurrentHP) / FP64.FromInt(target.MaxHP);
                 FP64 echoFraction = EchoFractionBase + EchoFractionSlope * missing;
                 if (targetVerb.OvertimeActive == 1) {
@@ -864,11 +725,9 @@ namespace FTT.FighterSim {
                 targetVerb.EchoDrainPerFrame =
                     targetVerb.EchoPool / FP64.FromInt(FTT.Combat.BasicComboRules.EchoDrainFrames);
             }
-            if (!defied) {
-                target.Influence = FP64.Min(
-                    MaxInfluence,
-                    target.Influence + FighterMeterRules.FromDamageTaken(FP64.FromInt(actualDamage) - echoAmount));
-            }
+            target.Influence = FP64.Min(
+                MaxInfluence,
+                target.Influence + FighterMeterRules.FromDamageTaken(FP64.FromInt(actualDamage) - echoAmount));
 
             // Rally reclaim (V7.3): a connecting *direct* hit (never a construct
             // tick or hazard) converts the attacker's remaining Echo Pool back
@@ -909,13 +768,7 @@ namespace FTT.FighterSim {
                 FighterUniversalMovementRules.Cancel(ref targetRuntime);
             }
 
-            // CM-FIXB-SIM (B2, D04): a defied hit writes no velocity at all — not
-            // the authored signed vertical (doubled by the 1-HP missing-HP scale)
-            // and not the zeroed scalar — so the survivor's motion stands as it
-            // was, exactly as Story's defySuppressed path leaves it. The Defy
-            // branch above already released the hitstun, the launch and the
-            // tumble.
-            if (carriesImpulse && !defied && (target.HyperArmorFrames <= 0 || attackClass == UltimateAttackClass)) {
+            if (carriesImpulse && (target.HyperArmorFrames <= 0 || attackClass == UltimateAttackClass)) {
                 if (hasImpulse) {
                     // Gameplay-feel plan §2.5 — low-health knockback scaling. The
                     // impulse is multiplied by 1 + the victim's missing-HP fraction
@@ -1021,9 +874,8 @@ namespace FTT.FighterSim {
         /// <summary>
         /// V7.3 unattributed-damage chokepoint — DoT ticks (venom). Replicates
         /// the victim-side pipeline of <see cref="ApplyFighterHit"/> with no
-        /// attacker: Defy History first (a lethal tick can no longer kill
-        /// through a full meter), then Rally echo accrual, victim meter on the
-        /// permanent portion, and finally the stock loss. No attacker credit,
+        /// attacker: Aegis and the barrier, then Rally echo accrual, victim meter on
+        /// the permanent portion, and finally the stock loss. No attacker credit,
         /// no reclaim, no hitstop, no impulse, no block interaction.
         /// </summary>
         public static void ApplyUnattributedDamage(
@@ -1034,9 +886,6 @@ namespace FTT.FighterSim {
             in FighterTuningComponent targetTuning,
             int damage) {
             if (damage <= 0 || target.Stocks <= 0) return;
-            // D04: the protected window rejects damaging status ticks too, and
-            // a rejected tick is discarded rather than banked.
-            if (FighterDefenseRules.IsDefyProtected(in targetDefense)) return;
             // D03c: an already-attached DoT's damaging ticks are eligible for
             // Aegis and the HP barrier, in the D02b order. An absorbed tick
             // still counts as that scheduled occurrence — no cleanse, no
@@ -1057,27 +906,9 @@ namespace FTT.FighterSim {
             int remainingHP = target.CurrentHP - damage;
             target.CurrentHP = remainingHP > 0 ? remainingHP : 0;
 
-            bool defied = false;
-            // CM-HIT (1.1(4)): F22's bar holds for a lethal damage-over-time tick
-            // too — Sudden Death's DefyBarred is read through the one shared test.
-            if (target.CurrentHP <= 0
-                && FighterDefenseRules.CanDefy(in target, in targetVerb, in targetDefense)) {
-                defied = true;
-                targetVerb.DefyHistoryUsed = 1;
-                target.Influence = FP64.Zero;
-                target.CurrentHP = 1;
-                FighterDefenseRules.BeginDefyProtection(ref targetDefense, target.PlayerID);
-                target.HitstunFrames = 0;
-                targetVerb.BeingHeld = 0;
-                // CM-HIT (3.2): a Defy proc releases its survivor from a tumble
-                // too, as the hit path's proc does (D04) — a tick-saved fighter
-                // falling in a post-hitstun tumble lands plainly.
-                targetVerb.Tumble = FighterVerbRules.TumbleNone;
-            }
-
             int actualDamage = previousHP - target.CurrentHP;
             FP64 echoAmount = FP64.Zero;
-            if (!defied && actualDamage > 0 && target.CurrentHP > 0 && target.MaxHP > 0) {
+            if (actualDamage > 0 && target.CurrentHP > 0 && target.MaxHP > 0) {
                 FP64 missing = FP64.FromInt(target.MaxHP - target.CurrentHP) / FP64.FromInt(target.MaxHP);
                 FP64 echoFraction = EchoFractionBase + EchoFractionSlope * missing;
                 if (targetVerb.OvertimeActive == 1) {
@@ -1088,11 +919,9 @@ namespace FTT.FighterSim {
                 targetVerb.EchoDrainPerFrame =
                     targetVerb.EchoPool / FP64.FromInt(FTT.Combat.BasicComboRules.EchoDrainFrames);
             }
-            if (!defied) {
-                target.Influence = FP64.Min(
-                    MaxInfluence,
-                    target.Influence + FighterMeterRules.FromDamageTaken(FP64.FromInt(actualDamage) - echoAmount));
-            }
+            target.Influence = FP64.Min(
+                MaxInfluence,
+                target.Influence + FighterMeterRules.FromDamageTaken(FP64.FromInt(actualDamage) - echoAmount));
 
             if (target.CurrentHP <= 0) {
                 FighterSimulationRules.ApplyStockLoss(ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning);
@@ -1379,21 +1208,23 @@ namespace FTT.FighterSim {
                 if (!ultimateClaimsTick
                     && !ultimateHeldBack
                     && FighterAbilityLockoutRules.AllowsSpecial(in runtime)) {
-                    if ((runtime.PressedButtons & SpecialOneButton) != 0 && runtime.SpecialOneReuseFrames <= 0) {
+                    // Meter and Defy update 2026-10-31 (G1, G2.3): a Special needs one
+                    // pip of the shared Momentum gauge and its own 2 s reuse delay
+                    // clear. A press refused by either spends and arms nothing.
+                    bool afford = FighterMomentumRules.CanAfford(verbState.MomentumUnits);
+                    if (afford && (runtime.PressedButtons & SpecialOneButton) != 0 && runtime.SpecialOneReuseFrames <= 0) {
                         acceptedSlot = FighterHitContractTable.SlotSpecialOne;
-                    } else if ((runtime.PressedButtons & SpecialTwoButton) != 0 && runtime.SpecialTwoReuseFrames <= 0) {
+                    } else if (afford && (runtime.PressedButtons & SpecialTwoButton) != 0 && runtime.SpecialTwoReuseFrames <= 0) {
                         acceptedSlot = FighterHitContractTable.SlotSpecialTwo;
                     }
                 }
                 if (acceptedSlot != 0) {
                     ref FighterVerbComponent verb = ref frame.Get<FighterVerbComponent>(entity);
+                    verb.MomentumUnits = FighterMomentumRules.Spend(verb.MomentumUnits);
                     if (acceptedSlot == FighterHitContractTable.SlotSpecialOne) {
-                        runtime.SpecialOneReuseFrames = PositiveCooldown(tuning.SpecialOneCooldownFrames);
-                        // A fresh cooldown cycle re-arms its Momentum refunds.
-                        verb.MomentumRefundedFramesSlotOne = 0;
+                        runtime.SpecialOneReuseFrames = FTT.Combat.BasicComboRules.SpecialReuseDelayFrames;
                     } else {
-                        runtime.SpecialTwoReuseFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
-                        verb.MomentumRefundedFramesSlotTwo = 0;
+                        runtime.SpecialTwoReuseFrames = FTT.Combat.BasicComboRules.SpecialReuseDelayFrames;
                     }
                     FighterAbilityLockoutRules.ArmAbility(ref runtime);
                     // An executed special cancels an in-progress basic and resets

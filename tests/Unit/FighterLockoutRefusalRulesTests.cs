@@ -40,7 +40,7 @@ public class FighterLockoutRefusalRulesTests {
 
         // Cooling at the read: 5 before the tick is 4 when the system reads it.
         LockoutRefusalBaseline cooling = ready;
-        cooling.SpecialOneCooldownFrames = 5;
+        cooling.SpecialOneReuseFrames = 5;
         Components coolingAfter = locked;
         coolingAfter.Runtime.SpecialOneReuseFrames = 4;
         AssertThat(Evaluate(cooling, coolingAfter))
@@ -192,11 +192,11 @@ public class FighterLockoutRefusalRulesTests {
         lastFreezeTick.HitstopFrames = 1;
         AssertThat(Evaluate(lastFreezeTick, locked)).IsEqual(FighterLockoutRefusal.SpecialOne);
         // ...but a cooldown of 1 before is still 1 at that read.
-        lastFreezeTick.SpecialOneCooldownFrames = 1;
+        lastFreezeTick.SpecialOneReuseFrames = 1;
         AssertThat(Evaluate(lastFreezeTick, locked)).IsEqual(FighterLockoutRefusal.None);
         // On an unfrozen tick the same 1 was ticked to 0 before the read.
         LockoutRefusalBaseline unfrozen = Ready();
-        unfrozen.SpecialOneCooldownFrames = 1;
+        unfrozen.SpecialOneReuseFrames = 1;
         AssertThat(Evaluate(unfrozen, locked)).IsEqual(FighterLockoutRefusal.SpecialOne);
 
         // Any earlier freeze tick read nothing.
@@ -207,7 +207,7 @@ public class FighterLockoutRefusalRulesTests {
         // A cooldown of 2 before reads 1: refused by the cooldown, even though
         // a same-tick Momentum refund has it at 0 after the tick.
         LockoutRefusalBaseline refunded = Ready();
-        refunded.SpecialOneCooldownFrames = 2;
+        refunded.SpecialOneReuseFrames = 2;
         AssertThat(locked.Runtime.SpecialOneReuseFrames).IsEqual(0);
         AssertThat(Evaluate(refunded, locked))
             .OverrideFailureMessage("A refund after the read cannot make a cooldown refusal flash.")
@@ -274,6 +274,42 @@ public class FighterLockoutRefusalRulesTests {
             .IsEqual(1);
     }
 
+    [TestCase]
+    public void AZeroPipPressFlashesWhetherOrNotTheLockoutRunsButAReuseDelayStaysSilent() {
+        // R2 / P14: a Special pressed with the gauge under one pip flashes even
+        // with the lockout open; the sweep of a reuse delay is its own signal.
+        Components open = LockedIdle(SpecialOneBit);
+        open.Runtime.AbilityLockoutFrames = 0;
+        LockoutRefusalBaseline starved = Ready();
+        starved.MomentumUnits = 0;
+        AssertThat(Evaluate(starved, open))
+            .OverrideFailureMessage("A 0-pip press with the gate open flashes its slot.")
+            .IsEqual(FighterLockoutRefusal.SpecialOne);
+
+        // One regeneration frame still leaves the gauge under a pip.
+        starved.MomentumUnits = BasicComboRules.MomentumUnitsPerPip - 11;
+        AssertThat(Evaluate(starved, open)).IsEqual(FighterLockoutRefusal.SpecialOne);
+        // The tick's own regeneration can complete the pip the system read.
+        starved.MomentumUnits = BasicComboRules.MomentumUnitsPerPip - FighterMomentumRules.RegenUnitsPerFrame;
+        AssertThat(Evaluate(starved, open))
+            .OverrideFailureMessage("The gauge the system read already held the pip: nothing was refused.")
+            .IsEqual(FighterLockoutRefusal.None);
+
+        // A slot still under its reuse delay does not flash, starved or not.
+        LockoutRefusalBaseline reuse = Ready();
+        reuse.MomentumUnits = 0;
+        reuse.SpecialOneReuseFrames = 40;
+        Components reuseAfter = open;
+        reuseAfter.Runtime.SpecialOneReuseFrames = 39;
+        AssertThat(Evaluate(reuse, reuseAfter)).IsEqual(FighterLockoutRefusal.None);
+
+        // The meter-paid Ultimate and the other slot are untouched by the gauge.
+        starved.MomentumUnits = 0;
+        Components pressTwo = LockedIdle(SpecialTwoBit);
+        pressTwo.Runtime.AbilityLockoutFrames = 0;
+        AssertThat(Evaluate(starved, pressTwo)).IsEqual(FighterLockoutRefusal.SpecialTwo);
+    }
+
     // === helpers ==============================================================
 
     /// <summary>The post-tick components of player one.</summary>
@@ -287,11 +323,12 @@ public class FighterLockoutRefusalRulesTests {
     private static FighterLockoutRefusal Evaluate(in LockoutRefusalBaseline before, in Components after) =>
         FighterLockoutRefusalRules.Evaluate(in before, in after.Fighter, in after.Runtime, in after.Verb, in after.Activation);
 
-    /// <summary>A ready fighter before an unfrozen tick: no hitstop, both Specials off cooldown, an empty meter.</summary>
+    /// <summary>A ready fighter before an unfrozen tick: no hitstop, both Specials past their reuse delay, the start gauge, an empty meter.</summary>
     private static LockoutRefusalBaseline Ready() => new() {
         HitstopFrames = 0,
-        SpecialOneCooldownFrames = 0,
-        SpecialTwoCooldownFrames = 0,
+        SpecialOneReuseFrames = 0,
+        SpecialTwoReuseFrames = 0,
+        MomentumUnits = BasicComboRules.MomentumStartUnits,
         Influence = FP64.Zero,
         UltimateBusy = false
     };

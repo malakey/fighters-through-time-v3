@@ -110,8 +110,6 @@ namespace FTT.FighterSim {
                 UltimateDamage = loadout.UltimateDamage,
                 MaxBlockCharges = loadout.MaxBlockCharges,
                 MaxJumpCount = loadout.MaxJumpCount,
-                SpecialOneCooldownFrames = loadout.SpecialOneCooldownFrames,
-                SpecialTwoCooldownFrames = loadout.SpecialTwoCooldownFrames,
                 SpecialOneStatusType = loadout.SpecialOneStatusType,
                 SpecialOneStatusFrames = loadout.SpecialOneStatusFrames,
                 SpecialTwoStatusType = loadout.SpecialTwoStatusType,
@@ -163,6 +161,8 @@ namespace FTT.FighterSim {
             // attachment's "unattached" sentinel has to be written in (F23).
             var verb = new FighterVerbComponent();
             verb.ClearGrabPartner();
+            // Meter and Defy update 2026-10-31 (G3.1): every match starts at 2 pips.
+            verb.MomentumUnits = FighterMomentumRules.StartUnits;
             frame.Add(entity, verb);
             // V7.6 F07 (Package 11 A1): the caster-owned Conductive mark. Not a
             // status — no slot, no action lock, zero stagger budget.
@@ -185,13 +185,9 @@ namespace FTT.FighterSim {
             // perfect-block clock, the Down tap and the action flags. All zero is
             // idle; every fighter carries it.
             frame.Add(entity, new FighterActionStateComponent());
-            // V7.6 D01-D04 (Package 11 A1b): the defensive layer - Defy
-            // protected recovery, the Temporal Aegis flag and the D02b HP
-            // barrier. Snapshot and hash state like every other component.
+            // V7.6 D02 (Package 11 A1b): the defensive layer - the Temporal Aegis
+            // flag and the D02b HP barrier. Snapshot and hash state like every other component.
             frame.Add(entity, new FighterDefenseComponent {
-                DefyProtectionAwaitControl = 0,
-                DefyProtectionFrames = 0,
-                DefyProcIdentity = 0,
                 AegisActive = 0,
                 BarrierPoints = 0,
                 BarrierCapacity = 0,
@@ -287,6 +283,11 @@ namespace FTT.FighterSim {
         }
 
         public void Update(ref Frame frame) {
+            // Meter and Defy update 2026-10-31 (P2): the Momentum gauge regenerates
+            // only while the match is live, so every match and every Sudden Death
+            // starts at exactly two pips at GO. A Defy press needs a live match too.
+            bool matchLive = frame.GetSingleton<FighterMatchComponent>().MatchState
+                == FighterMatchStates.InProgress;
             var filter = frame.Filter<FighterStateComponent, FighterRuntimeComponent, FighterTuningComponent>();
             while (filter.Next(out EntityRef entity)) {
                 ref FighterStateComponent fighter = ref frame.Get<FighterStateComponent>(entity);
@@ -304,6 +305,15 @@ namespace FTT.FighterSim {
 
                 // CM-MOVE (5.1): the short hop's Jump latch, from this tick's raw edges.
                 UpdateJumpLatch(ref action, in runtime);
+
+                // Meter and Defy update 2026-10-31 (plan section 2.4, O9 to O11): the Defy
+                // press is read here, above the hitstop gate that every early-continue
+                // branch below sits behind, so one site covers every state it is legal
+                // from. A press on an unfrozen tick begins at once and claims the tick; one
+                // on a frozen tick is held one deep and begins on the thaw tick (P12).
+                bool defyBeganThisTick = ReadDefyPress(
+                    ref frame, entity, ref fighter, ref runtime, ref verb, ref action,
+                    in ultimateActivation, ref knockdown, matchLive);
 
                 // V7 universal hitstop: both parties of a hit are fully suspended
                 // — velocity, position, phases, and every per-fighter timer. The
@@ -337,8 +347,19 @@ namespace FTT.FighterSim {
                     if (FighterSpecialCastRules.IsBusy(in action)) {
                         FighterUltimateActivationRules.DiscardInput(ref runtime);
                     }
+                    // A running Defy is interrupted by a hit exactly as a cast is (the
+                    // blast's own freeze is on a fighter with no hitstun, so it survives).
+                    FighterDefyRules.ClearIfInterrupted(
+                        ref action, in fighter, in verb,
+                        FighterUltimateActivationRules.IsCaptured(in ultimateActivation),
+                        FighterKnockdownRules.IsActive(in knockdown));
                     verb.HitstopFrames--;
-                    if (verb.HitstopFrames == 0) {
+                    if (verb.HitstopFrames == 0 && BeginBufferedDefy(
+                            ref frame, entity, ref fighter, ref runtime, ref verb, ref action,
+                            in ultimateActivation, ref knockdown, matchLive)) {
+                        // The thaw tick: the buffered Defy overrides the hit's pending
+                        // launch, hitstun and knockdown (BeginBufferedDefy cleared them).
+                    } else if (verb.HitstopFrames == 0) {
                         FighterVerbRules.ResolvePendingLaunch(ref fighter, in runtime, ref verb);
                         // The thaw tick: the ability and combat systems read this
                         // tick's presses (HitstopFrames is 0 for them), so the held
@@ -361,7 +382,8 @@ namespace FTT.FighterSim {
                     // CanReadAbilityPress, CanStartGrab and UltimatePressPayable
                     // are the second gates.
                     if (FighterKnockdownRules.IsActive(in knockdown)
-                        || FighterUltimateActivationRules.IsCasterBusy(in ultimateActivation)) {
+                        || FighterUltimateActivationRules.IsCasterBusy(in ultimateActivation)
+                        || FighterDefyRules.IsDefying(in action)) {
                         FighterUltimateActivationRules.DiscardButtons(ref runtime);
                     }
                     continue;
@@ -408,8 +430,9 @@ namespace FTT.FighterSim {
                 // CM-BLOCK (decision 3.4): the perfect-block clock's once-per-unfrozen-tick step.
                 FighterBlockTimingRules.BeginTick(ref action, in fighter);
                 if (FighterUltimateActivationRules.IsCaptured(in ultimateActivation)) {
+                    FighterDefyRules.Clear(ref action);
                     ref FighterDefenseComponent capturedDefense = ref frame.Get<FighterDefenseComponent>(entity);
-                    TickCounters(ref fighter, ref runtime, ref verb, ref capturedDefense, in tuning);
+                    TickCounters(ref fighter, ref runtime, ref verb, ref capturedDefense, in tuning, matchLive);
                     if (fighter.Stocks > 0 && fighter.RespawnFramesRemaining <= 0) {
                         FighterUltimateActivationRules.HoldCaptured(ref fighter, ref runtime, in ultimateActivation);
                     }
@@ -437,8 +460,16 @@ namespace FTT.FighterSim {
                     // Package 13 W7b (M04): a stock loss re-arms the staff refund too.
                     knockdown.StaffRefundUsed = 0;
                 }
+                // Meter and Defy update 2026-10-31: the Defy's clock. Frames 1 to 6 hold the
+                // fighter in place (invulnerable, no gravity) and finish the tick here;
+                // the recovery (7 to 30) discards the fighter's input and falls through to
+                // the ordinary movement below so gravity and landing run as usual.
+                if (ProcessDefy(
+                        ref fighter, ref runtime, ref verb, ref defense, ref action,
+                        in tuning, in ultimateActivation, in knockdown, defyBeganThisTick, matchLive)) continue;
+
                 if (FighterKnockdownRules.IsActive(in knockdown)) {
-                    TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning);
+                    TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning, matchLive);
                     // A lethal Venom tick inside TickCounters is a stock loss;
                     // the respawn owns the fighter from the next tick.
                     FighterKnockdownRules.ClearIfInterrupted(in fighter, ref knockdown);
@@ -481,7 +512,7 @@ namespace FTT.FighterSim {
                     if (fighter.InvulnerabilityFrames > 0) fighter.InvulnerabilityFrames--;
                     fighter.Velocity = FPVector2.Zero;
                     FighterUltimateActivationRules.DiscardInput(ref runtime);
-                    TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning);
+                    TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning, matchLive);
                     continue;
                 }
 
@@ -491,7 +522,7 @@ namespace FTT.FighterSim {
                 // the grab phases and the victim's pinning.
                 if (FighterGrabRules.IsBusy(in verb)) {
                     fighter.Velocity = FPVector2.Zero;
-                    TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning);
+                    TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning, matchLive);
                     continue;
                 }
 
@@ -514,7 +545,7 @@ namespace FTT.FighterSim {
                 // a landed cast's D3 cancel, else the discard.
                 ResolveSpecialCastRegion(ref fighter, ref runtime, in verb, ref action, ref counter, in knockdown);
 
-                TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning);
+                TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning, matchLive);
 
                 // A02: the caster is action-locked through the whole Ultimate —
                 // wind-up, active, whiff recovery and cinematic. Discarding the
@@ -888,8 +919,10 @@ namespace FTT.FighterSim {
                 // both win: a fighter who reached a surface is standing on it, not
                 // hanging off it. Only fighters still airborne after the whole
                 // resolve are candidates. A03: a grab refreshes the air dodge.
-                // Decision 1.2: no ledge capture while casting (Story grabs only from Airborne).
+                // Decision 1.2: no ledge capture while casting (Story grabs only from Airborne);
+                // a Defy's recovery is action-locked the same way.
                 if (!FighterSpecialCastRules.IsBusy(in action)
+                    && !FighterDefyRules.IsDefying(in action)
                     && TryGrabLedge(ref fighter, ref runtime, ref verb, in tuning)) {
                     FighterAirDodgeRules.Refresh(ref knockdown);
                     knockdown.StaffRefundUsed = 0;
@@ -1426,7 +1459,8 @@ namespace FTT.FighterSim {
             ref FighterRuntimeComponent runtime,
             ref FighterVerbComponent verb,
             ref FighterDefenseComponent defense,
-            in FighterTuningComponent tuning) {
+            in FighterTuningComponent tuning,
+            bool regenMomentum) {
             // Rally drain (V7.1): the Echo Pool bleeds to zero over 150 frames
             // from the last accrual. Echo that finishes draining is permanently
             // lost — and only then does the victim's meter-from-damage accrue
@@ -1474,6 +1508,7 @@ namespace FTT.FighterSim {
             } else {
                 runtime.BlockRegenFrames = FTT.Combat.BasicComboRules.BlockChargeRegenFrames;
             }
+            if (regenMomentum) verb.MomentumUnits = FighterMomentumRules.Regen(verb.MomentumUnits);
             if (runtime.SpecialOneReuseFrames > 0) runtime.SpecialOneReuseFrames--;
             if (runtime.SpecialTwoReuseFrames > 0) runtime.SpecialTwoReuseFrames--;
             if (runtime.MovementCooldownFrames > 0) runtime.MovementCooldownFrames--;
@@ -1798,6 +1833,10 @@ namespace FTT.FighterSim {
             }
             if (!foundFirst || !foundSecond) return;
 
+            // Meter and Defy update 2026-10-31: a Defy blast resolves first, so what it
+            // staggers is cancelled before any grab, strike or intent acts (P4, P6).
+            ResolveDefyBlasts(ref frame, first, second);
+
             ref FighterStateComponent fighterOne = ref frame.Get<FighterStateComponent>(first);
             ref FighterStateComponent fighterTwo = ref frame.Get<FighterStateComponent>(second);
             ref FighterRuntimeComponent runtimeOne = ref frame.Get<FighterRuntimeComponent>(first);
@@ -1885,16 +1924,10 @@ namespace FTT.FighterSim {
             ClearMarkIfRespawning(in fighterTwo, ref conductiveTwo);
             FighterConductiveRules.Tick(ref conductiveOne, verbOne.HitstopFrames > 0);
             FighterConductiveRules.Tick(ref conductiveTwo, verbTwo.HitstopFrames > 0);
-            // V7.6 D04 (Package 11 A1b): the protected second does not start
-            // until the survivor's first resumed NORMAL-CONTROL tick, and its
-            // countdown pauses during global hitstop and suspended-combat
-            // presentations. Attacking never refreshes it, and since CM-HIT
-            // (decision 4.3, amending D04) the survivor's first offensive action
-            // ends it (FighterActionRules.OnActionAccepted).
-            FighterDefenseRules.Tick(
-                ref defenseOne, verbOne.HitstopFrames > 0, IsDefyActionable(in fighterOne, in verbOne));
-            FighterDefenseRules.Tick(
-                ref defenseTwo, verbTwo.HitstopFrames > 0, IsDefyActionable(in fighterTwo, in verbTwo));
+            // D02c: the HP barrier's lifetime counts down once per tick and
+            // pauses in the holder's own hitstop.
+            FighterDefenseRules.TickBarrier(ref defenseOne, verbOne.HitstopFrames > 0);
+            FighterDefenseRules.TickBarrier(ref defenseTwo, verbTwo.HitstopFrames > 0);
             // A12 (Package 13 W1): a Down-Air slam owes its victim one forced
             // ground bounce, recorded on the victim's component 320.
             ref FighterKnockdownComponent knockdownOne = ref frame.Get<FighterKnockdownComponent>(first);
@@ -1931,21 +1964,6 @@ namespace FTT.FighterSim {
                 FighterConductiveRules.Clear(ref mark);
             }
         }
-
-        /// <summary>
-        /// The D04 "normal player control has resumed" test: alive, out of the
-        /// Defy presentation freeze, free of hitstun/daze/respawn, and not held.
-        /// Deliberately NOT an input test - the contract says the window opens
-        /// at the first resumed control tick, "not on the player's first input".
-        /// </summary>
-        private static bool IsDefyActionable(
-            in FighterStateComponent fighter, in FighterVerbComponent verb) =>
-            fighter.Stocks > 0
-            && fighter.HitstunFrames <= 0
-            && fighter.DazeFrames <= 0
-            && fighter.RespawnFramesRemaining <= 0
-            && verb.HitstopFrames <= 0
-            && verb.BeingHeld == 0;
 
         /// <summary>
         /// V7.2 grabs &amp; throws, both fighters per tick: initiation from the
@@ -2312,7 +2330,7 @@ namespace FTT.FighterSim {
                     ref targetCounter, ref targetAction, out int ledgeDamage);
                 OnSwingResolved(
                     ref attackerRuntime, ref attackerVerb, ledgeOutcome, ledgeDamage,
-                    FTT.Combat.BasicComboRules.MomentumRefundFramesFor(FTT.Combat.BasicComboRules.VariantChain, 0));
+                    FTT.Combat.BasicComboRules.MomentumGainUnitsFor(FTT.Combat.BasicComboRules.VariantChain, 0));
                 return;
             }
 
@@ -2326,7 +2344,7 @@ namespace FTT.FighterSim {
                     ref targetCounter, ref targetAction, out int airDamage);
                 OnSwingResolved(
                     ref attackerRuntime, ref attackerVerb, airOutcome, airDamage,
-                    FTT.Combat.BasicComboRules.MomentumRefundFramesFor(
+                    FTT.Combat.BasicComboRules.MomentumGainUnitsFor(
                         FTT.Combat.BasicComboRules.VariantAirAttack, 0));
                 return;
             }
@@ -2340,7 +2358,7 @@ namespace FTT.FighterSim {
                     ref targetKnockdown, ref targetCounter, ref targetAction, out int variantDamage);
                 OnSwingResolved(
                     ref attackerRuntime, ref attackerVerb, variantOutcome, variantDamage,
-                    FTT.Combat.BasicComboRules.MomentumRefundFramesFor(
+                    FTT.Combat.BasicComboRules.MomentumGainUnitsFor(
                         (attackerRuntime.AttackFlags & FighterBasicAttackRules.FlagUpAttack) != 0
                             ? FTT.Combat.BasicComboRules.VariantUpAttack
                             : FTT.Combat.BasicComboRules.VariantDownAir,
@@ -2418,11 +2436,11 @@ namespace FTT.FighterSim {
                 // grounded knockback — except Lincoln's launching hit 2.
                 launches: FTT.Combat.BasicComboRules.StringHitLaunchesFor(profile, step));
             bool connected = outcome == FighterHitOutcome.Landed;
-            // D1 / D2 (2026-10-11): a landed or absorbed swing opens the
-            // hit-confirm cancel and pays per-hit Momentum (20 / 20 / 60) once.
+            // D1 (2026-10-11) and the meter update (2026-10-31): a landed or absorbed
+            // swing opens the hit-confirm cancel and pays its Momentum-gauge gain once.
             OnSwingResolved(
                 ref attackerRuntime, ref attackerVerb, outcome, damage,
-                FTT.Combat.BasicComboRules.MomentumRefundFramesFor(FTT.Combat.BasicComboRules.VariantChain, step));
+                FTT.Combat.BasicComboRules.MomentumGainUnitsFor(FTT.Combat.BasicComboRules.VariantChain, step));
             // V7.6 F07: the finisher's caster-owned MARK, applied alongside (never
             // instead of) its status. Fighter Mode always uses the BASELINE
             // duration — the tesla_conductive_hold extension is a Story-only
@@ -2434,10 +2452,10 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
-        /// D1 / D2 (2026-10-11): one resolved basic swing. A Landed or Absorbed
-        /// outcome carrying authored damage (D1a; a zero-damage payload never
-        /// lands) sets the swing-landed latch on its 0 → 1 edge and pays that
-        /// swing's per-hit Momentum once; a landing that froze the attacker arms
+        /// D1 (2026-10-11) and the Momentum gauge (2026-10-31): one resolved basic
+        /// swing. A Landed or Absorbed outcome carrying authored damage (D1a; a
+        /// zero-damage payload never lands) sets the swing-landed latch on its 0 → 1
+        /// edge and adds that swing's gauge gain once (360 / 360 / 1440 units); a landing that froze the attacker arms
         /// the freeze-only Special buffer. A Refused or Blocked outcome (a box
         /// miss and a Foresight counter included) does neither.
         /// </summary>
@@ -2446,34 +2464,13 @@ namespace FTT.FighterSim {
             ref FighterVerbComponent attackerVerb,
             FighterHitOutcome outcome,
             int damage,
-            int momentumFrames) {
+            int momentumGainUnits) {
             if (damage <= 0) return;
             if (outcome != FighterHitOutcome.Landed && outcome != FighterHitOutcome.Absorbed) return;
             if (FighterAbilityLockoutRules.NoteSwingLanded(ref attackerRuntime)) {
-                ApplyMomentumRefund(ref attackerRuntime, ref attackerVerb, momentumFrames);
+                attackerVerb.MomentumUnits = FighterMomentumRules.Gain(attackerVerb.MomentumUnits, momentumGainUnits);
             }
             if (attackerVerb.HitstopFrames > 0) FighterAbilityLockoutRules.ArmFreezeBuffer(ref attackerRuntime);
-        }
-
-        /// <summary>
-        /// Per-hit Momentum (D2, 2026-10-11): <paramref name="nominalFrames"/> off
-        /// each RUNNING special cooldown, each slot capped at
-        /// <c>BasicComboRules.MomentumRefundCapFramesPerCycle</c> frames refunded
-        /// per cooldown cycle (the counters count frames removed and reset when
-        /// a slot's cooldown is armed). A ready slot takes nothing.
-        /// </summary>
-        internal static void ApplyMomentumRefund(
-            ref FighterRuntimeComponent runtime,
-            ref FighterVerbComponent verb,
-            int nominalFrames) {
-            int grantOne = FTT.Combat.BasicComboRules.MomentumGrant(
-                nominalFrames, verb.MomentumRefundedFramesSlotOne, runtime.SpecialOneReuseFrames);
-            runtime.SpecialOneReuseFrames -= grantOne;
-            verb.MomentumRefundedFramesSlotOne += grantOne;
-            int grantTwo = FTT.Combat.BasicComboRules.MomentumGrant(
-                nominalFrames, verb.MomentumRefundedFramesSlotTwo, runtime.SpecialTwoReuseFrames);
-            runtime.SpecialTwoReuseFrames -= grantTwo;
-            verb.MomentumRefundedFramesSlotTwo += grantTwo;
         }
 
         /// <summary>
@@ -2810,11 +2807,9 @@ namespace FTT.FighterSim {
             ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
 
             if (activation.Phase == FighterUltimateActivationRules.PhaseCinematic) {
-                // The victim is gone (KO, Defy's protected recovery, or someone
-                // else's hold): the cinematic ends with no finale.
+                // The victim is gone (KO, respawn, or someone else's hold): the cinematic ends with no finale.
                 if (target.Stocks <= 0
                     || target.RespawnFramesRemaining > 0
-                    || FighterDefenseRules.IsDefyProtected(in targetDefense)
                     || targetActivation.CaptorSlot != captorSlot) {
                     if (targetActivation.CaptorSlot == captorSlot) {
                         FighterUltimateActivationRules.ReleaseCapture(ref targetActivation);
@@ -3093,7 +3088,6 @@ namespace FTT.FighterSim {
                     tuning.SpecialTwoStatusType,
                     tuning.SpecialTwoStatusFrames,
                     tuning.SpecialTwoStatusIntensity,
-                    tuning.SpecialTwoCooldownFrames,
                     launches: splitLaunches && FighterReachKitRules.SplittingLaunches(in splitting, in target),
                     shieldBreaker: splitting.ShieldBreaker,
                     hasKnockbackVector: splitting.HasKnockbackVector,
@@ -3124,7 +3118,6 @@ namespace FTT.FighterSim {
                     tuning.SpecialOneStatusType,
                     tuning.SpecialOneStatusFrames,
                     tuning.SpecialOneStatusIntensity,
-                    tuning.SpecialOneCooldownFrames,
                     launches,
                     in contract);
             }
@@ -3139,7 +3132,6 @@ namespace FTT.FighterSim {
                     tuning.SpecialTwoStatusType,
                     tuning.SpecialTwoStatusFrames,
                     tuning.SpecialTwoStatusIntensity,
-                    tuning.SpecialTwoCooldownFrames,
                     launches,
                     in contract);
             }
@@ -3227,7 +3219,6 @@ namespace FTT.FighterSim {
             public readonly int StatusType;
             public readonly int StatusFrames;
             public readonly FP64 StatusIntensity;
-            public readonly int CooldownFrames;
             public readonly int BlockChargeCost;
             /// <summary>M05: the authored launch flag of the ability this intent executes.</summary>
             public readonly bool Launches;
@@ -3246,7 +3237,6 @@ namespace FTT.FighterSim {
                 int statusType = (int)FTT.Core.StatusType.None,
                 int statusFrames = 0,
                 FP64 statusIntensity = default,
-                int cooldownFrames = 600,
                 int blockChargeCost = 0,
                 bool launches = true,
                 bool shieldBreaker = false,
@@ -3259,7 +3249,6 @@ namespace FTT.FighterSim {
                 StatusType = statusType;
                 StatusFrames = statusFrames;
                 StatusIntensity = statusIntensity;
-                CooldownFrames = cooldownFrames;
                 BlockChargeCost = blockChargeCost;
                 Launches = launches;
                 ShieldBreaker = shieldBreaker;
@@ -3273,11 +3262,11 @@ namespace FTT.FighterSim {
             /// </summary>
             public static AttackIntent Special(
                 int kind, int damage, FP64 tuningKnockback, int hitstunFrames,
-                int statusType, int statusFrames, FP64 statusIntensity, int cooldownFrames,
+                int statusType, int statusFrames, FP64 statusIntensity,
                 bool launches, in FighterAbilityHitData contract) =>
                 new(kind, damage,
                     contract.HasKnockbackVector ? contract.KnockbackX : tuningKnockback,
-                    hitstunFrames, statusType, statusFrames, statusIntensity, cooldownFrames,
+                    hitstunFrames, statusType, statusFrames, statusIntensity,
                     launches: launches,
                     shieldBreaker: contract.ShieldBreaker,
                     hasKnockbackVector: contract.HasKnockbackVector,
@@ -3478,27 +3467,16 @@ namespace FTT.FighterSim {
                 verb.BlockLockoutFrames = 0;
                 verb.HitstunBlockCancelBlocked = 0;
                 verb.LedgeGrabsThisAirtime = 0;
-                // V7.6 F22/F13 (Package 11 A1b): Sudden Death BARS Defy without
-                // marking it SPENT. The seal read-model must distinguish
-                // "unavailable in this context" from "already used", and
-                // pre-marking DefyHistoryUsed = 1 conflated them. The bar is
-                // derived from match.SuddenDeathActive at the read site
-                // (FighterDefenseRules / FighterDefySeal), so the underlying
-                // spent flag is left exactly as the match left it.
                 verb.GrabPhase = FighterGrabRules.PhaseNone;
                 verb.GrabPhaseFrames = 0;
                 verb.BeingHeld = 0;
                 verb.ThrowImmunityFrames = 0;
                 verb.ClearGrabPartner();
-                verb.MomentumRefundedFramesSlotOne = 0;
-                verb.MomentumRefundedFramesSlotTwo = 0;
+                // Meter and Defy update 2026-10-31 (5.2, O22): the gauge restarts at
+                // the match-start fill with both reuse delays clear.
+                verb.MomentumUnits = FighterMomentumRules.SuddenDeathUnits;
                 // No Overtime multiplier inside the phase.
                 verb.OvertimeActive = 0;
-                // "Preserve its spent flag": DefyHistoryUsed is deliberately NOT
-                // written here. The phase disable is derived from
-                // match.SuddenDeathActive at the read site, so entry consumes no
-                // new use and restoring a snapshot cannot resurrect a stale copy.
-
                 runtime.SpecialOneReuseFrames = 0;
                 runtime.SpecialTwoReuseFrames = 0;
                 runtime.MovementCooldownFrames = 0;
@@ -3528,14 +3506,12 @@ namespace FTT.FighterSim {
                 FighterUniversalMovementRules.Cancel(ref runtime);
                 FighterBasicAttackRules.CancelString(ref runtime);
                 FighterLedgeRules.ClearHang(ref runtime);
-                // D04/D02e: Sudden Death cleanup clears the transient Defy
-                // window, the Aegis bubble and any barrier.
+                // D02e: Sudden Death cleanup clears the Aegis bubble and any
+                // barrier. Defy is NOT barred any more (meter and Defy update,
+                // 5.2): the Influence restart at 0 is the only limit, so a Defy
+                // is legal once 50 is earned again.
                 if (frame.Has<FighterDefenseComponent>(entity)) {
-                    ref FighterDefenseComponent defense = ref frame.Get<FighterDefenseComponent>(entity);
-                    FighterDefenseRules.Clear(ref defense);
-                    // F22: Defy is BARRED for the rest of the match, and the bar
-                    // survives the stock losses Sudden Death produces.
-                    defense.DefyBarred = 1;
+                    FighterDefenseRules.Clear(ref frame.Get<FighterDefenseComponent>(entity));
                 }
                 runtime.LedgeRegrabLockoutFrames = 0;
                 if (frame.Has<FighterConductiveComponent>(entity)) {

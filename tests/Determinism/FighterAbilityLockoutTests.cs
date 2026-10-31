@@ -102,14 +102,17 @@ public class FighterAbilityLockoutTests {
         AssertThat(Shots(other, 0, 2)).OverrideFailureMessage("Special 2 on t+30 is accepted.").IsEqual(1);
         AssertThat(LockoutOf(other, 0)).IsEqual(Lockout);
 
-        // Special 1 recast: its own 1-frame slot cooldown is long over by t+29,
-        // so the lockout alone refuses it.
+        // Special 1 recast: the slot's own 2 s reuse delay would refuse a recast
+        // this early (the meter and Defy update replaced the 1-frame slot
+        // cooldown this fixture used), so it is cleared by hand and the lockout
+        // alone refuses it, as before.
         FighterSimulation recast = NewSimulation(seed: 105);
         Step(recast, GameplayButtons.Special1);
         Step(recast, GameplayButtons.None);
         AssertThat(Runtime(recast, 0).SpecialOneReuseFrames)
-            .OverrideFailureMessage("Harness: the slot cooldown is a single frame.")
-            .IsEqual(0);
+            .OverrideFailureMessage("Harness: the slot's reuse delay is running.")
+            .IsEqual(BasicComboRules.SpecialReuseDelayFrames - 1);
+        AssertThat(recast.SeedFighterSpecialReuseForTest(0, 0, 0)).IsTrue();
         Idle(recast, Lockout - 3);
         Step(recast, GameplayButtons.Special1);
         AssertThat(Shots(recast, 0, 1)).OverrideFailureMessage("The t+29 recast must be refused.").IsEqual(1);

@@ -328,25 +328,6 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
-        /// CM-FIXB-SIM test seam (B23): opens a fighter's D04 Defy protection
-        /// window directly (<see cref="FighterDefenseRules.BeginDefyProtection"/>:
-        /// awaiting control, 60 ticks), so the ledge suite can prove the ledge
-        /// attack ends it without staging a lethal hit beside a ledge. It spends
-        /// no Defy use and touches no meter. Writes deterministic state (it moves
-        /// the hash).
-        /// </summary>
-        internal bool SeedFighterDefyProtectionForTest(int playerID) {
-            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterDefenseComponent>();
-            while (filter.Next(out EntityRef entity)) {
-                ref readonly FighterStateComponent fighter = ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
-                if (fighter.PlayerID != playerID) continue;
-                FighterDefenseRules.BeginDefyProtection(ref _simulation.Frame.Get<FighterDefenseComponent>(entity), playerID);
-                return true;
-            }
-            return false;
-        }
-
-        /// <summary>
         /// 2026-10-11 test seam (D1a, ledger PROVISIONAL-HIT-CONFIRM-RULES (10)):
         /// grants a fighter invulnerability frames directly, so the hit-confirm
         /// suite can prove a swing refused by invulnerability neither confirms
@@ -364,13 +345,13 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
-        /// 2026-10-11 test seam (D2, ledger PROVISIONAL-HIT-CONFIRM-RULES (10)):
-        /// sets both Special cooldowns directly, so the per-hit Momentum suites
-        /// can run a string against cooling slots without casting toward the
-        /// target first. It arms no cooldown cycle (the Momentum counters are
-        /// untouched). Writes deterministic state (it moves the hash).
+        /// Meter and Defy update 2026-10-31 test seam (renamed from the cooldown
+        /// seed): sets both Specials' 2 s reuse delays directly, so a suite can
+        /// run a string against delayed slots without casting first. It spends
+        /// no pip and arms no lockout. Writes deterministic state (it moves the
+        /// hash).
         /// </summary>
-        internal bool SeedFighterSpecialCooldownsForTest(int playerID, int specialOneFrames, int specialTwoFrames) {
+        internal bool SeedFighterSpecialReuseForTest(int playerID, int specialOneFrames, int specialTwoFrames) {
             var filter = _simulation.Frame.Filter<FighterStateComponent, FighterRuntimeComponent>();
             while (filter.Next(out EntityRef entity)) {
                 ref readonly FighterStateComponent fighter = ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
@@ -378,6 +359,51 @@ namespace FTT.FighterSim {
                 ref FighterRuntimeComponent runtime = ref _simulation.Frame.Get<FighterRuntimeComponent>(entity);
                 runtime.SpecialOneReuseFrames = specialOneFrames;
                 runtime.SpecialTwoReuseFrames = specialTwoFrames;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Meter and Defy update 2026-10-31 test seam: sets a fighter's Momentum
+        /// gauge in units (clamped to the gauge's range), so a suite can press
+        /// Specials against a known fill. Writes deterministic state (it moves
+        /// the hash), so a rollback test must seed both simulations alike.
+        /// </summary>
+        internal bool SeedFighterMomentumForTest(int playerID, int units) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterVerbComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref readonly FighterStateComponent fighter = ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
+                if (fighter.PlayerID != playerID) continue;
+                _simulation.Frame.Get<FighterVerbComponent>(entity).MomentumUnits = FighterMomentumRules.Clamp(units);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Meter and Defy update 2026-10-31 test seam (replaces the passive-Defy window seed):
+        /// puts a fighter's Defy clock on <paramref name="defyFrames"/> (0 clears it; 1 to 30
+        /// is a running Defy). Frames 1 to 6 also carry the invulnerability they would still
+        /// hold (7 minus the frame), and a clock at frame 6 or later is marked as having
+        /// fired its blast, so a seeded recovery never blasts. It spends no Influence and
+        /// starts nothing else. Writes deterministic state (it moves the hash).
+        /// </summary>
+        internal bool SeedFighterDefyForTest(int playerID, int defyFrames) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterActionStateComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref FighterStateComponent fighter = ref _simulation.Frame.Get<FighterStateComponent>(entity);
+                if (fighter.PlayerID != playerID) continue;
+                ref FighterActionStateComponent action = ref _simulation.Frame.Get<FighterActionStateComponent>(entity);
+                FighterDefyRules.Clear(ref action);
+                action.DefyFrames = defyFrames < 0 ? 0 : defyFrames;
+                if (defyFrames >= FTT.Combat.BasicComboRules.DefyBlastFrame) {
+                    action.ActionFlags |= FighterActionStateComponent.ActionFlagDefyBlastFired;
+                }
+                if (defyFrames >= 1 && defyFrames <= FTT.Combat.BasicComboRules.DefyInvulnerableFrames) {
+                    int hold = FTT.Combat.BasicComboRules.DefyInvulnerableFrames + 1 - defyFrames;
+                    if (fighter.InvulnerabilityFrames < hold) fighter.InvulnerabilityFrames = hold;
+                }
                 return true;
             }
             return false;

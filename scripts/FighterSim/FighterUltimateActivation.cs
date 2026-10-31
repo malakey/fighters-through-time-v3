@@ -297,7 +297,6 @@ namespace FTT.FighterSim {
             target.Stocks <= 0
             || target.RespawnFramesRemaining > 0
             || target.InvulnerabilityFrames > 0
-            || FighterDefenseRules.IsDefyProtected(in targetDefense)
             || IsCaptured(in targetActivation);
 
         /// <summary>Whether the strike on active frame <paramref name="activeIndex"/> connects.</summary>

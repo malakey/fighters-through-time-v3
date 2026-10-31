@@ -62,6 +62,7 @@ namespace FTT.FighterSim {
             // the second gates behind those input discards.
             && verb.TechLockoutFrames <= 0
             && !FighterSpecialCastRules.IsBusy(in action)
+            && !FighterDefyRules.IsDefying(in action)
             // Fix round A (CM-FIXA-SIM): three more action locks whose input
             // discard a hitstop thaw tick (or the tick that starts them) does not
             // reach — the M05 knockdown and its get-up, from its landing tick on

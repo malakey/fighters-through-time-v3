@@ -775,7 +775,7 @@ public class FighterMatchFlowTests {
         AssertThat(after.Stocks).IsEqual(2);
     }
 
-    // === V7.3 timeout, Sudden Death, and dual-Defy rulings ===
+    // === V7.3 timeout and Sudden Death rulings ===
 
     /// <summary>
     /// V7.3 ruling #8: the timer tie-break compares HP as a PERCENTAGE of max,
@@ -902,21 +902,13 @@ public class FighterMatchFlowTests {
             // and with no extra stock loss. The retired 1-HP clamp is gone.
             AssertThat(fighter.CurrentHP).IsEqual(fighter.MaxHP);
             AssertThat(fighter.Stocks).IsEqual(1);
-            // V7.6 F22/F13 (Package 11 A1b): Sudden Death BARS Defy rather than
-            // pre-marking it SPENT. The seal must be able to show "unavailable
-            // in this context" without clearing the underlying spent flag, and
-            // the old pre-mark conflated the two.
+            // Meter and Defy update 2026-10-31 (5.2, O22): the round restarts the
+            // Momentum gauge at two pips with both reuse delays clear, and Defy
+            // is not barred (Influence 0 is the only limit until 50 is earned).
             AssertThat(simulation.TryGetFighterVerb(playerID, out FighterVerbComponent verb)).IsTrue();
-            // F22: Defy is disabled for the phase by DERIVATION from
-            // SuddenDeathActive. Its spent flag is preserved untouched, and entry
-            // consumes no new use — the retired version pre-marked it used here.
-            AssertThat(verb.DefyHistoryUsed)
-                .OverrideFailureMessage("Sudden Death must not mark an unused Defy as spent.")
-                .IsEqual(0);
-            AssertThat(simulation.TryGetFighterDefense(playerID, out FighterDefenseComponent defense)).IsTrue();
-            AssertThat(defense.DefyBarred)
-                .OverrideFailureMessage("Sudden Death bars Defy for the rest of the match.")
-                .IsEqual(1);
+            AssertThat(verb.MomentumUnits)
+                .OverrideFailureMessage("Sudden Death restarts the gauge at two pips.")
+                .IsEqual(FTT.Combat.BasicComboRules.MomentumStartUnits);
             // Meter 0, every cooldown ready, block refilled.
             AssertThat(fighter.Influence.RawValue).IsEqual(0);
             AssertThat(fighter.BlockCharges > 0).IsTrue();
@@ -926,72 +918,6 @@ public class FighterMatchFlowTests {
         FighterSuddenDeathComponent phase = simulation.GetSuddenDeathState();
         AssertThat(phase.FrozenPlayerOneStocksLost).IsEqual(1);
         AssertThat(phase.FrozenPlayerTwoStocksLost).IsEqual(1);
-    }
-
-    /// <summary>
-    /// V7.3 ruling #7: a dual lethal trade with BOTH meters full fires BOTH
-    /// Defy History procs. The combat system builds both attack intents from
-    /// pre-hit state and applies them sequentially, so the first hit's Defy
-    /// cannot suppress the second hit — both survivors stand at 1 HP with
-    /// shattered meters, no echo, and no stock lost.
-    /// </summary>
-    [TestCase]
-    public void ADualLethalTradeAtFullMeterFiresBothDefyProcs() {
-        var simulation = new FighterSimulation(
-            FighterLoadoutFactory.FromCharacterData(DefyTradeFighter()),
-            FighterLoadoutFactory.FromCharacterData(DefyTradeFighter()),
-            stocks: 3,
-            seed: 23,
-            spawnDistance: 1,
-            rules: FighterMatchRules.Disabled);
-
-        // Fill both meters with one 100-damage opener each, spaced so every
-        // Rally pool fully drains (no reclaim muddies the HP arithmetic).
-        int tick = 0;
-        simulation.Advance(Frame(tick, 0, GameplayButtons.BasicAttack), Neutral(tick));
-        for (tick = 1; tick <= 200; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
-        simulation.Advance(Neutral(tick), Frame(tick, 0, GameplayButtons.BasicAttack));
-        for (tick++; tick <= 420; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
-        for (int playerID = 0; playerID < 2; playerID++) {
-            AssertThat(simulation.TryGetFighter(playerID, out FighterStateComponent charged)).IsTrue();
-            AssertThat(charged.Influence.RawValue)
-                .OverrideFailureMessage($"Harness: player {playerID} must reach a full meter before the trade.")
-                .IsEqual(FP64.FromInt(100).RawValue);
-            AssertThat(charged.CurrentHP).IsEqual(300);
-        }
-
-        // The trade: both lethal melee specials on the same tick.
-        simulation.Advance(
-            Frame(tick, 0, GameplayButtons.Special1),
-            Frame(tick, 0, GameplayButtons.Special1));
-        for (tick++; tick <= 480; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
-
-        for (int playerID = 0; playerID < 2; playerID++) {
-            AssertThat(simulation.TryGetFighter(playerID, out FighterStateComponent survivor)).IsTrue();
-            AssertThat(survivor.Stocks)
-                .OverrideFailureMessage($"Player {playerID}'s Defy proc must have refused the KO.")
-                .IsEqual(3);
-            AssertThat(survivor.CurrentHP).IsEqual(1);
-            AssertThat(simulation.TryGetFighterVerb(playerID, out FighterVerbComponent verb)).IsTrue();
-            AssertThat(verb.DefyHistoryUsed).IsEqual(1);
-            AssertThat(verb.EchoPool.RawValue)
-                .OverrideFailureMessage("A defied hit generates no Rally echo (damage -> Defy -> no echo).")
-                .IsEqual(0L);
-        }
-        // Meter asymmetry is the sequential ordering made visible: player one's
-        // intent applies first (their pre-shatter meter was spent nowhere, and
-        // the second hit shatters it to zero); player two's OWN hit applies
-        // AFTER their shatter and legitimately re-earns meter from the ~300
-        // damage it dealt. Only the defied-victim guarantees are the ruling.
-        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent firstSurvivor)).IsTrue();
-        AssertThat(firstSurvivor.Influence.RawValue)
-            .OverrideFailureMessage("Player one's shattered meter earns nothing after its own earlier hit.")
-            .IsEqual(0L);
-        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent secondSurvivor)).IsTrue();
-        AssertThat(secondSurvivor.Influence.RawValue)
-            .OverrideFailureMessage(
-                "Player two's post-shatter hit re-earns full meter from its damage-dealt credit.")
-            .IsEqual(FP64.FromInt(100).RawValue);
     }
 
     /// <summary>
@@ -1505,27 +1431,6 @@ public class FighterMatchFlowTests {
         BasicAttackDamage = damage,
         BasicAttackKnockback = 0f,
         SpecialAttackOne = new AbilityData(),
-        SpecialAttackTwo = new AbilityData(),
-        MovementAbility = new MovementAbilityData(),
-        UltimateAttack = new AbilityData { BaseDamage = 20f }
-    };
-
-    /// <summary>
-    /// The dual-Defy trade fighter: a 125-damage basic (hit one deals 100 —
-    /// one meter-filling opener) and a lethal 900-damage generic melee
-    /// Special1 for the trade itself. Zero knockback keeps both in range.
-    /// </summary>
-    private static CharacterData DefyTradeFighter() => new() {
-        CharacterID = "tesla",
-        MaxHP = 400,
-        Weight = 1f,
-        MaxBlockCharges = 3,
-        MaxJumpCount = 1,
-        MaxMoveSpeed = 8f,
-        MaxJumpForce = 13f,
-        BasicAttackDamage = 125f,
-        BasicAttackKnockback = 0f,
-        SpecialAttackOne = new AbilityData { BaseDamage = 900f },
         SpecialAttackTwo = new AbilityData(),
         MovementAbility = new MovementAbilityData(),
         UltimateAttack = new AbilityData { BaseDamage = 20f }

@@ -416,7 +416,7 @@ public class FighterLedgeGetUpTests {
     /// from the same seeded hang keep the respawn grant and the Defy window.
     /// </summary>
     [TestCase]
-    public void TheLedgeAttackEndsRespawnAndDefyProtectionAndKeepsOnlyItsOwnClimbFrames() {
+    public void TheLedgeAttackEndsRespawnProtectionAndKeepsOnlyItsOwnClimbFrames() {
         FighterSimulation attack = ProtectedHang(out int tick);
         tick = Step(attack, tick, PlayerInputFrame.Create((uint)tick, 0f, 0f, GameplayButtons.BasicAttack));
         AssertThat(Runtime(attack).UniversalMovementState).IsEqual((int)UniversalMovementPhase.LedgeAttackClimb);
@@ -424,10 +424,6 @@ public class FighterLedgeGetUpTests {
         AssertThat(attackAction.ActionFlags & FighterActionStateComponent.ActionFlagRespawnProtection)
             .OverrideFailureMessage("the ledge attack is offence: it ends the respawn protection's record.")
             .IsEqual(0);
-        AssertThat(attack.TryGetFighterDefense(0, out FighterDefenseComponent attackDefense)).IsTrue();
-        AssertThat(FighterDefenseRules.IsDefyProtected(in attackDefense))
-            .OverrideFailureMessage("the ledge attack is offence: it ends the Defy window.")
-            .IsFalse();
         AssertThat(Fighter(attack).InvulnerabilityFrames)
             .OverrideFailureMessage("the respawn grant ends and the climb's own 8 frames survive it.")
             .IsEqual(BasicComboRules.LedgeActionClimbFrames);
@@ -451,18 +447,13 @@ public class FighterLedgeGetUpTests {
             AssertThat(Fighter(keep).InvulnerabilityFrames)
                 .OverrideFailureMessage($"{name}: the respawn grant runs on, one tick shorter.")
                 .IsEqual(before - 1);
-            AssertThat(keep.TryGetFighterDefense(0, out FighterDefenseComponent keepDefense)).IsTrue();
-            AssertThat(FighterDefenseRules.IsDefyProtected(in keepDefense))
-                .OverrideFailureMessage($"{name} is not offence: the Defy window stays.")
-                .IsTrue();
         }
     }
 
     /// <summary>
     /// <see cref="HangingReady"/> with player two at the edge, then player one's
-    /// 323 respawn record set over a 100-frame grant and a fresh Defy window
-    /// opened — the state a fighter dropping off the respawn platform and
-    /// grabbing a ledge inside a Defy survival would be in.
+    /// 323 respawn record set over a 100-frame grant — the state a fighter
+    /// dropping off the respawn platform and grabbing a ledge would be in.
     /// </summary>
     private static FighterSimulation ProtectedHang(out int tick) {
         FighterSimulation simulation = HangingReady(out tick, opponentX: FP64.FromDouble(-1.6));
@@ -470,7 +461,6 @@ public class FighterLedgeGetUpTests {
         action.ActionFlags |= FighterActionStateComponent.ActionFlagRespawnProtection;
         AssertThat(simulation.SeedFighterActionStateForTest(0, in action)).IsTrue();
         AssertThat(simulation.SeedFighterInvulnerabilityForTest(0, 100)).IsTrue();
-        AssertThat(simulation.SeedFighterDefyProtectionForTest(0)).IsTrue();
         return simulation;
     }
 

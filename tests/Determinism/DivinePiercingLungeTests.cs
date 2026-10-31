@@ -23,9 +23,10 @@ public class DivinePiercingLungeTests {
         var simulation = NewMatch(spawnDistance: 8);
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent before)).IsTrue();
         simulation.Advance(Frame(0, GameplayButtons.Special2), Frame(0, GameplayButtons.None));
-        // J03: the 11 s cooldown is armed on the press.
+        // Meter and Defy update 2026-10-31: the press arms the 2 s reuse delay
+        // (the 11 s cooldown it replaced is gone).
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent pressed)).IsTrue();
-        AssertThat(pressed.SpecialTwoReuseFrames).IsEqual(660);
+        AssertThat(pressed.SpecialTwoReuseFrames).IsEqual(BasicComboRules.SpecialReuseDelayFrames);
         // Decision 1.2 (2026-10-16): the lunge starts on the cast's active
         // entry, after Divine Piercing's authored 13-frame startup.
         int lungeStart = SpecialCastTestKit.StepUntilFired(simulation, 0, 1);

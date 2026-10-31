@@ -282,7 +282,6 @@ namespace FTT.FighterSim {
             target.Stocks > 0
             && target.RespawnFramesRemaining <= 0
             && target.InvulnerabilityFrames <= 0
-            && !FighterDefenseRules.IsDefyProtected(in targetDefense)
             && !FighterGrabRules.IsBusy(in targetVerb)
             && !FighterBasicAttackRules.IsBlockStance(in target, in targetRuntime, in targetVerb);
 
@@ -349,8 +348,6 @@ namespace FTT.FighterSim {
             if (!FighterEntityQueries.TryFindFighter(ref frame, targetID, out EntityRef targetEntity)) return;
             ref FighterStateComponent target = ref frame.Get<FighterStateComponent>(targetEntity);
             if (target.Stocks <= 0 || target.InvulnerabilityFrames > 0) return;
-            ref readonly FighterDefenseComponent defense = ref frame.GetReadOnly<FighterDefenseComponent>(targetEntity);
-            if (FighterDefenseRules.IsDefyProtected(in defense)) return;
             if (!FighterEntityQueries.Overlaps(
                     in zone.Position, in zone.HalfExtents,
                     in target.Position, in FighterKitGeometry.FighterHalfExtents)) return;

@@ -202,7 +202,7 @@ public class FighterHitConfirmTests {
     }
 
     [TestCase]
-    public void BlockedCounteredAndInvulnerableSwingsNeitherConfirmNorRefundButAnAegisAbsorbedOneDoesBoth() {
+    public void BlockedCounteredAndInvulnerableSwingsNeitherConfirmNorPayTheGaugeButAnAegisAbsorbedOneDoesBoth() {
         // Blocked: the target holds Block.
         SwingOutcome blocked = SwingIntoTarget(
             NewSim(seed: 331), targetHeld: GameplayButtons.Block, prepare: null);
@@ -228,10 +228,7 @@ public class FighterHitConfirmTests {
             prepare: simulation => AssertThat(simulation.SeedFighterAegisForTest(1)).IsTrue());
         AssertThat(aegis.TargetHPLost).OverrideFailureMessage("Aegis absorbs the whole contact.").IsEqual(0);
         AssertThat(aegis.SwingLanded).IsEqual(1);
-        AssertThat(aegis.SlotOneDelta).IsEqual(1 + BasicComboRules.MomentumStringHitRefundFrames);
-        AssertThat(aegis.SlotTwoDelta).IsEqual(1 + BasicComboRules.MomentumStringHitRefundFrames);
-        AssertThat(aegis.RefundedOne).IsEqual(BasicComboRules.MomentumStringHitRefundFrames);
-        AssertThat(aegis.RefundedTwo).IsEqual(BasicComboRules.MomentumStringHitRefundFrames);
+        AssertThat(aegis.GaugeGain).IsEqual(BasicComboRules.MomentumStringHitGainUnits);
         AssertThat(aegis.LockoutAfter > 0).IsTrue();
         AssertThat(aegis.SpecialGateAfter)
             .OverrideFailureMessage("An absorbed landing opens the Special gate while the lockout runs.")
@@ -247,7 +244,7 @@ public class FighterHitConfirmTests {
             SpecialOnePersistentLifetimeFrames = 1800
         };
         FighterSimulation simulation = NewSim(seed: 341, targetModes: coil);
-        AssertThat(simulation.SeedFighterSpecialCooldownsForTest(0, LongCooldown, LongCooldown)).IsTrue();
+        AssertThat(simulation.SeedFighterSpecialReuseForTest(0, LongCooldown, LongCooldown)).IsTrue();
         // Player two deploys its coil at its feet, then walks away from it.
         simulation.Advance(Input(simulation.CurrentTick, GameplayButtons.None),
             Input(simulation.CurrentTick, GameplayButtons.Special1));
@@ -265,6 +262,7 @@ public class FighterHitConfirmTests {
             .IsTrue();
 
         int targetHP = Fighter(simulation, 1).CurrentHP;
+        int unitsBeforeSwing = Verb(simulation, 0).MomentumUnits;
         Step(simulation, GameplayButtons.BasicAttack);
         for (int step = 0; step < 30; step++) Step(simulation, GameplayButtons.None);
         AssertThat(simulation.TryGetFirstPersistentObject(out FighterPersistentObjectComponent struck)).IsTrue();
@@ -273,15 +271,15 @@ public class FighterHitConfirmTests {
         AssertThat(Runtime(simulation, 0).SwingLanded)
             .OverrideFailureMessage("A construct hit is not a landed contact (D1a).")
             .IsEqual(0);
-        AssertThat(Verb(simulation, 0).MomentumRefundedFramesSlotOne).IsEqual(0);
-        AssertThat(Verb(simulation, 0).MomentumRefundedFramesSlotTwo).IsEqual(0);
+        AssertThat(Verb(simulation, 0).MomentumUnits <= unitsBeforeSwing + 31 * FighterMomentumRules.RegenUnitsPerFrame)
+            .OverrideFailureMessage("A construct hit pays the gauge nothing beyond passive regeneration.")
+            .IsTrue();
     }
 
     [TestCase]
     public void ResolveFighterHitNamesRefusedBlockedAbsorbedAndLanded() {
         AssertThat((int)new Fixture().With(f => f.Target.InvulnerabilityFrames = 5).Resolve(8)).IsEqual((int)FighterHitOutcome.Refused);
         AssertThat((int)new Fixture().With(f => f.Target.Stocks = 0).Resolve(8)).IsEqual((int)FighterHitOutcome.Refused);
-        AssertThat((int)new Fixture().With(f => FighterDefenseRules.BeginDefyProtection(ref f.Defense, 1)).Resolve(8)).IsEqual((int)FighterHitOutcome.Refused);
 
         AssertThat((int)new Fixture().With(f => f.Defense.AegisActive = 1).Resolve(8)).IsEqual((int)FighterHitOutcome.Absorbed);
         AssertThat((int)new Fixture().With(f => {
@@ -318,41 +316,36 @@ public class FighterHitConfirmTests {
         }
     }
 
-    // === D2: per-hit Momentum ===
+    // === The Momentum gauge's landed-swing gains (meter and Defy update 2026-10-31) ===
 
     [TestCase]
-    public void EveryLandedBasicHitRefundsBothRunningCooldownsOncePerSwing() {
-        // The string: 20, 20, 60 on both slots.
+    public void EveryLandedBasicHitAddsItsGaugeGainOncePerSwing() {
+        // The string: 360, 360, 1440 units.
         FighterSimulation simulation = NewSim(seed: 371, basicKnockback: FP64.Zero);
-        AssertThat(simulation.SeedFighterSpecialCooldownsForTest(0, LongCooldown, LongCooldown)).IsTrue();
+        AssertThat(simulation.SeedFighterSpecialReuseForTest(0, LongCooldown, LongCooldown)).IsTrue();
         Approach(simulation);
+        int unitsBeforeString = Verb(simulation, 0).MomentumUnits;
         List<Landing> landings = LandString(simulation, hits: 3);
         AssertThat(landings.Count).IsEqual(3);
         for (int index = 0; index < 3; index++) {
-            int expected = index == 2 ? BasicComboRules.MomentumFinisherRefundFrames : BasicComboRules.MomentumStringHitRefundFrames;
+            int expected = index == 2 ? BasicComboRules.MomentumFinisherGainUnits : BasicComboRules.MomentumStringHitGainUnits;
             AssertThat(landings[index].ComboIndex).IsEqual(index);
-            AssertThat(landings[index].SlotOneDelta)
-                .OverrideFailureMessage($"Hit {index + 1} must refund {expected} frames on Special 1 (plus its own tick).")
-                .IsEqual(1 + expected);
-            AssertThat(landings[index].SlotTwoDelta).IsEqual(1 + expected);
+            AssertThat(landings[index].GaugeGain)
+                .OverrideFailureMessage($"Hit {index + 1} must add {expected} units.")
+                .IsEqual(expected);
         }
-        AssertThat(Verb(simulation, 0).MomentumRefundedFramesSlotOne).IsEqual(100);
-        AssertThat(Verb(simulation, 0).MomentumRefundedFramesSlotTwo).IsEqual(100);
+        AssertThat(Verb(simulation, 0).MomentumUnits > unitsBeforeString).IsTrue();
 
-        // The Up-Attack: 20.
+        // The Up-Attack: 360.
         FighterSimulation up = NewSim(seed: 372);
-        AssertThat(up.SeedFighterSpecialCooldownsForTest(0, LongCooldown, LongCooldown)).IsTrue();
         Approach(up);
         Landing upLanding = SwingUntilLanded(up, GameplayButtons.BasicAttack, moveY: UpAxis);
         AssertThat((Runtime(up, 0).AttackFlags & FighterBasicAttackRules.FlagUpAttack) != 0
                    || upLanding.WasUpAttack).IsTrue();
-        AssertThat(upLanding.SlotOneDelta).IsEqual(1 + BasicComboRules.MomentumDirectionalRefundFrames);
-        AssertThat(upLanding.SlotTwoDelta).IsEqual(1 + BasicComboRules.MomentumDirectionalRefundFrames);
-        AssertThat(Verb(up, 0).MomentumRefundedFramesSlotOne).IsEqual(BasicComboRules.MomentumDirectionalRefundFrames);
+        AssertThat(upLanding.GaugeGain).IsEqual(BasicComboRules.MomentumDirectionalGainUnits);
 
-        // The Down-Air: jump over the grounded target, then Down + attack: 20.
+        // The Down-Air: jump over the grounded target, then Down + attack: 360.
         FighterSimulation down = NewSim(seed: 373, spawnDistance: 0);
-        AssertThat(down.SeedFighterSpecialCooldownsForTest(0, LongCooldown, LongCooldown)).IsTrue();
         Step(down, GameplayButtons.Jump);
         for (int step = 0; step < 120; step++) {
             FighterStateComponent rising = Fighter(down, 0);
@@ -362,56 +355,24 @@ public class FighterHitConfirmTests {
         Landing downLanding = SwingUntilLanded(down, GameplayButtons.BasicAttack | GameplayButtons.Down,
             heldAfter: GameplayButtons.Down);
         AssertThat(downLanding.WasDownAir).OverrideFailureMessage("Harness: the swing must be the Down-Air.").IsTrue();
-        AssertThat(downLanding.SlotOneDelta).IsEqual(1 + BasicComboRules.MomentumDirectionalRefundFrames);
-        AssertThat(downLanding.SlotTwoDelta).IsEqual(1 + BasicComboRules.MomentumDirectionalRefundFrames);
-        AssertThat(Verb(down, 0).MomentumRefundedFramesSlotTwo).IsEqual(BasicComboRules.MomentumDirectionalRefundFrames);
+        AssertThat(downLanding.GaugeGain).IsEqual(BasicComboRules.MomentumDirectionalGainUnits);
     }
 
     [TestCase]
-    public void MomentumStopsAtOneHundredTwentyFramesPerCycleUntilTheSlotIsReArmed() {
+    public void TheGaugeStopsAtFourPipsWhateverALandedSwingAdds() {
         FighterSimulation simulation = NewSim(seed: 381, basicKnockback: FP64.Zero);
-        AssertThat(simulation.SeedFighterSpecialCooldownsForTest(0, LongCooldown, LongCooldown)).IsTrue();
         Approach(simulation);
-        AssertThat(LandString(simulation, hits: 3).Count).IsEqual(3);
+        AssertThat(simulation.SeedFighterMomentumForTest(0, BasicComboRules.MomentumMaxUnits - 100)).IsTrue();
+        List<Landing> string_ = LandString(simulation, hits: 3);
+        AssertThat(string_.Count).IsEqual(3);
+        AssertThat(Verb(simulation, 0).MomentumUnits)
+            .OverrideFailureMessage("A full string at 100 units under the cap clamps at 28 800.")
+            .IsEqual(BasicComboRules.MomentumMaxUnits);
         Settle(simulation);
-        AssertThat(Verb(simulation, 0).MomentumRefundedFramesSlotOne).IsEqual(100);
-
-        // The second string: hit 1 tops the cycle up to exactly 120, hit 2 refunds nothing.
-        List<Landing> second = LandString(simulation, hits: 2);
-        AssertThat(second.Count).IsEqual(2);
-        AssertThat(second[0].SlotOneDelta).IsEqual(1 + 20);
-        AssertThat(second[1].SlotOneDelta).OverrideFailureMessage("The cycle's 120 frames are spent.").IsEqual(1);
-        AssertThat(second[1].SlotTwoDelta).IsEqual(1);
-        AssertThat(Verb(simulation, 0).MomentumRefundedFramesSlotOne)
-            .IsEqual(BasicComboRules.MomentumRefundCapFramesPerCycle);
-        AssertThat(Verb(simulation, 0).MomentumRefundedFramesSlotTwo)
-            .IsEqual(BasicComboRules.MomentumRefundCapFramesPerCycle);
-        Settle(simulation);
-
-        // A cast re-arms Special 1's cycle (cast facing away so the shot never
-        // lands); Special 2's stays spent. A ready slot spends nothing.
-        int specialTwoBefore = Runtime(simulation, 0).SpecialTwoReuseFrames;
-        AssertThat(simulation.SeedFighterSpecialCooldownsForTest(0, 0, specialTwoBefore)).IsTrue();
-        Step(simulation, GameplayButtons.None, moveX: -127);
-        Step(simulation, GameplayButtons.Special1);
-        AssertThat(Shots(simulation, 0, 1)).IsEqual(1);
-        AssertThat(Verb(simulation, 0).MomentumRefundedFramesSlotOne)
-            .OverrideFailureMessage("Arming Special 1's cooldown re-opens its cap.")
-            .IsEqual(0);
-        Idle(simulation, Lockout);
-        Step(simulation, GameplayButtons.None, moveX: 127);
-        Settle(simulation);
-        Approach(simulation);
-        int slotOneCooldown = Runtime(simulation, 0).SpecialOneReuseFrames;
-        AssertThat(slotOneCooldown).OverrideFailureMessage("Harness: the 1-frame slot is ready again.").IsEqual(0);
-        AssertThat(simulation.SeedFighterSpecialCooldownsForTest(0, LongCooldown, 0)).IsTrue();
-        List<Landing> resumed = LandString(simulation, hits: 1);
-        AssertThat(resumed.Count).IsEqual(1);
-        AssertThat(resumed[0].SlotOneDelta).IsEqual(1 + 20);
-        AssertThat(Verb(simulation, 0).MomentumRefundedFramesSlotOne).IsEqual(20);
-        AssertThat(resumed[0].SlotTwoDelta).OverrideFailureMessage("A ready slot takes nothing.").IsEqual(0);
-        AssertThat(Verb(simulation, 0).MomentumRefundedFramesSlotTwo)
-            .IsEqual(BasicComboRules.MomentumRefundCapFramesPerCycle);
+        for (int tick = 0; tick < 30; tick++) Step(simulation, GameplayButtons.None);
+        AssertThat(Verb(simulation, 0).MomentumUnits)
+            .OverrideFailureMessage("Passive regeneration also stops at the cap.")
+            .IsEqual(BasicComboRules.MomentumMaxUnits);
     }
 
     // === §1.7: a meter-paid Ultimate held back by the lockout ===
@@ -500,7 +461,7 @@ public class FighterHitConfirmTests {
             Loadout(FighterCharacterID.Einstein, ProjectileModes(), FP64.FromInt(3)),
             matchSeconds: 3, seed: 411, spawnDistance: 1,
             rules: new FighterMatchRules((int)MatchMode.TimeLimit, false, 0, false, 0));
-        AssertThat(simulation.SeedFighterSpecialCooldownsForTest(0, 0, LongCooldown)).IsTrue();
+        AssertThat(simulation.SeedFighterSpecialReuseForTest(0, 0, LongCooldown)).IsTrue();
         Approach(simulation);
         while (simulation.GetMatchState().RemainingFrames > 16) Step(simulation, GameplayButtons.None);
 
@@ -508,25 +469,26 @@ public class FighterHitConfirmTests {
         Step(simulation, GameplayButtons.BasicAttack);
         int lastSpecialLockout = 0;
         int lastSwingLanded = 0;
-        int lastRefunded = 0;
         for (int step = 0; step < 60 && simulation.GetMatchState().SuddenDeathActive == 0; step++) {
             bool landed = Fighter(simulation, 1).CurrentHP < maxHP;
             Step(simulation, landed ? GameplayButtons.Special1 : GameplayButtons.None);
             if (simulation.GetMatchState().SuddenDeathActive != 0) break;
             lastSpecialLockout = Runtime(simulation, 0).SpecialLockoutFrames;
             lastSwingLanded = Runtime(simulation, 0).SwingLanded;
-            lastRefunded = Verb(simulation, 0).MomentumRefundedFramesSlotTwo;
         }
         AssertThat(simulation.GetMatchState().SuddenDeathActive).IsEqual(1);
-        AssertThat(lastSpecialLockout > 0 && lastSwingLanded == 1 && lastRefunded > 0)
-            .OverrideFailureMessage($"Harness: S={lastSpecialLockout} C={lastSwingLanded} refunded={lastRefunded} into the buzzer.")
+        AssertThat(lastSpecialLockout > 0 && lastSwingLanded == 1)
+            .OverrideFailureMessage($"Harness: S={lastSpecialLockout} C={lastSwingLanded} into the buzzer.")
             .IsTrue();
         FighterRuntimeComponent reset = Runtime(simulation, 0);
         AssertThat(reset.SpecialLockoutFrames).IsEqual(0);
         AssertThat(reset.SwingLanded).IsEqual(0);
         AssertThat(reset.AbilityLockoutFrames).IsEqual(0);
-        AssertThat(Verb(simulation, 0).MomentumRefundedFramesSlotOne).IsEqual(0);
-        AssertThat(Verb(simulation, 0).MomentumRefundedFramesSlotTwo).IsEqual(0);
+        AssertThat(Verb(simulation, 0).MomentumUnits)
+            .OverrideFailureMessage("Sudden Death restarts the gauge at two pips.")
+            .IsEqual(BasicComboRules.MomentumStartUnits);
+        AssertThat(reset.SpecialOneReuseFrames).IsEqual(0);
+        AssertThat(reset.SpecialTwoReuseFrames).IsEqual(0);
     }
 
     // === Special → Special and the Specials' own hits ===
@@ -581,24 +543,28 @@ public class FighterHitConfirmTests {
             }
         };
         FighterSimulation meleeRun = NewSim(seed: 431, attackerModes: melee);
-        AssertThat(meleeRun.SeedFighterSpecialCooldownsForTest(0, 0, LongCooldown)).IsTrue();
+        AssertThat(meleeRun.SeedFighterSpecialReuseForTest(0, 0, LongCooldown)).IsTrue();
         Idle(meleeRun, 2);
         int maxHP = Fighter(meleeRun, 1).CurrentHP;
         Step(meleeRun, GameplayButtons.Special1);
         AssertThat(Fighter(meleeRun, 1).CurrentHP < maxHP).OverrideFailureMessage("Harness: the melee Special must land.").IsTrue();
         AssertThat(Runtime(meleeRun, 0).SwingLanded).IsEqual(0);
-        AssertThat(Verb(meleeRun, 0).MomentumRefundedFramesSlotTwo).IsEqual(0);
+        AssertThat(Verb(meleeRun, 0).MomentumUnits <= BasicComboRules.MomentumStartUnits)
+            .OverrideFailureMessage("A Special's own hit pays the gauge nothing (the cast spent a pip).")
+            .IsTrue();
 
         // A fast projectile Special 1 landing.
         FighterAbilityLoadout fast = ProjectileModes() with { SpecialOneProjectileSpeed = FP64.FromInt(12) };
         FighterSimulation shotRun = NewSim(seed: 432, attackerModes: fast);
-        AssertThat(shotRun.SeedFighterSpecialCooldownsForTest(0, 0, LongCooldown)).IsTrue();
+        AssertThat(shotRun.SeedFighterSpecialReuseForTest(0, 0, LongCooldown)).IsTrue();
         int shotHP = Fighter(shotRun, 1).CurrentHP;
         Step(shotRun, GameplayButtons.Special1);
         for (int step = 0; step < 60 && Fighter(shotRun, 1).CurrentHP == shotHP; step++) Step(shotRun, GameplayButtons.None);
         AssertThat(Fighter(shotRun, 1).CurrentHP < shotHP).OverrideFailureMessage("Harness: the shot must land.").IsTrue();
         AssertThat(Runtime(shotRun, 0).SwingLanded).IsEqual(0);
-        AssertThat(Verb(shotRun, 0).MomentumRefundedFramesSlotTwo).IsEqual(0);
+        AssertThat(Verb(shotRun, 0).MomentumUnits <= BasicComboRules.MomentumStartUnits)
+            .OverrideFailureMessage("A Special's own shot pays the gauge nothing.")
+            .IsTrue();
     }
 
     [TestCase]
@@ -817,20 +783,26 @@ public class FighterHitConfirmTests {
 
     // === Harness ===
 
+    /// <summary>
+    /// What one Advance added to player one's Momentum gauge beyond that tick's
+    /// passive regeneration (the match is live, so it ran), given the gauge read
+    /// before the tick.
+    /// </summary>
+    private static int GaugeGainSince(FighterSimulation simulation, int unitsBefore) =>
+        Verb(simulation, 0).MomentumUnits - unitsBefore - FighterMomentumRules.RegenUnitsPerFrame;
+
     private struct Landing {
         public int ComboIndex;
-        public int SlotOneDelta;
-        public int SlotTwoDelta;
+        /// <summary>The gauge change on the landing tick, less that tick's regeneration.</summary>
+        public int GaugeGain;
         public bool WasUpAttack;
         public bool WasDownAir;
     }
 
     private struct SwingOutcome {
         public int SwingLanded;
-        public int SlotOneDelta;
-        public int SlotTwoDelta;
-        public int RefundedOne;
-        public int RefundedTwo;
+        /// <summary>The gauge change on the tick the swing resolved, less that tick's regeneration.</summary>
+        public int GaugeGain;
         public int TargetHPLost;
         public int TargetBlockChargesSpent;
         public bool TargetCounterTriggered;
@@ -845,7 +817,7 @@ public class FighterHitConfirmTests {
     private static SwingOutcome SwingIntoTarget(
         FighterSimulation simulation, GameplayButtons targetHeld, System.Action<FighterSimulation> prepare,
         GameplayButtons targetPressOnSwing = GameplayButtons.None) {
-        AssertThat(simulation.SeedFighterSpecialCooldownsForTest(0, LongCooldown, LongCooldown)).IsTrue();
+        AssertThat(simulation.SeedFighterSpecialReuseForTest(0, LongCooldown, LongCooldown)).IsTrue();
         for (int step = 0; step < 60; step++) {
             bool close = Fighter(simulation, 1).Position.x - Fighter(simulation, 0).Position.x <= FP64.FromDouble(1.2);
             simulation.Advance(Input(simulation.CurrentTick, GameplayButtons.None, close ? (sbyte)0 : (sbyte)127),
@@ -862,6 +834,7 @@ public class FighterHitConfirmTests {
         var outcome = new SwingOutcome();
         for (int step = 0; step < 30; step++) {
             FighterRuntimeComponent runtimeBefore = Runtime(simulation, 0);
+            int unitsBefore = Verb(simulation, 0).MomentumUnits;
             bool resolvedBefore = (runtimeBefore.AttackFlags & FighterBasicAttackRules.FlagHitResolved) != 0;
             simulation.Advance(Input(simulation.CurrentTick, GameplayButtons.None), Input(simulation.CurrentTick, targetHeld));
             FighterRuntimeComponent runtimeAfter = Runtime(simulation, 0);
@@ -877,8 +850,7 @@ public class FighterHitConfirmTests {
             bool resolvedNow = !resolvedBefore
                 && ((runtimeAfter.AttackFlags & FighterBasicAttackRules.FlagHitResolved) != 0 || counteredNow);
             if (!resolvedNow) continue;
-            outcome.SlotOneDelta = runtimeBefore.SpecialOneReuseFrames - runtimeAfter.SpecialOneReuseFrames;
-            outcome.SlotTwoDelta = runtimeBefore.SpecialTwoReuseFrames - runtimeAfter.SpecialTwoReuseFrames;
+            outcome.GaugeGain = GaugeGainSince(simulation, unitsBefore);
             outcome.SwingLanded = runtimeAfter.SwingLanded;
             outcome.LockoutAfter = runtimeAfter.AbilityLockoutFrames;
             outcome.SpecialGateAfter = BasicComboRules.SpecialGateFrames(
@@ -891,17 +863,12 @@ public class FighterHitConfirmTests {
         if (simulation.TryGetFighterCounter(1, out FighterCounterComponent final) && final.CountersLanded > 0) {
             outcome.TargetCounterTriggered = true;
         }
-        outcome.RefundedOne = Verb(simulation, 0).MomentumRefundedFramesSlotOne;
-        outcome.RefundedTwo = Verb(simulation, 0).MomentumRefundedFramesSlotTwo;
         return outcome;
     }
 
     private static void AssertNoConfirm(SwingOutcome outcome, string what) {
         AssertThat(outcome.SwingLanded).OverrideFailureMessage($"{what} must not confirm.").IsEqual(0);
-        AssertThat(outcome.SlotOneDelta).OverrideFailureMessage($"{what} refunds nothing.").IsEqual(1);
-        AssertThat(outcome.SlotTwoDelta).IsEqual(1);
-        AssertThat(outcome.RefundedOne).IsEqual(0);
-        AssertThat(outcome.RefundedTwo).IsEqual(0);
+        AssertThat(outcome.GaugeGain).OverrideFailureMessage($"{what} adds nothing to the gauge.").IsEqual(0);
         AssertThat(outcome.TargetHPLost).IsEqual(0);
         AssertThat(outcome.SpecialGateAfter > 0)
             .OverrideFailureMessage($"After {what} the Specials still wait for the whole lockout.")
@@ -918,6 +885,7 @@ public class FighterHitConfirmTests {
         int swings = 0;
         for (int step = 0; step < 400 && landings.Count < hits; step++) {
             FighterRuntimeComponent before = Runtime(simulation, 0);
+            int unitsBefore = Verb(simulation, 0).MomentumUnits;
             int hp = Fighter(simulation, 1).CurrentHP;
             bool press = swings == 0
                 ? before.AttackPhase == FighterBasicAttackRules.PhaseNone
@@ -928,8 +896,7 @@ public class FighterHitConfirmTests {
             FighterRuntimeComponent after = Runtime(simulation, 0);
             landings.Add(new Landing {
                 ComboIndex = after.ComboIndex,
-                SlotOneDelta = before.SpecialOneReuseFrames - after.SpecialOneReuseFrames,
-                SlotTwoDelta = before.SpecialTwoReuseFrames - after.SpecialTwoReuseFrames
+                GaugeGain = GaugeGainSince(simulation, unitsBefore)
             });
         }
         return landings;
@@ -947,12 +914,10 @@ public class FighterHitConfirmTests {
             WasDownAir = (flags & FighterBasicAttackRules.FlagDownAir) != 0
         };
         for (int step = 0; step < 40; step++) {
-            FighterRuntimeComponent before = Runtime(simulation, 0);
+            int unitsBefore = Verb(simulation, 0).MomentumUnits;
             Step(simulation, heldAfter);
             if (Fighter(simulation, 1).CurrentHP >= hp) continue;
-            FighterRuntimeComponent after = Runtime(simulation, 0);
-            landing.SlotOneDelta = before.SpecialOneReuseFrames - after.SpecialOneReuseFrames;
-            landing.SlotTwoDelta = before.SpecialTwoReuseFrames - after.SpecialTwoReuseFrames;
+            landing.GaugeGain = GaugeGainSince(simulation, unitsBefore);
             return landing;
         }
         AssertThat(false).OverrideFailureMessage("Harness: the swing never landed.").IsTrue();
