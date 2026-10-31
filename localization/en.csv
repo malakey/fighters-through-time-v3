@@ -1104,7 +1104,7 @@ resonance_mozart_chord_damage_name,Minor Chord Damage
 resonance_mozart_chord_damage_description,Fa. The Requiem Chord deals +10%.
 resonance_mozart_extra_note_name,Extra Note
 resonance_mozart_extra_note_description,Sol. Traversal: two Sonata Drift staff platforms may stand at once.
-resonance_mozart_wave_cooldown_name,Minor Momentum Regeneration
+resonance_mozart_wave_cooldown_name,Minor Wave Regen
 resonance_mozart_wave_cooldown_description,La. +10% Momentum regeneration.
 resonance_mozart_rest_shield_name,Rest Shield
 resonance_mozart_rest_shield_description,The Third. Standing still or blocking for 1.5 seconds raises a silent bubble that stops physical projectiles until Mozart moves or attacks.
