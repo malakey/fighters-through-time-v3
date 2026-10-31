@@ -42,7 +42,13 @@ namespace FTT.Characters {
 		/// <see cref="Dashing"/> keeps its reserved ordinal and no existing member
 		/// moves, because the ordinals serialize.</para>
 		/// </summary>
-		Thrown
+		Thrown,
+		/// <summary>
+		/// Meter and Defy update 2026-10-31: the active Defy History burst (frames 1-6
+		/// invulnerable, the blast on 6, recovery to 30). Appended after
+		/// <see cref="Thrown"/>. Declared inert by MM-RULES; MM-SDEFY enters it.
+		/// </summary>
+		Defying
 	}
 
 	public partial class PlayerController : CharacterBody2D, FTT.Combat.IStatusEffectTarget, FTT.Combat.IDamageable {

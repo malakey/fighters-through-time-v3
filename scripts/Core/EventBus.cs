@@ -445,6 +445,24 @@ namespace FTT.Core {
         public DefySealState State;
     }
 
+    /// <summary>
+    /// A Defy History burst fired its blast (meter and Defy update 2026-10-31, plan section 2.11).
+    /// Raised once per Defy by the Story controller on the blast frame; presentation reads it.
+    /// </summary>
+    public struct DefyExecutedPayload {
+        public int PlayerIndex;
+        /// <summary>World position of the Defier's body centre at the blast.</summary>
+        public Vector2 Position;
+        /// <summary>The Influence meter before the 50 was spent.</summary>
+        public float MeterBefore;
+        /// <summary>Characters the blast staggered.</summary>
+        public int TargetsBlasted;
+        /// <summary>HP the Defy healed.</summary>
+        public int Healed;
+        /// <summary>The physics frame of the blast.</summary>
+        public ulong Frame;
+    }
+
     public enum MatchState {
         PreMatch,
         Countdown,
@@ -797,6 +815,10 @@ namespace FTT.Core {
         public event Action<DefySealPayload> OnDefySealChanged;
         public void RaiseDefySealChanged(DefySealPayload payload) =>
             OnDefySealChanged?.Invoke(payload);
+        // Meter and Defy update 2026-10-31: the active Defy's blast (nothing raises it until MM-SDEFY).
+        public event Action<DefyExecutedPayload> OnDefyExecuted;
+        public void RaiseDefyExecuted(DefyExecutedPayload payload) =>
+            OnDefyExecuted?.Invoke(payload);
         // === Package 11 A3 — Timeline Integrity & Collapse Tremor ===========
         public event Action<IntegrityPayload> OnTimelineIntegrityChanged;
         public void RaiseTimelineIntegrityChanged(IntegrityPayload payload) =>

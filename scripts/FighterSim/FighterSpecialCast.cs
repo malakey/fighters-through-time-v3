@@ -88,6 +88,12 @@ namespace FTT.FighterSim {
         /// counter (FU-KNOCK, 2026-10-25); the other bits reserved, 0.
         /// </summary>
         public int ActionFlags;
+        /// <summary>
+        /// The Defy History frame counter (meter and Defy update 2026-10-31): 0 idle, 1..30 while a
+        /// Defy runs (frames 1-6 invulnerable, the blast on 6, 7-30 recovery). Declared inert by
+        /// MM-RULES; MM-SIM writes it. Appended last, so 323 grows 36 to 40 bytes.
+        /// </summary>
+        public int DefyFrames;
 
         /// <summary><see cref="ActionFlags"/> bit 0: Fighter respawn protection is live (CM-HIT, 2.4.2).</summary>
         public const int ActionFlagRespawnProtection = 1;
@@ -103,6 +109,14 @@ namespace FTT.FighterSim {
         /// a wrapping 4-bit count of bounces, which the driver edge-detects for the impact effect.
         /// </summary>
         public const int ActionFlagWallBounced = 16;
+        /// <summary><see cref="ActionFlags"/> bit 5: this Defy's blast has fired (meter and Defy update; MM-SIM).</summary>
+        public const int ActionFlagDefyBlastFired = 32;
+        /// <summary><see cref="ActionFlags"/> bit 6: a Defy press made on a hitstop tick is buffered until the thaw (P12; MM-SIM).</summary>
+        public const int ActionFlagDefyBuffered = 64;
+        /// <summary>Shift of the wrapping 4-bit Defy count in <see cref="ActionFlags"/> bits 12-15 (presentation edge detection, like the wall-bounce count).</summary>
+        public const int DefyCounterShift = 12;
+        /// <summary>Mask of the wrapping Defy count in <see cref="ActionFlags"/> (bits 12-15).</summary>
+        public const int DefyCounterMask = 0xF000;
     }
 
     /// <summary>

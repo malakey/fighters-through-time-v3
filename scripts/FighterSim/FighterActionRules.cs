@@ -30,7 +30,13 @@ namespace FTT.FighterSim {
         /// <summary>A ledge hang latches.</summary>
         LedgeGrab = 11,
         /// <summary>A ledge get-up starts (no site in Phase A; CM-MOVE adds the get-ups).</summary>
-        LedgeGetUp = 12
+        LedgeGetUp = 12,
+        /// <summary>
+        /// A Defy History burst begins (meter and Defy update 2026-10-31; declared inert by
+        /// MM-RULES, accepted by MM-SIM). Not offensive: it does not end respawn protection
+        /// on its own account. Ordinals are not serialized.
+        /// </summary>
+        Defy = 13
     }
 
     /// <summary>
