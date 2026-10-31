@@ -718,6 +718,45 @@ public class FighterCpuHitstunDefenseTests {
         return false;
     }
 
+    [TestCase]
+    public void TheDefyReflexWinsItsTickOverTheBlockHoldAndTheHoldResumesAfterIt() {
+        // Meter and Defy update (O23): a Hard CPU holding Block through every hitstun still Defies on
+        // the tick the second hit of a string opens, with Defy alone on that frame (an exclusive
+        // press, like the hold itself), and the Block hold carries on the tick after.
+        CpuBandTuning tuning = CpuBandTuning.Hard with {
+            HitstunDefensePercent = 100, DiPercent = 0, GrabAdmissionPercent = 0
+        };
+        var cpu = NewCpu(tuning, seed: 5);
+        PlayerInputFrame previous = default;
+        var defyTicks = new System.Collections.Generic.List<int>();
+        for (int hit = 0; hit < 2; hit++) {
+            for (int hitstun = 20; hitstun >= 1; hitstun--) {
+                CpuDecisionObservation observation = HitstunObservation(hitstun);
+                observation.InfluenceRaw = FP64.FromInt(100).RawValue;
+                int index = hit * 40 + (20 - hitstun);
+                PlayerInputFrame frame = cpu.Sample(Tick(0, index), in observation, in previous);
+                previous = frame;
+                if (frame.IsPressed(GameplayButtons.Defy)) {
+                    defyTicks.Add(index);
+                    AssertThat(frame.IsHeld(GameplayButtons.Block))
+                        .OverrideFailureMessage("The Defy tick carries Defy alone, not Block beside it.")
+                        .IsFalse();
+                } else {
+                    AssertThat(frame.IsHeld(GameplayButtons.Block))
+                        .OverrideFailureMessage($"Every other hitstun tick holds Block (hit {hit}, hitstun {hitstun}).")
+                        .IsTrue();
+                }
+            }
+            for (int rest = 0; rest < 4; rest++) {
+                CpuDecisionObservation observation = HitstunObservation(0);
+                observation.InfluenceRaw = FP64.FromInt(100).RawValue;
+                previous = cpu.Sample(Tick(0, 20 + hit * 40 + rest), in observation, in previous);
+            }
+        }
+        AssertThat(defyTicks.Count).OverrideFailureMessage("One Defy, on the second hit's first tick.").IsEqual(1);
+        AssertThat(defyTicks[0]).IsEqual(40);
+    }
+
     private static FighterCpuController NewCpu(CpuBandTuning tuning, int seed) =>
         new(CpuDifficulty.Hard, seed, null, null, tuning);
 

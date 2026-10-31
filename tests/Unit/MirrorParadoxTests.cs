@@ -1269,6 +1269,71 @@ public class MirrorParadoxTests {
         }
     }
 
+    /// <summary>
+    /// Meter and Defy update (O23, plan 2.12): the Hard clone follows its band's Defy. Struck twice in a
+    /// string with 100 Influence it presses Defy through <see cref="InputManager.SetInputSource"/>
+    /// (the observation carries its real gauge and the damage-event hit count), and its frame-6
+    /// blast staggers the hero standing beside it.
+    /// </summary>
+    [TestCase]
+    public void AHardCloneDefiesThroughTheInputSourceAndItsBlastStaggersTheHero() {
+        Difficulty original = GameManager.Instance.CurrentSession.Difficulty;
+        GameManager.Instance.CurrentSession.Difficulty = Difficulty.Hard;
+        MirrorParadoxController mirror = CreateMirror();
+        int cloneIndex = mirror.Clone.PlayerIndex;
+        PlayerController hero = FTT.Characters.CharacterFactory.CreateCharacter(
+            MirroredCharacter, 0, applyStoryProgression: false, applyLegacyUnlockLocks: false);
+        try {
+            ((SceneTree)Engine.GetMainLoop()).Root.AddChild(hero);
+            if (!hero.IsInGroup("StoryPlayer")) hero.AddToGroup("StoryPlayer");
+            PlayerController clone = mirror.Clone;
+            clone.GlobalPosition = new Vector2(0f, 0f);
+            hero.GlobalPosition = new Vector2(60f, 0f);
+            clone.SetUltimateMeter(100f);
+            mirror.Decisions.Bind(clone, hero);
+
+            CpuDecisionObservation observation = mirror.Decisions.Observe();
+            AssertThat(observation.MomentumKnown).IsEqual(1);
+            AssertThat(observation.SelfMomentumUnits).IsEqual(FTT.Combat.BasicComboRules.MomentumStartUnits);
+            AssertThat(observation.SelfDefyFrames).IsEqual(0);
+
+            uint tick = 1;
+            PlayerInputFrame previous = default;
+            bool pressed = false;
+            bool defied = false;
+            for (int step = 0; step < 90 && hero.CurrentState != CharacterState.Stunned; step++) {
+                if (step == 6 || step == 14) Strike(clone);
+                PlayerInputFrame frame = mirror.Decisions.Sample(tick++, in previous);
+                previous = frame;
+                pressed |= frame.IsPressed(GameplayButtons.Defy);
+                var source = new BufferedInputSource();
+                source.SetNextFrame(frame);
+                InputManager.Instance.SetInputSource(cloneIndex, source);
+                clone._PhysicsProcess(1.0 / 60.0);
+                defied |= clone.IsDefying;
+            }
+            AssertThat(pressed).OverrideFailureMessage("The Hard clone must press Defy on the second hit of a string.").IsTrue();
+            AssertThat(defied).OverrideFailureMessage("and the press must reach the clone through its input source").IsTrue();
+            AssertThat(hero.CurrentState)
+                .OverrideFailureMessage("The clone's blast staggers the hero beside it.")
+                .IsEqual(CharacterState.Stunned);
+        } finally {
+            GameManager.Instance.CurrentSession.Difficulty = original;
+            InputManager.Instance?.ClearInputSource(cloneIndex);
+            InputManager.Instance?.ClearInputSource(hero.PlayerIndex);
+            DetachAndFree(hero);
+            FreeMirror(mirror);
+        }
+    }
+
+    private static void Strike(PlayerController clone) {
+        clone.GetNode<FTT.Combat.Hurtbox>("Hurtbox").TakeHit(new FTT.Combat.HitPayload {
+            AttackerIndex = 0, TargetIndex = clone.PlayerIndex, AttackID = "test.string", HitboxID = "test",
+            AttackClass = FTT.Combat.AttackClass.Basic, Damage = 5f, HitstunDuration = 0.5f,
+            HitOrigin = new Vector2(-40f, -30f), AttackerFacingRight = true
+        });
+    }
+
     private static void AssertProfile(
         Difficulty story, FTT.Core.CpuDifficulty expectedTier,
         int reactionMin, int reactionMax, int block, int hitstunDefense, int di) {

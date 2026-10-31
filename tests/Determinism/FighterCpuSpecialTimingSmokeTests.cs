@@ -102,6 +102,8 @@ public class FighterCpuSpecialTimingSmokeTests {
         public int Blocks;
         public int PerfectBlocks;
         public int PressesIntoOwnCast;
+        public int Defies;
+        public int SpecialPresses;
         public int SplittingCasts;
         public int SplittingWhiffs;
         public int SplittingInterrupted;
@@ -120,7 +122,8 @@ public class FighterCpuSpecialTimingSmokeTests {
 
         public string Summary() =>
             $"{Hero}: casts={Casts} active={ActiveCasts} answeredInStartup(block={StartupBlocked} evade={StartupEvaded}) "
-            + $"blocks={Blocks} perfectBlocks={PerfectBlocks} pressesIntoOwnCast={PressesIntoOwnCast}"
+            + $"blocks={Blocks} perfectBlocks={PerfectBlocks} pressesIntoOwnCast={PressesIntoOwnCast} "
+            + $"specialPresses={SpecialPresses} defies={Defies}"
             + (Hero == "lincoln"
                 ? $" splitting={SplittingCasts} whiffs={SplittingWhiffs} interrupted={SplittingInterrupted}"
                 : "");
@@ -178,6 +181,9 @@ public class FighterCpuSpecialTimingSmokeTests {
                 previous[player] = inputs[player];
                 // A press is read again on the tick the cast's last recovery
                 // frame runs out (that tick's movement pass ends the cast first).
+                if (inputs[player].IsPressed(GameplayButtons.Special1) || inputs[player].IsPressed(GameplayButtons.Special2)) {
+                    run.Players[player].SpecialPresses++;
+                }
                 bool castHoldsTheTick = FighterSpecialCastRules.IsBusy(in self.Cast)
                     && !(FighterSpecialCastRules.IsRecovery(in self.Cast) && self.Cast.SpecialPhaseFrames <= 1
                         && self.Verb.HitstopFrames == 0);
@@ -199,6 +205,8 @@ public class FighterCpuSpecialTimingSmokeTests {
 
     private static void Track(
         PlayerRecord record, in Snapshot before, in Snapshot after, in Snapshot otherBefore, in Snapshot otherAfter, int tick) {
+        // Meter and Defy update (plan 2.12): the smoke also records the Defies the Hard CPU makes.
+        if (after.Cast.DefyFrames > 0 && before.Cast.DefyFrames == 0) record.Defies++;
         // Block contacts this tick, on the defending side (this record's fighter).
         bool chargeSpent = after.Fighter.BlockCharges < before.Fighter.BlockCharges;
         bool shieldstunned = after.Verb.ShieldStunFrames > before.Verb.ShieldStunFrames;

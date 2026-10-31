@@ -135,7 +135,76 @@ public class CpuVerbPolicyTests {
         }
     }
 
+    [TestCase]
+    public void ASpecialNeedsAPipAndAClearReuseDelayWhenTheGaugeIsKnown() {
+        // Meter and Defy update (G4.4): the four cooldown tests are one predicate, a whole pip
+        // (7200 units) AND the slot's reuse delay run out by delivery. A real gauge of 7199 starves
+        // the press that 7200 pays for; a 30-frame reuse delay (beyond Medium's 15-frame reaction
+        // floor) holds it back whatever the gauge.
+        CpuBandTuning tuning = SpecialTuning();
+        int cost = BasicComboRules.MomentumSpecialCostUnits;
+        AssertThat(CountSpecialOnePresses(tuning, SpecialRange(known: true, units: cost - 1, reuse: 0))).IsEqual(0);
+        AssertThat(CountSpecialOnePresses(tuning, SpecialRange(known: true, units: cost, reuse: 0)) > 0)
+            .OverrideFailureMessage("A whole pip with a clear reuse delay must press Special 1.")
+            .IsTrue();
+        AssertThat(CountSpecialOnePresses(tuning, SpecialRange(known: true, units: BasicComboRules.MomentumMaxUnits, reuse: 30)))
+            .OverrideFailureMessage("A reuse delay still running at delivery holds the press back.")
+            .IsEqual(0);
+        AssertThat(CountSpecialOnePresses(tuning, SpecialRange(known: true, units: BasicComboRules.MomentumMaxUnits, reuse: 10)) > 0)
+            .OverrideFailureMessage("A delay that will have run out by delivery does not.")
+            .IsTrue();
+    }
+
+    [TestCase]
+    public void AHandBuiltObservationIgnoresTheGaugeAndOnlyTheReuseDelayGates() {
+        // P24: MomentumKnown defaults to 0, so a gauge of 0 units cannot be told from "not filled in".
+        // Every pre-update observation therefore behaves as it did.
+        CpuDecisionObservation handBuilt = SpecialRange(known: false, units: 0, reuse: 0);
+        AssertThat(handBuilt.MomentumKnown).IsEqual(0);
+        AssertThat(CountSpecialOnePresses(SpecialTuning(), handBuilt) > 0)
+            .OverrideFailureMessage("An unknown gauge must not starve the Special.")
+            .IsTrue();
+        AssertThat(CountSpecialOnePresses(SpecialTuning(), SpecialRange(known: false, units: 0, reuse: 30)))
+            .OverrideFailureMessage("The reuse delay still gates a hand-built observation.")
+            .IsEqual(0);
+    }
+
     // === Helpers ===
+
+    private static CpuBandTuning SpecialTuning() => CpuBandTuning.Normal with {
+        SpecialOneClosePercent = 100,
+        SpecialTwoPercent = 0,
+        UltimatePercent = 0,
+        GrabAdmissionPercent = 0,
+        EvasiveRollPercent = 0,
+        BlockPercent = 0
+    };
+
+    private static CpuDecisionObservation SpecialRange(bool known, int units, int reuse) => new() {
+        Stocks = 3,
+        SelfCurrentHP = 100,
+        SelfMaxHP = 100,
+        IsGrounded = 1,
+        MomentumKnown = known ? 1 : 0,
+        SelfMomentumUnits = units,
+        SpecialOneCooldownFrames = reuse,
+        SpecialTwoCooldownFrames = reuse,
+        TargetPositionXRaw = FP64.FromDouble(1.0).RawValue,
+        TargetCurrentHP = 100,
+        TargetMaxHP = 100
+    };
+
+    private static int CountSpecialOnePresses(CpuBandTuning tuning, CpuDecisionObservation observation) {
+        var cpu = new FighterCpuController(CpuDifficulty.Normal, 612, null, null, tuning);
+        PlayerInputFrame previous = default;
+        int presses = 0;
+        for (uint tick = 0; tick < 240; tick++) {
+            PlayerInputFrame frame = cpu.Sample(tick, in observation, in previous);
+            previous = frame;
+            if (frame.IsPressed(GameplayButtons.Special1)) presses++;
+        }
+        return presses;
+    }
 
     private static FighterCpuController NewNormal(CpuBandTuning tuning) =>
         new(CpuDifficulty.Normal, 555, null, null, tuning);
