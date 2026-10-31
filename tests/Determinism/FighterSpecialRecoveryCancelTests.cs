@@ -741,6 +741,110 @@ public class FighterSpecialRecoveryCancelTests {
         if (failures.Count > 0) AssertThat(string.Join(" | ", failures)).IsEqual("");
     }
 
+    /// <summary>
+    /// MM-FIXB2C review nit: the real allocation, no hand-edited ids. Einstein casts E=mc² twice back to back
+    /// (the reuse delay cleared with <see cref="MomentumTestKit"/>). Each cast takes its own
+    /// <c>SpecialCastId</c>. When the first shot is still in flight as the second cast begins (target far),
+    /// its late hit arms nothing for the second cast; when it has already landed (target near), the second
+    /// cast's own hit arms D3. A snapshot taken across the overlap, restored and replayed, ends in the same
+    /// state and the same flag.
+    /// </summary>
+    [TestCase]
+    public void TwoRealCastsGetDistinctIdsAndOnlyTheCurrentCastsHitArmsD3() {
+        // Far target: the first shot lands during the second cast.
+        TwoCastRun overlap = RunTwoCasts(spawnDistance: 4, snapshotAcrossOverlap: true);
+        AssertThat(overlap.FirstId != overlap.SecondId)
+            .OverrideFailureMessage($"Two real casts took the same id ({overlap.FirstId}).").IsTrue();
+        AssertThat(overlap.FirstHitDuringSecondCast)
+            .OverrideFailureMessage("Harness: the first shot did not land while the second cast was in progress. " + overlap.Trace)
+            .IsTrue();
+        AssertThat(overlap.ArmedAfterFirstShotHit)
+            .OverrideFailureMessage("The first cast's late hit armed the second cast's D3. " + overlap.Trace).IsFalse();
+        AssertThat(overlap.ReplayHash).OverrideFailureMessage("The restored overlap diverged.").IsEqual(overlap.FinalHash);
+        AssertThat(overlap.ReplayArmed).IsEqual(overlap.ArmedAfterFirstShotHit);
+        AssertThat(overlap.ReplayHP).IsEqual(overlap.FinalHP);
+
+        // Near target: the first shot lands before the second cast; the second cast's own shot lands during it.
+        TwoCastRun near = RunTwoCasts(spawnDistance: 2, snapshotAcrossOverlap: false);
+        AssertThat(near.FirstId != near.SecondId).IsTrue();
+        AssertThat(near.SecondShotHitDuringSecondCast)
+            .OverrideFailureMessage("Harness: the second shot did not land during the second cast. " + near.Trace).IsTrue();
+        AssertThat(near.ArmedAfterSecondShotHit)
+            .OverrideFailureMessage("The second cast's own hit did not arm D3. " + near.Trace).IsTrue();
+    }
+
+    private sealed class TwoCastRun {
+        public int FirstId, SecondId, FinalHP, ReplayHP;
+        public long FinalHash, ReplayHash;
+        public bool FirstHitDuringSecondCast, ArmedAfterFirstShotHit, ReplayArmed;
+        public bool SecondShotHitDuringSecondCast, ArmedAfterSecondShotHit;
+        public string Trace = "";
+    }
+
+    private static TwoCastRun RunTwoCasts(int spawnDistance, bool snapshotAcrossOverlap) {
+        var run = new TwoCastRun();
+        var simulation = new FighterSimulation(
+            Authored("einstein"), FighterLoadout.Default(FighterCharacterID.Joan),
+            seed: 11701, spawnDistance: spawnDistance, rules: FighterMatchRules.Disabled);
+        Idle(simulation, 2);
+        int hp = Fighter(simulation, 1).CurrentHP;
+        int casts = 0;
+        int hits = 0;
+        bool wasBusy = false;
+        byte[] snapshot = null;
+        int snapshotTick = 0;
+        var inputs = new List<bool>();   // true = Special 1 pressed, after the snapshot is empty by construction
+        for (int tick = 0; tick < 200; tick++) {
+            bool press = casts < 2 && !FighterSpecialCastRules.IsBusy(Cast(simulation, 0));
+            if (press) MomentumTestKit.KeepFull(simulation, 0);
+            simulation.Advance(press ? In(GameplayButtons.Special1) : Neutral(), Neutral());
+            FighterActionStateComponent cast = Cast(simulation, 0);
+            bool busy = FighterSpecialCastRules.IsBusy(cast);
+            if (busy && !wasBusy) {
+                casts++;
+                if (casts == 1) run.FirstId = cast.SpecialCastId;
+                if (casts == 2) {
+                    run.SecondId = cast.SpecialCastId;
+                    if (snapshotAcrossOverlap) { snapshot = simulation.CaptureFullState(); snapshotTick = tick; }
+                }
+            }
+            wasBusy = busy;
+            int now = Fighter(simulation, 1).CurrentHP;
+            if (now < hp) {
+                hits++;
+                bool armed = FighterSpecialCancelRules.LandedDirectHit(cast);
+                bool inSecond = casts == 2 && busy;
+                run.Trace += $"[hit{hits}@{tick} casts={casts} busy={busy} armed={armed}]";
+                if (hits == 1 && inSecond) { run.FirstHitDuringSecondCast = true; run.ArmedAfterFirstShotHit = armed; }
+                if (hits >= 1 && casts == 2 && inSecond && !run.FirstHitDuringSecondCast) {
+                    run.SecondShotHitDuringSecondCast = true; run.ArmedAfterSecondShotHit = armed;
+                }
+                hp = now;
+            }
+            if (casts == 2 && snapshotAcrossOverlap && hits >= 1 && tick > snapshotTick + 60) break;
+        }
+        run.FinalHP = Fighter(simulation, 1).CurrentHP;
+        run.FinalHash = simulation.CurrentHash;
+        if (snapshot != null) {
+            // Replay the same neutral ticks from the snapshot taken as the second cast began.
+            int endTick = simulation.CurrentTick;
+            simulation.RestoreFullState(snapshot);
+            bool armedAfterFirst = false;
+            int replayHP = Fighter(simulation, 1).CurrentHP;
+            int baseHP = replayHP;
+            while (simulation.CurrentTick < endTick) {
+                simulation.Advance(Neutral(), Neutral());
+                int now = Fighter(simulation, 1).CurrentHP;
+                if (now < replayHP && replayHP == baseHP) armedAfterFirst = FighterSpecialCancelRules.LandedDirectHit(Cast(simulation, 0));
+                replayHP = now;
+            }
+            run.ReplayHP = Fighter(simulation, 1).CurrentHP;
+            run.ReplayHash = simulation.CurrentHash;
+            run.ReplayArmed = armedAfterFirst;
+        }
+        return run;
+    }
+
     /// <summary>The rule itself: a report carrying another cast's identity arms nothing, its own arms.</summary>
     [TestCase]
     public void NoteLandedArmsOnlyForTheCastInProgress() {
