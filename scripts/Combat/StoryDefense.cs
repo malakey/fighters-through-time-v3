@@ -124,13 +124,6 @@ namespace FTT.Combat {
         public const float WardenclyffeDamageDelaySeconds = 3.0f;
 
         /// <summary>
-        /// D04: 60 active gameplay ticks (one second at 60 Hz) of hit
-        /// invulnerability, starting at the survivor's first resumed
-        /// normal-control tick. Ticks 1–60 are protected; tick 61 is not.
-        /// </summary>
-        public const int DefyProtectionFrames = 60;
-
-        /// <summary>
         /// D02c / D02d share the suspended-effect clock with every other
         /// combat timer: a frozen world consumes no lifetime, no recharge and
         /// no protected tick.

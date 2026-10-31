@@ -104,7 +104,7 @@ public class StoryRallyTests {
     }
 
     [TestCase]
-    public void DefyHistorySavesOneLethalHitPerLevelAtFullMeter() {
+    public void ALethalHitOnAFullMeterKillsBecauseThePassiveDefyIsGone() {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
         PlayerController player = CharacterFactory.CreateCharacter("einstein");
         tree.Root.AddChild(player);
@@ -114,25 +114,13 @@ public class StoryRallyTests {
             player.SetUltimateMeter(UltimateMeter.MaxValue);
             AssertThat(player.CurrentUltimateMeter).IsEqual(UltimateMeter.MaxValue);
 
-            int applied = player.ApplyDamage(player.MaximumHP);
-            AssertThat(player.CurrentState)
-                .OverrideFailureMessage("A lethal hit against a full meter must not kill.")
-                .IsNotEqual(CharacterState.Dead);
-            AssertThat(player.CurrentHP).IsEqual(1);
-            AssertThat(applied).IsEqual(player.MaximumHP - 1);
-            AssertThat(player.CurrentUltimateMeter)
-                .OverrideFailureMessage("Defy History shatters the meter to zero.")
-                .IsEqual(0f);
-            AssertThat(player.StoryDefyHistoryUsed).IsTrue();
-
-            // Once per level: even with the meter refilled, the next lethal
-            // hit kills normally (the Chronal Rewind takes over from there).
-            player.SetUltimateMeter(UltimateMeter.MaxValue);
-            // The refill must really be full, or "the next lethal hit kills"
-            // would pass vacuously instead of proving once-per-level.
-            AssertThat(player.CurrentUltimateMeter).IsEqual(UltimateMeter.MaxValue);
             player.ApplyDamage(player.MaximumHP);
-            AssertThat(player.CurrentState).IsEqual(CharacterState.Dead);
+            AssertThat(player.CurrentState)
+                .OverrideFailureMessage("Defy is a button now: a lethal hit on a full meter must kill.")
+                .IsEqual(CharacterState.Dead);
+            AssertThat(player.CurrentUltimateMeter)
+                .OverrideFailureMessage("No passive Defy shatters the meter.")
+                .IsEqual(UltimateMeter.MaxValue);
         } finally {
             InputManager.Instance?.ClearInputSource(player.PlayerIndex);
             player.Free();

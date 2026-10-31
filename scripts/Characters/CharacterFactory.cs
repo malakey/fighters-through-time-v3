@@ -160,22 +160,6 @@ namespace FTT.Characters {
 				player.AppliesStoryMeterGainScale = true;
 				HashSet<AbilitySlot> unlocked = ResolveStoryUnlockedSlots(characterID);
 				if (unlocked != null) player.ApplyLegacyUnlockLocks(unlocked);
-				// Package 11 A1b (V7.6 F10): Defy History is once per ATTEMPT.
-				// The per-attempt authority lives on StoryManager, so a death
-				// rewind or a mid-level resume that rebuilds the player seeds a
-				// SPENT Defy rather than handing the run a second saved life.
-				// The isolation seam is deliberate: Fighter Mode, the Holodeck,
-				// the Calibration Drills and the Mirror Paradox clone always
-				// start with an unused Defy.
-				// Integration guard: the per-attempt authority only exists inside a
-				// live campaign attempt. Outside one (the Test Arena, a headless
-				// fixture that never ran BeginLevelRun) the singleton flag is stale
-				// state from an earlier attempt and must not seed a spent Defy.
-				var storyManager = FTT.Core.StoryManager.Instance;
-				if (storyManager != null && storyManager.HasLiveAttempt
-					&& storyManager.StoryDefyHistoryUsed) {
-					player.SetStoryDefyHistoryUsed(true);
-				}
 			}
 
 			var bodyShape = new CollisionShape2D {
