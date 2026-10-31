@@ -303,24 +303,6 @@ namespace FTT.UI {
             _ => "venom"
         };
 
-        // MM-HUD removed the seal widgets; these two helpers stay for GlassKitContentTests and the kit's defy_* icons until
-        // MM-SWEEP retires them (plan 1.9, two-stage retirement).
-
-        /// <summary>Kit icon per Defy seal state; the four shapes differ (shape carries state).</summary>
-        public static string DefyIconName(DefySealState state) => state switch {
-            DefySealState.Ready => "defy_ready",
-            DefySealState.Spent => "defy_spent",
-            DefySealState.Barred => "defy_barred",
-            _ => "defy_notready"
-        };
-
-        /// <summary>UI_SPEC_GLASS 3.4.4: ready res2, not ready and spent ink3, unavailable danger.</summary>
-        public static Color DefyIconTint(DefySealState state) => state switch {
-            DefySealState.Ready => UIPalette.Res2,
-            DefySealState.Barred => UIPalette.Danger,
-            _ => UIPalette.Ink3
-        };
-
         /// <summary>
         /// MM-HUD: the Momentum gauge in pips for the sim's integer units (7200 to a pip, 0 to 4). Pure; the HUD feeds the pip
         /// row and the Special lenses' starved look through it, so the sim stub or the real gauge reads the same way.

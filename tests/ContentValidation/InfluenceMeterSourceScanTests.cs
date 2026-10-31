@@ -40,7 +40,6 @@ public class InfluenceMeterSourceScanTests {
         "scripts/Core/SaveManager.cs",
         "scripts/Environment/Level00Controller.cs",
         "scripts/Environment/StoryLevelControllerBase.cs",
-        "scripts/UI/DefySealModel.cs",
         "scripts/UI/FighterHudModel.cs",
         "scripts/UI/HudAbilityIndicatorModel.cs",
         "scripts/UI/StoryHUD.cs",
@@ -211,6 +210,31 @@ public class InfluenceMeterSourceScanTests {
                 + string.Join(" ; ", writers));
         }
 
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
+    /// <summary>
+    /// Meter and Defy update (plan 1.2): every Story-only identifier of the Momentum gauge and the
+    /// flat-effect scaling stays out of the Fighter simulation, which has its own integer views.
+    /// </summary>
+    [TestCase]
+    public void NothingUnderTheFighterSimNamesAStoryOnlyMomentumOrScaleIdentifier() {
+        var issues = new List<string>();
+        string simRoot = Absolute("scripts/FighterSim");
+        string[] simFiles = Directory.GetFiles(simRoot, "*.cs", SearchOption.AllDirectories);
+        if (simFiles.Length <= 10) issues.Add($"the FighterSim walk found only {simFiles.Length} files");
+        foreach (string path in simFiles) {
+            string file = "scripts/FighterSim/" + Path.GetRelativePath(simRoot, path).Replace('\\', '/');
+            string code = Code(file);
+            foreach (string forbidden in new[] {
+                         "StoryCombatRules", "MeterGainScale", "FlatEffectScale", "FlatMeterScale", "ScaleStoryFlatMeter",
+                         "StoryMeterGainFactor", "MomentumRegen", "MomentumRegenMultiplier", "LegacyUnlockSchedule" }) {
+                // Whole identifiers: the shared BasicComboRules.MomentumRegenUnitsPerFrame is not the Story multiplier.
+                if (Regex.IsMatch(code, @"\b" + forbidden + @"\b")) {
+                    issues.Add($"{file} names the Story-only {forbidden}");
+                }
+            }
+        }
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 

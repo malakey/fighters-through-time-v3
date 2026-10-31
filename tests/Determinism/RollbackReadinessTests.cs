@@ -920,7 +920,6 @@ internal static class RollbackHarnessKits {
             (int)characterID,
             100, 3, 2,
             10, 12, 11, 20,
-            60, 90,
             (int)StatusType.None, 0,
             (int)StatusType.None, 0,
             (int)StatusType.None, 0,

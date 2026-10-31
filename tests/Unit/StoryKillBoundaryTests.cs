@@ -54,16 +54,12 @@ public class StoryKillBoundaryTests {
             player.CurrentUltimateMeter = FTT.Combat.UltimateMeter.MaxValue;
             AssertThat(player.CurrentUltimateMeter)
                 .IsEqualApprox(FTT.Combat.UltimateMeter.MaxValue, 0.001f);
-            AssertThat(player.StoryDefyHistoryUsed).IsFalse();
 
             boundary.Resolve(player);
 
             AssertThat(player.CurrentHP)
                 .OverrideFailureMessage("Defy History must not save the player from a pit.")
                 .IsEqual(0);
-            AssertThat(player.StoryDefyHistoryUsed)
-                .OverrideFailureMessage("A pit must never spend the run's one Defy.")
-                .IsFalse();
             AssertThat(player.CurrentUltimateMeter)
                 .OverrideFailureMessage("A fall shatters no meter.")
                 .IsEqualApprox(FTT.Combat.UltimateMeter.MaxValue, 0.001f);

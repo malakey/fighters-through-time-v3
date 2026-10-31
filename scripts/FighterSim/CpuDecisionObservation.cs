@@ -59,9 +59,9 @@ namespace FTT.FighterSim {
         /// again. The sim fills it from <c>FighterRuntimeComponent.SpecialOneReuseFrames</c>, Story
         /// from the slot's 2 s reuse timer.
         /// </summary>
-        public int SpecialOneCooldownFrames;
-        /// <summary>Special 2's reuse delay in frames (see <see cref="SpecialOneCooldownFrames"/>).</summary>
-        public int SpecialTwoCooldownFrames;
+        public int SpecialOneReuseFrames;
+        /// <summary>Special 2's reuse delay in frames (see <see cref="SpecialOneReuseFrames"/>).</summary>
+        public int SpecialTwoReuseFrames;
         /// <summary>
         /// Meter and Defy update (P24): 1 when <see cref="SelfMomentumUnits"/> is the real gauge. 0 (the
         /// default of a hand-built observation) means unknown, so 0 units cannot be told from "not

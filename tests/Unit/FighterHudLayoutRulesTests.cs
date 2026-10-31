@@ -61,19 +61,12 @@ public class FighterHudLayoutRulesTests {
     }
 
     [TestCase]
-    public void EveryStatusAndDefyStateHasADistinctKitIconAndTheModeCaptionHasAKey() {
+    public void EveryStatusHasADistinctKitIconAndTheModeCaptionHasAKey() {
         var seen = new System.Collections.Generic.HashSet<string>();
         foreach (StatusType status in new[] {
             StatusType.TimeDilation, StatusType.Venom, StatusType.StaticCharge, StatusType.RadiantBurn, StatusType.Root }) {
             string icon = FighterHudModel.StatusIconName(status);
             if (!seen.Add(icon)) AssertThat("duplicate status icon " + icon).IsEqual("");
-            if (!FTT.UI.Pulp.PulpIcon.Exists(icon)) AssertThat("missing kit icon " + icon).IsEqual("");
-        }
-        var defy = new System.Collections.Generic.HashSet<string>();
-        foreach (DefySealState state in new[] {
-            DefySealState.Building, DefySealState.Ready, DefySealState.Spent, DefySealState.Barred }) {
-            string icon = FighterHudModel.DefyIconName(state);
-            if (!defy.Add(icon)) AssertThat("duplicate Defy icon " + icon).IsEqual("");
             if (!FTT.UI.Pulp.PulpIcon.Exists(icon)) AssertThat("missing kit icon " + icon).IsEqual("");
         }
         AssertThat(FighterHudModel.ModeLabelKey((int)MatchMode.Stock)).IsEqual("fighter_hud_mode_stock");

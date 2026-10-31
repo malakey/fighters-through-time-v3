@@ -30,7 +30,7 @@ public class ShakespeareContentTests {
         // speed x (1 - 0.5 x intensity); the authored 0.6 intensity yields the
         // design's 30% movement/animation slow (0.5 x 0.6 = 0.3).
         AssertThat(data.StatusIntensity).IsEqual(0.6f);
-        AssertThat(data.CooldownDuration).IsEqual(7f);
+        AssertThat(data.CooldownDuration).IsEqual(0f);
         // S03 (Package 13 W7a): thrown straight at 10 units/s up to 8 units,
         // bursting on a fighter, terrain or max range into a 1.5-unit wave —
         // 5 contact + 16 wave (BaseDamage is the wave).
@@ -53,7 +53,7 @@ public class ShakespeareContentTests {
         // band); the unused damage-tick field is zeroed so the resource stays
         // canonical.
         AssertThat(data.DamageTickIntervalFrames).IsEqual(0);
-        AssertThat(data.CooldownDuration).IsEqual(7f);
+        AssertThat(data.CooldownDuration).IsEqual(0f);
         // S02 (Package 13 W7a): 8 startup, a 12-frame push window that is also
         // the storm's Fighter zone lifetime, 16 recovery.
         AssertThat(data.StartupFrames).IsEqual(8);

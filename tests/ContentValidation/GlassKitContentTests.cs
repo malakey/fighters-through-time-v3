@@ -242,10 +242,6 @@ public class GlassKitContentTests {
             names.Add(HudAbilityIndicatorModel.StatusIconName(status));
             names.Add(FighterHudModel.StatusIconName(status));
         }
-        foreach (DefySealState state in Enum.GetValues<DefySealState>()) {
-            names.Add(DefySealModel.IconName(state));
-            names.Add(FighterHudModel.DefyIconName(state));
-        }
         names.Remove("");
         var missing = new List<string>();
         foreach (string n in names) {
@@ -256,7 +252,7 @@ public class GlassKitContentTests {
         if (missing.Count > 0) {
             AssertThat("no glass icon for: " + string.Join(", ", missing)).IsEqual("");
         }
-        AssertThat(names.Count >= 10).IsTrue();
+        AssertThat(names.Count >= 6).IsTrue();
     }
 
     [TestCase]

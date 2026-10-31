@@ -45,7 +45,7 @@ public class TeslaContentTests {
         // V7: the unearned (coil-less) cast is trimmed out of the top band; the
         // chain-lightning reward with coils primed makes up the difference.
         AssertThat(data.BaseDamage).IsEqual(20f);
-        AssertThat(data.CooldownDuration).IsEqual(11f);
+        AssertThat(data.CooldownDuration).IsEqual(0f);
     }
 
     [TestCase]

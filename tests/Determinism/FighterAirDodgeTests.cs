@@ -199,7 +199,6 @@ public class FighterAirDodgeTests {
         (int)FighterCharacterID.Einstein,
         100, 3, 2,
         10, 14, 12, 20,
-        600, 600,
         (int)FTT.Core.StatusType.None, 0,
         (int)FTT.Core.StatusType.None, 0,
         (int)FTT.Core.StatusType.None, 0,

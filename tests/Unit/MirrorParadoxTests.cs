@@ -282,8 +282,8 @@ public class MirrorParadoxTests {
         AssertThat(observation.SelfCurrentHP).IsEqual(64);
         AssertThat(observation.SelfMaxHP).IsEqual(100);
         AssertThat(observation.InfluenceRaw).IsEqual(self.Influence.RawValue);
-        AssertThat(observation.SpecialOneCooldownFrames).IsEqual(11);
-        AssertThat(observation.SpecialTwoCooldownFrames).IsEqual(22);
+        AssertThat(observation.SpecialOneReuseFrames).IsEqual(11);
+        AssertThat(observation.SpecialTwoReuseFrames).IsEqual(22);
         AssertThat(observation.MovementCooldownFrames).IsEqual(33);
         AssertThat(observation.AbilityLockoutFrames).IsEqual(17);
         // D1 (2026-10-11): the hit-confirm state projects losslessly too.

@@ -229,7 +229,7 @@ public class CpuSelfActionStateTests {
                 observation.SelfSpecialCastPhaseFrames = t < castEnd - 20 ? castEnd - 20 - t : castEnd - t;
                 observation.AbilityLockoutFrames = System.Math.Max(0, 30 - t);
                 observation.SpecialLockoutFrames = observation.AbilityLockoutFrames;
-                observation.SpecialOneCooldownFrames = 0;
+                observation.SpecialOneReuseFrames = 0;
             }
             PlayerInputFrame frame = cpu.Sample(tick, in observation, in previous);
             previous = frame;
@@ -413,7 +413,6 @@ public class CpuSelfActionStateTests {
         (int)FighterCharacterID.Einstein,
         100, 3, 2,
         10, 14, 12, 20,
-        600, 600,
         (int)StatusType.None, 0,
         (int)StatusType.None, 0,
         (int)StatusType.None, 0,

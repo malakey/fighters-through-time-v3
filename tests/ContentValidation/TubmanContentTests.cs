@@ -55,7 +55,7 @@ public class TubmanContentTests {
         AssertFloat(call.BaseDamage).IsEqual(18f);
         AssertThat(call.StartupFrames).IsEqual(12);
         AssertThat(call.RecoveryFrames).IsEqual(18);
-        AssertFloat(call.CooldownDuration).IsEqual(9f);
+        AssertFloat(call.CooldownDuration).IsEqual(0f);
         AssertThat(call.BlockClass).IsEqual(BlockClass.Special);
         AssertThat(call.Launches).IsFalse();
         // Five units along the ground in both modes: Story sweeps speed ×
@@ -71,7 +71,7 @@ public class TubmanContentTests {
         AssertThat(foresight.StartupFrames).IsEqual(4);
         AssertThat(foresight.ActiveFrames).IsEqual(20);
         AssertThat(foresight.RecoveryFrames).IsEqual(24);
-        AssertFloat(foresight.CooldownDuration).IsEqual(10f);
+        AssertFloat(foresight.CooldownDuration).IsEqual(0f);
         AssertThat(foresight.Launches).IsTrue();
         AssertFloat(TubmanKitRules.ForesightAnswerRangeUnits).IsEqual(2.5f);
 

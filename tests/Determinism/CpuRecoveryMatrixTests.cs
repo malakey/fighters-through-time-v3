@@ -403,7 +403,7 @@ public class CpuRecoveryMatrixTests {
             observation.SelfVelocityYRaw = velocityY.RawValue;
             observation.RemainingJumps = remainingJumps;
             observation.MovementCooldownFrames = movementCooldown;
-            observation.SpecialOneCooldownFrames = specialCooldown;
+            observation.SpecialOneReuseFrames = specialCooldown;
             observation.LaunchTrajectoryCrossesGap =
                 velocityY <= FP64.Zero && !geometry.HasFloorSupport(x) ? 1 : 0;
 

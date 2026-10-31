@@ -406,11 +406,6 @@ ICON_TABLE = {
                 "#8A8374", "-", GENERIC),
     "cross": ("plain cross glyph (defined, unused on the six screens; an ability slot uses lock_suppressed)",
               "#38F2FF cold", "-", GENERIC),
-    "defy_ready": ("Defy seal, ready (ring, core, four rays)", "#FFF0B0 (res2)", "34 Story / 32 Fighter",
-                   ("defy", _sig(7, 34), _sig(7, 28), 0.75, _pre((255, 232, 122), RES2))),
-    "defy_notready": ("Defy seal, not ready (hollow ring)", "#8A8374 (ink3)", "34 / 32", GENERIC),
-    "defy_spent": ("Defy seal, spent (broken ring)", "#8A8374 (ink3)", "34 / 32", GENERIC),
-    "defy_barred": ("Defy seal, unavailable (ring and slash)", "#FF5A5A (danger)", "34 / 32", GENERIC),
     "slot_p1": ("player 1 slot shape (triangle; 20-unit box filling the texture)", "UIPalette.P1",
                 "22 in a 30 box (28 on select tiles)", NO_GLOW),
     "slot_p2": ("player 2 slot shape (circle; 20-unit box filling the texture)", "UIPalette.P2",
@@ -432,8 +427,8 @@ ICON_TABLE = {
 }
 
 # Glyphs the spec draws in one weight. Their bold texture is derived: strokes x1.5 (F 1.5 -> 2.25, D 1.35 -> 2.0,
-# the Defy 1.6 -> 2.4, the slot-lock cross 2.6 -> 3.9); a solid glyph's bold is its regular art.
-SINGLE_WEIGHT = ("check_solid", "cross", "defy_barred", "defy_notready", "defy_ready", "defy_spent", "dormant",
+# the slot-lock cross 2.6 -> 3.9); a solid glyph's bold is its regular art.
+SINGLE_WEIGHT = ("check_solid", "cross", "dormant",
                  "hourglass_caret", "lock_dormant", "lock_suppressed", "slot_p1", "slot_p2")
 BOLD_STROKE = {"1.5": "2.25", "1.35": "2.0", "1.6": "2.4", "2.6": "3.9"}
 ICON_SOURCE_OF = {"shield_off": "shield"}   # a texture name drawn from another glyph's source

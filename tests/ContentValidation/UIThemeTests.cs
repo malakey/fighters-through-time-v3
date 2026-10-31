@@ -806,7 +806,7 @@ public class UIThemeTests {
             ("SliderTrack", 255, 255, 255, 0.12f), ("ScrollTrack", 255, 255, 255, 0.06f), ("TickLine", 255, 255, 255, 0.13f),
             ("RingTrack", 243, 201, 91, 0.16f), ("FocusGlow", 243, 201, 91, 0.55f),
             ("ReadyBadgeFill", 243, 201, 91, 0.14f), ("ReadyBadgeGlow", 243, 201, 91, 0.30f),
-            ("PipGlow", 143, 216, 255, 0.60f), ("DefyReadyGlow", 255, 232, 122, 0.75f), ("BossEdge", 255, 77, 98, 1f),
+            ("PipGlow", 143, 216, 255, 0.60f), ("BossEdge", 255, 77, 98, 1f),
             ("BossGlow", 255, 77, 98, 0.30f), ("BossTracker", 255, 255, 255, 0.55f), ("TabSelectedInk", 0x04, 0x14, 0x1A, 1f),
             ("PauseDim", 3, 5, 14, 0.70f), ("GameOverDim", 3, 5, 14, 0.82f), ("ScrimMenu", 4, 7, 20, 0.96f),
             ("SelectVignette", 3, 5, 16, 0.55f), ("TopShade", 6, 4, 12, 0.80f), ("TitleTop", 0xFF, 0xFF, 0xFF, 1f),

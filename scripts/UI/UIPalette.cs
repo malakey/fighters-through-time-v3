@@ -287,8 +287,6 @@ namespace FTT.UI {
         public static readonly Color Selection = Hex(0xF3, 0xC9, 0x5B, 0.40f);
         /// <summary>The block pip glow (rgba(143, 216, 255, .6)).</summary>
         public static readonly Color PipGlow = Hex(0x8F, 0xD8, 0xFF, 0.60f);
-        /// <summary>The Defy-ready glow (rgba(255, 232, 122, .75)).</summary>
-        public static readonly Color DefyReadyGlow = Hex(0xFF, 0xE8, 0x7A, 0.75f);
         /// <summary>The boss tube's edge (#FF4D62, PAL-A's boss red, which the mock hard-codes).</summary>
         public static readonly Color BossEdge = Hex(0xFF, 0x4D, 0x62);
         /// <summary>The boss tube's glow (rgba(255, 77, 98, .30)).</summary>

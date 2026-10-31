@@ -268,7 +268,7 @@ namespace FTT.Core {
         /// <summary>The cap this attempt was initialized with (Easy 3 / Normal 2 / Hard 1).</summary>
         public int AnchorChargeMaximum;
 
-        /// <summary>F10: Story Defy History is once per <i>attempt</i>, not per level entry.</summary>
+        /// <summary>Dead save data since the meter and Defy update (2026-10-31): still deserializable, never written.</summary>
         public bool DefyHistoryUsed;
 
         public StoryCheckpointRecord CheckpointRecord = new();
@@ -359,11 +359,10 @@ namespace FTT.Core {
             attempt.PlayerResourceTimers.TimeFreezeCooldownSeconds = Math.Max(0f, save.TimeFreezeCooldownSeconds);
 
             if (midLevel) {
-                // No anchors, no unused-Defy claim, no reward ledger can be
-                // reconstructed — so claim none of them and say so.
+                // No anchors and no reward ledger can be reconstructed —
+                // so claim none of them and say so.
                 attempt.AnchorChargesRemaining = 0;
                 attempt.AnchorChargeMaximum = 0;
-                attempt.DefyHistoryUsed = true;
                 attempt.Status = StoryAttemptStatus.LegacyRecoveryRequired;
             } else {
                 attempt.Status = StoryAttemptStatus.Active;

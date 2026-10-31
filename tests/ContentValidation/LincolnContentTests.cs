@@ -27,7 +27,7 @@ public class LincolnContentTests {
         AssertThat(data.BlockClass).IsEqual(BlockClass.ShieldBreaker);
         // V7 band: the roster's biggest single hit sits at the top of the
         // 6-14 s cooldown band with haymaker frames (design §5).
-        AssertThat(data.CooldownDuration).IsEqual(13f);
+        AssertThat(data.CooldownDuration).IsEqual(0f);
         AssertThat(data.StartupFrames).IsEqual(16);
         // A dominant upward launch.
         AssertThat(data.Launches).IsTrue();
@@ -44,7 +44,7 @@ public class LincolnContentTests {
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Melee);
         AssertThat(data.BaseDamage).IsEqual(36f);
-        AssertThat(data.CooldownDuration).IsEqual(12f);
+        AssertThat(data.CooldownDuration).IsEqual(0f);
         // LN03 (Package 13 W7b): a 2.2-unit (132 px) overhead arc from his
         // front, whose authored vector spikes (points down).
         AssertThat(data.HitboxSize.X).IsEqual(132f);

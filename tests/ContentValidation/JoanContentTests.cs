@@ -47,7 +47,7 @@ public class JoanContentTests {
         AssertThat(data.HitCount).IsEqual(3);
         AssertThat(data.BaseDamage).IsEqual(8f);
         AssertThat(data.BlockClass).IsEqual(BlockClass.ShieldBreaker);
-        AssertThat(data.CooldownDuration).IsEqual(11f);
+        AssertThat(data.CooldownDuration).IsEqual(0f);
         AssertThat(data.StartupFrames).IsEqual(13);
         AssertThat(data.RecoveryFrames).IsEqual(20);
     }

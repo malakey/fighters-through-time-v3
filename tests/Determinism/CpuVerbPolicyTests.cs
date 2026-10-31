@@ -187,8 +187,8 @@ public class CpuVerbPolicyTests {
         IsGrounded = 1,
         MomentumKnown = known ? 1 : 0,
         SelfMomentumUnits = units,
-        SpecialOneCooldownFrames = reuse,
-        SpecialTwoCooldownFrames = reuse,
+        SpecialOneReuseFrames = reuse,
+        SpecialTwoReuseFrames = reuse,
         TargetPositionXRaw = FP64.FromDouble(1.0).RawValue,
         TargetCurrentHP = 100,
         TargetMaxHP = 100

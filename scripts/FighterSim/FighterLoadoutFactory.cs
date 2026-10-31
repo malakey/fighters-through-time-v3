@@ -29,8 +29,6 @@ namespace FTT.FighterSim {
                 RoundDamage(SpecialDamage(specialOne)),
                 RoundDamage(SpecialDamage(specialTwo)),
                 RoundDamage(ultimate?.BaseDamage ?? 0f),
-                CooldownFrames(specialOne),
-                CooldownFrames(specialTwo),
                 (int)(specialOne?.AppliedStatus ?? FTT.Core.StatusType.None),
                 DurationFrames(specialOne?.StatusDuration ?? 0f),
                 (int)(specialTwo?.AppliedStatus ?? FTT.Core.StatusType.None),

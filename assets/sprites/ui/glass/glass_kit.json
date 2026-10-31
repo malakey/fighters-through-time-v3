@@ -674,126 +674,6 @@
   "tint": "#38F2FF cold",
   "weight": "bold"
  },
- "glass_ico_defy_barred": {
-  "file": "icons/defy_barred.png",
-  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
-  "icon": "defy_barred",
-  "mipmaps": true,
-  "serves": "Defy seal, unavailable (ring and slash)",
-  "shown_at": "34 / 32",
-  "size": [
-   64,
-   64
-  ],
-  "source": "tools/asset_src/glass/svg/icons/defy_barred.svg",
-  "tint": "#FF5A5A (danger)",
-  "weight": "regular"
- },
- "glass_ico_defy_barred_bold": {
-  "file": "icons/defy_barred_bold.png",
-  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
-  "icon": "defy_barred",
-  "mipmaps": true,
-  "serves": "Defy seal, unavailable (ring and slash)",
-  "shown_at": "34 / 32",
-  "size": [
-   64,
-   64
-  ],
-  "source": "tools/asset_src/glass/svg/icons/defy_barred_bold.svg",
-  "tint": "#FF5A5A (danger)",
-  "weight": "bold"
- },
- "glass_ico_defy_notready": {
-  "file": "icons/defy_notready.png",
-  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
-  "icon": "defy_notready",
-  "mipmaps": true,
-  "serves": "Defy seal, not ready (hollow ring)",
-  "shown_at": "34 / 32",
-  "size": [
-   64,
-   64
-  ],
-  "source": "tools/asset_src/glass/svg/icons/defy_notready.svg",
-  "tint": "#8A8374 (ink3)",
-  "weight": "regular"
- },
- "glass_ico_defy_notready_bold": {
-  "file": "icons/defy_notready_bold.png",
-  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
-  "icon": "defy_notready",
-  "mipmaps": true,
-  "serves": "Defy seal, not ready (hollow ring)",
-  "shown_at": "34 / 32",
-  "size": [
-   64,
-   64
-  ],
-  "source": "tools/asset_src/glass/svg/icons/defy_notready_bold.svg",
-  "tint": "#8A8374 (ink3)",
-  "weight": "bold"
- },
- "glass_ico_defy_ready": {
-  "file": "icons/defy_ready.png",
-  "glow": "defy: Gaussian sigma 6.59 bake px at 0.75, rgb(255, 246, 177) baked, so the tint's modulate lands it on the spec colour",
-  "icon": "defy_ready",
-  "mipmaps": true,
-  "serves": "Defy seal, ready (ring, core, four rays)",
-  "shown_at": "34 Story / 32 Fighter",
-  "size": [
-   64,
-   64
-  ],
-  "source": "tools/asset_src/glass/svg/icons/defy_ready.svg",
-  "tint": "#FFF0B0 (res2)",
-  "weight": "regular"
- },
- "glass_ico_defy_ready_bold": {
-  "file": "icons/defy_ready_bold.png",
-  "glow": "defy: Gaussian sigma 8.0 bake px at 0.75, rgb(255, 246, 177) baked, so the tint's modulate lands it on the spec colour",
-  "icon": "defy_ready",
-  "mipmaps": true,
-  "serves": "Defy seal, ready (ring, core, four rays)",
-  "shown_at": "34 Story / 32 Fighter",
-  "size": [
-   64,
-   64
-  ],
-  "source": "tools/asset_src/glass/svg/icons/defy_ready_bold.svg",
-  "tint": "#FFF0B0 (res2)",
-  "weight": "bold"
- },
- "glass_ico_defy_spent": {
-  "file": "icons/defy_spent.png",
-  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
-  "icon": "defy_spent",
-  "mipmaps": true,
-  "serves": "Defy seal, spent (broken ring)",
-  "shown_at": "34 / 32",
-  "size": [
-   64,
-   64
-  ],
-  "source": "tools/asset_src/glass/svg/icons/defy_spent.svg",
-  "tint": "#8A8374 (ink3)",
-  "weight": "regular"
- },
- "glass_ico_defy_spent_bold": {
-  "file": "icons/defy_spent_bold.png",
-  "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
-  "icon": "defy_spent",
-  "mipmaps": true,
-  "serves": "Defy seal, spent (broken ring)",
-  "shown_at": "34 / 32",
-  "size": [
-   64,
-   64
-  ],
-  "source": "tools/asset_src/glass/svg/icons/defy_spent_bold.svg",
-  "tint": "#8A8374 (ink3)",
-  "weight": "bold"
- },
  "glass_ico_dilation": {
   "file": "icons/dilation.png",
   "glow": "generic: Gaussian sigma 2.5 bake px at 0.60, white, tinted by modulate",
@@ -1436,10 +1316,6 @@
    "chevron_down",
    "clock",
    "cross",
-   "defy_barred",
-   "defy_notready",
-   "defy_ready",
-   "defy_spent",
    "dilation",
    "dormant",
    "dust",

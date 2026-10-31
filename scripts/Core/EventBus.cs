@@ -424,26 +424,8 @@ namespace FTT.Core {
         Suppression = 6
     }
 
-    // === Package 11 A5: ability slot lock states + the F13 Defy seal =======
+    // === Package 11 A5: ability slot lock states =======
     // Appended per plan §2.9. Publishers never touch the HUD; A8 subscribes.
-
-    /// <summary>
-    /// F13 Defy History seal. <c>Building</c> = unused but below a full meter
-    /// (the dim intact seal); <c>Ready</c> = lit, a full meter will refuse the
-    /// next lethal hit; <c>Spent</c> = broken, and refilling the meter does not
-    /// restore it; <c>Barred</c> = unavailable in this context.
-    /// </summary>
-    public enum DefySealState {
-        Building,
-        Ready,
-        Spent,
-        Barred
-    }
-
-    public struct DefySealPayload {
-        public int PlayerIndex;
-        public DefySealState State;
-    }
 
     /// <summary>
     /// A Defy History burst fired its blast (meter and Defy update 2026-10-31, plan section 2.11).
@@ -808,14 +790,7 @@ namespace FTT.Core {
         public void RaiseAbilityLockoutRefused(AbilityLockoutRefusedPayload payload) =>
             OnAbilityLockoutRefused?.Invoke(payload);
 
-// === Package 11 A5 declares / A1b takes over in Wave 2 (plan §2.9) ===
-        // The F13 Defy seal. A5 publishes the Level 0 calibration's forced
-        // lit → broken states so the tutorial can teach the rule; A1b becomes
-        // the general publisher when it lands.
-        public event Action<DefySealPayload> OnDefySealChanged;
-        public void RaiseDefySealChanged(DefySealPayload payload) =>
-            OnDefySealChanged?.Invoke(payload);
-        // Meter and Defy update 2026-10-31: the active Defy's blast (nothing raises it until MM-SDEFY).
+// Meter and Defy update 2026-10-31: the active Defy's blast.
         public event Action<DefyExecutedPayload> OnDefyExecuted;
         public void RaiseDefyExecuted(DefyExecutedPayload payload) =>
             OnDefyExecuted?.Invoke(payload);

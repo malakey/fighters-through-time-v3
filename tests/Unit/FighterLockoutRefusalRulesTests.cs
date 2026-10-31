@@ -402,7 +402,6 @@ public class FighterLockoutRefusalRulesTests {
         (int)character,
         100, 3, 2,
         10, 14, 12, 20,
-        0, 0,
         (int)StatusType.None, 0,
         (int)StatusType.None, 0,
         (int)StatusType.None, 0,

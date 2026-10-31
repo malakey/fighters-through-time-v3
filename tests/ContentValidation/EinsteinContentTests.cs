@@ -31,7 +31,7 @@ public class EinsteinContentTests {
         AssertThat(data.ProjectileBurstsOnTerrain).IsTrue();
         AssertThat(data.StartupFrames).IsEqual(14);
         AssertThat(data.RecoveryFrames).IsEqual(20);
-        AssertThat(data.CooldownDuration).IsEqual(11f);
+        AssertThat(data.CooldownDuration).IsEqual(0f);
         // "No range limit": the flight cap outlasts any wall-to-wall crossing
         // (the widest arena is 20 units) at 12 units/s.
         AssertThat(data.ProjectileSpeed * data.ProjectileLifetime > 20f * KitMotionRules.StoryPixelsPerUnit).IsTrue();

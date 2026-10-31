@@ -147,11 +147,8 @@ public class SuppressionTests {
                 .IsEqual(CharacterState.Rolling);
             for (int frame = 0; frame < 40; frame++) SendInput(player, GameplayButtons.None);
 
-            // Rally's echo pool and Defy History are untouched state, not casts:
+            // Rally's echo pool is untouched state, not a cast:
             // Suppression cannot consume or bar them.
-            AssertThat(player.StoryDefyHistoryUsed)
-                .OverrideFailureMessage("Suppression must not spend Defy History.")
-                .IsFalse();
             AssertThat(player.IsAbilityCastSuppressed).IsTrue();
         } finally {
             InputManager.Instance?.ClearInputSource(player.PlayerIndex);

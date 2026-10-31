@@ -86,42 +86,9 @@ public class AbilityLockoutRulesTests {
     }
 
     [TestCase]
-    public void MomentumRefundsTwentyPerHitSixtyOnTheFinisherAndCapsEachCycleAtOneTwenty() {
-        AssertThat(BasicComboRules.MomentumRefundFramesFor(BasicComboRules.VariantChain, 0)).IsEqual(20);
-        AssertThat(BasicComboRules.MomentumRefundFramesFor(BasicComboRules.VariantChain, 1)).IsEqual(20);
-        AssertThat(BasicComboRules.MomentumRefundFramesFor(BasicComboRules.VariantChain, 2)).IsEqual(60);
-        AssertThat(BasicComboRules.MomentumRefundFramesFor(BasicComboRules.VariantUpAttack, 0)).IsEqual(20);
-        AssertThat(BasicComboRules.MomentumRefundFramesFor(BasicComboRules.VariantDownAir, 0)).IsEqual(20);
-        // GU-A: the single air strike pays string hit 1's refund.
-        AssertThat(BasicComboRules.MomentumRefundFramesFor(BasicComboRules.VariantAirAttack, 0)).IsEqual(20);
-
-        AssertThat(BasicComboRules.MomentumRefundFramesForHitbox("combo_1")).IsEqual(20);
-        AssertThat(BasicComboRules.MomentumRefundFramesForHitbox("combo_2")).IsEqual(20);
-        AssertThat(BasicComboRules.MomentumRefundFramesForHitbox("combo_3")).IsEqual(60);
-        AssertThat(BasicComboRules.MomentumRefundFramesForHitbox(BasicComboRules.UpAttackHitboxID)).IsEqual(20);
-        AssertThat(BasicComboRules.MomentumRefundFramesForHitbox(BasicComboRules.DownAirHitboxID)).IsEqual(20);
-        AssertThat(BasicComboRules.MomentumRefundFramesForHitbox(BasicComboRules.AirAttackHitboxID)).IsEqual(20);
+    public void TheAirStrikeIsABasicStringHitbox() {
         AssertThat(BasicComboRules.IsBasicStringHitbox(BasicComboRules.AirAttackHitboxID))
-            .OverrideFailureMessage("The air strike is a basic swing: D1 confirm, Momentum and the freeze buffer key on this.")
+            .OverrideFailureMessage("The air strike is a basic swing: the D1 confirm and the freeze buffer key on this.")
             .IsTrue();
-        AssertThat(BasicComboRules.MomentumRefundFramesForHitbox("throw"))
-            .OverrideFailureMessage("A throw is not a swing and refunds nothing.")
-            .IsEqual(0);
-        AssertThat(BasicComboRules.MomentumRefundFramesForHitbox(null)).IsEqual(0);
-
-        AssertThat(BasicComboRules.MomentumRefundCapFramesPerCycle).IsEqual(120);
-        AssertThat(BasicComboRules.MomentumGrant(60, 110, 500))
-            .OverrideFailureMessage("The cap counts frames: only 10 are left of 120.")
-            .IsEqual(10);
-        AssertThat(BasicComboRules.MomentumGrant(20, 0, 7))
-            .OverrideFailureMessage("A grant never removes more than the cooldown has left.")
-            .IsEqual(7);
-        AssertThat(BasicComboRules.MomentumGrant(20, 120, 500)).IsEqual(0);
-        AssertThat(BasicComboRules.MomentumGrant(60, 0, 0))
-            .OverrideFailureMessage("A ready slot takes nothing.")
-            .IsEqual(0);
-        AssertThat(BasicComboRules.MomentumGrant(60, 130, 500))
-            .OverrideFailureMessage("A grant is never negative.")
-            .IsEqual(0);
     }
 }

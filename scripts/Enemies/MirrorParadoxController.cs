@@ -707,8 +707,8 @@ namespace FTT.Enemies {
                 SelfCurrentHP = _self.CurrentHP,
                 SelfMaxHP = _self.MaximumHP,
                 InfluenceRaw = FP64.FromFloat(Math.Max(0f, _self.CurrentUltimateMeter)).RawValue,
-                SpecialOneCooldownFrames = ToFrames(_self.SpecialOneCooldownTimer),
-                SpecialTwoCooldownFrames = ToFrames(_self.SpecialTwoCooldownTimer),
+                SpecialOneReuseFrames = ToFrames(_self.SpecialOneCooldownTimer),
+                SpecialTwoReuseFrames = ToFrames(_self.SpecialTwoCooldownTimer),
                 // Meter and Defy update (P24): the clone's gauge is real, so its Specials
                 // need a pip beside the 2 s reuse delay above; and a clone mid-Defy says so.
                 MomentumKnown = 1,

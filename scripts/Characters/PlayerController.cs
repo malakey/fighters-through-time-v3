@@ -1021,12 +1021,6 @@ namespace FTT.Characters {
 		/// <summary>Reclaimable Rally echo remaining, in HP. Test seam / HUD.</summary>
 		public float EchoPool => _echoPool;
 
-		/// <summary>
-		/// Dead since the meter and Defy update (2026-10-31): the passive Defy is
-		/// gone and nothing is spent per level. MM-SWEEP deletes this getter.
-		/// </summary>
-		public bool StoryDefyHistoryUsed => false;
-
 		// Jump tracking
 		private bool _jumpHeld;
 		private bool _wasGrounded;

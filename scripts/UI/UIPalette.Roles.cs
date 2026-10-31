@@ -59,8 +59,6 @@ namespace FTT.UI {
             public const string StatusName = "StatusName";
             /// <summary>Outfit 600, 21 px, 0.00 em, Ink2, halo S (T21 (20.7)).</summary>
             public const string StatusTime = "StatusTime";
-            /// <summary>Outfit 500, 18 px, 0.16 em, Ink2, plate (T22 (16.2 raised to 18)).</summary>
-            public const string DefyLabel = "DefyLabel";
             /// <summary>Outfit 600, 20 px, 0.00 em, Ink, plate (T23 (32 until the compact Story HUD)).</summary>
             public const string RewindCount = "RewindCount";
             /// <summary>Outfit 600, 20 px, 0.10 em, Ink, plate (T25 (19.8)).</summary>
@@ -185,7 +183,6 @@ namespace FTT.UI {
             ("SlotNumber", 19, "outfit", 700, 0.0f, "S"),
             ("StatusName", 18, "outfit", 500, 0.16f, "S"),
             ("StatusTime", 21, "outfit", 600, 0.0f, "S"),
-            ("DefyLabel", 18, "outfit", 500, 0.16f, ""),
             ("RewindCount", 20, "outfit", 600, 0.0f, ""),
             ("StateLabel", 20, "outfit", 600, 0.1f, ""),
             ("DustTotal", 28, "outfit", 600, 0.02f, ""),
@@ -357,7 +354,6 @@ namespace FTT.UI {
             ("Selection", new Color(0xF3 / 255f, 0xC9 / 255f, 0x5B / 255f, 0.4f)),
             ("DimModulate", new Color(0xFF / 255f, 0xFF / 255f, 0xFF / 255f, 0.5f)),
             ("PipGlow", new Color(0x8F / 255f, 0xD8 / 255f, 0xFF / 255f, 0.6f)),
-            ("DefyReadyGlow", new Color(0xFF / 255f, 0xE8 / 255f, 0x7A / 255f, 0.75f)),
             ("BossEdge", new Color(0xFF / 255f, 0x4D / 255f, 0x62 / 255f, 1.0f)),
             ("BossGlow", new Color(0xFF / 255f, 0x4D / 255f, 0x62 / 255f, 0.3f)),
             ("BossTracker", new Color(0xFF / 255f, 0xFF / 255f, 0xFF / 255f, 0.55f)),

@@ -106,7 +106,6 @@ pal("ReadyBadgeIdleFill", "000000", 0.25, doc="the idle badge fill")
 pal("Selection", "F3C95B", 0.40, doc="text selection in a field")
 pal("DimModulate", "FFFFFF", 0.50, doc="the modulate a disabled field or tab texture draws with (agent choice)")
 pal("PipGlow", "8FD8FF", 0.60, doc="block pip glow")
-pal("DefyReadyGlow", "FFE87A", 0.75, doc="Defy-ready glow")
 pal("BossEdge", "FF4D62", doc="boss tube edge (PAL-A's boss red, hard-coded by the mock)")
 pal("BossGlow", "FF4D62", 0.30, doc="boss tube glow")
 pal("BossTracker", "FFFFFF", 0.55, doc="boss damage tracker")
@@ -400,7 +399,6 @@ ROLES = [
     ("SlotNumber",         "outfit", 700, 19, 0.0,  "TextFocus", "S", True, None, "T19 for the 54 px lens (0.36 x lens)"),
     ("StatusName",         "outfit", 500, 18, 0.16, "Ink",  "S", False, None, "T20"),
     ("StatusTime",         "outfit", 600, 21, 0.0,  "Ink2", "S", False, None, "T21 (20.7)"),
-    ("DefyLabel",          "outfit", 500, 18, 0.16, "Ink2", None, False, None, "T22 (16.2 raised to 18)"),
     ("RewindCount",        "outfit", 600, 20, 0.0,  "Ink",  None, True,  None, "T23 (32 until the compact Story HUD)"),
     ("StateLabel",         "outfit", 600, 20, 0.10, "Ink",  None, False, None, "T25 (19.8)"),
     ("DustTotal",          "outfit", 600, 28, 0.02, "Ink",  None, True,  None, "T26 (38 until the compact Story HUD)"),

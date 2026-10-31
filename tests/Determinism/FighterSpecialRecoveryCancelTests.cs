@@ -691,14 +691,18 @@ public class FighterSpecialRecoveryCancelTests {
     // === 12. the projectile-lifetime invariant ================================
 
     /// <summary>
-    /// The slot attribution needs no per-projectile execution record: no Special
-    /// shot, ground wave, zone or Requiem burst of a DirectHit slot outlives its
-    /// slot's earliest re-cast — the cooldown less the 120-frame Momentum cap
-    /// (and, for Fortissimo, every Requiem shave the cooldown can take) — so a
-    /// hit from a slot's earlier cast can never meet that slot's next cast.
+    /// Until the meter and Defy update the slot attribution needed no per-projectile
+    /// execution record: no Special shot, ground wave, zone or Requiem burst of a
+    /// DirectHit slot outlived its slot's earliest re-cast (the cooldown less the
+    /// Momentum cap). A Special's earliest re-cast is now the 2 s reuse delay (120
+    /// frames), so a shot with a longer flight can still be in the air when the same
+    /// slot casts again. This pins exactly which slots can (a tripwire: a new one, or
+    /// one that stops, fails here) and the ledger row records the consequence, an
+    /// earlier cast's hit that lands during the next cast's recovery arming the D3
+    /// landed-hit flag.
     /// </summary>
     [TestCase]
-    public void NoDirectHitProjectileOrZoneOutlivesItsSlotsEarliestRecast() {
+    public void OnlyTheKnownDirectHitSlotsCanOutliveTheReuseDelay() {
         var failures = new List<string>();
         int checkedSlots = 0;
         foreach (string hero in Heroes) {
@@ -722,33 +726,17 @@ public class FighterSpecialRecoveryCancelTests {
                     int pulses = Math.Max(1, contract.HitCount);
                     window += KitReachRules.RequiemPulseIntervalFrames * pulses + 1;
                 }
-                int cooldown = slot == 1 ? loadout.SpecialOneCooldownFrames : loadout.SpecialTwoCooldownFrames;
-                int earliestRecast = EarliestRecast(hero, slot, cooldown, loadout);
-                if (window >= earliestRecast) {
-                    failures.Add($"{hero} S{slot}: hits until {window}, re-castable from {earliestRecast}");
-                }
+                int earliestRecast = BasicComboRules.SpecialReuseDelayFrames;
+                if (window >= earliestRecast) failures.Add($"{hero} S{slot}");
             }
         }
         AssertThat(checkedSlots >= 8)
             .OverrideFailureMessage($"Harness: only {checkedSlots} DirectHit projectile/zone slots were checked.")
             .IsTrue();
-        if (failures.Count > 0) AssertThat(string.Join(" | ", failures)).IsEqual("");
-    }
-
-    /// <summary>
-    /// The earliest tick after a cast's acceptance its slot can be accepted
-    /// again: the cooldown, less the 120-frame Momentum cap, and for Mozart's
-    /// Fortissimo less a Requiem shave at once and on every Requiem re-cast.
-    /// </summary>
-    private static int EarliestRecast(string hero, int slot, int cooldown, in FighterLoadout loadout) {
-        int momentum = BasicComboRules.MomentumRefundCapFramesPerCycle;
-        if (hero != "mozart" || slot != 2) return cooldown - momentum;
-        int requiemCycle = Math.Max(1, loadout.SpecialOneCooldownFrames - momentum);
-        for (int t = 0; t <= cooldown; t++) {
-            int shaves = 1 + t / requiemCycle;
-            if (t + momentum + shaves * KitReachRules.RequiemFortissimoShaveFrames >= cooldown) return t;
-        }
-        return cooldown;
+        failures.Sort(StringComparer.Ordinal);
+        AssertThat(string.Join(" | ", failures))
+            .OverrideFailureMessage("The DirectHit slots whose shot or zone can outlive the 120-frame reuse delay changed.")
+            .IsEqual("einstein S1 | leonardo S1 | mozart S1 | tesla S2");
     }
 
     // === 13. real input: only an edge is a press ================================

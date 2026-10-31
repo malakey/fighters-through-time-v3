@@ -41,7 +41,7 @@ namespace FTT.FighterSim {
             _defyWentBackSincePresented[playerID] = false;
         }
 
-        private void SyncDefyFeedback(PlayerController player, int playerID) {
+        internal void SyncDefyFeedback(PlayerController player, int playerID) {
             if (Simulation == null || !Simulation.TryGetFighterActionState(playerID, out FighterActionStateComponent action)) return;
             // Lifecycle resets: the respawn-platform hold and the Sudden Death setup zero 323.
             if (!_defySuddenDeathSeen && Simulation.GetMatchState().SuddenDeathActive == 1) {

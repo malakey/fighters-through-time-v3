@@ -52,7 +52,7 @@ public class KitAlignmentContractTests {
         AssertThat(foresight.StartupFrames).IsEqual(TubmanKitRules.ForesightStartupFrames);
         AssertThat(foresight.ActiveFrames).IsEqual(TubmanKitRules.ForesightWindowFrames);
         AssertThat(foresight.RecoveryFrames).IsEqual(TubmanKitRules.ForesightWhiffRecoveryFrames);
-        AssertFloat(foresight.CooldownDuration).IsEqual(10f);
+        AssertFloat(foresight.CooldownDuration).IsEqual(0f);
     }
 
     [TestCase]

@@ -189,7 +189,6 @@ public class FighterMovementSpeedCutTests {
         (int)FighterCharacterID.Einstein,
         100, 3, 2,
         10, 14, 12, 20,
-        600, 600,
         (int)StatusType.None, 0,
         (int)StatusType.None, 0,
         (int)StatusType.None, 0,

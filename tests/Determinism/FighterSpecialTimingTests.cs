@@ -1075,7 +1075,6 @@ public class FighterSpecialTimingTests {
         return new FighterLoadout(
             baseline.CharacterID, baseline.MaxHP, baseline.MaxBlockCharges, baseline.MaxJumpCount,
             baseline.BasicDamage, baseline.SpecialOneDamage, baseline.SpecialTwoDamage, baseline.UltimateDamage,
-            baseline.SpecialOneCooldownFrames, baseline.SpecialTwoCooldownFrames,
             baseline.SpecialOneStatusType, baseline.SpecialOneStatusFrames,
             baseline.SpecialTwoStatusType, baseline.SpecialTwoStatusFrames,
             baseline.UltimateStatusType, baseline.UltimateStatusFrames,

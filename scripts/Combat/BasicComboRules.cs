@@ -763,68 +763,6 @@ namespace FTT.Combat {
         /// <summary>Story crowd bowling: a thrown mob is a projectile at this fraction.</summary>
         public const float ThrownMobCollisionDamageMultiplier = 0.5f;
 
-        // === Per-hit Momentum (user direction 2026-10-11, D2; ledger USER-PER-HIT-MOMENTUM) ===
-        // Replaces V7.1's finisher-only refund (a connecting hit 3 refunded 60
-        // frames, at most twice per cycle). Every LANDED basic swing — the D1a
-        // definition (damage applied, or absorbed by a shield or barrier layer;
-        // never a block, a refusal, a whiff or a construct, prop or strike
-        // surface), on any enemy, boss included — refunds time on BOTH special
-        // cooldowns: 20 frames for string hits 1-2, the air strike (GU-A) and
-        // the two directional strikes, 60 for the finisher. Paid once per
-        // swing, never per target (Story's melee cleaves). The cap counts the
-        // frames actually removed:
-        // 120 per slot per cooldown cycle; a ready slot takes nothing and spends
-        // none of it; each slot's counter resets when that slot's cooldown is
-        // armed. Both modes read these numbers.
-
-        /// <summary>Refund for a landed string hit 1 or 2, or the air strike (a third of a second).</summary>
-        public const int MomentumStringHitRefundFrames = 20;
-        /// <summary>Refund for a landed Up-Attack or Down-Air.</summary>
-        public const int MomentumDirectionalRefundFrames = 20;
-        /// <summary>Refund for a landed finisher (string hit 3, 1.0 s).</summary>
-        public const int MomentumFinisherRefundFrames = 60;
-        /// <summary>Frames refunded per slot per cooldown cycle, at most (2.0 s).</summary>
-        public const int MomentumRefundCapFramesPerCycle = 120;
-
-        /// <summary>
-        /// The nominal refund for a landed swing: the air strike pays string
-        /// hit 1's 20 (GU-A), a directional strike pays 20, a chain hit pays 20
-        /// on steps 0-1 and 60 on the finisher (step 2).
-        /// </summary>
-        public static int MomentumRefundFramesFor(int variant, int comboStep) {
-            if (variant == VariantAirAttack) return MomentumStringHitRefundFrames;
-            if (variant != VariantChain) return MomentumDirectionalRefundFrames;
-            return comboStep >= 2 ? MomentumFinisherRefundFrames : MomentumStringHitRefundFrames;
-        }
-
-        /// <summary>
-        /// Story's form of <see cref="MomentumRefundFramesFor"/>, keyed on the
-        /// melee hitbox's ID: <c>combo_3</c> 60, any other <c>combo_</c> ID and
-        /// the air strike's <see cref="AirAttackHitboxID"/> 20, the two
-        /// directional IDs 20, anything else (a throw, a construct) 0.
-        /// </summary>
-        public static int MomentumRefundFramesForHitbox(string hitboxID) {
-            if (hitboxID == null) return 0;
-            if (hitboxID == "combo_3") return MomentumFinisherRefundFrames;
-            if (hitboxID.StartsWith("combo_", System.StringComparison.Ordinal)) return MomentumStringHitRefundFrames;
-            if (hitboxID == AirAttackHitboxID) return MomentumStringHitRefundFrames;
-            if (hitboxID == UpAttackHitboxID || hitboxID == DownAirHitboxID) return MomentumDirectionalRefundFrames;
-            return 0;
-        }
-
-        /// <summary>
-        /// Frames one landed swing removes from one slot:
-        /// <c>max(0, min(nominal, cap − refundedThisCycle, cooldownRemaining))</c>.
-        /// A ready slot (0 remaining) gets nothing and spends none of its cap.
-        /// </summary>
-        public static int MomentumGrant(int nominalFrames, int refundedThisCycle, int cooldownRemainingFrames) {
-            int grant = nominalFrames;
-            int capLeft = MomentumRefundCapFramesPerCycle - refundedThisCycle;
-            if (capLeft < grant) grant = capLeft;
-            if (cooldownRemainingFrames < grant) grant = cooldownRemainingFrames;
-            return grant > 0 ? grant : 0;
-        }
-
         // === Ability lockout: the special global cooldown (user direction 2026-10-08) ===
         // Ends ability spam in both modes. Starting a basic swing (any chain hit,
         // the air strike, the up-attack or the down-air), casting Special 1 or Special 2, or

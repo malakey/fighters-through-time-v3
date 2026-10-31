@@ -165,9 +165,6 @@ public class TutorialCalibrationV76Tests {
             AssertThat(player.CurrentUltimateMeter)
                 .OverrideFailureMessage("The teaching launch must never earn meter.")
                 .IsEqual(meterBefore);
-            AssertThat(player.StoryDefyHistoryUsed)
-                .OverrideFailureMessage("The teaching launch must never spend Defy History.")
-                .IsFalse();
 
             // What it DOES do is the real verb layer.
             AssertThat(player.CurrentState).IsEqual(CharacterState.Stunned);

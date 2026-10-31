@@ -16,7 +16,7 @@ public class PulpIconTests {
 
     [TestCase]
     public void EveryGlassIconDrawsItsRegularTextureFromThirtyPixelsUp() {
-        AssertThat(PulpIcon.GlassNames.Count).IsEqual(34);
+        AssertThat(PulpIcon.GlassNames.Count).IsEqual(30);
         foreach (string name in PulpIcon.GlassNames) {
             Texture2D regular = PulpIcon.TextureFor(name, 30f);
             if (regular == null) AssertThat($"glass icon '{name}' has no regular texture").IsEqual("");

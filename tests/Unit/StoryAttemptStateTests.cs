@@ -264,8 +264,8 @@ public class StoryAttemptStateTests {
             .OverrideFailureMessage("A legacy Act III attempt must not be handed free anchors.")
             .IsEqual(0);
         AssertThat(midLevel.AttemptState.DefyHistoryUsed)
-            .OverrideFailureMessage("Defy must be assumed spent, never assumed available.")
-            .IsTrue();
+            .OverrideFailureMessage("The dead Defy field is never written any more.")
+            .IsFalse();
 
         // A payload that is NOT mid-level has no attempt history to lose, so it
         // migrates cleanly and plays on.

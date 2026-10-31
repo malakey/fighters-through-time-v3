@@ -38,10 +38,6 @@ namespace FTT.Combat {
         /// <summary>M03: three pulses over 0.3 s — one every six frames.</summary>
         public const int RequiemPulseIntervalFrames = 6;
 
-        /// <summary>M02: a hitting Requiem execution shortens Fortissimo Wave's remaining cooldown by this much, once.</summary>
-        public const double RequiemFortissimoShaveSeconds = 2.0;
-        public const int RequiemFortissimoShaveFrames = 120;
-
         /// <summary>M04: the staff platform is 2.0 units wide.</summary>
         public const double SonataPlatformWidthUnits = 2.0;
 

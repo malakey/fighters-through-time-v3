@@ -817,8 +817,8 @@ namespace FTT.FighterSim {
                 SelfCurrentHP = self.CurrentHP,
                 SelfMaxHP = self.MaxHP,
                 InfluenceRaw = self.Influence.RawValue,
-                SpecialOneCooldownFrames = selfRuntime.SpecialOneReuseFrames,
-                SpecialTwoCooldownFrames = selfRuntime.SpecialTwoReuseFrames,
+                SpecialOneReuseFrames = selfRuntime.SpecialOneReuseFrames,
+                SpecialTwoReuseFrames = selfRuntime.SpecialTwoReuseFrames,
                 MovementCooldownFrames = selfRuntime.MovementCooldownFrames,
                 AbilityLockoutFrames = selfRuntime.AbilityLockoutFrames,
                 SpecialLockoutFrames = selfRuntime.SpecialLockoutFrames,
@@ -1349,7 +1349,7 @@ namespace FTT.FighterSim {
         private bool SpecialPipReady(in CpuDecisionObservation observation, int slot) {
             if (observation.MomentumKnown != 0
                 && observation.SelfMomentumUnits < FTT.Combat.BasicComboRules.MomentumSpecialCostUnits) return false;
-            int reuse = slot == 1 ? observation.SpecialOneCooldownFrames : observation.SpecialTwoCooldownFrames;
+            int reuse = slot == 1 ? observation.SpecialOneReuseFrames : observation.SpecialTwoReuseFrames;
             return reuse <= GetReactionDelayBounds(out _);
         }
 

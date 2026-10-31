@@ -24,7 +24,7 @@ public class LeonardoContentTests {
         // V7 named-outlier correction (design §5): 8x3 = 24 total on a
         // shortened 8 s cooldown — a zoning tool, not the roster's biggest nuke.
         AssertThat(data.BaseDamage).IsEqual(8f);
-        AssertThat(data.CooldownDuration).IsEqual(8f);
+        AssertThat(data.CooldownDuration).IsEqual(0f);
         AssertThat(data.IsMultiHit).IsTrue();
         AssertThat(data.HitCount).IsEqual(3);
         // L02 (Package 13 W7a): 3 ticks 0.3 s apart, and a lifetime that fits

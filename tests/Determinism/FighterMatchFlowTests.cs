@@ -1442,7 +1442,7 @@ public class FighterMatchFlowTests {
     /// <summary>A 1 HP pool so a single basic attack ends the stock deterministically.</summary>
     private static FighterLoadout OneHitPointLoadout() => new(
         (int)FighterCharacterID.Joan,
-        1, 3, 2, 10, 14, 12, 20, 600, 600,
+        1, 3, 2, 10, 14, 12, 20,
         (int)StatusType.None, 0, (int)StatusType.None, 0, (int)StatusType.None, 0,
         FP64.One, FP64.FromInt(8), FP64.FromInt(13),
         FP64.FromInt(3), FP64.FromInt(4), FP64.FromInt(4), FP64.FromInt(5),

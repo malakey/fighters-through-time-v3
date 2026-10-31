@@ -389,8 +389,7 @@ TINTS = {"dilation": (143, 199, 255), "venom": (255, 122, 92), "static": (143, 1
          "shield_off": (223, 232, 255), "hourglass": (255, 227, 154), "freeze": (255, 227, 154),
          "dust": (243, 201, 91), "star4": (0, 240, 255), "star4_filled": (0, 240, 255), "flag": (255, 240, 176),
          "lock_dormant": (138, 131, 116), "lock_suppressed": (56, 242, 255), "dormant": (138, 131, 116),
-         "cross": (56, 242, 255), "defy_ready": (255, 240, 176), "defy_notready": (138, 131, 116),
-         "defy_spent": (138, 131, 116), "defy_barred": (255, 90, 90), "slot_p1": (0, 240, 255),
+         "cross": (56, 242, 255), "slot_p1": (0, 240, 255),
          "slot_p2": (255, 51, 102), "check_solid": (4, 20, 26), "hourglass_caret": (255, 240, 176),
          "beacon_anchor": (255, 227, 154), "beacon_anchor_hollow": (138, 131, 116), "chevron_down": (192, 186, 166)}
 

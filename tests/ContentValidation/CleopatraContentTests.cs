@@ -27,7 +27,7 @@ public class CleopatraContentTests {
         // bite, so standing on the nest is real area denial instead of one bite.
         AssertThat(data.DamageTickIntervalFrames).IsEqual(60);
         AssertThat(data.BaseDamage).IsEqual(6f);
-        AssertThat(data.CooldownDuration).IsEqual(10f);
+        AssertThat(data.CooldownDuration).IsEqual(0f);
         // The bite carries Venom for 4 s alongside its brief hitstun; under the
         // V7 two-slot status rule the DoT survives later control statuses.
         AssertThat(data.AppliedStatus).IsEqual(StatusType.Venom);

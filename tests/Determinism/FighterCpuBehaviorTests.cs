@@ -594,7 +594,7 @@ public class FighterCpuBehaviorTests {
         // in an else-if chain and was effectively starved.
         var cpu = new FighterCpuController(CpuDifficulty.Hard, 2718);
         CpuDecisionObservation observation = Neutral(selfX: 0, targetX: 8);
-        observation.SpecialOneCooldownFrames = 120;
+        observation.SpecialOneReuseFrames = 120;
         AssertThat(CountEdges(cpu, observation, GameplayButtons.MovementAbility, Ticks) > 0).IsTrue();
     }
 
@@ -888,7 +888,7 @@ public class FighterCpuBehaviorTests {
         baseline.SelfFacingRight = 1;
         baseline.HasTargetVerbState = 1;
         baseline.TargetIsGrounded = 1;
-        baseline.SpecialTwoCooldownFrames = 600;
+        baseline.SpecialTwoReuseFrames = 600;
         PlayerInputFrame previous = default;
         for (uint tick = 0; tick < 120; tick++) {
             int t = (int)tick;

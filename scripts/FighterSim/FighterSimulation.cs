@@ -365,6 +365,23 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
+        /// Meter and Defy update 2026-10-31 test seam (MM-SWEEP): puts a fighter on the respawn
+        /// platform for <paramref name="frames"/> frames, as a stock loss leaves it, so a presentation
+        /// suite can drive the driver's stock-reset path; the next tick's platform hold zeroes
+        /// component 323. Writes deterministic state (it moves the hash).
+        /// </summary>
+        internal bool SeedFighterRespawnForTest(int playerID, int frames) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref FighterStateComponent fighter = ref _simulation.Frame.Get<FighterStateComponent>(entity);
+                if (fighter.PlayerID != playerID) continue;
+                fighter.RespawnFramesRemaining = frames < 0 ? 0 : frames;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Meter and Defy update 2026-10-31 test seam: sets a fighter's Momentum
         /// gauge in units (clamped to the gauge's range), so a suite can press
         /// Specials against a known fill. Writes deterministic state (it moves

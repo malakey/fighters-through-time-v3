@@ -1220,10 +1220,6 @@ fighter_remote_play_notice,Play online with a friend through Steam Remote Play T
 hud_level_dust,Chronal Dust: {0}
 hud_dust_pickup,+{0}
 hud_integrity_siphons,Siphons active: {0}
-hud_defy_not_ready,Defy: Not Ready
-hud_defy_ready,Defy: Ready
-hud_defy_spent,Defy: Spent
-hud_defy_unavailable,Defy: Unavailable
 hud_slot_lock_dormant,Dormant legacy
 hud_slot_lock_suppressed,Suppressed
 hud_slot_lock_clear,Available

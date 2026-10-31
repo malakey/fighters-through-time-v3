@@ -350,9 +350,6 @@ namespace FTT.FighterSim {
         public readonly int SpecialOneDamage;
         public readonly int SpecialTwoDamage;
         public readonly int UltimateDamage;
-        /// <summary>Dead since the meter and Defy update (2026-10-31): the authored cooldown no longer reaches the simulation (the Momentum gauge pays for Specials). Kept only so the positional constructor stays stable; MM-SWEEP deletes it with its readers.</summary>
-        public readonly int SpecialOneCooldownFrames;
-        public readonly int SpecialTwoCooldownFrames;
         public readonly int SpecialOneStatusType;
         public readonly int SpecialOneStatusFrames;
         public readonly int SpecialTwoStatusType;
@@ -382,8 +379,6 @@ namespace FTT.FighterSim {
             int specialOneDamage,
             int specialTwoDamage,
             int ultimateDamage,
-            int specialOneCooldownFrames,
-            int specialTwoCooldownFrames,
             int specialOneStatusType,
             int specialOneStatusFrames,
             int specialTwoStatusType,
@@ -410,8 +405,6 @@ namespace FTT.FighterSim {
             SpecialOneDamage = specialOneDamage;
             SpecialTwoDamage = specialTwoDamage;
             UltimateDamage = ultimateDamage;
-            SpecialOneCooldownFrames = specialOneCooldownFrames;
-            SpecialTwoCooldownFrames = specialTwoCooldownFrames;
             SpecialOneStatusType = specialOneStatusType;
             SpecialOneStatusFrames = specialOneStatusFrames;
             SpecialTwoStatusType = specialTwoStatusType;
@@ -444,8 +437,6 @@ namespace FTT.FighterSim {
             14,
             12,
             20,
-            600,
-            600,
             (int)FTT.Core.StatusType.None,
             0,
             (int)FTT.Core.StatusType.None,
@@ -765,7 +756,8 @@ namespace FTT.FighterSim {
         // --- Rally / Desperation / Defy History (V7.1) ---
         public FP64 EchoPool;
         public FP64 EchoDrainPerFrame;
-        public int DefyHistoryUsed;
+        /// <summary>Spare (was the passive Defy's once-per-match flag until the meter and Defy update, 2026-10-31); never written.</summary>
+        public int SpareInt1;
         /// <summary>1 while the match is in Overtime (final minute of a timed match).</summary>
         public int OvertimeActive;
         // --- The Momentum gauge (meter and Defy update 2026-10-31) ---

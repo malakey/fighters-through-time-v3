@@ -272,7 +272,7 @@ public class SaveEnvelopeTests {
         AssertThat(parked.AttemptState.Status).IsEqual(StoryAttemptStatus.LegacyRecoveryRequired);
         AssertThat(parked.AttemptState.AnchorChargesRemaining).IsEqual(0);
         AssertThat(parked.AnchorCharges).IsEqual(0);
-        AssertThat(parked.AttemptState.DefyHistoryUsed).IsTrue();
+        AssertThat(parked.AttemptState.DefyHistoryUsed).OverrideFailureMessage("The legacy recovery no longer writes the dead Defy field.").IsFalse();
         AssertThat(parked.LevelChronalDust).IsEqual(180);
         AssertThat(parked.CheckpointIntegrityPercent).IsEqual(40f);
 

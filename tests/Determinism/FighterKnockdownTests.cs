@@ -434,8 +434,8 @@ public class FighterKnockdownTests {
     /// </summary>
     [TestCase]
     public void AHitDuringTheGetUpKeepsTheVictimsDiRead() {
-        FighterSimulation neutral = LaunchedSimulation(seed: 55, specialOneCooldownFrames: 1);
-        FighterSimulation influenced = LaunchedSimulation(seed: 55, specialOneCooldownFrames: 1);
+        FighterSimulation neutral = LaunchedSimulation(seed: 55);
+        FighterSimulation influenced = LaunchedSimulation(seed: 55);
         int landing = LandWithoutTech(neutral);
         AssertThat(LandWithoutTech(influenced)).IsEqual(landing);
 
@@ -584,8 +584,8 @@ public class FighterKnockdownTests {
     // === Harness ===
 
     /// <summary>A simulation whose player one owns a launching melee Special 1.</summary>
-    private static FighterSimulation LaunchedSimulation(int seed, int specialOneCooldownFrames = 600) => new(
-        Loadout(LauncherModes(launches: true, hitstunFrames: 40), specialOneCooldownFrames: specialOneCooldownFrames),
+    private static FighterSimulation LaunchedSimulation(int seed) => new(
+        Loadout(LauncherModes(launches: true, hitstunFrames: 40)),
         FighterLoadout.Default(FighterCharacterID.Joan),
         seed: seed, spawnDistance: 1, rules: FighterMatchRules.Disabled);
 
@@ -692,15 +692,13 @@ public class FighterKnockdownTests {
             }
         };
 
-    /// <summary>The Default kit's numbers with the given ability modes (and, optionally, character and Special 1 cooldown).</summary>
+    /// <summary>The Default kit's numbers with the given ability modes (and, optionally, character).</summary>
     private static FighterLoadout Loadout(
         FighterAbilityLoadout modes,
-        FighterCharacterID characterID = FighterCharacterID.Einstein,
-        int specialOneCooldownFrames = 600) => new(
+        FighterCharacterID characterID = FighterCharacterID.Einstein) => new(
         (int)characterID,
         100, 3, 2,
         10, 14, 12, 20,
-        specialOneCooldownFrames, 600,
         (int)StatusType.None, 0,
         (int)StatusType.None, 0,
         (int)StatusType.None, 0,

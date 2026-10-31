@@ -236,7 +236,6 @@ public class FighterCombatContractW3Tests {
             StatusFrames = 30
         };
         var verb = new FighterVerbComponent {
-            DefyHistoryUsed = 1,
             EchoPool = FP64.FromInt(5)
         };
         FighterDefenseComponent defense = default;
@@ -254,7 +253,6 @@ public class FighterCombatContractW3Tests {
         AssertThat(runtime.SpecialOneReuseFrames).OverrideFailureMessage("Cooldowns keep their time.").IsEqual(300);
         AssertThat(runtime.SpecialTwoReuseFrames).IsEqual(200);
         AssertThat(runtime.MovementCooldownFrames).IsEqual(90);
-        AssertThat(verb.DefyHistoryUsed).OverrideFailureMessage("Defy is once per match.").IsEqual(1);
         AssertThat(fighter.RespawnFramesRemaining > 0).IsTrue();
 
         // The victim's Conductive mark (component 318) is dropped while on the

@@ -306,7 +306,6 @@ public class FighterMomentumGaugeTests {
         (int)character,
         100, 3, 2,
         basicDamage, 14, 12, 20,
-        0, 0,
         (int)StatusType.None, 0,
         (int)StatusType.None, 0,
         (int)StatusType.None, 0,

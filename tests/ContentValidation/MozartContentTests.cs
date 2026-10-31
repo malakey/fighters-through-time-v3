@@ -26,7 +26,7 @@ public class MozartContentTests {
         // V7: the bread-and-butter poke — light per-pulse damage on a short
         // cooldown (design §5: fast/flat/cheap, opposite of Fortissimo's lob).
         AssertThat(data.BaseDamage).IsEqual(4f);
-        AssertThat(data.CooldownDuration).IsEqual(7f);
+        AssertThat(data.CooldownDuration).IsEqual(0f);
         // M03 (Package 13 W7b): straight at 14 units/s (840 px/s) with no range
         // limit — the lifetime crosses any stage; a wall bursts it.
         AssertThat(data.ProjectileSpeed).IsEqual(840f);
@@ -49,7 +49,7 @@ public class MozartContentTests {
         AssertThat(data.ProjectileLifetime).IsEqual(1.5f);
         AssertFloat(data.ProjectileSpeed * data.ProjectileLifetime).IsEqualApprox(360f, 0.01f);
         AssertThat(data.HitboxSize.Y).IsEqual(90f);
-        AssertThat(data.CooldownDuration).IsEqual(12f);
+        AssertThat(data.CooldownDuration).IsEqual(0f);
         AssertThat(data.StartupFrames).IsEqual(16);
     }
 
