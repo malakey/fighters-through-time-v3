@@ -90,7 +90,6 @@ public class FighterHudContentTests {
             required.Add($"SafeArea/{player}/Body/Column/TopRow/Name");
             required.Add($"SafeArea/{player}/Body/Column/HPBar");
             required.Add($"SafeArea/{player}/Body/Column/MeterBar");
-            required.Add($"SafeArea/{player}/Body/Column/DefySeal");
             required.Add($"SafeArea/{player}/Body/Column/PipRow/Stocks");
             required.Add($"SafeArea/{player}/Body/Column/PipRow/StocksLost");
             required.Add($"SafeArea/{player}/Body/Column/PipRow/Shields");

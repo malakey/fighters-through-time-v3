@@ -209,27 +209,57 @@ public class StoryHudPulpTests {
     }
 
     [TestCase]
-    public void TheDefySealShowsADifferentShapeInEachState() {
-        Node host = CreateHost("StoryHudGlassDefyHost");
+    public void TheSpecialLensesShowTheReuseDelayAndDimAtZeroPips() {
+        Node host = CreateHost("StoryHudMomentumLensHost");
         try {
             StoryHUD hud = AddHud(host);
-            // The compact HUD: the seal is a 28 px badge on the Ultimate ring; its glyph is the badge's icon.
-            var seal = hud.GetNode<Label>($"{Abilities}/MeterRow/DefySeal");
-            PulpIcon icon = seal.GetChild<HudBadge>(0).Glyph;
-            var seen = new System.Collections.Generic.HashSet<string>();
-            foreach (DefySealState state in new[] { DefySealState.Building, DefySealState.Ready, DefySealState.Spent, DefySealState.Barred }) {
-                EventBus.Instance.RaiseDefySealChanged(new DefySealPayload { PlayerIndex = 0, State = state });
-                AssertThat(icon.IconName).IsEqual(DefySealModel.IconName(state));
-                AssertThat(icon.GlassName).OverrideFailureMessage($"glass Defy icon for {state}").IsEqual(DefySealModel.IconName(state));
-                AssertThat(seen.Add(icon.IconName)).IsTrue();
-                // The legacy glyph and its localized tooltip stay for the tests and accessibility.
-                AssertThat(seal.Text).IsEqual(DefySealModel.Glyph(state));
-                AssertThat(seal.TooltipText.Length).IsGreater(0);
-            }
-            EventBus.Instance.RaiseDefySealChanged(new DefySealPayload { PlayerIndex = 0, State = DefySealState.Ready });
-            AssertThat(icon.Tint).IsEqual(UIPalette.Res2);
-            EventBus.Instance.RaiseDefySealChanged(new DefySealPayload { PlayerIndex = 0, State = DefySealState.Barred });
-            AssertThat(icon.Tint).IsEqual(UIPalette.Danger);
+            PulpAbilitySlot s1 = hud.SlotWidgets[0];
+            PulpAbilitySlot s2 = hud.SlotWidgets[1];
+            PulpAbilitySlot mov = hud.SlotWidgets[2];
+            HudAbilityIndicatorModel model = hud.Indicators;
+
+            // Two pips and no reuse delay: both Specials ready.
+            model.SyncMomentum(2f);
+            hud._Process(1.0 / 60.0);
+            AssertThat(s1.State).IsEqual(PulpSlotState.Ready);
+            AssertThat(s2.State).IsEqual(PulpSlotState.Ready);
+            AssertFloat(hud.Pips.Value).IsEqual(2f);
+
+            // Special 1's 2 s reuse delay at 1 s left: cooling, the sweep half done, the seconds from 1.0; Special 2 stays free.
+            model.SyncReuseDelay(AbilitySlot.Special1, 1f);
+            hud._Process(1.0 / 60.0);
+            AssertThat(s1.State).IsEqual(PulpSlotState.Cooling);
+            // (The HUD's own process tick takes a frame off the model when no hero is there to overwrite it.)
+            AssertFloat(s1.Progress).IsEqualApprox(0.5f, 0.02f);
+            AssertFloat(s1.SecondsRemaining).IsEqualApprox(1f, 0.11f);
+            AssertThat(s2.State).IsEqual(PulpSlotState.Ready);
+            model.SyncReuseDelay(AbilitySlot.Special1, 0f);
+
+            // Under one pip both Specials are Starved (dimmed, an Ink3 ring), a running reuse sweep still drawing; the
+            // movement lens is untouched by the gauge.
+            model.SyncMomentum(0.4f);
+            model.SyncReuseDelay(AbilitySlot.Special2, 0.5f);
+            hud._Process(1.0 / 60.0);
+            AssertThat(s1.State).IsEqual(PulpSlotState.Starved);
+            AssertThat(s2.State).IsEqual(PulpSlotState.Starved);
+            AssertThat(s1.Look.Ring).IsEqual(PulpRingMode.Dim);
+            AssertThat(s1.Look.Brightness < PulpAbilitySlot.Derive(PulpSlotState.Cooling, false, 0.5f, 1f).Brightness).IsTrue();
+            AssertFloat(s2.Look.SweepElapsed).IsEqualApprox(0.75f, 0.02f);
+            AssertThat(s1.Look.SweepElapsed).IsEqual(-1f);
+            AssertThat(mov.State).IsEqual(PulpSlotState.Ready);
+
+            // Dormant and Suppressed outrank Starved (P15).
+            EventBus.Instance.RaiseAbilitySlotLockChanged(new AbilitySlotLockPayload { Slot = AbilitySlot.Special1, State = AbilitySlotLockState.Dormant });
+            EventBus.Instance.RaiseAbilitySlotLockChanged(new AbilitySlotLockPayload { Slot = AbilitySlot.Special2, State = AbilitySlotLockState.Suppressed });
+            hud._Process(1.0 / 60.0);
+            AssertThat(s1.State).IsEqual(PulpSlotState.Dormant);
+            AssertThat(s2.State).IsEqual(PulpSlotState.Suppressed);
+            AssertThat(hud.Pips.Dimmed).OverrideFailureMessage("one Dormant Special does not dim the row").IsFalse();
+            // Both Specials Dormant (Levels 0 to 2): the pip row dims but still shows the gauge.
+            EventBus.Instance.RaiseAbilitySlotLockChanged(new AbilitySlotLockPayload { Slot = AbilitySlot.Special2, State = AbilitySlotLockState.Dormant });
+            hud._Process(1.0 / 60.0);
+            AssertThat(hud.Pips.Dimmed).IsTrue();
+            AssertFloat(hud.Pips.Value).IsEqualApprox(0.4f, 0.001f);
         } finally {
             host.Free();
         }

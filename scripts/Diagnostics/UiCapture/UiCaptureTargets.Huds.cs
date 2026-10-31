@@ -82,10 +82,9 @@ namespace FTT.Diagnostics {
             bus.RaiseUltimateMeterChanged(new UltimateMeterPayload { PlayerIndex = 0, CurrentValue = 64f, NormalizedValue = 0.64f });
             bus.RaiseBlockChargesChanged(new BlockChargesPayload { PlayerIndex = 0, CurrentCharges = 2, MaxCharges = 3 });
             bus.RaiseStatusEffectApplied(new StatusEffectPayload { TargetIndex = 0, Type = StatusType.Venom, Duration = 4.2f, Intensity = 1f });
-            hud.Indicators.StartCooldown(AbilitySlot.Special2, 8f);
-            hud.Indicators.SyncCooldownRemaining(AbilitySlot.Special2, 2.6f);
+            hud.Indicators.SyncReuseDelay(AbilitySlot.Special2, 1.3f);
+            hud.Indicators.SyncMomentum(2.6f);
             bus.RaiseTimelineIntegrityChanged(new IntegrityPayload { Percent = 64f, Tier = IntegrityTier.Stabilized, LivingExtractors = 2 });
-            bus.RaiseDefySealChanged(new DefySealPayload { PlayerIndex = 0, State = DefySealState.Building });
             bus.RaiseDustAwardCollected(new DustAwardCollectedPayload { Amount = 25, Source = DustAwardSource.Extractor });
         }
 
@@ -110,12 +109,69 @@ namespace FTT.Diagnostics {
             bus.RaiseTimeFreezeStateChanged(new TimeFreezePayload { State = TimeFreezeState.Active, SecondsRemaining = 3.4f });
             bus.RaiseTimelineIntegrityChanged(new IntegrityPayload { Percent = 18f, Tier = IntegrityTier.Fractured, LivingExtractors = 2 });
             story?.LockIntegrityAtPreBoss();
-            bus.RaiseDefySealChanged(new DefySealPayload { PlayerIndex = 0, State = DefySealState.Ready });
             bus.RaiseDustAwardCollected(new DustAwardCollectedPayload { Amount = 25, Source = DustAwardSource.Extractor });
             // rec_05 draws the tracker at about 470 / 660 above the 412 / 660 fill.
             hud.ShowBossBar("boss_vulcan_decimator_name", 470, 660, new[] { 0.5f });
             bus.RaiseBossPhaseChanged(1);
             hud.UpdateBossHP(412);
+        }
+
+        /// <summary>
+        /// The Momentum pips (MM-HUD): the calm frame with 2.6 pips, Special 1 ready and Special 2 on its 1.3 s reuse sweep.
+        /// </summary>
+        [UiCaptureTarget("huds_momentum", SettleFrames = 14)]
+        public static Node HudsMomentum(UiCaptureContext context) {
+            Control page = HudStage("einstein");
+            StoryHUD hud = AddCaptureHud(page);
+            context.AfterReady = _ => CalmState(hud);
+            return page;
+        }
+
+        /// <summary>The Starved look: under one pip both Specials dim, and a running reuse sweep still draws on Special 2.</summary>
+        [UiCaptureTarget("huds_momentum_starved", SettleFrames = 14)]
+        public static Node HudsMomentumStarved(UiCaptureContext context) {
+            Control page = HudStage("einstein");
+            StoryHUD hud = AddCaptureHud(page);
+            context.AfterReady = _ => {
+                CalmState(hud);
+                hud.Indicators.SyncMomentum(0.45f);
+            };
+            return page;
+        }
+
+        /// <summary>The Defy notch on the Ultimate ring, lit gold: the meter at 64 and <c>gameplay_defy</c> bound (keyboard F).</summary>
+        [UiCaptureTarget("huds_defy_notch", SettleFrames = 14)]
+        public static Node HudsDefyNotch(UiCaptureContext context) {
+            Control page = HudStage("einstein");
+            SetDefyBound(page, true);
+            StoryHUD hud = AddCaptureHud(page);
+            context.AfterReady = _ => CalmState(hud);
+            return page;
+        }
+
+        /// <summary>The same frame with Defy unbound: the notch stays dim (Ink3).</summary>
+        [UiCaptureTarget("huds_defy_notch_unbound", SettleFrames = 14)]
+        public static Node HudsDefyNotchUnbound(UiCaptureContext context) {
+            Control page = HudStage("einstein");
+            SetDefyBound(page, false);
+            StoryHUD hud = AddCaptureHud(page);
+            context.AfterReady = _ => CalmState(hud);
+            return page;
+        }
+
+        // Binds (a keyboard F) or unbinds gameplay_defy for a capture, and puts the InputMap back when the page leaves.
+        private static void SetDefyBound(Control page, bool bound) {
+            bool existed = InputMap.HasAction(DefyNotchRules.DefyAction);
+            var saved = new List<InputEvent>();
+            if (existed) foreach (InputEvent e in InputMap.ActionGetEvents(DefyNotchRules.DefyAction)) saved.Add(e);
+            else InputMap.AddAction(DefyNotchRules.DefyAction);
+            InputMap.ActionEraseEvents(DefyNotchRules.DefyAction);
+            if (bound) InputMap.ActionAddEvent(DefyNotchRules.DefyAction, new InputEventKey { PhysicalKeycode = Key.F });
+            page.TreeExiting += () => {
+                if (!existed) { InputMap.EraseAction(DefyNotchRules.DefyAction); return; }
+                InputMap.ActionEraseEvents(DefyNotchRules.DefyAction);
+                foreach (InputEvent e in saved) InputMap.ActionAddEvent(DefyNotchRules.DefyAction, e);
+            };
         }
 
         [UiCaptureTarget("huds_calm", SettleFrames = 14)]
@@ -238,11 +294,10 @@ namespace FTT.Diagnostics {
                 bus.RaiseBlockChargesChanged(new BlockChargesPayload { PlayerIndex = 0, CurrentCharges = 3, MaxCharges = 3 });
                 bus.RaiseStatusEffectCleared(new StatusEffectPayload { TargetIndex = 0, Type = StatusType.None });
                 bus.RaiseStatusEffectApplied(new StatusEffectPayload { TargetIndex = 0, Type = StatusType.TimeDilation, Duration = 3.4f, Intensity = 1f });
-                hud.Indicators.SyncCooldownRemaining(AbilitySlot.Special2, 0f);
-                hud.Indicators.StartCooldown(AbilitySlot.Special1, 8f);
-                hud.Indicators.SyncCooldownRemaining(AbilitySlot.Special1, 6.1f);
+                hud.Indicators.SyncReuseDelay(AbilitySlot.Special2, 0f);
+                hud.Indicators.SyncReuseDelay(AbilitySlot.Special1, 1.2f);
+                hud.Indicators.SyncMomentum(3.4f);
                 bus.RaiseUltimateMeterChanged(new UltimateMeterPayload { PlayerIndex = 0, CurrentValue = 100f, NormalizedValue = 1f, IsFull = true });
-                bus.RaiseDefySealChanged(new DefySealPayload { PlayerIndex = 0, State = DefySealState.Ready });
                 bus.RaiseTimeFreezeStateChanged(new TimeFreezePayload { State = TimeFreezeState.Cooldown, SecondsRemaining = 38f });
                 bus.RaiseTimelineIntegrityChanged(new IntegrityPayload { Percent = 31f, Tier = IntegrityTier.Fractured, LivingExtractors = 2 });
                 bus.RaiseAnchorChargesChanged(new AnchorChargesPayload { Charges = 2, Max = 3 });

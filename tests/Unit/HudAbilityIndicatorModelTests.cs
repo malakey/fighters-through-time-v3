@@ -30,6 +30,39 @@ public class HudAbilityIndicatorModelTests {
     }
 
     [TestCase]
+    public void ASpecialsReuseDelayIsTwoSecondsAndUnderOnePipItIsStarvedUnlessLocked() {
+        var model = new HudAbilityIndicatorModel();
+        // A fresh model holds the start fill of two pips.
+        AssertFloat(model.MomentumPips).IsEqual(2f);
+        AssertFloat(HudAbilityIndicatorModel.SpecialReuseDelaySeconds).IsEqualApprox(2f, 0.0001f);
+
+        // The sweep reads remaining / 2 s whatever the authored cooldown was.
+        model.StartCooldown(AbilitySlot.Special1, 10f);
+        model.SyncReuseDelay(AbilitySlot.Special1, 0.5f);
+        AssertFloat(model.RemainingSeconds(AbilitySlot.Special1)).IsEqualApprox(0.5f, 0.0001f);
+        AssertFloat(model.ReadinessFraction(AbilitySlot.Special1)).IsEqualApprox(0.75f, 0.0001f);
+        model.SyncReuseDelay(AbilitySlot.Special1, 0f);
+        AssertThat(model.IsReady(AbilitySlot.Special1)).IsTrue();
+        // The movement ability is not a reuse-delay slot.
+        model.SyncReuseDelay(AbilitySlot.MovementAbility, 1f);
+        AssertFloat(model.RemainingSeconds(AbilitySlot.MovementAbility)).IsEqual(0f);
+
+        // Under one pip a Special is starved and not ready; the movement ability is unaffected; a locked slot is not starved.
+        model.SyncMomentum(0.99f);
+        AssertThat(model.IsStarved(AbilitySlot.Special2)).IsTrue();
+        AssertThat(model.IsReady(AbilitySlot.Special2)).IsFalse();
+        AssertThat(model.IsStarved(AbilitySlot.MovementAbility)).IsFalse();
+        AssertThat(model.IsReady(AbilitySlot.MovementAbility)).IsTrue();
+        model.SetSlotLock(AbilitySlot.Special2, AbilitySlotLockState.Dormant);
+        AssertThat(model.IsStarved(AbilitySlot.Special2)).IsFalse();
+        model.SyncMomentum(1f);
+        AssertThat(model.IsStarved(AbilitySlot.Special1)).IsFalse();
+        AssertThat(model.IsReady(AbilitySlot.Special1)).IsTrue();
+        model.SyncMomentum(99f);
+        AssertFloat(model.MomentumPips).IsEqual(4f);
+    }
+
+    [TestCase]
     public void ACooldownCountsDownAndReleasesTheSlotExactlyOnce() {
         var model = new HudAbilityIndicatorModel();
 

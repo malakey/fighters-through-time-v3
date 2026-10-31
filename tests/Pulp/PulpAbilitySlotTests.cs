@@ -25,6 +25,40 @@ public class PulpAbilitySlotTests {
     }
 
     [TestCase]
+    public void AStarvedSpecialIsDimmerThanCoolingKeepsAnInkRingAndStillDrawsARunningReuseSweep() {
+        PulpSlotLook cooling = PulpAbilitySlot.Derive(PulpSlotState.Cooling, false, 0.4f, 1.2f);
+        PulpSlotLook starved = PulpAbilitySlot.Derive(PulpSlotState.Starved, false, 0.4f, 1.2f);
+        AssertThat(starved.Ring).IsEqual(PulpRingMode.Dim);
+        AssertThat(starved.ReadyFrame).IsFalse();
+        AssertThat(starved.Saturation < cooling.Saturation).IsTrue();
+        AssertThat(starved.Brightness < cooling.Brightness).IsTrue();
+        // A running reuse sweep and its seconds still draw.
+        AssertFloat(starved.SweepElapsed).IsEqual(0.4f);
+        AssertThat(starved.CenterText).IsEqual(cooling.CenterText);
+        // With no reuse delay running there is no sweep and no number.
+        PulpSlotLook idle = PulpAbilitySlot.Derive(PulpSlotState.Starved, false, 1f, 0f);
+        AssertFloat(idle.SweepElapsed).IsEqual(-1f);
+        AssertThat(idle.CenterText).IsEqual("");
+        AssertThat(idle.GlyphName).IsNull();
+        // The Ultimate has no Starved look: it reads as charging.
+        AssertThat(PulpAbilitySlot.Derive(PulpSlotState.Starved, true, 0.3f, 0f).Ring).IsEqual(PulpRingMode.Meter);
+
+        // On a live lens the ring is the Ink3 track at full.
+        var slot = new PulpAbilitySlot { SlotSize = 48f };
+        try {
+            slot.State = PulpSlotState.Starved;
+            AssertThat(slot.Ring.FillColor).IsEqual(UIPalette.Ink3);
+            AssertFloat(slot.Ring.Fraction).IsEqual(1f);
+            slot.NotchFraction = 0.5f;
+            slot.NotchLit = true;
+            AssertFloat(slot.Ring.NotchFraction).IsEqual(0.5f);
+            AssertThat(slot.Ring.NotchColor).IsEqual(UIPalette.GoldBright);
+        } finally {
+            slot.Free();
+        }
+    }
+
+    [TestCase]
     public void TheStateTableMatchesTheSpec() {
         // Ready: full colour, no sweep, a full accent ring, the lit edge (ReadyFrame).
         PulpSlotLook ready = PulpAbilitySlot.Derive(PulpSlotState.Ready, false, 1f, 0f);

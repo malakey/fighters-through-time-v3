@@ -59,14 +59,13 @@ namespace FTT.UI {
             "S1_Cooldown", "S2_Cooldown", "Movement_Cooldown"
         };
 
-        // UI_SPEC_GLASS 3.4.4 / 4.5: stocks are 28 px stars 6 apart, block pips 24 px shields 7 apart, the Defy seal 32.
+        // UI_SPEC_GLASS 3.4.4 / 4.5: stocks are 28 px stars 6 apart, block pips 24 px shields 7 apart.
         private const float StockSize = 28f;
         private const float StockSpacing = 6f;
         private const float ShieldSize = 24f;
         private const float ShieldSpacing = 7f;
         private const float StockOffAlpha = 0.22f;
         private const float ShieldOffAlpha = 0.28f;
-        private const float DefyIconSize = 32f;
         private const float SlotShapeBox = 30f;
         private const float SlotShapeGlyph = 22f;
         /// <summary>The header's gaps: shape to name, name to "P1" (4.5, 3L.c).</summary>
@@ -97,7 +96,7 @@ namespace FTT.UI {
             public ProgressBar HP;
             public ProgressBar Meter;
             // The glass parts: the tubes over their value carriers, the HP numerals, the portrait frame, the slot shape,
-            // the "P1" tag, the Defy icon and the lens row's lenses and badges.
+            // the "P1" tag, the Momentum pips and the lens row's lenses and badges.
             public PulpBarDecor HpDecor;
             public PulpBarDecor MeterDecor;
             public Label HpCur;
@@ -107,7 +106,11 @@ namespace FTT.UI {
             public PulpPortraitRoundel Roundel;
             public Control SlotShape;
             public PulpIcon SlotShapeIcon;
-            public PulpIcon DefyIcon;
+            public MomentumPips Pips;
+            public readonly DefyBindingProbe DefyBinding = new();
+            /// <summary>The Momentum gauge presented, in pips (MM-HUD); starts at the fresh-start fill.</summary>
+            public float MomentumPipsShown = FTT.Combat.BasicComboRules.MomentumStartPips;
+            public int PresentedMomentumUnits = int.MinValue;
             public PulpAbilitySlot[] SlotWidgets = System.Array.Empty<PulpAbilitySlot>();
             public PulpStatusChip DamageChip;
             public PulpStatusChip ControlChip;
@@ -141,10 +144,6 @@ namespace FTT.UI {
             public RadialProgress DamageRadial;
             public Label ControlStatus;
             public RadialProgress ControlRadial;
-
-            /// <summary>F13 seal beside this fighter's meter.</summary>
-            public Label DefySeal;
-            public DefySealState PresentedSeal = (DefySealState)(-1);
 
             // Presented-value caches. Every widget below is refreshed at 60 Hz, so
             // writing a theme override or a StyleBox unconditionally would allocate
@@ -254,8 +253,7 @@ namespace FTT.UI {
                 ControlStatus = panelRoot.GetNodeOrNull<Label>(
                     "Body/Column/TopRow/StatusEffects_Panel/ControlStatus_Indicator"),
                 ControlRadial = panelRoot.GetNodeOrNull<RadialProgress>(
-                    "Body/Column/TopRow/StatusEffects_Panel/ControlStatus_Indicator/ControlStatus_DurationRadial"),
-                DefySeal = panelRoot.GetNodeOrNull<Label>("Body/Column/DefySeal")
+                    "Body/Column/TopRow/StatusEffects_Panel/ControlStatus_Indicator/ControlStatus_DurationRadial")
             };
             panel.PTag = panelRoot.GetNodeOrNull<Label>("Body/Column/TopRow/PTag");
             panel.TopRow = panelRoot.GetNodeOrNull<Control>("Body/Column/TopRow");
@@ -264,7 +262,7 @@ namespace FTT.UI {
 
         /// <summary>
         /// TG-HUDF: builds the glass parts around the authored nodes of one player panel (UI_SPEC_GLASS 4.5): the 110 px
-        /// portrait frame, the 30 px slot shape, the HP tube and its numerals, the Ultimate tube, the Defy icon and the
+        /// portrait frame, the 30 px slot shape, the HP tube and its numerals, the Ultimate tube, the Momentum pips and the
         /// lens row (three 54 px lenses and the two status badges). Nothing here is simulation state.
         /// </summary>
         private void BuildWidgets(PlayerPanel panel, int index) {
@@ -326,14 +324,21 @@ namespace FTT.UI {
             // The Ultimate tube: Meter style (meter -> meter2, full: res -> res2 with its glow), no text; P2 mirrored.
             if (panel.Meter != null) panel.MeterDecor = PulpBarDecor.Attach(panel.Meter, PulpBarStyle.Meter);
 
-            // Defy seal: the icon beside the pips (the old glyph Label stays as the carrier).
-            Node pipRow = panel.Root.GetNodeOrNull("Body/Column/PipRow");
-            if (pipRow != null) {
-                panel.DefyIcon = PulpIcon.Create("defy_notready", UIPalette.Ink3, DefyIconSize);
-                panel.DefyIcon.Name = "DefyIcon";
-                pipRow.AddChild(panel.DefyIcon);
-                if (mirrored) pipRow.MoveChild(panel.DefyIcon, 0);
+            // The Defy notch: one gold mark at 50 on the Ultimate tube, apart from the boss bar's white phase notches.
+            if (panel.MeterDecor != null) {
+                panel.MeterDecor.DefyNotchFraction = DefyNotchRules.NotchFraction;
+                panel.MeterDecor.DefyNotchLit = false;
             }
+
+            // The Momentum pips (MM-HUD): a row under the two Special lenses (and their key labels), P2 mirrored so the
+            // Specials stay on the outer edge. A top-level child of the safe area, positioned by ApplyLayout.
+            panel.Pips = new MomentumPips {
+                Name = mirrored ? "P2_Pips" : "P1_Pips",
+                AccessibilityName = Tr("hud_momentum_pips"),
+                TooltipText = Tr("hud_momentum_pips")
+            };
+            panel.Pips.SetAnchorsPreset(mirrored ? Control.LayoutPreset.TopRight : Control.LayoutPreset.TopLeft);
+            _root?.AddChild(panel.Pips);
 
             // The lens row: S1 / S2 / MOV at 54 (pitch 74) with key labels over the scene (R9), then the two status
             // badges 18 apart. The row's own separation is 0; the gaps are spacers, so each one is the spec's.
@@ -446,6 +451,20 @@ namespace FTT.UI {
                 if (panel.SlotRow != null) {
                     panel.SlotRow.OffsetLeft = index == 0 ? rowMargin : -rowMargin;
                     panel.SlotRow.OffsetRight = index == 0 ? rowMargin : -rowMargin;
+                }
+                if (panel.Pips != null) {
+                    // Under the two Specials: P1's are the left two lenses, P2's the right two (mirrored); the row spans both.
+                    float width = FighterHudModel.PipRowWidth;
+                    float pipTop = FighterHudModel.PipRowTop;
+                    if (index == 0) {
+                        panel.Pips.OffsetLeft = rowMargin;
+                        panel.Pips.OffsetRight = rowMargin + width;
+                    } else {
+                        panel.Pips.OffsetRight = -rowMargin;
+                        panel.Pips.OffsetLeft = -rowMargin - width;
+                    }
+                    panel.Pips.OffsetTop = pipTop;
+                    panel.Pips.OffsetBottom = pipTop + MomentumPips.RowHeight;
                 }
                 if (panel.DamageChip != null) panel.DamageChip.ShowText = chipText;
                 if (panel.ControlChip != null) panel.ControlChip.ShowText = chipText;
@@ -629,7 +648,8 @@ namespace FTT.UI {
             in FighterStateComponent state,
             in FighterRuntimeComponent runtime,
             int tickRate,
-            float echoPool = 0f) {
+            float echoPool = 0f,
+            int momentumUnits = FTT.Combat.BasicComboRules.MomentumStartUnits) {
 
             PlayerPanel panel = PanelFor(playerIndex);
             if (panel == null) return;
@@ -678,7 +698,8 @@ namespace FTT.UI {
                 (StatusType)runtime.StatusType, runtime.StatusFrames,
                 tickRate, ref panel.PresentedControlStatus, ref panel.PresentedControlTenths);
 
-            ApplyDefySeal(panel, in state, playerIndex);
+            ApplyMomentum(panel, momentumUnits);
+            ApplyDefyNotch(panel, state.Influence.ToFloat(), playerIndex);
             UpdateCooldowns(panel, in runtime);
         }
 
@@ -795,29 +816,24 @@ namespace FTT.UI {
         }
 
         /// <summary>
-        /// F13's seal, mirrored on both fighters. Derived after the gameplay update
-        /// from meter, the authoritative used flag, life state and the Sudden Death
-        /// phase — never from a cosmetic flag of its own, so a rollback that
-        /// restores an unspent Defy restores an intact seal for free.
+        /// The Momentum gauge (sim units) as pips: the row fills continuously and the two Special lenses read the same
+        /// value (<see cref="UpdateCooldowns"/>). The units come from the driver's <c>TryGetMomentum</c>; the conversion is
+        /// the pure <see cref="FighterHudModel.MomentumPipFill"/>.
         /// </summary>
-        private void ApplyDefySeal(PlayerPanel panel, in FighterStateComponent state, int playerIndex) {
-            if (panel.DefySeal == null) return;
-            bool used = false;
-            if (_driver != null && IsInstanceValid(_driver)
-                && _driver.TryGetVerb(playerIndex, out FighterVerbComponent verb)) {
-                used = verb.DefyHistoryUsed != 0;
-            }
-            DefySealState seal = DefySealModel.Resolve(
-                state.Influence.ToFloat(), used, state.CurrentHP > 0, _suddenDeath);
-            if (panel.PresentedSeal == seal) return;
-            panel.PresentedSeal = seal;
-            panel.DefySeal.Text = DefySealModel.Glyph(seal);
-            panel.DefySeal.TooltipText = Tr(DefySealModel.LabelKey(seal));
-            panel.DefySeal.AddThemeColorOverride("font_color", DefySealModel.Tint(seal));
-            if (panel.DefyIcon != null) {
-                panel.DefyIcon.IconName = FighterHudModel.DefyIconName(seal);
-                panel.DefyIcon.Tint = FighterHudModel.DefyIconTint(seal);
-            }
+        private static void ApplyMomentum(PlayerPanel panel, int units) {
+            if (panel.PresentedMomentumUnits == units) return;
+            panel.PresentedMomentumUnits = units;
+            panel.MomentumPipsShown = FighterHudModel.MomentumPipFill(units);
+            if (panel.Pips != null) panel.Pips.Value = panel.MomentumPipsShown;
+            // The Specials' starved look rides the lens cache in UpdateCooldowns.
+            panel.PresentedReady[0] = -1;
+            panel.PresentedReady[1] = -1;
+        }
+
+        /// <summary>The Defy notch on the Ultimate tube: gold when the meter holds the Defy cost and <c>gameplay_defy</c> is bound for the player's device.</summary>
+        private static void ApplyDefyNotch(PlayerPanel panel, float influence, int playerIndex) {
+            if (panel.MeterDecor == null) return;
+            panel.MeterDecor.DefyNotchLit = DefyNotchRules.IsLit(influence, panel.DefyBinding.IsBound(playerIndex));
         }
 
         /// <summary>Applies match-level state: clock visibility and remaining time.</summary>
@@ -939,7 +955,9 @@ namespace FTT.UI {
                     || !_driver.TryGetRuntime(playerID, out FighterRuntimeComponent runtime)) continue;
                 bool hasVerb = _driver.TryGetVerb(playerID, out FighterVerbComponent verb);
                 float echoPool = hasVerb ? verb.EchoPool.ToFloat() : 0f;
-                ApplyPlayerState(playerID, in state, in runtime, tickRate, echoPool);
+                int momentum = FTT.Combat.BasicComboRules.MomentumStartUnits;
+                _driver.TryGetMomentum(playerID, out momentum);
+                ApplyPlayerState(playerID, in state, in runtime, tickRate, echoPool, momentum);
             }
 
             ApplyMatchState(
@@ -1085,9 +1103,17 @@ namespace FTT.UI {
             return slot != null && slot.Visible && slot.CustomMinimumSize.X >= 24f;
         }
 
-        /// <summary>The Defy seal state drawn for a fighter. Test seam.</summary>
-        public DefySealState DefySealFor(int playerIndex) =>
-            PanelFor(playerIndex)?.PresentedSeal ?? DefySealState.Building;
+        /// <summary>A fighter's Momentum pips row. Test seam.</summary>
+        public MomentumPips MomentumPipsFor(int playerIndex) => PanelFor(playerIndex)?.Pips;
+
+        /// <summary>A fighter's Ultimate tube (it carries the Defy notch). Test seam.</summary>
+        public PulpBarDecor MeterDecorFor(int playerIndex) => PanelFor(playerIndex)?.MeterDecor;
+
+        /// <summary>A fighter's Special-lens widget (0 Special 1, 1 Special 2, 2 Movement). Test seam.</summary>
+        public PulpAbilitySlot SlotWidgetFor(int playerIndex, int slot) {
+            PlayerPanel panel = PanelFor(playerIndex);
+            return panel != null && slot >= 0 && slot < panel.SlotWidgets.Length ? panel.SlotWidgets[slot] : null;
+        }
 
         /// <summary>Whether the finite stock pips are on screen for a fighter. Test seam.</summary>
         public bool StockPipsVisible(int playerIndex) =>
@@ -1227,14 +1253,18 @@ namespace FTT.UI {
                     _ => runtime.MovementCooldownFrames
                 };
                 if (frames < 0) frames = 0;
-                // The radial's denominator is the count the cooldown started from:
-                // latched whenever the authoritative remaining rises (a new cast, or
-                // a rollback correction), released when it reaches zero.
+                bool special = slot != FighterCooldownSlot.Movement;
+                // A Special's sweep is its 2 s reuse delay (the fixed 120-frame denominator); the movement ability's is the
+                // count its cooldown started from, latched whenever the authoritative remaining rises (a new cast, or a
+                // rollback correction), released when it reaches zero.
                 if (frames <= 0) panel.CooldownStartFrames[index] = 0;
+                else if (special) panel.CooldownStartFrames[index] = FTT.Combat.BasicComboRules.SpecialReuseDelayFrames;
                 else if (frames > panel.CooldownStartFrames[index]) panel.CooldownStartFrames[index] = frames;
 
-                bool ready = frames <= 0;
-                int readyState = ready ? 1 : 0;
+                // P15: a Special under one pip is Starved (dimmed; a running reuse sweep still draws).
+                bool starved = special && panel.MomentumPipsShown < 1f;
+                bool ready = frames <= 0 && !starved;
+                int readyState = (ready ? 1 : 0) | (starved ? 2 : 0);
                 bool readinessChanged = panel.PresentedReady[index] != readyState;
                 if (!readinessChanged && panel.PresentedCooldownFrames[index] == frames) continue;
                 panel.PresentedReady[index] = readyState;
@@ -1248,7 +1278,7 @@ namespace FTT.UI {
                 if (index < panel.SlotWidgets.Length && panel.SlotWidgets[index] != null) {
                     // The visible 54 px lens: the sweep over the elapsed share, the ring and the remaining seconds.
                     PulpAbilitySlot widget = panel.SlotWidgets[index];
-                    widget.State = ready ? PulpSlotState.Ready : PulpSlotState.Cooling;
+                    widget.State = starved ? PulpSlotState.Starved : ready ? PulpSlotState.Ready : PulpSlotState.Cooling;
                     widget.Progress = FighterHudModel.CooldownRadialFraction(frames, panel.CooldownStartFrames[index]);
                     widget.SecondsRemaining = FighterHudModel.CooldownSeconds(frames, FighterSimulation.TickRate);
                 }

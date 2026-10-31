@@ -55,6 +55,27 @@ namespace FTT.UI {
             set { if (_innerRing == value) return; _innerRing = value; QueueRedraw(); }
         }
 
+        private float _notchFraction = -1f;
+        private Color _notchColor = UIPalette.Ink3;
+
+        /// <summary>
+        /// MM-HUD: a short radial tick across the ring at this share of the way round (clockwise from twelve o'clock; 0.5 is six
+        /// o'clock), for the Ultimate lens's Defy notch. Negative (default) draws none. Ring mode only.
+        /// </summary>
+        public float NotchFraction {
+            get => _notchFraction;
+            set { if (_notchFraction == value) return; _notchFraction = value; QueueRedraw(); }
+        }
+
+        /// <summary>The notch's colour.</summary>
+        public Color NotchColor {
+            get => _notchColor;
+            set { if (_notchColor == value) return; _notchColor = value; QueueRedraw(); }
+        }
+
+        /// <summary>The notch's width and how far it sticks out past each edge of the ring.</summary>
+        public const float NotchWidth = 2f, NotchOverhang = 1.5f;
+
         private bool _pie;
         private Color _innerRing = new(0f, 0f, 0f, 0f);
 
@@ -137,13 +158,16 @@ namespace FTT.UI {
             // Twelve o'clock is -PI/2 in Godot's screen-space angles.
             const float start = -Mathf.Pi * 0.5f;
             DrawArc(centre, radius, start, start + Mathf.Tau, Segments, _trackColor, Thickness, antialiased: true);
-            if (_fraction <= 0f) return;
-            if (_gradientMode != RadialGradientMode.None) {
-                DrawGradientArc(centre, radius, start);
-                return;
+            if (_fraction > 0f) {
+                if (_gradientMode != RadialGradientMode.None) DrawGradientArc(centre, radius, start);
+                else DrawArc(centre, radius, start, start + Mathf.Tau * _fraction, Segments, _fillColor, Thickness, antialiased: true);
             }
-            DrawArc(centre, radius, start, start + Mathf.Tau * _fraction, Segments, _fillColor, Thickness,
-                antialiased: true);
+            if (_notchFraction >= 0f && _notchFraction <= 1f) {
+                float angle = start + Mathf.Tau * _notchFraction;
+                var dir = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+                float half = Thickness * 0.5f + NotchOverhang;
+                DrawLine(centre + dir * (radius - half), centre + dir * (radius + half), _notchColor, NotchWidth, true);
+            }
         }
 
         // Per-point colours along the filled arc; one buffer pair per point count, so a redraw allocates nothing.

@@ -1668,7 +1668,6 @@ ui_toggle_off,Off
 # UR HUDS
 hud_vitals,Vitals
 hud_abilities,Abilities
-hud_defy_label,Defy
 hud_integrity_caption,Timeline Integrity
 hud_integrity_sealed,Timeline sealed at the checkpoint
 hud_time_freeze_name,Time Freeze
@@ -1706,3 +1705,5 @@ fighter_hud_mode_time,Time match
 # UR PAUSE
 pause_status_level,"{0} · {1} · Integrity {2}%"
 pause_tag_controller,Controller
+# MM-HUD block
+hud_momentum_pips,Momentum

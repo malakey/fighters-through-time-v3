@@ -33,7 +33,7 @@ public class StoryHudCompactTests {
             var missing = new List<string>();
             foreach (string name in new[] {
                 "PlayerPortrait", "HealthBar_BG", "BlockCharges_Panel", "DamageStatus_Indicator", "ControlStatus_Indicator",
-                "UltimateMeter_BG", "DefySeal", "Cooldown1_Icon", "Cooldown2_Icon", "Cooldown3_Icon", "RewindCounter",
+                "UltimateMeter_BG", "MomentumPips", "Cooldown1_Icon", "Cooldown2_Icon", "Cooldown3_Icon", "RewindCounter",
                 "BeaconAnchors", "TimeFreezeIndicator" }) {
                 Node node = hud.FindChild(name, true, false);
                 if (node == null || !slab.IsAncestorOf(node)) missing.Add(name);
@@ -48,7 +48,7 @@ public class StoryHudCompactTests {
     }
 
     [TestCase]
-    public async Task TheSlabIsAbout484By182AtTheTopLeftAtUiScaleOne() {
+    public async Task TheSlabIsAbout484By189AtTheTopLeftAtUiScaleOne() {
         await AtScale(1f, async hud => {
             Control slab = SlabOf(hud);
             AssertObject(slab).IsNotNull();
@@ -56,12 +56,31 @@ public class StoryHudCompactTests {
             AssertFloat(rect.Position.X).IsEqualApprox(24f, 1f);
             AssertFloat(rect.Position.Y).IsEqualApprox(20f, 1f);
             AssertFloat(rect.Size.X).IsEqualApprox(484f, 4f);
-            AssertFloat(rect.Size.Y).IsEqualApprox(182f, 4f);
+            AssertFloat(rect.Size.Y).IsEqualApprox(189f, 4f);
             // Act III's Beacon and anchor pips fit the time tools column without widening the slab.
             EventBus.Instance.RaiseAnchorChargesChanged(new AnchorChargesPayload { Charges = 3, Max = 3 });
             await Frames(3);
             AssertThat(Bounds(slab).Size.X <= 484f + 0.5f).OverrideFailureMessage($"Act III widens the slab to {Bounds(slab).Size.X}").IsTrue();
             EventBus.Instance.RaiseAnchorChargesChanged(new AnchorChargesPayload { Charges = 0, Max = 0 });
+        });
+    }
+
+    [TestCase]
+    public async Task TheMomentumPipsSitInARowUnderTheSpecialsCapsuleAcrossItsWidthInsideTheSlab() {
+        await AtScale(1f, async hud => {
+            MomentumPips pips = hud.Pips;
+            AssertObject(pips).IsNotNull();
+            Rect2 row = Bounds(pips), capsule = Bounds(hud.SpecialsCapsule), slab = Bounds(SlabOf(hud));
+            AssertFloat(row.Size.Y).IsEqualApprox(MomentumPips.RowHeight, 0.5f);
+            AssertThat(row.Position.Y >= capsule.End.Y).OverrideFailureMessage($"the pips {row} are not under the capsule {capsule}").IsTrue();
+            AssertThat(row.Position.Y - capsule.End.Y <= 6f).OverrideFailureMessage("the pips float away from the capsule").IsTrue();
+            AssertFloat(row.Position.X).IsEqualApprox(capsule.Position.X, 1f);
+            AssertFloat(row.Size.X).IsEqualApprox(capsule.Size.X, 1f);
+            AssertThat(slab.Encloses(row)).OverrideFailureMessage($"the pips leave the slab {slab}").IsTrue();
+            // The slab grew only by the row: the Ultimate and the capsules stay centred on one line.
+            Rect2 movement = Bounds(hud.MovementCapsule);
+            AssertFloat(capsule.GetCenter().Y).IsEqualApprox(movement.GetCenter().Y, 1f);
+            await Task.CompletedTask;
         });
     }
 
@@ -121,7 +140,7 @@ public class StoryHudCompactTests {
     }
 
     [TestCase]
-    public async Task TheTitleAndObjectiveSitUnderTheSlabAndTheLeftClusterEndsBy260() {
+    public async Task TheTitleAndObjectiveSitUnderTheSlabAndTheLeftClusterEndsBy270() {
         await AtScale(1f, async hud => {
             hud.SetLevelTitle("campaign_level_orleans");
             hud.SetObjective("florence_objective_reach_boss");
@@ -133,7 +152,7 @@ public class StoryHudCompactTests {
             AssertThat(objective.Position.Y >= title.End.Y - 0.5f).IsTrue();
             AssertFloat(title.Position.X).IsEqualApprox(slab.Position.X + 8f, 1f);
             float bottom = Mathf.Max(slab.End.Y, objective.End.Y);
-            AssertThat(bottom <= 262f).OverrideFailureMessage($"the left cluster ends at {bottom}, past about 260").IsTrue();
+            AssertThat(bottom <= 270f).OverrideFailureMessage($"the left cluster ends at {bottom}, past about 270").IsTrue();
         });
     }
 

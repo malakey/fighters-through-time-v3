@@ -4,11 +4,15 @@ using Godot;
 
 namespace FTT.UI.Pulp {
 
-    /// <summary>The state an ability slot is in (UI_SPEC_GLASS 3.4.2).</summary>
-    public enum PulpSlotState { Ready, Cooling, Charging, Dormant, Suppressed }
+    /// <summary>
+    /// The state an ability slot is in (UI_SPEC_GLASS 3.4.2). <c>Starved</c> (MM-HUD, appended) is a Special with under one
+    /// Momentum pip: a dimmed icon inside an <c>Ink3</c> ring, still drawing any running reuse sweep (precedence
+    /// Dormant, Suppressed, Starved, Cooling, Ready).
+    /// </summary>
+    public enum PulpSlotState { Ready, Cooling, Charging, Dormant, Suppressed, Starved }
 
-    /// <summary>How a slot's readiness ring is drawn. Append only.</summary>
-    public enum PulpRingMode { None, Meter, Ready, Cold, Accent }
+    /// <summary>How a slot's readiness ring is drawn. Append only. <c>Dim</c> (MM-HUD) is the Starved lens's <c>Ink3</c> ring.</summary>
+    public enum PulpRingMode { None, Meter, Ready, Cold, Accent, Dim }
 
     /// <summary>
     /// What a slot draws in a given state, derived without touching pixels. <c>GlyphName</c> is the logical lock
@@ -154,7 +158,11 @@ namespace FTT.UI.Pulp {
             p = Mathf.Clamp(p, 0f, 1f);
             if (state == PulpSlotState.Charging && !ultimate) state = PulpSlotState.Cooling;
             if (state == PulpSlotState.Cooling && ultimate) state = PulpSlotState.Charging;
+            if (state == PulpSlotState.Starved && ultimate) state = PulpSlotState.Charging;
             switch (state) {
+                case PulpSlotState.Starved:
+                    // Dimmed past the cooling look; a running reuse sweep and its seconds still draw.
+                    return new PulpSlotLook(true, 0.2f, 0.45f, secondsRemaining > 0f ? p : -1f, FormatSeconds(secondsRemaining), null, PulpRingMode.Dim, false, false, false);
                 case PulpSlotState.Cooling:
                     return new PulpSlotLook(true, 0.5f, 0.72f, p, FormatSeconds(secondsRemaining), null, PulpRingMode.Accent, false, false, false);
                 case PulpSlotState.Charging:
@@ -426,7 +434,30 @@ namespace FTT.UI.Pulp {
                     _ring.FillColor = UIPalette.Accent;
                     _ring.Fraction = look.ReadyFrame ? 1f : _progress;
                     break;
+                case PulpRingMode.Dim:
+                    _ring.GradientMode = RadialGradientMode.None;
+                    _ring.FillColor = UIPalette.Ink3;
+                    _ring.Fraction = 1f;
+                    break;
             }
+            ApplyNotch();
+        }
+
+        private float _notchFraction = -1f;
+        private bool _notchLit;
+
+        /// <summary>
+        /// MM-HUD: the Defy notch on the Ultimate's ring, a short radial tick at this share of the ring (0.5 for the 50 Influence
+        /// Defy costs; clockwise from 12 o'clock, so half way is 6 o'clock). Negative (default) draws none.
+        /// </summary>
+        public float NotchFraction { get => _notchFraction; set { if (_notchFraction == value) return; _notchFraction = value; ApplyNotch(); } }
+
+        /// <summary>True lights the notch gold (<see cref="UIPalette.GoldBright"/>: the meter is at the Defy cost and Defy is bound); false draws it <c>Ink3</c>.</summary>
+        public bool NotchLit { get => _notchLit; set { if (_notchLit == value) return; _notchLit = value; ApplyNotch(); } }
+
+        private void ApplyNotch() {
+            _ring.NotchFraction = _notchFraction;
+            _ring.NotchColor = _notchLit ? UIPalette.GoldBright : UIPalette.Ink3;
         }
 
         // MOT-A row 10: one 600 ms bloom on entering ready (the steady look at once under Reduced Temporal Effects).

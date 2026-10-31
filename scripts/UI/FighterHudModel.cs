@@ -208,8 +208,13 @@ namespace FTT.UI {
         public const float ClusterHeight = 149f;
         /// <summary>The lens rows: a pinned 46 px side margin; their top is a design length (192 at 1.0, 269 at 1.4).</summary>
         public const float SlotRowMargin = 46f, SlotRowTop = 192f;
-        /// <summary>The band the HUD lives in at 1.0 (4.5: the key labels end at 273); it scales with the HUD.</summary>
-        public const float TopBandHeight = 273f;
+        /// <summary>
+        /// MM-HUD: the Momentum pips sit under the two Special lenses and their key labels (which end at 273): 5 px below them,
+        /// spanning the two lenses and the gap between (54 + 20 + 54).
+        /// </summary>
+        public const float PipRowTop = 278f, PipRowWidth = 128f;
+        /// <summary>The band the HUD lives in at 1.0 (the key labels end at 273, the pips at 287); it scales with the HUD.</summary>
+        public const float TopBandHeight = 287f;
         /// <summary>The timer plate (GlassPanelTimer): 234 x 111.6, padding 12 / 32 / 12, its top pinned 22 px from the screen's.</summary>
         public const float TimerPlateWidth = 234f, TimerPlateHeight = 111.6f, TimerPlateTop = 22f;
         public const float TimerPlatePaddingX = 32f, TimerPlatePaddingY = 12f;
@@ -298,6 +303,9 @@ namespace FTT.UI {
             _ => "venom"
         };
 
+        // MM-HUD removed the seal widgets; these two helpers stay for GlassKitContentTests and the kit's defy_* icons until
+        // MM-SWEEP retires them (plan 1.9, two-stage retirement).
+
         /// <summary>Kit icon per Defy seal state; the four shapes differ (shape carries state).</summary>
         public static string DefyIconName(DefySealState state) => state switch {
             DefySealState.Ready => "defy_ready",
@@ -312,6 +320,13 @@ namespace FTT.UI {
             DefySealState.Barred => UIPalette.Danger,
             _ => UIPalette.Ink3
         };
+
+        /// <summary>
+        /// MM-HUD: the Momentum gauge in pips for the sim's integer units (7200 to a pip, 0 to 4). Pure; the HUD feeds the pip
+        /// row and the Special lenses' starved look through it, so the sim stub or the real gauge reads the same way.
+        /// </summary>
+        public static float MomentumPipFill(int units) =>
+            Mathf.Clamp(units, 0, FTT.Combat.BasicComboRules.MomentumMaxUnits) / (float)FTT.Combat.BasicComboRules.MomentumUnitsPerPip;
 
         /// <summary>The small mode caption under the timer digits (a raw key; the label upper-cases it).</summary>
         public static string ModeLabelKey(int matchMode) =>

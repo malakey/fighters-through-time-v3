@@ -115,6 +115,19 @@ namespace FTT.UI.Pulp {
         /// <summary>Boss phase notches as fractions of the bar's range (at most four are drawn).</summary>
         public float[] PhaseNotches { get => _notches; set { _notches = value ?? Array.Empty<float>(); Invalidate(); } }
 
+        /// <summary>
+        /// MM-HUD: the Defy notch, a gold mark across the tube at this share of its range (0.5, the 50 Influence Defy costs); negative
+        /// (default) draws none. It is a 3 px line standing 5 px proud of the tube on both sides, wider and warmer than the 1 px
+        /// tick at 50 and nothing like the boss bar's white phase notches (which have a diamond below and are boss-only).
+        /// </summary>
+        public float DefyNotchFraction { get => _defyNotch; set { if (_defyNotch == value) return; _defyNotch = value; Invalidate(); } }
+
+        /// <summary>True lights the Defy notch gold (<see cref="UIPalette.GoldBright"/> with a glow); false draws it <c>Ink3</c>.</summary>
+        public bool DefyNotchLit { get => _defyLit; set { if (_defyLit == value) return; _defyLit = value; Invalidate(); } }
+
+        private float _defyNotch = -1f;
+        private bool _defyLit;
+
         /// <summary>The low glow's current alpha in [0, 1]: 0 when not low, 1 under Reduced Temporal Effects.</summary>
         public float GlowStrength => GlowStrengthAt(_low, _clock, PulpMotion.Reduced);
 
@@ -311,6 +324,7 @@ namespace FTT.UI.Pulp {
         private readonly Poly[] _ticks = { new(), new(), new(), new(), new(), new(), new(), new(), new(), new() };
         private readonly Poly[] _notchLines = { new(), new(), new(), new() }, _notchGlows = { new(), new(), new(), new() },
             _notchDiamonds = { new(), new(), new(), new() };
+        private readonly Poly _defyLine = new(), _defyGlow = new();
         private int _tickCount;
         private readonly Vector2[] _a = new Vector2[16], _b = new Vector2[16], _quad = new Vector2[4];
         private readonly StyleBoxFlat _glowBox = new();
@@ -441,6 +455,16 @@ namespace FTT.UI.Pulp {
             _baseGlow = boss ? UIPalette.BossGlow : TubeGlow;
             _baseGlowSize = boss ? BossGlowSize : TubeGlowSize;
 
+            // The Defy notch: gold (lit) or ink3 (unlit) across the tube at its fraction, on the side the fill grows from.
+            if (_defyNotch > 0f && _defyNotch < 1f) {
+                float dx = (mirrored ? 1f - _defyNotch : _defyNotch) * box.Size.X;
+                Rect(new Rect2(dx - 1.5f, -5f, 3f, box.Size.Y + 10f), _defyLine, _defyLit ? UIPalette.GoldBright : UIPalette.Ink3);
+                if (_defyLit) Rect(new Rect2(dx - 4f, -7f, 8f, box.Size.Y + 14f), _defyGlow, new Color(UIPalette.GoldBright, 0.25f));
+                else _defyGlow.Clear();
+            } else {
+                _defyLine.Clear(); _defyGlow.Clear();
+            }
+
             // The boss's phase notches: a 2 px white line from 8 above to 14 below, a 12 px accent diamond 16 below.
             for (int i = 0; i < MaxNotches; i++) {
                 if (!boss || i >= _notches.Length || _notches[i] <= 0f || _notches[i] >= 1f) {
@@ -519,6 +543,8 @@ namespace FTT.UI.Pulp {
             DrawPoly(_capGlowB);
             DrawPoly(_cap);
             foreach (Poly tick in _ticks) DrawPoly(tick);
+            DrawPoly(_defyGlow);
+            DrawPoly(_defyLine);
             for (int i = 0; i < MaxNotches; i++) {
                 DrawPoly(_notchGlows[i]);
                 DrawPoly(_notchLines[i]);
