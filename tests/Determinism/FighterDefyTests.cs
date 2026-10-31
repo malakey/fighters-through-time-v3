@@ -35,7 +35,11 @@ public class FighterDefyTests {
             .IsEqual(FP64.FromInt(30).RawValue);
         AssertThat(Fighter(simulation, 0).InvulnerabilityFrames).IsEqual(Invulnerable);
         AssertThat(FighterDefyRules.Counter(Action(simulation, 0)))
-            .OverrideFailureMessage("The presentation counter steps once per Defy.")
+            .OverrideFailureMessage("The presentation counter has not stepped at frame 1: it steps on the blast frame.")
+            .IsEqual(0);
+        for (int tick = 0; tick < BlastFrame; tick++) Step(simulation, GameplayButtons.None);
+        AssertThat(FighterDefyRules.Counter(Action(simulation, 0)))
+            .OverrideFailureMessage("The presentation counter steps once per Defy, on the blast frame.")
             .IsEqual(1);
         AssertThat(Runtime(simulation, 0).AbilityLockoutFrames).IsEqual(0);
         AssertThat(Runtime(simulation, 0).SpecialLockoutFrames).IsEqual(0);
@@ -350,8 +354,10 @@ public class FighterDefyTests {
             AssertThat(simulation.SeedFighterInfluenceForTest(0, 100)).IsTrue();
             AssertThat(simulation.SeedFighterDefyForTest(0, 0)).IsTrue();
             Step(simulation, GameplayButtons.Defy);
+            AssertThat(FighterDefyRules.Counter(Action(simulation, 0)))
+                .OverrideFailureMessage("The counter has not stepped at frame 1.")
+                .IsEqual(expected);
             expected = (expected + 1) & 0xF;
-            AssertThat(FighterDefyRules.Counter(Action(simulation, 0))).IsEqual(expected);
             for (int tick = 0; tick < 40; tick++) Step(simulation, GameplayButtons.None);
             AssertThat(Action(simulation, 0).DefyFrames).IsEqual(0);
             AssertThat(FighterDefyRules.Counter(Action(simulation, 0)))

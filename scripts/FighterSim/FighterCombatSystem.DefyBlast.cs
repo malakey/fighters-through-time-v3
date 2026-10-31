@@ -27,6 +27,7 @@ namespace FTT.FighterSim {
             ref FighterStateComponent defier = ref frame.Get<FighterStateComponent>(defierEntity);
             if (defier.Stocks <= 0) return;
             defierAction.ActionFlags |= FighterActionStateComponent.ActionFlagDefyBlastFired;
+            FighterDefyRules.StepCounter(ref defierAction);
 
             ref FighterVerbComponent defierVerb = ref frame.Get<FighterVerbComponent>(defierEntity);
             FighterDefyBlastRules.Heal(ref defier, ref defierVerb);

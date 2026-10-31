@@ -76,7 +76,7 @@ namespace FTT.FighterSim {
         /// overrides (hitstun, daze, a pending launch, the tumble, shieldstun, the tech
         /// lock, the knockdown, Foresight's stance, the Special cast and its D3 buffer,
         /// universal movement and kit motion, the string, the ledge hang and the freeze
-        /// buffer), then starts the clock at frame 1 and steps the presentation counter.
+        /// buffer), then starts the clock at frame 1 (the presentation counter steps on the blast frame).
         /// Neither lockout is read or armed. The grab on either side is released by the
         /// caller, which can reach the partner.
         /// </summary>
@@ -113,11 +113,18 @@ namespace FTT.FighterSim {
             runtime.FreezeBufferArmed = 0;
             runtime.FreezeBufferedSpecials = 0;
 
-            int next = (Counter(in action) + 1) & 0xF;
             action.DefyFrames = 1;
             action.ActionFlags &= ~(FighterActionStateComponent.ActionFlagDefyBlastFired
-                | FighterActionStateComponent.ActionFlagDefyBuffered
-                | FighterActionStateComponent.DefyCounterMask);
+                | FighterActionStateComponent.ActionFlagDefyBuffered);
+        }
+
+        /// <summary>
+        /// Steps the presentation counter (wrapping, bits 12 to 15). Called on the blast
+        /// frame (frame 6), so the ring, label and cue line up with Story's blast.
+        /// </summary>
+        internal static void StepCounter(ref FighterActionStateComponent action) {
+            int next = (Counter(in action) + 1) & 0xF;
+            action.ActionFlags &= ~FighterActionStateComponent.DefyCounterMask;
             action.ActionFlags |= next << FighterActionStateComponent.DefyCounterShift;
         }
 
