@@ -18,7 +18,7 @@ public class PlaytestDefyPolicyTests {
     }
 
     [TestCase]
-    public void PlayPressesDefyOnlyInHitstunInAStringAmongTwoFoesAndNotWithinThreeHundredFramesOfTheLast() {
+    public void PlayPressesDefyOnlyInHitstunInAStringWithAFoeNearAndNotWithinThreeHundredFramesOfTheLast() {
         const int now = 1000;
         PlaytestDefyPolicy policy = WithTwoHits(now);
         AssertThat(policy.ShouldDefy(FightStyle.Play, now, canDefy: true, inHitstun: true, enemiesNear: 2)).IsTrue();
@@ -28,8 +28,10 @@ public class PlaytestDefyPolicyTests {
             .OverrideFailureMessage("The hero cannot Defy (under 50 Influence, a refused state).").IsFalse();
         AssertThat(policy.ShouldDefy(FightStyle.Play, now, canDefy: true, inHitstun: false, enemiesNear: 2))
             .OverrideFailureMessage("Not in hitstun.").IsFalse();
+        AssertThat(policy.ShouldDefy(FightStyle.Play, now, canDefy: true, inHitstun: true, enemiesNear: 0))
+            .OverrideFailureMessage("No foe within 250 px.").IsFalse();
         AssertThat(policy.ShouldDefy(FightStyle.Play, now, canDefy: true, inHitstun: true, enemiesNear: 1))
-            .OverrideFailureMessage("One foe is not a crowd.").IsFalse();
+            .OverrideFailureMessage("One foe near is enough.").IsTrue();
 
         // A string is two hits in 60 frames: one hit, or two hits 61 apart, is not.
         var oneHit = new PlaytestDefyPolicy();

@@ -15,7 +15,7 @@ namespace FTT.Diagnostics {
         /// <summary>The string window in frames: this many hits inside it is "a string".</summary>
         public const int StringWindowFrames = 60;
         /// <summary>Foes inside <see cref="EnemyRadiusPixels"/> needed.</summary>
-        public const int MinEnemiesNear = 2;
+        public const int MinEnemiesNear = 1;
         public const float EnemyRadiusPixels = 250f;
         /// <summary>Frames that must pass after the last Defy press.</summary>
         public const int SpacingFrames = 300;
@@ -45,7 +45,8 @@ namespace FTT.Diagnostics {
         /// <summary>
         /// True when <paramref name="style"/> should press Defy now: the style Defies, the hero can
         /// (<paramref name="canDefy"/>, which already holds the 50 Influence and the state refusals),
-        /// it is in hitstun inside a string (2+ hits in 60 frames), 2+ foes stand within 250 px and
+        /// it is in hitstun inside a string (2+ hits in 60 frames), 1+ foe stands within 250 px (relaxed
+        /// from 2 by the orchestrator, 2026-10-31, so the after batch actually exercises Defy) and
         /// 300+ frames have passed since the last Defy.
         /// </summary>
         public bool ShouldDefy(FightStyle style, int frame, bool canDefy, bool inHitstun, int enemiesNear) {
