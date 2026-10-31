@@ -855,6 +855,108 @@ namespace FTT.Combat {
 
         /// <summary>One tick of the lockout's countdown, floored at zero.</summary>
         public static int TickAbilityLockout(int remainingFrames) => remainingFrames > 0 ? remainingFrames - 1 : 0;
+        // === Momentum gauge (meter and Defy update 2026-10-31; ledger USER-MOMENTUM-GAUGE, PROVISIONAL-MOMENTUM-RULES) ===
+        // One gauge of four pips shared by Special 1 and Special 2, replacing the
+        // two per-slot cooldowns (the D2 per-hit Momentum refund above is
+        // superseded; MM-SWEEP deletes it). Every accepted Special costs one pip,
+        // the gauge refills continuously (1 pip per 12 s, no pause after a spend)
+        // and landed basic swings add a little. The Fighter sim counts integer
+        // UNITS (7200 to the pip, FighterMomentumRules); Story counts float pips
+        // and converts with / MomentumUnitsPerPip. Plan section 1.4.
+
+        /// <summary>The sim's unit: 7200 units make one pip.</summary>
+        public const int MomentumUnitsPerPip = 7200;
+        /// <summary>The gauge holds four pips.</summary>
+        public const int MomentumMaxPips = 4;
+        /// <summary>The gauge's cap in units (4 pips).</summary>
+        public const int MomentumMaxUnits = MomentumMaxPips * MomentumUnitsPerPip;
+        /// <summary>Pips at spawn, a fresh Story attempt, Sudden Death and an absent save key.</summary>
+        public const int MomentumStartPips = 2;
+        /// <summary>The start fill in units (2 pips).</summary>
+        public const int MomentumStartUnits = MomentumStartPips * MomentumUnitsPerPip;
+        /// <summary>Every accepted Special costs one pip.</summary>
+        public const int MomentumSpecialCostUnits = MomentumUnitsPerPip;
+        /// <summary>Frames of passive regeneration per pip (12 s).</summary>
+        public const int MomentumRegenFramesPerPip = 720;
+        /// <summary>Units regenerated per frame (= 7200 / 720; pinned by a test).</summary>
+        public const int MomentumRegenUnitsPerFrame = 10;
+        /// <summary>A landed string hit 1 or 2 adds 0.05 pip.</summary>
+        public const int MomentumStringHitGainUnits = 360;
+        /// <summary>A landed Up-Attack, Down-Air, air strike or ledge attack adds 0.05 pip.</summary>
+        public const int MomentumDirectionalGainUnits = 360;
+        /// <summary>A landed finisher (string hit 3) adds 0.2 pip.</summary>
+        public const int MomentumFinisherGainUnits = 1440;
+        /// <summary>Frames a Special slot stays refused after its own cast (2 s, per slot).</summary>
+        public const int SpecialReuseDelayFrames = 120;
+
+        /// <summary>
+        /// The units one landed swing adds (the sim): a chain finisher (step 2 or
+        /// more) 1440, a chain hit 1 or 2 360, and every other variant (the air
+        /// strike, the directional strikes, the ledge attack, which the sim
+        /// reports as chain step 0) 360.
+        /// </summary>
+        public static int MomentumGainUnitsFor(int variant, int comboStep) {
+            if (variant != VariantChain) return MomentumDirectionalGainUnits;
+            return comboStep >= 2 ? MomentumFinisherGainUnits : MomentumStringHitGainUnits;
+        }
+
+        /// <summary>
+        /// Story's form of <see cref="MomentumGainUnitsFor"/>, keyed on the melee
+        /// hitbox's ID: <c>combo_3</c> 1440, any other <c>combo_</c> ID 360, the
+        /// air strike and the two directional IDs 360, anything else (a throw, a
+        /// construct) 0.
+        /// </summary>
+        public static int MomentumGainUnitsForHitbox(string hitboxID) {
+            if (hitboxID == null) return 0;
+            if (hitboxID == "combo_3") return MomentumFinisherGainUnits;
+            if (hitboxID.StartsWith("combo_", System.StringComparison.Ordinal)) return MomentumStringHitGainUnits;
+            if (hitboxID == AirAttackHitboxID) return MomentumStringHitGainUnits;
+            if (hitboxID == UpAttackHitboxID || hitboxID == DownAirHitboxID) return MomentumDirectionalGainUnits;
+            return 0;
+        }
+
+        // === Defy History (meter and Defy update 2026-10-31; ledger USER-DEFY-ACTIVE-BURST) ===
+        // Defy becomes a button: with at least DefyInfluenceCost meter the fighter
+        // spends it, is invulnerable for DefyInvulnerableFrames, blasts nearby
+        // hostile characters (stagger, no damage) on DefyBlastFrame, heals, and
+        // recovers. Both modes read these numbers; the sim through
+        // FighterDefyRules. Plan sections 1.4 and 2.4-2.6.
+
+        /// <summary>Influence meter a Defy costs.</summary>
+        public const int DefyInfluenceCost = 50;
+        /// <summary>Frames 1-6 of a Defy are invulnerable.</summary>
+        public const int DefyInvulnerableFrames = 6;
+        /// <summary>The blast resolves on this frame.</summary>
+        public const int DefyBlastFrame = 6;
+        /// <summary>Recovery frames after the invulnerable window.</summary>
+        public const int DefyRecoveryFrames = 24;
+        /// <summary>A Defy lasts 30 frames in all.</summary>
+        public const int DefyTotalFrames = DefyInvulnerableFrames + DefyRecoveryFrames;
+        /// <summary>The blast's radius in world units (Story 150 px at 60 px/u).</summary>
+        public const double DefyBlastRadiusUnits = 2.5;
+        /// <summary>Frames of hitstun the blast inflicts.</summary>
+        public const int DefyBlastStaggerFrames = 30;
+        /// <summary>Frames the Defier freezes on the blast (about 8).</summary>
+        public const int DefyBlastHitstopFrames = 8;
+        /// <summary>The blast's horizontal push in units per second (away from the Defier).</summary>
+        public const int DefyBlastPushXUnitsPerSecond = 6;
+        /// <summary>The blast's vertical push in units per second (up).</summary>
+        public const int DefyBlastPushYUnitsPerSecond = 6;
+        /// <summary>The heal's floor is this share of max HP (numerator).</summary>
+        public const int DefyHealFloorNumerator = 1;
+        /// <summary>The heal's floor is this share of max HP (denominator): 1/10.</summary>
+        public const int DefyHealFloorDenominator = 10;
+
+        /// <summary>
+        /// HP a Defy heals: <c>min(missingHP, max(echoPoolRounded, ceil(maxHP / 10)))</c>,
+        /// never below zero (P10). An empty Rally pool still heals the 10 % floor.
+        /// </summary>
+        public static int DefyHealPoints(int missingHP, int echoPoolRounded, int maxHP) {
+            if (missingHP <= 0 || maxHP <= 0) return 0;
+            int floor = (maxHP * DefyHealFloorNumerator + DefyHealFloorDenominator - 1) / DefyHealFloorDenominator;
+            int wanted = echoPoolRounded > floor ? echoPoolRounded : floor;
+            return wanted < missingHP ? wanted : missingHP;
+        }
 
         // === Hit-confirm cancel (user direction 2026-10-11, D1; ledger USER-HIT-CONFIRM-CANCEL) ===
         // A basic swing that LANDS (D1a, see the Momentum region above) may
