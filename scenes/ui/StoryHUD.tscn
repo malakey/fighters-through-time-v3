@@ -1,15 +1,16 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 ; The compact Story HUD (2026-10-27, the user's request; first built by TG-HUDS as three glass slabs). Left: ONE glass
 ; slab (GlassPanelHud, 484 x ~182 at 100 %, origin (24, 20)): tier 1 the 68 px portrait frame, the 296 x 22 HP tube with
 ; its three 18 px block pips after it and the two 30 px status badges under it; tier 2 the 64 px Ultimate lens with the
-; Defy seal as a badge on its ring, a recessed capsule holding S1 and S2 (48 px lenses), a capsule holding MOV, then a
+; Defy notch on its ring, a recessed capsule holding S1 and S2 (48 px lenses) with the Momentum pips in a row under it
+; (SpecialsColumn; MM-HUD), a capsule holding MOV, then a
 ; hairline and the time tools as a column (rewind and, in Act III, the Beacon; Time Freeze). The level title and the
 ; objective sit under the slab (SafeArea/TopLeft, placed in code 12 px below it, as wide as the slab less its 8 px
 ; indent: a long title or objective wraps instead of running into the free band). Right: the dust plate and the 64 px
 ; Integrity dial. BossPanel is laid out in code (640 wide at 100 %, centred in the free band). Every glyph Label keeps
 ; its Text and TooltipText for the tests and accessibility, its characters hidden, and the glass widget is its child.
-; HeroName, DefyLabel and FreezeSubLabel are kept hidden: their nodes and keys stay, they draw nothing
+; HeroName and FreezeSubLabel are kept hidden: their nodes and keys stay, they draw nothing
 ; (docs/handoffs/TG_HUDS_COMPACT.md).
 
 [ext_resource type="Script" path="res://scripts/UI/StoryHUD.cs" id="1_script"]
@@ -17,6 +18,7 @@
 [ext_resource type="Script" path="res://scripts/UI/RadialProgress.cs" id="3_radial"]
 [ext_resource type="Script" path="res://scripts/UI/BeaconAnchorIcon.cs" id="4_beacon"]
 [ext_resource type="Script" path="res://scripts/UI/HudCapsule.cs" id="5_capsule"]
+[ext_resource type="Script" path="res://scripts/UI/Pulp/MomentumPips.cs" id="6_pips"]
 
 [node name="StoryHUD" type="CanvasLayer"]
 layer = 10
@@ -34,9 +36,9 @@ mouse_filter = 2
 [node name="TopLeft" type="VBoxContainer" parent="SafeArea"]
 layout_mode = 0
 offset_left = 32.0
-offset_top = 214.0
+offset_top = 221.0
 offset_right = 508.0
-offset_bottom = 262.0
+offset_bottom = 269.0
 mouse_filter = 2
 theme_override_constants/separation = 4
 
@@ -56,7 +58,7 @@ layout_mode = 0
 offset_left = 24.0
 offset_top = 20.0
 offset_right = 508.0
-offset_bottom = 202.0
+offset_bottom = 209.0
 mouse_filter = 2
 theme_override_constants/separation = 0
 
@@ -247,43 +249,35 @@ mouse_filter = 2
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="DefySeal" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/MeterRow"]
-custom_minimum_size = Vector2(28, 28)
-layout_mode = 0
-offset_left = 61.0
-offset_top = -5.0
-offset_right = 89.0
-offset_bottom = 23.0
+[node name="SpecialsColumn" type="VBoxContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities"]
+layout_mode = 2
 mouse_filter = 2
-horizontal_alignment = 1
-vertical_alignment = 1
+theme_override_constants/separation = 3
 
-[node name="DefyLabel" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/MeterRow"]
-visible = false
-layout_mode = 0
-theme_type_variation = &"DefyLabel"
-text = "hud_defy_label"
-uppercase = true
+[node name="AlignSpacer" type="Control" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsColumn"]
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+mouse_filter = 2
 
-[node name="SpecialsCapsule" type="MarginContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities"]
+[node name="SpecialsCapsule" type="MarginContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsColumn"]
 layout_mode = 2
 size_flags_vertical = 4
 mouse_filter = 2
 script = ExtResource("5_capsule")
 
-[node name="CooldownRow" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsCapsule"]
+[node name="CooldownRow" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsColumn/SpecialsCapsule"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 9
 
-[node name="Cooldown1_Icon" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsCapsule/CooldownRow"]
+[node name="Cooldown1_Icon" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsColumn/SpecialsCapsule/CooldownRow"]
 custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
 mouse_filter = 2
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Cooldown1_Radial" type="Control" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsCapsule/CooldownRow/Cooldown1_Icon"]
+[node name="Cooldown1_Radial" type="Control" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsColumn/SpecialsCapsule/CooldownRow/Cooldown1_Icon"]
 visible = false
 layout_mode = 1
 anchors_preset = 15
@@ -294,7 +288,7 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("3_radial")
 
-[node name="Cooldown1_LockOverlay" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsCapsule/CooldownRow/Cooldown1_Icon"]
+[node name="Cooldown1_LockOverlay" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsColumn/SpecialsCapsule/CooldownRow/Cooldown1_Icon"]
 visible = false
 layout_mode = 1
 anchors_preset = 15
@@ -306,14 +300,14 @@ mouse_filter = 2
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Cooldown2_Icon" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsCapsule/CooldownRow"]
+[node name="Cooldown2_Icon" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsColumn/SpecialsCapsule/CooldownRow"]
 custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
 mouse_filter = 2
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Cooldown2_Radial" type="Control" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsCapsule/CooldownRow/Cooldown2_Icon"]
+[node name="Cooldown2_Radial" type="Control" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsColumn/SpecialsCapsule/CooldownRow/Cooldown2_Icon"]
 visible = false
 layout_mode = 1
 anchors_preset = 15
@@ -324,7 +318,7 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("3_radial")
 
-[node name="Cooldown2_LockOverlay" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsCapsule/CooldownRow/Cooldown2_Icon"]
+[node name="Cooldown2_LockOverlay" type="Label" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsColumn/SpecialsCapsule/CooldownRow/Cooldown2_Icon"]
 visible = false
 layout_mode = 1
 anchors_preset = 15
@@ -335,6 +329,12 @@ grow_vertical = 2
 mouse_filter = 2
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="MomentumPips" type="Control" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsColumn"]
+custom_minimum_size = Vector2(0, 9)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("6_pips")
 
 [node name="MovementCapsule" type="MarginContainer" parent="SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities"]
 layout_mode = 2

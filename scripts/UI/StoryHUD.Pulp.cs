@@ -78,7 +78,7 @@ namespace FTT.UI {
 
         // ---- the compact slab (2026-10-27; the mock's .hc-* rules) ----
 
-        /// <summary>The slab's size at 100 % (484 wide, about 182 tall; it grows a few pixels when Act III's anchors show).</summary>
+        /// <summary>The slab's size at 100 % (484 wide, about 189 tall since the Momentum pips row, 182 before; it grows a few pixels when Act III's anchors show).</summary>
         public const float HudPanelWidth = 484f;
         /// <summary>The portrait frame (68; 112 before).</summary>
         public const float PortraitSize = 68f;
@@ -93,8 +93,8 @@ namespace FTT.UI {
         public const float AbilityLensSize = 48f, AbilityRingWidth = 2.5f, AbilityRingOutset = 5f, AbilityCenterSize = 18f;
         /// <summary>The Ultimate lens (64; 92 before), its ring (4.5 px, its outer edge 7 px out: a 78 px box) and its centre percent (21 px).</summary>
         public const float UltimateLensSize = 64f, UltimateRingWidth = 4.5f, UltimateRingOutset = 7f, UltimateCenterSize = 21f;
-        /// <summary>The Defy seal's badge on the Ultimate ring (a 28 px dark disc, the seal glyph at 20 px).</summary>
-        public const float DefyBadgeSize = 28f, DefyGlyphSize = 20f;
+        /// <summary>The Momentum pips' row under the Specials capsule (MM-HUD): its height and the gap above it.</summary>
+        public const float PipRowHeight = MomentumPips.RowHeight, PipRowGap = 3f;
         /// <summary>The time tools' badges (26; 46 before) and their ring (2 px, its outer edge 3 px out).</summary>
         public const float TimeBadgeSize = 26f, TimeBadgeRingWidth = 2f, TimeBadgeRingOutset = 3f;
         /// <summary>The hairline before the time tools: 1.5 px wide, 58 tall, fading at both ends.</summary>
@@ -133,7 +133,7 @@ namespace FTT.UI {
         private PulpStatusChip _controlChip;
         private readonly PulpAbilitySlot[] _slots = new PulpAbilitySlot[3];
         private PulpAbilitySlot _ultSlot;
-        private PulpIcon _defyIcon;
+        private MomentumPips _momentumPips;
         private HudBadge _rewindBadge;
         private HudBadge _freezeBadge;
         private PulpIcon _objectiveFlag;
@@ -154,7 +154,6 @@ namespace FTT.UI {
         private HudCapsule _specialsCapsule;
         private HudCapsule _movementCapsule;
         private Control _timeDivider;
-        private HudBadge _defyBadge;
         private PulpIcon _toastFlag;
         private GlassFlourish _introFlourish;
         private Label _dustFloatRise;
@@ -171,8 +170,14 @@ namespace FTT.UI {
         /// <summary>The hairline before the time tools. Test seam.</summary>
         public Control TimeDivider => _timeDivider;
 
-        /// <summary>The Defy seal's badge on the Ultimate ring. Test seam.</summary>
-        public HudBadge DefyBadge => _defyBadge;
+        /// <summary>Forgets the cached <c>gameplay_defy</c> binding read, so the next frame re-reads the InputMap. Test seam (the binding service bumps its generation itself).</summary>
+        public void InvalidateDefyBinding() => _defyBinding.Invalidate();
+
+        /// <summary>The Ultimate lens's ring, which carries the Defy notch. Test seam.</summary>
+        public RadialProgress UltimateRing => _ultSlot?.Ring;
+
+        /// <summary>The Momentum pips under the Specials capsule. Test seam.</summary>
+        public MomentumPips Pips => _momentumPips;
 
         /// <summary>The glass lenses (Special 1, Special 2, Movement). Test seam.</summary>
         public System.Collections.Generic.IReadOnlyList<PulpAbilitySlot> SlotWidgets => _slots;
@@ -272,7 +277,7 @@ namespace FTT.UI {
             if (_topLeft == null || _hudPanel == null) return;
             Control stack = _hudPanel.GetParent<Control>();
             Vector2 origin = stack != null ? stack.Position + _hudPanel.Position : _hudPanel.Position;
-            var at = new Vector2(origin.X + TitleRowIndent, origin.Y + _hudPanel.Size.Y + TitleRowGap);
+            var at = new Vector2(origin.X + TitleRowIndent, origin.Y + Mathf.Max(_hudPanel.Size.Y, _hudPanel.GetCombinedMinimumSize().Y) + TitleRowGap);
             if (_topLeft.Position != at) _topLeft.Position = at;
             float width = Mathf.Max(1f, _hudPanel.Size.X - TitleRowIndent);
             if (!Mathf.IsEqualApprox(_topLeft.Size.X, width)) _topLeft.Size = new Vector2(width, _topLeft.Size.Y);
@@ -396,17 +401,8 @@ namespace FTT.UI {
                 _meterHost.MoveChild(_ultSlot, 0);
                 _ultSlot.Position = -_ultSlot.LensOrigin;
             }
-            if (_defySeal != null) {
-                // The Defy seal as a badge on the Ultimate ring's upper right (it lights at full meter): a 28 px dark glass
-                // disc with its 1.5 px edge and the seal glyph at 20 px; its four shape states as before.
-                HideGlyph(_defySeal);
-                _defyBadge = new HudBadge {
-                    Name = "DefyBadge", BadgeSize = DefyBadgeSize, IconShare = DefyGlyphSize / DefyBadgeSize,
-                    IconName = "defy_notready", Tint = UIPalette.Ink3
-                };
-                _defySeal.AddChild(_defyBadge);
-                _defyIcon = _defyBadge.Glyph;
-            }
+            _momentumPips = GetNodeOrNull<MomentumPips>(MomentumPipsPath);
+            if (_ultSlot != null) _ultSlot.NotchFraction = DefyNotchRules.NotchFraction;
         }
 
         private void BuildTimeTools() {
@@ -674,10 +670,12 @@ namespace FTT.UI {
         }
 
         /// <summary>Maps the model state onto a lens, writing only what moved.</summary>
-        private static void ApplySlot(PulpAbilitySlot slot, AbilitySlotLockState lockState, bool ready, float readiness, float seconds) {
+        private static void ApplySlot(PulpAbilitySlot slot, AbilitySlotLockState lockState, bool ready, float readiness, float seconds, bool starved) {
             if (slot == null || !GodotObject.IsInstanceValid(slot)) return;
+            // P15: Dormant > Suppressed > Starved (a running reuse sweep still draws) > Cooling > Ready.
             PulpSlotState state = lockState == AbilitySlotLockState.Dormant ? PulpSlotState.Dormant
                 : lockState == AbilitySlotLockState.Suppressed ? PulpSlotState.Suppressed
+                : starved ? PulpSlotState.Starved
                 : ready ? PulpSlotState.Ready
                 : slot.Ultimate ? PulpSlotState.Charging : PulpSlotState.Cooling;
             if (slot.State != state) slot.State = state;
@@ -685,6 +683,20 @@ namespace FTT.UI {
             // Whole tenths only: the centre number changes at most ten times a second.
             float tenths = Mathf.Ceil(seconds * 10f) / 10f;
             if (!Mathf.IsEqualApprox(slot.SecondsRemaining, tenths)) slot.SecondsRemaining = tenths;
+        }
+
+        /// <summary>The Momentum pips follow the hero's gauge; the row dims while both Specials are Dormant (Levels 0 to 2, G4.1).</summary>
+        private void RefreshMomentumPips() {
+            if (_momentumPips == null) return;
+            _momentumPips.Value = _indicators.MomentumPips;
+            _momentumPips.Dimmed = _indicators.LockState(FTT.Core.AbilitySlot.Special1) == AbilitySlotLockState.Dormant
+                && _indicators.LockState(FTT.Core.AbilitySlot.Special2) == AbilitySlotLockState.Dormant;
+        }
+
+        /// <summary>The Defy notch on the Ultimate ring: gold at the Defy cost and above when <c>gameplay_defy</c> is bound, else dim.</summary>
+        private void RefreshDefyNotch() {
+            if (_ultSlot == null) return;
+            _ultSlot.NotchLit = DefyNotchRules.IsLit(_meterValue, _defyBinding.IsBound(0));
         }
 
         private int _shownBossPhase = -1, _shownBossHp = int.MinValue, _shownBossMax = int.MinValue;

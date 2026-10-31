@@ -74,8 +74,10 @@ public class FighterHudTopBandTests {
                     }
                 }
                 if (slotCount != 3 || chipCount != 2) issues.Add($"{player} has {slotCount} lenses and {chipCount} badges");
-                var defy = hud.GetNodeOrNull<PulpIcon>($"{column}/PipRow/DefyIcon");
-                if (defy == null || defy.CustomMinimumSize.X != 32f) issues.Add(player + " Defy icon " + defy?.CustomMinimumSize);
+                // MM-HUD: the Defy seal icon is gone from the pip row; the Momentum pips hang under the two Special lenses.
+                if (hud.GetNodeOrNull($"{column}/PipRow/DefyIcon") != null) issues.Add(player + " still has a Defy icon");
+                MomentumPips pips = hud.MomentumPipsFor(two ? 1 : 0);
+                if (pips == null || pips.CustomMinimumSize.Y != MomentumPips.RowHeight) issues.Add(player + " Momentum pips " + pips?.CustomMinimumSize);
             }
             if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
 
@@ -105,18 +107,16 @@ public class FighterHudTopBandTests {
             AssertFloat(spent.Modulate.A).IsEqualApprox(0.28f, 0.001f);
             AssertThat(hud.LitShieldPips(0)).IsEqual(1);
 
-            // The Ultimate tube: meter -> meter2 while charging, res -> res2 (with its glow) when full; the Defy icon
-            // changes shape with the state.
+            // The Ultimate tube: meter -> meter2 while charging, res -> res2 (with its glow) when full; it carries the
+            // gold Defy notch at its half way mark (MM-HUD).
             PulpBarDecor ultimate = PulpBarDecor.Of(hud.GetNode<ProgressBar>("SafeArea/P1_Status/Body/Column/MeterBar"));
-            var defyIcon = hud.GetNode<PulpIcon>("SafeArea/P1_Status/Body/Column/PipRow/DefyIcon");
             hud.ApplyPlayerState(0, State(influence: 40f), Runtime(), TickRate);
             AssertThat(ultimate.FillGradient.Anchored).IsEqual(UIPalette.Meter);
             AssertThat(ultimate.FillGradient.Moving).IsEqual(UIPalette.Meter2);
-            string building = defyIcon.IconName;
+            AssertFloat(ultimate.DefyNotchFraction).IsEqualApprox(0.5f, 0.0001f);
             hud.ApplyPlayerState(0, State(influence: 100f), Runtime(), TickRate);
             AssertThat(ultimate.FillGradient.Anchored).IsEqual(UIPalette.Res);
             AssertThat(ultimate.FillGradient.Moving).IsEqual(UIPalette.Res2);
-            AssertThat(defyIcon.IconName).IsNotEqual(building);
 
             // HP numerals "86/110" 14 px inside the tube's inner end, the "/max" at 0.78; the Rally echo rides the tube.
             hud.ApplyPlayerState(0, State(hp: 86, maxHp: 110), Runtime(), TickRate, echoPool: 11f);

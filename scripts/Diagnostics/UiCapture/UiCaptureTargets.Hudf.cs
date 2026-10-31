@@ -65,17 +65,17 @@ namespace FTT.Diagnostics {
         /// <summary>rec_06's mid-match state. The cooldowns and the trackers need two passes: the HUD latches a cooldown's
         /// start from the first count it sees and holds the tracker at the HP before a drop.</summary>
         private static void HudfMidMatch(FighterHUD hud, int matchMode, bool suddenDeath) {
-            FighterRuntimeComponent p1 = new() { StatusType = (int)StatusType.None, SpecialTwoReuseFrames = 310 };
+            FighterRuntimeComponent p1 = new() { StatusType = (int)StatusType.None, SpecialTwoReuseFrames = 100 };
             FighterRuntimeComponent p2 = new() {
                 StatusType = (int)StatusType.None,
                 DamageStatusType = (int)StatusType.RadiantBurn, DamageStatusFrames = 2 * HudfTick,
-                SpecialOneReuseFrames = 360, KnockoutsSuffered = 1
+                SpecialOneReuseFrames = 110, KnockoutsSuffered = 1
             };
             hud.ApplyMatchState(true, 136 * HudfTick, HudfTick, matchMode, suddenDeath);
             hud.ApplyPlayerState(0, HudfState(92, 110, 3, 3, 100f), p1, HudfTick);
             hud.ApplyPlayerState(1, HudfState(70, 90, 2, 2, 38f), p2, HudfTick);
-            p1.SpecialTwoReuseFrames = 186;   // 3.1 s left, 40 % elapsed
-            p2.SpecialOneReuseFrames = 108;   // 1.8 s left, 70 % elapsed
+            p1.SpecialTwoReuseFrames = 72;    // 1.2 s left of the 2 s reuse delay, 40 % elapsed
+            p2.SpecialOneReuseFrames = 36;    // 0.6 s left, 70 % elapsed
             hud.ApplyPlayerState(0, HudfState(86, 110, 3, 3, 100f), p1, HudfTick);
             hud.ApplyPlayerState(1, HudfState(63, 90, 2, 2, 38f), p2, HudfTick);
         }
@@ -86,6 +86,23 @@ namespace FTT.Diagnostics {
             HudfSetScale(1f);
             (Control page, FighterHUD hud) = HudfPage();
             context.AfterReady = _ => HudfStart(hud, 0, false);
+            return page;
+        }
+
+        /// <summary>
+        /// The Momentum pips (MM-HUD): P1 with 2.6 pips and both Specials usable, P2 starved at 0.4 pips with the Ultimate tube's
+        /// gold Defy notch lit on P1 (its meter at 100) and dim on P2 (its meter at 38).
+        /// </summary>
+        [UiCaptureTarget("hudf_momentum", SettleFrames = 12)]
+        public static Node HudfMomentum(UiCaptureContext context) {
+            HudfSetScale(1f);
+            (Control page, FighterHUD hud) = HudfPage();
+            context.AfterReady = _ => {
+                HudfStart(hud, 0, false);
+                FighterRuntimeComponent idle = new() { StatusType = (int)StatusType.None };
+                hud.ApplyPlayerState(0, HudfState(92, 110, 3, 3, 100f), idle, HudfTick, momentumUnits: 18720);
+                hud.ApplyPlayerState(1, HudfState(70, 90, 2, 2, 38f), idle, HudfTick, momentumUnits: 2880);
+            };
             return page;
         }
 

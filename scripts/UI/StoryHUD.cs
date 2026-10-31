@@ -12,7 +12,7 @@ namespace FTT.UI {
     ///
     /// <para>What it shows: portrait, HP with the Rally echo band, block charges,
     /// <b>both</b> status slots with authoritative duration radials, the Ultimate
-    /// meter ring and its lock overlay, the F13 Defy seal, the death-rewind
+    /// meter ring and its lock overlay with the Defy notch, the Momentum pips, the death-rewind
     /// counter, the F03 Time Freeze indicator, the Act III Beacon anchor pips, the
     /// three ability cooldown rings with their V7.5 lock overlays, the persistent
     /// Chronal Dust counter with its separately fading <c>+N</c> float, the
@@ -87,14 +87,14 @@ namespace FTT.UI {
         private RadialProgress _controlStatusRadial;
         private FTT.Combat.StatusController _statusAuthority;
 
-        // Meter ring, lock overlay and Defy seal. The BG is a plain Control that
+        // Meter ring and lock overlay (the Defy notch rides the ring). The BG is a plain Control that
         // draws nothing: it hosts the D10 "not yet" frame, while the fill (the
         // RadialProgress) takes the tint.
         private Control _meterHost;
         private RadialProgress _meterFill;
         private Label _meterLockOverlay;
-        private Label _defySeal;
-        private DefySealState _defySealState = DefySealState.Building;
+        private float _meterValue;
+        private readonly DefyBindingProbe _defyBinding = new();
 
         // Cooldown rings and their lock overlays.
         private readonly Label[] _cooldownIcons = new Label[CooldownSlots.Length];
@@ -175,8 +175,6 @@ namespace FTT.UI {
         /// <summary>The portrait widget, or null before the scene resolves. Test seam.</summary>
         public TextureRect Portrait => _portrait;
 
-        /// <summary>The Defy seal state currently drawn. Test seam.</summary>
-        public DefySealState DefySeal => _defySealState;
 
         /// <summary>The Time Freeze verb state currently drawn. Test seam.</summary>
         public TimeFreezeState TimeFreeze => _timeFreezeState;
@@ -245,7 +243,6 @@ namespace FTT.UI {
                 bus.OnAbilitySlotLockChanged += OnAbilitySlotLockChanged;
                 bus.OnAbilityLockoutRefused += OnAbilityLockoutRefused;
                 bus.OnAnchorChargesChanged += OnAnchorChargesChanged;
-                bus.OnDefySealChanged += OnDefySealChanged;
                 bus.OnRallyEchoChanged += OnRallyEchoChanged;
                 bus.OnDustAwardCollected += OnDustAwardCollected;
                 bus.OnChronalDustCollected += OnChronalDustCollected;
@@ -253,7 +250,6 @@ namespace FTT.UI {
             InitializeCharacterPresentation();
             RefreshCounters(force: true);
             RefreshIndicators();
-            RefreshDefySeal();
             RefreshTimeFreeze();
             RefreshIntegrity();
             _opacity.Apply(_root, force: true);
@@ -279,7 +275,6 @@ namespace FTT.UI {
             bus.OnAbilitySlotLockChanged -= OnAbilitySlotLockChanged;
             bus.OnAbilityLockoutRefused -= OnAbilityLockoutRefused;
             bus.OnAnchorChargesChanged -= OnAnchorChargesChanged;
-            bus.OnDefySealChanged -= OnDefySealChanged;
             bus.OnRallyEchoChanged -= OnRallyEchoChanged;
             bus.OnDustAwardCollected -= OnDustAwardCollected;
             bus.OnChronalDustCollected -= OnChronalDustCollected;
@@ -292,6 +287,8 @@ namespace FTT.UI {
             _opacity.Apply(_root);
             _uiScale.Apply(_root);
             ApplyFit();
+            // The slab can outgrow its authored rect (the Momentum pips row), after the last Resized: follow it.
+            PlaceTitleRow();
             SyncStatusAuthority();
             _indicators.Tick((float)delta);
             // After the fallback tick, so the drawn arc is the hero's own value
@@ -348,7 +345,9 @@ namespace FTT.UI {
         }
 
         /// <summary>
-        /// The cooldown radials' clock (2026-10-11, PROVISIONAL-HIT-CONFIRM-RULES
+        /// The ability lenses' clock (2026-10-11, reworked by MM-HUD for the Momentum gauge). Every frame the hero's own values
+        /// overwrite the model: the Specials' 2 s reuse delays and the gauge (<c>MomentumPips</c>), and the movement
+        /// ability's cooldown. The cooldown radials' clock (2026-10-11, PROVISIONAL-HIT-CONFIRM-RULES
         /// (9)). The radials used to count down on their own from the
         /// <c>OnCooldownStarted</c> duration, so they never saw a per-hit Momentum
         /// refund (D2), a Time Freeze pause, the Story cooldown multiplier or a
@@ -361,8 +360,9 @@ namespace FTT.UI {
         private void SyncCooldownAuthority() {
             FTT.Characters.PlayerController player = ResolveStoryPlayer();
             if (player == null || !IsInstanceValid(player) || player.PlayerIndex != 0) return;
-            _indicators.SyncCooldownRemaining(FTT.Core.AbilitySlot.Special1, player.SpecialOneCooldownTimer);
-            _indicators.SyncCooldownRemaining(FTT.Core.AbilitySlot.Special2, player.SpecialTwoCooldownTimer);
+            _indicators.SyncReuseDelay(FTT.Core.AbilitySlot.Special1, player.SpecialReuseRemainingSeconds(FTT.Core.AbilitySlot.Special1));
+            _indicators.SyncReuseDelay(FTT.Core.AbilitySlot.Special2, player.SpecialReuseRemainingSeconds(FTT.Core.AbilitySlot.Special2));
+            _indicators.SyncMomentum(player.MomentumPips);
             _indicators.SyncCooldownRemaining(FTT.Core.AbilitySlot.MovementAbility, player.MovementAbilityCooldownTimer);
         }
 
@@ -667,28 +667,6 @@ namespace FTT.UI {
             _beaconAnchors.TooltipText = label;
         }
 
-        private void OnDefySealChanged(DefySealPayload payload) {
-            if (payload.PlayerIndex != 0) return;
-            _defySealState = payload.State;
-            RefreshDefySeal();
-        }
-
-        /// <summary>
-        /// F13's seal: shape and fill distinguish the four states, not colour alone,
-        /// and nothing pulses. Spent survives any later refill — the seal changes
-        /// only when the authoritative state does.
-        /// </summary>
-        private void RefreshDefySeal() {
-            if (_defySeal == null) return;
-            _defySeal.Text = DefySealModel.Glyph(_defySealState);
-            _defySeal.TooltipText = Tr(DefySealModel.LabelKey(_defySealState));
-            _defySeal.AddThemeColorOverride("font_color", DefySealModel.Tint(_defySealState));
-            if (_defyIcon != null) {
-                _defyIcon.IconName = DefySealModel.IconName(_defySealState);
-                _defyIcon.Tint = DefySealModel.PulpTint(_defySealState);
-            }
-        }
-
         private void OnRallyEchoChanged(RallyEchoPayload payload) {
             // The band geometry is polled in RefreshEchoBand; the glass tube draws it. The old reclaim flash tinted
             // the ColorRect and has no glass form (MOT-A row 8: the band is not animated); a gap since UR-HUDS.
@@ -964,6 +942,7 @@ namespace FTT.UI {
         }
 
         private void UpdateMeter(float value) {
+            _meterValue = value;
             if (_meterFill == null) return;
             _meterFill.Fraction = Mathf.Clamp(value, 0f, FTT.Combat.InfluenceMeterRules.MaxValue)
                 / FTT.Combat.InfluenceMeterRules.MaxValue;
@@ -1030,12 +1009,14 @@ namespace FTT.UI {
                 }
                 ApplyLockOverlay(_cooldownLockOverlays[index], lockState, index);
                 ApplySlot(_slots[index], lockState, ready == 1,
-                    _indicators.ReadinessFraction(slot), _indicators.RemainingSeconds(slot));
+                    _indicators.ReadinessFraction(slot), _indicators.RemainingSeconds(slot), _indicators.IsStarved(slot));
             }
+            RefreshMomentumPips();
+            RefreshDefyNotch();
             AbilitySlotLockState ultLock = _indicators.LockState(FTT.Core.AbilitySlot.Ultimate);
             ApplyLockOverlay(_meterLockOverlay, ultLock, CooldownSlots.Length);
             ApplySlot(_ultSlot, ultLock, _indicators.IsReady(FTT.Core.AbilitySlot.Ultimate),
-                _indicators.ReadinessFraction(FTT.Core.AbilitySlot.Ultimate), 0f);
+                _indicators.ReadinessFraction(FTT.Core.AbilitySlot.Ultimate), 0f, starved: false);
             RefreshStatusSlot(_damageStatusIndicator, _damageStatusRadial, _damageChip, damageSlot: true);
             RefreshStatusSlot(_controlStatusIndicator, _controlStatusRadial, _controlChip, damageSlot: false);
         }
@@ -1185,8 +1166,12 @@ namespace FTT.UI {
         public const string HpRowPath = "SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Top/Vitals/HpRow";
         /// <summary>Tier 2: the Ultimate, the two capsules, the hairline and the time tools.</summary>
         public const string AbilitiesPath = "SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities";
+        /// <summary>The column that stacks the Specials capsule over the Momentum pips (MM-HUD).</summary>
+        public const string SpecialsColumnPath = "SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsColumn";
+        /// <summary>The Momentum pips' row under the Specials capsule.</summary>
+        public const string MomentumPipsPath = SpecialsColumnPath + "/MomentumPips";
         /// <summary>The capsule that holds Special 1 and Special 2.</summary>
-        public const string SpecialsCapsulePath = "SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/SpecialsCapsule";
+        public const string SpecialsCapsulePath = SpecialsColumnPath + "/SpecialsCapsule";
         /// <summary>The capsule that holds the Movement ability alone.</summary>
         public const string MovementCapsulePath = "SafeArea/TopLeft_Panel/HudPanel/Pad/Stack/Abilities/MovementCapsule";
         /// <summary>The time tools column at the slab's right end (rewind and Beacon, then Time Freeze).</summary>
@@ -1235,7 +1220,6 @@ namespace FTT.UI {
                 $"{AbilitiesPath}/MeterRow/UltimateMeter_BG/UltimateMeter_Fill");
             _meterLockOverlay = GetNodeOrNull<Label>(
                 $"{AbilitiesPath}/MeterRow/UltimateMeter_BG/UltimateMeter_LockOverlay");
-            _defySeal = GetNodeOrNull<Label>($"{AbilitiesPath}/MeterRow/DefySeal");
 
             for (int index = 0; index < CooldownSlots.Length; index++) {
                 string iconName = $"Cooldown{index + 1}_Icon";

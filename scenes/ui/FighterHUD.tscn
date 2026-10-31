@@ -10,14 +10,14 @@
 ; keeps the corners pinned at every UI scale), the glass timer plate
 ; (GlassPanelTimer) hangs from the top centre, and a lens row per player (three
 ; 54 px lenses plus the two status badges) hangs below each cluster. The glass
-; widgets (portrait frame, slot shape, stock stars, block pips, Defy icon, lenses,
+; widgets (portrait frame, slot shape, stock stars, block pips, Momentum pips, lenses,
 ; badges, the HP and Ultimate tubes over their ProgressBar value carriers) are
 ; built by FighterHUD.cs because they are code-drawn and the stock / shield counts
 ; are data-driven. TopRow is a plain Control: FighterHUD.cs lays out the slot
 ; shape, the name (shrunk to fit) and the P tag on its 30 px row.
 ;
 ; The old Label glyph nodes (SlotBadge, the Damage / Control status indicators,
-; DefySeal, the three cooldown icons with their Radial) are kept under their old
+; the three cooldown icons with their Radial) are kept under their old
 ; paths as accessibility and test carriers, hidden: tests and tooltips read their
 ; Text, and shape now rides the icons. P2 HP and meter fill from the outer edge
 ; (fill_mode = 1), which also mirrors their glass tubes (R6).
@@ -162,14 +162,6 @@ theme_type_variation = "PulpBarH44"
 max_value = 100.0
 value = 100.0
 show_percentage = false
-
-[node name="DefySeal" type="Label" parent="SafeArea/P1_Status/Body/Column"]
-visible = false
-custom_minimum_size = Vector2(20, 20)
-layout_mode = 2
-mouse_filter = 2
-horizontal_alignment = 1
-vertical_alignment = 1
 
 [node name="PipRow" type="HBoxContainer" parent="SafeArea/P1_Status/Body/Column"]
 custom_minimum_size = Vector2(0, 32)
@@ -375,14 +367,6 @@ max_value = 100.0
 value = 100.0
 show_percentage = false
 fill_mode = 1
-
-[node name="DefySeal" type="Label" parent="SafeArea/P2_Status/Body/Column"]
-visible = false
-custom_minimum_size = Vector2(20, 20)
-layout_mode = 2
-mouse_filter = 2
-horizontal_alignment = 1
-vertical_alignment = 1
 
 [node name="PipRow" type="HBoxContainer" parent="SafeArea/P2_Status/Body/Column"]
 custom_minimum_size = Vector2(0, 32)

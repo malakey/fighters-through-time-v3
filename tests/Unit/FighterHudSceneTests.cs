@@ -1,6 +1,7 @@
 using FTT.Core;
 using FTT.FighterSim;
 using FTT.UI;
+using FTT.UI.Pulp;
 using GdUnit4;
 using Godot;
 using xpTURN.Klotho.Deterministic.Math;
@@ -426,6 +427,46 @@ public class FighterHudSceneTests {
             AssertThat(hud.AppliedOpacity).IsEqual(0.2f);
         } finally {
             global.HudOpacity = original;
+            hud.Free();
+        }
+    }
+
+    [TestCase]
+    public void TheMomentumPipsAndTheSpecialLensesFollowTheGaugeUnitsAndAnUnderOnePipSpecialIsStarved() {
+        // The pure seam the HUD reads the sim's units through: 7200 units to a pip, 0 to 4 pips.
+        AssertFloat(FighterHudModel.MomentumPipFill(0)).IsEqual(0f);
+        AssertFloat(FighterHudModel.MomentumPipFill(14400)).IsEqual(2f);
+        AssertFloat(FighterHudModel.MomentumPipFill(3600)).IsEqual(0.5f);
+        AssertFloat(FighterHudModel.MomentumPipFill(999999)).IsEqual(4f);
+        AssertFloat(FighterHudModel.MomentumPipFill(-5)).IsEqual(0f);
+
+        FighterHUD hud = Mount();
+        try {
+            hud.ConfigurePlayer(0, null, maxStocks: 3, maxShieldCharges: 3);
+            hud.ConfigurePlayer(1, null, maxStocks: 3, maxShieldCharges: 3);
+            FighterRuntimeComponent runtime = Runtime();
+            hud.ApplyPlayerState(0, State(), runtime, TickRate, momentumUnits: 18000);
+            hud.ApplyPlayerState(1, State(), runtime, TickRate, momentumUnits: 3600);
+            AssertFloat(hud.MomentumPipsFor(0).Value).IsEqualApprox(2.5f, 0.0001f);
+            AssertFloat(hud.MomentumPipsFor(1).Value).IsEqualApprox(0.5f, 0.0001f);
+            // Player 1 can pay: both Special lenses ready; player 2 is starved on both, the movement lens ready.
+            AssertThat(hud.SlotWidgetFor(0, 0).State).IsEqual(PulpSlotState.Ready);
+            AssertThat(hud.SlotWidgetFor(0, 1).State).IsEqual(PulpSlotState.Ready);
+            AssertThat(hud.SlotWidgetFor(1, 0).State).IsEqual(PulpSlotState.Starved);
+            AssertThat(hud.SlotWidgetFor(1, 1).State).IsEqual(PulpSlotState.Starved);
+            AssertThat(hud.SlotWidgetFor(1, 2).State).IsEqual(PulpSlotState.Ready);
+            AssertThat(hud.CooldownIsReady(1, FighterCooldownSlot.SpecialOne)).IsFalse();
+
+            // A 2 s reuse delay on a starved Special still sweeps over the fixed 120-frame denominator (60 left = half).
+            runtime.SpecialOneReuseFrames = 60;
+            hud.ApplyPlayerState(1, State(), runtime, TickRate, momentumUnits: 3600);
+            AssertThat(hud.SlotWidgetFor(1, 0).State).IsEqual(PulpSlotState.Starved);
+            AssertFloat(hud.SlotWidgetFor(1, 0).Progress).IsEqualApprox(0.5f, 0.001f);
+            // Regen to a whole pip clears the starved look.
+            runtime.SpecialOneReuseFrames = 0;
+            hud.ApplyPlayerState(1, State(), runtime, TickRate, momentumUnits: 7200);
+            AssertThat(hud.SlotWidgetFor(1, 0).State).IsEqual(PulpSlotState.Ready);
+        } finally {
             hud.Free();
         }
     }

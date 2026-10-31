@@ -49,6 +49,12 @@ namespace FTT.UI {
         private readonly float[] _durations = new float[SlotCount];
         private readonly AbilitySlotLockState[] _locks = new AbilitySlotLockState[SlotCount];
 
+        /// <summary>The Specials' per-slot reuse delay in seconds (2 s, <c>BasicComboRules.SpecialReuseDelayFrames</c>): the sweep's denominator.</summary>
+        public const float SpecialReuseDelaySeconds = FTT.Combat.BasicComboRules.SpecialReuseDelayFrames / 60f;
+
+        /// <summary>The Momentum gauge in pips, 0 to 4 (a fresh model reads the start fill, 2.0).</summary>
+        public float MomentumPips { get; private set; } = FTT.Combat.BasicComboRules.MomentumStartPips;
+
         /// <summary>Current Influence meter, 0-100.</summary>
         public float UltimateMeter { get; private set; }
 
@@ -82,8 +88,9 @@ namespace FTT.UI {
         /// </summary>
         public bool StatusClockSuspended { get; set; }
 
-        /// <summary>Clears every slot, the meter, both statuses and every lock.</summary>
+        /// <summary>Clears every slot, the meter, both statuses and every lock; the gauge returns to its start fill.</summary>
         public void Reset() {
+            MomentumPips = FTT.Combat.BasicComboRules.MomentumStartPips;
             for (int index = 0; index < SlotCount; index++) {
                 _remaining[index] = 0f;
                 _durations[index] = 0f;
@@ -130,6 +137,38 @@ namespace FTT.UI {
             _remaining[index] = remainingSeconds;
             if (remainingSeconds > _durations[index]) _durations[index] = remainingSeconds;
         }
+
+        /// <summary>
+        /// MM-HUD: overwrites a Special's reuse delay from the authoritative owner. The sweep's denominator is the fixed
+        /// <see cref="SpecialReuseDelaySeconds"/> whatever the slot's authored cooldown was, so the sweep reads remaining / 2 s.
+        /// Other slots are ignored (the movement ability keeps <see cref="SyncCooldownRemaining"/>).
+        /// </summary>
+        public void SyncReuseDelay(AbilitySlot slot, float remainingSeconds) {
+            if (slot is not (AbilitySlot.Special1 or AbilitySlot.Special2)) return;
+            int index = IndexOf(slot);
+            if (float.IsNaN(remainingSeconds)) return;
+            if (remainingSeconds <= 0f) {
+                _remaining[index] = 0f;
+                _durations[index] = 0f;
+                return;
+            }
+            _remaining[index] = Math.Min(remainingSeconds, SpecialReuseDelaySeconds);
+            _durations[index] = SpecialReuseDelaySeconds;
+        }
+
+        /// <summary>MM-HUD: reports the Momentum gauge in pips (clamped to 0..4).</summary>
+        public void SyncMomentum(float pips) {
+            if (float.IsNaN(pips)) return;
+            MomentumPips = Math.Clamp(pips, 0f, FTT.Combat.BasicComboRules.MomentumMaxPips);
+        }
+
+        /// <summary>
+        /// True when the slot is a Special that cannot be paid for: under one pip, and not locked (a Dormant or Suppressed
+        /// lens outranks it, P15).
+        /// </summary>
+        public bool IsStarved(AbilitySlot slot) =>
+            slot is AbilitySlot.Special1 or AbilitySlot.Special2
+            && !IsLocked(slot) && MomentumPips < 1f;
 
         /// <summary>Reports the meter; also what makes the ultimate slot ready.</summary>
         public void SetUltimateMeter(float value) {
@@ -310,6 +349,7 @@ namespace FTT.UI {
         public bool IsReady(AbilitySlot slot) {
             if (IsLocked(slot)) return false;
             if (slot == AbilitySlot.Ultimate) return UltimateMeter >= UltimateReadyMeter;
+            if (IsStarved(slot)) return false;
             return RemainingSeconds(slot) <= 0f;
         }
 
