@@ -50,60 +50,6 @@ public class StoryEnvironmentalDamageTests {
     }
 
     [TestCase]
-    public void ADefiedEnvironmentalHitDoesNotPoisonTheNextHurtboxHit() {
-        SceneTree tree = (SceneTree)Engine.GetMainLoop();
-        PlayerController player = CharacterFactory.CreateCharacter("einstein");
-        tree.Root.AddChild(player);
-        try {
-            // Full meter (a direct set: D5 scales every gain on the campaign
-            // hero), then a lethal environmental hit: Defy History fires.
-            player.SetUltimateMeter(UltimateMeter.MaxValue);
-            AssertThat(player.CurrentUltimateMeter).IsEqual(UltimateMeter.MaxValue);
-            player.ApplyEnvironmentalDamage(player.MaximumHP);
-            AssertThat(player.CurrentState)
-                .OverrideFailureMessage("A lethal environmental hit against a full meter must not kill.")
-                .IsNotEqual(CharacterState.Dead);
-            AssertThat(player.CurrentHP).IsEqual(1);
-            AssertThat(player.StoryDefyHistoryUsed).IsTrue();
-            // The defied hit generates neither echo nor meter — the shattered
-            // meter consumed the entire blow.
-            AssertThat(player.EchoPool)
-                .OverrideFailureMessage("A defied environmental hit must stash no Rally echo.")
-                .IsEqual(0f);
-            AssertThat(player.CurrentUltimateMeter)
-                .OverrideFailureMessage("A defied environmental hit must accrue no victim meter.")
-                .IsEqual(0f);
-
-            // V7.6 D04 (Package 11 A1b): the survivor is now invulnerable
-            // through the presentation and for 60 resumed control ticks, so the
-            // follow-up hit has to wait that window out before the ordinary
-            // accounting can be observed at all.
-            HoldInput(player, GameplayButtons.None,
-                StoryDefenseRules.DefyProtectionFrames + BasicComboRules.HitstopFrames(20) + 10);
-            AssertThat(player.IsDefyProtected)
-                .OverrideFailureMessage("The protected second must have elapsed.")
-                .IsFalse();
-
-            // The regression: the Defy flag must have been CONSUMED by the
-            // environmental path — the next ordinary hurtbox hit's echo and
-            // meter accounting must run normally.
-            player.HealStory(60);
-            player.GetNode<Hurtbox>("Hurtbox").TakeHit(Hit(damage: 10f));
-            AssertThat(player.EchoPool > 0f)
-                .OverrideFailureMessage(
-                    "The next hurtbox hit must accrue its Rally echo — the environmental Defy must not poison it.")
-                .IsTrue();
-            AssertThat(player.CurrentUltimateMeter > 0f)
-                .OverrideFailureMessage(
-                    "The next hurtbox hit must accrue victim meter — the environmental Defy must not poison it.")
-                .IsTrue();
-        } finally {
-            InputManager.Instance?.ClearInputSource(player.PlayerIndex);
-            player.Free();
-        }
-    }
-
-    [TestCase]
     public void CyclicHazardsAndSpikesRouteThroughTheEnvironmentalChokepoint() {
         // V7.3 follow-up: the last two direct environmental callers
         // (StoryCyclicHazard.ApplyToPlayer and the base level builder's
@@ -272,30 +218,6 @@ public class StoryEnvironmentalDamageTests {
         }
     }
 
-    [TestCase]
-    public void DefyProtectionRejectsAHazardTickBeforeTheBlock() {
-        SceneTree tree = (SceneTree)Engine.GetMainLoop();
-        PlayerController player = NewHero(tree);
-        try {
-            FireDefy(player);
-            BlockSystem block = RaiseOrdinaryBlock(player, facingRight: true);
-            int charges = block.CurrentCharges;
-
-            PlayerController.EnvironmentalHitResult result = player.ApplyEnvironmentalHit(
-                12, player.GlobalPosition + new Vector2(40f, 0f), blockable: true);
-            AssertThat((int)result)
-                .OverrideFailureMessage("D04: the protected survivor rejects the tick first.")
-                .IsEqual((int)PlayerController.EnvironmentalHitResult.Protected);
-            AssertThat(player.CurrentHP).IsEqual(1);
-            AssertThat(block.CurrentCharges)
-                .OverrideFailureMessage("A rejected tick spends no charge.")
-                .IsEqual(charges);
-        } finally {
-            InputManager.Instance?.ClearInputSource(player.PlayerIndex);
-            player.Free();
-        }
-    }
-
     /// <summary>
     /// CM-FIXB-STORY (findings B7 / B21; D01: hit eligibility and invulnerability
     /// come before every layer). A hero inside its post-rewind protection is
@@ -410,16 +332,17 @@ public class StoryEnvironmentalDamageTests {
                 .OverrideFailureMessage("D03c: the discharge's meter drain is not a hit and still applies.")
                 .IsEqualApprox(50f - extractor.UltimateDrain, 0.01f);
 
-            // Debris during the D04 Defy window: rejected before the block.
-            FireDefy(player);
+            // Debris during the Defy startup: rejected before the block.
             block = RaiseOrdinaryBlock(player, facingRight: true);
+            FireDefy(player);
             int chargesInDefy = block.CurrentCharges;
             debris = new FallingDebris { Name = "CmBlockDebris" };
             tree.Root.AddChild(debris);
             debris.Launch(new Vector2(0f, 500f));
             debris.GlobalPosition = player.GlobalPosition + new Vector2(40f, -20f);
+            int hpInDefy = player.CurrentHP;
             AssertThat(debris.ApplyTo(player)).IsEqual(0);
-            AssertThat(player.CurrentHP).IsEqual(1);
+            AssertThat(player.CurrentHP).IsEqual(hpInDefy);
             AssertThat(block.CurrentCharges)
                 .OverrideFailureMessage("Debris rejected by the Defy window spends no charge.")
                 .IsEqual(chargesInDefy);
@@ -440,7 +363,6 @@ public class StoryEnvironmentalDamageTests {
         tree.Root.AddChild(player);
         player.GlobalPosition = Vector2.Zero;
         player.Velocity = Vector2.Zero;
-        player.SetStoryDefyHistoryUsed(false);
         return player;
     }
 
@@ -459,11 +381,9 @@ public class StoryEnvironmentalDamageTests {
         return block;
     }
 
-    /// <summary>A lethal environmental hit on a full meter: Defy History fires and protects the survivor.</summary>
+    /// <summary>Puts the hero inside the active Defy's invulnerable startup (frame 1).</summary>
     private static void FireDefy(PlayerController player) {
-        player.SetUltimateMeter(UltimateMeter.MaxValue);
-        player.ApplyEnvironmentalDamage(player.MaximumHP);
-        AssertThat(player.CurrentHP).OverrideFailureMessage("Harness: Defy History must spare the hero.").IsEqual(1);
+        player.SeedDefyFrameForTest(1);
         AssertThat(player.IsDefyProtected).IsTrue();
     }
 
