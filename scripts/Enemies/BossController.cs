@@ -1799,6 +1799,21 @@ namespace FTT.Enemies {
             });
         }
 
+        /// <summary>
+        /// The Defy History blast on a boss (P23): an arena-warded or dormant boss is untouched;
+        /// otherwise a telegraph or active window is cut into its recovery, and the push applies
+        /// unless <c>IsKnockbackImmune</c> (the default). A boss is never stunned and takes no
+        /// damage or phase change. Returns whether the blast touched the boss.
+        /// </summary>
+        public bool ApplyDefyBlast(Vector2 push) {
+            if (CurrentState == BossState.Dead || !IsEngaged || IsArenaWarded) return false;
+            if (Executor.Phase is EnemyAbilityPhase.Telegraph or EnemyAbilityPhase.Active) {
+                Executor.CancelIntoRecovery();
+            }
+            if (Data?.IsKnockbackImmune != true) Velocity += push;
+            return true;
+        }
+
         /// <summary>Knockback-immune bosses still take HP damage; only the shove is denied.</summary>
         public void ApplyKnockback(Vector2 knockback, bool attackerFacingRight) {
             if (CurrentState == BossState.Dead || Data?.IsKnockbackImmune == true) return;
