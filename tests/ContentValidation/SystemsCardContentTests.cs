@@ -23,6 +23,32 @@ public class SystemsCardContentTests {
         "block", "triangle", "di", "tech", "rally", "defy", "momentum", "overtime"
     };
 
+    /// <summary>MM-TEXT (O25): the Momentum and Defy bodies state the gauge and the button, not cooldowns or the seal.</summary>
+    [TestCase]
+    public void TheMomentumAndDefyBodiesDescribeTheGaugeAndTheButton() {
+        TranslationServer.SetLocale("en");
+        string defy = TranslationServer.Translate("systems_card_defy_body").ToString();
+        string momentum = TranslationServer.Translate("systems_card_momentum_body").ToString();
+        AssertThat(defy == "systems_card_defy_body").IsFalse();
+        AssertThat(momentum == "systems_card_momentum_body").IsFalse();
+        AssertThat(defy.Contains("Press Defy") && defy.Contains(FTT.Combat.BasicComboRules.DefyInfluenceCost.ToString())).IsTrue();
+        AssertThat(defy.Contains("once per match")).IsFalse();
+        AssertThat(momentum.Contains("pips")).IsTrue();
+        AssertThat(momentum.Contains("take time off")).IsFalse();
+        var screen = new SystemsCardScreen { Name = "SystemsCardMomentumUnderTest" };
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(screen);
+        try {
+            var sections = screen.Root.GetNode<VBoxContainer>("Center/Panel/Layout/Scroll/Sections");
+            foreach (string name in new[] { "DefyTitle", "DefyBody", "MomentumTitle", "MomentumBody" }) {
+                var label = sections.GetNodeOrNull<Label>(name);
+                AssertObject(label).IsNotNull();
+                AssertThat(label.HasThemeFontSizeOverride("font_size")).IsFalse();
+            }
+        } finally {
+            screen.Free();
+        }
+    }
+
     [TestCase]
     public void EverySystemsCardKeyExistsInTheCsvAndResolvesThroughTheCompiledTranslation() {
         TranslationServer.SetLocale("en");

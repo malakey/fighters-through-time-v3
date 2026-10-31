@@ -25,7 +25,7 @@ namespace FTT.Core {
         public const string ShieldBreak = "shield_break";
         public const string Grab = "grab";
         public const string Launch = "launch";
-        public const string Defy = "defy";
+        public const string DefyButton = "defy_button";
         public const string Ledge = "ledge";
         public const string OneWayPlatform = "one_way";
         public const string DeathRewind = "death_rewind";
@@ -34,11 +34,11 @@ namespace FTT.Core {
         /// <summary>
         /// Every tooltip the design lists, in the order the design lists them
         /// (first Rally echo, first shield break, first grab opportunity, first
-        /// launch, first full meter / Defy proc, first ledge, first one-way
+        /// launch, first time the meter reaches the Defy cost, first ledge, first one-way
         /// platform, first death rewind, first Time Freeze availability).
         /// </summary>
         public static readonly IReadOnlyList<string> All = new[] {
-            RallyEcho, ShieldBreak, Grab, Launch, Defy, Ledge, OneWayPlatform, DeathRewind, TimeFreeze
+            RallyEcho, ShieldBreak, Grab, Launch, DefyButton, Ledge, OneWayPlatform, DeathRewind, TimeFreeze
         };
 
         /// <summary>
@@ -50,13 +50,19 @@ namespace FTT.Core {
             ShieldBreak => "tooltip_first_use_shield_break",
             Grab => "tooltip_first_use_grab",
             Launch => "tooltip_first_use_launch",
-            Defy => "tooltip_first_use_defy",
+            DefyButton => "tooltip_first_use_defy_button",
             Ledge => "tooltip_first_use_ledge",
             OneWayPlatform => "tooltip_first_use_one_way",
             DeathRewind => "tooltip_first_use_death_rewind",
             TimeFreeze => "tooltip_first_use_time_freeze",
             _ => ""
         };
+
+        /// <summary>
+        /// MM-TEXT (P27): the Defy button tooltip is due on the first tick the hero's Influence meter reaches the Defy
+        /// cost (<see cref="FTT.Combat.BasicComboRules.DefyInfluenceCost"/>). The old seal no longer raises it.
+        /// </summary>
+        public static bool DefyButtonDue(float meter) => meter >= FTT.Combat.BasicComboRules.DefyInfluenceCost;
 
         /// <summary>True when <paramref name="save"/> should show this tooltip now.</summary>
         public static bool ShouldShow(StorySaveData save, string tooltipID) {

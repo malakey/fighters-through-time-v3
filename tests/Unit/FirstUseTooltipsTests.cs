@@ -79,4 +79,20 @@ public class FirstUseTooltipsTests {
         }
         if (missing.Count > 0) AssertThat(string.Join(" | ", missing)).IsEqual("");
     }
+
+    [TestCase]
+    public void TheDefyButtonTooltipFiresAtTheFirstFiftyAndTheOldSealIdIsRetired() {
+        AssertThat(FirstUseTooltips.DefyButton).IsEqual("defy_button");
+        AssertThat(FirstUseTooltips.KeyFor(FirstUseTooltips.DefyButton)).IsEqual("tooltip_first_use_defy_button");
+        AssertThat(System.Linq.Enumerable.Contains(FirstUseTooltips.All, FirstUseTooltips.DefyButton)).IsTrue();
+        // The old seal-driven id has no key any more, so nothing can show it.
+        AssertThat(FirstUseTooltips.KeyFor("defy")).IsEqual("");
+        AssertThat(FirstUseTooltips.DefyButtonDue(FTT.Combat.BasicComboRules.DefyInfluenceCost - 0.01f)).IsFalse();
+        AssertThat(FirstUseTooltips.DefyButtonDue(FTT.Combat.BasicComboRules.DefyInfluenceCost)).IsTrue();
+        var save = new StorySaveData();
+        FirstUseTooltips.ArmForSkippedCalibration(save);
+        AssertThat(FirstUseTooltips.TryConsume(save, "defy")).IsFalse();
+        AssertThat(FirstUseTooltips.TryConsume(save, FirstUseTooltips.DefyButton)).IsTrue();
+        AssertThat(FirstUseTooltips.TryConsume(save, FirstUseTooltips.DefyButton)).IsFalse();
+    }
 }
