@@ -53,8 +53,27 @@ namespace FTT.FighterSim {
         public int SelfCurrentHP;
         public int SelfMaxHP;
         public long InfluenceRaw;
+        /// <summary>
+        /// Special 1's reuse delay in frames (meter and Defy update 2026-10-31; the field keeps its
+        /// pre-update name because hand-built observations set it): 0 when the slot may be pressed
+        /// again. The sim fills it from <c>FighterRuntimeComponent.SpecialOneReuseFrames</c>, Story
+        /// from the slot's 2 s reuse timer.
+        /// </summary>
         public int SpecialOneCooldownFrames;
+        /// <summary>Special 2's reuse delay in frames (see <see cref="SpecialOneCooldownFrames"/>).</summary>
         public int SpecialTwoCooldownFrames;
+        /// <summary>
+        /// Meter and Defy update (P24): 1 when <see cref="SelfMomentumUnits"/> is the real gauge. 0 (the
+        /// default of a hand-built observation) means unknown, so 0 units cannot be told from "not
+        /// filled in": the gauge is ignored and only the reuse delays gate the Specials, which keeps
+        /// every pre-update observation behaving as it did. The real <c>Observe</c> and the Mirror
+        /// adapter set it.
+        /// </summary>
+        public int MomentumKnown;
+        /// <summary>The Momentum gauge in units (7200 per pip, 0 to 28800); read only when <see cref="MomentumKnown"/> is non-zero.</summary>
+        public int SelfMomentumUnits;
+        /// <summary>Frames left on the fighter's own Defy (0 when idle); the sim fills it from component 323's <c>DefyFrames</c>.</summary>
+        public int SelfDefyFrames;
         public int MovementCooldownFrames;
         /// <summary>
         /// Frames left on the self ability lockout A (special global cooldown,
@@ -247,6 +266,16 @@ namespace FTT.FighterSim {
         /// which the sim's grab gate refuses (fix round A).
         /// </summary>
         public int SelfUltimateCasterBusy;
+        /// <summary>Non-zero while an A02 activation strike holds the fighter; a Defy is refused then.</summary>
+        public int SelfUltimateCaptured;
+        /// <summary>
+        /// The opponent's A02 activation phase (<c>FighterUltimateActivationRules.PhaseWindup</c> = 1 and
+        /// so on; 0 none) and the frames left in it, read through the target's verb state. The Hard
+        /// CPU's Defy beats a wind-up with it (meter and Defy update, O23). 0 when
+        /// <see cref="HasTargetVerbState"/> is 0 (every Story adapter).
+        /// </summary>
+        public int TargetUltimateActivationPhase;
+        public int TargetUltimateActivationPhaseFrames;
 
         // === Target verb layer (absent when HasTargetVerbState == 0) ===
         /// <summary>Presence flag; see <see cref="HasVerbState"/>.</summary>
@@ -368,6 +397,18 @@ namespace FTT.FighterSim {
         public int KnockedDown;
         /// <summary>CM-CANCEL: non-zero while the fighter's own Ultimate activation is busy (A02).</summary>
         public int UltimateCasterBusy;
+        /// <summary>Meter and Defy update: non-zero while an A02 activation strike holds the fighter.</summary>
+        public int UltimateCaptured;
+        /// <summary>Meter and Defy update (P24): non-zero when <see cref="MomentumUnits"/> is the real gauge; an observer with no gauge leaves it 0 and the CPU ignores the gauge.</summary>
+        public int MomentumKnown;
+        /// <summary>Meter and Defy update: the Momentum gauge in units (310 <c>MomentumUnits</c>).</summary>
+        public int MomentumUnits;
+        /// <summary>Meter and Defy update: frames left on the fighter's own Defy (323 <c>DefyFrames</c>).</summary>
+        public int DefyFrames;
+        /// <summary>Meter and Defy update: the fighter's own A02 activation phase (<c>FighterUltimateActivationRules.PhaseWindup</c> = 1 and so on; 0 none).</summary>
+        public int UltimateActivationPhase;
+        /// <summary>Meter and Defy update: frames left in <see cref="UltimateActivationPhase"/>.</summary>
+        public int UltimateActivationPhaseFrames;
     }
 
     /// <summary>
@@ -519,7 +560,13 @@ namespace FTT.FighterSim {
                 SpecialCastPhaseFrames = castPhaseFrames,
                 TechLockoutFrames = verb.TechLockoutFrames,
                 KnockedDown = FighterKnockdownRules.IsActive(in knockdown) ? 1 : 0,
-                UltimateCasterBusy = FighterUltimateActivationRules.IsCasterBusy(in activation) ? 1 : 0
+                UltimateCasterBusy = FighterUltimateActivationRules.IsCasterBusy(in activation) ? 1 : 0,
+                UltimateCaptured = FighterUltimateActivationRules.IsCaptured(in activation) ? 1 : 0,
+                MomentumKnown = 1,
+                MomentumUnits = verb.MomentumUnits,
+                DefyFrames = action.DefyFrames,
+                UltimateActivationPhase = activation.Phase,
+                UltimateActivationPhaseFrames = activation.PhaseFrames
             };
             return true;
         }

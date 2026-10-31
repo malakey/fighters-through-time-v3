@@ -609,8 +609,37 @@ namespace FTT.Enemies {
         }
 
         public void Bind(PlayerController self, PlayerController target) {
+            if (_self != null && GodotObject.IsInstanceValid(_self)) _self.DamageTaken -= OnSelfDamaged;
             _self = self;
             Target = target;
+            _hitsTaken = 0;
+            _hitsProjected = 0;
+            _projectedHitstun = 0;
+            if (_self != null && GodotObject.IsInstanceValid(_self)) _self.DamageTaken += OnSelfDamaged;
+        }
+
+        // Meter and Defy update (O23): the clone's CPU counts a string by hitstun instances, but a Story
+        // body stays Stunned straight through a chain, so one continuous stun would read as a single
+        // hit. The clone's own damage events open a projected instance (30 frames, counting down, the
+        // sim's string hitstun) so each landed hit rises above the last and counts.
+        private int _hitsTaken;
+        private int _hitsProjected;
+        private int _projectedHitstun;
+
+        private void OnSelfDamaged(PlayerDamageObservation observation) => _hitsTaken++;
+
+        private void AdvanceHitstunProjection() {
+            if (_self.CurrentState != CharacterState.Stunned) {
+                _projectedHitstun = 0;
+                _hitsProjected = _hitsTaken;
+                return;
+            }
+            if (_hitsTaken != _hitsProjected) {
+                _hitsProjected = _hitsTaken;
+                _projectedHitstun = BasicComboRules.HitstunFrames[0];
+            } else if (_projectedHitstun > 1) {
+                _projectedHitstun--;
+            }
         }
 
         /// <summary>
@@ -632,6 +661,7 @@ namespace FTT.Enemies {
             if (_self == null || !GodotObject.IsInstanceValid(_self)) {
                 return PlayerInputFrame.Create(tick, 0f, 0f, GameplayButtons.None, previousFrame.Held);
             }
+            AdvanceHitstunProjection();
             CpuDecisionObservation observation = Observe();
             return _cpu.Sample(tick, in observation, in previousFrame);
         }
@@ -669,7 +699,7 @@ namespace FTT.Enemies {
                 TargetPositionXRaw = FP64.FromFloat(targetUnitsX).RawValue,
                 TargetPositionYRaw = FP64.FromFloat(targetUnitsY).RawValue,
                 Stocks = alive ? 1 : 0,
-                HitstunFrames = _self.CurrentState == CharacterState.Stunned ? 1 : 0,
+                HitstunFrames = _self.CurrentState == CharacterState.Stunned ? Math.Max(1, _projectedHitstun) : 0,
                 DazeFrames = _self.CurrentState == CharacterState.Dazed ? 1 : 0,
                 IsGrounded = _self.IsOnFloor() ? 1 : 0,
                 IsLedgeHanging = _self.CurrentState == CharacterState.LedgeHanging ? 1 : 0,
@@ -679,6 +709,11 @@ namespace FTT.Enemies {
                 InfluenceRaw = FP64.FromFloat(Math.Max(0f, _self.CurrentUltimateMeter)).RawValue,
                 SpecialOneCooldownFrames = ToFrames(_self.SpecialOneCooldownTimer),
                 SpecialTwoCooldownFrames = ToFrames(_self.SpecialTwoCooldownTimer),
+                // Meter and Defy update (P24): the clone's gauge is real, so its Specials
+                // need a pip beside the 2 s reuse delay above; and a clone mid-Defy says so.
+                MomentumKnown = 1,
+                SelfMomentumUnits = Mathf.RoundToInt(_self.MomentumPips * BasicComboRules.MomentumUnitsPerPip),
+                SelfDefyFrames = _self.IsDefying ? Math.Max(1, BasicComboRules.DefyTotalFrames + 1 - _self.DefyFrame) : 0,
                 MovementCooldownFrames = ToFrames(_self.MovementAbilityCooldownTimer),
                 AbilityLockoutFrames = _self.AbilityLockoutFramesRemaining,
                 // D1 (2026-10-11): the clone's hit-confirm state, so its Fighter

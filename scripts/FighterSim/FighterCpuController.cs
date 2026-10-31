@@ -71,7 +71,7 @@ namespace FTT.FighterSim {
         private const GameplayButtons EdgeButtons =
             GameplayButtons.Jump | GameplayButtons.BasicAttack | GameplayButtons.Special1
             | GameplayButtons.Special2 | GameplayButtons.Ultimate | GameplayButtons.MovementAbility
-            | GameplayButtons.Roll;
+            | GameplayButtons.Roll | GameplayButtons.Defy;
 
         /// <summary>design Section 6/10: the Mirror Paradox reaction window.</summary>
         public const int HardReactionDelayMinFrames = 4;
@@ -177,6 +177,24 @@ namespace FTT.FighterSim {
         private int _escapeStanceLingerRemaining;
         private bool _hitstunHoldBlockActive;
         private bool _hitstunDiActive;
+
+        // === The Defy reflex (meter and Defy update 2026-10-31, O23 / P25; input-side, not sim state) ===
+        /// <summary>
+        /// The string counter: consecutive hitstun instances with at most
+        /// <see cref="DefyStringGapFrames"/> actionable frames between them, counted from the CPU's own
+        /// observation (the <c>_hitstunHoldBlockActive</c> precedent).
+        /// </summary>
+        private int _stringHits;
+        /// <summary>Actionable (non-hitstun) frames since the last hitstun, saturating.</summary>
+        private int _framesSinceHitstun = 1000;
+        /// <summary>Set by <see cref="ApplyHitstunDefense"/> on the one tick a Defy reflex fires.</summary>
+        private bool _defyReflexThisTick;
+
+        /// <summary>P25: hitstun instances with at most this many actionable frames between them are one string.</summary>
+        public const int DefyStringGapFrames = 8;
+        /// <summary>P25: the neutral Defy triggers need the opponent within 3.0 u (the blast radius is 2.5 u).</summary>
+        private static readonly long DefyTriggerRangeRaw = FP64.FromInt(3).RawValue;
+        private static readonly long DefyInfluenceCostRaw = FP64.FromInt(FTT.Combat.BasicComboRules.DefyInfluenceCost).RawValue;
 
         // === F19 recovery episode (Package 11 A9b; input-side latch, not sim state) ===
         /// <summary>
@@ -429,6 +447,7 @@ namespace FTT.FighterSim {
                 in observation,
                 _sustainedHeld | _activeEdges | (_jumpSustained ? GameplayButtons.Jump : GameplayButtons.None),
                 ref outputMoveX);
+            held = ApplyDefyOutput(in observation, held, ref outputMoveX);
             // CM-MOVE (decision 5.2, plan section 2.5.2): the CPU stays climb-jump
             // only. Steer and neutral presses decided before the grab arrive on
             // hang ticks ahead of its own hang answer and would neutral-climb,
@@ -526,6 +545,7 @@ namespace FTT.FighterSim {
                     _hitstunDiActive = false;
                 }
             }
+            UpdateDefyReflex(in observation, hitstun, newInstance);
             _lastObservedHitstunFrames = hitstun;
 
             if (!_hitstunHoldBlockActive
@@ -565,6 +585,94 @@ namespace FTT.FighterSim {
                 moveX = ResolveDiHold(in observation);
             }
             return held;
+        }
+
+        /// <summary>
+        /// Meter and Defy update (O23, P25): the string counter and the hitstun Defy reflex. Runs every tick
+        /// after the hitstun-defense rolls; on the tick a new hitstun instance opens it counts the hit
+        /// into the string and decides whether the Defy fires. Easy never; Medium rolls
+        /// <see cref="CpuBandTuning.DefyStringPercent"/> once per instance, only once the string reaches
+        /// <see cref="CpuBandTuning.DefyMinStringHits"/> and only at Influence 50+ (the draw happens only when
+        /// the gate passes, so Easy draws nothing and Medium's earlier draws keep their order); Hard
+        /// (percent 100) takes no roll at all.
+        /// </summary>
+        private void UpdateDefyReflex(in CpuDecisionObservation observation, int hitstun, bool newInstance) {
+            _defyReflexThisTick = false;
+            int gapBefore = _framesSinceHitstun;
+            if (hitstun > 0) {
+                _framesSinceHitstun = 0;
+            } else if (_framesSinceHitstun < 1000) {
+                _framesSinceHitstun++;
+            }
+            if (!newInstance) return;
+            // A refresh while still stunned has a gap of 0 and joins the string.
+            _stringHits = _stringHits > 0 && gapBefore <= DefyStringGapFrames ? _stringHits + 1 : 1;
+            if (_tuning.DefyStringPercent <= 0 || _stringHits < _tuning.DefyMinStringHits) return;
+            if (!DefyLegalForSelf(in observation)) return;
+            if (_tuning.DefyStringPercent >= 100 || NextPercent() < _tuning.DefyStringPercent) {
+                _defyReflexThisTick = true;
+            }
+        }
+
+        /// <summary>
+        /// Self-state legality of a Defy press, read at the gate and again every tick it is emitted: Influence
+        /// 50+, not already Defying, not captured or busy in an A02, alive, live match, not dazed.
+        /// </summary>
+        private static bool DefyLegalForSelf(in CpuDecisionObservation observation) =>
+            observation.SuppressGameplayInput == 0
+            && observation.Stocks > 0
+            && observation.DazeFrames <= 0
+            && observation.InfluenceRaw >= DefyInfluenceCostRaw
+            && observation.SelfDefyFrames <= 0
+            && observation.SelfUltimateCaptured == 0
+            && observation.SelfUltimateCasterBusy == 0;
+
+        /// <summary>
+        /// Writes the Defy onto the output frame. The reflex and a scheduled neutral Defy edge both win
+        /// their tick outright (exclusive, like the Block hold): the Defy cancels whatever else was held,
+        /// and the hitstun layer's Block hold would otherwise replace it. An edge that is no longer legal
+        /// on current self-state (Influence spent, already Defying) is stripped.
+        /// </summary>
+        private GameplayButtons ApplyDefyOutput(
+            in CpuDecisionObservation observation, GameplayButtons held, ref sbyte moveX) {
+            bool wanted = _defyReflexThisTick || ((_activeEdges | _sustainedHeld) & GameplayButtons.Defy) != 0;
+            if (wanted && DefyLegalForSelf(in observation)) {
+                EndJumpSustain();
+                moveX = 0;
+                return GameplayButtons.Defy;
+            }
+            return held & ~GameplayButtons.Defy;
+        }
+
+        /// <summary>
+        /// The neutral Defy triggers (Hard, O23 / P25): the opponent is in an A02 wind-up within 3.0 u with
+        /// enough of it left for the blast (a Defy pressed after the reaction delay still blasts at frame
+        /// 6), or the CPU is cornered with the opponent on the open side within 3.0 u. Both need
+        /// Influence 50+, so a CPU with less banks its meter. Opponent information is read here, at
+        /// decision time, and delivered after the band's reaction delay.
+        /// </summary>
+        private bool TryDecideNeutralDefy(in CpuDecisionObservation observation) {
+            if (!_tuning.DefyBeatsUltimateWindup && !_tuning.DefyCornerEscape) return false;
+            if (!DefyLegalForSelf(in observation)) return false;
+            long gap = Absolute(observation.TargetPositionXRaw - observation.SelfPositionXRaw);
+            if (gap > DefyTriggerRangeRaw) return false;
+            if (_tuning.DefyBeatsUltimateWindup
+                && observation.HasTargetVerbState != 0
+                && observation.TargetUltimateActivationPhase == FighterUltimateActivationRules.PhaseWindup) {
+                GetReactionDelayBounds(out int maximumDelay);
+                if (observation.TargetUltimateActivationPhaseFrames >= FTT.Combat.BasicComboRules.DefyBlastFrame + maximumDelay) {
+                    return true;
+                }
+            }
+            if (_tuning.DefyCornerEscape && observation.HasStageBounds != 0) {
+                long margin = CorneredMargin.RawValue;
+                bool nearLeft = observation.SelfPositionXRaw - observation.LeftWallRaw <= margin;
+                bool nearRight = observation.RightWallRaw - observation.SelfPositionXRaw <= margin;
+                bool targetOpenSide = (nearLeft && observation.TargetPositionXRaw > observation.SelfPositionXRaw)
+                    || (nearRight && observation.TargetPositionXRaw < observation.SelfPositionXRaw);
+                if (targetOpenSide) return true;
+            }
+            return false;
         }
 
         /// <summary>
@@ -809,6 +917,10 @@ namespace FTT.FighterSim {
                 observation.SelfTechLockoutFrames = selfVerb.TechLockoutFrames;
                 observation.SelfKnockedDown = selfVerb.KnockedDown;
                 observation.SelfUltimateCasterBusy = selfVerb.UltimateCasterBusy;
+                observation.SelfUltimateCaptured = selfVerb.UltimateCaptured;
+                observation.MomentumKnown = selfVerb.MomentumKnown;
+                observation.SelfMomentumUnits = selfVerb.MomentumUnits;
+                observation.SelfDefyFrames = selfVerb.DefyFrames;
             }
             if (!world.TryGetVerbState(target.PlayerID, out CpuVerbState targetVerb)) return;
             observation.HasTargetVerbState = 1;
@@ -821,6 +933,10 @@ namespace FTT.FighterSim {
                 targetRuntime.UniversalMovementState != (int)UniversalMovementPhase.None ? 1 : 0;
             observation.TargetThrowImmune =
                 targetVerb.ThrowImmunityFrames > 0 || targetVerb.BeingHeld != 0 ? 1 : 0;
+            // Meter and Defy update (O23): the opponent's A02 phase, for the Hard
+            // CPU's Defy against a wind-up.
+            observation.TargetUltimateActivationPhase = targetVerb.UltimateActivationPhase;
+            observation.TargetUltimateActivationPhaseFrames = targetVerb.UltimateActivationPhaseFrames;
         }
 
         /// <summary>
@@ -967,6 +1083,7 @@ namespace FTT.FighterSim {
             // pursuit while return is at risk" (CPU_RECOVERY.md) — which is why
             // this stays ahead of every other branch.
             if (IsOffStage(in observation)) return DecideRecovery(in observation, out moveX, out moveY);
+            if (TryDecideNeutralDefy(in observation)) return GameplayButtons.Defy;
             if (TryDecideHazardEvasion(in observation, out GameplayButtons evasion, out moveX)) return evasion;
             if (TryDecideProjectileDefense(in observation, out GameplayButtons defense, out moveX)) return defense;
             if (TryDecideOrbPursuit(in observation, out GameplayButtons pursuit, out moveX)) return pursuit;
@@ -1221,9 +1338,20 @@ namespace FTT.FighterSim {
 
         private bool MobilitySpecialReady(in CpuDecisionObservation observation) =>
             SpecialLockoutClearAtDelivery(in observation)
-            && (_profile.MobilitySpecial == CpuMobilitySpecialSlot.SpecialOne
-                ? observation.SpecialOneCooldownFrames <= 0
-                : observation.SpecialTwoCooldownFrames <= 0);
+            && SpecialPipReady(in observation, _profile.MobilitySpecial == CpuMobilitySpecialSlot.SpecialOne ? 1 : 2);
+
+        /// <summary>
+        /// Meter and Defy update (G4.4, P24): a Special is ready when the Momentum gauge holds a pip and the
+        /// slot's reuse delay will have run out by delivery. A hand-built observation
+        /// (<see cref="CpuDecisionObservation.MomentumKnown"/> 0) ignores the gauge, so only the reuse
+        /// delay gates it, as the cooldown did. Kit-blind (decision 9.3).
+        /// </summary>
+        private bool SpecialPipReady(in CpuDecisionObservation observation, int slot) {
+            if (observation.MomentumKnown != 0
+                && observation.SelfMomentumUnits < FTT.Combat.BasicComboRules.MomentumSpecialCostUnits) return false;
+            int reuse = slot == 1 ? observation.SpecialOneCooldownFrames : observation.SpecialTwoCooldownFrames;
+            return reuse <= GetReactionDelayBounds(out _);
+        }
 
         /// <summary>
         /// Which way the return lies. Over a pit with A9's floor topology in hand
@@ -1627,11 +1755,11 @@ namespace FTT.FighterSim {
                     // the case the specials ladder handles worst.
                     return held | grab;
                 } else if (SpecialLockoutClearAtDelivery(in observation)
-                    && observation.SpecialOneCooldownFrames <= 0
+                    && SpecialPipReady(in observation, 1)
                     && NextPercent() < _tuning.SpecialOneClosePercent) {
                     held |= GameplayButtons.Special1;
                 } else if (SpecialLockoutClearAtDelivery(in observation)
-                    && observation.SpecialTwoCooldownFrames <= 0
+                    && SpecialPipReady(in observation, 2)
                     && NextPercent() < _tuning.SpecialTwoPercent) {
                     held |= GameplayButtons.Special2;
                 } else if (absoluteRaw <= BasicAttackBandRaw(in observation, closeRaw)) {
@@ -1649,7 +1777,7 @@ namespace FTT.FighterSim {
             // Ranged neutral: zoning special first, then the far-range movement
             // ability as the gap-closer.
             if (SpecialLockoutClearAtDelivery(in observation)
-                && observation.SpecialOneCooldownFrames <= 0
+                && SpecialPipReady(in observation, 1)
                 && NextPercent() < _tuning.SpecialOneRangedPercent) {
                 held |= GameplayButtons.Special1;
             } else if (absoluteRaw > farRaw && observation.MovementCooldownFrames <= 0
@@ -1829,6 +1957,19 @@ namespace FTT.FighterSim {
         /// stage centre. Design §10: Easy never (0), Medium 40, Hard 80.
         /// </summary>
         public int DiPercent { get; init; }
+        /// <summary>
+        /// Meter and Defy update (O23, P25), code-owned like every band number: the chance, rolled once per
+        /// hitstun instance, that the CPU Defies once the opponent's string reaches
+        /// <see cref="DefyMinStringHits"/> hits and the CPU holds 50+ Influence. 0 never (Easy and
+        /// <see cref="EasyBoss"/>); 100 takes no roll at all (Hard).
+        /// </summary>
+        public int DefyStringPercent { get; init; }
+        /// <summary>The string length (hitstun instances with at most 8 actionable frames between) that arms the string trigger.</summary>
+        public int DefyMinStringHits { get; init; }
+        /// <summary>Hard only: Defy when cornered with the opponent on the open side, inside 3.0 u.</summary>
+        public bool DefyCornerEscape { get; init; }
+        /// <summary>Hard only: Defy when the opponent is in an A02 wind-up within 3.0 u, cancelling it (R3).</summary>
+        public bool DefyBeatsUltimateWindup { get; init; }
         public int OrbPursuitPercent { get; init; }
         public int HealingOrbPursuitPercent { get; init; }
         public int HealingOrbHPPercent { get; init; }
@@ -1981,6 +2122,9 @@ namespace FTT.FighterSim {
             // the teaching tier, where loops visibly work and visibly fail.
             HitstunDefensePercent = 45,
             DiPercent = 40,
+            // Meter and Defy update (P25): a 35% roll per hitstun instance once the string reaches 3 hits.
+            DefyStringPercent = 35,
+            DefyMinStringHits = 3,
             OrbPursuitPercent = 25,
             HealingOrbPursuitPercent = 60,
             HealingOrbHPPercent = 40,
@@ -2027,6 +2171,11 @@ namespace FTT.FighterSim {
             // damage must be earned through grabs, delays, and shatter pressure.
             HitstunDefensePercent = 85,
             DiPercent = 80,
+            // Meter and Defy update (P25): no roll, every qualifying trigger; otherwise the meter banks for the Ultimate.
+            DefyStringPercent = 100,
+            DefyMinStringHits = 2,
+            DefyCornerEscape = true,
+            DefyBeatsUltimateWindup = true,
             OrbPursuitPercent = 75,
             HealingOrbPursuitPercent = 95,
             HealingOrbHPPercent = 50,
