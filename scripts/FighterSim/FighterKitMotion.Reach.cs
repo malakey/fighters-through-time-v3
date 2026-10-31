@@ -541,13 +541,15 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
-        /// M02: a Requiem execution that HITS (not a block) shortens Fortissimo
-        /// Wave's remaining cooldown by two seconds, once per execution.
+        /// A documented no-op since the meter and Defy update (2026-10-31, G4.2 and
+        /// P17). M02's Requiem shave took two seconds off Fortissimo Wave's
+        /// cooldown; with the cooldowns replaced by the Momentum gauge and the
+        /// per-slot reuse delay there is nothing to shave, and the effect waits for
+        /// Mozart's kit pass (DEFER-REQUIEM-FORTISSIMO-REDESIGN, the old value 2.0 s).
+        /// The call site and its once-per-execution flag stay so that pass can
+        /// give the effect a new target without touching the burst code.
         /// </summary>
-        public static void ShaveFortissimo(ref FighterRuntimeComponent ownerRuntime) {
-            int remaining = ownerRuntime.SpecialTwoReuseFrames - KitReachRules.RequiemFortissimoShaveFrames;
-            ownerRuntime.SpecialTwoReuseFrames = remaining > 0 ? remaining : 0;
-        }
+        public static void ShaveFortissimo(ref FighterRuntimeComponent ownerRuntime) { }
 
         // --- C01 Sandstorm Vortex ----------------------------------------------
 

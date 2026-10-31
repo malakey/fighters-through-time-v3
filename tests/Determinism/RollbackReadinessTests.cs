@@ -94,6 +94,7 @@ public class RollbackReadinessTests {
         private readonly int _seed;
         private readonly int _playerID;
         private readonly bool _spamSpecials;
+        private readonly int _specialsFromTick;
         private GameplayButtons _previousHeld;
 
         /// <param name="spamSpecials">
@@ -101,7 +102,8 @@ public class RollbackReadinessTests {
         /// shortest legal cadence, and a faster movement-ability cadence, for the
         /// worst-case entity-load harness.
         /// </param>
-        public ScriptedInputs(int seed, int playerID, bool spamSpecials = false) {
+        public ScriptedInputs(int seed, int playerID, bool spamSpecials = false, int specialsFromTick = 0) {
+            _specialsFromTick = specialsFromTick;
             _seed = seed;
             _playerID = playerID;
             _spamSpecials = spamSpecials;
@@ -125,7 +127,7 @@ public class RollbackReadinessTests {
             GameplayButtons held = GameplayButtons.None;
             if (noise % 13 == _playerID) held |= GameplayButtons.Jump;
             if (!inWindow && noise % 7 == _playerID) held |= GameplayButtons.BasicAttack;
-            if (inWindow && phase >= firstPress && ((phase - firstPress) & 1) == 0) {
+            if (inWindow && tick >= _specialsFromTick && phase >= firstPress && ((phase - firstPress) & 1) == 0) {
                 bool slotOneTurn = ((phase - firstPress) & 2) == 0;
                 held |= slotOneTurn ? GameplayButtons.Special1
                     : window % 4 == 3 ? GameplayButtons.Ultimate
@@ -157,8 +159,8 @@ public class RollbackReadinessTests {
         FighterCharacterID playerTwo,
         FighterStageGeometry geometry,
         int seed,
-        int stocks) =>
-        new(
+        int stocks) {
+        var simulation = new FighterSimulation(
             RollbackHarnessKits.KitShape(playerOne),
             RollbackHarnessKits.KitShape(playerTwo),
             stocks: stocks,
@@ -166,6 +168,13 @@ public class RollbackReadinessTests {
             seed: seed,
             rules: HighFrequencyRules(geometry),
             stageGeometry: geometry);
+        // Meter and Defy update 2026-10-31: the spam scripts press Specials
+        // continuously, which the two-pip start would starve after two casts.
+        // Both gauges begin full, in the state every peer and replay is built
+        // from, so the load these harnesses measure is still a casting match.
+        MomentumTestKit.KeepFullBoth(simulation);
+        return simulation;
+    }
 
     /// <summary>
     /// Counts accepted specials per player from cooldown rises — a cast arms
@@ -408,7 +417,9 @@ public class RollbackReadinessTests {
             AssertThat(specials[0] + specials[1])
                 .OverrideFailureMessage(
                     $"'{geometry.StageID}': only {specials[0] + specials[1]} specials cast inside 2200 ticks.")
-                .IsGreaterEqual(30);
+                // Four pips from the full start fill plus about three regenerated
+                // over 2200 ticks a player (the cooldowns this once counted are gone).
+                .IsGreaterEqual(12);
             AssertThat(peakHazards)
                 .OverrideFailureMessage($"'{geometry.StageID}': no stage hazard spawned inside 2200 ticks.")
                 .IsGreater(0);
@@ -661,8 +672,11 @@ public class RollbackReadinessTests {
         // orbs, and both kits' constructs deployed.
         const int WarmupTicks = 1900;
         const int MeasuredTicks = 300;
-        var localInputs = new ScriptedInputs(4215, 0, spamSpecials: true);
-        var remoteScript = new ScriptedInputs(4215, 1, spamSpecials: true);
+        // The gauge pays for every Special (a pip per 12 s), so the scripts hold
+        // their Specials until the last 40 ticks of warm-up: both kits start the
+        // window with four pips and cast at the shortest legal cadence through it.
+        var localInputs = new ScriptedInputs(4215, 0, spamSpecials: true, specialsFromTick: WarmupTicks - 40);
+        var remoteScript = new ScriptedInputs(4215, 1, spamSpecials: true, specialsFromTick: WarmupTicks - 40);
         var remoteFrames = new PlayerInputFrame[WarmupTicks + MeasuredTicks];
         for (int tick = 0; tick < remoteFrames.Length; tick++) remoteFrames[tick] = remoteScript.Next(tick);
 
@@ -786,10 +800,10 @@ public class RollbackReadinessTests {
         // lockout, leaving special entities live in the captured state.
         AssertThat(specials.PerPlayer[0])
             .OverrideFailureMessage($"Tesla cast only {specials.PerPlayer[0]} specials before the snapshot.")
-            .IsGreaterEqual(20);
+            .IsGreaterEqual(5);
         AssertThat(specials.PerPlayer[1])
             .OverrideFailureMessage($"Mozart cast only {specials.PerPlayer[1]} specials before the snapshot.")
-            .IsGreaterEqual(20);
+            .IsGreaterEqual(5);
         AssertThat(source.PersistentObjectCount + source.ProjectileCount + source.ZoneCount).IsGreater(0);
 
         byte[] snapshot = source.CaptureFullState();

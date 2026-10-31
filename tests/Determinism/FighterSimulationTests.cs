@@ -247,6 +247,7 @@ public class FighterSimulationTests {
 
         // The second deploy waits out the first one's ability lockout.
         tick = AdvanceUntilAbilityReady(simulation, tick);
+        MomentumTestKit.KeepFull(simulation, 0);
         simulation.Advance(Frame(tick, 0, GameplayButtons.Special1), Frame(tick, 0, GameplayButtons.None));
         SpecialCastTestKit.StepUntilFired(simulation, 0, tick + 1);
         AssertThat(simulation.TryGetFirstPersistentObject(out FighterPersistentObjectComponent replacement)).IsTrue();

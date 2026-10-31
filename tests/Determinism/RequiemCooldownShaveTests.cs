@@ -11,49 +11,14 @@ namespace FTT.Tests.Determinism;
 /// <summary>
 /// Package 13 W7b (M02/M03) — the Requiem Chord in the sim, on Mozart's
 /// authored data: a straight 14 units/s shot with no range limit that bursts
-/// into three pulses (at a fighter, or at a wall), and Mozart's Tempo rule —
-/// an execution that HITS shortens Fortissimo Wave's remaining cooldown by
-/// two seconds, exactly once however many of its contact and pulses land.
+/// into three pulses (at a fighter, or at a wall). The Tempo rule that an
+/// execution which HITS shaved two seconds off Fortissimo Wave's cooldown is a
+/// documented no-op since the meter and Defy update (2026-10-31, G4.2): there is
+/// no cooldown to shave, and the effect waits for Mozart's kit pass.
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
 public class RequiemCooldownShaveTests {
-
-    [TestCase]
-    public void AHittingExecutionShavesTwoSecondsOffFortissimoExactlyOnce() {
-        var simulation = NewMatch(spawnDistance: 5);
-        // Fortissimo first (its 6-unit wall stops short of the opponent 10
-        // units away), then the chord once Fortissimo's 30-frame ability
-        // lockout and its 16 / 6 / 22 cast have run out.
-        simulation.Advance(Frame(0, 0, GameplayButtons.Special2), Frame(0, 0, GameplayButtons.None));
-        int chordTick = IdleUntilAbilityReady(simulation, 1);
-        simulation.Advance(Frame(chordTick, 0, GameplayButtons.Special1), Frame(chordTick, 0, GameplayButtons.None));
-        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent start)).IsTrue();
-        AssertThat(start.SpecialOneReuseFrames > 0).OverrideFailureMessage("The chord was not cast.").IsTrue();
-        // 720 frames, minus the ticks spent waiting: the shave still has room.
-        AssertThat(start.SpecialTwoReuseFrames > 600).IsTrue();
-        // Decision 1.2 (2026-10-16): the chord leaves on the cast's active entry.
-        int fired = SpecialCastTestKit.StepUntilFired(simulation, 0, chordTick + 1);
-        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent leaving)).IsTrue();
-        int previous = leaving.SpecialTwoReuseFrames;
-
-        int shaves = 0;
-        for (int tick = fired; tick < fired + 89; tick++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-            AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
-            int drop = previous - runtime.SpecialTwoReuseFrames;
-            if (drop >= 100) {
-                // One tick's countdown plus the 120-frame shave.
-                AssertThat(drop == 120 || drop == 121).IsTrue();
-                shaves++;
-            }
-            previous = runtime.SpecialTwoReuseFrames;
-        }
-        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
-        // Contact 4 + three 4-damage pulses.
-        AssertThat(target.CurrentHP).IsEqual(84);
-        AssertThat(shaves).IsEqual(1);
-    }
 
     [TestCase]
     public void AChordThatHitsNothingBurstsAtTheWallAndShavesNothing() {

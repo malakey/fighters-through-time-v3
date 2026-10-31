@@ -305,6 +305,7 @@ public class TeslaUltimateTests {
         int tick = startTick;
         for (int coil = 0; coil < 2; coil++) {
             tick = IdleUntilAbilityReady(simulation, tick, victimHeld);
+            MomentumTestKit.KeepFull(simulation, 0);
             simulation.Advance(Frame(tick, 0, GameplayButtons.Special1), Frame(tick, 0, victimHeld));
             tick++;
         }

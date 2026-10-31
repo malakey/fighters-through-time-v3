@@ -127,11 +127,10 @@ public class FighterAirAttackTests {
             .IsEqual(1);
         AssertThat(air.Victim.Velocity.y).IsEqual(FP64.Zero);
 
-        // D1 / D2: a landed air strike opens the hit-confirm and pays string hit
-        // 1's 20 frames of per-hit Momentum on both running cooldowns.
+        // D1 and the Momentum gauge: a landed air strike opens the hit-confirm and
+        // adds the directional strikes' 360 units to the gauge.
         AssertThat(air.SwingLanded).IsEqual(1);
-        AssertThat(air.MomentumSlotOne).IsEqual(BasicComboRules.MomentumStringHitRefundFrames);
-        AssertThat(air.MomentumSlotTwo).IsEqual(BasicComboRules.MomentumStringHitRefundFrames);
+        AssertThat(air.GaugeGain).IsEqual(BasicComboRules.MomentumDirectionalGainUnits);
     }
 
     [TestCase]
@@ -176,21 +175,20 @@ public class FighterAirAttackTests {
     // === helpers ==============================================================
 
     private readonly struct Struck {
-        public Struck(FighterStateComponent victim, int damage, int flags, int swingLanded, int momentumOne, int momentumTwo) {
+        public Struck(FighterStateComponent victim, int damage, int flags, int swingLanded, int gaugeGain) {
             Victim = victim;
             Damage = damage;
             Flags = flags;
             SwingLanded = swingLanded;
-            MomentumSlotOne = momentumOne;
-            MomentumSlotTwo = momentumTwo;
+            GaugeGain = gaugeGain;
         }
 
         public FighterStateComponent Victim { get; }
         public int Damage { get; }
         public int Flags { get; }
         public int SwingLanded { get; }
-        public int MomentumSlotOne { get; }
-        public int MomentumSlotTwo { get; }
+        /// <summary>The gauge change on the landing tick, less that tick's regeneration.</summary>
+        public int GaugeGain { get; }
     }
 
     /// <summary>
@@ -210,7 +208,7 @@ public class FighterAirAttackTests {
         }
         for (int step = 0; step < 20; step++) Step(simulation, GameplayButtons.None);
         AssertThat(Fighter(simulation, 0).FacingRight).IsEqual(1);
-        AssertThat(simulation.SeedFighterSpecialCooldownsForTest(0, 300, 300)).IsTrue();
+        AssertThat(simulation.SeedFighterSpecialReuseForTest(0, 300, 300)).IsTrue();
         int hpBefore = Fighter(simulation, 1).CurrentHP;
         if (fromTheAir) {
             Step(simulation, GameplayButtons.Jump);
@@ -220,7 +218,9 @@ public class FighterAirAttackTests {
             Step(simulation, GameplayButtons.BasicAttack);
         }
         int flags = Runtime(simulation, 0).AttackFlags;
+        int unitsBeforeLanding = Verb(simulation, 0).MomentumUnits;
         for (int step = 0; step < 30 && Fighter(simulation, 1).CurrentHP == hpBefore; step++) {
+            unitsBeforeLanding = Verb(simulation, 0).MomentumUnits;
             Step(simulation, GameplayButtons.None);
         }
         FighterStateComponent victim = Fighter(simulation, 1);
@@ -231,7 +231,7 @@ public class FighterAirAttackTests {
         FighterVerbComponent verb = Verb(simulation, 0);
         return new Struck(
             victim, hpBefore - victim.CurrentHP, flags, Runtime(simulation, 0).SwingLanded,
-            verb.MomentumRefundedFramesSlotOne, verb.MomentumRefundedFramesSlotTwo);
+            verb.MomentumUnits - unitsBeforeLanding - FighterMomentumRules.RegenUnitsPerFrame);
     }
 
     /// <summary>A Tesla's string at hit 1, one frame from the end of <paramref name="phase"/>.</summary>

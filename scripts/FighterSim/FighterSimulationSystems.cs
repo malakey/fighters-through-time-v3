@@ -110,8 +110,6 @@ namespace FTT.FighterSim {
                 UltimateDamage = loadout.UltimateDamage,
                 MaxBlockCharges = loadout.MaxBlockCharges,
                 MaxJumpCount = loadout.MaxJumpCount,
-                SpecialOneCooldownFrames = loadout.SpecialOneCooldownFrames,
-                SpecialTwoCooldownFrames = loadout.SpecialTwoCooldownFrames,
                 SpecialOneStatusType = loadout.SpecialOneStatusType,
                 SpecialOneStatusFrames = loadout.SpecialOneStatusFrames,
                 SpecialTwoStatusType = loadout.SpecialTwoStatusType,
@@ -163,6 +161,8 @@ namespace FTT.FighterSim {
             // attachment's "unattached" sentinel has to be written in (F23).
             var verb = new FighterVerbComponent();
             verb.ClearGrabPartner();
+            // Meter and Defy update 2026-10-31 (G3.1): every match starts at 2 pips.
+            verb.MomentumUnits = FighterMomentumRules.StartUnits;
             frame.Add(entity, verb);
             // V7.6 F07 (Package 11 A1): the caster-owned Conductive mark. Not a
             // status — no slot, no action lock, zero stagger budget.
@@ -287,6 +287,11 @@ namespace FTT.FighterSim {
         }
 
         public void Update(ref Frame frame) {
+            // Meter and Defy update 2026-10-31 (P2): the Momentum gauge regenerates
+            // only while the match is live, so every match and every Sudden Death
+            // starts at exactly two pips at GO.
+            bool momentumRegen = frame.GetSingleton<FighterMatchComponent>().MatchState
+                == FighterMatchStates.InProgress;
             var filter = frame.Filter<FighterStateComponent, FighterRuntimeComponent, FighterTuningComponent>();
             while (filter.Next(out EntityRef entity)) {
                 ref FighterStateComponent fighter = ref frame.Get<FighterStateComponent>(entity);
@@ -409,7 +414,7 @@ namespace FTT.FighterSim {
                 FighterBlockTimingRules.BeginTick(ref action, in fighter);
                 if (FighterUltimateActivationRules.IsCaptured(in ultimateActivation)) {
                     ref FighterDefenseComponent capturedDefense = ref frame.Get<FighterDefenseComponent>(entity);
-                    TickCounters(ref fighter, ref runtime, ref verb, ref capturedDefense, in tuning);
+                    TickCounters(ref fighter, ref runtime, ref verb, ref capturedDefense, in tuning, momentumRegen);
                     if (fighter.Stocks > 0 && fighter.RespawnFramesRemaining <= 0) {
                         FighterUltimateActivationRules.HoldCaptured(ref fighter, ref runtime, in ultimateActivation);
                     }
@@ -438,7 +443,7 @@ namespace FTT.FighterSim {
                     knockdown.StaffRefundUsed = 0;
                 }
                 if (FighterKnockdownRules.IsActive(in knockdown)) {
-                    TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning);
+                    TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning, momentumRegen);
                     // A lethal Venom tick inside TickCounters is a stock loss;
                     // the respawn owns the fighter from the next tick.
                     FighterKnockdownRules.ClearIfInterrupted(in fighter, ref knockdown);
@@ -481,7 +486,7 @@ namespace FTT.FighterSim {
                     if (fighter.InvulnerabilityFrames > 0) fighter.InvulnerabilityFrames--;
                     fighter.Velocity = FPVector2.Zero;
                     FighterUltimateActivationRules.DiscardInput(ref runtime);
-                    TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning);
+                    TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning, momentumRegen);
                     continue;
                 }
 
@@ -491,7 +496,7 @@ namespace FTT.FighterSim {
                 // the grab phases and the victim's pinning.
                 if (FighterGrabRules.IsBusy(in verb)) {
                     fighter.Velocity = FPVector2.Zero;
-                    TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning);
+                    TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning, momentumRegen);
                     continue;
                 }
 
@@ -514,7 +519,7 @@ namespace FTT.FighterSim {
                 // a landed cast's D3 cancel, else the discard.
                 ResolveSpecialCastRegion(ref fighter, ref runtime, in verb, ref action, ref counter, in knockdown);
 
-                TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning);
+                TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning, momentumRegen);
 
                 // A02: the caster is action-locked through the whole Ultimate —
                 // wind-up, active, whiff recovery and cinematic. Discarding the
@@ -1426,7 +1431,8 @@ namespace FTT.FighterSim {
             ref FighterRuntimeComponent runtime,
             ref FighterVerbComponent verb,
             ref FighterDefenseComponent defense,
-            in FighterTuningComponent tuning) {
+            in FighterTuningComponent tuning,
+            bool regenMomentum) {
             // Rally drain (V7.1): the Echo Pool bleeds to zero over 150 frames
             // from the last accrual. Echo that finishes draining is permanently
             // lost — and only then does the victim's meter-from-damage accrue
@@ -1474,6 +1480,7 @@ namespace FTT.FighterSim {
             } else {
                 runtime.BlockRegenFrames = FTT.Combat.BasicComboRules.BlockChargeRegenFrames;
             }
+            if (regenMomentum) verb.MomentumUnits = FighterMomentumRules.Regen(verb.MomentumUnits);
             if (runtime.SpecialOneReuseFrames > 0) runtime.SpecialOneReuseFrames--;
             if (runtime.SpecialTwoReuseFrames > 0) runtime.SpecialTwoReuseFrames--;
             if (runtime.MovementCooldownFrames > 0) runtime.MovementCooldownFrames--;
@@ -2312,7 +2319,7 @@ namespace FTT.FighterSim {
                     ref targetCounter, ref targetAction, out int ledgeDamage);
                 OnSwingResolved(
                     ref attackerRuntime, ref attackerVerb, ledgeOutcome, ledgeDamage,
-                    FTT.Combat.BasicComboRules.MomentumRefundFramesFor(FTT.Combat.BasicComboRules.VariantChain, 0));
+                    FTT.Combat.BasicComboRules.MomentumGainUnitsFor(FTT.Combat.BasicComboRules.VariantChain, 0));
                 return;
             }
 
@@ -2326,7 +2333,7 @@ namespace FTT.FighterSim {
                     ref targetCounter, ref targetAction, out int airDamage);
                 OnSwingResolved(
                     ref attackerRuntime, ref attackerVerb, airOutcome, airDamage,
-                    FTT.Combat.BasicComboRules.MomentumRefundFramesFor(
+                    FTT.Combat.BasicComboRules.MomentumGainUnitsFor(
                         FTT.Combat.BasicComboRules.VariantAirAttack, 0));
                 return;
             }
@@ -2340,7 +2347,7 @@ namespace FTT.FighterSim {
                     ref targetKnockdown, ref targetCounter, ref targetAction, out int variantDamage);
                 OnSwingResolved(
                     ref attackerRuntime, ref attackerVerb, variantOutcome, variantDamage,
-                    FTT.Combat.BasicComboRules.MomentumRefundFramesFor(
+                    FTT.Combat.BasicComboRules.MomentumGainUnitsFor(
                         (attackerRuntime.AttackFlags & FighterBasicAttackRules.FlagUpAttack) != 0
                             ? FTT.Combat.BasicComboRules.VariantUpAttack
                             : FTT.Combat.BasicComboRules.VariantDownAir,
@@ -2418,11 +2425,11 @@ namespace FTT.FighterSim {
                 // grounded knockback — except Lincoln's launching hit 2.
                 launches: FTT.Combat.BasicComboRules.StringHitLaunchesFor(profile, step));
             bool connected = outcome == FighterHitOutcome.Landed;
-            // D1 / D2 (2026-10-11): a landed or absorbed swing opens the
-            // hit-confirm cancel and pays per-hit Momentum (20 / 20 / 60) once.
+            // D1 (2026-10-11) and the meter update (2026-10-31): a landed or absorbed
+            // swing opens the hit-confirm cancel and pays its Momentum-gauge gain once.
             OnSwingResolved(
                 ref attackerRuntime, ref attackerVerb, outcome, damage,
-                FTT.Combat.BasicComboRules.MomentumRefundFramesFor(FTT.Combat.BasicComboRules.VariantChain, step));
+                FTT.Combat.BasicComboRules.MomentumGainUnitsFor(FTT.Combat.BasicComboRules.VariantChain, step));
             // V7.6 F07: the finisher's caster-owned MARK, applied alongside (never
             // instead of) its status. Fighter Mode always uses the BASELINE
             // duration — the tesla_conductive_hold extension is a Story-only
@@ -2434,10 +2441,10 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
-        /// D1 / D2 (2026-10-11): one resolved basic swing. A Landed or Absorbed
-        /// outcome carrying authored damage (D1a; a zero-damage payload never
-        /// lands) sets the swing-landed latch on its 0 → 1 edge and pays that
-        /// swing's per-hit Momentum once; a landing that froze the attacker arms
+        /// D1 (2026-10-11) and the Momentum gauge (2026-10-31): one resolved basic
+        /// swing. A Landed or Absorbed outcome carrying authored damage (D1a; a
+        /// zero-damage payload never lands) sets the swing-landed latch on its 0 → 1
+        /// edge and adds that swing's gauge gain once (360 / 360 / 1440 units); a landing that froze the attacker arms
         /// the freeze-only Special buffer. A Refused or Blocked outcome (a box
         /// miss and a Foresight counter included) does neither.
         /// </summary>
@@ -2446,34 +2453,13 @@ namespace FTT.FighterSim {
             ref FighterVerbComponent attackerVerb,
             FighterHitOutcome outcome,
             int damage,
-            int momentumFrames) {
+            int momentumGainUnits) {
             if (damage <= 0) return;
             if (outcome != FighterHitOutcome.Landed && outcome != FighterHitOutcome.Absorbed) return;
             if (FighterAbilityLockoutRules.NoteSwingLanded(ref attackerRuntime)) {
-                ApplyMomentumRefund(ref attackerRuntime, ref attackerVerb, momentumFrames);
+                attackerVerb.MomentumUnits = FighterMomentumRules.Gain(attackerVerb.MomentumUnits, momentumGainUnits);
             }
             if (attackerVerb.HitstopFrames > 0) FighterAbilityLockoutRules.ArmFreezeBuffer(ref attackerRuntime);
-        }
-
-        /// <summary>
-        /// Per-hit Momentum (D2, 2026-10-11): <paramref name="nominalFrames"/> off
-        /// each RUNNING special cooldown, each slot capped at
-        /// <c>BasicComboRules.MomentumRefundCapFramesPerCycle</c> frames refunded
-        /// per cooldown cycle (the counters count frames removed and reset when
-        /// a slot's cooldown is armed). A ready slot takes nothing.
-        /// </summary>
-        internal static void ApplyMomentumRefund(
-            ref FighterRuntimeComponent runtime,
-            ref FighterVerbComponent verb,
-            int nominalFrames) {
-            int grantOne = FTT.Combat.BasicComboRules.MomentumGrant(
-                nominalFrames, verb.MomentumRefundedFramesSlotOne, runtime.SpecialOneReuseFrames);
-            runtime.SpecialOneReuseFrames -= grantOne;
-            verb.MomentumRefundedFramesSlotOne += grantOne;
-            int grantTwo = FTT.Combat.BasicComboRules.MomentumGrant(
-                nominalFrames, verb.MomentumRefundedFramesSlotTwo, runtime.SpecialTwoReuseFrames);
-            runtime.SpecialTwoReuseFrames -= grantTwo;
-            verb.MomentumRefundedFramesSlotTwo += grantTwo;
         }
 
         /// <summary>
@@ -3093,7 +3079,6 @@ namespace FTT.FighterSim {
                     tuning.SpecialTwoStatusType,
                     tuning.SpecialTwoStatusFrames,
                     tuning.SpecialTwoStatusIntensity,
-                    tuning.SpecialTwoCooldownFrames,
                     launches: splitLaunches && FighterReachKitRules.SplittingLaunches(in splitting, in target),
                     shieldBreaker: splitting.ShieldBreaker,
                     hasKnockbackVector: splitting.HasKnockbackVector,
@@ -3124,7 +3109,6 @@ namespace FTT.FighterSim {
                     tuning.SpecialOneStatusType,
                     tuning.SpecialOneStatusFrames,
                     tuning.SpecialOneStatusIntensity,
-                    tuning.SpecialOneCooldownFrames,
                     launches,
                     in contract);
             }
@@ -3139,7 +3123,6 @@ namespace FTT.FighterSim {
                     tuning.SpecialTwoStatusType,
                     tuning.SpecialTwoStatusFrames,
                     tuning.SpecialTwoStatusIntensity,
-                    tuning.SpecialTwoCooldownFrames,
                     launches,
                     in contract);
             }
@@ -3227,7 +3210,6 @@ namespace FTT.FighterSim {
             public readonly int StatusType;
             public readonly int StatusFrames;
             public readonly FP64 StatusIntensity;
-            public readonly int CooldownFrames;
             public readonly int BlockChargeCost;
             /// <summary>M05: the authored launch flag of the ability this intent executes.</summary>
             public readonly bool Launches;
@@ -3246,7 +3228,6 @@ namespace FTT.FighterSim {
                 int statusType = (int)FTT.Core.StatusType.None,
                 int statusFrames = 0,
                 FP64 statusIntensity = default,
-                int cooldownFrames = 600,
                 int blockChargeCost = 0,
                 bool launches = true,
                 bool shieldBreaker = false,
@@ -3259,7 +3240,6 @@ namespace FTT.FighterSim {
                 StatusType = statusType;
                 StatusFrames = statusFrames;
                 StatusIntensity = statusIntensity;
-                CooldownFrames = cooldownFrames;
                 BlockChargeCost = blockChargeCost;
                 Launches = launches;
                 ShieldBreaker = shieldBreaker;
@@ -3273,11 +3253,11 @@ namespace FTT.FighterSim {
             /// </summary>
             public static AttackIntent Special(
                 int kind, int damage, FP64 tuningKnockback, int hitstunFrames,
-                int statusType, int statusFrames, FP64 statusIntensity, int cooldownFrames,
+                int statusType, int statusFrames, FP64 statusIntensity,
                 bool launches, in FighterAbilityHitData contract) =>
                 new(kind, damage,
                     contract.HasKnockbackVector ? contract.KnockbackX : tuningKnockback,
-                    hitstunFrames, statusType, statusFrames, statusIntensity, cooldownFrames,
+                    hitstunFrames, statusType, statusFrames, statusIntensity,
                     launches: launches,
                     shieldBreaker: contract.ShieldBreaker,
                     hasKnockbackVector: contract.HasKnockbackVector,
@@ -3490,8 +3470,9 @@ namespace FTT.FighterSim {
                 verb.BeingHeld = 0;
                 verb.ThrowImmunityFrames = 0;
                 verb.ClearGrabPartner();
-                verb.MomentumRefundedFramesSlotOne = 0;
-                verb.MomentumRefundedFramesSlotTwo = 0;
+                // Meter and Defy update 2026-10-31 (5.2, O22): the gauge restarts at
+                // the match-start fill with both reuse delays clear.
+                verb.MomentumUnits = FighterMomentumRules.SuddenDeathUnits;
                 // No Overtime multiplier inside the phase.
                 verb.OvertimeActive = 0;
                 // "Preserve its spent flag": DefyHistoryUsed is deliberately NOT

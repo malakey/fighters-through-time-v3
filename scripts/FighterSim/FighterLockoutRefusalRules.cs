@@ -28,10 +28,12 @@ namespace FTT.FighterSim {
     public struct LockoutRefusalBaseline {
         /// <summary>The fighter's hitstop at tick start (component 310).</summary>
         public int HitstopFrames;
-        /// <summary>Special 1's cooldown at tick start (component 305).</summary>
-        public int SpecialOneCooldownFrames;
-        /// <summary>Special 2's cooldown at tick start.</summary>
-        public int SpecialTwoCooldownFrames;
+        /// <summary>Special 1's reuse delay at tick start (component 305).</summary>
+        public int SpecialOneReuseFrames;
+        /// <summary>Special 2's reuse delay at tick start.</summary>
+        public int SpecialTwoReuseFrames;
+        /// <summary>The Momentum gauge at tick start, in units (component 310).</summary>
+        public int MomentumUnits;
         /// <summary>The meter at tick start.</summary>
         public FP64 Influence;
         /// <summary>Whether the fighter already owned an Ultimate (any A02 phase) at tick start.</summary>
@@ -44,8 +46,9 @@ namespace FTT.FighterSim {
             in FighterStateComponent fighter,
             in FighterUltimateActivationComponent activation) => new() {
                 HitstopFrames = verb.HitstopFrames,
-                SpecialOneCooldownFrames = runtime.SpecialOneReuseFrames,
-                SpecialTwoCooldownFrames = runtime.SpecialTwoReuseFrames,
+                SpecialOneReuseFrames = runtime.SpecialOneReuseFrames,
+                SpecialTwoReuseFrames = runtime.SpecialTwoReuseFrames,
+                MomentumUnits = verb.MomentumUnits,
                 Influence = fighter.Influence,
                 UltimateBusy = FighterUltimateActivationRules.IsCasterBusy(in activation)
             };
@@ -119,8 +122,8 @@ namespace FTT.FighterSim {
             // nothing. The movement cooldown is deliberately not read — the
             // movement ability is outside the lockout family.
             bool lastFreezeTick = before.HitstopFrames == 1;
-            int specialOneRead = ReadTimeCooldown(before.SpecialOneCooldownFrames, lastFreezeTick);
-            int specialTwoRead = ReadTimeCooldown(before.SpecialTwoCooldownFrames, lastFreezeTick);
+            int specialOneRead = ReadTimeCooldown(before.SpecialOneReuseFrames, lastFreezeTick);
+            int specialTwoRead = ReadTimeCooldown(before.SpecialTwoReuseFrames, lastFreezeTick);
             if (runtime.SpecialOneReuseFrames > specialOneRead
                 || runtime.SpecialTwoReuseFrames > specialTwoRead) return FighterLockoutRefusal.None;
             if (!before.UltimateBusy && FighterUltimateActivationRules.IsCasterBusy(in activation)) {
@@ -148,8 +151,16 @@ namespace FTT.FighterSim {
                 return FighterLockoutRefusal.Ultimate;
             }
 
-            // 5. A Special the D1 gate refused while its slot was ready.
-            if (FighterAbilityLockoutRules.AllowsSpecial(in runtime)) return FighterLockoutRefusal.None;
+            // 5. A Special refused while its reuse delay was clear: by the D1 gate
+            // (the lockout alone) or, since the meter and Defy update (R2, P14),
+            // by an empty-handed gauge. The gauge as the ability system read it:
+            // TickCounters added one frame of regeneration on an unfrozen tick,
+            // and a swing landing later in the tick had not paid yet.
+            int momentumRead = lastFreezeTick
+                ? before.MomentumUnits
+                : Math.Min(FighterMomentumRules.MaxUnits, before.MomentumUnits + FighterMomentumRules.RegenUnitsPerFrame);
+            bool starved = !FighterMomentumRules.CanAfford(momentumRead);
+            if (FighterAbilityLockoutRules.AllowsSpecial(in runtime) && !starved) return FighterLockoutRefusal.None;
             FighterLockoutRefusal refused = FighterLockoutRefusal.None;
             if ((pressed & SpecialOneButton) != 0 && specialOneRead <= 0) refused |= FighterLockoutRefusal.SpecialOne;
             if ((pressed & SpecialTwoButton) != 0 && specialTwoRead <= 0) refused |= FighterLockoutRefusal.SpecialTwo;

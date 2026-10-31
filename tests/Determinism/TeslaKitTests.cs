@@ -38,6 +38,7 @@ public class TeslaKitTests {
         for (int tick = walk; tick < walk + 40; tick++) {
             simulation.Advance(Frame(tick, -127, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
+        MomentumTestKit.KeepFull(simulation, 0);
         simulation.Advance(Frame(walk + 40, 0, GameplayButtons.Special1), Frame(walk + 40, 0, GameplayButtons.None));
         int fenced = SpecialCastTestKit.StepUntilFired(simulation, 0, walk + 41);
         AssertThat(simulation.PersistentObjectCount).IsEqual(2);
@@ -186,6 +187,7 @@ public class TeslaKitTests {
         uninterrupted.Advance(Frame(2, 0, GameplayButtons.None), Frame(2, 0, GameplayButtons.None));
         for (int tick = 3; tick < 60; tick++) {
             GameplayButtons tesla = tick == secondCoilTick ? GameplayButtons.Special1 : GameplayButtons.None;
+            if (tick == secondCoilTick) MomentumTestKit.KeepFull(uninterrupted, 0);
             uninterrupted.Advance(Frame(tick, 0, tesla), Frame(tick, -127, GameplayButtons.None));
         }
         AssertThat(uninterrupted.PersistentObjectCount).IsEqual(2);

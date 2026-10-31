@@ -460,6 +460,10 @@ public class FighterKnockdownTests {
         for (int frame = 1; frame <= 30 && !compared; frame++) {
             tick++;
             GameplayButtons press = frame == 1 ? GameplayButtons.Special1 : GameplayButtons.None;
+            if (frame == 1) {
+                MomentumTestKit.KeepFull(neutral, 0);
+                MomentumTestKit.KeepFull(influenced, 0);
+            }
             neutral.Advance(Frame(tick, press), Frame(tick, GameplayButtons.None));
             influenced.Advance(Frame(tick, press), FrameStick(tick, moveY: -127));
             AssertThat(neutral.TryGetFighterVerb(1, out FighterVerbComponent verb)).IsTrue();

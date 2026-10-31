@@ -1379,21 +1379,23 @@ namespace FTT.FighterSim {
                 if (!ultimateClaimsTick
                     && !ultimateHeldBack
                     && FighterAbilityLockoutRules.AllowsSpecial(in runtime)) {
-                    if ((runtime.PressedButtons & SpecialOneButton) != 0 && runtime.SpecialOneReuseFrames <= 0) {
+                    // Meter and Defy update 2026-10-31 (G1, G2.3): a Special needs one
+                    // pip of the shared Momentum gauge and its own 2 s reuse delay
+                    // clear. A press refused by either spends and arms nothing.
+                    bool afford = FighterMomentumRules.CanAfford(verbState.MomentumUnits);
+                    if (afford && (runtime.PressedButtons & SpecialOneButton) != 0 && runtime.SpecialOneReuseFrames <= 0) {
                         acceptedSlot = FighterHitContractTable.SlotSpecialOne;
-                    } else if ((runtime.PressedButtons & SpecialTwoButton) != 0 && runtime.SpecialTwoReuseFrames <= 0) {
+                    } else if (afford && (runtime.PressedButtons & SpecialTwoButton) != 0 && runtime.SpecialTwoReuseFrames <= 0) {
                         acceptedSlot = FighterHitContractTable.SlotSpecialTwo;
                     }
                 }
                 if (acceptedSlot != 0) {
                     ref FighterVerbComponent verb = ref frame.Get<FighterVerbComponent>(entity);
+                    verb.MomentumUnits = FighterMomentumRules.Spend(verb.MomentumUnits);
                     if (acceptedSlot == FighterHitContractTable.SlotSpecialOne) {
-                        runtime.SpecialOneReuseFrames = PositiveCooldown(tuning.SpecialOneCooldownFrames);
-                        // A fresh cooldown cycle re-arms its Momentum refunds.
-                        verb.MomentumRefundedFramesSlotOne = 0;
+                        runtime.SpecialOneReuseFrames = FTT.Combat.BasicComboRules.SpecialReuseDelayFrames;
                     } else {
-                        runtime.SpecialTwoReuseFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
-                        verb.MomentumRefundedFramesSlotTwo = 0;
+                        runtime.SpecialTwoReuseFrames = FTT.Combat.BasicComboRules.SpecialReuseDelayFrames;
                     }
                     FighterAbilityLockoutRules.ArmAbility(ref runtime);
                     // An executed special cancels an in-progress basic and resets

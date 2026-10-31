@@ -350,6 +350,7 @@ namespace FTT.FighterSim {
         public readonly int SpecialOneDamage;
         public readonly int SpecialTwoDamage;
         public readonly int UltimateDamage;
+        /// <summary>Dead since the meter and Defy update (2026-10-31): the authored cooldown no longer reaches the simulation (the Momentum gauge pays for Specials). Kept only so the positional constructor stays stable; MM-SWEEP deletes it with its readers.</summary>
         public readonly int SpecialOneCooldownFrames;
         public readonly int SpecialTwoCooldownFrames;
         public readonly int SpecialOneStatusType;
@@ -527,8 +528,9 @@ namespace FTT.FighterSim {
         /// <summary>
         /// Special 1's reuse delay (meter and Defy update 2026-10-31): armed to
         /// <see cref="FTT.Combat.BasicComboRules.SpecialReuseDelayFrames"/> when the slot
-        /// is accepted and ticked in TickCounters. Until MM-SIM it is still armed from
-        /// the authored cooldown (a rename only).
+        /// is accepted and ticked in TickCounters (so it pauses in the fighter's own
+        /// hitstop, as the cooldown did). It is the only per-slot Special timer: the
+        /// authored cooldowns are gone and the gauge pays for the cast.
         /// </summary>
         public int SpecialOneReuseFrames;
         /// <summary>Special 2's reuse delay (see <see cref="SpecialOneReuseFrames"/>).</summary>
@@ -690,8 +692,6 @@ namespace FTT.FighterSim {
         public int UltimateDamage;
         public int MaxBlockCharges;
         public int MaxJumpCount;
-        public int SpecialOneCooldownFrames;
-        public int SpecialTwoCooldownFrames;
         public int SpecialOneStatusType;
         public int SpecialOneStatusFrames;
         public int SpecialTwoStatusType;
@@ -768,10 +768,17 @@ namespace FTT.FighterSim {
         public int DefyHistoryUsed;
         /// <summary>1 while the match is in Overtime (final minute of a timed match).</summary>
         public int OvertimeActive;
-        // --- Per-hit Momentum (V7.1; D2 2026-10-11: FRAMES refunded this
-        // cooldown cycle, 0..120, no longer a refund count) ---
-        public int MomentumRefundedFramesSlotOne;
-        public int MomentumRefundedFramesSlotTwo;
+        // --- The Momentum gauge (meter and Defy update 2026-10-31) ---
+        /// <summary>
+        /// The Momentum gauge in units (7200 to the pip, 0..28 800; see
+        /// <see cref="FighterMomentumRules"/>). Replaces the per-cycle refund counter
+        /// this slot held until 2026-10-31. It survives a stock loss (G3.2), is
+        /// set to the start fill at spawn and by the Sudden Death setup, and is
+        /// never written by a Story identifier.
+        /// </summary>
+        public int MomentumUnits;
+        /// <summary>Free since 2026-10-31 (the second refund counter); always 0.</summary>
+        public int SpareInt0;
         // --- Grabs & Throws (V7.2) ---
         /// <summary>0 none, 1 startup, 2 active, 3 whiff recovery, 4 holding, 5 throw animation.</summary>
         public int GrabPhase;

@@ -122,6 +122,7 @@ public class TeslaLorentzChainTests {
         for (int tick = 1; tick < secondCoilTick; tick++) {
             simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
         }
+        MomentumTestKit.KeepFull(simulation, 0);
         simulation.Advance(Frame(secondCoilTick, GameplayButtons.Special1), Frame(secondCoilTick, GameplayButtons.None));
         for (int tick = secondCoilTick + 1; tick < pulseTick; tick++) {
             simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));

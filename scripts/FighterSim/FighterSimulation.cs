@@ -364,13 +364,13 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
-        /// 2026-10-11 test seam (D2, ledger PROVISIONAL-HIT-CONFIRM-RULES (10)):
-        /// sets both Special cooldowns directly, so the per-hit Momentum suites
-        /// can run a string against cooling slots without casting toward the
-        /// target first. It arms no cooldown cycle (the Momentum counters are
-        /// untouched). Writes deterministic state (it moves the hash).
+        /// Meter and Defy update 2026-10-31 test seam (renamed from the cooldown
+        /// seed): sets both Specials' 2 s reuse delays directly, so a suite can
+        /// run a string against delayed slots without casting first. It spends
+        /// no pip and arms no lockout. Writes deterministic state (it moves the
+        /// hash).
         /// </summary>
-        internal bool SeedFighterSpecialCooldownsForTest(int playerID, int specialOneFrames, int specialTwoFrames) {
+        internal bool SeedFighterSpecialReuseForTest(int playerID, int specialOneFrames, int specialTwoFrames) {
             var filter = _simulation.Frame.Filter<FighterStateComponent, FighterRuntimeComponent>();
             while (filter.Next(out EntityRef entity)) {
                 ref readonly FighterStateComponent fighter = ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
@@ -378,6 +378,23 @@ namespace FTT.FighterSim {
                 ref FighterRuntimeComponent runtime = ref _simulation.Frame.Get<FighterRuntimeComponent>(entity);
                 runtime.SpecialOneReuseFrames = specialOneFrames;
                 runtime.SpecialTwoReuseFrames = specialTwoFrames;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Meter and Defy update 2026-10-31 test seam: sets a fighter's Momentum
+        /// gauge in units (clamped to the gauge's range), so a suite can press
+        /// Specials against a known fill. Writes deterministic state (it moves
+        /// the hash), so a rollback test must seed both simulations alike.
+        /// </summary>
+        internal bool SeedFighterMomentumForTest(int playerID, int units) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterVerbComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref readonly FighterStateComponent fighter = ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
+                if (fighter.PlayerID != playerID) continue;
+                _simulation.Frame.Get<FighterVerbComponent>(entity).MomentumUnits = FighterMomentumRules.Clamp(units);
                 return true;
             }
             return false;
