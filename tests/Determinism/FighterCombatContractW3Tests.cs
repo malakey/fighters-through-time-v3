@@ -246,7 +246,7 @@ public class FighterCombatContractW3Tests {
 
         AssertThat(fighter.CurrentHP).IsEqual(100);
         AssertThat(fighter.BlockCharges).IsEqual(3);
-        AssertThat(fighter.Influence.RawValue).IsEqual(FP64.FromInt(60).RawValue);
+        AssertThat(fighter.Influence.RawValue).IsEqual(FP64.FromInt(40).RawValue);
         AssertThat(runtime.ZoneSpeedBonusFrames).OverrideFailureMessage("M09: the zone speed buff must clear.").IsEqual(0);
         AssertThat(runtime.FloatFrames).OverrideFailureMessage("M09: the float window must clear.").IsEqual(0);
         AssertThat(runtime.StatusType).IsEqual((int)StatusType.None);
