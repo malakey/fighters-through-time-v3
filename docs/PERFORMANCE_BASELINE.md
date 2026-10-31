@@ -170,9 +170,24 @@ The median is a few microseconds higher while the p95 and the snapshot are lower
 differ by less than the run-to-run spread seen on this shared machine, so no cost change is claimed.
 The per-stage table was not recorded for this re-measure.
 
-### Re-measure, 2026-10-31 (the meter and Defy update) - owed at the closeout
+### Re-measure, 2026-10-31 (the meter and Defy update, closeout at `f269b611`)
 
-The Momentum gauge, the active Defy and their state changes (310 `MomentumUnits`, 305 reuse delays, 312 down from 36 to 20 B, 306 two ints lighter, 323 `DefyFrames`: about -40 B per snapshot, `docs/METER_DEFY_UPDATE_2026-10-31_PLAN.md` P33) move every Fighter hash and the snapshot size. **The closeout's official re-measure is still owed** (`--filter "FullyQualifiedName~RollbackReadinessTests" --logger "console;verbosity=detailed"`, then paste the per-stage table here). The only figure at hand is MM-SIM's interim run at its fourth commit (`docs/handoffs/MM_SIM.md` section 6): worst case across the ten stages **median 0.079 ms, p95 0.136 ms, 0 breaches, largest snapshot 2,988 B (Chicago)**. It is **not comparable** with the 2026-10-25 figure (0.090 ms / 0.137 ms, 3,277 B) because the harness changed in the same step: a two-pip start starves the spam scripts, so `RollbackReadinessTests` now builds both peers and the replay with `MomentumTestKit.KeepFullBoth`, holds the worst-case timing run's Specials until the last 40 warm-up ticks and lowers the Special-count thresholds (30 to 12 in 2,200 ticks, 20 to 5 before the snapshot). The build also no longer reports the `KLSG_ECS004` warning on `FighterTuningComponent` (306 is under 128 B).
+The Momentum gauge, the active Defy and their state changes (310 `MomentumUnits`, 305 reuse delays, 312 down from 36 to 20 B, 306 two ints lighter, 323 `DefyFrames` and, in MM-FIXB2C, `SpecialCastId`; projectiles and zones gained a `CastId` int) move every Fighter hash and the snapshot size. Measured with `--filter "FullyQualifiedName~RollbackReadinessTests" --logger "console;verbosity=detailed"` at the closeout commit `f269b611`, depth-7 resimulation over 300 corrections per stage, budget 8.0 ms, **0 breaches on every stage**:
+
+| Stage | Median | p95 | Snapshot |
+|---|---|---|---|
+| `florence_workshop` | 0.078 ms | 0.122 ms | 2,932 B |
+| `orleans_vanguard` | 0.070 ms | 0.126 ms | 2,638 B |
+| `chicago_exposition` | 0.070 ms | 0.082 ms | 3,004 B |
+| `paris_bastille` | 0.074 ms | 0.118 ms | 2,887 B |
+| `vesuvius_caldera` | 0.075 ms | 0.088 ms | 2,827 B |
+| `nassau_flagship` | 0.068 ms | 0.084 ms | 2,818 B |
+| `alexandria_chambers` | 0.068 ms | 0.076 ms | 2,827 B |
+| `berlin_wall` | 0.072 ms | 0.086 ms | 2,835 B |
+| `globe_theatre` | 0.079 ms | 0.098 ms | 2,960 B |
+| `gettysburg_ridge` | 0.069 ms | 0.121 ms | 2,878 B |
+
+Worst case across the ten stages: **median 0.079 ms (`globe_theatre`), p95 0.126 ms (`orleans_vanguard`), largest snapshot 3,004 B (`chicago_exposition`)**, 0 breaches. Against the 2026-10-25 re-measure (0.090 ms median, 0.137 ms p95, 3,277 B) the median and p95 are lower and the largest snapshot is 273 B smaller, though the figures are **not strictly comparable**: the harness changed in the same update, because a two-pip start starves the spam scripts, so `RollbackReadinessTests` now builds both peers and the replay with `MomentumTestKit.KeepFullBoth`, holds the worst-case timing run's Specials until the last 40 warm-up ticks and lowers the Special-count thresholds (30 to 12 in 2,200 ticks, 20 to 5 before the snapshot). MM-SIM's interim figure at its fourth commit was 0.079 ms / 0.136 ms / 2,988 B; MM-FIXB2C's 323 growth (40 to 44 B a fighter) and the two `CastId` ints plausibly account for the difference in the snapshot. The build no longer reports the `KLSG_ECS004` warning on `FighterTuningComponent` (306 is under 128 B).
 
 ### Convergence and history bounds
 

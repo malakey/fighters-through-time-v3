@@ -1,6 +1,6 @@
 # Meter and Defy update: the Momentum gauge, the active Defy History and the meter rates (2026-10-31)
 
-**Status:** planned 2026-10-31. Base commit: `56031750` (the smooth-idle push) plus this plan's commit. Baseline **3771** passing tests (`[TestCase]` attribute count under `tests/` re-counted at `56031750`: 3771). Planned end **3863** (§4). Workstream IDs `MM-*`, branches `mm/<ws>`, worktrees `D:/Projects/ftt-wt/mm-<ws>`, handoffs `docs/handoffs/MM_<WS>.md`.
+**Status:** planned 2026-10-31, built and closed 2026-10-31 (section 10; the total is 3879, not the planned 3863). Base commit: `56031750` (the smooth-idle push) plus this plan's commit. Baseline **3771** passing tests (`[TestCase]` attribute count under `tests/` re-counted at `56031750`: 3771). Planned end **3863** (§4). Workstream IDs `MM-*`, branches `mm/<ws>`, worktrees `D:/Projects/ftt-wt/mm-<ws>`, handoffs `docs/handoffs/MM_<WS>.md`.
 
 **Pre-flight (orchestrator, before the plan commit).**
 - The main checkout carries line-ending churn only: `project.godot` (empty diff), 260+ `*.png.import` / font `.import` sidecars and `tools/asset_src/glass/svg/*.svg`. CLAUDE.md: never commit it; `git checkout -- assets` and the svg paths, or leave it, but no worktree branches from a commit that contains it.
@@ -825,39 +825,138 @@ Entry format:
 ```
 
 ### Phase A
-*(empty)*
+
+#### MM-RULES — constants, rulebooks and inert stubs (tip `9cba2b9a`, merged as `19df9808` plus the review fix `9cba2b9a`)
+- Delta: declared +7, actual +7; Total at merge 3778.
+- Deviation: none. The commit 3 stock-loss pins also changed `FighterSimulationTests` (18.75 to 12.5, renamed `StockLossRetainsHalfOfInfluence`) and `InfluenceMeterRulesTests`; a pin the plan's list missed, in `FighterCombatContractW3Tests` (80 retains 40), failed the first full run (`Failed: 1, Passed: 3777`) and was fixed in a follow-up commit.
+- Cross-edits: 305's Special cooldown fields renamed `SpecialOne/TwoReuseFrames` across every reader (commit 2, behaviour unchanged); 323 grown 36 to 40 B (`DefyFrames`, `ActionFlagDefyBlastFired`, `ActionFlagDefyBuffered`, the counter bits); `GameplayButtons.Defy = 1 << 15`, protocol v5; `FighterActionKind.Defy = 13`, `CharacterState.Defying`.
+- Review: Codex Phase A round 1, approve with nits (two overflow nits): the Momentum and Defy heal helpers now saturate instead of overflowing (`9cba2b9a`).
 
 ### Phase B1
-*(empty)*
+
+Seven streams, merged into `mm/integ-b1` in the order input, text, fx, hud, smom, sdefy, sim (`--no-ff`): MM-INPUT `1d02f904`, MM-TEXT `c01eff87`, MM-FX `b9ab6fc9`, MM-HUD `4a4c364f`, MM-SMOM `cf3be892`, MM-SDEFY `4a3221c8`, MM-SIM `ca86b390`; the integration commits `ab532365` (the ruling below), `d3d00fd7` (the regenerated translation) and `62bb4e7e` (two cross-stream fixes), and the record `88ff3ad0` (`MM_INTEG_B1.md`). Total at the end of B1: 3851 (run 1 `Failed: 2`, run 3 `Failed: 0, Passed: 3851, Total: 3851`, 2 m 13 s).
+
+#### MM-INPUT — the Defy action and its bindings (`e2050a6e`, merged `1d02f904`)
+- Delta: declared +7, actual +7; Total at merge 3785 (summed).
+- Deviation: none. Files: `project.godot`, `InputManager.cs`, `InputBindings.cs`, `SaveManager.cs` (a call and a notice), `en.csv`, tests. `InputBindingSchemaTests` and `UrPolish2Tests` needed no edit.
+
+#### MM-TEXT — copy, tooltips, Move List and Systems Card (`eeae2775`, merged `c01eff87`)
+- Delta: declared +3, actual +3; Total at merge 3788 (summed).
+- Deviation: the first-use Defy tooltip names the button by the word "Defy", not a binding label: `gameplay_defy` did not exist in this branch (INPUT merges first; a follow-up may add a `{0}` argument). `FirstUseTooltips.DefyButton` (`defy_button`) replaces `Defy` (`defy`); an old `defy` id in a save's `ShownFirstUseTooltips` is dead data. The three grid-minor names were rewritten here and by MM-SMOM; the merge kept TEXT's. Ledger: `PROVISIONAL-DEFY-TEXT`.
+- Cross-edits: `en.csv` rows named in the plan only.
+
+#### MM-FX — the Defy presentation (`7219ab7b`, merged `b9ab6fc9`)
+- Delta: declared +7, actual +7; Total at merge 3795 (summed).
+- Deviation: the Fighter ring's timing (section 2 of the handoff); the orchestrator then ruled that the ring fires on the blast frame (`ab532365`, below). `OnDefySealChanged` / `DefySealPayload` stayed on `EventBus` for MM-SWEEP (two-stage retirement). Ledger: `PROVISIONAL-DEFY-PRESENTATION`.
+
+#### MM-HUD — pips, the Starved lens and the 50 notch (`ccda9d00`, merged `4a4c364f`)
+- Delta: declared +9, actual +10 (the plan counted two seal cases in `StoryHudPulpTests`; the file had one, the other lived in `DefySealStateTests` / `DefySealTests`); Total at merge 3805 (summed).
+- Deviation: the Story slab is 484 x 189 (was 182) and the cluster bound 270 (was 260), tests renamed in place; the 0-pip flash has no new HUD code (the existing event path, pinned by `TheNotYetFlashPlaysTheCircleRoundTheLensRing`). Ledger: `PROVISIONAL-MOMENTUM-HUD-LAYOUT`.
+
+#### MM-SMOM — the Story Momentum gauge and the flat-effect scale (`0e8fcca6`, merged `cf3be892`)
+- Delta: declared +17, actual +17; Total at merge 3822 (summed).
+- Deviation: the scoped `CooldownReduction` resolver branch was kept (plan 2.15 deleted it "if nothing else authors it"): `BaseSpecial` still reads `StoryScoped(CooldownReduction, ...)` for the movement ability, and a synthetic case exercises it. `SpecialPressIsReady` changed only its doc. Ledger: `PROVISIONAL-GRID-MOMENTUM-REGEN`.
+- Cross-edits: three `en.csv` rows rewritten by both TEXT and SMOM; the merge kept TEXT's.
+
+#### MM-SDEFY — the Story Defy and the Level 0 lesson (`8953f554`, merged `4a3221c8`)
+- Delta: declared +12, actual +12; Total at merge 3834 (summed).
+- Deviation: the first three commits are not independently green (`PlayerController.cs` hooks landed with the deletions; `IsDefyProtected` needs `_defyFrame`), only the tip is verified. `StoryAttemptState.cs:366` (legacy recovery sets `DefyHistoryUsed = true`) was left for MM-SWEEP because `SaveEnvelopeTests` pins it. `tutorial_step_defy` / `tutorial_step_defy_spent` were rewritten in place with no new keys. Ledger: `PROVISIONAL-DEFY-TEXT`.
+
+#### MM-SIM — the Fighter Momentum gauge and Defy (`6d7ae048`, merged `ca86b390`)
+- Delta: declared +18, actual +17 (`FighterVerbLayerTests` also lost `DefyHistorySavesExactlyOneLethalHitAtFullMeter`, a second passive-save case the plan did not list); Total at merge 3851.
+- Deviation: **P5 was wrong in one detail.** A Defy begun later does not catch the earlier Defier in its recovery from "1 or more ticks later": the earlier Defier holds frame 6 and one invulnerable frame through its own 8-frame freeze, so it is invulnerable through press + 13; a later Defy catches it only if its blast lands on press + 14 or later, that is from a press 9 or more ticks after the earlier one. Simultaneous Defies still blast nothing. `TwoDefiesOnTheSameFrameTouchNeither...` pins both halves. The snapshot is smaller than P33's estimate in 312 and 306 (-16 B and -8 B a fighter) while 323's +4 B is per fighter (40 B), about -40 B a snapshot in all, as planned. Ledger: `VERIFY-DEFY-MUTUAL`, `PROVISIONAL-FIGHTER-SNAPSHOT-SIZE`.
+
+#### MM-INTEG-B1 — orchestrator rulings and cross-stream fixes (`ab532365`, `d3d00fd7`, `62bb4e7e`, record `88ff3ad0`)
+- Ruling: **the Fighter Defy ring fires on the blast frame**, so the 323 counter steps at frame 6, not in `FighterDefyRules.Begin` (new `FighterDefyRules.StepCounter`, called where `ActionFlagDefyBlastFired` is set); the pose still reads `DefyFrames`; `FighterDefyTests` follow.
+- Ruling: the three grid minors (`resonance_{joan_piercing,mozart_wave,lincoln_splitting}_cooldown_name`) all read "Minor Momentum"; Mozart's chip had been set to "Minor Wave Regen" so `ResonanceGridFitTests` fit. Both superseded by the "Minor Recharge" ruling below.
+- Cross-stream fixes (run 1 failed 2 of 3851): the Mozart chip width above, and `StoryDefyBlastTests.TheMobIsPushed...`, which asserted `MomentumPips` unchanged while SMOM's passive regen runs during the Defy frames; it now asserts the gain is under 12 frames of regen.
 
 ### Review round B1 and fix steps
-*(empty)*
+
+Codex review of Phase B1: round 1 changes requested (3 major, 2 minor); round 2 changes requested (finding 4 reworked); round 3 approve with nits (two test nits, carried to MM-SWEEP).
+
+#### MM-FIXB1 — the five findings (`b4a848e8` / `e8355b19`, based on `88ff3ad0`)
+- Delta: declared +9, actual +9 (+6 to 3857, then the rollback-dedupe redo +3); Total at merge 3860.
+- Fixes: (1) a Defy replaces the cancelled action's invulnerability with its own 6 frames unless respawn protection is longer; (2) the blast stagger cannot be Block-cancelled; (3) a buffered launch no longer overwrites the push; (4) the rollback replay of the burst is deduplicated; (5) a boss takes the blast's 8-frame hitstop.
+- Deviation: finding 4's first fix (a 30-sim-tick guard) swallowed a legitimate second Defy; round 2 replaced it with identity and lifecycle dedupe by counter value (`FighterSimulationDriver.DefyFeedback.cs`, presentation only, reset on respawn-platform frames and at the first Sudden Death frame). **Known limit:** after a correction that removes a Defy entirely, a later genuine Defy that lands on the same counter value is suppressed once. Ledger: `PROVISIONAL-DEFY-PRESENTATION`.
 
 ### Phase B2
-*(empty)*
+
+#### MM-BOTS — bots and telemetry (`64d35398`, merged `1eb66b9d`)
+- Delta: declared +4, actual +4; Total at merge 3864.
+- Deviation: none from the plan. `MinEnemiesNear` was 2 in the handoff; **the orchestrator ruled it 1** (`632c393b`) so the after batch actually exercises Defy (with 2 the unmodified runs pressed none). `MM_BOTS.md` still says 2. Ledger: `PROVISIONAL-BOT-DEFY-POLICY`.
+
+#### MM-CPU — the CPU and the Mirror (`03a413dc`, merged `ad2ae3fe`)
+- Delta: declared +10, actual +10; Total at merge 3874.
+- Deviation: the observation keeps the names `SpecialOne/TwoCooldownFrames` (they hold the reuse delay; MM-SWEEP renamed them to `...ReuseFrames`); the corner and wind-up Defies need the target within 3.0 u (the blast is 2.5 u), where the plan listed the range only for the wind-up; the Mirror projects a hitstun from the clone's damage events, because a Story body stays `Stunned` straight through a chain (not in the plan). Ledger: `PROVISIONAL-CPU-DEFY-REFLEX`.
 
 ### Phase C
-*(empty)*
+
+#### MM-SWEEP — retirements, data and scans (merged `544ce84c`)
+- Delta: declared -2, actual -1 (`DefySealTests` -5; `DefySealRetirementScanTests` +1, `SpecialCooldownDataTests` +1, `InfluenceMeterSourceScanTests` +1, and the round-3 nit that replaced one `DefyPresentationTests` case with two, +1); Total at merge 3873.
+- Deviation: the generator reports 72 theme roles (the plan said 70 to 69; other workstreams added roles and no test pins a count); the four `defy_*` icons were deleted and the kit rebuilt (30 icons); 310's `DefyHistoryUsed` became `SpareInt1` (310 still 128 B); `KitReachRules.RequiemFortissimoShaveSeconds` (value 2.0) was deleted and recorded for the Requiem redesign row; the scoped cooldown branch stays (movement ability); the Special `.tres` author `CooldownDuration = 0.0` explicitly (P1). Ledger: `DEFER-REQUIEM-FORTISSIMO-REDESIGN`, `PROVISIONAL-SPECIAL-COOLDOWN-DATA-ZERO`.
+- Nits (Codex B1 round 3) done here: the stock-reset presentation case now runs through the driver's sync path for both players and for Sudden Death, and five cases assert the `InputManager` prerequisite instead of passing silently.
+- Finding for the orchestrator: with a 120-frame reuse delay Einstein S1, Leonardo S1, Tesla S2 and Mozart S1 can re-cast while their earlier shot or zone lives, so a late hit could arm D3 for the wrong cast in the sim. The orchestrator ruled that the sim attribute a DirectHit to the cast that fired it, as Story does since R12, and put the fix in the B2+C round (`FIX-SIM-DIRECT-HIT-CAST-ATTRIBUTION`).
 
 ### Phase D
-*(empty)*
+
+#### MM-DOCS-DESIGN and MM-DOCS-REPO — documentation (`3bef3346` / `48ad34f0`, merged `b1f8dbc5` / `5ec89171`)
+- Delta: none (documentation only); Total unchanged at 3873.
+- Deviation: the ledger index's design-line column points at `MM_DOCS_DESIGN.md` (the brief allowed it; the file did not yet exist in the repo worktree); `docs/PERFORMANCE_BASELINE.md` carried a marked-owed section instead of a table (filled at the closeout).
+
+#### Review round B2+C and MM-FIXB2C (`0d426f25`, `6f3eb7c9`, `f269b611`)
+- Codex B2+C: round 1 changes requested (1 major, 3 minor); round 2 approve with nits (1 test nit, fixed in `f269b611`).
+- Delta: round 1's fixes +5, round 2's nit +1; Total 3879.
+- Fixes: (1, major) the CPU's Defy legality rejected daze while the sim allows Defy in daze: `FighterDefyRules.CanBeginCore` is the shared predicate; (2) the Mirror counted periodic damage as a string hit; (3) the 3.0 u corner and wind-up triggers measured the horizontal axis only; (4) Defy-window deaths were booked on `Frame`, not `ObservationFrame()`; (5, ruling) the sim stamps cast identity: 323 gained `SpecialCastId` (40 to 44 B a fighter), projectiles (301) and zones (309) a `CastId`, and D3 arms only for the cast in progress; the tripwire `OnlyTheKnownDirectHitSlotsCanOutliveTheReuseDelay` became `OnlyAContactFromTheCurrentCastArmsTheLandedDirectHitFlag` plus `NoteLandedArmsOnlyForTheCastInProgress`, and the nit added `TwoRealCastsGetDistinctIdsAndOnlyTheCurrentCastsHitArmsD3` (a snapshot across the overlap); (6, ruling) the three grid minors were renamed "Minor Recharge" in `en.csv`, `en.en.translation`, the design mirror and the master (the diagram labels, three table rows and the Section 4 sentence), superseding "Minor Momentum".
+- Cross-edits: `AGENTS.md` row 323 (eleven ints, 44 B); `design-godot-v7.md` in docs-3 edited (not staged there); no new component ID, no protocol or save change; every Fighter hash moved. `FIX-SIM-DIRECT-HIT-CAST-ATTRIBUTION` closed.
 
 ### Plan text the build no longer matches
-*(empty)*
+
+- **0.6 P5 (two Defies):** a Defy begun later catches the earlier Defier only from a press 9 or more ticks later (the earlier Defier is invulnerable through press + 13), not "1 or more ticks later".
+- **2.11 / MM-FX (the Fighter ring):** the Fighter Defy ring and the 323 counter step fire on the blast frame (6), not at the press.
+- **2.13 / P26 (the bot):** the `play` bot's Defy needs 1 or more foes within 250 px, not 2 or more (`632c393b`).
+- **2.15 / 3.2 MM-SWEEP (theme roles):** the generator reports 72 Label roles after the `DefyLabel` role went (the plan said 70 to 69).
+- **2.15 / O8 (the grid minor names):** the three minors read "Minor Recharge", not "Minor Momentum" or "Minor Wave Regen".
+- **2.1 / 1.5 (323 size):** 323 is 44 B a fighter (eleven ints) after `SpecialCastId`, not 40; projectiles (301) and zones (309) gained a `CastId` each.
+- **1.3 / 5.2 (warnings):** a full rebuild now shows only `CS8632`; `KLSG_ECS004` on `FighterTuningComponent` is gone because 306 is under 128 B.
+- **4 (totals):** the build is +108 (3879) against the plan's +92 (3863): HUD +1, SIM -1, FIXB1 +9, SWEEP +1 and FIXB2C +6.
+- **4.2 (running totals):** B1 merged at 3851, FIXB1 at 3860, B2 at 3874, SWEEP at 3873, FIXB2C at 3879.
 
 ---
 
 ## 10. Closeout report
 
-*(Filled at the closeout.)*
+- **Status:** closed 2026-10-31 at `f269b611` (main plus the merges listed in section 9; the closeout docs are the commit on `mm/closeout`).
+- **Merge record:** MM-RULES `19df9808` plus its review fix `9cba2b9a`; Phase B1 `1d02f904` to `ca86b390`, ruling `ab532365`, record `88ff3ad0`; MM-FIXB1 `b4a848e8` / `e8355b19`; B2 `1eb66b9d` / `ad2ae3fe`, the bot ruling `632c393b`; MM-SWEEP `544ce84c`; docs `b1f8dbc5` / `5ec89171`; MM-FIXB2C `0d426f25` / `6f3eb7c9` / `f269b611`.
+- **What shipped:** the four-pip Momentum gauge shared by Special 1 and 2 with a 2 s per-slot reuse delay, in both modes (the Special cooldowns are gone; the movement ability keeps its cooldown); the active Defy History on its own button for 50 Influence, with an invulnerable startup, an unblockable push-and-stagger blast and an echo cash-in heal, in both modes, and the passive lethal save deleted; Story meter gain x0.5 with scaled flat effects, Fighter stock-loss retention 1/2; the HUD pips, the Starved lens and the 50 notch; the Defy presentation (freeze, ring, pulse, a silent cue slot); the CPU by band and the Mirror reading the gauge and Defying; bots and telemetry (`defy` and `momentum` blocks); the Level 0 lesson and the Story text; the grid minors on Momentum regen; protocol v5, no save schema change and no new component ID (323 grew to 44 B, 301 and 309 by an int).
+- **Full suite:** `Failed: 0, Passed: 3879, Total: 3879`, three consecutive runs at `f269b611` (2 m 17 s, 2 m 13 s and 2 m 16 s), orphans drained, lock held; reconciled as 3771 + RULES 7 = 3778; + INPUT 7, TEXT 3, FX 7, HUD 10, SMOM 17, SDEFY 12, SIM 17 = 3851; + FIXB1 9 = 3860; + BOTS 4, CPU 10 = 3874; SWEEP -1 = 3873; FIXB2C +6 = 3879 (+108 against the plan's +92). The `[TestCase]` attribute count under `tests/` is 3879. Build: 0 errors, only `CS8632` (`KLSG_ECS004` is gone).
+- **Rollback re-measure** (`docs/PERFORMANCE_BASELINE.md`): worst depth-7 median 0.079 ms (`globe_theatre`), worst p95 0.126 ms (`orleans_vanguard`), 0 breaches against the 8 ms budget, largest snapshot 3,004 B (`chicago_exposition`); the per-stage table is in that file. The harness changed (a two-pip start starves the spam scripts), so the figures are not strictly comparable with 2026-10-25's 0.090 / 0.137 ms and 3,277 B.
+- **Smokes and CPU smoke:** `MainMenu`, `HubWorld`, `Level_00_Tutorial`, `Level_02_Orleans`, `Level_13_ChronalVoid`, `TestArena` (1800 frames) and `FighterStage_Paris` all exited 0 with no script errors; only the known noise appeared ("Invalid polygon data" from `HudCapsule._Draw` and the `PulpAbilitySlot` `SweepLayer._Draw`, which a control level also prints; resources still in use; leaked ObjectDB). The CPU smoke (`FighterCpuSpecialTimingSmokeTests`, 1800 ticks a stage) counted Defies per fighter: florence_workshop einstein 0 / cleopatra 0; orleans_vanguard joan 1 / tesla 0; chicago_exposition leonardo 1 / shakespeare 1; paris_bastille lincoln 0 / mozart 0; vesuvius_caldera cleopatra 1 / tubman 0; nassau_flagship tesla 0 / einstein 2; alexandria_chambers shakespeare 1 / joan 1; berlin_wall mozart 1 / leonardo 1; globe_theatre tubman 0 / lincoln 0; gettysburg_ridge einstein 1 / cleopatra 1. That is 12 Defies over ten matches; every fighter cast 3 to 5 Specials and none pressed into its own cast.
+- **Bot pair** (`mmbefore0` / `mmbefore1` at `56dbc3e4` against `mmafter0` / `mmafter1` at `f269b611`; Levels 2, 6, 7, 12 and 13, Joan and Lincoln, `play`, Easy and Normal, seeds 0-1, `-MaxSeconds 0`, 40 runs a side; scripts `D:/Projects/meter_rework_2026-10-30/mm_bots_before.ps1` and `mm_bots_after.ps1`, table `bots_compare.txt` beside them): completions 30 to 31, deaths per run 2.0 to 1.98, damage taken per run 295 to 286, Ultimates per run 2.33 to 3.38, meter gain per minute 98.2 to 131.2, standard burst kills 32 % to 40 %. Defy: 0.6 presses and 0.57 Defies a run (the passive Defy fired 0.25 a run before), hits taken in the 3 s before / after a Defy 2.61 / 0.74, **died within 3 s: 1 of 23 (4.3 %)**, 12.2 HP healed and 1.39 targets blasted per Defy. Momentum: 4.93 Specials cast a minute (11.68 and 3.90 a run), 15.46 pips gained a run (regen 9.38), 24.8 % of tracked time at 0 pips, 34.3 % full, no starved press. Most other combat metrics are not comparable across the update, and two batches a side are thin evidence.
+- **Captures:** `D:/Projects/ftt-scratch/mm-captures/final` (the `huds_*` and `hudf_*` targets, taken at `f269b611`); hand-built states, evidence of layout only.
+- **Docs:** the design master and mirror and the contracts in both copies (`docs/handoffs/MM_DOCS_DESIGN.md`; the three Unbound lines by hand), the ledger section and index (`MM_DOCS_REPO.md`; the closeout amended `PROVISIONAL-BOT-DEFY-POLICY`, `USER-BOT-COMBAT-TELEMETRY` and the index baseline), `AGENTS.md` and `CLAUDE.md` (baseline 3879, the bot pair), `docs/PERFORMANCE_BASELINE.md`.
+- **Review history** (Codex):
 
-- **Status:** closed `<date>` at `<commit>`.
-- **Full suite:** `Failed: 0, Passed: <N>, Total: <N>`, three consecutive runs (`<durations>`), orphans drained, lock held; reconciled as 3771 + <per-workstream deltas> + <fix-round deltas> = <N>; the `[TestCase]` attribute count under `tests/` is <N>.
-- **Rollback re-measure:** worst depth-7 median <x> ms / p95 <y> ms, breaches <0>, largest snapshot <B> B (planned about −40 B against 3,277 B).
-- **Smokes and CPU smoke:** <results>.
-- **Bot pair:** `mmbefore*` vs `mmafter*`: <completions, deaths, damage by source, Specials per minute, `defy` and `momentum` tables>.
-- **Captures:** <paths, comparison>.
-- **Docs:** design master + mirror (hunks; the three Unbound lines by hand), contracts (both copies, per file), ledger section and index, AGENTS.md, CLAUDE.md, `docs/PERFORMANCE_BASELINE.md`.
-- **Questions answered or still open:** Q1–Q4 (§0.7).
-- **Not delivered:** <list>.
-- **Nobody has played or looked at any of it**; §5.3 is owed before the kit pass.
+| Scope | Round | Verdict | Findings |
+|---|---|---|---|
+| Phase A | 1 | approve with nits | 2 overflow nits, fixed |
+| B1 | 1 | changes requested | 3 major, 2 minor |
+| B1 | 2 | changes requested | finding 4 reworked |
+| B1 | 3 | approve with nits | 2 test nits, done in SWEEP |
+| B2+C | 1 | changes requested | 1 major, 3 minor |
+| B2+C | 2 | approve with nits | 1 test nit, fixed in `f269b611` |
+
+- **Questions answered or still open:** Q1 (the name stays "Defy History"), Q2 (a ring-out over an Open-stage pit is allowed, `VERIFY-DEFY-BLAST-RINGOUT`), Q3 (no regen before GO) and Q4 (the Hard CPU Defies on every qualifying trigger and may starve its Ultimate) were answered on 2026-10-31; Q4's effect is unobserved (below).
+- **Not delivered / open:**
+  - **Nobody has played or looked at any of it.** The hands-on session in section 5.3 (sixteen rows) is owed before the kit pass, together with the owed 2026-10-16 pad checklist (`docs/COMBAT_MOVEMENT_UPDATE_2026-10-16_PLAN.md` section 5, rows 1-25). Every acceptance claim is a headless suite, a smoke, a probe or a bot run.
+  - Every number is provisional (the Momentum rates and costs, the 2 s reuse delay, the Defy frames, radius, push, stagger and heal, the CPU's thresholds, the bot's policy, the HUD sizes): see the `PROVISIONAL-*` rows.
+  - The HTML mirrors in docs-3 are not updated, and the docs-3 `HUD_CONTRACT` needs a re-sync.
+  - The Level 0 objective label uses the word "Defy", not glyphs, and the first-use Defy tooltip has no binding label (`gameplay_defy` can be added as a `{0}` argument).
+  - The Fighter driver's Defy dedupe has a known limit: a correction that removes a Defy entirely suppresses the next one landing on the same counter value, once. It was reasoned, not exercised under a real rollback (LAN is de-scoped).
+  - The Tesla Lorentz Pulse attribution stamp (the cast id on its zone pulse) has no dedicated test.
+  - The Hard CPU may starve its own Ultimate by spending Influence on Defy (Q4; `VERIFY-CPU-DEFY-ULTIMATE-STARVE`, pad session row 11).
+  - The `MeterBoost` orb is still unspawned.
+  - `DEFER-INPUT-WIRE-FULL` stands.
+  - The Requiem Chord's shave of Fortissimo is disabled, not redesigned; the redesign is owed to Mozart's kit pass (`DEFER-REQUIEM-FORTISSIMO-REDESIGN`, the removed value was 2.0 s), as are per-kit Momentum costs (`DEFER-KIT-PASS-MOMENTUM`).
+  - `MM_BOTS.md` still says two foes for the bot's Defy; the ledger and CLAUDE.md say one.
+- **Nobody has played or looked at any of it**; section 5.3 is owed before the kit pass.
