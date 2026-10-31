@@ -46,7 +46,7 @@ Required-route acceptance must be checked against the authored budget; recovery 
 
 Maintain records keyed by level/variant, hero, difficulty, route class and applicable checkpoint. Include:
 - Build, scene/route and rules revisions; tester familiarity, sample count, individual live times, failures/exclusion reasons and the hero median.
-- Entry/unlock kit, purchased grid state, HP/meter/charges/cooldowns/uses and starting Extractor/secret state.
+- Entry/unlock kit, purchased grid state, HP/meter/Momentum gauge/charges/cooldowns/uses and starting Extractor/secret state.
 - Required path and puzzle assumptions, mechanism/Tremor/channel waits, checkpoint roles and any recovery transaction.
 - Selected shared par or 4A par, determining hero, rounding, difficulty budget and authored budget revision.
 - Actual final Integrity, completion outcome, claimed optional rewards/tier/ending contribution where relevant, replay/evidence and pending/blocked/pass/fail status. N05 gives each of Levels 2–15 one equal ending contribution; exclude 0/1, retain stored precision and keep the 50% threshold. Par and duration never weight the ending. Measure threshold attainability across full campaigns and difficulties; no runtime balance pass is implied. See [ending rules](NARRATIVE_RESOLUTION.md#n05--equal-weight-ending-average).
@@ -69,7 +69,7 @@ Validate the complete replacement geometry before applying it. Never move, telep
 
 ### Preserve the live attempt
 
-Keep enemies and encounters, player HP/meter/Rally, block charges, ability/Time Freeze cooldowns, rewind/anchor counts, Defy use/protection, healing uses, rewards, dust, unrelated player constructs, external hazard schedules and checkpoint state unchanged. Resetting puzzle props grants no damage credit, meter, healing, drops, completion signal or repeat reward. Do not trigger on-destruction attacks or rewards when retiring an old prop instance.
+Keep enemies and encounters, player HP/meter/Rally, block charges, the Momentum gauge, ability/Time Freeze cooldowns, rewind/anchor counts, healing uses, rewards, dust, unrelated player constructs, external hazard schedules and checkpoint state unchanged. Resetting puzzle props grants no damage credit, meter, healing, drops, completion signal or repeat reward. Do not trigger on-destruction attacks or rewards when retiring an old prop instance.
 
 Integrity continues its existing live drain through interaction/reset feedback; do not pause it, refill it, rebase the level clock or reset the current Extractor/secret facts. Normal pre-boss/menu/presentation clock rules remain authoritative. Time spent returning to the control and repeating the puzzle is still real route time. The action grants no invulnerability or combat escape and does not rewind the world.
 

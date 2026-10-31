@@ -1,4 +1,4 @@
-# CPU grabs — F19, Option A (Echo Step removed 2026-10-25)
+# CPU grabs, Specials and Defy — F19, Option A (Echo Step removed 2026-10-25; Specials and Defy by band 2026-10-31)
 
 Decision: 2026-09-12; Echo Step, the other F19 action, was removed with the verb on 2026-10-25 (feel and UI update), leaving the grab. Easy does not grab; Medium introduces occasional use; Hard uses it tactically. This complements [CPU recovery](CPU_RECOVERY.md). These are design rules; implementation and combat validation remain pending.
 
@@ -24,14 +24,16 @@ Use the canonical grounded grab: 0.8-unit reach and 10/4/24 startup/active/whiff
 
 Medium uses a simple legal directional throw toward the nearer useful stage edge, with a deterministic fallback when tied. Hard compares the existing legal throws for positioning, follow-up potential and visible hazard exposure. Neither tier gets guaranteed damage or an invented throw/cancel.
 
-## Echo Step — removed 2026-10-25
+## Specials need a Momentum pip (2026-10-31)
 
-The CPU's Echo Step decision, its once-per-execution admission roll, its destination and pit-risk checks and its meter tradeoff against the Ultimate and an unused Defy were removed with the verb. Removing the decision shifts the seeded Medium and Hard decision streams, so replayed CPU traces from before the change do not compare.
+The Special rungs of the utility set test one predicate where they used to test the slot's cooldown: the CPU's own Momentum gauge holds at least one whole pip, and the slot's 2 s reuse delay will be clear by delivery (within the band's minimum reaction delay). An observation that does not carry the gauge (a hand-built one, the legacy default) ignores the pip test and checks the reuse delay alone. Every seeded percentage draw stays where it was, behind the ready test, so Easy (which casts no Special) is unchanged and no draw moves for a ready Special. The CPU stays kit-blind (decision 9.3). The Level 13 Mirror clone reads its Story gauge through the same predicate.
 
+## Defy History by band (user decision 4.4, 2026-10-30; built 2026-10-31)
 
+Defy is an input the CPU emits like any other. It requires 50 or more Influence and is never emitted while dazed, captured, already Defying or inside the CPU's own Ultimate. **Easy** never Defies. **Medium** rolls once per hitstun instance (35 %, drawn only when the gate passes) once the string against it has reached 3 hits. **Hard** rolls nothing and Defies when the string reaches 2 hits, when it is cornered with the target on the open side within 3.0 units, or when the target is in an Ultimate wind-up within 3.0 units (the press must still leave the blast on a wind-up frame); otherwise it banks its meter for the Ultimate. A "string" is consecutive hitstun instances with at most 8 actionable frames between them, counted input-side. The string reflex is emitted exclusively on the hitstun-instance edge (like the V7.4 Block hold, and it wins that tick over it); the neutral uses go through the band's reaction delay on the schedule ring. Hard reserves no meter, so it can spend its bar on Defies and starve its Ultimate (accepted; judged in play). The Level 13 Mirror clone follows its campaign band; the hero has no Ultimate wind-up and Story has no stage walls, so only the string trigger fires there. These percentages and ranges are provisional and code-owned (`CpuBandTuning`), never resources.
 
-
-Medium retains its immediate-Ultimate policy at the first legal opportunity when meter is full; being at full meter alone does not make an otherwise illegal Ultimate cast legal. Hard holds the Ultimate for a confirmed kill setup (see the main design). Resolve one accepted action and one meter debit per decision; recheck meter and eligibility on commitment.
+## Ultimate use
+Medium retains its immediate-Ultimate policy at the first legal opportunity when meter is full; being at full meter alone does not make an otherwise illegal Ultimate cast legal. Hard holds the Ultimate for a confirmed kill setup (see the main design) and competes with Defy for the same meter (above). Resolve one accepted action and one meter debit per decision; recheck meter and eligibility on commitment.
 
 ## Validation before sign-off
 
