@@ -170,6 +170,10 @@ The median is a few microseconds higher while the p95 and the snapshot are lower
 differ by less than the run-to-run spread seen on this shared machine, so no cost change is claimed.
 The per-stage table was not recorded for this re-measure.
 
+### Re-measure, 2026-10-31 (the meter and Defy update) - owed at the closeout
+
+The Momentum gauge, the active Defy and their state changes (310 `MomentumUnits`, 305 reuse delays, 312 down from 36 to 20 B, 306 two ints lighter, 323 `DefyFrames`: about -40 B per snapshot, `docs/METER_DEFY_UPDATE_2026-10-31_PLAN.md` P33) move every Fighter hash and the snapshot size. **The closeout's official re-measure is still owed** (`--filter "FullyQualifiedName~RollbackReadinessTests" --logger "console;verbosity=detailed"`, then paste the per-stage table here). The only figure at hand is MM-SIM's interim run at its fourth commit (`docs/handoffs/MM_SIM.md` section 6): worst case across the ten stages **median 0.079 ms, p95 0.136 ms, 0 breaches, largest snapshot 2,988 B (Chicago)**. It is **not comparable** with the 2026-10-25 figure (0.090 ms / 0.137 ms, 3,277 B) because the harness changed in the same step: a two-pip start starves the spam scripts, so `RollbackReadinessTests` now builds both peers and the replay with `MomentumTestKit.KeepFullBoth`, holds the worst-case timing run's Specials until the last 40 warm-up ticks and lowers the Special-count thresholds (30 to 12 in 2,200 ticks, 20 to 5 before the snapshot). The build also no longer reports the `KLSG_ECS004` warning on `FighterTuningComponent` (306 is under 128 B).
+
 ### Convergence and history bounds
 
 - Delayed-input convergence (latency 3 transport polls, items and hazards at High) is asserted for
