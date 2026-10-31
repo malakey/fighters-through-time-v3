@@ -20,7 +20,7 @@ Apply changes live to current and newly created effects without restarting a lev
 | Decorative temporal ghost trails and repeated after-images | Remove trailing copies of actors/props. Preserve movement path readability and actual independently interactive entities such as decoys. |
 | Full-screen KO, Ultimate, rewind and transition flashes | Replace brightness bursts, rapid polarity changes and repeated flashes with a restrained stable overlay or smooth fade plus the existing text/glyph/local impact cue. Never replace them with a differently colored full-screen flash. |
 | Heavy world desaturation, pulsing vignette and flickering environmental overlays | Disable full-scene desaturation and decorative pulsing/flicker; use steady, restrained tint/edge treatment where needed to identify the time state. Preserve readable crack lines, platform warnings and static danger areas. |
-| Actor armor, status, spawn and D04 Defy protection feedback | Use steady secondary glow/symbols and a smooth expiry fade instead of repeated flashing. Keep separate Fighter ownership outlines, both status slots and the spent Defy seal. |
+| Actor armor, status, spawn and Defy-startup feedback | Use steady secondary glow/symbols and a smooth expiry fade instead of repeated flashing. Keep separate Fighter ownership outlines, both status slots and the Defy notch. The Defy burst plays its gold ring and "DEFIED" label but skips its desaturating screen pulse and its bright fills (2026-10-31). |
 | Attack-class signatures and telegraphs | Retain Basic/Guard-Crush/Unblockable glyphs and timing, plus the distinct Special-class (2-charge) signature and the Shield-Breaker full-shatter signature (A01). Use a stable outline/aura or clean trail without RGB splitting; removing decorative distortion cannot make different block costs indistinguishable. |
 | Loading portals and illustrated/cinematic transitions | Use the clean portal shape/static image and smooth fade in place of distorted/refraction-heavy effects. Preserve scene readiness, minimum loading-display duration, actual transitions and existing cinematic controls. |
 
@@ -28,7 +28,7 @@ The preset takes precedence over per-ability presentation requests such as “ma
 
 ## Gameplay information and other settings
 
-Keep damage, hitboxes, physics, animation/action durations, hitstop, gameplay slow motion, camera framing needed to show play, attack warning duration and resource clocks unchanged. Defy's presentation and post-control 60-tick protection keep their existing timing; Time Freeze stays 5 seconds with its existing 45-second cooldown and Integrity drain. Showing a calmer screen never shortens or extends these mechanics.
+Keep damage, hitboxes, physics, animation/action durations, hitstop, gameplay slow motion, camera framing needed to show play, attack warning duration and resource clocks unchanged. Defy's 6-frame invulnerable startup, 8-frame freeze, 24-frame recovery and presentation keep their timing (2026-10-31; Reduced Temporal Effects skips only the screen pulse and the bright fills), and so do the Momentum gauge's regeneration and reuse delays; Time Freeze stays 5 seconds with its existing 45-second cooldown and Integrity drain. Showing a calmer screen never shortens or extends these mechanics.
 
 Preserve the rewind landing/result cue, freeze-active and thaw warning (including the post-landing thaw, R03), boss phase cues, hazard footprints, platform fracture warnings, countdowns, status glyphs and both player-slot outlines. Do not hide danger geometry or use hue alone for attack/ownership identification. Read reduced effects from authoritative state without creating another simulation clock.
 
@@ -90,9 +90,9 @@ Listen on supported speakers/headphones and representative small-device output, 
 
 ## C01c — Direct bindings and optional preset shortcuts
 
-User selected Option A on 2026-09-12. The remapping screen lists every gameplay action: Left, Right, Up, Down, Jump, Roll, Block, Basic Attack, Special 1, Special 2, Movement Ability, Ultimate, Interact, Grab, Time Freeze and Pause. Offer one editable direct-binding override per device kind, with keyboard/mouse separate from gamepad. Keep existing analog/directional defaults and default aliases where no override is saved; this decision adds no analog calibration or multi-binding editor.
+User selected Option A on 2026-09-12. The remapping screen lists every gameplay action: Left, Right, Up, Down, Jump, Roll, Block, Basic Attack, Special 1, Special 2, Movement Ability, Ultimate, Interact, Grab, Defy History, Time Freeze and Pause. Offer one editable direct-binding override per device kind, with keyboard/mouse separate from gamepad. Keep existing analog/directional defaults and default aliases where no override is saved; this decision adds no analog calibration or multi-binding editor.
 
-Ultimate and Grab can each receive a single key/button. Time Freeze has its ordinary direct binding and is labelled Story only; it can be configured globally but never becomes usable in Fighter. Display locked/not-yet-unlocked actions for configuration without granting their ability. Preserve normal input costs, cooldowns, action-state/mode restrictions, F04 Nexus authorization, F19 CPU policy and Time Freeze action locks.
+Ultimate and Grab can each receive a single key/button. Time Freeze has its ordinary direct binding and is labelled Story only; it can be configured globally but never becomes usable in Fighter. Display locked/not-yet-unlocked actions for configuration without granting their ability. Preserve normal input costs, cooldowns, action-state/mode restrictions, F04 Nexus authorization, F19 CPU policy and Time Freeze action locks. **Defy History (2026-10-31)** is one direct action (keyboard F, gamepad R3 by default) with no chord recipe and no shortcut toggle; it can be remapped or unbound like any direct action, and the HUD's Defy notch lights only while it is bound for the player's device kind.
 
 ### Defaults and shortcuts
 
@@ -100,7 +100,8 @@ Ultimate and Grab can each receive a single key/button. Time Freeze has its ordi
 |---|---|---|
 | Ultimate | Keyboard U; gamepad direct slot initially Unbound | Gamepad Movement Ability + Special 2 (LB+RB at defaults), enabled by default. No new keyboard Ultimate chord is enabled by default. |
 | Grab | Direct slots initially Unbound; existing explicit user bind retained | Block held + Basic Attack press, enabled for keyboard/mouse and gamepad. |
-| Time Freeze | R / Back or Select, preserving migrated user overrides | No additional shortcut; Story-only action. |
+| Time Freeze | R / L3 (left-stick click), preserving migrated user overrides | No additional shortcut; Story-only action. |
+| Defy History | F / R3 (right-stick click) | No shortcut or chord (a single button); costs 50 Influence; refused during Time Freeze. |
 
 Expose the existing preset shortcuts with an On/Off control per applicable device kind. Their **action recipes** are fixed; render their current bound buttons and let component action remaps update them. There is no arbitrary chord-capture/editor UI. A recipe uses that device's currently effective component bindings, including retained defaults/aliases, without combining inputs from different player devices. Labels such as LB+RB describe defaults rather than hard-coded keys that ignore remaps.
 
@@ -131,6 +132,8 @@ Persist direct overrides, explicit Unbound choices and shortcut enable flags in 
 An explicit Unbound value differs from a missing override that inherits defaults. Validate the entire proposed profile before committing it. Per-action reset restores that action's direct default and preset flags for the selected device; global reset restores the whole control profile. Preserve unrelated audio/visual settings, and update all glyphs after load/migration/reset.
 
 **Load-time repairs for 9.2 (2026-10-16; no schema change).** Saved controls are repaired on every load by pure, idempotent rules. A saved Ultimate row whose gamepad half is exactly the old shoulder pair (LB + RB as Godot 4 buttons 9 and 10, or the Godot 3 numbering 4 and 5) loses that half and inherits the now-empty default; its keyboard half stays. After that, a gamepad Ultimate shortcut saved Off that leaves the gamepad Ultimate no direct route is switched back On, because a device must keep a route to the Ultimate (above) and the Controls tab could not have saved that layout since this change.
+
+**Defy and the Dialogue Log (2026-10-31; no schema change).** The Dialogue Log's gamepad button moved from R3 to Back / View so that Defy could take R3. A saved row that already holds R3 keeps it, and Defy's gamepad slot then loads Unbound with a notice; a saved Time Freeze row still on Back now shares Back with the Dialogue Log (no repair). Defy's keyboard default F is free. The repair is pure and idempotent and runs after the shoulder-row repairs.
 
 ### Devices and menu navigation — user decision 9.1 (2026-10-16)
 
