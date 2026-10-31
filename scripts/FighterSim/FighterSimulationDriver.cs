@@ -378,6 +378,9 @@ namespace FTT.FighterSim {
             if (state.Stocks <= 0) return "Knocked Out";
             if (FighterMatchFlowRules.IsOnRespawnPlatform(in state)) return "Respawn Platform";
             if (Simulation.GetMatchState().MatchState == FighterMatchStates.Countdown) return "Countdown";
+            // MM-FX: the Defy History burst (323 DefyFrames 1..30).
+            if (Simulation.TryGetFighterActionState(playerID, out FighterActionStateComponent defyAction)
+                && defyAction.DefyFrames > 0) return "Defying";
             if (runtime.UniversalMovementState is (int)UniversalMovementPhase.RollStartup
                 or (int)UniversalMovementPhase.RollTravel
                 or (int)UniversalMovementPhase.RollRecovery
@@ -804,7 +807,9 @@ namespace FTT.FighterSim {
                 // CM-HIT (4.2): the spawn glow is the respawn grant, not any
                 // invulnerability (ShowsSpawnProtection).
                 Simulation.TryGetFighterActionState(playerID, out FighterActionStateComponent actionState);
-                bool invulnerable = ShowsSpawnProtection(in state, in actionState);
+                // MM-FX: the Defy's invulnerable frames wear the same aura.
+                bool invulnerable = ShowsSpawnProtection(in state, in actionState)
+                    || IsDefyInvulnerable(in actionState);
                 if (_presentedInvulnerable[playerID] != invulnerable) {
                     _presentedInvulnerable[playerID] = invulnerable;
                     glow.SetSpawnInvulnerability(invulnerable);
@@ -978,6 +983,8 @@ namespace FTT.FighterSim {
             SyncCoreMechanicCues(playerID, in state);
             // FU-KNOCK R2: the wall bounce's impact burst and shake (WallBounce partial).
             SyncWallBounce(player, playerID, in state);
+            // MM-FX: the Defy burst (DefyFeedback partial).
+            SyncDefyFeedback(player, playerID);
         }
 
         // === Package 12 W10 / H04: Fighter core-mechanic cues ===================
@@ -1097,6 +1104,16 @@ namespace FTT.FighterSim {
             in FighterRuntimeComponent runtime, out int pose) {
             pose = -1;
             if (state.RespawnFramesRemaining > 0) return "respawn";
+            // MM-FX (P30): the Defy shows the ultimate sheet's first pose through the
+            // invulnerable frames and idle through the recovery.
+            if (Simulation != null && Simulation.TryGetFighterActionState(playerID, out FighterActionStateComponent defyAction)
+                && defyAction.DefyFrames > 0) {
+                if (IsDefyInvulnerable(in defyAction)) {
+                    pose = FTT.Combat.AttackPoseRules.WindUpPose;
+                    return "ultimate";
+                }
+                return "idle";
+            }
             TryGetVerb(playerID, out FighterVerbComponent verb);
             // H03 reuse rules (design-godot.md Section 9; Package 12 W10): a held
             // or thrown fighter, a launch tumble and a knockdown all play hitstun;

@@ -27,8 +27,8 @@ namespace FTT.Core {
         public const string TimeFreezeThawRelease = "time_freeze_thaw_release";
         /// <summary>R03: reuses the Time Freeze thaw warning at the end of the Post-Landing Hold.</summary>
         public const string PostLandingThawWarning = "post_landing_thaw_warning";
-        public const string DefyToll = "defy_toll";
-        public const string DefySealShatter = "defy_seal_shatter";
+        /// <summary>MM-FX (P29): the Defy burst; replaces the retired toll and seal-shatter cues.</summary>
+        public const string DefyBurst = "defy_burst";
         public const string RallyReclaim = "rally_reclaim";
         public const string GrabCatch = "grab_catch";
         public const string GrabWhiff = "grab_whiff";
@@ -58,7 +58,7 @@ namespace FTT.Core {
         /// <summary>Every row the catalog must carry.</summary>
         public static readonly string[] All = {
             TimeFreezeActivate, TimeFreezeDrone, TimeFreezeThawWarning, TimeFreezeThawRelease,
-            PostLandingThawWarning, DefyToll, DefySealShatter,
+            PostLandingThawWarning, DefyBurst,
             RallyReclaim,
             GrabCatch, GrabWhiff, ThrowHeave, ThrowImpact, LandingTech, KnockdownThud,
             IntegrityTick, MatchTimerPip, MatchTimerPipFinal, UltimateReady, UltimateActivationWindup,
@@ -74,7 +74,7 @@ namespace FTT.Core {
         /// </summary>
         public static readonly string[] Critical = {
             TimeFreezeActivate, TimeFreezeDrone, TimeFreezeThawWarning, TimeFreezeThawRelease,
-            PostLandingThawWarning, DefyToll, DefySealShatter,
+            PostLandingThawWarning, DefyBurst,
             IntegrityTick, MatchTimerPip, MatchTimerPipFinal,
             UltimateActivationWindup,
             KoStinger, KoStingerDecisive,

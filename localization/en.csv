@@ -1713,3 +1713,5 @@ pause_tag_controller,Controller
 # MM-INPUT block
 controls_action_defy,Defy History
 save_notice_defy_pad_unbound,"The Defy History controller button (R3) was already bound to another action, so it was left unbound. Rebind it in Controls."
+# MM-FX block
+defy_world_label,DEFIED

@@ -8,7 +8,7 @@ namespace FTT.Core {
     /// <see cref="CoreMechanicCueCatalog"/>. A child of <see cref="AudioManager"/>.
     ///
     /// <para><b>Story</b> cues come from existing <see cref="EventBus"/> events —
-    /// Time Freeze state, the Defy seal, the Ultimate meter, the Rally echo, the
+    /// Time Freeze state, the Defy burst, the Ultimate meter, the Rally echo, the
     /// Collapse Tremor level and a Story death. Nothing publishes on its behalf and
     /// no gameplay file was edited for it. <b>Fighter</b> cues are raised by
     /// <c>FighterSimulationDriver</c> from its own read-only presentation pass
@@ -42,7 +42,7 @@ namespace FTT.Core {
         private int _tremorLevel;
         private float _integrityTickTimer;
 
-        private readonly Dictionary<int, DefySealState> _defyStates = new();
+        private float _defySnapshotRemaining;
         private readonly Dictionary<int, bool> _meterFull = new();
 
         /// <summary>The catalog this presenter plays from, or null when it failed to load.</summary>
@@ -142,7 +142,8 @@ namespace FTT.Core {
             _thawWarningPlayed = false;
             _tremorLevel = 0;
             _integrityTickTimer = 0f;
-            _defyStates.Clear();
+            _defySnapshotRemaining = 0f;
+            _audio?.ReleaseSnapshot(AudioSnapshot.DefyOrScripted);
             _meterFull.Clear();
         }
 
@@ -153,7 +154,7 @@ namespace FTT.Core {
             EventBus bus = EventBus.Instance;
             _bound = true;
             bus.OnTimeFreezeStateChanged += OnTimeFreezeStateChanged;
-            bus.OnDefySealChanged += OnDefySealChanged;
+            bus.OnDefyExecuted += OnDefyExecuted;
             bus.OnUltimateMeterChanged += OnUltimateMeterChanged;
             bus.OnRallyEchoChanged += OnRallyEchoChanged;
             bus.OnCollapseTremorChanged += OnCollapseTremorChanged;
@@ -166,7 +167,7 @@ namespace FTT.Core {
             EventBus bus = EventBus.Instance;
             _bound = false;
             bus.OnTimeFreezeStateChanged -= OnTimeFreezeStateChanged;
-            bus.OnDefySealChanged -= OnDefySealChanged;
+            bus.OnDefyExecuted -= OnDefyExecuted;
             bus.OnUltimateMeterChanged -= OnUltimateMeterChanged;
             bus.OnRallyEchoChanged -= OnRallyEchoChanged;
             bus.OnCollapseTremorChanged -= OnCollapseTremorChanged;
@@ -204,14 +205,33 @@ namespace FTT.Core {
             Play(CoreMechanicCueIDs.TimeFreezeThawWarning);
         }
 
-        private void OnDefySealChanged(DefySealPayload payload) {
-            _defyStates.TryGetValue(payload.PlayerIndex, out DefySealState previous);
-            _defyStates[payload.PlayerIndex] = payload.State;
-            if (payload.State == DefySealState.Spent && previous == DefySealState.Ready) {
-                Play(CoreMechanicCueIDs.DefyToll);
-                Play(CoreMechanicCueIDs.DefySealShatter);
-            }
+        /// <summary>
+        /// MM-FX: a Story Defy fired its blast. Draws the ring, the DEFIED label and the pulse
+        /// into the current scene and plays the cue. Public for headless tests.
+        /// </summary>
+        public void OnDefyExecuted(DefyExecutedPayload payload) {
+            Node parent = GetTree()?.CurrentScene;
+            FTT.Combat.DefyPresentation.Play(payload.Position, parent, FTT.Combat.DefyBurstEffect.StoryRadiusPixels);
+            // A scene-less host (a headless harness) still gets the cue and snapshot.
+            if (parent == null) PlayDefyBurst();
         }
+
+        /// <summary>Seconds the <c>DefyOrScripted</c> snapshot is held: the 8-frame blast freeze plus a tail.</summary>
+        public const float DefySnapshotSeconds = 0.25f;
+
+        /// <summary>
+        /// The Defy's audio: the Critical <c>defy_burst</c> cue and the <c>DefyOrScripted</c>
+        /// snapshot for the freeze window. Called by <see cref="FTT.Combat.DefyPresentation.Play"/>
+        /// for both modes.
+        /// </summary>
+        public void PlayDefyBurst() {
+            Play(CoreMechanicCueIDs.DefyBurst);
+            _defySnapshotRemaining = DefySnapshotSeconds;
+            _audio?.ApplySnapshot(AudioSnapshot.DefyOrScripted);
+        }
+
+        /// <summary>True while the Defy snapshot is held. Test seam.</summary>
+        public bool DefySnapshotHeld => _defySnapshotRemaining > 0f;
 
         private void OnUltimateMeterChanged(UltimateMeterPayload payload) {
             _meterFull.TryGetValue(payload.PlayerIndex, out bool wasFull);
@@ -262,6 +282,13 @@ namespace FTT.Core {
 
         /// <summary>Advances the thaw-warning and Integrity-tick clocks. Public for headless tests.</summary>
         public void Advance(float seconds) {
+            if (_defySnapshotRemaining > 0f) {
+                _defySnapshotRemaining -= seconds;
+                if (_defySnapshotRemaining <= 0f) {
+                    _defySnapshotRemaining = 0f;
+                    _audio?.ReleaseSnapshot(AudioSnapshot.DefyOrScripted);
+                }
+            }
             if (_thawWarningArmed && _freezeState == TimeFreezeState.Active) {
                 _thawWarningCountdown -= seconds;
                 if (_thawWarningCountdown <= 0f) FireThawWarning();
