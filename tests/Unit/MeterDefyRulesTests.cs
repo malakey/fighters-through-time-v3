@@ -55,6 +55,8 @@ public class MeterDefyRulesTests {
         AssertThat(FighterMomentumRules.Spend(14400)).IsEqual(7200);
         AssertThat(FighterMomentumRules.Spend(7200)).IsEqual(0);
         AssertThat(FighterMomentumRules.Spend(100)).IsEqual(0);
+        // Saturates instead of wrapping at the integer extremes (Codex review, Phase A).
+        AssertThat(FighterMomentumRules.Spend(int.MinValue)).IsEqual(0);
     }
 
     [TestCase]
@@ -63,6 +65,8 @@ public class MeterDefyRulesTests {
         AssertThat(FighterMomentumRules.Gain(0, 1440)).IsEqual(1440);
         AssertThat(FighterMomentumRules.Regen(0)).IsEqual(10);
         AssertThat(FighterMomentumRules.Regen(28795)).IsEqual(28800);
+        AssertThat(FighterMomentumRules.Gain(28800, int.MaxValue)).IsEqual(28800);
+        AssertThat(FighterMomentumRules.Regen(int.MaxValue)).IsEqual(28800);
         // 720 frames of regen from empty is exactly one pip.
         int units = 0;
         for (int frame = 0; frame < BasicComboRules.MomentumRegenFramesPerPip; frame++) units = FighterMomentumRules.Regen(units);
@@ -103,5 +107,7 @@ public class MeterDefyRulesTests {
         AssertThat(BasicComboRules.DefyHealPoints(4, 25, 100)).IsEqual(4);
         AssertThat(BasicComboRules.DefyHealPoints(0, 25, 100)).IsEqual(0);
         AssertThat(BasicComboRules.DefyHealPoints(-3, 25, 100)).IsEqual(0);
+        // The 10 % floor never wraps for a huge max HP (Codex review, Phase A).
+        AssertThat(BasicComboRules.DefyHealPoints(50, 0, int.MaxValue)).IsEqual(50);
     }
 }

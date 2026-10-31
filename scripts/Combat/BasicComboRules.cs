@@ -953,9 +953,9 @@ namespace FTT.Combat {
         /// </summary>
         public static int DefyHealPoints(int missingHP, int echoPoolRounded, int maxHP) {
             if (missingHP <= 0 || maxHP <= 0) return 0;
-            int floor = (maxHP * DefyHealFloorNumerator + DefyHealFloorDenominator - 1) / DefyHealFloorDenominator;
-            int wanted = echoPoolRounded > floor ? echoPoolRounded : floor;
-            return wanted < missingHP ? wanted : missingHP;
+            long floor = ((long)maxHP * DefyHealFloorNumerator + DefyHealFloorDenominator - 1) / DefyHealFloorDenominator;
+            long wanted = echoPoolRounded > floor ? echoPoolRounded : floor;
+            return wanted < missingHP ? (int)wanted : missingHP;
         }
 
         // === Hit-confirm cancel (user direction 2026-10-11, D1; ledger USER-HIT-CONFIRM-CANCEL) ===

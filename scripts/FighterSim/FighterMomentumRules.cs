@@ -29,16 +29,22 @@ namespace FTT.FighterSim {
         /// <summary>Clamps a fill into [0, <see cref="MaxUnits"/>].</summary>
         public static int Clamp(int units) => units < 0 ? 0 : (units > MaxUnits ? MaxUnits : units);
 
+        /// <summary>
+        /// Clamps a widened fill, so <see cref="Spend"/>, <see cref="Gain"/> and
+        /// <see cref="Regen"/> saturate instead of wrapping on extreme inputs.
+        /// </summary>
+        static int Clamp(long units) => units < 0 ? 0 : (units > MaxUnits ? MaxUnits : (int)units);
+
         /// <summary>True when the gauge holds at least one pip for a Special.</summary>
         public static bool CanAfford(int units) => units >= SpecialCostUnits;
 
         /// <summary>The fill after paying for one Special (never below 0).</summary>
-        public static int Spend(int units) => Clamp(units - SpecialCostUnits);
+        public static int Spend(int units) => Clamp((long)units - SpecialCostUnits);
 
         /// <summary>The fill after a landed swing adds <paramref name="gainUnits"/>.</summary>
-        public static int Gain(int units, int gainUnits) => Clamp(units + gainUnits);
+        public static int Gain(int units, int gainUnits) => Clamp((long)units + gainUnits);
 
         /// <summary>The fill after one frame of passive regeneration.</summary>
-        public static int Regen(int units) => Clamp(units + RegenUnitsPerFrame);
+        public static int Regen(int units) => Clamp((long)units + RegenUnitsPerFrame);
     }
 }
