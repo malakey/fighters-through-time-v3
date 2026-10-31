@@ -32,11 +32,12 @@ public class AbilityInterruptionTests {
 
             var ability = player.GetNode<BaseSpecial>("Special1");
             AssertThat(player.CurrentState).IsEqual(CharacterState.UsingSpecial);
-            // Still in startup: the active phase has not begun, yet the cooldown
-            // is already running at the full authored duration.
+            // Still in startup: the active phase has not begun, yet the reuse delay
+            // (a Special's "cooldown" since the Momentum update) is already running
+            // at its full 2 s.
             AssertThat((int)ability.CurrentPhase).IsEqual((int)AbilityPhase.Startup);
             AssertThat(player.SpecialOneCooldownTimer)
-                .IsEqualApprox(ability.Data.CooldownDuration, 0.001f);
+                .IsEqualApprox(BasicComboRules.SpecialReuseDelayFrames / 60f, 0.001f);
         } finally {
             InputManager.Instance?.ClearInputSource(player.PlayerIndex);
             player.Free();
