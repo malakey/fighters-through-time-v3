@@ -382,6 +382,34 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
+        /// Meter and Defy update 2026-10-31 test seam (replaces the passive-Defy window seed):
+        /// puts a fighter's Defy clock on <paramref name="defyFrames"/> (0 clears it; 1 to 30
+        /// is a running Defy). Frames 1 to 6 also carry the invulnerability they would still
+        /// hold (7 minus the frame), and a clock at frame 6 or later is marked as having
+        /// fired its blast, so a seeded recovery never blasts. It spends no Influence and
+        /// starts nothing else. Writes deterministic state (it moves the hash).
+        /// </summary>
+        internal bool SeedFighterDefyForTest(int playerID, int defyFrames) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterActionStateComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref FighterStateComponent fighter = ref _simulation.Frame.Get<FighterStateComponent>(entity);
+                if (fighter.PlayerID != playerID) continue;
+                ref FighterActionStateComponent action = ref _simulation.Frame.Get<FighterActionStateComponent>(entity);
+                FighterDefyRules.Clear(ref action);
+                action.DefyFrames = defyFrames < 0 ? 0 : defyFrames;
+                if (defyFrames >= FTT.Combat.BasicComboRules.DefyBlastFrame) {
+                    action.ActionFlags |= FighterActionStateComponent.ActionFlagDefyBlastFired;
+                }
+                if (defyFrames >= 1 && defyFrames <= FTT.Combat.BasicComboRules.DefyInvulnerableFrames) {
+                    int hold = FTT.Combat.BasicComboRules.DefyInvulnerableFrames + 1 - defyFrames;
+                    if (fighter.InvulnerabilityFrames < hold) fighter.InvulnerabilityFrames = hold;
+                }
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Package 12 W4 test seam: seeds a Conductive mark directly, so the
         /// Lorentz-chain suites can isolate the chain consumer from the basic
         /// finisher that normally applies the mark. Writes deterministic state

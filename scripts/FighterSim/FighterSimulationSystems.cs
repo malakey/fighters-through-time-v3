@@ -285,8 +285,8 @@ namespace FTT.FighterSim {
         public void Update(ref Frame frame) {
             // Meter and Defy update 2026-10-31 (P2): the Momentum gauge regenerates
             // only while the match is live, so every match and every Sudden Death
-            // starts at exactly two pips at GO.
-            bool momentumRegen = frame.GetSingleton<FighterMatchComponent>().MatchState
+            // starts at exactly two pips at GO. A Defy press needs a live match too.
+            bool matchLive = frame.GetSingleton<FighterMatchComponent>().MatchState
                 == FighterMatchStates.InProgress;
             var filter = frame.Filter<FighterStateComponent, FighterRuntimeComponent, FighterTuningComponent>();
             while (filter.Next(out EntityRef entity)) {
@@ -305,6 +305,15 @@ namespace FTT.FighterSim {
 
                 // CM-MOVE (5.1): the short hop's Jump latch, from this tick's raw edges.
                 UpdateJumpLatch(ref action, in runtime);
+
+                // Meter and Defy update 2026-10-31 (plan section 2.4, O9 to O11): the Defy
+                // press is read here, above the hitstop gate that every early-continue
+                // branch below sits behind, so one site covers every state it is legal
+                // from. A press on an unfrozen tick begins at once and claims the tick; one
+                // on a frozen tick is held one deep and begins on the thaw tick (P12).
+                bool defyBeganThisTick = ReadDefyPress(
+                    ref frame, entity, ref fighter, ref runtime, ref verb, ref action,
+                    in ultimateActivation, ref knockdown, matchLive);
 
                 // V7 universal hitstop: both parties of a hit are fully suspended
                 // — velocity, position, phases, and every per-fighter timer. The
@@ -338,8 +347,19 @@ namespace FTT.FighterSim {
                     if (FighterSpecialCastRules.IsBusy(in action)) {
                         FighterUltimateActivationRules.DiscardInput(ref runtime);
                     }
+                    // A running Defy is interrupted by a hit exactly as a cast is (the
+                    // blast's own freeze is on a fighter with no hitstun, so it survives).
+                    FighterDefyRules.ClearIfInterrupted(
+                        ref action, in fighter, in verb,
+                        FighterUltimateActivationRules.IsCaptured(in ultimateActivation),
+                        FighterKnockdownRules.IsActive(in knockdown));
                     verb.HitstopFrames--;
-                    if (verb.HitstopFrames == 0) {
+                    if (verb.HitstopFrames == 0 && BeginBufferedDefy(
+                            ref frame, entity, ref fighter, ref runtime, ref verb, ref action,
+                            in ultimateActivation, ref knockdown, matchLive)) {
+                        // The thaw tick: the buffered Defy overrides the hit's pending
+                        // launch, hitstun and knockdown (BeginBufferedDefy cleared them).
+                    } else if (verb.HitstopFrames == 0) {
                         FighterVerbRules.ResolvePendingLaunch(ref fighter, in runtime, ref verb);
                         // The thaw tick: the ability and combat systems read this
                         // tick's presses (HitstopFrames is 0 for them), so the held
@@ -362,7 +382,8 @@ namespace FTT.FighterSim {
                     // CanReadAbilityPress, CanStartGrab and UltimatePressPayable
                     // are the second gates.
                     if (FighterKnockdownRules.IsActive(in knockdown)
-                        || FighterUltimateActivationRules.IsCasterBusy(in ultimateActivation)) {
+                        || FighterUltimateActivationRules.IsCasterBusy(in ultimateActivation)
+                        || FighterDefyRules.IsDefying(in action)) {
                         FighterUltimateActivationRules.DiscardButtons(ref runtime);
                     }
                     continue;
@@ -409,8 +430,9 @@ namespace FTT.FighterSim {
                 // CM-BLOCK (decision 3.4): the perfect-block clock's once-per-unfrozen-tick step.
                 FighterBlockTimingRules.BeginTick(ref action, in fighter);
                 if (FighterUltimateActivationRules.IsCaptured(in ultimateActivation)) {
+                    FighterDefyRules.Clear(ref action);
                     ref FighterDefenseComponent capturedDefense = ref frame.Get<FighterDefenseComponent>(entity);
-                    TickCounters(ref fighter, ref runtime, ref verb, ref capturedDefense, in tuning, momentumRegen);
+                    TickCounters(ref fighter, ref runtime, ref verb, ref capturedDefense, in tuning, matchLive);
                     if (fighter.Stocks > 0 && fighter.RespawnFramesRemaining <= 0) {
                         FighterUltimateActivationRules.HoldCaptured(ref fighter, ref runtime, in ultimateActivation);
                     }
@@ -438,8 +460,16 @@ namespace FTT.FighterSim {
                     // Package 13 W7b (M04): a stock loss re-arms the staff refund too.
                     knockdown.StaffRefundUsed = 0;
                 }
+                // Meter and Defy update 2026-10-31: the Defy's clock. Frames 1 to 6 hold the
+                // fighter in place (invulnerable, no gravity) and finish the tick here;
+                // the recovery (7 to 30) discards the fighter's input and falls through to
+                // the ordinary movement below so gravity and landing run as usual.
+                if (ProcessDefy(
+                        ref fighter, ref runtime, ref verb, ref defense, ref action,
+                        in tuning, in ultimateActivation, in knockdown, defyBeganThisTick, matchLive)) continue;
+
                 if (FighterKnockdownRules.IsActive(in knockdown)) {
-                    TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning, momentumRegen);
+                    TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning, matchLive);
                     // A lethal Venom tick inside TickCounters is a stock loss;
                     // the respawn owns the fighter from the next tick.
                     FighterKnockdownRules.ClearIfInterrupted(in fighter, ref knockdown);
@@ -482,7 +512,7 @@ namespace FTT.FighterSim {
                     if (fighter.InvulnerabilityFrames > 0) fighter.InvulnerabilityFrames--;
                     fighter.Velocity = FPVector2.Zero;
                     FighterUltimateActivationRules.DiscardInput(ref runtime);
-                    TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning, momentumRegen);
+                    TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning, matchLive);
                     continue;
                 }
 
@@ -492,7 +522,7 @@ namespace FTT.FighterSim {
                 // the grab phases and the victim's pinning.
                 if (FighterGrabRules.IsBusy(in verb)) {
                     fighter.Velocity = FPVector2.Zero;
-                    TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning, momentumRegen);
+                    TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning, matchLive);
                     continue;
                 }
 
@@ -515,7 +545,7 @@ namespace FTT.FighterSim {
                 // a landed cast's D3 cancel, else the discard.
                 ResolveSpecialCastRegion(ref fighter, ref runtime, in verb, ref action, ref counter, in knockdown);
 
-                TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning, momentumRegen);
+                TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning, matchLive);
 
                 // A02: the caster is action-locked through the whole Ultimate —
                 // wind-up, active, whiff recovery and cinematic. Discarding the
@@ -889,8 +919,10 @@ namespace FTT.FighterSim {
                 // both win: a fighter who reached a surface is standing on it, not
                 // hanging off it. Only fighters still airborne after the whole
                 // resolve are candidates. A03: a grab refreshes the air dodge.
-                // Decision 1.2: no ledge capture while casting (Story grabs only from Airborne).
+                // Decision 1.2: no ledge capture while casting (Story grabs only from Airborne);
+                // a Defy's recovery is action-locked the same way.
                 if (!FighterSpecialCastRules.IsBusy(in action)
+                    && !FighterDefyRules.IsDefying(in action)
                     && TryGrabLedge(ref fighter, ref runtime, ref verb, in tuning)) {
                     FighterAirDodgeRules.Refresh(ref knockdown);
                     knockdown.StaffRefundUsed = 0;
