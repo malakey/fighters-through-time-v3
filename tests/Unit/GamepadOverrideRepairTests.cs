@@ -294,4 +294,46 @@ public class GamepadOverrideRepairTests {
         AssertThat(stale.RepairGodot3ShoulderRows(oldDefaults)).IsFalse();
         AssertRow(stale, InputManager.Actions.Ultimate, Key(KeyY), Pad(Back), Pad(Guide));
     }
+
+    private static InputBindingSet DefaultsWithDefy() {
+        InputBindingSet defaults = PostFixDefaults();
+        defaults.Set(InputManager.Actions.Defy, new[] { Key(KeyF), Pad(8) });
+        defaults.Set(InputManager.Actions.Interact, new[] { Key(69), Pad(2) });
+        return defaults;
+    }
+
+    /// <summary>Meter and Defy update (PROVISIONAL-DEFY-INPUT): a saved row holding R3 keeps it; Defy's pad half goes Unbound.</summary>
+    [TestCase]
+    public void ASavedRowHoldingR3KeepsItAndDefysPadHalfGoesUnbound() {
+        var saved = new InputBindingSet();
+        saved.Set(InputManager.Actions.Interact, new[] { Key(69), Pad(8) });
+
+        AssertThat(saved.RepairDefyPadDefaultCollision(DefaultsWithDefy())).IsTrue();
+        AssertThat(saved.IsUnbound(InputManager.Actions.Defy, InputDeviceKind.Joypad)).IsTrue();
+        AssertThat(saved.IsUnbound(InputManager.Actions.Defy, InputDeviceKind.Keyboard)).IsFalse();
+        AssertRow(saved, InputManager.Actions.Interact, Key(69), Pad(8));
+        AssertThat(saved.HasOverride(InputManager.Actions.Defy)).IsFalse();
+    }
+
+    [TestCase]
+    public void WithoutACollisionOrOnceRepairedTheDefyRepairChangesNothing() {
+        var clean = new InputBindingSet();
+        clean.Set(InputManager.Actions.Interact, new[] { Key(69), Pad(2) });
+        AssertThat(clean.RepairDefyPadDefaultCollision(DefaultsWithDefy())).IsFalse();
+        AssertThat(clean.IsUnbound(InputManager.Actions.Defy, InputDeviceKind.Joypad)).IsFalse();
+
+        // Defy already carries a saved row of its own: never overridden.
+        var own = new InputBindingSet();
+        own.Set(InputManager.Actions.Defy, new[] { Key(KeyF), Pad(3) });
+        own.Set(InputManager.Actions.Interact, new[] { Key(69), Pad(8) });
+        AssertThat(own.RepairDefyPadDefaultCollision(DefaultsWithDefy())).IsFalse();
+        AssertRow(own, InputManager.Actions.Defy, Key(KeyF), Pad(3));
+
+        // Idempotent: the second pass is a no-op.
+        var twice = new InputBindingSet();
+        twice.Set(InputManager.Actions.Interact, new[] { Key(69), Pad(8) });
+        AssertThat(twice.RepairDefyPadDefaultCollision(DefaultsWithDefy())).IsTrue();
+        AssertThat(twice.RepairDefyPadDefaultCollision(DefaultsWithDefy())).IsFalse();
+        AssertThat(twice.UnboundActions.Count).IsEqual(1);
+    }
 }

@@ -79,6 +79,12 @@ namespace FTT.Core {
             public const string TimeFreeze = "gameplay_time_freeze";
 
             /// <summary>
+            /// Defy History (meter and Defy update 2026-10-31, ledger <c>USER-DEFY-OWN-BUTTON</c>):
+            /// keyboard <c>F</c>, gamepad R3 (button 8). Carries <see cref="GameplayButtons.Defy"/>.
+            /// </summary>
+            public const string Defy = "gameplay_defy";
+
+            /// <summary>
             /// C01c direct <b>Grab</b> action (Package 11 A1c). Its direct slot is
             /// authored <b>Unbound</b> on both device kinds: the shipped route is
             /// the Block+BasicAttack preset chord, and C01c's promise is that a
@@ -119,7 +125,7 @@ namespace FTT.Core {
         public static readonly string[] RemappableActions = {
             Actions.MoveLeft, Actions.MoveRight, Actions.Jump, Actions.Down, Actions.Up,
             Actions.BasicAttack, Actions.Special1, Actions.Special2, Actions.MovementAbility,
-            Actions.Block, Actions.Roll, Actions.Ultimate, Actions.Interact, Actions.TimeFreeze, Actions.Pause
+            Actions.Block, Actions.Roll, Actions.Ultimate, Actions.Interact, Actions.TimeFreeze, Actions.Defy, Actions.Pause
         };
 
         /// <summary>
@@ -147,6 +153,7 @@ namespace FTT.Core {
             Actions.Roll => "controls_action_roll",
             Actions.Ultimate => "controls_action_ultimate",
             Actions.Interact => "controls_action_interact",
+            Actions.Defy => "controls_action_defy",
             Actions.Pause => "controls_action_pause",
             _ => "common_unknown"
         };
@@ -1089,6 +1096,7 @@ namespace FTT.Core {
             AddIfHeld(ref held, GameplayButtons.Roll, rollRaw);
             AddIfHeld(ref held, GameplayButtons.Ultimate, ultimateHeld);
             AddIfHeld(ref held, GameplayButtons.Interact, ReadActionPressed(Actions.Interact, deviceId, stickX, stickY));
+            AddIfHeld(ref held, GameplayButtons.Defy, ReadActionPressed(Actions.Defy, deviceId, stickX, stickY));
             AddIfHeld(ref held, GameplayButtons.Pause, ReadActionPressed(Actions.Pause, deviceId, stickX, stickY));
 
             // C01c combined verbs (Package 11 A1c). Both routes request the SAME
@@ -1255,6 +1263,7 @@ namespace FTT.Core {
             Actions.Roll => GameplayButtons.Roll,
             Actions.Ultimate => GameplayButtons.Ultimate,
             Actions.Interact => GameplayButtons.Interact,
+            Actions.Defy => GameplayButtons.Defy,
             Actions.Pause => GameplayButtons.Pause,
             Actions.Grab => GameplayButtons.Grab,
             _ => GameplayButtons.None

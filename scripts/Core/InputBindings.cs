@@ -481,6 +481,27 @@ namespace FTT.Core {
             return true;
         }
 
+        /// <summary>R3, the Godot 4 right-stick click: Defy's default pad button (2026-10-31).</summary>
+        public const int DefyPadButton = 8;
+
+        /// <summary>
+        /// Meter and Defy update (2026-10-31, <c>PROVISIONAL-DEFY-INPUT</c>): Defy's
+        /// pad default is R3 (button 8), which the Dialogue Log used to hold. A saved
+        /// row for another action that already holds button 8 keeps it; Defy's pad
+        /// half goes explicitly Unbound instead. Only runs while Defy has no saved
+        /// override of its own and its pad slot is not already Unbound, so it is
+        /// idempotent and never overrides a choice. Returns true when it changed the
+        /// set (the caller raises the notice).
+        /// </summary>
+        public bool RepairDefyPadDefaultCollision(InputBindingSet projectDefaults) {
+            if (projectDefaults == null || Actions == null || Actions.Count == 0) return false;
+            string defy = InputManager.Actions.Defy;
+            if (HasOverride(defy) || IsUnbound(defy, InputDeviceKind.Joypad)) return false;
+            if (!AnotherActionHoldsJoyButton(this, projectDefaults, defy, DefyPadButton)) return false;
+            SetUnbound(defy, InputDeviceKind.Joypad, true);
+            return true;
+        }
+
         /// <summary>True when <paramref name="events"/> is exactly these joypad buttons, in any order.</summary>
         private static bool IsExactlyJoyButtons(List<InputBindingEvent> events, int[] buttons) {
             if (events == null || events.Count != buttons.Length) return false;
