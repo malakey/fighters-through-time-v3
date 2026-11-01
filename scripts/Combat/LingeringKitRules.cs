@@ -111,6 +111,8 @@ namespace FTT.Combat {
         /// <summary>Provisional: the lunge's Venom, intensity 1.0 for 4 s.</summary>
         public const int NestSyncedLungeVenomIntensityPercent = 100;
         public const double NestSyncedLungeVenomSeconds = 4.0;
+        /// <summary>The same Venom duration in frames (the sim reads integers).</summary>
+        public const int NestSyncedLungeVenomFrames = (int)(NestSyncedLungeVenomSeconds * 60.0);
         /// <summary>Provisional: the synced reach (2D circle in both modes), thousandths of a unit.</summary>
         public const int NestSyncedReachMilli = 2500;
         public const double NestSyncedReachUnits = NestSyncedReachMilli / 1000.0;

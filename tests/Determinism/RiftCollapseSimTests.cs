@@ -59,14 +59,15 @@ public class RiftCollapseSimTests {
         }
         AssertThat(simulation.ZoneCount).IsEqual(0);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent launched)).IsTrue();
-        // 0 damage, launched upward from (near) the rift centre.
-        AssertThat(launched.CurrentHP).IsEqual(hpAfterBurst);
+        // Lingering-kit pass (decision 27): the collapse hits for 8 (it was a 0-damage launch),
+        // launched upward from (near) the rift centre.
+        AssertThat(hpAfterBurst - launched.CurrentHP).IsEqual(LingeringKitRules.RiftCollapseDamage);
         AssertThat(launched.Velocity.y > FP64.Zero || launched.Position.y > FP64.Zero).IsTrue();
         AssertThat(FP64.Abs(launched.Position.x - FP64.FromInt(2)) < FP64.FromDouble(0.5)).IsTrue();
         AssertThat(launched.HitstunFrames > 0).IsTrue();
-        // The collapse launch earns the caster no meter of its own.
+        // The damaging collapse now credits the caster's meter like any damage dealt.
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
-        AssertThat(caster.Influence).IsEqual(meterAtBurst);
+        AssertThat(caster.Influence >= meterAtBurst).IsTrue();
     }
 
     [TestCase]

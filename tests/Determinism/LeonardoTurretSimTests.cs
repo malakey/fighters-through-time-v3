@@ -10,8 +10,8 @@ namespace FTT.Tests.Determinism;
 /// Package 13 W7a (L03, D14) — the Clockwork Turret in the sim, on the AUTHORED
 /// Leonardo loadout: it fires real straight bolts at 12 units/s (construct-class
 /// projectiles) only while the opponent is in range, so its lifetime is the idle
-/// cap and its 4 bolts the ammunition; and the Ornithopter glide's
-/// once-per-flight bonus bolt — new to the sim — spends one of the four.
+/// cap; and the Ornithopter glide's once-per-flight bonus bolt - new to the sim -
+/// spends one of its four CHARGES (the own shot does not, since the lingering-kit pass).
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
@@ -42,7 +42,8 @@ public class LeonardoTurretSimTests {
         }
         AssertThat(sawBolt).IsTrue();
         AssertThat(near.TryGetFirstPersistentObject(out FighterPersistentObjectComponent spent)).IsTrue();
-        AssertThat(spent.RemainingAttacks).IsEqual(3);
+        // Lingering-kit pass: the turret's own shot spends no charge (it was 3 of 4 before).
+        AssertThat(spent.RemainingAttacks).IsEqual(4);
 
         // Out of range (12 units, past the arena-bounded 10): it never fires, and
         // keeps all four bolts until its idle cap.

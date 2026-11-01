@@ -1,5 +1,6 @@
 using FTT.Combat;
 using xpTURN.Klotho.Deterministic.Math;
+using xpTURN.Klotho.ECS;
 
 namespace FTT.FighterSim {
 
@@ -67,7 +68,7 @@ namespace FTT.FighterSim {
         /// it never accumulates across ticks.
         /// </summary>
         public static void NoteOwedStrike(ref FighterVerbComponent attackerVerb) {
-            if (attackerVerb.OwedSyncedStrikes < OwedStrikeCap) attackerVerb.OwedSyncedStrikes++;
+            if ((attackerVerb.OwedSyncedStrikes & OwedStrikeCap) < OwedStrikeCap) attackerVerb.OwedSyncedStrikes++;
         }
 
         /// <summary>The owed strikes waiting on this attacker (0 when none).</summary>
@@ -148,6 +149,57 @@ namespace FTT.FighterSim {
                     attackerVerb.MomentumUnits, LingeringKitRules.MomentumUnitsFor(payout));
             }
             return true;
+        }
+
+        // --- The owner's landed string finisher (Rift collapse trigger) -------------------
+        /// <summary>Bit 8 of the owed field: this tick's landed basic hit was the string finisher (combo_3).</summary>
+        public const int OwedFinisherBit = 256;
+
+        /// <summary>The finisher site records that its hit landed this tick (the Rift collapse reads it).</summary>
+        public static void NoteOwedFinisher(ref FighterVerbComponent attackerVerb) => attackerVerb.OwedSyncedStrikes |= OwedFinisherBit;
+
+        /// <summary>Reads and clears both the owed count and the finisher bit.</summary>
+        public static int TakeOwed(ref FighterVerbComponent verb, out bool finisherLanded) {
+            finisherLanded = (verb.OwedSyncedStrikes & OwedFinisherBit) != 0;
+            int owed = verb.OwedSyncedStrikes & OwedStrikeCap;
+            verb.OwedSyncedStrikes = 0;
+            return owed;
+        }
+
+        // --- One construct / discharge hit ------------------------------------------------
+        /// <summary>
+        /// A blockable, impulse-free construct-class hit with no hitstop and no Rally. Its hitstun only
+        /// lengthens a stun the victim already has (<c>preserveStun</c>): a launch or a tumble survives it.
+        /// Returns how the contact resolved (the caller pays Momentum through <see cref="CountsAsCombo"/>).
+        /// </summary>
+        internal static FighterHitOutcome Strike(
+            ref Frame frame,
+            EntityRef ownerEntity,
+            EntityRef targetEntity,
+            int damage,
+            int hitstunFrames,
+            int statusType,
+            int statusFrames,
+            FP64 statusIntensity,
+            FP64 hitOriginX,
+            int attackClass = FighterDamageRules.BasicAttackClass) {
+            ref FighterStateComponent owner = ref frame.Get<FighterStateComponent>(ownerEntity);
+            ref FighterRuntimeComponent ownerRuntime = ref frame.Get<FighterRuntimeComponent>(ownerEntity);
+            ref FighterVerbComponent ownerVerb = ref frame.Get<FighterVerbComponent>(ownerEntity);
+            ref FighterStateComponent target = ref frame.Get<FighterStateComponent>(targetEntity);
+            ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
+            ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
+            ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
+            ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
+            return FighterDamageRules.ResolveFighterHit(
+                ref frame.Get<FighterActionStateComponent>(targetEntity),
+                ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
+                attackClass, damage, FP64.Zero, hitstunFrames,
+                statusType, statusFrames, statusIntensity, hitOriginX,
+                collectsEcho: false,
+                appliesHitstop: false,
+                launches: false,
+                preserveStun: true);
         }
 
         // --- Venom -------------------------------------------------------------------

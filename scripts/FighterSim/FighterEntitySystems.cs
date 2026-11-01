@@ -572,7 +572,8 @@ namespace FTT.FighterSim {
             bool launches = true,
             bool shieldBreaker = false,
             bool hasKnockbackVector = false,
-            FP64 knockbackVertical = default) {
+            FP64 knockbackVertical = default,
+            bool preserveStun = false) {
             // A01 (Package 13 W1): shieldBreaker marks an authored Shield-Breaker
             // Special — a valid block spends every charge; an ordinary Special
             // spends min(2, charges).
@@ -833,8 +834,12 @@ namespace FTT.FighterSim {
                 }
                 // A zero-knockback hit with hitstun (a construct arc/bite) stuns
                 // without replacing the victim's velocity with a zero vector.
-                target.HitstunFrames = hitstunFrames;
-                if (target.HitstunFrames > 0) {
+                // Lingering-kit pass: preserveStun (a synced strike, a discharge burst) only
+                // ever LENGTHENS the stun - it never shortens a longer one, never re-arms
+                // the hit-1 block-cancel gate and never ends a launch's tumble.
+                bool holdsLongerStun = preserveStun && target.HitstunFrames >= hitstunFrames;
+                if (!holdsLongerStun) target.HitstunFrames = hitstunFrames;
+                if (target.HitstunFrames > 0 && !holdsLongerStun) {
                     // Real hitstun replaces the stance outright: shieldstun ends,
                     // and hit 1 of the string arms the V7.3 block-cancel gate
                     // (only after hit two connects may Block escape hitstun).
@@ -847,7 +852,9 @@ namespace FTT.FighterSim {
                     // OnHurtboxHit rewrites _stunTumble on every stunning hit. A
                     // launch re-stashed it above (value 1). An owed slam bounce is
                     // dropped on the next tick by FighterSlamRules.ClearIfStale.
-                    if (!(launches && hasImpulse)) targetVerb.Tumble = FighterVerbRules.TumbleNone;
+                    if (!(launches && hasImpulse) && !(preserveStun && targetVerb.Tumble != FighterVerbRules.TumbleNone)) {
+                        targetVerb.Tumble = FighterVerbRules.TumbleNone;
+                    }
                 }
             }
 
@@ -1626,8 +1633,9 @@ namespace FTT.FighterSim {
                 Damage = resolvedDamage,
                 BaseActionCooldownFrames = actionCooldown,
                 RemainingAttacks = remainingAttacks,
-                StatusType = statusType,
-                StatusFrames = statusFrames,
+                // The nest's own nip carries no Venom (the synced lunge does).
+                StatusType = objectTypeID == FighterConstructCharges.NestObjectTypeID ? (int)StatusType.None : statusType,
+                StatusFrames = objectTypeID == FighterConstructCharges.NestObjectTypeID ? 0 : statusFrames,
                 AttackRange = attackRange,
                 Knockback = resolvedKnockback,
                 // Bottom-anchored: the fighter's grounded position is its feet
@@ -1661,24 +1669,31 @@ namespace FTT.FighterSim {
             out FP64 attackRange,
             out FP64 knockback) {
             hp = objectTypeID == 1 ? 25 : objectTypeID == 2 ? 20 : 15;
+            // Lingering-kit pass: a coil, turret and nest hold CHARGES (303 RemainingAttacks) and their
+            // OWN attack is the rulebook's weak, slow one; every other object stays unlimited (-1).
+            int ownDamage = objectTypeID == 1 ? FTT.Combat.LingeringKitRules.CoilOwnArcDamage
+                : objectTypeID == 2 ? FTT.Combat.LingeringKitRules.TurretOwnShotDamage
+                : FTT.Combat.LingeringKitRules.NestOwnNipDamage;
+            int ownInterval = objectTypeID == 1 ? FTT.Combat.LingeringKitRules.CoilOwnArcIntervalFrames
+                : objectTypeID == 2 ? FTT.Combat.LingeringKitRules.TurretOwnShotIntervalFrames
+                : FTT.Combat.LingeringKitRules.NestOwnNipIntervalFrames;
             lifetime = requestedLifetime > 0
                 ? requestedLifetime
                 : objectTypeID == 1 ? 1800 : objectTypeID == 2 ? 900 : 600;
             // Type 5 (Mozart's Sonata staff platform) is a harmless marker in the
             // deterministic sim: walkable platform collision is deferred, so it
             // must never attack.
-            damage = objectTypeID == 1 ? 5
-                : objectTypeID == 2 ? 6
+            damage = FighterConstructCharges.IsChargeConstruct(objectTypeID) ? ownDamage
                 : objectTypeID == 5 ? 0
                 : requestedDamage > 0 ? requestedDamage : 4;
             // V7 tuning batch: cadence mirrors the authored
             // DamageTickIntervalFrames — coil/turret every 2 s (120), nest every
             // 1 s (60) — replacing the flat 4 s that left a lone construct
             // ignorable. (Type 4, the vine snare, is retired with Pocahontas.)
-            actionCooldown = objectTypeID == 1 || objectTypeID == 2 ? 120 : 60;
-            // Clockwork Turret: the authored HitCount (V7: 4 bolts, then it
-            // self-destructs).
-            remainingAttacks = objectTypeID == 2 ? 4 : -1;
+            actionCooldown = FighterConstructCharges.IsChargeConstruct(objectTypeID) ? ownInterval : 60;
+            // Charges (plan 2): coil 3, turret 4, nest 3. The turret no longer self-destructs after
+            // its own shots; it lives out its lifetime unless its charges run out.
+            remainingAttacks = FighterConstructCharges.InitialCharges(objectTypeID);
             // Clockwork Turret (type 2) targets at the design's 30-unit range,
             // bounded by the visible arena (half-width 10 units).
             // T02 (Package 13 W7a): a Tesla coil (type 1) arcs within 4 units.
@@ -2173,6 +2188,7 @@ namespace FTT.FighterSim {
                 // reclaim (D03g) and no hitstop (V7.3), exactly like the
                 // construct's old instant strike.
                 bool constructBolt = FighterTurretRules.IsConstructBolt(in projectile);
+                bool syncedBolt = FighterSyncedStrikeRules.IsSyncedBolt(in projectile);
                 // D10: an Ultimate-origin shot keeps its spawn-time scalar (the
                 // Ultimate finale knockbacks are W6's region); a Special shot
                 // reads its slot's signed vector. A bursting shot's contact is
@@ -2205,8 +2221,17 @@ namespace FTT.FighterSim {
                     shieldBreaker: projectile.AttackClass == FighterDamageRules.SpecialAttackClass
                         && projectileContract.ShieldBreaker,
                     hasKnockbackVector: projectileVector,
-                    knockbackVertical: projectileContract.KnockbackY);
+                    knockbackVertical: projectileContract.KnockbackY,
+                    // Lingering-kit pass: a turret's synced bolt only lengthens a stun (never ends a launch).
+                    preserveStun: syncedBolt);
                 bool projectileLanded = projectileOutcome == FighterHitOutcome.Landed;
+                // ...and pays its 0.05 pip once on a landed hit (the CountsAsCombo marker; it arms no D3).
+                if (syncedBolt) {
+                    FighterLingeringKitRules.CountsAsCombo(
+                        ref frame.Get<FighterActionStateComponent>(ownerEntity), ref ownerVerb,
+                        hitSlot: 0, sourceCastId: 0, projectileOutcome, contactDamage,
+                        FTT.Combat.LingeringMomentumEvent.SyncedStrike, armD3: false);
+                }
                 // D3 (CM-CANCEL, plan §2.11.1): a Special shot's or ground wave's
                 // landed contact arms its owner's recovery cancel when the shot's
                 // slot is the slot being cast. A construct bolt and an
@@ -2256,24 +2281,31 @@ namespace FTT.FighterSim {
         private const int FenceDamage = 4;
         private const int FenceHitstunFrames = 8;
         private const int FenceStaticChargeFrames = 30;
-        // Cleopatra's Serpent Nest bite delivers the design's brief Root (1 s) as
-        // hitstun so the Venom status carried on the bite is not immediately
-        // replaced (single-status rule: the newest status replaces the previous).
+        // Lingering-kit pass: the nest's OWN bite is a short nip with no Venom (the strong 60-frame
+        // hold with Venom is the synced lunge, FighterSyncedStrikeRules).
         private const int NestObjectTypeID = 3;
-        private const int NestBiteHitstunFrames = 60;
         private static readonly FP64 CoilLinkRangeSquared = FP64.FromInt(64);
 
         public void Update(ref Frame frame) {
             // A04 (Package 13 W1): a fallen owner's objects are gone before
             // any of them can act again — no final attack, no pending damage.
             FighterStockLossRules.DespawnOwnedByFallenFighters(ref frame);
-            // Lingering-kit pass: the owed synced strikes the hit sites recorded this tick are read
-            // and cleared here, before the objects act. KL-SIM turns the count into strikes; until
-            // then it only clears, so the count never accumulates across ticks.
+            // Lingering-kit pass: the owed synced strikes the hit sites recorded this tick are read and
+            // cleared here, before the objects act, and turned into strikes (plan 1.3). A landed string
+            // finisher is the Rift's second collapse trigger. Collected first, resolved after the filter.
+            int owedOne = 0, owedTwo = 0;
+            bool finisherOne = false, finisherTwo = false;
             var owedFilter = frame.Filter<FighterVerbComponent>();
             while (owedFilter.Next(out EntityRef owedEntity)) {
-                FighterLingeringKitRules.TakeOwedStrikes(ref frame.Get<FighterVerbComponent>(owedEntity));
+                int owedPlayer = frame.GetReadOnly<FighterStateComponent>(owedEntity).PlayerID;
+                int owed = FighterLingeringKitRules.TakeOwed(ref frame.Get<FighterVerbComponent>(owedEntity), out bool finisher);
+                if (owedPlayer == 0) { owedOne = owed; finisherOne = finisher; }
+                else { owedTwo = owed; finisherTwo = finisher; }
             }
+            if (finisherOne) FighterRiftRules.TryCollapseOnFinisher(ref frame, 0);
+            if (finisherTwo) FighterRiftRules.TryCollapseOnFinisher(ref frame, 1);
+            FighterSyncedStrikeRules.Resolve(ref frame, 0, owedOne);
+            FighterSyncedStrikeRules.Resolve(ref frame, 1, owedTwo);
             UpdateCoilLinks(ref frame);
             var filter = frame.Filter<FighterPersistentObjectComponent>();
             while (filter.Next(out EntityRef persistentEntity)) {
@@ -2318,15 +2350,15 @@ namespace FTT.FighterSim {
                     ref frame.Get<FighterActionStateComponent>(targetEntity),
                     ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     FighterDamageRules.BasicAttackClass, persistent.Damage, persistent.Knockback,
-                    persistent.ObjectTypeID == NestObjectTypeID ? NestBiteHitstunFrames : 10,
+                    persistent.ObjectTypeID == NestObjectTypeID ? FTT.Combat.LingeringKitRules.NestOwnNipHitstunFrames : 10,
                     persistent.StatusType, persistent.StatusFrames, FP64.One, persistent.Position.x,
                     collectsEcho: false,
                     appliesHitstop: false,
                     // M05: construct hits are authored non-launching (all four
                     // construct abilities carry Launches = false).
                     launches: false);
+                // Lingering-kit pass: an own attack spends no charge (plan 1.4).
                 persistent.ActionCooldownFrames = persistent.BaseActionCooldownFrames;
-                if (persistent.RemainingAttacks > 0) persistent.RemainingAttacks--;
             }
         }
 
@@ -3197,6 +3229,8 @@ namespace FTT.FighterSim {
                     if (zone.ZoneTypeID == (int)FighterCharacterID.Leonardo * 10 + 1) {
                         ApplySpiralExpiryKnockback(ref frame, in zone);
                     }
+                    // Lingering-kit pass: a Vortex that ends with its victim inside slows him now.
+                    if (FighterVortexRules.IsVortex(in zone)) FighterVortexRules.End(ref frame, in zone);
                     // A02/D15 (Package 13 W6): the Cosmological Constant's final
                     // launch and the Vitruvian Matrix's explosion are no longer
                     // zero-damage expiry pulses here — they are the authored
@@ -3231,8 +3265,13 @@ namespace FTT.FighterSim {
                 // center every frame: a small positional shift that never touches
                 // velocity, so the pull stays impulse-free and snapshot-safe with
                 // no extra state.
-                if (zone.ZoneTypeID == (int)FighterCharacterID.Cleopatra * 10 + 2) {
-                    ApplyVortexPull(ref frame, in zone);
+                // Lingering-kit pass (decisions 13, 22): the Vortex pulls at 7 u/s, a roll or an air dodge
+                // ignores it, and its slow comes on leaving. Tesla's Lorentz Pulse discharges his coils.
+                if (FighterVortexRules.IsVortex(in zone)) {
+                    FighterVortexRules.Step(ref frame, ref zone);
+                }
+                if (FighterLorentzDischargeRules.IsPulse(in zone)) {
+                    FighterLorentzDischargeRules.Discharge(ref frame, ref zone);
                 }
 
                 // Einstein's Cosmological Constant sucks the opponent toward the
@@ -3341,13 +3380,22 @@ namespace FTT.FighterSim {
                 // V7.6 D03h: an Ultimate-spawned zone earns its caster zero
                 // damage-dealt meter; ZoneTypeID's slot digit is the origin.
                 bool pulseVector = !ultimateZone && pulseContract.HasKnockbackVector;
+                // Lingering-kit pass: a Vortex pulse carries NO slow (it is applied on exit); Golden
+                // Ratio's tick 1 alone keeps a hitstun, the later ticks hold by the pull.
+                bool vortexZone = FighterVortexRules.IsVortex(in zone);
+                bool spiralZone = FighterSpiralRules.IsSpiral(in zone);
+                if (spiralZone && (zone.ExecutionFlags & FighterSpiralRules.FlagFirstTickDone) == 0) {
+                    pulseHitstunFrames = FighterSpiralRules.FirstTickHitstunFrames;
+                }
                 FighterHitOutcome pulseOutcome = FighterDamageRules.ResolveFighterHit(
                     ref frame.Get<FighterActionStateComponent>(targetEntity),
                     ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     pulseAttackClass, pulseDamage,
                     pulseVector ? pulseContract.KnockbackX : pulseKnockback,
                     pulseHitstunFrames,
-                    zone.StatusType, zone.StatusFrames, zone.StatusIntensity, zone.Position.x,
+                    vortexZone ? (int)StatusType.None : zone.StatusType,
+                    vortexZone ? 0 : zone.StatusFrames,
+                    zone.StatusIntensity, zone.Position.x,
                     creditInfluence: !ultimateZone,
                     // The Requiem burst is the chord's own direct hit, not a
                     // persistent zone tick, so it reclaims Rally (D03g) like
@@ -3388,70 +3436,32 @@ namespace FTT.FighterSim {
                     FighterReachKitRules.ShaveFortissimo(ref attackerRuntime);
                 }
 
-                if (pulseLanded && zone.ZoneTypeID == (int)FighterCharacterID.Tesla * 10 + 2) {
-                    TryResolveLorentzChain(
-                        ref frame, in zone, targetEntity,
-                        ref attacker, ref attackerRuntime, ref attackerVerb,
-                        ref frame.Get<FighterActionStateComponent>(attackerEntity),
-                        _contracts.For(zone.OwnerPlayerID, FighterHitContractTable.SlotSpecialTwo),
-                        ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning);
+                bool pulseCounted = pulseOutcome == FighterHitOutcome.Landed || pulseOutcome == FighterHitOutcome.Absorbed;
+                // Golden Ratio: every tick draws the target in; the cast pays 0.05 pip once (HoldCast);
+                // its D3 arming as a direct hit already happened above.
+                if (spiralZone) {
+                    zone.ExecutionFlags |= FighterSpiralRules.FlagFirstTickDone;
+                    if (pulseOutcome != FighterHitOutcome.Refused) FighterSpiralRules.Pull(ref target, in zone.Position);
+                    if (pulseCounted && (zone.ExecutionFlags & FighterSpiralRules.FlagMomentumPaid) == 0
+                        && FighterLingeringKitRules.CountsAsCombo(
+                            ref frame.Get<FighterActionStateComponent>(attackerEntity), ref attackerVerb,
+                            FighterHitContractTable.SlotSpecialOne, zone.CastId, pulseOutcome, pulseDamage,
+                            FTT.Combat.LingeringMomentumEvent.HoldCast, armD3: false)) {
+                        zone.ExecutionFlags |= FighterSpiralRules.FlagMomentumPaid;
+                    }
+                }
+                // The Vortex's final pulse is its Detonation: 0.2 pip once, and it arms D3 for the cast.
+                if (vortexZone && pulseCounted && zone.LifetimeFrames <= zone.TickIntervalFrames
+                    && (zone.ExecutionFlags & FighterVortexRules.FlagMomentumPaid) == 0
+                    && FighterLingeringKitRules.CountsAsCombo(
+                        ref frame.Get<FighterActionStateComponent>(attackerEntity), ref attackerVerb,
+                        FighterHitContractTable.SlotSpecialTwo, zone.CastId, pulseOutcome, pulseDamage,
+                        FTT.Combat.LingeringMomentumEvent.Detonation, armD3: true)) {
+                    zone.ExecutionFlags |= FighterVortexRules.FlagMomentumPaid;
                 }
             }
         }
 
-        /// <summary>
-        /// Package 12 W4 (GAP-10a, F07): the Lorentz chain consumer. A pulse tick
-        /// that LANDED (not blocked, absorbed or invulnerable) on a target
-        /// carrying THIS Tesla's unexpired Conductive mark, while he has at least
-        /// one live coil, consumes the mark through
-        /// <see cref="FighterConductiveRules.TryConsumeChain"/> — keyed on the
-        /// pulse's own entity ID, so the pulse chains that target at most once
-        /// however many ticks it lands and a rollback replay cannot duplicate it
-        /// — and resolves one chain: each live coil arcs
-        /// <see cref="CoilArcDamage"/> into the target. Another Tesla's mark,
-        /// Static Charge alone, or no coil never chains, and with no coil the
-        /// mark is left to expire. Chain hits create no mark and never chain
-        /// recursively; like every coil arc they reclaim no Rally (D03g) and
-        /// carry no hitstop.
-        /// </summary>
-        private static void TryResolveLorentzChain(
-            ref Frame frame,
-            in FighterZoneComponent zone,
-            EntityRef targetEntity,
-            ref FighterStateComponent attacker,
-            ref FighterRuntimeComponent attackerRuntime,
-            ref FighterVerbComponent attackerVerb,
-            ref FighterActionStateComponent attackerAction,
-            in FighterAbilityHitData lorentzContract,
-            ref FighterStateComponent target,
-            ref FighterRuntimeComponent targetRuntime,
-            ref FighterVerbComponent targetVerb,
-            ref FighterDefenseComponent targetDefense,
-            in FighterTuningComponent targetTuning) {
-            // T01 (Package 13 W7a): only this Tesla's own live coils within 8
-            // units of the marked target are eligible; with none the mark is
-            // left to expire.
-            int coils = FighterLorentzChainRules.EligibleCoils(ref frame, zone.OwnerPlayerID, in target.Position);
-            if (coils <= 0) return;
-            ref FighterConductiveComponent mark = ref frame.Get<FighterConductiveComponent>(targetEntity);
-            // Execution IDs must be non-zero; entity IDs start at zero.
-            if (!FighterConductiveRules.TryConsumeChain(ref mark, zone.OwnerPlayerID, zone.EntityID + 1)) return;
-            // Consumed: the mark is spent, the per-execution guard stays set.
-            mark.FramesRemaining = 0;
-            mark.SourcePlayerID = -1;
-            // Each eligible coil fires its own instant 8-damage arc — a direct
-            // Special-class hit (meter and Rally as normal), no added launch,
-            // never recursive.
-            FighterLorentzChainRules.FireArcs(
-                ref frame, zone.OwnerPlayerID,
-                ref frame.Get<FighterActionStateComponent>(targetEntity),
-                ref attacker, ref attackerRuntime, ref attackerVerb,
-                ref attackerAction, in lorentzContract,
-                ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning);
-        }
-
-        /// <summary>T01 per-coil chain arc damage (Package 13 W7a: 5 → 8; see <see cref="FighterLorentzChainRules"/>).</summary>
-        internal const int CoilArcDamage = FighterLorentzChainRules.ArcDamage;
         private const int CoilObjectTypeID = 1;
         // Union Indestructible finisher: 0.5 s, matching the authored
         // HitstunDuration on lincoln/ultimate.tres.
