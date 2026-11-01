@@ -40,8 +40,9 @@ public class CleopatraKitTests {
         AssertThat(nest.CurrentHP).IsEqual(15);
         // 12 s lifetime = 720 frames, minus the frames already simulated.
         AssertThat(nest.LifetimeFrames > 700).IsTrue();
-        AssertThat(nest.StatusType).IsEqual((int)StatusType.Venom);
-        AssertThat(nest.StatusFrames).IsEqual(240);
+        // Lingering-kit pass: the nest's own nip carries no Venom (the synced lunge does).
+        AssertThat(nest.StatusType).IsEqual((int)StatusType.None);
+        AssertThat(nest.StatusFrames).IsEqual(0);
 
         // Max 1 active: a second deploy replaces the first instead of stacking.
         // It goes out the tick the first cast and its ability lockout have ended.
@@ -90,13 +91,12 @@ public class CleopatraKitTests {
         }
 
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
-        AssertThat(target.CurrentHP).IsEqual(90);
-        // The brief Root rides on the bite as ~1 s of hitstun (60 frames), well
-        // above the generic 10-frame persistent-object hitstun.
-        AssertThat(maxHitstunObserved >= 55).IsTrue();
+        // Lingering-kit pass: the own bite is a nip - 3 damage, 9 frames of hitstun, no Venom.
+        AssertThat(target.CurrentHP).IsEqual(100 - FTT.Combat.LingeringKitRules.NestOwnNipDamage);
+        AssertThat(maxHitstunObserved >= FTT.Combat.LingeringKitRules.NestOwnNipHitstunFrames - 1).IsTrue();
+        AssertThat(maxHitstunObserved < 20).IsTrue();
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)).IsTrue();
-        // Venom occupies the V7 damage status slot.
-        AssertThat(runtime.DamageStatusType).IsEqual((int)StatusType.Venom);
+        AssertThat(runtime.DamageStatusType).IsNotEqual((int)StatusType.Venom);
     }
 
     [TestCase]
@@ -122,13 +122,14 @@ public class CleopatraKitTests {
 
         // The pull is a steady per-frame positional drag toward the zone center
         // at 3 units/s: 20 frames move the opponent the full unit to x = 3.
-        for (int tick = thrown + 1; tick <= thrown + 10; tick++) {
+        // Lingering-kit pass: the pull is 7 u/s (0.117 u a frame), so 5 frames are not yet the full unit.
+        for (int tick = thrown + 1; tick <= thrown + 5; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent pulling)).IsTrue();
         AssertThat(pulling.Position.x > xpTURN.Klotho.Deterministic.Math.FP64.FromInt(2)).IsTrue();
         AssertThat(pulling.Position.x < xpTURN.Klotho.Deterministic.Math.FP64.FromInt(3)).IsTrue();
-        for (int tick = thrown + 11; tick <= thrown + 30; tick++) {
+        for (int tick = thrown + 6; tick <= thrown + 30; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent pulled)).IsTrue();

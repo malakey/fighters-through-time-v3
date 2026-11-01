@@ -159,7 +159,7 @@ namespace FTT.FighterSim {
             // the burst resolves — so a blocker the burst then shatters was
             // still a blocker, and is not pulled.
             if (projectile.ProjectileTypeID == (int)FighterCharacterID.Einstein * 10 + FighterHitContractTable.SlotSpecialOne) {
-                FighterRiftRules.TryCollapse(ref frame, ownerID, in at);
+                FighterRiftRules.TryCollapse(ref frame, ownerID, in at, projectile.CastId, armsD3: true);
             }
             if (FighterEntityQueries.TryFindFighter(ref frame, ownerID, out EntityRef ownerEntity)
                 && FighterEntityQueries.TryFindFighter(ref frame, targetID, out EntityRef targetEntity)) {
@@ -226,7 +226,22 @@ namespace FTT.FighterSim {
         private static readonly FP64 LaunchSpeed = FP64.FromDouble(KitMotionRules.RiftCollapseLaunchUnits);
         private const int CollapseLaunchHitstunFrames = 30;
 
+        /// <summary>309 <c>ExecutionFlags</c> bit: this collapse was started by an E=mc² burst (its hit arms D3 for <c>CastId</c>).</summary>
+        public const int FlagCollapseArmsD3 = 16;
+
         public static bool IsRift(in FighterZoneComponent zone) => zone.ZoneTypeID == RiftZoneTypeID;
+
+        /// <summary>
+        /// The Rift's second collapse trigger (decision 14): the owner's landed string finisher on a
+        /// target inside one of his own active rifts. "Inside" is the rift's circle about its centre
+        /// (the target's position), which is always within the rift's square box the pull then uses.
+        /// </summary>
+        public static bool TryCollapseOnFinisher(ref Frame frame, int ownerID) {
+            int targetID = ownerID == 0 ? 1 : 0;
+            if (!FighterEntityQueries.TryFindFighter(ref frame, targetID, out EntityRef targetEntity)) return false;
+            FPVector2 at = frame.GetReadOnly<FighterStateComponent>(targetEntity).Position;
+            return TryCollapse(ref frame, ownerID, in at);
+        }
         public static bool IsCollapsing(in FighterZoneComponent zone) => zone.CollapseFramesRemaining > 0;
 
         /// <summary>E03 placement: 5 units ahead inside the walls, ground-snapped when grounded.</summary>
@@ -244,7 +259,7 @@ namespace FTT.FighterSim {
         /// E01 trigger. True when a live, non-collapsing rift of this owner
         /// contains the burst point; the rift then collapses on the spot.
         /// </summary>
-        public static bool TryCollapse(ref Frame frame, int ownerID, in FPVector2 burstPoint) {
+        public static bool TryCollapse(ref Frame frame, int ownerID, in FPVector2 burstPoint, int castId = 0, bool armsD3 = false) {
             var filter = frame.Filter<FighterZoneComponent>();
             while (filter.Next(out EntityRef entity)) {
                 ref FighterZoneComponent zone = ref frame.Get<FighterZoneComponent>(entity);
@@ -271,6 +286,12 @@ namespace FTT.FighterSim {
                 zone.CollapseFramesRemaining = KitMotionRules.RiftCollapsePullFrames;
                 zone.CollapseTargetMask = mask;
                 zone.GrantsOwnerSpeedBonus = 0;
+                // Lingering-kit pass: the collapse is a Detonation. A collapse started by an E=mc² burst
+                // remembers that cast so its hit can arm D3 for it (the rift's own cast no longer matters).
+                if (armsD3) {
+                    zone.CastId = castId;
+                    zone.ExecutionFlags |= FlagCollapseArmsD3;
+                }
                 return true;
             }
             return false;
@@ -326,16 +347,25 @@ namespace FTT.FighterSim {
             ref FighterVerbComponent ownerVerb = ref frame.Get<FighterVerbComponent>(ownerEntity);
             ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
             ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
-            FighterDamageRules.ApplyFighterHit(
+            // Lingering-kit pass (decision 27): the collapse deals RiftCollapseDamage, so it is a landed
+            // hit by the ordinary rule; as a Detonation it pays 0.2 pip once and, when an E=mc² burst
+            // started it, arms D3 for that cast.
+            FighterHitOutcome outcome = FighterDamageRules.ResolveFighterHit(
+                ref frame.Get<FighterActionStateComponent>(targetEntity),
                 ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
-                FighterDamageRules.SpecialAttackClass, 0, FP64.Zero, CollapseLaunchHitstunFrames,
+                FighterDamageRules.SpecialAttackClass, LingeringKitRules.RiftCollapseDamage, FP64.Zero, CollapseLaunchHitstunFrames,
                 (int)StatusType.None, 0, FP64.One, zone.Position.x,
-                creditInfluence: false,
+                creditInfluence: true,
                 collectsEcho: false,
                 appliesHitstop: false,
                 launches: true,
                 hasKnockbackVector: true,
                 knockbackVertical: LaunchSpeed);
+            FighterLingeringKitRules.CountsAsCombo(
+                ref frame.Get<FighterActionStateComponent>(ownerEntity),
+                ref ownerVerb,
+                FighterHitContractTable.SlotSpecialOne, zone.CastId, outcome, LingeringKitRules.RiftCollapseDamage,
+                LingeringMomentumEvent.Detonation, armD3: (zone.ExecutionFlags & FlagCollapseArmsD3) != 0);
         }
 
         /// <summary>
@@ -424,7 +454,8 @@ namespace FTT.FighterSim {
         private const int BasicButton = 1 << 2;
 
         public static bool IsConstructBolt(in FighterProjectileComponent projectile) =>
-            projectile.UltimateOrigin == 0 && projectile.ProjectileTypeID % 10 == ConstructBoltSlot;
+            projectile.UltimateOrigin == 0
+            && (projectile.ProjectileTypeID % 10 == ConstructBoltSlot || FighterSyncedStrikeRules.IsSyncedBolt(in projectile));
 
         /// <summary>
         /// Fires one bolt from <paramref name="turret"/> at the opponent when in
@@ -473,7 +504,8 @@ namespace FTT.FighterSim {
                 HalfExtents = BoltHalfExtents,
                 Knockback = FPVector2.Zero
             });
-            if (turret.RemainingAttacks > 0) turret.RemainingAttacks--;
+            // Lingering-kit pass: the turret's own shot spends no charge (plan 1.4); only the glide
+            // bolt (TryCommandGlideBolt) and a synced bolt do.
             turret.ActionCooldownFrames = turret.BaseActionCooldownFrames;
             return true;
         }
@@ -512,6 +544,7 @@ namespace FTT.FighterSim {
                     || turret.CurrentHP <= 0 || turret.LifetimeFrames <= 0 || turret.RemainingAttacks == 0
                     || turret.GlideBoltSpent != 0) continue;
                 if (!TryFireBolt(ref frame, ref turret)) continue;
+                FighterConstructCharges.Spend(ref turret);
                 turret.GlideBoltSpent = 1;
                 return true;
             }
@@ -519,82 +552,6 @@ namespace FTT.FighterSim {
         }
     }
 
-    /// <summary>
-    /// Package 13 W7a (T01) — the Lorentz chain's designed effect: each of that
-    /// Tesla's own active coils within 8 units of the marked target fires an
-    /// instant 8-damage arc at it (max 16 with both coils). Chain arcs are direct
-    /// Special-class hits with no added launch; they earn meter and reclaim Rally
-    /// normally and never chain recursively (they create no mark).
-    /// </summary>
-    public static class FighterLorentzChainRules {
-        public const int CoilObjectTypeID = 1;
-        public const int ArcDamage = KitMotionRules.LorentzChainArcDamage;
-        private const int ArcHitstunFrames = 6;
-        private static readonly FP64 RangeSquared = FP64.FromDouble(
-            KitMotionRules.LorentzChainCoilRangeUnits * KitMotionRules.LorentzChainCoilRangeUnits);
-
-        /// <summary>Number of the owner's live coils within 8 units of <paramref name="targetPosition"/>.</summary>
-        public static int EligibleCoils(ref Frame frame, int ownerID, in FPVector2 targetPosition) {
-            int count = 0;
-            var filter = frame.Filter<FighterPersistentObjectComponent>();
-            while (filter.Next(out EntityRef entity)) {
-                ref readonly FighterPersistentObjectComponent coil = ref frame.GetReadOnly<FighterPersistentObjectComponent>(entity);
-                if (IsEligible(in coil, ownerID, in targetPosition)) count++;
-            }
-            return count;
-        }
-
-        public static bool IsEligible(in FighterPersistentObjectComponent coil, int ownerID, in FPVector2 targetPosition) {
-            if (coil.OwnerPlayerID != ownerID || coil.ObjectTypeID != CoilObjectTypeID
-                || coil.CurrentHP <= 0 || coil.LifetimeFrames <= 0) return false;
-            FP64 dx = coil.Position.x - targetPosition.x;
-            FP64 dy = coil.Position.y - targetPosition.y;
-            return dx * dx + dy * dy <= RangeSquared;
-        }
-
-        /// <summary>Fires one arc per eligible coil (called once the chain has consumed the mark).</summary>
-        public static void FireArcs(
-            ref Frame frame,
-            int ownerID,
-            ref FighterActionStateComponent targetAction,
-            ref FighterStateComponent attacker,
-            ref FighterRuntimeComponent attackerRuntime,
-            ref FighterVerbComponent attackerVerb,
-            ref FighterActionStateComponent attackerAction,
-            in FighterAbilityHitData lorentzContract,
-            ref FighterStateComponent target,
-            ref FighterRuntimeComponent targetRuntime,
-            ref FighterVerbComponent targetVerb,
-            ref FighterDefenseComponent targetDefense,
-            in FighterTuningComponent targetTuning) {
-            // Coil positions are read up front: ApplyFighterHit never touches
-            // persistent objects, but the filter must not be held across it.
-            FPVector2 first = default, second = default;
-            int count = 0;
-            FPVector2 targetPosition = target.Position;
-            var filter = frame.Filter<FighterPersistentObjectComponent>();
-            while (filter.Next(out EntityRef entity)) {
-                ref readonly FighterPersistentObjectComponent coil = ref frame.GetReadOnly<FighterPersistentObjectComponent>(entity);
-                if (!IsEligible(in coil, ownerID, in targetPosition)) continue;
-                if (count == 0) first = coil.Position;
-                else if (count == 1) second = coil.Position;
-                count++;
-            }
-            for (int index = 0; index < count && index < 2; index++) {
-                FPVector2 origin = index == 0 ? first : second;
-                FighterHitOutcome arcOutcome = FighterDamageRules.ResolveFighterHit(
-                    ref targetAction,
-                    ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
-                    FighterDamageRules.SpecialAttackClass, ArcDamage, FP64.Zero, ArcHitstunFrames,
-                    (int)StatusType.None, 0, FP64.One, origin.x,
-                    appliesHitstop: false,
-                    launches: false);
-                // D3 (CM-CANCEL, plan §2.11.1): an arc is a direct hit of the
-                // Lorentz Pulse's execution (Special 2), so a landed arc arms
-                // the pulse cast's recovery cancel (its landed pulse already has).
-                FighterSpecialCancelRules.NoteLanded(
-                    ref attackerAction, FighterHitContractTable.SlotSpecialTwo, arcOutcome, ArcDamage, in lorentzContract);
-            }
-        }
-    }
+    // Lingering-kit pass (decision 25): the Lorentz mark chain (FighterLorentzChainRules) is gone;
+    // the discharge that replaces it is FighterLorentzDischargeRules in FighterLingeringKit.cs.
 }

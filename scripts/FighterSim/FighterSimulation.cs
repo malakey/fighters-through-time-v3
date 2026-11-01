@@ -479,6 +479,65 @@ namespace FTT.FighterSim {
             return false;
         }
 
+        // --- Lingering-kit pass (KL-SIM) test seams: they write deterministic state and move the hash. ---
+        internal delegate void FighterMutator(
+            ref FighterStateComponent state, ref FighterRuntimeComponent runtime, ref FighterVerbComponent verb);
+
+        internal delegate void PersistentMutator(ref FighterPersistentObjectComponent persistent);
+
+        internal delegate void ZoneMutator(ref FighterZoneComponent zone);
+
+        /// <summary>Edits a fighter's state, runtime and verb components in place (position, hitstun, tumble, ...).</summary>
+        internal bool MutateFighterForTest(int playerID, FighterMutator mutate) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterRuntimeComponent, FighterVerbComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref FighterStateComponent fighter = ref _simulation.Frame.Get<FighterStateComponent>(entity);
+                if (fighter.PlayerID != playerID) continue;
+                mutate(ref fighter, ref _simulation.Frame.Get<FighterRuntimeComponent>(entity), ref _simulation.Frame.Get<FighterVerbComponent>(entity));
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Edits the <paramref name="index"/>th live persistent object (creation order).</summary>
+        internal bool MutatePersistentForTest(int index, PersistentMutator mutate) {
+            var filter = _simulation.Frame.Filter<FighterPersistentObjectComponent>();
+            int seen = 0;
+            while (filter.Next(out EntityRef entity)) {
+                if (seen++ != index) continue;
+                mutate(ref _simulation.Frame.Get<FighterPersistentObjectComponent>(entity));
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Edits the <paramref name="index"/>th live zone (creation order).</summary>
+        internal bool MutateZoneForTest(int index, ZoneMutator mutate) {
+            var filter = _simulation.Frame.Filter<FighterZoneComponent>();
+            int seen = 0;
+            while (filter.Next(out EntityRef entity)) {
+                if (seen++ != index) continue;
+                mutate(ref _simulation.Frame.Get<FighterZoneComponent>(entity));
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Places a construct of <paramref name="objectTypeID"/> for a fighter at <paramref name="feet"/> (the real spawn path).</summary>
+        internal bool SpawnPersistentForTest(int ownerPlayerID, int objectTypeID, FPVector2 feet) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                if (_simulation.Frame.GetReadOnly<FighterStateComponent>(entity).PlayerID != ownerPlayerID) continue;
+                FighterStateComponent owner = _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
+                xpTURN.Klotho.ECS.Frame frame = _simulation.Frame;
+                FighterAbilityEntitySystem.SpawnPersistent(
+                    ref frame, in owner, objectTypeID, 4, 0, 0, FP64.Zero,
+                    (int)FTT.Core.StatusType.None, 0, hasAnchor: true, anchor: feet);
+                return true;
+            }
+            return false;
+        }
+
         public FighterMatchComponent GetMatchState() =>
             _simulation.Frame.GetReadOnlySingleton<FighterMatchComponent>();
 
