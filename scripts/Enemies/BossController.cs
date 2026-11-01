@@ -1874,7 +1874,8 @@ namespace FTT.Enemies {
                 _controlStatusIntensity = potency;
                 switch (type) {
                     case StatusType.TimeDilation:
-                        StatusMoveMultiplier = Mathf.Max(0.1f, 1f - 0.5f * potency);
+                        // Lingering-kit pass (plan 1.7): a boss's slow is never below x0.7.
+                        StatusMoveMultiplier = (float)FTT.Combat.LingeringKitRules.BossTimeDilationMoveMultiplier(potency);
                         break;
                     case StatusType.Root:
                         // Movement denial is HP-unrelated, so knockback immunity does not block it.
@@ -1938,7 +1939,7 @@ namespace FTT.Enemies {
                         // of poison applied before the hero stepped out included.
                         // The tick cadence and the status clock keep running.
                         if (!IsArenaWarded) {
-                            ApplyBossDamage(Math.Max(1, (int)MathF.Round(2f * _damageStatusIntensity)));
+                            ApplyBossDamage(FTT.Combat.LingeringKitRules.VenomDamagePerTick(_damageStatusIntensity));
                         }
                     }
                 }

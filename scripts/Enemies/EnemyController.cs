@@ -2348,7 +2348,7 @@ namespace FTT.Enemies {
                     if (_venomTickTimer <= 0f) {
                         _venomTickTimer += 1f;
                         // GU-E: a member a revert put back to sleep takes no tick.
-                        if (!IsEncounterDormant) TakeDamage(Math.Max(1, (int)MathF.Round(2f * _damageStatusIntensity)));
+                        if (!IsEncounterDormant) TakeDamage(FTT.Combat.LingeringKitRules.VenomDamagePerTick(_damageStatusIntensity));
                     }
                 }
                 if (_damageStatusTimer <= 0f) {

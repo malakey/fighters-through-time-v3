@@ -53,7 +53,7 @@ namespace FTT.Combat {
         public const double SandstormVortexMaxThrowUnits = 5.0;
 
         /// <summary>C01: the vortex radius.</summary>
-        public const double SandstormVortexRadiusUnits = 1.8;
+        public const double SandstormVortexRadiusUnits = 2.5;
 
         /// <summary>C01: the vortex pulls toward its centre at 3 units per second.</summary>
         public const double SandstormVortexPullUnitsPerSecond = 3.0;

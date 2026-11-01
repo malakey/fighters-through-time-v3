@@ -1909,6 +1909,8 @@ namespace FTT.Characters {
 		/// </summary>
 		private void ReclaimEchoPoolFraction(float fraction) {
 			if (fraction <= 0f || _echoPool <= 0f) return;
+			// Lingering-kit pass: a Venom-blocked reclaim burns no pool (the gate runs before the debit).
+			if (IsHealingBlocked) return;
 			float amount = MathF.Min(_echoPool, _echoPool * fraction);
 			_echoPool -= amount;
 			if (_echoPool <= 0.0001f) {
@@ -4255,8 +4257,10 @@ namespace FTT.Characters {
 			}
 		}
 
-		public int HealStory(int amount) {
+		public int HealStory(int amount, bool isDefyHeal = false) {
 			if (CurrentState == CharacterState.Dead || amount <= 0) return 0;
+			// Lingering-kit pass (plan 1.8): Venom blocks every heal but Defy's.
+			if (FTT.Combat.LingeringKitRules.VenomBlocksHeal(HasStatusEffect(FTT.Core.StatusType.Venom), isDefyHeal)) return 0;
 			int previousHP = CurrentHP;
 			CurrentHP = Math.Min(MaximumHP, CurrentHP + amount);
 			int healed = CurrentHP - previousHP;

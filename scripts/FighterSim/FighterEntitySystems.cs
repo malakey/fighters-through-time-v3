@@ -288,6 +288,16 @@ namespace FTT.FighterSim {
     }
 
     internal static class FighterDamageRules {
+        /// <summary>
+        /// Lingering-kit pass (plan 1.8): the sim's one healing gate. While Venom is on the
+        /// damage slot every heal is blocked except Defy's (<c>FighterDefyBlastRules.Heal</c>
+        /// does not call this): Rally reclaim burns no pool and the healing orb restores nothing.
+        /// </summary>
+        public static bool CanHeal(in FighterRuntimeComponent runtime) =>
+            !FTT.Combat.LingeringKitRules.VenomBlocksHeal(
+                runtime.DamageStatusFrames > 0 && runtime.DamageStatusType == (int)FTT.Core.StatusType.Venom,
+                isDefyHeal: false);
+
         public const int BasicAttackClass = 1;
         public const int SpecialAttackClass = 2;
         public const int UltimateAttackClass = 3;
@@ -744,7 +754,8 @@ namespace FTT.FighterSim {
             int missingHP = attacker.MaxHP - attacker.CurrentHP;
             if (collectsEcho && attackClass != HazardAttackClass
                 && attackerVerb.EchoPool > FP64.Zero && actualDamage > 0
-                && attacker.MaxHP > 0 && missingHP > 0) {
+                && attacker.MaxHP > 0 && missingHP > 0
+                && CanHeal(in attackerRuntime)) {
                 FP64 reclaimAmount = FP64.Min(
                     FP64.Min(
                         attackerVerb.EchoPool,
@@ -1092,7 +1103,7 @@ namespace FTT.FighterSim {
                 targetRuntime.DamageStatusType = statusType;
                 targetRuntime.DamageStatusFrames = statusFrames;
                 targetRuntime.DamageStatusIntensity = intensity;
-                targetRuntime.StatusTickFrames = statusType == (int)StatusType.Venom ? 60 : 0;
+                targetRuntime.StatusTickFrames = statusType == (int)StatusType.Venom ? FighterLingeringKitRules.VenomTickFrames : 0;
                 return;
             }
             if (!FTT.Combat.StatusRouting.ShouldReplaceRaw(
@@ -1503,6 +1514,7 @@ namespace FTT.FighterSim {
                     FighterSpecialCancelRules.NoteLanded(
                         ref frame.Get<FighterActionStateComponent>(entity),
                         FighterHitContractTable.SlotSpecialTwo, thrustOutcome, thrustDamage, in contract);
+                    FighterLingeringKitRules.NoteOwnerSpecialHit(ref attackerVerb, thrustOutcome, thrustDamage, in contract);
                 } else {
                     FighterDamageRules.ApplyFighterHit(
                         ref frame.Get<FighterActionStateComponent>(targetEntity),
@@ -2208,6 +2220,9 @@ namespace FTT.FighterSim {
                             shotSlot, projectileOutcome, contactDamage,
                             _contracts.For(projectile.OwnerPlayerID, shotSlot),
                             projectile.CastId);
+                        FighterLingeringKitRules.NoteOwnerSpecialHit(
+                            ref ownerVerb, projectileOutcome, contactDamage,
+                            _contracts.For(projectile.OwnerPlayerID, shotSlot));
                     }
                 }
                 if (bursting) {
@@ -2252,6 +2267,13 @@ namespace FTT.FighterSim {
             // A04 (Package 13 W1): a fallen owner's objects are gone before
             // any of them can act again — no final attack, no pending damage.
             FighterStockLossRules.DespawnOwnedByFallenFighters(ref frame);
+            // Lingering-kit pass: the owed synced strikes the hit sites recorded this tick are read
+            // and cleared here, before the objects act. KL-SIM turns the count into strikes; until
+            // then it only clears, so the count never accumulates across ticks.
+            var owedFilter = frame.Filter<FighterVerbComponent>();
+            while (owedFilter.Next(out EntityRef owedEntity)) {
+                FighterLingeringKitRules.TakeOwedStrikes(ref frame.Get<FighterVerbComponent>(owedEntity));
+            }
             UpdateCoilLinks(ref frame);
             var filter = frame.Filter<FighterPersistentObjectComponent>();
             while (filter.Next(out EntityRef persistentEntity)) {
@@ -3094,6 +3116,8 @@ namespace FTT.FighterSim {
             ref FighterDefenseComponent defense,
             int effectType) {
             if (effectType == 0) {
+                // Lingering-kit pass: Venom blocks the healing orb (a blocked orb is still consumed).
+                if (!FighterDamageRules.CanHeal(in runtime)) return;
                 int heal = fighter.MaxHP * 20 / 100;
                 int healed = fighter.CurrentHP + heal;
                 fighter.CurrentHP = healed < fighter.MaxHP ? healed : fighter.MaxHP;
@@ -3349,6 +3373,12 @@ namespace FTT.FighterSim {
                         ref frame.Get<FighterActionStateComponent>(attackerEntity),
                         pulseSlot, pulseOutcome, pulseDamage, _contracts.For(zone.OwnerPlayerID, pulseSlot),
                         zone.CastId);
+                    // Lingering-kit pass: a direct Special pulse is an owed synced strike, except Tesla's
+                    // Lorentz Pulse (the discharge replaces its chain, and the Pulse never triggers a strike).
+                    if (zone.ZoneTypeID != (int)FighterCharacterID.Tesla * 10 + FighterHitContractTable.SlotSpecialTwo) {
+                        FighterLingeringKitRules.NoteOwnerSpecialHit(
+                            ref attackerVerb, pulseOutcome, pulseDamage, _contracts.For(zone.OwnerPlayerID, pulseSlot));
+                    }
                 }
 
                 // M02: the first pulse of a chord execution that lands shaves

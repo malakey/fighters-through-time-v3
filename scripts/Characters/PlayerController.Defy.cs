@@ -149,7 +149,7 @@ namespace FTT.Characters {
 			if (CurrentState == CharacterState.Dead) return 0;
 			int pool = Mathf.RoundToInt(_echoPool);
 			int heal = BasicComboRules.DefyHealPoints(MaximumHP - CurrentHP, pool, MaximumHP);
-			int healed = HealStory(heal);
+			int healed = HealStory(heal, isDefyHeal: true);
 			_echoPool = 0f;
 			_echoDrainPerFrame = 0f;
 			return healed;
