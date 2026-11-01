@@ -258,5 +258,18 @@ namespace FTT.Combat {
         /// field above is the contact POSITION and keeps its name.
         /// </summary>
         public FTT.Combat.HitOrigin Origin;
+        /// <summary>
+        /// Lingering-kit pass (2026-10-31, plan 1.1): the hit "counts as combo". An
+        /// orthogonal marker, default false, that D1a (the only definition of
+        /// "landed") leaves alone. Set ONLY on a synced construct strike, the Lorentz
+        /// discharge burst, the Rift collapse hit, the Vortex final launch and a Golden
+        /// Ratio tick. It gates exactly two things: D3 arming (inside the owner's own
+        /// cast, attributed by <see cref="SourceExecutionSerial"/> as ever) and the
+        /// Momentum payout (<see cref="LingeringKitRules.MomentumUnitsFor"/>, paid once per
+        /// event by the caller). It never sets the D1 swing latch C, gives no Rally echo,
+        /// adds no hitstop and does not change <see cref="Delivery"/>. Story only: the
+        /// Fighter simulation has its own call, <c>FighterLingeringKitRules.CountsAsCombo</c>.
+        /// </summary>
+        public bool CountsAsCombo;
     }
 }

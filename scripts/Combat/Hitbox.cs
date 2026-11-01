@@ -283,6 +283,9 @@ namespace FTT.Combat {
             // call, read back from the struck hurtbox; HitConfirmed carries it
             // (the hit-confirm cancel and per-hit Momentum read it).
             payload.ContactLanded = hurtbox.DidLand(payload.ContactId);
+            // Lingering-kit pass: the owner's hit landed (D1a). The seam the construct strikes and the
+            // Rift collapse subscribe to; raised only for a landed contact (see OwnerHitLandedInfo).
+            SourcePlayer?.RaiseOwnerHitLanded(hurtbox, in payload, hurtbox.GlobalPosition);
             // V7.6 D03h (Package 11 A1b), M08 (Package 12 W3): the shared
             // strike path is the one place every Ultimate hitbox lands, and the
             // meter rule now reads the payload's AUTHORED origin rather than

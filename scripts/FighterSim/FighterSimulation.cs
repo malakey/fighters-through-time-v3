@@ -312,6 +312,40 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
+        /// Lingering-kit pass test seam: applies a status (either slot) to a fighter through the real
+        /// <see cref="FighterDamageRules.ApplyStatus"/> — stronger-wins, tick clock and all — so the
+        /// Venom tick, the healing-block and the slow suites can run the real per-frame system.
+        /// Writes deterministic state and moves the hash.
+        /// </summary>
+        internal bool SeedFighterStatusForTest(int playerID, int statusType, int frames, FP64 intensity) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterRuntimeComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref FighterStateComponent fighter = ref _simulation.Frame.Get<FighterStateComponent>(entity);
+                if (fighter.PlayerID != playerID) continue;
+                ref FighterRuntimeComponent runtime = ref _simulation.Frame.Get<FighterRuntimeComponent>(entity);
+                FighterDamageRules.ApplyStatus(ref fighter, ref runtime, statusType, frames, intensity);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Lingering-kit pass test seam: sets a fighter's owed synced strikes
+        /// (<see cref="FighterVerbComponent.OwedSyncedStrikes"/>), so a suite can prove the persistent-object
+        /// system reads and clears the count within one tick. Moves the hash.
+        /// </summary>
+        internal bool SeedFighterOwedStrikesForTest(int playerID, int owed) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterVerbComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref FighterStateComponent fighter = ref _simulation.Frame.Get<FighterStateComponent>(entity);
+                if (fighter.PlayerID != playerID) continue;
+                _simulation.Frame.Get<FighterVerbComponent>(entity).OwedSyncedStrikes = owed;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Package 13 W6 test seam: raises a fighter's Temporal Aegis (D02e)
         /// directly, so the A02 suite can prove an Aegis-absorbed activation
         /// contact still starts the cinematic. Moves the hash.

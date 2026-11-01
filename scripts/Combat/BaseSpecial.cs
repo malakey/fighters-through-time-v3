@@ -168,7 +168,7 @@ namespace FTT.Combat {
         /// </summary>
         private void NoteLandedHit(in HitPayload payload) {
             if (!IsExecuting || !payload.ContactLanded) return;
-            if (payload.Delivery != HitDelivery.DirectHit) return;
+            if (payload.Delivery != HitDelivery.DirectHit && !payload.CountsAsCombo) return;
             if (payload.SourceExecutionSerial != 0 && payload.SourceExecutionSerial != ExecutionSerial) return;
             LandedDirectHitThisExecution = true;
         }
@@ -525,6 +525,8 @@ namespace FTT.Combat {
             HitPayload landed = payload;
             landed.ContactLanded = struck != null && IsInstanceValid(struck) && struck.DidLand(payload.ContactId);
             CreditDealt(Owner, in landed, dealt);
+            // Lingering-kit pass: the owner's shape-query hit landed (the Hitbox path raises the same seam).
+            Owner?.RaiseOwnerHitLanded(struck, in landed, impactPosition ?? landed.HitOrigin);
             ConfirmAbilityHit(in landed, dealt, impactPosition ?? landed.HitOrigin);
         }
 

@@ -194,6 +194,7 @@ namespace FTT.FighterSim {
                             ref frame.Get<FighterActionStateComponent>(ownerEntity),
                             projectile.ProjectileTypeID % 10, burstOutcome, projectile.Damage, in contract,
                             projectile.CastId);
+                        FighterLingeringKitRules.NoteOwnerSpecialHit(ref ownerVerb, burstOutcome, projectile.Damage, in contract);
                     }
                 }
             }
