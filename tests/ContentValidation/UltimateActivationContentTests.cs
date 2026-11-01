@@ -28,7 +28,8 @@ public class UltimateActivationContentTests {
         UltimateActivationShape Shape, float RangePixels);
 
     // ABILITY_DATA.md "Ultimates" (E06, J05, L04, T03, S04, M05, C04, LN05, Tubman).
-    // Tesla's row is its base (no coils); Cleopatra's 78 counts the 12 Venom.
+    // Tesla's row is its base (no coils); Cleopatra's 84 counts the 18 Venom (2.0 for 3 s at the
+    // lingering-kit pass's 3 HP x intensity a second; 78 and 12 before — see the ledger).
     private static readonly Row[] Table = {
         new("einstein", 78f, 0f, UltimateActivationShape.Projectile, 360f),
         new("joan", 76f, 0f, UltimateActivationShape.Melee, 300f),
@@ -36,7 +37,7 @@ public class UltimateActivationContentTests {
         new("tesla", 70f, 0f, UltimateActivationShape.Projectile, 360f),
         new("shakespeare", 76f, 0f, UltimateActivationShape.Projectile, 360f),
         new("mozart", 80f, 0f, UltimateActivationShape.Projectile, 360f),
-        new("cleopatra", 78f, 12f, UltimateActivationShape.Projectile, 360f),
+        new("cleopatra", 84f, 18f, UltimateActivationShape.Projectile, 360f),
         new("lincoln", 70f, 0f, UltimateActivationShape.GroundWave, 300f),
         new("tubman", 76f, 0f, UltimateActivationShape.Projectile, 360f),
     };
@@ -48,7 +49,7 @@ public class UltimateActivationContentTests {
             AbilityData data = Load(row.Character);
             if (data == null) { issues.Add($"{row.Character}: ultimate.tres did not load"); continue; }
             float statusDamage = data.AppliedStatus == StatusType.Venom
-                ? 2f * data.StatusIntensity * Mathf.Floor(data.StatusDuration)
+                ? LingeringKitRules.VenomDamagePerSecondPerIntensity * data.StatusIntensity * Mathf.Floor(data.StatusDuration)
                 : 0f;
             if (!Mathf.IsEqualApprox(data.UltimateImpactTotal + statusDamage, row.Total)) {
                 issues.Add($"{row.Character}: total {data.UltimateImpactTotal} + {statusDamage} != {row.Total}");

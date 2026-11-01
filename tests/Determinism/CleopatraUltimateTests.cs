@@ -14,7 +14,8 @@ namespace FTT.Tests.Determinism;
 /// spectral asp six units straight ahead (A02); its contact raises the storm
 /// zone (type 43) on the held victim — six impulse-free 9-damage cobra strikes,
 /// then the 12-damage sarcophagus finale carrying the heavy Venom (intensity
-/// 2.0 for 3 s = 12 more), 78 in all. The Venom lands exactly once, on the
+/// 2.0 for 3 s = 18 more since the lingering-kit pass made Venom 3 HP x intensity a second, 12
+/// before), 84 in all (78 before). The Venom lands exactly once, on the
 /// finale, in both modes. The storm bypasses block, reaches beyond melee range
 /// and stays snapshot/rollback safe.
 /// </summary>
@@ -41,7 +42,8 @@ public class CleopatraUltimateTests {
     private const int CobraCount = 6;
     private const int IntervalFrames = 21;
     private const int SlamDamage = 12;
-    private const int VenomTotal = 12;
+    // Lingering-kit pass: Venom is 3 HP x intensity a second (2 before), so the finale's 2.0 for 3 s ticks 6 x 3.
+    private const int VenomTotal = 18;
     private const int ImpactTotal = CobraDamage * CobraCount + SlamDamage;
     private const int UltimateTotal = ImpactTotal + VenomTotal;
 
@@ -75,7 +77,7 @@ public class CleopatraUltimateTests {
     }
 
     [TestCase]
-    public void StormLandsSeventyEightCountingTheFinaleVenom() {
+    public void StormLandsEightyFourCountingTheFinaleVenom() {
         FighterSimulation simulation = BuildChargedSimulation(seed: 72, out int tick);
 
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
@@ -89,7 +91,7 @@ public class CleopatraUltimateTests {
         AssertThat(hpBefore - stormEnd.CurrentHP).IsEqual(ImpactTotal);
 
         // The finale's heavy Venom (2.0 for 3 s) is attached once and ticks
-        // three times for 4 each — exactly the 12 C04 counts in the total.
+        // three times for 6 each (4 each before the lingering-kit pass) — the 18 counted in the total.
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)).IsTrue();
         AssertThat(runtime.DamageStatusType).IsEqual((int)StatusType.Venom);
         AssertThat(runtime.DamageStatusIntensity.RawValue).IsEqual(

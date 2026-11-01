@@ -235,7 +235,8 @@ public class BossControllerTests {
         try {
             boss.ApplyStatusEffect(StatusType.TimeDilation, 2f, 1f);
             AssertThat(boss.ActiveStatusType).IsEqual(StatusType.TimeDilation);
-            AssertThat(boss.StatusMoveMultiplier).IsEqualApprox(0.5f, 0.0001f);
+            // Lingering-kit pass: a boss's Time Dilation is floored at x0.7 (the plain formula gives x0.5).
+            AssertThat(boss.StatusMoveMultiplier).IsEqualApprox(0.7f, 0.0001f);
 
             // Newest status completely replaces the previous one; Root still stops a
             // knockback-immune boss because movement denial is not HP damage.
@@ -416,7 +417,7 @@ public class BossControllerTests {
             AssertThat(boss.StatusScaledDashVelocityX).IsEqualApprox(0f, 0.0001f);
 
             boss.ApplyStatusEffect(StatusType.TimeDilation, 2f, 1f);
-            AssertThat(boss.StatusScaledDashVelocityX).IsEqualApprox(300f, 0.001f);
+            AssertThat(boss.StatusScaledDashVelocityX).IsEqualApprox(420f, 0.001f); // x0.7 boss floor
         } finally {
             FreeBoss(boss);
         }
@@ -536,7 +537,7 @@ public class BossControllerTests {
             AssertThat(slots.Control.Type).IsEqual(StatusType.TimeDilation);
             AssertThat(slots.Damage.Type).IsEqual(StatusType.Venom);
             AssertThat(slots.Has(StatusType.Venom)).IsTrue();
-            AssertThat(boss.StatusMoveMultiplier).IsEqual(0.5f);
+            AssertThat(boss.StatusMoveMultiplier).IsEqual(0.7f);
 
             // Stronger-wins: a weaker same-type reapplication is a no-op and the
             // occupant keeps its own remaining duration.

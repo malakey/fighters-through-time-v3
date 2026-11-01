@@ -29,7 +29,7 @@ public class StoryRiftCollapseTests {
         try {
             einstein = AddEinstein(host);
             EinsteinRelativityRift rift = OpenRift(einstein);
-            AssertThat(rift.ActiveRiftRadiusPixels).IsEqual(90f);
+            AssertThat(rift.ActiveRiftRadiusPixels).IsEqual(150f);
             AssertThat(rift.ActiveRiftCenter.X - einstein.GlobalPosition.X).IsEqual(300f);
         } finally {
             host.Free();

@@ -38,17 +38,19 @@ public class EinsteinContentTests {
     }
 
     [TestCase]
-    public void RelativityRiftLingersHalfASecondAndIsThrownFiveUnits() {
+    public void RelativityRiftLingersAsTheHeroSlowAndIsThrownFiveUnits() {
         var data = AuthoredResources.Load<AbilityData>("res://resources/Abilities/einstein/special_2.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Area);
         AssertThat(data.AppliedStatus).IsEqual(StatusType.TimeDilation);
+        // Lingering-kit pass: the hero slow, x0.4 (intensity 1.2), lingering 1.75 s (105 frames; was 0.5 s).
         AssertThat(Mathf.RoundToInt(data.StatusDuration * 60f)).IsEqual(KitMotionRules.RelativityRiftLingerFrames);
+        AssertThat(data.StatusIntensity).IsEqual(1.2f);
         AssertThat(data.Lifetime).IsEqual(3f);
         AssertThat(data.BaseDamage).IsEqual(3f);
         AssertThat(data.DamageTickIntervalFrames).IsEqual(30);
         AssertThat(KitMotionRules.RelativityRiftThrowUnits).IsEqual(5f);
-        AssertThat(KitMotionRules.RelativityRiftRadiusUnits).IsEqual(1.5f);
+        AssertThat(KitMotionRules.RelativityRiftRadiusUnits).IsEqual(2.5f);
         AssertThat(KitMotionRules.RiftCollapsePullFrames).IsEqual(6);
     }
 

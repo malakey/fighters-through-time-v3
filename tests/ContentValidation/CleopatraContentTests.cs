@@ -47,13 +47,14 @@ public class CleopatraContentTests {
         AssertThat(data.DamageTickIntervalFrames).IsEqual(24);
         AssertThat(data.Lifetime).IsEqual(2f);
         AssertThat(data.AppliedStatus).IsEqual(StatusType.TimeDilation);
-        AssertThat(data.StatusDuration).IsEqual(2f);
-        // -40% speed: TimeDilation multiplies speed by (1 - 0.5 * intensity).
-        AssertThat(data.StatusIntensity).IsEqual(0.8f);
-        // C01 (Package 13 W7b): thrown up to 5 units ahead, 1.8-unit radius,
-        // pulling at 3 units/s.
+        // Lingering-kit pass: the hero slow, x0.4 through TimeDilation's (1 - 0.5 * intensity),
+        // lingering 1.75 s after the victim leaves (was 0.8 for 2 s).
+        AssertThat(data.StatusDuration).IsEqual(1.75f);
+        AssertThat(data.StatusIntensity).IsEqual(1.2f);
+        // C01 (Package 13 W7b): thrown up to 5 units ahead; the lingering-kit pass widened the
+        // radius from 1.8 to 2.5 units; the pull is still the 3 units/s of KitReachRules.
         AssertThat(KitReachRules.SandstormVortexMaxThrowUnits).IsEqual(5.0);
-        AssertFloat(FTT.Characters.Abilities.CleopatraSandstormVortex.VortexRadiusPixels).IsEqualApprox(108f, 0.01f);
+        AssertFloat(FTT.Characters.Abilities.CleopatraSandstormVortex.VortexRadiusPixels).IsEqualApprox(150f, 0.01f);
         AssertThat(KitReachRules.SandstormVortexPullUnitsPerSecond).IsEqual(3.0);
     }
 
