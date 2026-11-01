@@ -432,11 +432,9 @@ public class StoryFirstSpecialTaxTests {
                 // A positional windbox: it builds no hit payload at all.
                 break;
             case "tesla_lorentz_pulse":
-                // The pulse, plus one chain arc per coil he can have standing.
+                // The pulse. Its coil discharge bursts (lingering-kit pass) are construct strikes,
+                // exempt from standard poise, so they add nothing here.
                 hits.Add(hs);
-                for (int coil = 0; coil < teslaCoil.MaxActiveObjects; coil++) {
-                    hits.Add(TeslaLorentzPulse.ChainArcHitstunFrames);
-                }
                 break;
             case "cleopatra_sandstorm_vortex":
                 // Only the final tick carries hitstun.

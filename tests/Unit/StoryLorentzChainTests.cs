@@ -12,28 +12,16 @@ using static GdUnit4.Assertions;
 namespace FTT.Tests.Unit;
 
 /// <summary>
-/// Package 13 W7a (T01, T02, A05, D12) — the Story Lorentz Pulse: a landed pulse
-/// on this Tesla's Conductive-marked target makes each of his own coils within
-/// 8 units (480 px) fire an 8-damage arc at it; a coil farther away is not
-/// eligible and the mark is left alone. The pulse roots for 1.0 s, and Lorentz
-/// Attraction adds 0.5 s.
+/// Package 13 W7a (T02, A05, D12) — the Story Lorentz Pulse: it roots for 1.0 s, Lorentz
+/// Attraction adds 0.5 s, and the Minor Pulse Radius node widens it. (Its T01 mark chain,
+/// "each coil within 8 units fires an 8-damage arc at a marked target", was replaced by the coil
+/// discharge in the lingering-kit pass: <c>StoryLorentzDischargeTests</c>.)
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
 public class StoryLorentzChainTests {
     private const double Step = 1.0 / 60.0;
     private static readonly Vector2 Origin = new(-58000f, 600f);
-
-    [TestCase]
-    public void OnlyACoilWithinEightUnitsChainsAnEightDamageArc() {
-        (int nearLoss, bool nearMarkLeft) = PulseMarkedEnemy("LorentzNear", coilOffset: new Vector2(200f, 0f));
-        (int farLoss, bool farMarkLeft) = PulseMarkedEnemy("LorentzFar", coilOffset: new Vector2(-500f, 0f));
-        AssertThat(nearLoss - farLoss)
-            .OverrideFailureMessage($"A coil within 8 units must add exactly one 8-damage arc ({nearLoss} vs {farLoss}).")
-            .IsEqual(KitMotionRules.LorentzChainArcDamage);
-        AssertThat(nearMarkLeft).OverrideFailureMessage("A chain consumes the mark.").IsFalse();
-        AssertThat(farMarkLeft).OverrideFailureMessage("An ineligible coil leaves the mark alone.").IsTrue();
-    }
 
     [TestCase]
     public void ThePulseRootsForOneSecondAndAttractionAddsHalfASecond() {
@@ -91,37 +79,6 @@ public class StoryLorentzChainTests {
             AssertThat(lorentz.TryExecute()).IsTrue();
             for (int frame = 0; frame < 120 && lorentz.IsExecuting; frame++) lorentz._PhysicsProcess(Step);
             return (hpBefore - enemy.CurrentHP, radius);
-        } finally {
-            host.Free();
-        }
-    }
-
-    private static (int Loss, bool MarkLeft) PulseMarkedEnemy(string name, Vector2 coilOffset) {
-        var host = new Node2D { Name = name };
-        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(host);
-        try {
-            PlayerController tesla = CharacterFactory.CreateCharacter("tesla", 0, applyStoryProgression: false);
-            host.AddChild(tesla);
-            tesla.GlobalPosition = Origin;
-
-            AbilityData coilData = AuthoredResources.Load<AbilityData>("res://resources/Abilities/tesla/special_1.tres");
-            var coil = ResourceLoader.Load<PackedScene>("res://scenes/constructs/TeslaCoil.tscn").Instantiate<TeslaCoilNode>();
-            host.AddChild(coil);
-            coil.GlobalPosition = Origin + coilOffset;
-            coil.Initialize(coilData, tesla, resonantOverdrive: false);
-            tesla.ActivePersistentObjects.Add(coil);
-
-            EnemyController enemy = CreateEnemy("chrono_slasher", host, Origin + new Vector2(80f, 0f));
-            enemy.ApplyConductiveMark(sourcePlayerID: 0, frames: BasicComboRules.ConductiveMarkBaselineFrames);
-            int hpBefore = enemy.CurrentHP;
-
-            var lorentz = tesla.GetNode<TeslaLorentzPulse>("Special2");
-            AssertThat(lorentz.TryExecute()).IsTrue();
-            for (int frame = 0; frame < 120 && lorentz.IsExecuting; frame++) lorentz._PhysicsProcess(Step);
-
-            int loss = hpBefore - enemy.CurrentHP;
-            AssertThat(loss > 0).OverrideFailureMessage("The pulse never landed.").IsTrue();
-            return (loss, enemy.HasConductiveMarkFrom(0));
         } finally {
             host.Free();
         }

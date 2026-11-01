@@ -1,6 +1,7 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/Characters/Abilities/LeonardoTurretNode.cs" id="1_turret"]
+[ext_resource type="Script" path="res://scripts/Characters/Abilities/ConstructChargePips.cs" id="9_pips"]
 [ext_resource type="Script" path="res://scripts/Environment/EnvironmentHurtboxAdapter.cs" id="2_hurtbox"]
 [ext_resource type="Script" path="res://scripts/Core/ContentTemplateMarker.cs" id="3_marker"]
 [ext_resource type="Resource" path="res://resources/Contracts/persistent_construct_contract.tres" id="4_contract"]
@@ -37,6 +38,10 @@ offset_top = -72.0
 offset_right = 24.0
 offset_bottom = -66.0
 show_percentage = false
+
+[node name="ChargePips" type="Node2D" parent="."]
+position = Vector2(0, -60)
+script = ExtResource("9_pips")
 
 [node name="ActionOrigin" type="Marker2D" parent="."]
 position = Vector2(0, -56)

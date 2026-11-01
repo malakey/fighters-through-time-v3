@@ -6,26 +6,30 @@ namespace FTT.Characters.Abilities {
 
     /// <summary>
     /// Story-mode Serpent Nest construct (design Section 4 specification): 15 HP,
-    /// 12 s lifespan, max 1 active per owner. Spectral asps bite every enemy
-    /// passing over the nest at the authored tick interval, dealing light physical
-    /// damage and applying Venom for 4 s. The design's "Root 1 s then Venom 4 s"
-    /// conflicts with the single-status rule (the newest status completely
-    /// replaces the previous), so the brief root is delivered as one second of
-    /// bite hitstun while Venom is the applied status. The nest is
-    /// damageable/destroyable, persists across owner death, freezes during
+    /// 12 s lifespan, max 1 active per owner. <b>Lingering-kit pass (2026-10-31):</b>
+    /// its own bite is now a weak nip (3 damage every 60 frames, 0.15 s of hitstun, no
+    /// Venom, 60 px reach) that spends nothing. The nest holds
+    /// <see cref="LingeringKitRules.NestCharges"/> charges: when its owner's hit
+    /// lands on a target within 2.5 units, a serpent lunges for 6 damage, a 60-frame
+    /// hold and Venom (intensity 1, 4 s), spending one; at 0 the nest fizzles. The
+    /// nest is damageable/destroyable, persists across owner death, freezes during
     /// Chronal Rewind, and fully resets its pooled state.
     /// </summary>
     public partial class SerpentNestNode : FTT.Core.PooledNode, FTT.Core.IPoolable, FTT.Environment.IStoryRewindSimulation, FTT.Environment.IStoryTimeFreezable {
 
-        /// <summary>C01 (Package 13 W7b): the nest is 2.0 units wide — it bites within 1.0 unit (60 px) of its centre.</summary>
-        public static float BiteRangePixels =>
-            (float)KitReachRules.SerpentNestWidthUnits * KitMotionRules.StoryPixelsPerUnit * 0.5f;
+        /// <summary>The nest's own nip reaches 60 px (1.0 unit) from its centre (unchanged; the synced lunge reaches 2.5 units).</summary>
+        public static float BiteRangePixels => LingeringKitRules.NestOwnReachPixels;
         private const int MaxNestHP = 15;
-        private const float RootHitstunSeconds = 1.0f;
-        private const float VenomDurationFallback = 4f;
 
         public int OwnerIndex { get; private set; }
         public bool IsNestDestroyed { get; private set; }
+
+        /// <summary>
+        /// Synced-lunge charges left (plan 1.4). Only a synced lunge spends one; the own nip never does. Reset
+        /// on Initialize and OnDespawn; untouched by Time Freeze and the death rewind.
+        /// </summary>
+        public int Charges { get; private set; }
+        public int MaxCharges => LingeringKitRules.NestCharges;
 
         private PlayerController _ownerPlayer;
         private AbilityData _data;
@@ -38,6 +42,8 @@ namespace FTT.Characters.Abilities {
         private Hurtbox _hurtbox;
         private bool _hurtboxBound;
         private ProgressBar _hpBar;
+        private PlayerController _subscribedOwner;
+        private ConstructChargePips _pips;
 
         // Pooled constructs re-enter the tree on every spawn cycle but _Ready runs
         // once, so the hurtbox subscription lives on the enter/exit pair (audit
@@ -51,6 +57,7 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _ExitTree() {
+            UnsubscribeFromOwner();
             if (!_hurtboxBound) return;
             _hurtboxBound = false;
             if (_hurtbox != null) _hurtbox.OnHit -= OnNestHit;
@@ -68,13 +75,95 @@ namespace FTT.Characters.Abilities {
             _lifetime = (owner?.StoryScoped("AbilityDuration", "cleopatra_serpent_nest") ?? 1f)
                 * (data?.Lifetime > 0f ? data.Lifetime : 12f)
                 * (owner?.StoryPersistentDurationMultiplier ?? 1f);
-            _biteInterval = (data?.DamageTickIntervalFrames ?? 120) / 60f;
-            if (_biteInterval <= 0f) _biteInterval = 2f;
+            _biteInterval = LingeringKitRules.NestOwnNipIntervalFrames / 60f;
             // Asp's Bite (Story-only Resonance major perk): Venom deals double
             // damage to airborne targets; the potency doubles at bite time.
             _aspsBite = aspsBite;
             _biteTimer = _biteInterval;
+            Charges = MaxCharges;
+            SubscribeToOwner(owner);
             UpdateHPBar();
+            UpdatePips();
+        }
+
+        private void UpdatePips() {
+            _pips ??= GetNodeOrNull<ConstructChargePips>("ChargePips");
+            _pips?.SetCharges(Charges, MaxCharges);
+            if (_pips != null) _pips.Visible = !IsNestDestroyed;
+        }
+
+        private void SubscribeToOwner(PlayerController owner) {
+            UnsubscribeFromOwner();
+            if (owner == null) return;
+            _subscribedOwner = owner;
+            owner.OwnerHitLanded += OnOwnerHitLanded;
+        }
+
+        private void UnsubscribeFromOwner() {
+            if (_subscribedOwner != null && IsInstanceValid(_subscribedOwner)) {
+                _subscribedOwner.OwnerHitLanded -= OnOwnerHitLanded;
+            }
+            _subscribedOwner = null;
+        }
+
+        /// <summary>
+        /// Plan 1.3: the owner's landed basic hit or direct Special hit on a target within 2.5 units (a 2D
+        /// circle) makes a serpent lunge at it: 6 damage, a 60-frame hold and Venom (intensity 1, 4 s), one
+        /// charge. A strike, the own nip, a tick, the Pulse or a throw never reaches this (the
+        /// <see cref="OwnerHitLandedInfo.TriggersSyncedStrike"/> filter).
+        /// </summary>
+        private void OnOwnerHitLanded(OwnerHitLandedInfo info) {
+            if (_rewindFrozen || IsNestDestroyed || Charges <= 0 || !info.TriggersSyncedStrike) return;
+            if (info.Target == null || !IsInstanceValid(info.Target)) return;
+            if (!ConstructStrikes.InReach(GlobalPosition, info.Target.GlobalPosition,
+                    LingeringKitRules.NestSyncedReachUnits)) return;
+            Charges--;
+            UpdatePips();
+            HitPayload lunge = BuildNestPayload(
+                LingeringKitRules.NestSyncedLungeDamage, LingeringKitRules.NestSyncedLungeHoldFrames,
+                ConstructStrikes.NestSyncedLungeHitboxID, withVenom: true, countsAsCombo: true,
+                airborne: TargetIsAirborne(info.Target));
+            ConstructStrikes.Deliver(_ownerPlayer, info.Target, in lunge, out _);
+            if (Charges <= 0) DestroyNest();
+        }
+
+        /// <summary>The nest's hit contract: Basic-class, Construct delivery, no knockback or hitstop.</summary>
+        private HitPayload BuildNestPayload(float damage, int hitstunFrames, string hitboxID,
+            bool withVenom, bool countsAsCombo, bool airborne) {
+            // The owner's whole Story ability-damage composition (SpecialDamage, the nest's AbilityDamage
+            // lane and the item-drop damage buff), read at the hit; neutral for an ownerless nest.
+            float damageScale = _ownerPlayer != null && IsInstanceValid(_ownerPlayer)
+                ? _ownerPlayer.StoryAbilityDamageScale(_data?.AbilityID)
+                : 1f;
+            // Story-only StatusDamage minors raise the lunge Venom's potency.
+            float intensityMultiplier = _ownerPlayer != null && IsInstanceValid(_ownerPlayer)
+                ? _ownerPlayer.StoryStatusIntensityMultiplier
+                : 1f;
+            // Asp's Bite (Story-only Resonance major perk): Venom deals double damage to airborne targets.
+            float venomIntensity = LingeringKitRules.NestSyncedLungeVenomIntensityPercent / 100f * intensityMultiplier;
+            if (_aspsBite && airborne) venomIntensity *= 2f;
+            HitPayload payload = BaseSpecial.WithAbilityContract(new HitPayload {
+                AttackerIndex = OwnerIndex,
+                AttackID = _data?.AbilityID ?? "cleopatra_serpent_nest",
+                HitboxID = hitboxID,
+                // A01 (Package 13 W1): persistent-object hits are Basic-class.
+                AttackClass = AttackClass.Basic,
+                Damage = damage * damageScale,
+                Knockback = Vector2.Zero,
+                HitstunDuration = hitstunFrames / 60f,
+                HitOrigin = GlobalPosition,
+                AttackerFacingRight = true,
+                AppliedStatus = withVenom ? FTT.Core.StatusType.Venom : FTT.Core.StatusType.None,
+                StatusDuration = withVenom ? (float)LingeringKitRules.NestSyncedLungeVenomSeconds : 0f,
+                StatusIntensity = withVenom ? venomIntensity : 1f,
+                ScreenShakeIntensity = 0.1f,
+                ScreenShakeDuration = 0.05f,
+                // V7.3: construct ticks carry no hitstop.
+                ExemptFromHitstop = true,
+                CountsAsCombo = countsAsCombo
+            }, _data, _ownerPlayer, HitDelivery.Construct);
+            payload.Launches = false;
+            return payload;
         }
 
         private void UpdateHPBar() {
@@ -88,6 +177,8 @@ namespace FTT.Characters.Abilities {
         public void OnSpawn() { }
 
         public void OnDespawn() {
+            UnsubscribeFromOwner();
+            Charges = 0;
             if (_ownerPlayer != null && IsInstanceValid(_ownerPlayer)) {
                 _ownerPlayer.ActivePersistentObjects.Remove(this);
             }
@@ -134,42 +225,13 @@ namespace FTT.Characters.Abilities {
         }
 
         private void BiteOverlappingTargets() {
-            // The owner's whole Story ability-damage composition (SpecialDamage,
-            // the nest's AbilityDamage lane and the item-drop damage buff), read
-            // at the bite; neutral for an ownerless nest.
-            float damageScale = _ownerPlayer != null && IsInstanceValid(_ownerPlayer)
-                ? _ownerPlayer.StoryAbilityDamageScale(_data?.AbilityID)
-                : 1f;
-            // Story-only StatusDamage minors raise the bite Venom's potency.
-            float intensityMultiplier = _ownerPlayer != null && IsInstanceValid(_ownerPlayer)
-                ? _ownerPlayer.StoryStatusIntensityMultiplier
-                : 1f;
+            // The own nip: 3 damage, 0.15 s of hitstun, no Venom, and it spends no charge.
             foreach (Hurtbox hurtbox in QueryEnemyHurtboxes(GlobalPosition, BiteRangePixels)) {
-                float venomIntensity = (_data?.StatusIntensity ?? 1f) * intensityMultiplier;
-                if (_aspsBite && TargetIsAirborne(hurtbox)) venomIntensity *= 2f;
-                HitPayload bite = BaseSpecial.WithAbilityContract(new HitPayload {
-                    AttackerIndex = OwnerIndex,
-                    AttackID = _data?.AbilityID ?? "cleopatra_serpent_nest",
-                    HitboxID = "nest_bite",
-                    // A01 (Package 13 W1): persistent-object hits are Basic-class.
-                    AttackClass = AttackClass.Basic,
-                    Damage = (_data?.BaseDamage ?? 10f) * damageScale,
-                    Knockback = Vector2.Zero,
-                    // The design's brief Root (1 s) lands as bite hitstun so the
-                    // Venom status below is not immediately replaced.
-                    HitstunDuration = RootHitstunSeconds,
-                    HitOrigin = GlobalPosition,
-                    AttackerFacingRight = true,
-                    AppliedStatus = FTT.Core.StatusType.Venom,
-                    StatusDuration = _data?.StatusDuration > 0f ? _data.StatusDuration : VenomDurationFallback,
-                    StatusIntensity = venomIntensity,
-                    ScreenShakeIntensity = 0.1f,
-                    ScreenShakeDuration = 0.05f,
-                    // V7.3: construct ticks carry no hitstop.
-                    ExemptFromHitstop = true
-                }, _data, _ownerPlayer, HitDelivery.Construct);
-                float dealt = hurtbox.TakeHit(bite);
-                CreditOwnerInfluence(in bite, dealt);
+                HitPayload nip = BuildNestPayload(
+                    LingeringKitRules.NestOwnNipDamage, LingeringKitRules.NestOwnNipHitstunFrames,
+                    "nest_bite", withVenom: false, countsAsCombo: false, airborne: false);
+                float dealt = hurtbox.TakeHit(nip);
+                CreditOwnerInfluence(in nip, dealt);
             }
         }
 
