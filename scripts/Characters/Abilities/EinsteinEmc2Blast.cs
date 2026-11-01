@@ -79,7 +79,8 @@ namespace FTT.Characters.Abilities {
             // resolves, so a blocker the burst then shatters is not pulled.
             // D4 (2026-10-11): the collapse carries this execution's ability ID,
             // so a mob's stun chain counts it as part of this E=mc² Special.
-            GetOwnRift()?.TryCollapse(impactPosition, Data?.AbilityID ?? "einstein_mass_energy_conversion");
+            GetOwnRift()?.TryCollapse(impactPosition, Data?.AbilityID ?? "einstein_mass_energy_conversion",
+                this, executionSerial);
 
             // Burst flash visual only; damage is applied through the shape query so
             // per-target perk multipliers can be evaluated.
