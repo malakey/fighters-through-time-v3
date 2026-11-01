@@ -23,7 +23,8 @@ namespace FTT.Tests.Unit;
 public class ConstructStrikeVictimTests {
     private static readonly Vector2 Origin = new(-78000f, 600f);
 
-    private static HitPayload Construct(bool countsAsCombo, float damage = 10f, float hitstun = 0.5f) => new() {
+    private static HitPayload Construct(bool countsAsCombo, float damage = 10f, float hitstun = 0.5f,
+        HitDelivery delivery = HitDelivery.Construct) => new() {
         AttackerIndex = 0,
         TargetIndex = -1,
         AttackID = "tesla_tesla_coil",
@@ -31,7 +32,7 @@ public class ConstructStrikeVictimTests {
         AttackClass = AttackClass.Basic,
         Damage = damage,
         HitstunDuration = hitstun,
-        Delivery = HitDelivery.Construct,
+        Delivery = delivery,
         Origin = HitOrigin.Special,
         ExemptFromHitstop = true,
         CountsAsCombo = countsAsCombo,
@@ -93,7 +94,7 @@ public class ConstructStrikeVictimTests {
 
             EnemyController control = Mob(host, Origin + new Vector2(400f, 0f));
             control.ApplyStun(1.0f);
-            Hit(control, Construct(countsAsCombo: false, hitstun: 20f / 60f));
+            Hit(control, Construct(countsAsCombo: false, hitstun: 20f / 60f, delivery: HitDelivery.DirectHit));
             AssertFloat(StunSeconds(control)).OverrideFailureMessage("Control: without the marker the shorter stun replaces it.")
                 .IsEqualApprox(20f / 60f, 0.001f);
 
@@ -125,7 +126,7 @@ public class ConstructStrikeVictimTests {
             AssertThat(clone.CurrentState).IsEqual(CharacterState.Stunned);
 
             // Control: the same hit without the marker replaces the stun and drops the tumble.
-            HitPayload plain = Construct(countsAsCombo: false, damage: 5f, hitstun: 20f / 60f);
+            HitPayload plain = Construct(countsAsCombo: false, damage: 5f, hitstun: 20f / 60f, delivery: HitDelivery.DirectHit);
             plain.ContactId = HitClassification.NextContactId();
             HurtboxOf(clone).TakeHit(plain);
             AssertThat((bool)stunTumble.GetValue(clone)!).IsFalse();

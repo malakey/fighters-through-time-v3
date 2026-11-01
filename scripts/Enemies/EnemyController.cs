@@ -2782,7 +2782,7 @@ namespace FTT.Enemies {
                     chargesStandardPoise: FTT.Combat.StoryEnemyCombatRules.ChargesStandardPoise(
                         hit.AttackClass, hit.Origin) && !FTT.Combat.ConstructStrikes.IsStrike(in hit),
                     carriesKnockback: knockbackWritten,
-                    keepLongerStun: FTT.Combat.ConstructStrikes.IsStrike(in hit));
+                    keepLongerStun: FTT.Combat.ConstructStrikes.KeepsCurrentStun(in hit));
             }
             if (hit.AppliedStatus != StatusType.None && hit.StatusDuration > 0f) {
                 ApplyStatusEffect(hit.AppliedStatus, hit.StatusDuration, hit.StatusIntensity,

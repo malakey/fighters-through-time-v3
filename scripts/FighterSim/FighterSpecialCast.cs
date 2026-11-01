@@ -126,6 +126,10 @@ namespace FTT.FighterSim {
         public const int DefyCounterShift = 12;
         /// <summary>Mask of the wrapping Defy count in <see cref="ActionFlags"/> (bits 12-15).</summary>
         public const int DefyCounterMask = 0xF000;
+        /// <summary>Shift of the wrapping 4-bit synced-strike count in <see cref="ActionFlags"/> bits 16-19 (review round 1, finding 7: presentation edge detection that outlives a construct destroyed by its last charge).</summary>
+        public const int StrikeCounterShift = 16;
+        /// <summary>Mask of the wrapping synced-strike count in <see cref="ActionFlags"/> (bits 16-19).</summary>
+        public const int StrikeCounterMask = 0xF0000;
     }
 
     /// <summary>

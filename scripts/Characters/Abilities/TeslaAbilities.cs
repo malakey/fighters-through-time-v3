@@ -302,6 +302,9 @@ namespace FTT.Characters.Abilities {
                 if (!IsInstanceValid(coil) || coil.IsCoilDestroyed) continue;
                 Hurtbox target = PickDischargeTarget(coil);
                 if (target == null || !coil.TryBuildDischarge(out HitPayload burst)) continue;
+                // Review round 1: the burst belongs to THIS Pulse cast (explicit D3 attribution, never
+                // serial 0); its Special class is set where it is built (TryBuildDischarge).
+                burst.SourceExecutionSerial = ExecutionSerial;
                 float dealt = target.TakeHit(burst);
                 Credit(target, in burst, dealt, target.GlobalPosition);
                 if (!paid && dealt > 0f && target.DidLand(burst.ContactId)) {

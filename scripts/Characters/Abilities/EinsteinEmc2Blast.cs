@@ -148,7 +148,7 @@ namespace FTT.Characters.Abilities {
         public float BurstRadius => Data?.ProjectileBurstRadius > 0f ? Data.ProjectileBurstRadius : DefaultBurstRadius;
 
         /// <summary>Test seam: resolves the burst at <paramref name="impactPosition"/> synchronously.</summary>
-        public void DetonateForTest(Vector2 impactPosition) => Detonate(impactPosition, 0);
+        public void DetonateForTest(Vector2 impactPosition) => Detonate(impactPosition, ExecutionSerial);
 
         private EinsteinRelativityRift GetOwnRift() {
             if (Owner == null || !IsInstanceValid(Owner)) return null;

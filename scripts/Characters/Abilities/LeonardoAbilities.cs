@@ -38,6 +38,18 @@ namespace FTT.Characters.Abilities {
         private float _growthPerSecond;
         /// <summary>Lingering-kit pass: Momentum HoldCast is paid once per cast, on its first landed tick.</summary>
         private bool _holdCastPaid;
+        /// <summary>Review round 1: the 0-based index of the tick being resolved (tick 1 alone carries the churn hitstun).</summary>
+        private int _tickIndex;
+
+        /// <summary>
+        /// Review round 1 (finding 4, decision 24): the hitstun frames of tick <paramref name="tickIndex"/>
+        /// (0-based). Only tick 1 carries the normal hitstun (<see cref="ChurnTickHitstunFrames"/>); the
+        /// middle tick holds by the pull alone. The FINAL tick keeps its authored launch and hitstun
+        /// (<paramref name="authoredFinalFrames"/>), exactly as the sim does today: its last pulse is
+        /// impulse-free and the zone's expiry pulse delivers the authored shove and 12 frames.
+        /// </summary>
+        public static int TickHitstunFramesFor(int tickIndex, bool finalTick, int authoredFinalFrames) =>
+            finalTick ? authoredFinalFrames : tickIndex == 0 ? ChurnTickHitstunFrames : 0;
 
         /// <summary>The expanding spiral's current radius after Story minors (test observable).</summary>
         public float ActiveSpiralRadiusPixels => _radius;
@@ -77,6 +89,7 @@ namespace FTT.Characters.Abilities {
                 : 0f;
             _spiralActive = true;
             _holdCastPaid = false;
+            _tickIndex = 0;
 
             // Placeholder spiral visual only; damage runs through the shape queries
             // below so per-target perk behavior can be evaluated.
@@ -99,6 +112,7 @@ namespace FTT.Characters.Abilities {
             if (_tickTimer > 0f) return;
             _tickTimer = _tickInterval;
             TickSpiral();
+            _tickIndex++;
             _ticksRemaining--;
             if (_ticksRemaining <= 0) _spiralActive = false;
         }
@@ -143,7 +157,9 @@ namespace FTT.Characters.Abilities {
                     AttackClass = AttackClass.Special,
                     Damage = damage,
                     Knockback = finalTick ? (Data?.KnockbackForce ?? new Vector2(3, -2)) : Vector2.Zero,
-                    HitstunDuration = finalTick ? (Data?.HitstunDuration ?? 0.2f) : ChurnTickHitstunFrames / 60f,
+                    HitstunDuration = finalTick
+                        ? (Data?.HitstunDuration ?? 0.2f)
+                        : TickHitstunFramesFor(_tickIndex, false, 0) / 60f,
                     HitOrigin = _spiralCenter,
                     AttackerFacingRight = pushRight,
                     AppliedStatus = FTT.Core.StatusType.None,

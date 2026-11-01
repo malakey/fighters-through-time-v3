@@ -41,15 +41,15 @@ namespace FTT.Characters {
 
 		/// <summary>
 		/// The synced-strike trigger rule (plan 1.3): a landed <b>basic hit</b> or a landed
-		/// <b>direct Special hit</b> (<c>DirectHit</c> delivery, Basic or Special origin, never
-		/// Ultimate-origin). Never a construct hit, a tick, another strike (anything
-		/// <c>CountsAsCombo</c>), a throw, an Ultimate or the Lorentz Pulse / its chain arcs
-		/// (the discharge replaces them): that rules out loops.
+		/// <b>direct Special hit</b> (Basic or Special origin, never Ultimate-origin), Golden Ratio's
+		/// ticks included (decision 18, as the sim: the CountsAsCombo marker is NOT an exclusion). Never a
+		/// construct hit (Construct delivery: strikes, discharge, own attacks), a Tick / zone delivery, a throw, an Ultimate or the
+		/// Lorentz Pulse / its chain arcs (the discharge replaces them), by delivery or identity and
+		/// never by the CountsAsCombo marker: that rules out loops.
 		/// </summary>
 		public bool TriggersSyncedStrike =>
 			Landed
 			&& Payload.ContactLanded
-			&& !Payload.CountsAsCombo
 			&& Payload.Delivery == HitDelivery.DirectHit
 			&& (Payload.Origin == HitOrigin.Basic || Payload.Origin == HitOrigin.Special)
 			&& Payload.HitboxID != BasicComboRules.ThrowHitboxID
@@ -104,10 +104,12 @@ namespace FTT.Characters {
 		/// plain stun is only extended: max semantics); true means "handled, skip ApplyStun".
 		/// </summary>
 		private bool ConstructStrikeKeepsCurrentStun(in HitPayload hit) {
-			if (!ConstructStrikes.IsStrike(in hit)) return false;
+			if (!ConstructStrikes.KeepsCurrentStun(in hit)) return false;
 			if (CurrentState != CharacterState.Stunned && CurrentState != CharacterState.Thrown
 				&& !_tumbleAfterHitstun && !IsKnockedDown) return false;
-			if (CurrentState == CharacterState.Stunned && !_stunTumble && !_tumbleAfterHitstun && !IsKnockedDown) {
+			// Review round 1 (finding 6): a launched victim (tumbling inside its hitstun) also gets
+			// max(current, incoming); velocity, tumble and bounce state are untouched.
+			if (CurrentState == CharacterState.Stunned && !_tumbleAfterHitstun && !IsKnockedDown) {
 				_stunTimer = Math.Max(_stunTimer, hit.HitstunDuration);
 			}
 			return true;

@@ -71,7 +71,7 @@ public class OwnerHitSeamTests {
             ("burst", HitDelivery.DirectHit, HitOrigin.Ultimate, false, "an Ultimate"),
             ("pulse", HitDelivery.DirectHit, HitOrigin.Special, false, "the Lorentz Pulse"),
             ("chain_lightning", HitDelivery.DirectHit, HitOrigin.Special, false, "the chain arc"),
-            ("synced", HitDelivery.DirectHit, HitOrigin.Special, true, "another strike (CountsAsCombo)")
+            ("synced", HitDelivery.Construct, HitOrigin.Special, true, "another strike (a Construct delivery)")
         }) {
             HitPayload payload = Landed(id, delivery, origin);
             payload.CountsAsCombo = combo;
@@ -79,6 +79,11 @@ public class OwnerHitSeamTests {
                 .OverrideFailureMessage($"{why} must never trigger a synced strike.")
                 .IsFalse();
         }
+
+        // Review round 1 (decision 18): the CountsAsCombo marker alone excludes nothing (Golden Ratio's ticks).
+        HitPayload goldenTick = Landed("spiral_tick", HitDelivery.DirectHit, HitOrigin.Special);
+        goldenTick.CountsAsCombo = true;
+        AssertThat(new OwnerHitLandedInfo(null, in goldenTick, true, Vector2.Zero).TriggersSyncedStrike).IsTrue();
 
         HitPayload whiff = Landed("combo_1", HitDelivery.DirectHit, HitOrigin.Basic);
         whiff.ContactLanded = false;

@@ -65,6 +65,23 @@ namespace FTT.FighterSim {
         private static readonly FPVector2 BoltHalfExtents = new(FP64.FromDouble(0.2), FP64.FromDouble(0.2));
         private const int PendingBoltCapacity = 8;
 
+        /// <summary>
+        /// Review round 1 (finding 7): records that this owner fired a synced strike, on a wrapping 4-bit
+        /// count in 323 <c>ActionFlags</c> bits 16-19. The construct that spent its LAST charge is destroyed
+        /// in the same update, so the driver cannot see its charge drop; it reads this count instead.
+        /// Rollback-safe (snapshot state), integer only.
+        /// </summary>
+        public static void NoteStrikeFired(ref FighterActionStateComponent action) {
+            int next = (((action.ActionFlags & FighterActionStateComponent.StrikeCounterMask)
+                >> FighterActionStateComponent.StrikeCounterShift) + 1) & 0xF;
+            action.ActionFlags = (action.ActionFlags & ~FighterActionStateComponent.StrikeCounterMask)
+                | (next << FighterActionStateComponent.StrikeCounterShift);
+        }
+
+        /// <summary>The owner's synced-strike count (0-15).</summary>
+        public static int StrikeCount(in FighterActionStateComponent action) =>
+            (action.ActionFlags & FighterActionStateComponent.StrikeCounterMask) >> FighterActionStateComponent.StrikeCounterShift;
+
         public static bool IsSyncedBolt(in FighterProjectileComponent projectile) =>
             projectile.UltimateOrigin == 0 && projectile.ProjectileTypeID % 10 == SyncedBoltSlot;
 
@@ -97,6 +114,7 @@ namespace FTT.FighterSim {
                         if (!FighterLingeringKitRules.WithinReach(
                                 in construct.Position, in target.Position, FighterLingeringKitRules.CoilSyncedReachSquared)) continue;
                         FighterConstructCharges.Spend(ref construct);
+                        NoteStrikeFired(ref frame.Get<FighterActionStateComponent>(ownerEntity));
                         fired = true;
                         PayStrike(ref frame, ownerEntity, targetEntity, FighterLingeringKitRules.Strike(
                             ref frame, ownerEntity, targetEntity,
@@ -107,6 +125,7 @@ namespace FTT.FighterSim {
                         if (!FighterLingeringKitRules.WithinReach(
                                 in construct.Position, in target.Position, FighterLingeringKitRules.NestSyncedReachSquared)) continue;
                         FighterConstructCharges.Spend(ref construct);
+                        NoteStrikeFired(ref frame.Get<FighterActionStateComponent>(ownerEntity));
                         fired = true;
                         PayStrike(ref frame, ownerEntity, targetEntity, FighterLingeringKitRules.Strike(
                             ref frame, ownerEntity, targetEntity,
@@ -120,6 +139,7 @@ namespace FTT.FighterSim {
                                 in construct.Position, in target.Position, FighterLingeringKitRules.TurretSyncedReachSquared)) continue;
                         if (pendingCount >= PendingBoltCapacity) continue;
                         FighterConstructCharges.Spend(ref construct);
+                        NoteStrikeFired(ref frame.Get<FighterActionStateComponent>(ownerEntity));
                         fired = true;
                         pendingBolts ??= new FPVector2[PendingBoltCapacity];
                         pendingBolts[pendingCount++] = construct.Position;

@@ -27,6 +27,14 @@ namespace FTT.Combat {
         public static bool IsStrike(in HitPayload payload) =>
             payload.CountsAsCombo && payload.Delivery == HitDelivery.Construct;
 
+        /// <summary>
+        /// Review round 1 (finding 3): every construct-delivered hit (a synced strike, a discharge, a
+        /// construct's OWN attack, a fence tick) only ever LENGTHENS a stun the victim already has: it
+        /// never shortens or cancels a hold, hitstun, launch or tumble. The sim's twin is
+        /// <c>preserveStun: true</c>.
+        /// </summary>
+        public static bool KeepsCurrentStun(in HitPayload payload) => payload.Delivery == HitDelivery.Construct;
+
         /// <summary>A synced strike (pays the 0.05-pip Momentum bonus), as opposed to the discharge (paid once per Pulse).</summary>
         public static bool IsSyncedStrike(in HitPayload payload) =>
             IsStrike(in payload)

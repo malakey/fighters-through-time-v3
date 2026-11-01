@@ -168,7 +168,15 @@ namespace FTT.Combat {
         /// </summary>
         private void NoteLandedHit(in HitPayload payload) {
             if (!IsExecuting || !payload.ContactLanded) return;
-            if (payload.Delivery != HitDelivery.DirectHit && !payload.CountsAsCombo) return;
+            if (payload.Delivery != HitDelivery.DirectHit) {
+                // Review round 1 (finding 1): a CountsAsCombo detonation / hold arms D3 only with an
+                // explicit attribution to THIS execution (serial 0 never matches), and a synced
+                // construct strike never arms it (plan 1.3; the sim passes armD3: false).
+                if (!payload.CountsAsCombo || ConstructStrikes.IsSyncedStrike(in payload)) return;
+                if (payload.SourceExecutionSerial == 0 || payload.SourceExecutionSerial != ExecutionSerial) return;
+                LandedDirectHitThisExecution = true;
+                return;
+            }
             if (payload.SourceExecutionSerial != 0 && payload.SourceExecutionSerial != ExecutionSerial) return;
             LandedDirectHitThisExecution = true;
         }

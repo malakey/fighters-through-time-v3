@@ -2351,7 +2351,9 @@ namespace FTT.FighterSim {
                 // Construct hits never reclaim the owner's Rally echo (V7.1: only
                 // direct hits collect), and never apply hitstop (V7.3: only
                 // direct player-authored hits carry the freeze).
-                FighterDamageRules.ApplyFighterHit(
+                // Review round 1 (finding 3): preserveStun, so an own attack never shortens or cancels a
+                // hold, hitstun, launch or tumble already on the target (a synced lunge's 60-frame hold).
+                FighterDamageRules.ResolveFighterHit(
                     ref frame.Get<FighterActionStateComponent>(targetEntity),
                     ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     FighterDamageRules.BasicAttackClass, persistent.Damage, persistent.Knockback,
@@ -2363,7 +2365,8 @@ namespace FTT.FighterSim {
                     appliesHitstop: false,
                     // M05: construct hits are authored non-launching (all four
                     // construct abilities carry Launches = false).
-                    launches: false);
+                    launches: false,
+                    preserveStun: true);
                 // Lingering-kit pass: an own attack spends no charge (plan 1.4).
                 persistent.ActionCooldownFrames = persistent.BaseActionCooldownFrames;
             }
@@ -2431,14 +2434,15 @@ namespace FTT.FighterSim {
                 ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
                 // Fence ticks are construct damage — no Rally echo reclaim,
                 // no hitstop (V7.3).
-                bool fenceLanded = FighterDamageRules.ApplyFighterHit(
+                bool fenceLanded = FighterDamageRules.ResolveFighterHit(
                     ref frame.Get<FighterActionStateComponent>(targetEntity),
                     ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     FighterDamageRules.BasicAttackClass, FenceDamage, FP64.Zero, FenceHitstunFrames,
                     (int)StatusType.StaticCharge, FenceStaticChargeFrames, FP64.FromDouble(0.5),
                     fenceCenter.x, collectsEcho: false,
                     appliesHitstop: false,
-                    launches: false);
+                    launches: false,
+                    preserveStun: true) == FighterHitOutcome.Landed;
                 // F07/T02 (Package 13 W7a): a landed fence tick also lays the
                 // owning Tesla's baseline Conductive mark (Story's fence already
                 // did), so a fence catch primes the Lorentz chain in both modes.

@@ -179,6 +179,9 @@ namespace FTT.Characters.Abilities {
             burst = BuildSyncedPayload(
                 LingeringKitRules.DischargeDamagePerCharge * Charges, LingeringKitRules.DischargeHitstunFrames,
                 ConstructStrikes.CoilDischargeHitboxID);
+            // Review round 1 (finding 5): the discharge is part of the Pulse cast, so it is Special class
+            // in both modes (the sim passes SpecialAttackClass): a blocked burst costs 2 shield charges.
+            burst.AttackClass = AttackClass.Special;
             return true;
         }
 
