@@ -26,7 +26,10 @@ public class CleopatraContentTests {
         // V7 tuning batch: the documented 1 s bite cadence at a lighter 6-damage
         // bite, so standing on the nest is real area denial instead of one bite.
         AssertThat(data.DamageTickIntervalFrames).IsEqual(60);
-        AssertThat(data.BaseDamage).IsEqual(6f);
+        // Lingering-kit integration: the own nip is authored here and read by both modes - 3 damage every
+        // 60 frames with 9 frames of hitstun (the 6-damage Venom lunge is the rulebook's synced strike).
+        AssertThat(data.BaseDamage).IsEqual(3f);
+        AssertThat(data.HitstunFrames).IsEqual(9);
         AssertThat(data.CooldownDuration).IsEqual(0f);
         // The bite carries Venom for 4 s alongside its brief hitstun; under the
         // V7 two-slot status rule the DoT survives later control statuses.

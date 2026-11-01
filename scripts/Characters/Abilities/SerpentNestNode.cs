@@ -75,7 +75,7 @@ namespace FTT.Characters.Abilities {
             _lifetime = (owner?.StoryScoped("AbilityDuration", "cleopatra_serpent_nest") ?? 1f)
                 * (data?.Lifetime > 0f ? data.Lifetime : 12f)
                 * (owner?.StoryPersistentDurationMultiplier ?? 1f);
-            _biteInterval = LingeringKitRules.NestOwnNipIntervalFrames / 60f;
+            _biteInterval = (data?.DamageTickIntervalFrames > 0 ? data.DamageTickIntervalFrames : 60) / 60f;
             // Asp's Bite (Story-only Resonance major perk): Venom deals double
             // damage to airborne targets; the potency doubles at bite time.
             _aspsBite = aspsBite;
@@ -225,10 +225,10 @@ namespace FTT.Characters.Abilities {
         }
 
         private void BiteOverlappingTargets() {
-            // The own nip: 3 damage, 0.15 s of hitstun, no Venom, and it spends no charge.
+            // The own nip (damage, interval and hitstun authored in cleopatra/special_1.tres): no Venom, and it spends no charge.
             foreach (Hurtbox hurtbox in QueryEnemyHurtboxes(GlobalPosition, BiteRangePixels)) {
                 HitPayload nip = BuildNestPayload(
-                    LingeringKitRules.NestOwnNipDamage, LingeringKitRules.NestOwnNipHitstunFrames,
+                    _data?.BaseDamage ?? 3f, _data?.HitstunFrames ?? 9,
                     "nest_bite", withVenom: false, countsAsCombo: false, airborne: false);
                 float dealt = hurtbox.TakeHit(nip);
                 CreditOwnerInfluence(in nip, dealt);

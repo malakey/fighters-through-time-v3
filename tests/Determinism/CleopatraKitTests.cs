@@ -92,8 +92,8 @@ public class CleopatraKitTests {
 
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
         // Lingering-kit pass: the own bite is a nip - 3 damage, 9 frames of hitstun, no Venom.
-        AssertThat(target.CurrentHP).IsEqual(100 - FTT.Combat.LingeringKitRules.NestOwnNipDamage);
-        AssertThat(maxHitstunObserved >= FTT.Combat.LingeringKitRules.NestOwnNipHitstunFrames - 1).IsTrue();
+        AssertThat(target.CurrentHP).IsEqual(100 - 3);
+        AssertThat(maxHitstunObserved >= 9 - 1).IsTrue();
         AssertThat(maxHitstunObserved < 20).IsTrue();
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)).IsTrue();
         AssertThat(runtime.DamageStatusType).IsNotEqual((int)StatusType.Venom);
@@ -228,7 +228,10 @@ public class CleopatraKitTests {
         BasicAttackKnockback = 3f,
         SpecialAttackOne = new AbilityData {
             ExecutionType = AbilityExecutionType.PersistentObject,
-            BaseDamage = 10f,
+            // The own nip as cleopatra/special_1.tres authors it: 3 every 60 frames, 9 frames of hitstun.
+            BaseDamage = 3f,
+            DamageTickIntervalFrames = 60,
+            HitstunFrames = 9,
             KnockbackForce = new Vector2(2f, -1f),
             PersistentObjectID = "serpent_nest",
             MaxActiveObjects = 1,

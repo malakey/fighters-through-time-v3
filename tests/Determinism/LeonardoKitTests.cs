@@ -80,7 +80,7 @@ public class LeonardoKitTests {
         AssertThat(simulation.TryGetFirstPersistentObject(out FighterPersistentObjectComponent turret)).IsTrue();
         AssertThat(turret.ObjectTypeID).IsEqual(2);
         AssertThat(turret.MaxHP).IsEqual(20);
-        AssertThat(turret.Damage).IsEqual(FTT.Combat.LingeringKitRules.TurretOwnShotDamage);
+        AssertThat(turret.Damage).IsEqual(4);
         AssertThat(turret.RemainingAttacks).IsEqual(4);
         AssertThat(turret.MaxDeployLimit).IsEqual(1);
 
@@ -91,7 +91,7 @@ public class LeonardoKitTests {
         }
         AssertThat(simulation.PersistentObjectCount).IsEqual(1);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
-        AssertThat(target.CurrentHP).IsEqual(100 - 4 * FTT.Combat.LingeringKitRules.TurretOwnShotDamage);
+        AssertThat(target.CurrentHP).IsEqual(100 - 4 * 4);
     }
 
     [TestCase]
@@ -196,7 +196,9 @@ public class LeonardoKitTests {
         SpecialAttackOne = new AbilityData(),
         SpecialAttackTwo = new AbilityData {
             ExecutionType = AbilityExecutionType.PersistentObject,
-            BaseDamage = 5f,
+            // The own shot as leonardo/special_2.tres authors it: 4 every 180 frames.
+            BaseDamage = 4f,
+            DamageTickIntervalFrames = 180,
             PersistentObjectID = "clockwork_turret",
             MaxActiveObjects = 1,
             Lifetime = 15f,
@@ -250,7 +252,8 @@ public class LeonardoKitTests {
         },
         SpecialAttackTwo = new AbilityData {
             ExecutionType = AbilityExecutionType.PersistentObject,
-            BaseDamage = 5f,
+            BaseDamage = 4f,
+            DamageTickIntervalFrames = 180,
             PersistentObjectID = "clockwork_turret",
             MaxActiveObjects = 1,
             Lifetime = 15f,

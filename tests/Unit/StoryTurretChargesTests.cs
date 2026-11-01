@@ -45,7 +45,7 @@ public class StoryTurretChargesTests {
             for (int frame = 0; frame < 800; frame++) turret._PhysicsProcess(Step);
             AssertThat(turret.BoltsFired).OverrideFailureMessage($"One own shot per 180 frames (fired {turret.BoltsFired}).").IsEqual(4);
             // (A plain construct hit is not proration-exempt, so a fourth hit in one stun chain is decayed.)
-            AssertThat(9999 - mob.CurrentHP >= 3 * LingeringKitRules.TurretOwnShotDamage).IsTrue();
+            AssertThat(9999 - mob.CurrentHP >= 3 * (int)AuthoredResources.Load<AbilityData>("res://resources/Abilities/leonardo/special_2.tres").BaseDamage).IsTrue();
             AssertThat(turret.Charges).OverrideFailureMessage("The own shot spends no charge.").IsEqual(4);
             AssertThat(turret.IsTurretDestroyed).OverrideFailureMessage("No longer self-destructs after four bolts.").IsFalse();
 

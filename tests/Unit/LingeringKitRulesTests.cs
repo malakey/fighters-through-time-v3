@@ -20,8 +20,6 @@ public class LingeringKitRulesTests {
         AssertThat(LingeringKitRules.TurretOverdriveBonusCharges).IsEqual(1);
         AssertThat(LingeringKitRules.NestCharges).IsEqual(3);
 
-        AssertThat(LingeringKitRules.CoilOwnArcDamage).IsEqual(5);
-        AssertThat(LingeringKitRules.CoilOwnArcIntervalFrames).IsEqual(120);
         AssertThat(LingeringKitRules.CoilSyncedArcDamage).IsEqual(8);
         AssertThat(LingeringKitRules.CoilSyncedArcHitstunFrames).IsEqual(20);
         AssertThat(LingeringKitRules.CoilSyncedReachUnits).IsEqual(4.0);
@@ -32,17 +30,12 @@ public class LingeringKitRulesTests {
         AssertThat(LingeringKitRules.DischargeCoilReachUnits).IsEqual(4.0);
         AssertThat(LingeringKitRules.DischargeMarkedReachUnits).IsEqual(8.0);
 
-        AssertThat(LingeringKitRules.TurretOwnShotDamage).IsEqual(4);
-        AssertThat(LingeringKitRules.TurretOwnShotIntervalFrames).IsEqual(180);
-        AssertThat(LingeringKitRules.TurretLifetimeSeconds).IsEqual(15);
         AssertThat(LingeringKitRules.TurretOwnShotReachStoryUnits).IsEqual(30.0);
         AssertThat(LingeringKitRules.TurretSyncedBoltDamage).IsEqual(8);
         AssertThat(LingeringKitRules.TurretSyncedBoltHitstunFrames).IsEqual(20);
         AssertThat(LingeringKitRules.TurretSyncedBoltSpeedUnitsPerSecond).IsEqual(24.0);
         AssertThat(LingeringKitRules.TurretSyncedReachUnits).IsEqual(10.0);
 
-        AssertThat(LingeringKitRules.NestOwnNipDamage).IsEqual(3);
-        AssertThat(LingeringKitRules.NestOwnNipIntervalFrames).IsEqual(60);
         AssertThat(LingeringKitRules.NestOwnReachPixels).IsEqual(60);
         AssertThat(LingeringKitRules.NestSyncedLungeDamage).IsEqual(6);
         AssertThat(LingeringKitRules.NestSyncedLungeHoldFrames).IsEqual(60);
@@ -54,6 +47,10 @@ public class LingeringKitRulesTests {
         AssertThat(LingeringKitRules.VortexPullMilliPerSecondSim).IsEqual(7000);
         AssertThat(LingeringKitRules.GoldenRatioPullPercent).IsEqual(50);
         AssertThat(LingeringKitRules.GoldenRatioPullCapUnits).IsEqual(1.5);
+        // One value for Golden Ratio's first-tick hitstun, read by both modes from this rulebook.
+        AssertThat(LingeringKitRules.GoldenRatioFirstTickHitstunFrames).IsEqual(6);
+        AssertThat(FTT.FighterSim.FighterSpiralRules.FirstTickHitstunFrames).IsEqual(LingeringKitRules.GoldenRatioFirstTickHitstunFrames);
+        AssertThat(FTT.Characters.Abilities.LeonardoGoldenRatio.ChurnTickHitstunFrames).IsEqual(LingeringKitRules.GoldenRatioFirstTickHitstunFrames);
     }
 
     [TestCase]

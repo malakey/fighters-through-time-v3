@@ -45,9 +45,11 @@ public class LeonardoContentTests {
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.PersistentObject);
         // V7 tuning batch: 4 bolts of 6 every 2 s inside the 15 s life, so the
         // turret is an active threat from t=2 instead of firing at t=4/8/12.
-        AssertThat(data.BaseDamage).IsEqual(6f);
-        AssertThat(data.HitCount).IsEqual(4);
-        AssertThat(data.DamageTickIntervalFrames).IsEqual(120);
+        // Lingering-kit integration: the OWN shot is authored here and read by both modes - 4 every 180
+        // frames; the 4 charges live in LingeringKitRules, so HitCount no longer carries a second copy.
+        AssertThat(data.BaseDamage).IsEqual(4f);
+        AssertThat(data.HitCount).IsEqual(1);
+        AssertThat(data.DamageTickIntervalFrames).IsEqual(180);
         AssertThat(data.Lifetime).IsEqual(15f);
         AssertThat(data.MaxActiveObjects).IsEqual(1);
         AssertThat(data.PersistentObjectID).IsEqual("clockwork_turret");

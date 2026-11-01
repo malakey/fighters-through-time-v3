@@ -220,6 +220,7 @@ public class TeslaKitTests {
         SpecialAttackOne = new AbilityData {
             ExecutionType = AbilityExecutionType.PersistentObject,
             BaseDamage = 5f,
+            DamageTickIntervalFrames = 120, // as tesla/special_1.tres authors the coil
             PersistentObjectID = "tesla_coil",
             MaxActiveObjects = 2,
             Lifetime = 30f,
@@ -268,6 +269,7 @@ public class TeslaKitTests {
         SpecialAttackOne = new AbilityData {
             ExecutionType = AbilityExecutionType.PersistentObject,
             BaseDamage = 5f,
+            DamageTickIntervalFrames = 120, // as tesla/special_1.tres authors the coil
             PersistentObjectID = "tesla_coil",
             MaxActiveObjects = 2,
             Lifetime = 30f,

@@ -23,7 +23,7 @@ public class LeonardoMidGlideBoltTests {
     [TestCase]
     public void TheTurretCarriesFourChargesAndFiveWithClockworkOverdrive() {
         AbilityData data = AuthoredResources.Load<AbilityData>("res://resources/Abilities/leonardo/special_2.tres");
-        AssertThat(data.HitCount).IsEqual(4);
+        AssertThat(data.HitCount).OverrideFailureMessage("HitCount is not the charge count; the charges live in LingeringKitRules.").IsEqual(1);
         var turret = new LeonardoTurretNode();
         try {
             turret.Initialize(data, owner: null, clockworkOverdrive: false);

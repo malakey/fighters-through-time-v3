@@ -90,8 +90,8 @@ public class LingeringConstructSimTests {
         FighterSimulation sim = Duel(8105);
         PlaceConstruct(sim, 0, CoilType, 0f);
         int hpBefore = Hp(sim, 1);
-        Step(sim, LingeringKitRules.CoilOwnArcIntervalFrames + 10);
-        AssertThat(Hp(sim, 1)).OverrideFailureMessage("The coil's own arc landed.").IsEqual(hpBefore - LingeringKitRules.CoilOwnArcDamage);
+        Step(sim, ConstructOwnAttack.IntervalFrames(CoilType) + 10);
+        AssertThat(Hp(sim, 1)).OverrideFailureMessage("The coil's own arc landed.").IsEqual(hpBefore - ConstructOwnAttack.Damage(CoilType));
         sim.TryGetFirstPersistentObject(out FighterPersistentObjectComponent coil);
         AssertThat(coil.RemainingAttacks).IsEqual(LingeringKitRules.CoilCharges);
     }
@@ -140,6 +140,23 @@ public class LingeringConstructSimTests {
         AssertThat(after.BlockCharges).IsLess(before.BlockCharges);
         AssertThat(MomentumTestKit.Units(sim, 0) - momentum)
             .OverrideFailureMessage("A blocked strike pays no Momentum (only regen).")
+            .IsLess(LingeringKitRules.MomentumUnitsFor(LingeringMomentumEvent.SyncedStrike));
+    }
+
+    [TestCase]
+    public void AStrikeOnAnInvulnerableTargetSpendsTheChargeAndPaysNothing() {
+        FighterSimulation sim = Duel(8120);
+        PlaceConstruct(sim, 0, CoilType, 0f);
+        sim.MutateFighterForTest(1, (ref FighterStateComponent state, ref FighterRuntimeComponent runtime, ref FighterVerbComponent verb) =>
+            state.InvulnerabilityFrames = 60);
+        sim.TryGetFighter(1, out FighterStateComponent before);
+        int momentum = MomentumTestKit.Units(sim, 0);
+        sim.SeedFighterOwedStrikesForTest(0, 1);
+        Step(sim, 1);
+        sim.TryGetFighter(1, out FighterStateComponent after);
+        AssertThat(after.CurrentHP).IsEqual(before.CurrentHP);
+        AssertThat(MomentumTestKit.Units(sim, 0) - momentum)
+            .OverrideFailureMessage("A refused strike pays no Momentum (only regen).")
             .IsLess(LingeringKitRules.MomentumUnitsFor(LingeringMomentumEvent.SyncedStrike));
     }
 
@@ -216,13 +233,13 @@ public class LingeringConstructSimTests {
         PlaceConstruct(sim, 0, TurretType, 0f);
         int hpBefore = Hp(sim, 1);
         // Four own shots at 180 frames each are done by tick 720; the old turret died with its fourth.
-        Step(sim, 4 * LingeringKitRules.TurretOwnShotIntervalFrames + 30);
+        Step(sim, 4 * ConstructOwnAttack.IntervalFrames(TurretType) + 30);
         AssertThat(sim.PersistentObjectCount).OverrideFailureMessage("The turret outlives four own shots.").IsEqual(1);
         sim.TryGetFirstPersistentObject(out FighterPersistentObjectComponent turret);
         AssertThat(turret.RemainingAttacks).OverrideFailureMessage("Own shots spend no charge.").IsEqual(LingeringKitRules.TurretCharges);
         AssertThat(hpBefore - Hp(sim, 1))
             .OverrideFailureMessage("Four own shots of 4 (the old turret dealt 6 a shot).")
-            .IsEqual(4 * LingeringKitRules.TurretOwnShotDamage);
+            .IsEqual(4 * ConstructOwnAttack.Damage(TurretType));
         Step(sim, 400);
         AssertThat(sim.PersistentObjectCount).OverrideFailureMessage("It still ends with its 15 s lifetime.").IsEqual(0);
     }
@@ -232,8 +249,8 @@ public class LingeringConstructSimTests {
         FighterSimulation sim = Duel(8114);
         PlaceConstruct(sim, 0, NestType, 2f); // on the target (its own reach is 1 u)
         int hpBefore = Hp(sim, 1);
-        Step(sim, LingeringKitRules.NestOwnNipIntervalFrames + 5);
-        AssertThat(Hp(sim, 1)).IsEqual(hpBefore - LingeringKitRules.NestOwnNipDamage);
+        Step(sim, ConstructOwnAttack.IntervalFrames(NestType) + 5);
+        AssertThat(Hp(sim, 1)).IsEqual(hpBefore - ConstructOwnAttack.Damage(NestType));
         sim.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime);
         AssertThat(runtime.DamageStatusType).OverrideFailureMessage("The nip carries no Venom.").IsNotEqual((int)StatusType.Venom);
         sim.TryGetFirstPersistentObject(out FighterPersistentObjectComponent nest);
@@ -303,7 +320,7 @@ public class LingeringConstructSimTests {
     /// <summary>Places a construct for <paramref name="player"/> at its feet, shifted by <paramref name="dx"/> units.</summary>
     private static void PlaceConstruct(FighterSimulation sim, int player, int type, float dx) {
         sim.TryGetFighter(player, out FighterStateComponent owner);
-        sim.SpawnPersistentForTest(player, type, new FPVector2(owner.Position.x + FP64.FromDouble(dx), owner.Position.y));
+        ConstructOwnAttack.Spawn(sim, player, type, new FPVector2(owner.Position.x + FP64.FromDouble(dx), owner.Position.y));
     }
 
     private static void Step(FighterSimulation sim, int ticks) {

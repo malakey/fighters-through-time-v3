@@ -107,8 +107,8 @@ namespace FTT.Characters.Abilities {
             OwnerIndex = owner?.PlayerIndex ?? 0;
             // Story-only Resonance minors: ProjectileDamage raises bolt damage and
             // PersistentHealth reinforces the chassis. Both 1f outside Story Mode.
-            // Lingering-kit pass: the own shot is 4 damage (the rulebook, one value).
-            _boltBaseDamage = LingeringKitRules.TurretOwnShotDamage * (owner?.StoryProjectileDamageMultiplier ?? 1f);
+            // Lingering-kit pass: the own shot is authored in the .tres (BaseDamage and DamageTickIntervalFrames), one value for both modes.
+            _boltBaseDamage = (data?.BaseDamage ?? 4f) * (owner?.StoryProjectileDamageMultiplier ?? 1f);
             BoltDamage = owner?.StoryAbilityHitboxDamage(_boltBaseDamage) ?? _boltBaseDamage;
             // Package 11 A4: V7.6 re-scopes "Minor Turret Plating" from the
             // character-wide PersistentHealth lane onto
@@ -121,9 +121,9 @@ namespace FTT.Characters.Abilities {
             IsTurretDestroyed = false;
             // Story-only PersistentDuration minors lengthen the deployment, the
             // same rule the nest/coil/snare constructs already follow.
-            _lifetime = (data?.Lifetime > 0f ? data.Lifetime : LingeringKitRules.TurretLifetimeSeconds)
+            _lifetime = (data?.Lifetime > 0f ? data.Lifetime : 15f)
                 * (owner?.StoryPersistentDurationMultiplier ?? 1f);
-            _fireInterval = LingeringKitRules.TurretOwnShotIntervalFrames / 60f;
+            _fireInterval = (data?.DamageTickIntervalFrames > 0 ? data.DamageTickIntervalFrames : 180) / 60f;
             // Clockwork Overdrive (Story-only Resonance major perk, decision 26): +1 charge, and an own shot
             // at half the interval against Chronal Extractors only.
             _clockworkOverdrive = clockworkOverdrive;

@@ -60,7 +60,7 @@ public class StoryCoilSyncedStrikeTests {
             // The coil's own arc (5 damage, every 120 frames) spends nothing, over many arcs.
             for (int frame = 0; frame < 125; frame++) coil._PhysicsProcess(Step);
             AssertThat(9999 - mob.CurrentHP).OverrideFailureMessage("The own arc is 5 damage.")
-                .IsEqual(LingeringKitRules.CoilOwnArcDamage);
+                .IsEqual((int)AuthoredResources.Load<AbilityData>("res://resources/Abilities/tesla/special_1.tres").BaseDamage);
             AssertThat(coil.Charges).OverrideFailureMessage("An own arc spends no charge.").IsEqual(3);
 
             // A partner coil links a fence; its ticks spend no charge on either coil.

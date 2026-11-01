@@ -308,7 +308,7 @@ namespace FTT.FighterSim {
         public const int FlagMomentumPaid = 4;
 
         /// <summary>Tick 1's hitstun, Story's <c>ChurnTickHitstunFrames</c>; the sim pulses had none before.</summary>
-        public const int FirstTickHitstunFrames = 6;
+        public const int FirstTickHitstunFrames = LingeringKitRules.GoldenRatioFirstTickHitstunFrames;
 
         public static readonly int ZoneTypeID = (int)FighterCharacterID.Leonardo * 10 + FighterHitContractTable.SlotSpecialOne;
 

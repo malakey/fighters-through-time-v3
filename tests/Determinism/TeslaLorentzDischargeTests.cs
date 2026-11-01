@@ -65,6 +65,29 @@ public class TeslaLorentzDischargeTests {
     }
 
     [TestCase]
+    public void ACoilWithARecipientSpendsEveryChargeAndFizzlesEvenWhenTheBurstIsRefusedAndPaysNothing() {
+        FighterSimulation sim = Build(ProjectileBurstSimTests.Authored("tesla"), 8210);
+        sim.TryGetFighter(0, out FighterStateComponent owner);
+        ConstructOwnAttack.Spawn(sim, 0, FighterConstructCharges.CoilObjectTypeID, new FPVector2(owner.Position.x, owner.Position.y));
+        // Beyond the Pulse itself but inside the coil's reach; invulnerable, so the burst is refused.
+        sim.MutateFighterForTest(1, (ref FighterStateComponent state, ref FighterRuntimeComponent runtime, ref FighterVerbComponent verb) => {
+            state.Position = new FPVector2(owner.Position.x + FP64.FromInt(3), state.Position.y);
+            state.InvulnerabilityFrames = 300;
+        });
+        FighterSimulation control = Build(ProjectileBurstSimTests.Authored("tesla"), 8210);
+        control.MutateFighterForTest(1, (ref FighterStateComponent state, ref FighterRuntimeComponent runtime, ref FighterVerbComponent verb) => {
+            state.Position = new FPVector2(owner.Position.x + FP64.FromInt(3), state.Position.y);
+            state.InvulnerabilityFrames = 300;
+        });
+        Run(sim, 40, GameplayButtons.Special2);
+        Run(control, 40, GameplayButtons.Special2);
+        AssertThat(sim.PersistentObjectCount).OverrideFailureMessage("A recipient existed: the coil spent its charges and fizzled.").IsEqual(0);
+        AssertThat(Hp(sim, 1)).IsEqual(Hp(control, 1));
+        AssertThat(MomentumTestKit.Units(sim, 0)).OverrideFailureMessage("A refused burst pays no Detonation.")
+            .IsEqual(MomentumTestKit.Units(control, 0));
+    }
+
+    [TestCase]
     public void TheDischargeIsADetonationPayingTheMomentumOnceAndArmingD3() {
         FighterSimulation two = CastAtRange(8206, targetX: 5, mark: true, coilOffset: 0f, secondCoil: true);
         FighterSimulation control = CastAtRange(8206, targetX: 5, mark: true, coilOffset: 0f, noCoil: true);
@@ -83,8 +106,8 @@ public class TeslaLorentzDischargeTests {
         FighterLoadout tesla = ProjectileBurstSimTests.Authored("tesla");
         FighterSimulation authoritative = Build(tesla, 8207);
         FighterSimulation predicted = Build(tesla, 8207);
-        authoritative.SpawnPersistentForTest(0, FighterConstructCharges.CoilObjectTypeID, new FPVector2(FP64.FromInt(-1), FP64.Zero));
-        predicted.SpawnPersistentForTest(0, FighterConstructCharges.CoilObjectTypeID, new FPVector2(FP64.FromInt(-1), FP64.Zero));
+        ConstructOwnAttack.Spawn(authoritative, 0, FighterConstructCharges.CoilObjectTypeID, new FPVector2(FP64.FromInt(-1), FP64.Zero));
+        ConstructOwnAttack.Spawn(predicted, 0, FighterConstructCharges.CoilObjectTypeID, new FPVector2(FP64.FromInt(-1), FP64.Zero));
         for (int tick = 0; tick < 40; tick++) {
             PlayerInputFrame one = tick == 0 ? Frame(tick, GameplayButtons.Special2) : Frame(tick, GameplayButtons.None);
             PlayerInputFrame two = tick >= 2 && tick <= 12 ? Frame(tick, GameplayButtons.None, 127) : Frame(tick, GameplayButtons.None);
@@ -110,7 +133,7 @@ public class TeslaLorentzDischargeTests {
         FighterSimulation sim = Build(ProjectileBurstSimTests.Authored("tesla"), seed);
         sim.TryGetFighter(0, out FighterStateComponent owner);
         for (int i = 0; i < coils; i++) {
-            sim.SpawnPersistentForTest(0, FighterConstructCharges.CoilObjectTypeID, new FPVector2(owner.Position.x + FP64.FromDouble(0.1 * i), owner.Position.y));
+            ConstructOwnAttack.Spawn(sim, 0, FighterConstructCharges.CoilObjectTypeID, new FPVector2(owner.Position.x + FP64.FromDouble(0.1 * i), owner.Position.y));
             sim.MutatePersistentForTest(i, (ref FighterPersistentObjectComponent coil) => coil.RemainingAttacks = charges);
         }
         Run(sim, 40, GameplayButtons.Special2);
@@ -127,7 +150,7 @@ public class TeslaLorentzDischargeTests {
         if (!noCoil) {
             int coils = secondCoil ? 2 : 1;
             for (int i = 0; i < coils; i++) {
-                sim.SpawnPersistentForTest(0, FighterConstructCharges.CoilObjectTypeID,
+                ConstructOwnAttack.Spawn(sim, 0, FighterConstructCharges.CoilObjectTypeID,
                     new FPVector2(owner.Position.x + FP64.FromDouble(coilOffset + 0.1 * i), owner.Position.y));
             }
         }

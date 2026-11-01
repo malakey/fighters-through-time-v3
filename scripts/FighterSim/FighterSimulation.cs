@@ -64,7 +64,7 @@ namespace FTT.FighterSim {
             _simulation.AddSystem(new FighterPushboxSystem(geometry), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterCombatSystem(hitContracts), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterProjectileSystem(hitContracts, geometry), SystemPhase.PostUpdate);
-            _simulation.AddSystem(new FighterPersistentObjectSystem(), SystemPhase.PostUpdate);
+            _simulation.AddSystem(new FighterPersistentObjectSystem(hitContracts), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterZoneSystem(hitContracts), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterHazardSystem(geometry), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterOrbSystem(geometry), SystemPhase.PostUpdate);
@@ -523,16 +523,17 @@ namespace FTT.FighterSim {
             return false;
         }
 
-        /// <summary>Places a construct of <paramref name="objectTypeID"/> for a fighter at <paramref name="feet"/> (the real spawn path).</summary>
-        internal bool SpawnPersistentForTest(int ownerPlayerID, int objectTypeID, FPVector2 feet) {
+        /// <summary>Places a construct of <paramref name="objectTypeID"/> for a fighter at <paramref name="feet"/> (the real spawn path), with the own-attack damage and interval its ability .tres authors.</summary>
+        internal bool SpawnPersistentForTest(int ownerPlayerID, int objectTypeID, FPVector2 feet, int ownDamage, int ownIntervalFrames) {
             var filter = _simulation.Frame.Filter<FighterStateComponent>();
             while (filter.Next(out EntityRef entity)) {
                 if (_simulation.Frame.GetReadOnly<FighterStateComponent>(entity).PlayerID != ownerPlayerID) continue;
                 FighterStateComponent owner = _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
                 xpTURN.Klotho.ECS.Frame frame = _simulation.Frame;
                 FighterAbilityEntitySystem.SpawnPersistent(
-                    ref frame, in owner, objectTypeID, 4, 0, 0, FP64.Zero,
-                    (int)FTT.Core.StatusType.None, 0, hasAnchor: true, anchor: feet);
+                    ref frame, in owner, objectTypeID, 4, 0, ownDamage, FP64.Zero,
+                    (int)FTT.Core.StatusType.None, 0, hasAnchor: true, anchor: feet,
+                    tickIntervalFrames: ownIntervalFrames);
                 return true;
             }
             return false;

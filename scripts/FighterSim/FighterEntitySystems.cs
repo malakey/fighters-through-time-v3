@@ -1357,7 +1357,8 @@ namespace FTT.FighterSim {
                         ref frame, in fighter, modes.SpecialOnePersistentTypeID,
                         modes.SpecialOneMaxActiveObjects, modes.SpecialOnePersistentLifetimeFrames,
                         tuning.SpecialOneDamage, tuning.SpecialOneKnockback,
-                        tuning.SpecialOneStatusType, tuning.SpecialOneStatusFrames);
+                        tuning.SpecialOneStatusType, tuning.SpecialOneStatusFrames,
+                        tickIntervalFrames: modes.SpecialOneTickIntervalFrames);
                 } else if (modes.SpecialOneExecutionType == AreaExecutionType) {
                     SpawnZone(
                         ref frame, ref fighter, 1,
@@ -1379,7 +1380,8 @@ namespace FTT.FighterSim {
                     ref frame, in fighter, modes.SpecialTwoPersistentTypeID,
                     modes.SpecialTwoMaxActiveObjects, modes.SpecialTwoPersistentLifetimeFrames,
                     tuning.SpecialTwoDamage, tuning.SpecialTwoKnockback,
-                    tuning.SpecialTwoStatusType, tuning.SpecialTwoStatusFrames);
+                    tuning.SpecialTwoStatusType, tuning.SpecialTwoStatusFrames,
+                    tickIntervalFrames: modes.SpecialTwoTickIntervalFrames);
             } else if (modes.SpecialTwoExecutionType == AreaExecutionType) {
                 // Package 13 W7b (C01): the Sandstorm Vortex is thrown up to
                 // five units ahead and ground-snapped.
@@ -1592,7 +1594,8 @@ namespace FTT.FighterSim {
             int statusType,
             int statusFrames,
             bool hasAnchor = false,
-            FPVector2 anchor = default) {
+            FPVector2 anchor = default,
+            int tickIntervalFrames = 0) {
             if (objectTypeID <= 0) return;
             int deployLimit = maxActive > 0 ? maxActive : 1;
             int activeCount = 0;
@@ -1614,7 +1617,7 @@ namespace FTT.FighterSim {
             if (activeCount >= deployLimit && foundOldest) frame.DestroyEntity(oldest);
 
             ResolvePersistentSpec(
-                objectTypeID, lifetimeFrames, damage, knockback,
+                objectTypeID, lifetimeFrames, damage, tickIntervalFrames, knockback,
                 out int hp, out int resolvedLifetime, out int resolvedDamage,
                 out int actionCooldown, out int remainingAttacks,
                 out FP64 attackRange, out FP64 resolvedKnockback);
@@ -1660,6 +1663,7 @@ namespace FTT.FighterSim {
             int objectTypeID,
             int requestedLifetime,
             int requestedDamage,
+            int requestedIntervalFrames,
             FP64 requestedKnockback,
             out int hp,
             out int lifetime,
@@ -1671,26 +1675,21 @@ namespace FTT.FighterSim {
             hp = objectTypeID == 1 ? 25 : objectTypeID == 2 ? 20 : 15;
             // Lingering-kit pass: a coil, turret and nest hold CHARGES (303 RemainingAttacks) and their
             // OWN attack is the rulebook's weak, slow one; every other object stays unlimited (-1).
-            int ownDamage = objectTypeID == 1 ? FTT.Combat.LingeringKitRules.CoilOwnArcDamage
-                : objectTypeID == 2 ? FTT.Combat.LingeringKitRules.TurretOwnShotDamage
-                : FTT.Combat.LingeringKitRules.NestOwnNipDamage;
-            int ownInterval = objectTypeID == 1 ? FTT.Combat.LingeringKitRules.CoilOwnArcIntervalFrames
-                : objectTypeID == 2 ? FTT.Combat.LingeringKitRules.TurretOwnShotIntervalFrames
-                : FTT.Combat.LingeringKitRules.NestOwnNipIntervalFrames;
+            // An own attack's damage and cadence are the ones the ability .tres authors (the loadout
+            // hands them in); the rulebook holds only the charges.
             lifetime = requestedLifetime > 0
                 ? requestedLifetime
                 : objectTypeID == 1 ? 1800 : objectTypeID == 2 ? 900 : 600;
             // Type 5 (Mozart's Sonata staff platform) is a harmless marker in the
             // deterministic sim: walkable platform collision is deferred, so it
             // must never attack.
-            damage = FighterConstructCharges.IsChargeConstruct(objectTypeID) ? ownDamage
-                : objectTypeID == 5 ? 0
+            damage = objectTypeID == 5 ? 0
                 : requestedDamage > 0 ? requestedDamage : 4;
             // V7 tuning batch: cadence mirrors the authored
             // DamageTickIntervalFrames — coil/turret every 2 s (120), nest every
             // 1 s (60) — replacing the flat 4 s that left a lone construct
             // ignorable. (Type 4, the vine snare, is retired with Pocahontas.)
-            actionCooldown = FighterConstructCharges.IsChargeConstruct(objectTypeID) ? ownInterval : 60;
+            actionCooldown = requestedIntervalFrames > 0 ? requestedIntervalFrames : 60;
             // Charges (plan 2): coil 3, turret 4, nest 3. The turret no longer self-destructs after
             // its own shots; it lives out its lifetime unless its charges run out.
             remainingAttacks = FighterConstructCharges.InitialCharges(objectTypeID);
@@ -2286,6 +2285,12 @@ namespace FTT.FighterSim {
         private const int NestObjectTypeID = 3;
         private static readonly FP64 CoilLinkRangeSquared = FP64.FromInt(64);
 
+        private readonly FighterHitContractTable _contracts;
+
+        public FighterPersistentObjectSystem(FighterHitContractTable contracts = null) {
+            _contracts = contracts ?? FighterHitContractTable.Default;
+        }
+
         public void Update(ref Frame frame) {
             // A04 (Package 13 W1): a fallen owner's objects are gone before
             // any of them can act again — no final attack, no pending damage.
@@ -2350,7 +2355,9 @@ namespace FTT.FighterSim {
                     ref frame.Get<FighterActionStateComponent>(targetEntity),
                     ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     FighterDamageRules.BasicAttackClass, persistent.Damage, persistent.Knockback,
-                    persistent.ObjectTypeID == NestObjectTypeID ? FTT.Combat.LingeringKitRules.NestOwnNipHitstunFrames : 10,
+                    // The nest's own nip reads its authored hitstun (cleopatra/special_1.tres); the others keep 10.
+                    persistent.ObjectTypeID == NestObjectTypeID
+                        ? _contracts.For(persistent.OwnerPlayerID, FighterHitContractTable.SlotSpecialOne).HitstunFrames : 10,
                     persistent.StatusType, persistent.StatusFrames, FP64.One, persistent.Position.x,
                     collectsEcho: false,
                     appliesHitstop: false,

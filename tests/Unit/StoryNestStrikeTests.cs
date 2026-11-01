@@ -28,9 +28,9 @@ public class StoryNestStrikeTests {
             SerpentNestNode nest = Nest(host, cleopatra, Origin);
             EnemyController mob = Mob(host, Origin + new Vector2(20f, 0f));
             for (int frame = 0; frame < 61; frame++) nest._PhysicsProcess(Step);
-            AssertThat(9999 - mob.CurrentHP).IsEqual(LingeringKitRules.NestOwnNipDamage);
+            AssertThat(9999 - mob.CurrentHP).IsEqual((int)AuthoredResources.Load<AbilityData>("res://resources/Abilities/cleopatra/special_1.tres").BaseDamage);
             AssertThat(mob.CurrentState).IsEqual(EnemyState.Stunned);
-            AssertFloat(StunSeconds(mob)).IsEqualApprox(LingeringKitRules.NestOwnNipHitstunFrames / 60f, 0.001f);
+            AssertFloat(StunSeconds(mob)).IsEqualApprox(AuthoredResources.Load<AbilityData>("res://resources/Abilities/cleopatra/special_1.tres").HitstunFrames / 60f, 0.001f);
             AssertThat(mob.HasStatusEffect(StatusType.Venom)).OverrideFailureMessage("The nip carries no Venom.").IsFalse();
             AssertThat(nest.Charges).OverrideFailureMessage("The own nip spends nothing.").IsEqual(3);
             AssertThat(SerpentNestNode.BiteRangePixels).IsEqual(60f);
@@ -52,6 +52,25 @@ public class StoryNestStrikeTests {
             AssertFloat(StunSeconds(mob)).IsEqualApprox(LingeringKitRules.NestSyncedLungeHoldFrames / 60f, 0.001f);
             AssertThat(mob.HasStatusEffect(StatusType.Venom)).OverrideFailureMessage("The lunge carries Venom.").IsTrue();
             AssertFloat(cleopatra.MomentumPips - momentum).IsEqualApprox(0.05f, 0.0005f);
+        });
+    }
+
+    [TestCase]
+    public void AStrikeTheTargetRefusesPaysNoMomentumAndTheTriggeringHitNeverPaysTheSyncedPayout() {
+        InHost("NestRefused", host => {
+            PlayerController cleopatra = Owner(host, "cleopatra", Origin + new Vector2(-300f, 0f));
+            SerpentNestNode nest = Nest(host, cleopatra, Origin);
+            EnemyController mob = Mob(host, Origin + new Vector2(110f, 0f));
+            mob.DrillInvulnerable = true; // refuses every hit: D1a not met
+            float start = cleopatra.MomentumPips;
+            OwnerLands(cleopatra, mob);
+            AssertThat(nest.Charges).OverrideFailureMessage("The lunge still fires and spends its charge.").IsEqual(2);
+            AssertFloat(cleopatra.MomentumPips).OverrideFailureMessage("A refused strike earns nothing.").IsEqualApprox(start, 0.0005f);
+            mob.DrillInvulnerable = false;
+            OwnerLands(cleopatra, mob);
+            AssertFloat(cleopatra.MomentumPips - start)
+                .OverrideFailureMessage("Only the strike that lands pays, once; the triggering hit pays no synced bonus.")
+                .IsEqualApprox(0.05f, 0.0005f);
         });
     }
 

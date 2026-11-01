@@ -20,7 +20,7 @@ namespace FTT.Characters.Abilities {
         /// final tick carries the authored hitstun. Named for D4's first-Special
         /// allowance model (<c>StoryFirstSpecialTaxTests</c>); the value is unchanged.
         /// </summary>
-        public const int ChurnTickHitstunFrames = 6;
+        public const int ChurnTickHitstunFrames = LingeringKitRules.GoldenRatioFirstTickHitstunFrames;
 
         public const string MasterStrokePerkKey = "master_stroke";
 

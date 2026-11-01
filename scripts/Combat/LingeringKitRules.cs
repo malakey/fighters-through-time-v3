@@ -43,11 +43,11 @@ namespace FTT.Combat {
         /// <summary>Provisional: Cleopatra serpent nest synced lunges.</summary>
         public const int NestCharges = 3;
 
+        // A construct's OWN attack (damage, interval, own hitstun) is authored in its .tres and read from there by both
+        // modes: tesla/special_1 (5 / 120), leonardo/special_2 (4 / 180), cleopatra/special_1 (3 / 60, hitstun 9).
+        // Only charges and the synced strike / discharge numbers live here.
+
         // --- Tesla coil --------------------------------------------------------
-        /// <summary>Provisional: the coil's own arc (unchanged): 5 damage.</summary>
-        public const int CoilOwnArcDamage = 5;
-        /// <summary>Provisional: the coil's own arc cadence (unchanged): 120 frames.</summary>
-        public const int CoilOwnArcIntervalFrames = 120;
         /// <summary>Provisional: the coil's own arc reach (unchanged), thousandths of a unit.</summary>
         public const int CoilOwnReachMilli = 4000;
         /// <summary>Provisional: a synced coil arc deals this much.</summary>
@@ -74,12 +74,6 @@ namespace FTT.Combat {
         public const double DischargeMarkedReachUnits = DischargeMarkedReachMilli / 1000.0;
 
         // --- Leonardo turret ---------------------------------------------------
-        /// <summary>Provisional: the turret's own shot damage.</summary>
-        public const int TurretOwnShotDamage = 4;
-        /// <summary>Provisional: the turret's own shot cadence.</summary>
-        public const int TurretOwnShotIntervalFrames = 180;
-        /// <summary>Provisional: the turret's lifetime in seconds (it no longer self-destructs at 4 bolts).</summary>
-        public const int TurretLifetimeSeconds = 15;
         /// <summary>Provisional: the Story own-shot reach (kept from before), in units.</summary>
         public const double TurretOwnShotReachStoryUnits = 30.0;
         /// <summary>Provisional: a synced bolt's damage.</summary>
@@ -96,12 +90,6 @@ namespace FTT.Combat {
         public const int TurretOverdriveIntervalPercent = 50;
 
         // --- Serpent nest --------------------------------------------------------
-        /// <summary>Provisional: the nest's own nip: 3 damage.</summary>
-        public const int NestOwnNipDamage = 3;
-        /// <summary>Provisional: the nest's own nip cadence in frames.</summary>
-        public const int NestOwnNipIntervalFrames = 60;
-        /// <summary>Provisional: the nest's own nip hitstun in frames (0.15 s), and it carries no Venom.</summary>
-        public const int NestOwnNipHitstunFrames = 9;
         /// <summary>Provisional: the nest's own reach in Story pixels (unchanged, 60 px).</summary>
         public const int NestOwnReachPixels = 60;
         /// <summary>Provisional: a synced lunge's damage.</summary>
@@ -177,6 +165,8 @@ namespace FTT.Combat {
         /// <summary>Provisional: ... capped at this per tick, thousandths of a unit.</summary>
         public const int GoldenRatioPullCapMilli = 1500;
         public const double GoldenRatioPullCapUnits = GoldenRatioPullCapMilli / 1000.0;
+        /// <summary>Provisional: the hitstun of Golden Ratio's first tick in frames, read by both modes (Story's churn value, which it keeps; the sim's later ticks carry none).</summary>
+        public const int GoldenRatioFirstTickHitstunFrames = 6;
 
         // --- Momentum payout (plan 1.2) --------------------------------------------------
         /// <summary>

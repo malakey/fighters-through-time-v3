@@ -1407,6 +1407,7 @@ public class FighterMatchFlowTests {
             // The construct only spawns with a recognized type ID: the loadout
             // factory maps the authored string onto the deterministic id, and an
             // unknown one is 0, which the spawner refuses.
+            DamageTickIntervalFrames = 120, // as tesla/special_1.tres authors the coil
             PersistentObjectID = "tesla_coil",
             BaseDamage = 1f,
             KnockbackForce = Godot.Vector2.Zero,
