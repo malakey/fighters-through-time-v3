@@ -75,6 +75,11 @@ namespace FTT.Characters {
 		/// <summary>Raises <see cref="OwnerHitLanded"/> for a landed contact; a no-op otherwise.</summary>
 		internal void RaiseOwnerHitLanded(Hurtbox target, in HitPayload payload, Vector2 position) {
 			if (!payload.ContactLanded) return;
+			// KL-SCON: a landed synced construct strike pays its 0.05-pip Momentum here, once per
+			// strike (the Lorentz discharge is paid once per Pulse by the Pulse itself).
+			if (ConstructStrikes.IsSyncedStrike(in payload) && payload.Damage > 0f) {
+				PayLingeringMomentum(LingeringMomentumEvent.SyncedStrike);
+			}
 			OwnerHitLanded?.Invoke(new OwnerHitLandedInfo(target, in payload, true, position));
 		}
 
@@ -92,6 +97,22 @@ namespace FTT.Characters {
 		/// (<see cref="HealStory"/> takes <c>isDefyHeal</c>). Mobs and bosses never heal, so this is the
 		/// hero and the Level 13 Mirror clone only.
 		/// </summary>
+		/// <summary>
+		/// KL-SCON (plan 1.3): a construct strike / discharge never cancels or shortens a launch or
+		/// tumble (the Level 13 Mirror clone is the only hero a Story strike can reach). When this body
+		/// is already in hitstun, thrown, tumbling or knocked down the strike's stun is not applied (a
+		/// plain stun is only extended: max semantics); true means "handled, skip ApplyStun".
+		/// </summary>
+		private bool ConstructStrikeKeepsCurrentStun(in HitPayload hit) {
+			if (!ConstructStrikes.IsStrike(in hit)) return false;
+			if (CurrentState != CharacterState.Stunned && CurrentState != CharacterState.Thrown
+				&& !_tumbleAfterHitstun && !IsKnockedDown) return false;
+			if (CurrentState == CharacterState.Stunned && !_stunTumble && !_tumbleAfterHitstun && !IsKnockedDown) {
+				_stunTimer = Math.Max(_stunTimer, hit.HitstunDuration);
+			}
+			return true;
+		}
+
 		public bool IsHealingBlocked =>
 			LingeringKitRules.VenomBlocksHeal(HasStatusEffect(StatusType.Venom), isDefyHeal: false);
 	}

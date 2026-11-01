@@ -177,22 +177,18 @@ namespace FTT.Characters.Abilities {
 
     /// <summary>
     /// Special 2 — Lorentz Pulse: a radial electromagnetic burst around Tesla that
-    /// damages and Roots enemies for the authored duration. Targets carrying Tesla's
-    /// V7.6 F07 Conductive MARK (not Static Charge — the split is the point of F07)
-    /// take an additional chain lightning strike per active Tesla Coil. Because the
-    /// mark occupies no status slot, the pulse's own Root can never evict it.
-    /// Story-only Resonance perk Lorentz
+    /// damages and Roots enemies for the authored duration. <b>Lingering-kit pass
+    /// (2026-10-31, decision 25):</b> the 8-damage mark chain is gone; the Pulse
+    /// DISCHARGES his coils instead. Each of his own coils within 8 units of him
+    /// spends all its remaining charges as one burst (6 damage per charge, 20 frames
+    /// of hitstun) on the nearest enemy within the coil's 4 units, or on one of his
+    /// Conductive-marked enemies within 8 units of the coil, and then fizzles. The
+    /// burst counts as combo: it arms D3 for this cast and pays one Detonation
+    /// Momentum per Pulse. Story-only Resonance perk Lorentz
     /// Attraction pulls enemies toward Tesla before rooting them and extends the
     /// root by half a second (D12, Package 13 W7a).
     /// </summary>
     public partial class TeslaLorentzPulse : BaseSpecial {
-
-        /// <summary>
-        /// The hitstun of each T01 chain arc a coil fires at the marked target, in
-        /// frames (0.1 s). Named for D4's first-Special allowance model
-        /// (<c>StoryFirstSpecialTaxTests</c>); the value is unchanged.
-        /// </summary>
-        public const int ChainArcHitstunFrames = 6;
 
         public const string LorentzAttractionPerkKey = "lorentz_attraction";
 
@@ -214,8 +210,6 @@ namespace FTT.Characters.Abilities {
         private const float AttractionStopDistancePixels = 70f;
         /// <summary>D12 (Package 13 W7a): Lorentz Attraction extends the Root by 0.5 s (the GDD), not 1.0 s.</summary>
         public const float AttractionRootBonusSeconds = 0.5f;
-        /// <summary>T01: an eligible coil is within 8 units of the marked target.</summary>
-        private const float ChainCoilRangePixels = KitMotionRules.LorentzChainCoilRangeUnits * KitMotionRules.StoryPixelsPerUnit;
         /// <summary>A05 root fallback (1.0 s) when the resource authors none.</summary>
         private const float DefaultRootSeconds = 1f;
 
@@ -258,10 +252,6 @@ namespace FTT.Characters.Abilities {
                 if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
                 if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
 
-                // V7.6 F07: chain eligibility is the separate Conductive MARK,
-                // owned by this Tesla — Static Charge is now a pure interrupt and
-                // is never consulted here.
-                bool primed = TargetHasConductiveMark(hurtbox, Owner.PlayerIndex);
                 if (attraction) PullTargetTowardOwner(hurtbox);
 
                 HitPayload hit = Stamp(new HitPayload {
@@ -283,72 +273,64 @@ namespace FTT.Characters.Abilities {
                 float dealt = hurtbox.TakeHit(hit);
                 Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
 
-                // F07 (Package 12 W4, parity with the sim's GAP-10a consumer): only
-                // a pulse that LANDED chains, only while one of his coils stands,
-                // and the chain CONSUMES the mark — once per pulse per target.
-                if (primed && dealt > 0f && HasEligibleCoil(hurtbox) && ConsumeConductiveMark(hurtbox)) {
-                    ChainLightningToCoils(hurtbox);
-                }
             }
+
+            DischargeCoils();
         }
 
         /// <summary>
-        /// T01 (Package 13 W7a): each of his own active coils within 8 units of
-        /// the marked target fires one instant 8-damage arc at it (max 16 with
-        /// both). Arcs are DIRECT Special-class hits — meter and Rally reclaim
-        /// as normal — with no added launch, and they never chain recursively
-        /// (they carry no mark).
+        /// Decision 25 / plan 1.2: the Lorentz discharge. Each of his own standing coils within 8 units of
+        /// him spends every remaining charge as ONE burst (6 damage x charges, 20 frames of hitstun,
+        /// Construct delivery, <c>CountsAsCombo</c>) on the nearest enemy within the coil's 4 units, else on
+        /// one of his Conductive-marked enemies within 8 units of the coil, and then fizzles; a coil with
+        /// no target keeps its charges. The first burst that lands arms D3 for this cast (through
+        /// <see cref="BaseSpecial.ConfirmAbilityHit"/>) and the Pulse pays ONE Detonation Momentum however
+        /// many coils discharge. The Cataclysm Ultimate is separate: it detonates every coil whatever its charges.
         /// </summary>
-        private void ChainLightningToCoils(Hurtbox target) {
-            // Snapshot first: a lethal arc can run a death sweep that edits the list.
-            var eligible = new System.Collections.Generic.List<TeslaCoilNode>();
+        private void DischargeCoils() {
+            // Snapshot first: a lethal burst can run a death sweep that edits the list.
+            var coils = new System.Collections.Generic.List<TeslaCoilNode>();
             foreach (Node2D node in Owner.ActivePersistentObjects) {
-                if (node is TeslaCoilNode coil && IsEligibleChainCoil(coil, target)) eligible.Add(coil);
+                if (node is TeslaCoilNode coil && IsInstanceValid(coil) && !coil.IsCoilDestroyed && coil.Charges > 0
+                    && Owner.GlobalPosition.DistanceTo(coil.GlobalPosition)
+                        <= LingeringKitRules.DischargeOwnerRangeUnits * KitMotionRules.StoryPixelsPerUnit) {
+                    coils.Add(coil);
+                }
             }
-            foreach (TeslaCoilNode coil in eligible) {
-                HitPayload hit = Stamp(new HitPayload {
-                    AttackerIndex = Owner.PlayerIndex,
-                    AttackID = Data?.AbilityID ?? "tesla_lorentz_pulse",
-                    HitboxID = "chain_lightning",
-                    AttackClass = AttackClass.Special,
-                    Damage = Owner.StoryAbilityDamage(KitMotionRules.LorentzChainArcDamage, Data?.AbilityID),
-                    Knockback = Vector2.Zero,
-                    HitstunDuration = ChainArcHitstunFrames / 60f,
-                    HitOrigin = coil.GlobalPosition,
-                    AttackerFacingRight = Owner.IsFacingRight,
-                    AppliedStatus = FTT.Core.StatusType.None,
-                    StatusDuration = 0f,
-                    StatusIntensity = 1f,
-                    ScreenShakeIntensity = 0.1f,
-                    ScreenShakeDuration = 0.05f
-                }, HitDelivery.DirectHit);
-                hit.Launches = false;
-                float dealt = target.TakeHit(hit);
-                Credit(target, in hit, dealt, target.GlobalPosition);
+            bool paid = false;
+            foreach (TeslaCoilNode coil in coils) {
+                if (!IsInstanceValid(coil) || coil.IsCoilDestroyed) continue;
+                Hurtbox target = PickDischargeTarget(coil);
+                if (target == null || !coil.TryBuildDischarge(out HitPayload burst)) continue;
+                float dealt = target.TakeHit(burst);
+                Credit(target, in burst, dealt, target.GlobalPosition);
+                if (!paid && dealt > 0f && target.DidLand(burst.ContactId)) {
+                    paid = true;
+                    Owner.PayLingeringMomentum(LingeringMomentumEvent.Detonation);
+                }
+                coil.FinishDischarge();
             }
         }
 
-        private bool IsEligibleChainCoil(TeslaCoilNode coil, Hurtbox target) =>
-            coil != null && IsInstanceValid(coil) && !coil.IsCoilDestroyed
-            && coil.GlobalPosition.DistanceTo(target.GlobalPosition) <= ChainCoilRangePixels;
-
-        private bool HasEligibleCoil(Hurtbox target) {
-            foreach (Node2D node in Owner.ActivePersistentObjects) {
-                if (node is TeslaCoilNode coil && IsEligibleChainCoil(coil, target)) return true;
+        /// <summary>The nearest enemy within the coil's 4 units, else the nearest of his marked enemies within 8 units of the coil.</summary>
+        private Hurtbox PickDischargeTarget(TeslaCoilNode coil) {
+            float nearReach = (float)LingeringKitRules.DischargeCoilReachUnits * KitMotionRules.StoryPixelsPerUnit;
+            float markedReach = (float)LingeringKitRules.DischargeMarkedReachUnits * KitMotionRules.StoryPixelsPerUnit;
+            Hurtbox best = null;
+            float bestDistance = float.MaxValue;
+            foreach (Hurtbox hurtbox in coil.EnemiesWithin(markedReach)) {
+                if (!IsInstanceValid(hurtbox) || hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
+                float distance = coil.GlobalPosition.DistanceTo(hurtbox.GlobalPosition);
+                bool nearEnough = distance <= nearReach;
+                if (!nearEnough && !TargetHasConductiveMark(hurtbox, Owner.PlayerIndex)) continue;
+                // An enemy inside the coil's own reach beats a marked one farther out.
+                float rank = nearEnough ? distance : distance + markedReach;
+                if (rank < bestDistance) {
+                    bestDistance = rank;
+                    best = hurtbox;
+                }
             }
-            return false;
-        }
-
-        /// <summary>Removes the target's Conductive mark; true when one was there to consume.</summary>
-        private static bool ConsumeConductiveMark(Hurtbox hurtbox) {
-            Node current = hurtbox.GetParent();
-            while (current != null) {
-                if (current is PlayerController player) { player.ClearConductiveMark(); return true; }
-                if (current is FTT.Enemies.EnemyController enemy) { enemy.ClearConductiveMark(); return true; }
-                if (current is FTT.Enemies.BossController boss) { boss.ClearConductiveMark(); return true; }
-                current = current.GetParent();
-            }
-            return false;
+            return best;
         }
 
         private void PullTargetTowardOwner(Hurtbox hurtbox) {

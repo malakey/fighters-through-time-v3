@@ -33,6 +33,15 @@ namespace FTT.Characters.Abilities {
         public float LifetimeRemaining => _lifetime;
         public bool IsCoilDestroyed { get; private set; }
 
+        /// <summary>
+        /// Lingering-kit pass: synced-strike charges left (plan 1.4). Only a synced strike and the Lorentz
+        /// discharge spend them; the coil's own arc and the fence never do. At 0 the coil fizzles through the
+        /// ordinary destroy path. Reset on every <see cref="Initialize"/> and <see cref="OnDespawn"/> (pooled);
+        /// untouched by Time Freeze and the death rewind (constructs are not rewound).
+        /// </summary>
+        public int Charges { get; private set; }
+        public int MaxCharges => LingeringKitRules.CoilCharges;
+
         private PlayerController _ownerPlayer;
         private AbilityData _data;
         private int _currentHP;
@@ -50,6 +59,8 @@ namespace FTT.Characters.Abilities {
         private float _rangeMultiplier = 1f;
         private bool _resonantOverdrive;
         private float _statusDurationMultiplier = 1f;
+        private PlayerController _subscribedOwner;
+        private ConstructChargePips _pips;
 
         // Pooled constructs re-enter the tree on every spawn cycle but _Ready runs
         // once, so the hurtbox subscription lives on the enter/exit pair (audit
@@ -63,6 +74,7 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _ExitTree() {
+            UnsubscribeFromOwner();
             if (!_hurtboxBound) return;
             _hurtboxBound = false;
             if (_hurtbox != null) _hurtbox.OnHit -= OnCoilHit;
@@ -100,8 +112,86 @@ namespace FTT.Characters.Abilities {
             _fenceTimer = FenceTickInterval;
             _partner = null;
             _drivesFence = false;
+            Charges = MaxCharges;
+            SubscribeToOwner(owner);
             UpdateHPBar();
+            UpdatePips();
         }
+
+        private void UpdatePips() {
+            _pips ??= GetNodeOrNull<ConstructChargePips>("ChargePips");
+            _pips?.SetCharges(Charges, MaxCharges);
+            if (_pips != null) _pips.Visible = !IsCoilDestroyed;
+        }
+
+        private void SubscribeToOwner(PlayerController owner) {
+            UnsubscribeFromOwner();
+            if (owner == null) return;
+            _subscribedOwner = owner;
+            owner.OwnerHitLanded += OnOwnerHitLanded;
+        }
+
+        private void UnsubscribeFromOwner() {
+            if (_subscribedOwner != null && IsInstanceValid(_subscribedOwner)) {
+                _subscribedOwner.OwnerHitLanded -= OnOwnerHitLanded;
+            }
+            _subscribedOwner = null;
+        }
+
+        /// <summary>
+        /// Plan 1.3: the owner's landed basic hit or direct Special hit on a target inside this coil's
+        /// 4-unit reach (a 2D circle) fires one synced arc and spends one charge. Two coils in reach both
+        /// fire. A strike, a tick, a construct hit or the Pulse never reaches this (the
+        /// <see cref="OwnerHitLandedInfo.TriggersSyncedStrike"/> filter), so there is no loop.
+        /// </summary>
+        private void OnOwnerHitLanded(OwnerHitLandedInfo info) {
+            if (_rewindFrozen || IsCoilDestroyed || Charges <= 0 || !info.TriggersSyncedStrike) return;
+            if (info.Target == null || !IsInstanceValid(info.Target)) return;
+            if (!ConstructStrikes.InReach(GlobalPosition, info.Target.GlobalPosition,
+                    LingeringKitRules.CoilSyncedReachUnits, _rangeMultiplier)) return;
+            Charges--;
+            UpdatePips();
+            HitPayload arc = BuildSyncedPayload(
+                LingeringKitRules.CoilSyncedArcDamage, LingeringKitRules.CoilSyncedArcHitstunFrames,
+                ConstructStrikes.CoilSyncedArcHitboxID);
+            ConstructStrikes.Deliver(_ownerPlayer, info.Target, in arc, out _);
+            if (Charges <= 0) DestroyCoil();
+        }
+
+        /// <summary>A synced strike or discharge payload: Construct delivery, <c>CountsAsCombo</c>, real hitstun, no knockback or hitstop.</summary>
+        private HitPayload BuildSyncedPayload(float damage, int hitstunFrames, string hitboxID) {
+            HitPayload payload = BuildHitPayload(damage, AttackClass.Basic, GlobalPosition,
+                FTT.Core.StatusType.None, 0f, Vector2.Zero, hitboxID: hitboxID);
+            payload.HitstunDuration = hitstunFrames / 60f;
+            payload.CountsAsCombo = true;
+            return payload;
+        }
+
+        /// <summary>
+        /// Plan 1.2 / decision 25: the Lorentz discharge. Spends ALL remaining charges as one burst at
+        /// <paramref name="target"/> (6 damage per charge, 20 frames of hitstun), then the coil fizzles.
+        /// The caller (<c>TeslaLorentzPulse</c>) picks the target, delivers and credits it, and pays the one
+        /// Detonation Momentum per Pulse. Returns false with nothing spent when the coil is gone or empty.
+        /// </summary>
+        public bool TryBuildDischarge(out HitPayload burst) {
+            burst = default;
+            if (IsCoilDestroyed || _rewindFrozen || Charges <= 0) return false;
+            burst = BuildSyncedPayload(
+                LingeringKitRules.DischargeDamagePerCharge * Charges, LingeringKitRules.DischargeHitstunFrames,
+                ConstructStrikes.CoilDischargeHitboxID);
+            return true;
+        }
+
+        /// <summary>Called after a built discharge has been delivered: the coil has spent everything and fizzles.</summary>
+        public void FinishDischarge() {
+            Charges = 0;
+            UpdatePips();
+            DestroyCoil();
+        }
+
+        /// <summary>The enemy hurtboxes within <paramref name="radiusPixels"/> of this coil (the Pulse's target pick).</summary>
+        public System.Collections.Generic.List<Hurtbox> EnemiesWithin(float radiusPixels) =>
+            QueryEnemyHurtboxes(GlobalPosition, radiusPixels);
 
         private void UpdateHPBar() {
             _hpBar ??= GetNodeOrNull<ProgressBar>("HPBar");
@@ -119,6 +209,8 @@ namespace FTT.Characters.Abilities {
         public void OnSpawn() { }
 
         public void OnDespawn() {
+            UnsubscribeFromOwner();
+            Charges = 0;
             if (_partner != null && IsInstanceValid(_partner)) {
                 _partner._partner = null;
                 _partner._drivesFence = false;

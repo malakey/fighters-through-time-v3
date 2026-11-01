@@ -1629,7 +1629,9 @@ namespace FTT.Characters {
 					// vector but gets no tumble, DI or tech.
 				}
 
-				if (hit.HitstunDuration > 0f && CurrentState != CharacterState.Dead) {
+				// KL-SCON: a construct strike on a hero already in hitstun / a launch only extends it.
+				if (hit.HitstunDuration > 0f && CurrentState != CharacterState.Dead
+					&& !ConstructStrikeKeepsCurrentStun(in hit)) {
 					// F23: a throw's hitstun rides out in CharacterState.Thrown.
 					bool thrown = hit.HitboxID == FTT.Combat.BasicComboRules.ThrowHitboxID;
 					ApplyStun(hit.HitstunDuration, thrown);
