@@ -14,8 +14,8 @@ namespace FTT.Tests.Determinism;
 /// spectral asp six units straight ahead (A02); its contact raises the storm
 /// zone (type 43) on the held victim — six impulse-free 9-damage cobra strikes,
 /// then the 12-damage sarcophagus finale carrying the heavy Venom (intensity
-/// 2.0 for 3 s = 18 more since the lingering-kit pass made Venom 3 HP x intensity a second, 12
-/// before), 84 in all (78 before). The Venom lands exactly once, on the
+/// 2.0 for 2 s = 12 more: Venom is 3 HP x intensity a second since the lingering-kit pass, and the
+/// duration was cut from 3 s to 2 s to keep the Ultimate at 78 in all). The Venom lands exactly once, on the
 /// finale, in both modes. The storm bypasses block, reaches beyond melee range
 /// and stays snapshot/rollback safe.
 /// </summary>
@@ -42,8 +42,8 @@ public class CleopatraUltimateTests {
     private const int CobraCount = 6;
     private const int IntervalFrames = 21;
     private const int SlamDamage = 12;
-    // Lingering-kit pass: Venom is 3 HP x intensity a second (2 before), so the finale's 2.0 for 3 s ticks 6 x 3.
-    private const int VenomTotal = 18;
+    // Lingering-kit pass: Venom is 3 HP x intensity a second (2 before), so the finale's 2.0 for 2 s ticks 6 x 2.
+    private const int VenomTotal = 12;
     private const int ImpactTotal = CobraDamage * CobraCount + SlamDamage;
     private const int UltimateTotal = ImpactTotal + VenomTotal;
 
@@ -77,7 +77,7 @@ public class CleopatraUltimateTests {
     }
 
     [TestCase]
-    public void StormLandsEightyFourCountingTheFinaleVenom() {
+    public void StormLandsSeventyEightCountingTheFinaleVenom() {
         FighterSimulation simulation = BuildChargedSimulation(seed: 72, out int tick);
 
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
@@ -90,8 +90,8 @@ public class CleopatraUltimateTests {
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent stormEnd)).IsTrue();
         AssertThat(hpBefore - stormEnd.CurrentHP).IsEqual(ImpactTotal);
 
-        // The finale's heavy Venom (2.0 for 3 s) is attached once and ticks
-        // three times for 6 each (4 each before the lingering-kit pass) — the 18 counted in the total.
+        // The finale's heavy Venom (2.0 for 2 s) is attached once and ticks
+        // twice for 6 each — the 12 counted in the total.
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)).IsTrue();
         AssertThat(runtime.DamageStatusType).IsEqual((int)StatusType.Venom);
         AssertThat(runtime.DamageStatusIntensity.RawValue).IsEqual(
@@ -199,7 +199,7 @@ public class CleopatraUltimateTests {
     /// <summary>
     /// Cleopatra with the canonical Wrath of the Nile numbers from
     /// cleopatra/ultimate.tres (six 9-damage cobras at 21 frames, the 12-damage
-    /// slam finale, heavy Venom 3 s at 2.0 intensity), zero-knockback basics so
+    /// slam finale, heavy Venom 2 s at 2.0 intensity), zero-knockback basics so
     /// the meter charge never pushes the opponent out of range, and a
     /// three-unit teleport for the beyond-melee-range case.
     /// </summary>
@@ -234,7 +234,7 @@ public class CleopatraUltimateTests {
             KnockbackForce = new Vector2(4f, -3f),
             Lifetime = 2.45f,
             AppliedStatus = StatusType.Venom,
-            StatusDuration = 3f,
+            StatusDuration = 2f,
             StatusIntensity = 2f
         }
     };

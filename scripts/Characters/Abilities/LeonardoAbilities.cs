@@ -10,8 +10,8 @@ namespace FTT.Characters.Abilities {
     /// authored hit count (design: 10 damage x 3 ticks for 30 total) with a radial
     /// knockback away from the spiral center on the final tick. All tuning comes
     /// from the authored AbilityData resource. Story-only Resonance perk Master
-    /// Stroke adds +15% spiral damage and pulls enemies slightly toward the spiral
-    /// center on each tick.
+    /// Stroke adds +15% spiral damage (every tick now pulls targets toward the spiral
+    /// centre, lingering-kit pass).
     /// </summary>
     public partial class LeonardoGoldenRatio : BaseSpecial {
 
@@ -27,8 +27,6 @@ namespace FTT.Characters.Abilities {
         private const float StartRadiusPixels = 40f;
         private const float MaxRadiusPixels = 120f;   // 2 world units; mirrors the Fighter zone footprint.
         private const float MasterStrokeDamageMultiplier = 1.15f;
-        private const float MasterStrokePullPixels = 30f;
-        private const float MasterStrokeStopDistancePixels = 20f;
 
         private bool _spiralActive;
         private Vector2 _spiralCenter;
@@ -38,6 +36,8 @@ namespace FTT.Characters.Abilities {
         private float _radius;
         private float _maxRadius = MaxRadiusPixels;
         private float _growthPerSecond;
+        /// <summary>Lingering-kit pass: Momentum HoldCast is paid once per cast, on its first landed tick.</summary>
+        private bool _holdCastPaid;
 
         /// <summary>The expanding spiral's current radius after Story minors (test observable).</summary>
         public float ActiveSpiralRadiusPixels => _radius;
@@ -76,6 +76,7 @@ namespace FTT.Characters.Abilities {
                 ? (maxRadius - _radius) / ((_ticksRemaining - 1) * _tickInterval)
                 : 0f;
             _spiralActive = true;
+            _holdCastPaid = false;
 
             // Placeholder spiral visual only; damage runs through the shape queries
             // below so per-target perk behavior can be evaluated.
@@ -127,9 +128,10 @@ namespace FTT.Characters.Abilities {
                 if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
                 if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
 
-                // Master Stroke (Story-only Resonance major perk): each tick drags
-                // the target slightly toward the spiral center.
-                if (masterStroke) PullTargetTowardCenter(hurtbox);
+                // Lingering-kit pass: every tick draws the target in by half its remaining distance
+                // (capped at 1.5 u), so a target caught by tick 1 stays inside for all three. This
+                // subsumes Master Stroke's old slight pull; the perk keeps its +15 % damage.
+                PullTargetTowardCenter(hurtbox);
 
                 // Radial knockback: the final tick shoves the target away from the
                 // spiral center; earlier ticks are impulse-free damage pulses.
@@ -150,21 +152,32 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.2f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
                 });
+                hit.CountsAsCombo = true;
                 float dealt = hurtbox.TakeHit(hit);
                 Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
+                if (!_holdCastPaid && dealt > 0f && hurtbox.DidLand(hit.ContactId)) {
+                    _holdCastPaid = true;
+                    Owner.PayLingeringMomentum(LingeringMomentumEvent.HoldCast);
+                }
             }
         }
+
+        /// <summary>The distance a tick draws a target at <paramref name="distance"/> pixels in (test seam).</summary>
+        public static float PullStepPixels(float distance) =>
+            Mathf.Min(distance * LingeringKitRules.GoldenRatioPullPercent / 100f,
+                (float)LingeringKitRules.GoldenRatioPullCapUnits * KitMotionRules.StoryPixelsPerUnit);
 
         private void PullTargetTowardCenter(Hurtbox hurtbox) {
             Node current = hurtbox.GetParent();
             while (current != null) {
                 if (current is CharacterBody2D body) {
+                    // Same exemptions as the Vortex: a roll or air dodge, a knockback-immune boss and
+                    // a dormant lock member are not drawn in.
+                    if (!CleopatraSandstormVortex.IsPullable(body)) return;
                     Vector2 toCenter = _spiralCenter - body.GlobalPosition;
                     float distance = toCenter.Length();
-                    if (distance > MasterStrokeStopDistancePixels) {
-                        float step = Mathf.Min(MasterStrokePullPixels, distance - MasterStrokeStopDistancePixels);
-                        body.GlobalPosition += toCenter.Normalized() * step;
-                    }
+                    if (distance <= 0.5f) return;
+                    PullThroughCollision(body, toCenter / distance * PullStepPixels(distance));
                     return;
                 }
                 current = current.GetParent();

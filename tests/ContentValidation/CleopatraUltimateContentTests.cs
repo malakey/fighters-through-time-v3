@@ -9,7 +9,7 @@ namespace FTT.Tests.ContentValidation;
 /// <summary>
 /// Canonical content contract for Cleopatra's Wrath of the Nile ultimate
 /// (C04, Package 13 W6): six 9-damage cobra strikes at a 21-frame interval,
-/// the 12-damage sarcophagus finale (D15), and the heavy Venom (3 s at 2.0
+/// the 12-damage sarcophagus finale (D15), and the heavy Venom (2 s at 2.0
 /// intensity = 12) that rides the finale in both modes — 78 in all.
 /// </summary>
 [TestSuite]
@@ -41,11 +41,11 @@ public class CleopatraUltimateContentTests {
         // lifetime may contradict the zone timing.
         AssertThat(data.ProjectileLifetime).IsEqual(0f);
 
-        // Heavy Venom: 3 s at 2.0 intensity (4 HP per tick, three ticks = 12
-        // under the shared 2 x intensity Venom tick), and only the finale
+        // Heavy Venom: 2 s at 2.0 intensity (6 HP per tick, two ticks = 12
+        // under the lingering-kit 3 x intensity Venom tick), and only the finale
         // carries it.
         AssertThat(data.AppliedStatus).IsEqual(StatusType.Venom);
-        AssertThat(data.StatusDuration).IsEqual(3f);
+        AssertThat(data.StatusDuration).IsEqual(2f);
         AssertThat(data.StatusIntensity).IsEqual(2f);
         AssertThat(data.CinematicHitCarriesStatus(1)).IsFalse();
         AssertThat(data.CinematicHitCarriesStatus(data.CinematicHitCount)).IsTrue();
