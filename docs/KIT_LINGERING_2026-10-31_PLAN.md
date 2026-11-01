@@ -163,3 +163,5 @@ Each workstream writes `docs/handoffs/KL_<WS>.md`:
 - what did not ship
 
 ## §9 Deviation log (append-only; one entry per workstream)
+
+**KL-RULES (Phase A, `kl/rules`, 3907 = 3879 + 28).** Shipped the rulebooks, `CountsAsCombo`, the `OwnerHitLanded` seam, the sim owed-strike field, the .tres hero slow (1.2, 1.75 s), 2.5 u radii, the boss floor, Venom 3/s and the Venom heal block in both modes (`docs/handoffs/KL_RULES.md`). Deviations: Venom 3/s lifted Wrath of the Nile from 78 to 84 (pins moved, authored intensity kept; orchestrator decision owed); `FighterCombatSystem.OnSwingResolved` is now `internal` and two test seams were added to `FighterSimulation`; the Font trickle waits while poisoned; `RelativityRiftLingerFrames` 30 to 105. The Vortex pull and Golden Ratio constants are in the rulebook but not yet read.
