@@ -305,6 +305,7 @@ namespace FTT.Characters.Abilities {
                 // Review round 1: the burst belongs to THIS Pulse cast (explicit D3 attribution, never
                 // serial 0); its Special class is set where it is built (TryBuildDischarge).
                 burst.SourceExecutionSerial = ExecutionSerial;
+                burst.AttackID = Data?.AbilityID ?? burst.AttackID;
                 float dealt = target.TakeHit(burst);
                 Credit(target, in burst, dealt, target.GlobalPosition);
                 if (!paid && dealt > 0f && target.DidLand(burst.ContactId)) {

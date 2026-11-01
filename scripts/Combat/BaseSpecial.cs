@@ -173,6 +173,8 @@ namespace FTT.Combat {
                 // explicit attribution to THIS execution (serial 0 never matches), and a synced
                 // construct strike never arms it (plan 1.3; the sim passes armD3: false).
                 if (!payload.CountsAsCombo || ConstructStrikes.IsSyncedStrike(in payload)) return;
+                // Review round 2: serials are local to each ability, so the attribution must also name THIS ability.
+                if (Data == null || payload.AttackID != Data.AbilityID) return;
                 if (payload.SourceExecutionSerial == 0 || payload.SourceExecutionSerial != ExecutionSerial) return;
                 LandedDirectHitThisExecution = true;
                 return;

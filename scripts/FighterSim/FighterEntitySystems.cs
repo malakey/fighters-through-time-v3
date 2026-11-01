@@ -2221,8 +2221,8 @@ namespace FTT.FighterSim {
                         && projectileContract.ShieldBreaker,
                     hasKnockbackVector: projectileVector,
                     knockbackVertical: projectileContract.KnockbackY,
-                    // Lingering-kit pass: a turret's synced bolt only lengthens a stun (never ends a launch).
-                    preserveStun: syncedBolt);
+                    // Review round 2: EVERY construct bolt (own shot or synced) only lengthens a stun (never ends a launch).
+                    preserveStun: constructBolt);
                 bool projectileLanded = projectileOutcome == FighterHitOutcome.Landed;
                 // ...and pays its 0.05 pip once on a landed hit (the CountsAsCombo marker; it arms no D3).
                 if (syncedBolt) {

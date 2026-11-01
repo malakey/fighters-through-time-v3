@@ -33,6 +33,8 @@ namespace FTT.FighterSim {
         private const int StrikeCounterRing = 16;
         private readonly StrikeCounterWatch[] _strikeWatches = { new(), new() };
         private readonly bool[] _chargeEdgePlayedForOwner = new bool[2];
+        private readonly int[] _strikeLastStocks = { -1, -1 };
+        private bool _strikeSuddenDeathSeen;
         private PackedScene _lingeringImpactScene;
 
         /// <summary>Per construct proxy, once per sync: the charge pips and the strike edge.</summary>
@@ -71,8 +73,23 @@ namespace FTT.FighterSim {
         /// value re-reached after a rollback correction is not replayed.
         /// </summary>
         private void SyncStrikeCounters() {
+            if (!_strikeSuddenDeathSeen && Simulation.GetMatchState().SuddenDeathActive == 1) {
+                _strikeSuddenDeathSeen = true;
+                _strikeWatches[0].Reset();
+                _strikeWatches[1].Reset();
+            }
             for (int owner = 0; owner < 2; owner++) {
                 if (!Simulation.TryGetFighterActionState(owner, out FighterActionStateComponent action)) continue;
+                // A stock loss or the respawn hold zeroes 323: a lifecycle reset, never a strike.
+                if (Simulation.TryGetFighter(owner, out FighterStateComponent self)) {
+                    bool lostStock = _strikeLastStocks[owner] >= 0 && self.Stocks < _strikeLastStocks[owner];
+                    _strikeLastStocks[owner] = self.Stocks;
+                    if (lostStock || self.RespawnFramesRemaining > 0) {
+                        _strikeWatches[owner].Reset();
+                        _chargeEdgePlayedForOwner[owner] = false;
+                        continue;
+                    }
+                }
                 bool fresh = _strikeWatches[owner].Observe(FighterSyncedStrikeRules.StrikeCount(in action));
                 bool alreadyShown = _chargeEdgePlayedForOwner[owner];
                 _chargeEdgePlayedForOwner[owner] = false;
@@ -91,6 +108,8 @@ namespace FTT.FighterSim {
             _presentedCollapses.Clear();
             _strikeWatches[0].Reset();
             _strikeWatches[1].Reset();
+            _strikeLastStocks[0] = _strikeLastStocks[1] = -1;
+            _strikeSuddenDeathSeen = false;
             _chargeEdgePlayedForOwner[0] = _chargeEdgePlayedForOwner[1] = false;
         }
 
@@ -120,32 +139,34 @@ namespace FTT.FighterSim {
     }
 
     /// <summary>
-    /// Review round 1 (finding 7): edge detection for a wrapping presentation counter with identity
-    /// dedupe (the Defy counter's pattern). <see cref="Observe"/> returns true once per genuinely new
-    /// step: the first sight baselines, an unchanged or lowered count shows nothing, and the value
-    /// already presented, re-reached after a backward step (a rollback correction), is not replayed.
+    /// Edge detection for a wrapping presentation counter with a presentation HIGH-WATER mark (review
+    /// round 2). The counter is tracked unwrapped by its signed shortest step; <see cref="Observe"/>
+    /// returns true only when it passes the highest position already presented, so a correction that
+    /// crosses several counts (0,1,2,3,1,2,3) replays nothing, a wrap (15 to 0) still counts, the first
+    /// sight baselines, and a lifecycle reset (<see cref="Reset"/>: a stock loss, a round or Sudden Death
+    /// zeroing 323) re-baselines instead of reading as a forward wrap.
     /// </summary>
     internal sealed class StrikeCounterWatch {
-        private int _previous = -1;
-        private int _lastPresented = -1;
-        private bool _wentBackSincePresented;
+        private bool _seen;
+        private int _previous;
+        private int _position;
+        private int _highWater;
 
-        public void Reset() { _previous = -1; _lastPresented = -1; _wentBackSincePresented = false; }
+        public void Reset() { _seen = false; }
 
         public bool Observe(int count, int ring = 16) {
-            int previous = _previous;
+            if (!_seen) {
+                _seen = true;
+                _previous = count;
+                _position = _highWater = 0;
+                return false;
+            }
+            int half = ring / 2;
+            int step = (((count - _previous + half) % ring) + ring) % ring - half;
             _previous = count;
-            if (previous < 0 || count == previous) return false;
-            if (!FighterSimulationDriver.IsForwardCounterStep(previous, count, ring)) {
-                if (_lastPresented >= 0) _wentBackSincePresented = true;
-                return false;
-            }
-            if (_wentBackSincePresented && count == _lastPresented) {
-                _wentBackSincePresented = false;
-                return false;
-            }
-            _lastPresented = count;
-            _wentBackSincePresented = false;
+            _position += step;
+            if (_position <= _highWater) return false;
+            _highWater = _position;
             return true;
         }
     }

@@ -341,7 +341,12 @@ namespace FTT.Characters.Abilities {
             hit.CountsAsCombo = true;
             hit.SourceExecutionSerial = _collapseSourceSerial;
             float dealt = hurtbox.TakeHit(hit);
-            Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
+            // Review round 2: the collapse is credited and announced here but NEVER confirmed on the Rift's
+            // own cast (execution serials are per ability); only the E=mc2 cast that caused it arms D3.
+            HitPayload credited = hit;
+            credited.ContactLanded = hurtbox.DidLand(hit.ContactId);
+            CreditDealt(Owner, in credited, dealt);
+            Owner?.RaiseOwnerHitLanded(hurtbox, in credited, hurtbox.GlobalPosition);
             if (dealt > 0f && hurtbox.DidLand(hit.ContactId)) {
                 _collapsePaid = true;
                 // D3: a collapse landing inside the E=mc2 cast arms that cast's recovery cancel.

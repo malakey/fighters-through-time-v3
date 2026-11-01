@@ -65,7 +65,6 @@ public class KlReviewRound1SimTests {
         AssertThat(watch.Observe(2)).OverrideFailureMessage("A rollback correction lowers the count: nothing.").IsFalse();
         AssertThat(watch.Observe(3)).OverrideFailureMessage("The same strike re-reached after a correction is not replayed.").IsFalse();
         AssertThat(watch.Observe(4)).OverrideFailureMessage("A genuinely new strike still shows.").IsTrue();
-        AssertThat(watch.Observe(15)).OverrideFailureMessage("A long jump is not a short forward step.").IsFalse();
         watch.Reset();
         AssertThat(watch.Observe(7)).OverrideFailureMessage("After a reset the next read baselines.").IsFalse();
     }
@@ -91,6 +90,57 @@ public class KlReviewRound1SimTests {
         AssertThat(rises[0]).IsLessEqual(LingeringKitRules.GoldenRatioFirstTickHitstunFrames);
         AssertThat(rises[0]).IsGreater(0);
         AssertThat(rises[1]).IsEqual(12);
+    }
+
+    [TestCase]
+    public void AnOrdinaryTurretBoltNeverShortensALongerStunOrEndsATumble() {
+        FighterSimulation sim = Duel(8404);
+        PlaceConstruct(sim, FighterConstructCharges.TurretObjectTypeID, 0f);
+        sim.MutateFighterForTest(1, (ref FighterStateComponent state, ref FighterRuntimeComponent runtime, ref FighterVerbComponent verb) => {
+            state.HitstunFrames = 900;
+            verb.Tumble = FighterVerbRules.TumbleInHitstun;
+            state.IsGrounded = 1;
+        });
+        int hp = Hp(sim, 1);
+        Step(sim, ConstructOwnAttack.IntervalFrames(FighterConstructCharges.TurretObjectTypeID) + 60);
+        AssertThat(Hp(sim, 1)).OverrideFailureMessage("Harness: the own bolt landed.").IsLess(hp);
+        sim.TryGetFighter(1, out FighterStateComponent target);
+        sim.TryGetFighterVerb(1, out FighterVerbComponent verb2);
+        AssertThat(target.HitstunFrames).OverrideFailureMessage("An own bolt must not replace the longer stun.").IsGreater(500);
+        AssertThat(verb2.Tumble).IsEqual(FighterVerbRules.TumbleInHitstun);
+    }
+
+    [TestCase]
+    public void AMultiCountCorrectionAndAWrapAreHandledByTheHighWaterMark() {
+        var watch = new StrikeCounterWatch();
+        watch.Observe(0);
+        AssertThat(watch.Observe(1)).IsTrue();
+        AssertThat(watch.Observe(2)).IsTrue();
+        AssertThat(watch.Observe(3)).IsTrue();
+        AssertThat(watch.Observe(1)).IsFalse();
+        AssertThat(watch.Observe(2)).OverrideFailureMessage("2 was presented once already.").IsFalse();
+        AssertThat(watch.Observe(3)).OverrideFailureMessage("3 was presented once already.").IsFalse();
+        AssertThat(watch.Observe(4)).IsTrue();
+
+        var wrap = new StrikeCounterWatch();
+        wrap.Observe(14);
+        AssertThat(wrap.Observe(15)).IsTrue();
+        AssertThat(wrap.Observe(0)).OverrideFailureMessage("A genuine wrap is still a strike.").IsTrue();
+        AssertThat(wrap.Observe(15)).IsFalse();
+        AssertThat(wrap.Observe(0)).IsFalse();
+        AssertThat(wrap.Observe(1)).IsTrue();
+    }
+
+    [TestCase]
+    public void AStockLossResetRebaselinesTheWatchInsteadOfShowingAPhantomStrike() {
+        var watch = new StrikeCounterWatch();
+        watch.Observe(15);
+        AssertThat(watch.Observe(0)).OverrideFailureMessage("Unreset, 15 to 0 reads as a wrap (the phantom).").IsTrue();
+        var reset = new StrikeCounterWatch();
+        reset.Observe(15);
+        reset.Reset(); // the driver does this on a stock loss, the respawn hold, a round or Sudden Death
+        AssertThat(reset.Observe(0)).OverrideFailureMessage("After a reset the zeroed counter only baselines.").IsFalse();
+        AssertThat(reset.Observe(1)).IsTrue();
     }
 
     private static FighterSimulation Duel(int seed) =>

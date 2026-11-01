@@ -62,7 +62,12 @@ public class KlReviewRound1StoryTests {
             burst.SourceExecutionSerial = pulse.ExecutionSerial + 7;
             pulse.ConfirmAbilityHit(in burst, 12f, Origin);
             AssertThat(pulse.LandedDirectHitThisExecution).OverrideFailureMessage("Another cast's serial.").IsFalse();
+            // Review round 2: a matching serial from ANOTHER ability (serials are per ability) arms nothing.
             burst.SourceExecutionSerial = pulse.ExecutionSerial;
+            burst.AttackID = "einstein_relativity_rift";
+            pulse.ConfirmAbilityHit(in burst, 12f, Origin);
+            AssertThat(pulse.LandedDirectHitThisExecution).OverrideFailureMessage("A matching serial of another ability.").IsFalse();
+            burst.AttackID = pulse.Data.AbilityID;
             pulse.ConfirmAbilityHit(in burst, 12f, Origin);
             AssertThat(pulse.LandedDirectHitThisExecution).OverrideFailureMessage("The Pulse's own discharge arms it.").IsTrue();
         });
