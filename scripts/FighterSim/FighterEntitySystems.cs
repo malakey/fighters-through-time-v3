@@ -3309,6 +3309,14 @@ namespace FTT.FighterSim {
                 if (zone.TickFramesRemaining > 0) continue;
                 zone.TickFramesRemaining = zone.TickIntervalFrames;
 
+                // Golden Ratio: the first scheduled pulse is the first tick whether or not it found a
+                // target (decision 24), so the flag advances here, before any overlap early return.
+                bool firstSpiralPulse = false;
+                if (FighterSpiralRules.IsSpiral(in zone) && (zone.ExecutionFlags & FighterSpiralRules.FlagFirstTickDone) == 0) {
+                    firstSpiralPulse = true;
+                    zone.ExecutionFlags |= FighterSpiralRules.FlagFirstTickDone;
+                }
+
                 int targetPlayerID = zone.OwnerPlayerID == 0 ? 1 : 0;
                 if (!FighterEntityQueries.TryFindFighter(ref frame, zone.OwnerPlayerID, out EntityRef attackerEntity)
                     || !FighterEntityQueries.TryFindFighter(ref frame, targetPlayerID, out EntityRef targetEntity)) continue;
@@ -3395,7 +3403,7 @@ namespace FTT.FighterSim {
                 // Ratio's tick 1 alone keeps a hitstun, the later ticks hold by the pull.
                 bool vortexZone = FighterVortexRules.IsVortex(in zone);
                 bool spiralZone = FighterSpiralRules.IsSpiral(in zone);
-                if (spiralZone && (zone.ExecutionFlags & FighterSpiralRules.FlagFirstTickDone) == 0) {
+                if (spiralZone && firstSpiralPulse) {
                     pulseHitstunFrames = FighterSpiralRules.FirstTickHitstunFrames;
                 }
                 FighterHitOutcome pulseOutcome = FighterDamageRules.ResolveFighterHit(
@@ -3451,7 +3459,6 @@ namespace FTT.FighterSim {
                 // Golden Ratio: every tick draws the target in; the cast pays 0.05 pip once (HoldCast);
                 // its D3 arming as a direct hit already happened above.
                 if (spiralZone) {
-                    zone.ExecutionFlags |= FighterSpiralRules.FlagFirstTickDone;
                     if (pulseOutcome != FighterHitOutcome.Refused) FighterSpiralRules.Pull(ref target, in zone.Position);
                     if (pulseCounted && (zone.ExecutionFlags & FighterSpiralRules.FlagMomentumPaid) == 0
                         && FighterLingeringKitRules.CountsAsCombo(

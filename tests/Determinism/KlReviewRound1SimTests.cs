@@ -93,6 +93,45 @@ public class KlReviewRound1SimTests {
     }
 
     [TestCase]
+    public void GoldenRatioTickOneThatFindsNobodyStillSpendsTheFirstTickHitstun() {
+        FighterSimulation sim = new(
+            ProjectileBurstSimTests.Authored("leonardo"), FighterLoadout.Default(FighterCharacterID.Joan),
+            seed: 8404, spawnDistance: 1, rules: FighterMatchRules.Disabled);
+        // The opponent starts well away from the caster, so every pulse before it steps in misses.
+        sim.MutateFighterForTest(1, (ref FighterStateComponent state, ref FighterRuntimeComponent runtime, ref FighterVerbComponent verb) =>
+            state.Position = new FPVector2(state.Position.x + FP64.FromInt(5), state.Position.y));
+        sim.Advance(Press(0, GameplayButtons.Special1), Neutral(0));
+        int tick = 1;
+        FPVector2 zonePosition = default;
+        bool found = false;
+        for (; tick < 120 && !found; tick++) {
+            sim.Advance(Neutral(tick), Neutral(tick));
+            found = sim.MutateZoneForTest(0, (ref FighterZoneComponent zone) => zonePosition = zone.Position);
+        }
+        AssertThat(found).IsTrue();
+        // The first scheduled pulse is due next tick, and nobody stands in the zone: it misses.
+        sim.MutateZoneForTest(0, (ref FighterZoneComponent zone) => zone.TickFramesRemaining = 1);
+        sim.MutateFighterForTest(1, (ref FighterStateComponent state, ref FighterRuntimeComponent runtime, ref FighterVerbComponent verb) => {
+            state.Position = new FPVector2(zonePosition.x + FP64.FromInt(9), zonePosition.y);
+            state.HitstunFrames = 0;
+        });
+        int hpUntouched = Hp(sim, 1);
+        sim.Advance(Neutral(tick), Neutral(tick)); tick++;
+        AssertThat(Hp(sim, 1)).OverrideFailureMessage("pulse 1 must miss").IsEqual(hpUntouched);
+        // The opponent steps in before the second pulse: it must not get the 6-frame first-tick hitstun.
+        sim.MutateZoneForTest(0, (ref FighterZoneComponent zone) => zone.TickFramesRemaining = 1);
+        sim.MutateFighterForTest(1, (ref FighterStateComponent state, ref FighterRuntimeComponent runtime, ref FighterVerbComponent verb) => {
+            state.Position = new FPVector2(zonePosition.x, zonePosition.y);
+            state.HitstunFrames = 0;
+        });
+        int hpBefore = Hp(sim, 1);
+        sim.Advance(Neutral(tick), Neutral(tick));
+        sim.TryGetFighter(1, out FighterStateComponent after);
+        AssertThat(Hp(sim, 1)).OverrideFailureMessage("pulse 2 should have landed").IsLess(hpBefore);
+        AssertThat(after.HitstunFrames).OverrideFailureMessage($"hitstun={after.HitstunFrames}").IsEqual(0);
+    }
+
+    [TestCase]
     public void AnOrdinaryTurretBoltNeverShortensALongerStunOrEndsATumble() {
         FighterSimulation sim = Duel(8404);
         PlaceConstruct(sim, FighterConstructCharges.TurretObjectTypeID, 0f);
