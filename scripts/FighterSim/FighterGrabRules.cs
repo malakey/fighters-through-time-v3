@@ -12,7 +12,7 @@ namespace FTT.FighterSim {
     /// <c>FighterCombatSystem</c>, which owns both fighters.
     ///
     /// Phases: 0 none · 1 startup (10f) · 2 active (4f) · 3 recovery (24f
-    /// whiff / 8f clash bounce) · 4 holding (30f decision window) · 5 throw
+    /// whiff / 8f clash bounce) · 4 holding (20f auto-throw, early throw from 6f) · 5 throw
     /// animation (12f, both invulnerable).
     /// </summary>
     internal static class FighterGrabRules {
@@ -154,19 +154,21 @@ namespace FTT.FighterSim {
             _ => TemplateHurtboxHalfWidth
         };
 
+        /// <summary>The grabber's stick as a shared throw intent (up, back, forward, neutral).</summary>
+        public static FTT.Combat.GrabThrowIntent ThrowIntent(
+            in FighterStateComponent grabber,
+            in FighterRuntimeComponent grabberRuntime) =>
+            FTT.Combat.GrabThrowRules.ClassifyStick(
+                grabberRuntime.MoveX, grabberRuntime.MoveY, grabber.FacingRight != 0);
+
         /// <summary>
-        /// Resolves the throw direction from the grabber's held input when the
-        /// decision window closes: up wins, then away-from-facing is the back
-        /// throw; toward or neutral is the forward throw.
+        /// Resolves the throw direction from the grabber's held input: up wins,
+        /// then away-from-facing is the back throw; toward or neutral is forward.
         /// </summary>
         public static int ResolveThrowDirection(
             in FighterStateComponent grabber,
-            in FighterRuntimeComponent grabberRuntime) {
-            if (grabberRuntime.MoveY < -30) return ThrowUp;
-            if (grabberRuntime.MoveX > 30) return grabber.FacingRight != 0 ? ThrowForward : ThrowBack;
-            if (grabberRuntime.MoveX < -30) return grabber.FacingRight != 0 ? ThrowBack : ThrowForward;
-            return ThrowForward;
-        }
+            in FighterRuntimeComponent grabberRuntime) =>
+            (int)FTT.Combat.GrabThrowRules.DirectionFor(ThrowIntent(in grabber, in grabberRuntime));
 
         /// <summary>Releases a held victim without a throw (the grabber was hit).</summary>
         public static void ReleaseHeldVictim(ref FighterVerbComponent victimVerb) {

@@ -924,8 +924,8 @@ movelist_reach,"Reach: {0}% wide × {1}% tall of the standard hitbox"
 movelist_up_attack,"Up attack: {0}/{1}/{2} frames — {3:0.#} damage, vertical launcher"
 movelist_down_air,"Down air: {0}/{1}/{2} frames — {3:0.#} damage, aerial slam: spikes straight down, then one forced ground bounce"
 movelist_section_grabs,Grabs & Throws
-movelist_grab_frames,"Grab: {0}/{1}/{2} frames — grounded, unblockable, whiffs on a stunned or shieldstunned target"
-movelist_throws,"Throws: forward {0:0.#}× / up {1:0.#}× / back {2:0.#}× knockback at {3:0.#}× basic damage"
+movelist_grab_frames,"Grab: {0}/{1}/{2} frames — grounded, unblockable; in Story it also catches a stunned standard foe, in a match it whiffs on a stunned or shieldstunned fighter"
+movelist_throws,"Throws: forward {0:0.#}× / up {1:0.#}× / back {2:0.#}× knockback at {3:0.#}× basic damage — press a direction or Attack after a brief hold to throw at once, otherwise it throws forward by itself"
 movelist_triangle_note,"The triangle: attacks beat grabs, grabs beat blocks, blocks beat attacks."
 movelist_section_abilities,Specials & Ultimate
 movelist_slot_special1,Special 1
@@ -991,7 +991,7 @@ dialogue_skip_confirm_ok,Skip
 dialogue_skip_confirm_cancel,Keep watching
 movelist_dormant_until,"Dormant — restored after Level {0}"
 results_resonance_restored,"RESONANCE RESTORED — {0}"
-tutorial_step_grab,"Calibration: a raised shield stops a blade, not a hand - hold Block and press Attack to grab"
+tutorial_step_grab,"Calibration: a raised shield stops a blade, not a hand - hold Block and press Attack to grab, then press a direction or Attack to throw (or wait and it throws forward)"
 tutorial_step_grab_absorbed,The shield absorbed it - grab through the guard instead
 tutorial_step_grab_complete,Grabs beat blocks. Strikes beat grabs.
 tutorial_step_di,Calibration: hold a direction as the blow lands to steer where you fly
@@ -1540,7 +1540,7 @@ tutorial_objective_rift,Reach the Warden rift
 # S02 skip path: once-per-slot first-use tooltips.
 tooltip_first_use_rally_echo,Part of every blow lingers as an echo — strike back before it fades to reclaim it.
 tooltip_first_use_shield_break,"Three absorbed hits exhaust your shield and break your guard, leaving you dazed."
-tooltip_first_use_grab,"A raised shield stops a blade, not a hand — hold Block and press Attack to grab."
+tooltip_first_use_grab,"A raised shield stops a blade, not a hand — hold Block and press Attack to grab. Press a direction or Attack to throw, or wait and it throws forward."
 tooltip_first_use_launch,"Hold a direction as the blow lands to steer where you fly, and hold Block as you land to recover on your feet."
 tooltip_first_use_defy_button,"Half a bar of Influence: press Defy to break free of a hold and blast the enemies around you."
 tooltip_first_use_ledge,"Move toward the ledge while falling or rising slowly — you will grab and hang automatically. Press Jump to climb up, or Down to drop."

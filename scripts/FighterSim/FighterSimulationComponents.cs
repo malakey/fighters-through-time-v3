@@ -769,8 +769,14 @@ namespace FTT.FighterSim {
         /// never written by a Story identifier.
         /// </summary>
         public int MomentumUnits;
-        /// <summary>Free since 2026-10-31 (the second refund counter); always 0.</summary>
-        public int SpareInt0;
+        /// <summary>
+        /// Catch identity (grab pass 2026-10-31): the simulation tick + 1 at which this
+        /// fighter's grab connected, 0 while it holds nobody. Set by <c>ConnectGrab</c>,
+        /// zeroed by <see cref="ClearGrabPartner"/> (throw end, break, Defy, stock loss, spawn).
+        /// Presentation dedupes the grip spark on it, so a rollback correction that
+        /// re-adds the same catch never replays it. Was <c>SpareInt0</c>.
+        /// </summary>
+        public int GrabConnectFrame;
         // --- Grabs & Throws (V7.2) ---
         /// <summary>0 none, 1 startup, 2 active, 3 whiff recovery, 4 holding, 5 throw animation.</summary>
         public int GrabPhase;
@@ -817,8 +823,11 @@ namespace FTT.FighterSim {
                 : _grabPartnerState & ~0x100;
         }
 
-        /// <summary>Clears the packed grab attachment: partner -1, throw guard down.</summary>
-        public void ClearGrabPartner() => _grabPartnerState = 0xFF;
+        /// <summary>Clears the packed grab attachment: partner -1, throw guard down, no catch identity.</summary>
+        public void ClearGrabPartner() {
+            _grabPartnerState = 0xFF;
+            GrabConnectFrame = 0;
+        }
     }
 
     /// <summary>

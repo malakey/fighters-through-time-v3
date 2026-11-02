@@ -972,6 +972,8 @@ namespace FTT.Characters {
 		private int _grabPhase;
 		private int _grabPhaseFrames;
 		private int _grabThrowDirection;
+		// Grab pass 2026-10-31: unfrozen hold ticks already spent (the catch tick is 0).
+		private int _grabHoldElapsed;
 		private FTT.Enemies.EnemyController _grabbedEnemy;
 
 		/// <summary>
@@ -3206,6 +3208,13 @@ namespace FTT.Characters {
 			Velocity = vel;
 
 			if (_grabPhase is 4 or 5) PinGrabbedEnemy();
+			if (_grabPhase == 0) return; // the held mob vanished: PinGrabbedEnemy ended the grab
+			// Grab pass 2026-10-31: the hold throws early (a direction or Attack
+			// press after the minimum hold) or by itself after the shorter hold.
+			if (_grabPhase == 4) {
+				ProcessGrabHold();
+				return;
+			}
 
 			_grabPhaseFrames--;
 			if (_grabPhaseFrames > 0) {
@@ -3228,16 +3237,6 @@ namespace FTT.Characters {
 				case 3:
 					EndGrab(CharacterState.Idle);
 					break;
-				case 4:
-					// The decision window closed: the held direction picks the
-					// throw; both parties are invulnerable through the animation.
-					_grabThrowDirection = ResolveStoryThrowDirection();
-					_grabPhase = 5;
-					_grabPhaseFrames = FTT.Combat.BasicComboRules.ThrowAnimationFrames;
-					_techInvulnerabilitySeconds = Mathf.Max(
-						_techInvulnerabilitySeconds,
-						FTT.Combat.BasicComboRules.ThrowAnimationFrames / 60f);
-					break;
 				case 5:
 					ResolveStoryThrow();
 					break;
@@ -3252,10 +3251,84 @@ namespace FTT.Characters {
 			if (target == null) return false;
 			_grabPhase = 4;
 			_grabPhaseFrames = FTT.Combat.BasicComboRules.ThrowDecisionFrames;
+			_grabHoldElapsed = 0;
 			_grabbedEnemy = target;
-			target.BeginHeld();
+			float facing = IsFacingRight ? 1f : -1f;
+			// The held mob leans toward the grabber, who stands behind it.
+			target.BeginHeld(-facing);
 			PinGrabbedEnemy();
+			// Grab pass: the catch freeze on both (the hero's hold timer pauses in
+			// it) and the grip spark between the pair.
+			ApplyHitstop(FTT.Combat.BasicComboRules.GrabCatchHitstopFrames);
+			target.ApplyHitstop(FTT.Combat.BasicComboRules.GrabCatchHitstopFrames);
+			FTT.Combat.GrabSparkEffect.Show(
+				GlobalPosition + new Vector2(facing * GrabSparkForwardPixels, -GrabSparkRisePixels),
+				IsFacingRight, GetParent());
+			ShowAttackPose("grab", GrabHoldPoseFrame);
 			return true;
+		}
+
+		/// <summary>Catch spark offset in front of the grabber, pixels (Fighter shows it at the same place).</summary>
+		public const float GrabSparkForwardPixels = 36f;
+		/// <summary>Catch spark height above the grabber's feet, pixels.</summary>
+		public const float GrabSparkRisePixels = 50f;
+		/// <summary>The grabber holds the grab sheet's last frame through the hold.</summary>
+		public const int GrabHoldPoseFrame = 2;
+
+		/// <summary>
+		/// One unfrozen hold tick: classifies the stick (Story's own thresholds,
+		/// vertical beyond -0.3 is up, away from the facing beyond 0.3 is back,
+		/// toward it is forward) and asks the shared rule whether to throw. The
+		/// Time Freeze holds the count.
+		/// </summary>
+		private void ProcessGrabHold() {
+			ShowAttackPose("grab", GrabHoldPoseFrame);
+			if (TimeFrozen) return;
+			FTT.Combat.GrabThrowIntent intent = ClassifyStoryThrowIntent();
+			bool attackEdge = CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack);
+			bool throwNow = FTT.Combat.GrabThrowRules.ThrowTriggerThisTick(
+				_grabHoldElapsed, attackEdge, intent, out FTT.Combat.GrabThrowDirection direction);
+			if (!throwNow) {
+				_grabHoldElapsed++;
+				// The auto throw lands on the ThrowDecisionFrames-th unfrozen hold
+				// tick, as the sim's decrement does (its first thaw tick is tick 1).
+				if (_grabHoldElapsed >= FTT.Combat.BasicComboRules.ThrowDecisionFrames) {
+					throwNow = true;
+					direction = FTT.Combat.GrabThrowRules.DirectionFor(intent);
+				}
+			}
+			if (throwNow) {
+				// Both parties are invulnerable through the animation.
+				_grabThrowDirection = (int)direction;
+				_grabPhase = 5;
+				_grabPhaseFrames = FTT.Combat.BasicComboRules.ThrowAnimationFrames;
+				_techInvulnerabilitySeconds = Mathf.Max(
+					_techInvulnerabilitySeconds,
+					FTT.Combat.BasicComboRules.ThrowAnimationFrames / 60f);
+			}
+		}
+
+		private FTT.Combat.GrabThrowIntent ClassifyStoryThrowIntent() {
+			if (CurrentInputFrame.Vertical < -0.3f) return FTT.Combat.GrabThrowIntent.Up;
+			float facing = IsFacingRight ? 1f : -1f;
+			float toward = CurrentInputFrame.Horizontal * facing;
+			if (toward < -0.3f) return FTT.Combat.GrabThrowIntent.Back;
+			if (toward > 0.3f) return FTT.Combat.GrabThrowIntent.Forward;
+			return FTT.Combat.GrabThrowIntent.Neutral;
+		}
+
+		/// <summary>
+		/// Whether this tick asks for a grab, from either route (as the sim's
+		/// <c>FighterGrabRules.Requested</c> reads it): the direct
+		/// <c>gameplay_grab</c> bind, or the Block+BasicAttack chord unless the
+		/// frame says the originating device has its chord switched off
+		/// (<see cref="FTT.Core.GameplayButtons.DirectOrigin"/>).
+		/// </summary>
+		private bool GrabRequested() {
+			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Grab)) return true;
+			if (CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.DirectOrigin)) return false;
+			return CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack)
+				&& CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block);
 		}
 
 		private FTT.Enemies.EnemyController FindGrabbableEnemy() {
@@ -3264,9 +3337,8 @@ namespace FTT.Characters {
 			float bestDistance = float.MaxValue;
 			foreach (Godot.Node node in GetTree().GetNodesInGroup("Enemies")) {
 				if (node is not FTT.Enemies.EnemyController enemy || !enemy.IsGrabbable) continue;
-				// Grabs are a neutral tool: they whiff against a victim already
-				// in hitstun or daze, exactly as the sim's rule reads.
-				if (enemy.CurrentState is FTT.Enemies.EnemyState.Stunned) continue;
+				// Grab pass 2026-10-31: a Standard mob in hitstun is grabbable
+				// (string -> grab -> throw); the catch ends its stun.
 				// A13: the grab box is tested against the enemy's hurtbox.
 				if (!GrabBoxReaches(enemy)) continue;
 				float front = (enemy.GlobalPosition.X - GlobalPosition.X) * facing;
@@ -3394,8 +3466,7 @@ namespace FTT.Characters {
 			// V7.2: from the stance, BasicAttack converts the stance into a
 			// grab attempt — the chord repurposes dead input space (attack
 			// inputs were ignored while blocking).
-			if (!shieldStunned
-				&& CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack) && TryStartGrab()) {
+			if (!shieldStunned && GrabRequested() && TryStartGrab()) {
 				_blockSystem?.EndBlock();
 				return;
 			}
@@ -4788,10 +4859,14 @@ namespace FTT.Characters {
 			// V7.2: BasicAttack while Block is held is the GRAB chord — from
 			// neutral the same-frame press grabs (no block rises, no swing
 			// fires). Grounded only, like the stance it answers.
+			if (GrabRequested() && IsOnFloor()) {
+				return TryStartGrab();
+			}
+			// A chord switched off in Controls does not swing with Block held.
 			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack)
 				&& CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)
 				&& IsOnFloor()) {
-				return TryStartGrab();
+				return false;
 			}
 			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack)) {
 				StartBasicSwing(

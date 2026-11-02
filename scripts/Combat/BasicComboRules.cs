@@ -739,8 +739,19 @@ namespace FTT.Combat {
         }
         /// <summary>Two grabs connecting the same frame bounce both back this long.</summary>
         public const int GrabClashBounceFrames = 8;
-        /// <summary>The held victim's decision window before the throw resolves.</summary>
-        public const int ThrowDecisionFrames = 30;
+        /// <summary>
+        /// Grab pass 2026-10-31: the hold's auto-throw. With nothing pressed the
+        /// grabber throws forward after this many hold ticks (it was 30 when the
+        /// throw waited for the stick). See <see cref="GrabThrowRules"/>.
+        /// </summary>
+        public const int ThrowDecisionFrames = 20;
+        /// <summary>
+        /// Hold ticks before an early throw may fire: from then on a fresh Attack
+        /// press or a held direction throws at once (<see cref="GrabThrowRules"/>).
+        /// </summary>
+        public const int ThrowEarlyMinFrames = 6;
+        /// <summary>The catch freeze: grabber and victim both hitstop this long on the connect tick.</summary>
+        public const int GrabCatchHitstopFrames = 6;
         /// <summary>Both fighters are fully invulnerable through the throw animation.</summary>
         public const int ThrowAnimationFrames = 12;
         /// <summary>No-regrab window after being thrown.</summary>

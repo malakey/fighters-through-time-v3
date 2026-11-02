@@ -160,21 +160,78 @@ namespace FTT.Enemies {
         /// <summary>True while flying as a thrown projectile. Test seam.</summary>
         public bool IsThrownFlight => _thrownFlight;
 
-        public void BeginHeld() {
+        /// <summary>The held mob is lifted this many pixels off the floor (grab pass 2026-10-31).</summary>
+        public const float HeldLiftPixels = 6f;
+        /// <summary>The held mob leans toward the grabber by this many radians.</summary>
+        public const float HeldLeanRadians = 0.12f;
+        /// <summary>The hitstun sheet's first frame is the held pose, its last the thrown pose.</summary>
+        public const int HeldPoseFrame = 0;
+        public const int ThrownPoseFrame = 2;
+
+        /// <summary>
+        /// Seizes this mob. <paramref name="towardGrabber"/> (-1 / +1, 0 = none) is
+        /// the side the grabber stands on, which the held pose leans toward.
+        /// Grab pass 2026-10-31: a mob caught in hitstun leaves its stun cleanly
+        /// (the stun, the finisher flight, any owed slam bounce, the getup armour
+        /// and the S2 confirm chain end), so the hold and the throw behave as for
+        /// an un-stunned catch.
+        /// </summary>
+        public void BeginHeld(float towardGrabber = 0f) {
             _isHeldByPlayer = true;
             ResetLaunchCarry();
             _armoredAnswerPending = false;
             Velocity = Vector2.Zero;
             Executor.Cancel();
             _attackHitbox?.Deactivate();
+            if (CurrentState == EnemyState.Stunned) {
+                _stunTimer = 0f;
+                _slamBouncePending = false;
+                _slamBounceSpeed = 0f;
+                _getupArmorFramesRemaining = 0;
+                ResetConfirmChain();
+                RefreshArmorPresentation();
+                CurrentState = _target != null ? EnemyState.Chase : EnemyState.Patrol;
+            }
+            _grabLeanRadians = Mathf.Sign(towardGrabber) * HeldLeanRadians;
+            ShowHitstunFrame(HeldPoseFrame);
+            if (_sprite != null) _sprite.Rotation = _grabLeanRadians;
         }
 
         public void PinHeldAt(Vector2 position) {
-            GlobalPosition = position;
+            GlobalPosition = position + new Vector2(0f, -HeldLiftPixels);
             Velocity = Vector2.Zero;
         }
 
-        public void ReleaseHeld() => _isHeldByPlayer = false;
+        public void ReleaseHeld() {
+            bool wasHeld = _isHeldByPlayer;
+            _isHeldByPlayer = false;
+            if (wasHeld) ClearGrabPose(resumeAnimation: true);
+        }
+
+        private float _grabLeanRadians;
+
+        /// <summary>The sprite's current rotation, radians. Test seam.</summary>
+        public float GrabPoseRotation => _sprite?.Rotation ?? 0f;
+
+        /// <summary>Holds the hitstun sheet on one frame (presentation only; derived from existing art).</summary>
+        private void ShowHitstunFrame(int frame) {
+            if (_sprite?.SpriteFrames == null || !_sprite.SpriteFrames.HasAnimation("hitstun")) return;
+            if (_sprite.Animation != "hitstun") _sprite.Animation = "hitstun";
+            if (_sprite.IsPlaying()) _sprite.Pause();
+            int count = _sprite.SpriteFrames.GetFrameCount("hitstun");
+            int clamped = Mathf.Clamp(frame, 0, Mathf.Max(0, count - 1));
+            if (_sprite.Frame != clamped) _sprite.Frame = clamped;
+        }
+
+        /// <summary>Rotation back to upright; optionally resumes the state's reel.</summary>
+        private void ClearGrabPose(bool resumeAnimation) {
+            _grabLeanRadians = 0f;
+            if (_sprite == null) return;
+            _sprite.Rotation = 0f;
+            if (resumeAnimation && CurrentState != EnemyState.Dead) {
+                PlayAnimation(CurrentState == EnemyState.Stunned ? "hitstun" : "idle");
+            }
+        }
 
         /// <summary>
         /// The throw launch: the mob becomes a projectile. Enemies it hits in
@@ -226,6 +283,12 @@ namespace FTT.Enemies {
         /// in the hover as any stunned flyer's does.
         /// </summary>
         private void ProcessThrownFlight(float dt) {
+            // Grab pass 2026-10-31: the thrown pose, tilted toward the travel.
+            ShowHitstunFrame(ThrownPoseFrame);
+            if (_sprite != null) {
+                _sprite.Rotation = Mathf.Clamp(
+                    Mathf.Atan2(Velocity.X, Mathf.Max(Mathf.Abs(Velocity.Y), 120f)), -1f, 1f);
+            }
             ApplyGravity(dt);
             if (IsFlying) {
                 Velocity = Velocity.MoveToward(Vector2.Zero,
@@ -264,6 +327,7 @@ namespace FTT.Enemies {
                 Velocity = new Vector2(0f, Velocity.Y);
                 // D9: the throw's bounce ends with its flight.
                 ClearWallBounce();
+                ClearGrabPose(resumeAnimation: true);
             }
         }
         private float _patrolIdleTimer;
@@ -1998,6 +2062,7 @@ namespace FTT.Enemies {
         private void Die() {
             CurrentState = EnemyState.Dead;
             ResetLaunchCarry();
+            if (_sprite != null) _sprite.Rotation = 0f; // grab pass: a held or thrown pose never rides the corpse
             _armoredAnswerPending = false;
             ResetConfirmChain();
             ClearPunishWindow();
@@ -2581,6 +2646,8 @@ namespace FTT.Enemies {
         /// </summary>
         private void ResetGrabAndSlamState() {
             _isHeldByPlayer = false;
+            _grabLeanRadians = 0f;
+            if (_sprite != null) _sprite.Rotation = 0f; // grab pass: no held / thrown tilt survives a pool cycle or rewind
             _thrownFlight = false;
             _thrownBowlingDamage = 0;
             _bowledVictims.Clear();

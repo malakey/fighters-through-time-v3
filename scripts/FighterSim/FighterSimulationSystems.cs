@@ -1871,7 +1871,8 @@ namespace FTT.FighterSim {
                 in frame.GetReadOnly<FighterKnockdownComponent>(first),
                 in frame.GetReadOnly<FighterUltimateActivationComponent>(first),
                 in frame.GetReadOnly<FighterKnockdownComponent>(second),
-                in frame.GetReadOnly<FighterUltimateActivationComponent>(second));
+                in frame.GetReadOnly<FighterUltimateActivationComponent>(second),
+                (int)frame.Tick);
             bool oneActing = !oneFrozen && !FighterGrabRules.IsBusy(in verbOne);
             bool twoActing = !twoFrozen && !FighterGrabRules.IsBusy(in verbTwo);
 
@@ -1984,7 +1985,8 @@ namespace FTT.FighterSim {
             in FighterKnockdownComponent knockdownOne,
             in FighterUltimateActivationComponent activationOne,
             in FighterKnockdownComponent knockdownTwo,
-            in FighterUltimateActivationComponent activationTwo) {
+            in FighterUltimateActivationComponent activationTwo,
+            int tick) {
             // Initiation. Both may start the same frame; the clash resolves it.
             // C01c: the direct bind and the preset chord request the same verb,
             // once (FighterGrabRules.Requested deduplicates them).
@@ -2019,9 +2021,9 @@ namespace FTT.FighterSim {
                 FighterGrabRules.ApplyClash(ref one, ref verbOne);
                 FighterGrabRules.ApplyClash(ref two, ref verbTwo);
             } else if (oneSeizes) {
-                ConnectGrab(ref one, ref verbOne, ref two, ref runtimeTwo, ref verbTwo);
+                ConnectGrab(ref one, ref verbOne, ref two, ref runtimeTwo, ref verbTwo, tick);
             } else if (twoSeizes) {
-                ConnectGrab(ref two, ref verbTwo, ref one, ref runtimeOne, ref verbOne);
+                ConnectGrab(ref two, ref verbTwo, ref one, ref runtimeOne, ref verbOne, tick);
             }
 
             AdvanceGrabPhase(
@@ -2052,9 +2054,17 @@ namespace FTT.FighterSim {
             ref FighterVerbComponent grabberVerb,
             ref FighterStateComponent victim,
             ref FighterRuntimeComponent victimRuntime,
-            ref FighterVerbComponent victimVerb) {
+            ref FighterVerbComponent victimVerb,
+            int tick) {
             grabberVerb.GrabPhase = FighterGrabRules.PhaseHolding;
-            grabberVerb.GrabPhaseFrames = FTT.Combat.BasicComboRules.ThrowDecisionFrames;
+            // Catch identity for presentation (310 GrabConnectFrame): the sim tick of
+            // the connect, +1 so tick 0 is distinguishable from "no catch" (0).
+            grabberVerb.GrabConnectFrame = tick + 1;
+            // +1: this connect tick's own phase decrement (AdvanceGrabPhase runs
+            // right after) is not a hold tick, so the first thaw tick sees the full
+            // window and the auto throw lands after exactly ThrowDecisionFrames
+            // unfrozen hold ticks.
+            grabberVerb.GrabPhaseFrames = FTT.Combat.BasicComboRules.ThrowDecisionFrames + 1;
             victimVerb.BeingHeld = 1;
             // F23 (Package 11 A1c): the attachment is explicit snapshot state now.
             // The two-fighter systems used to resolve the partner positionally,
@@ -2069,11 +2079,17 @@ namespace FTT.FighterSim {
             // position feedback loop.
             victimVerb.GrabPhase = FighterGrabRules.PhaseNone;
             victimVerb.GrabPhaseFrames = 0;
+            victimVerb.GrabConnectFrame = 0;
             victim.Velocity = FPVector2.Zero;
             FighterUniversalMovementRules.Cancel(ref victimRuntime);
             FighterBasicAttackRules.CancelString(ref victimRuntime);
             FighterLedgeRules.ClearHang(ref victimRuntime);
             PinHeldVictim(in grabber, ref victim, ref victimRuntime);
+            // Grab pass 2026-10-31: the catch freeze. Both fighters hitstop on the
+            // connect tick; the hold does not advance while its grabber is frozen
+            // (AdvanceGrabPhase), so the freeze never eats the hold.
+            FighterVerbRules.ApplyHitstop(
+                ref grabberVerb, ref victimVerb, FTT.Combat.BasicComboRules.GrabCatchHitstopFrames);
         }
 
         /// <summary>
@@ -2109,6 +2125,7 @@ namespace FTT.FighterSim {
             if (grabberVerb.BeingHeld != 0) {
                 grabberVerb.GrabPhase = FighterGrabRules.PhaseNone;
                 grabberVerb.GrabPhaseFrames = 0;
+                grabberVerb.GrabConnectFrame = 0;
                 return;
             }
 
@@ -2122,6 +2139,21 @@ namespace FTT.FighterSim {
                     return;
                 }
                 PinHeldVictim(in grabber, ref victim, ref victimRuntime);
+            }
+
+            if (grabberVerb.GrabPhase == FighterGrabRules.PhaseHolding) {
+                // Grab pass 2026-10-31: the early throw. Hold ticks already spent =
+                // decision window - frames left; only this tick's Attack press
+                // edge counts (the chord's own press was made before the catch).
+                int elapsed = FTT.Combat.BasicComboRules.ThrowDecisionFrames - grabberVerb.GrabPhaseFrames;
+                bool attackEdge = (grabberRuntime.PressedButtons & (1 << 2)) != 0;
+                if (FTT.Combat.GrabThrowRules.ThrowTriggerThisTick(
+                        elapsed, attackEdge,
+                        FighterGrabRules.ThrowIntent(in grabber, in grabberRuntime),
+                        out FTT.Combat.GrabThrowDirection early)) {
+                    BeginThrowAnimation(ref grabber, ref grabberVerb, ref victim, (int)early);
+                    return;
+                }
             }
 
             grabberVerb.GrabPhaseFrames--;
@@ -2144,24 +2176,33 @@ namespace FTT.FighterSim {
                     break;
                 case FighterGrabRules.PhaseHolding:
                     // The decision window closed: the held direction picks the
-                    // throw, then both fighters are invulnerable for the
-                    // 12-frame throw animation.
-                    grabberVerb.ThrowDirection =
-                        FighterGrabRules.ResolveThrowDirection(in grabber, in grabberRuntime);
-                    grabberVerb.GrabPhase = FighterGrabRules.PhaseThrowAnimation;
-                    grabberVerb.GrabPhaseFrames = FTT.Combat.BasicComboRules.ThrowAnimationFrames;
-                    if (grabber.InvulnerabilityFrames < FTT.Combat.BasicComboRules.ThrowAnimationFrames) {
-                        grabber.InvulnerabilityFrames = FTT.Combat.BasicComboRules.ThrowAnimationFrames;
-                    }
-                    if (victim.InvulnerabilityFrames < FTT.Combat.BasicComboRules.ThrowAnimationFrames) {
-                        victim.InvulnerabilityFrames = FTT.Combat.BasicComboRules.ThrowAnimationFrames;
-                    }
+                    // throw (neutral = forward), then both fighters are
+                    // invulnerable for the 12-frame throw animation.
+                    BeginThrowAnimation(
+                        ref grabber, ref grabberVerb, ref victim,
+                        FighterGrabRules.ResolveThrowDirection(in grabber, in grabberRuntime));
                     break;
                 case FighterGrabRules.PhaseThrowAnimation:
                     ResolveThrow(
                         ref grabber, ref grabberRuntime, ref grabberVerb, in grabberTuning,
                         ref victim, ref victimRuntime, ref victimVerb, ref victimDefense, in victimTuning);
                     break;
+            }
+        }
+
+        private static void BeginThrowAnimation(
+            ref FighterStateComponent grabber,
+            ref FighterVerbComponent grabberVerb,
+            ref FighterStateComponent victim,
+            int direction) {
+            grabberVerb.ThrowDirection = direction;
+            grabberVerb.GrabPhase = FighterGrabRules.PhaseThrowAnimation;
+            grabberVerb.GrabPhaseFrames = FTT.Combat.BasicComboRules.ThrowAnimationFrames;
+            if (grabber.InvulnerabilityFrames < FTT.Combat.BasicComboRules.ThrowAnimationFrames) {
+                grabber.InvulnerabilityFrames = FTT.Combat.BasicComboRules.ThrowAnimationFrames;
+            }
+            if (victim.InvulnerabilityFrames < FTT.Combat.BasicComboRules.ThrowAnimationFrames) {
+                victim.InvulnerabilityFrames = FTT.Combat.BasicComboRules.ThrowAnimationFrames;
             }
         }
 

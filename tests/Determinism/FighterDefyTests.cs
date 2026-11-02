@@ -454,6 +454,12 @@ public class FighterDefyTests {
         for (int step = 0; step < BasicComboRules.GrabStartupFrames + 3 && Verb(simulation, 1).BeingHeld == 0; step++) {
             simulation.Advance(Input(simulation.CurrentTick, GameplayButtons.None), Input(simulation.CurrentTick, GameplayButtons.None));
         }
+        // Grab pass 2026-10-31: the catch freezes both fighters, and a Defy pressed
+        // inside a freeze is held until the thaw. Ride the freeze out so these
+        // cases still press into a live hold.
+        for (int step = 0; step < BasicComboRules.GrabCatchHitstopFrames; step++) {
+            simulation.Advance(Input(simulation.CurrentTick, GameplayButtons.None), Input(simulation.CurrentTick, GameplayButtons.None));
+        }
         return simulation;
     }
 

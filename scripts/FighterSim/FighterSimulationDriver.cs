@@ -985,6 +985,8 @@ namespace FTT.FighterSim {
             SyncWallBounce(player, playerID, in state);
             // MM-FX: the Defy burst (DefyFeedback partial).
             SyncDefyFeedback(player, playerID);
+            // Grab pass: the catch spark and the held / thrown victim poses.
+            SyncGrabFeedback(player, playerID, in state);
         }
 
         // === Package 12 W10 / H04: Fighter core-mechanic cues ===================
@@ -1119,7 +1121,13 @@ namespace FTT.FighterSim {
             // or thrown fighter, a launch tumble and a knockdown all play hitstun;
             // a landing tech plays roll_recovery; the grabber plays grab through
             // reach and hold and the single shared throw for every direction.
-            if (verb.BeingHeld != 0) return "hitstun";
+            // Grab pass 2026-10-31: the held victim and the thrown victim hold
+            // distinct frames of the hitstun sheet (first and last).
+            int victimPose = GrabVictimPoseFrame(in verb, in state);
+            if (victimPose >= 0) {
+                pose = victimPose;
+                return "hitstun";
+            }
             if (state.HitstunFrames > 0) return "hitstun";
             // CM-HIT (3.2): a tumble that outlived its hitstun still reads as
             // hitstun until the fighter acts or lands (Story's latch plays it too).
@@ -1136,7 +1144,11 @@ namespace FTT.FighterSim {
             }
             if (verb.TechLockoutFrames > 0) return "roll_recovery";
             string grabAnimation = GrabPresentationAnimation(verb.GrabPhase);
-            if (grabAnimation != null) return grabAnimation;
+            if (grabAnimation != null) {
+                // The hold stays on the grab sheet's last pose instead of looping.
+                if (verb.GrabPhase == FighterGrabRules.PhaseHolding) pose = GrabHoldPoseFrame;
+                return grabAnimation;
+            }
             // §2.11 — the placeholder set already carries a real ledge_hang pose
             // for all nine characters (Story's LedgeHanging state uses it), so the
             // Fighter hang reuses it rather than borrowing crouch or hitstun.

@@ -45,10 +45,11 @@ public class StoryGrabTests {
                 .IsTrue();
             AssertThat(player.GrabbedEnemy).IsEqual(mob);
 
-            // Ride the decision window and throw animation: the mob takes the
+            // Ride the catch freeze, the decision window and the throw animation: the mob takes the
             // 1.0x throw damage and leaves as a thrown projectile.
             HoldInput(player, GameplayButtons.None, pressed: GameplayButtons.None,
-                frames: BasicComboRules.ThrowDecisionFrames + BasicComboRules.ThrowAnimationFrames + 2);
+                frames: BasicComboRules.GrabCatchHitstopFrames + BasicComboRules.ThrowDecisionFrames
+                    + BasicComboRules.ThrowAnimationFrames + 4);
             AssertThat(player.CurrentState).IsNotEqual(CharacterState.Grabbing);
             AssertThat(mob.CurrentHP < hpBefore)
                 .OverrideFailureMessage("The throw's damage must land.")
