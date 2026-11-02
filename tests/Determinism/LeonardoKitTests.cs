@@ -37,7 +37,8 @@ public class LeonardoKitTests {
         AssertThat(zone.ZoneTypeID).IsEqual((int)FighterCharacterID.Leonardo * 10 + 1);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent afterFirstTick)).IsTrue();
         AssertThat(afterFirstTick.CurrentHP).IsEqual(90);
-        AssertThat(afterFirstTick.HitstunFrames).IsEqual(0);
+        // Lingering-kit pass: tick 1 alone keeps a short hitstun (the later ticks hold by the pull).
+        AssertThat(afterFirstTick.HitstunFrames).IsEqual(FighterSpiralRules.FirstTickHitstunFrames);
 
         // Ticks 2 and 3 land at the authored 0.5 s interval; still impulse-free.
         for (int tick = fired; tick < fired + 88; tick++) {
@@ -65,7 +66,7 @@ public class LeonardoKitTests {
     }
 
     [TestCase]
-    public void ClockworkTurretFiresFourBoltsThenSelfDestructs() {
+    public void ClockworkTurretFiresFourOwnShotsAndOutlivesThem() {
         var simulation = new FighterSimulation(
             FighterLoadoutFactory.FromCharacterData(BuildTurretCharacter()),
             FighterLoadout.Default(FighterCharacterID.Joan),
@@ -79,19 +80,18 @@ public class LeonardoKitTests {
         AssertThat(simulation.TryGetFirstPersistentObject(out FighterPersistentObjectComponent turret)).IsTrue();
         AssertThat(turret.ObjectTypeID).IsEqual(2);
         AssertThat(turret.MaxHP).IsEqual(20);
-        AssertThat(turret.Damage).IsEqual(6);
+        AssertThat(turret.Damage).IsEqual(4);
         AssertThat(turret.RemainingAttacks).IsEqual(4);
         AssertThat(turret.MaxDeployLimit).IsEqual(1);
 
-        // V7 tuning batch: 4 bolts of 6 landing every 2 s (frames ~120/241/362/
-        // 483); after the fourth bolt the turret self-destructs well before its
-        // 15 s lifespan.
+        // Lingering-kit pass: its own shot is 4 every 3 s (frames ~180/361/542/723) and spends
+        // no charge, so after the fourth shot the turret is still up (the old one self-destructed).
         for (int tick = deployed; tick < deployed + 800; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
-        AssertThat(simulation.PersistentObjectCount).IsEqual(0);
+        AssertThat(simulation.PersistentObjectCount).IsEqual(1);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
-        AssertThat(target.CurrentHP).IsEqual(76);
+        AssertThat(target.CurrentHP).IsEqual(100 - 4 * 4);
     }
 
     [TestCase]
@@ -154,8 +154,8 @@ public class LeonardoKitTests {
                 Frame(tick, 0, GameplayButtons.None), Frame(tick, -127, GameplayButtons.None));
             AssertThat(actual).IsEqual(expected);
         }
-        // The turret fired out and self-destructed well inside its 15 s life.
-        AssertThat(restored.PersistentObjectCount).IsEqual(0);
+        // The turret no longer self-destructs after its own shots: it is still up inside its 15 s life.
+        AssertThat(restored.PersistentObjectCount).IsEqual(1);
     }
 
     private static CharacterData BuildSpiralCharacter() => new() {
@@ -196,7 +196,9 @@ public class LeonardoKitTests {
         SpecialAttackOne = new AbilityData(),
         SpecialAttackTwo = new AbilityData {
             ExecutionType = AbilityExecutionType.PersistentObject,
-            BaseDamage = 5f,
+            // The own shot as leonardo/special_2.tres authors it: 4 every 180 frames.
+            BaseDamage = 4f,
+            DamageTickIntervalFrames = 180,
             PersistentObjectID = "clockwork_turret",
             MaxActiveObjects = 1,
             Lifetime = 15f,
@@ -250,7 +252,8 @@ public class LeonardoKitTests {
         },
         SpecialAttackTwo = new AbilityData {
             ExecutionType = AbilityExecutionType.PersistentObject,
-            BaseDamage = 5f,
+            BaseDamage = 4f,
+            DamageTickIntervalFrames = 180,
             PersistentObjectID = "clockwork_turret",
             MaxActiveObjects = 1,
             Lifetime = 15f,

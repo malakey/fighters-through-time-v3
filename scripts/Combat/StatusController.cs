@@ -45,7 +45,7 @@ namespace FTT.Combat {
         private float _tickTimer;
 
         public void OnApply(FTT.Characters.PlayerController target, float duration, float intensity) {
-            _damagePerTick = 2.0f * (intensity <= 0 ? 1.0f : intensity);
+            _damagePerTick = LingeringKitRules.VenomDamagePerSecondPerIntensity * (intensity <= 0 ? 1.0f : intensity);
             _tickTimer = TickInterval;
         }
         public void OnTick(FTT.Characters.PlayerController target, float delta) {

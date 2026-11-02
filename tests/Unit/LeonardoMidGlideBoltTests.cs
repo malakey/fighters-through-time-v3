@@ -11,7 +11,7 @@ namespace FTT.Tests.Unit;
 /// <summary>
 /// Package 12 W4 — Leonardo's movement-rule kit copy ("Ornithopter glide can
 /// fire one turret bolt mid-flight if a turret is deployed") and M03 (the
-/// turret's bolt budget is 4, 5 with Clockwork Overdrive). A commanded bolt is
+/// turret's charges are 4, 5 with Clockwork Overdrive). A commanded bolt is
 /// the turret's own next bolt, out of its own budget; a command that cannot fire
 /// spends nothing.
 /// </summary>
@@ -21,18 +21,18 @@ public class LeonardoMidGlideBoltTests {
     private const double Tick = 1.0 / 60.0;
 
     [TestCase]
-    public void TheTurretCarriesFourBoltsAndFiveWithClockworkOverdrive() {
+    public void TheTurretCarriesFourChargesAndFiveWithClockworkOverdrive() {
         AbilityData data = AuthoredResources.Load<AbilityData>("res://resources/Abilities/leonardo/special_2.tres");
-        AssertThat(data.HitCount).IsEqual(4);
+        AssertThat(data.HitCount).OverrideFailureMessage("HitCount is not the charge count; the charges live in LingeringKitRules.").IsEqual(1);
         var turret = new LeonardoTurretNode();
         try {
             turret.Initialize(data, owner: null, clockworkOverdrive: false);
-            AssertThat(turret.BoltsRemaining).IsEqual(4);
+            AssertThat(turret.Charges).IsEqual(4);
             turret.Initialize(data, owner: null, clockworkOverdrive: true);
-            AssertThat(turret.BoltsRemaining).IsEqual(5);
+            AssertThat(turret.Charges).IsEqual(5);
             // The data-less fallback is 4 as well (M03 cleanup).
             turret.Initialize(null, owner: null, clockworkOverdrive: false);
-            AssertThat(turret.BoltsRemaining).IsEqual(4);
+            AssertThat(turret.Charges).IsEqual(4);
         } finally {
             turret.Free();
         }
@@ -71,7 +71,7 @@ public class LeonardoMidGlideBoltTests {
             player.ActivePersistentObjects.Add(turret);
             AssertThat(flight.TryFireMidGlideBolt()).IsFalse();
             AssertThat(flight.MidGlideBoltSpent).IsFalse();
-            AssertThat(turret.BoltsRemaining).IsEqual(4);
+            AssertThat(turret.Charges).IsEqual(4);
         } finally {
             InputManager.Instance?.ClearInputSource(player.PlayerIndex);
             player.ActivePersistentObjects.Remove(turret);

@@ -410,8 +410,7 @@ public class StoryFirstSpecialTaxTests {
                 for (int hit = 0; hit < data.HitCount; hit++) hits.Add(hs);
                 break;
             case "leonardo_golden_ratio":
-                for (int hit = 0; hit < data.HitCount - 1; hit++) hits.Add(LeonardoGoldenRatio.ChurnTickHitstunFrames);
-                hits.Add(hs);
+                for (int hit = 0; hit < data.HitCount; hit++) hits.Add(LeonardoGoldenRatio.TickHitstunFramesFor(hit, hit == data.HitCount - 1, hs));
                 break;
             case "lincoln_splitting_strike":
                 // The strike, plus Kinetic Splitting's ground bounce (Story perk).
@@ -432,11 +431,9 @@ public class StoryFirstSpecialTaxTests {
                 // A positional windbox: it builds no hit payload at all.
                 break;
             case "tesla_lorentz_pulse":
-                // The pulse, plus one chain arc per coil he can have standing.
+                // The pulse. Its coil discharge bursts (lingering-kit pass) are construct strikes,
+                // exempt from standard poise, so they add nothing here.
                 hits.Add(hs);
-                for (int coil = 0; coil < teslaCoil.MaxActiveObjects; coil++) {
-                    hits.Add(TeslaLorentzPulse.ChainArcHitstunFrames);
-                }
                 break;
             case "cleopatra_sandstorm_vortex":
                 // Only the final tick carries hitstun.

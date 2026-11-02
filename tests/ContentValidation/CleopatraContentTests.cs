@@ -26,7 +26,10 @@ public class CleopatraContentTests {
         // V7 tuning batch: the documented 1 s bite cadence at a lighter 6-damage
         // bite, so standing on the nest is real area denial instead of one bite.
         AssertThat(data.DamageTickIntervalFrames).IsEqual(60);
-        AssertThat(data.BaseDamage).IsEqual(6f);
+        // Lingering-kit integration: the own nip is authored here and read by both modes - 3 damage every
+        // 60 frames with 9 frames of hitstun (the 6-damage Venom lunge is the rulebook's synced strike).
+        AssertThat(data.BaseDamage).IsEqual(3f);
+        AssertThat(data.HitstunFrames).IsEqual(9);
         AssertThat(data.CooldownDuration).IsEqual(0f);
         // The bite carries Venom for 4 s alongside its brief hitstun; under the
         // V7 two-slot status rule the DoT survives later control statuses.
@@ -47,13 +50,14 @@ public class CleopatraContentTests {
         AssertThat(data.DamageTickIntervalFrames).IsEqual(24);
         AssertThat(data.Lifetime).IsEqual(2f);
         AssertThat(data.AppliedStatus).IsEqual(StatusType.TimeDilation);
-        AssertThat(data.StatusDuration).IsEqual(2f);
-        // -40% speed: TimeDilation multiplies speed by (1 - 0.5 * intensity).
-        AssertThat(data.StatusIntensity).IsEqual(0.8f);
-        // C01 (Package 13 W7b): thrown up to 5 units ahead, 1.8-unit radius,
-        // pulling at 3 units/s.
+        // Lingering-kit pass: the hero slow, x0.4 through TimeDilation's (1 - 0.5 * intensity),
+        // lingering 1.75 s after the victim leaves (was 0.8 for 2 s).
+        AssertThat(data.StatusDuration).IsEqual(1.75f);
+        AssertThat(data.StatusIntensity).IsEqual(1.2f);
+        // C01 (Package 13 W7b): thrown up to 5 units ahead; the lingering-kit pass widened the
+        // radius from 1.8 to 2.5 units; the pull is still the 3 units/s of KitReachRules.
         AssertThat(KitReachRules.SandstormVortexMaxThrowUnits).IsEqual(5.0);
-        AssertFloat(FTT.Characters.Abilities.CleopatraSandstormVortex.VortexRadiusPixels).IsEqualApprox(108f, 0.01f);
+        AssertFloat(FTT.Characters.Abilities.CleopatraSandstormVortex.VortexRadiusPixels).IsEqualApprox(150f, 0.01f);
         AssertThat(KitReachRules.SandstormVortexPullUnitsPerSecond).IsEqual(3.0);
     }
 

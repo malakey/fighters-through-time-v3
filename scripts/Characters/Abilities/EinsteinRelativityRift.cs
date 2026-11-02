@@ -44,6 +44,12 @@ namespace FTT.Characters.Abilities {
         /// </summary>
         public const int CollapseLaunchHitstunFrames = 30;
 
+        /// <summary>
+        /// Lingering-kit pass: the owner's landed basic string finisher (hitbox <c>combo_3</c>) on a
+        /// target inside this rift collapses it, like an E=mc2 burst does.
+        /// </summary>
+        public const string FinisherHitboxID = "combo_3";
+
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
             EmitCharacterVfx(
@@ -85,6 +91,13 @@ namespace FTT.Characters.Abilities {
         /// <see cref="TryCollapse"/>, cleared once the caught targets launch.
         /// </summary>
         private string _collapseSourceAttackID;
+        /// <summary>
+        /// Lingering-kit pass: the cast that burst the rift (E=mc2) and the execution serial it burst
+        /// under, so the collapse landing can arm that cast's D3 flag. Null for a finisher collapse.
+        /// </summary>
+        private BaseSpecial _collapseSourceCast;
+        private int _collapseSourceSerial;
+        private bool _subscribed;
 
         /// <summary>The deployed rift's effective radius after Story minors. Test seam.</summary>
         public float ActiveRiftRadiusPixels => _riftRadius;
@@ -108,6 +121,7 @@ namespace FTT.Characters.Abilities {
             }
             if (_riftLifetime <= 0f) return;
             _riftLifetime -= (float)delta;
+            if (_riftLifetime <= 0f) Unsubscribe();
             RefreshLinger();
             SlowCrossingProjectiles();
         }
@@ -142,6 +156,8 @@ namespace FTT.Characters.Abilities {
             _riftLifetime = Data?.Lifetime > 0f ? Data.Lifetime : 3f;
             _collapseFramesRemaining = 0;
             _collapseSourceAttackID = null;
+            _collapseSourceCast = null;
+            Subscribe();
             _riftZone = SpawnPlaceholderZone(
                 _riftCenter,
                 Data?.BaseDamage ?? 1.5f,
@@ -201,9 +217,8 @@ namespace FTT.Characters.Abilities {
             if (status == FTT.Core.StatusType.None) return;
             float intensity = Data?.StatusIntensity ?? 1f;
             foreach (Hurtbox hurtbox in QueryOpponentsInRift(_riftRadius)) {
-                if (FindStatusTarget(hurtbox) is IStatusEffectTarget target) {
-                    target.ApplyStatusEffect(status, LingerSeconds, intensity);
-                }
+                LingeringZoneStatus.TryApply(
+                    LingeringZoneStatus.FindStatusNode(hurtbox.GetParent()), status, LingerSeconds, intensity);
             }
         }
 
@@ -217,10 +232,14 @@ namespace FTT.Characters.Abilities {
         /// (D4). Nothing else reads the collapse's <c>AttackID</c>: it is a
         /// 0-damage tick, so S2, meter, Rally and the landed-hit report never see it.
         /// </summary>
-        public bool TryCollapse(Vector2 burstPoint, string sourceAttackID = null) {
+        public bool TryCollapse(Vector2 burstPoint, string sourceAttackID = null,
+                BaseSpecial sourceCast = null, int sourceSerial = 0) {
             if (!RiftActive || _collapseFramesRemaining > 0) return false;
             if (burstPoint.DistanceTo(_riftCenter) > _riftRadius) return false;
+            Unsubscribe();
             _collapseSourceAttackID = sourceAttackID;
+            _collapseSourceCast = sourceCast;
+            _collapseSourceSerial = sourceSerial;
             _collapseTargets.Clear();
             _collapseHurtboxes.Clear();
             foreach (Hurtbox hurtbox in QueryOpponentsInRift(_riftRadius)) {
@@ -254,7 +273,46 @@ namespace FTT.Characters.Abilities {
             _collapseTargets.Clear();
             _collapseHurtboxes.Clear();
             _collapseSourceAttackID = null;
+            _collapseSourceCast = null;
+            // Lingering-kit pass: Momentum Detonation once per collapse, never per body.
+            if (_collapsePaid && Owner != null && IsInstanceValid(Owner)) {
+                Owner.PayLingeringMomentum(LingeringMomentumEvent.Detonation);
+            }
+            _collapsePaid = false;
         }
+
+        private bool _collapsePaid;
+
+        private void Subscribe() {
+            if (_subscribed || Owner == null) return;
+            Owner.OwnerHitLanded += OnOwnerHitLanded;
+            _subscribed = true;
+        }
+
+        private void Unsubscribe() {
+            if (!_subscribed) return;
+            _subscribed = false;
+            if (Owner != null && IsInstanceValid(Owner)) Owner.OwnerHitLanded -= OnOwnerHitLanded;
+        }
+
+        public override void _ExitTree() {
+            Unsubscribe();
+            base._ExitTree();
+        }
+
+        private void OnOwnerHitLanded(OwnerHitLandedInfo info) {
+            if (!RiftActive || _collapseFramesRemaining > 0) return;
+            if (!info.Landed || info.Payload.HitboxID != FinisherHitboxID) return;
+            if (info.Target == null || !IsInstanceValid(info.Target)) return;
+            Vector2 point = info.Target.GlobalPosition;
+            if (point.DistanceTo(_riftCenter) > _riftRadius) return;
+            // Raised from a Hitbox, the seam runs inside the physics callback and the collapse
+            // queries the space, so hop off the flush; a direct call stays synchronous.
+            if (PhysicsCallbackGuard.IsInPhysicsCallback) CallDeferred(nameof(CollapseFromFinisher), point);
+            else CollapseFromFinisher(point);
+        }
+
+        private void CollapseFromFinisher(Vector2 point) => TryCollapse(point);
 
         private void LaunchCaughtTarget(Hurtbox hurtbox) {
             if (Owner == null || !IsInstanceValid(Owner)) return;
@@ -267,7 +325,8 @@ namespace FTT.Characters.Abilities {
                 AttackID = _collapseSourceAttackID ?? Data?.AbilityID ?? "einstein_relativity_rift",
                 HitboxID = "rift_collapse",
                 AttackClass = AttackClass.Special,
-                Damage = 0f,
+                // Lingering-kit pass: the collapse hurts (8, through the Story damage composition).
+                Damage = Owner.StoryAbilityDamage(LingeringKitRules.RiftCollapseDamage, Data?.AbilityID),
                 Knockback = new Vector2(0f, -KitMotionRules.RiftCollapseLaunchUnits),
                 HitstunDuration = CollapseLaunchHitstunFrames / 60f,
                 HitOrigin = _riftCenter,
@@ -279,10 +338,24 @@ namespace FTT.Characters.Abilities {
                 ScreenShakeDuration = 0.1f
             });
             hit.Launches = true;
-            // 0 damage: TakeHit returns 0 and Credit awards nothing — no meter,
-            // no Rally, exactly the design's "earns nothing of its own".
+            hit.CountsAsCombo = true;
+            hit.SourceExecutionSerial = _collapseSourceSerial;
             float dealt = hurtbox.TakeHit(hit);
-            Credit(hurtbox, in hit, dealt, hurtbox.GlobalPosition);
+            // Review round 2: the collapse is credited and announced here but NEVER confirmed on the Rift's
+            // own cast (execution serials are per ability); only the E=mc2 cast that caused it arms D3.
+            HitPayload credited = hit;
+            credited.ContactLanded = hurtbox.DidLand(hit.ContactId);
+            CreditDealt(Owner, in credited, dealt);
+            Owner?.RaiseOwnerHitLanded(hurtbox, in credited, hurtbox.GlobalPosition);
+            if (dealt > 0f && hurtbox.DidLand(hit.ContactId)) {
+                _collapsePaid = true;
+                // D3: a collapse landing inside the E=mc2 cast arms that cast's recovery cancel.
+                if (_collapseSourceCast != null && IsInstanceValid(_collapseSourceCast)) {
+                    HitPayload landed = hit;
+                    landed.ContactLanded = true;
+                    _collapseSourceCast.ConfirmAbilityHit(in landed, dealt, hurtbox.GlobalPosition);
+                }
+            }
             // The player damage path stops at a zero-damage hit (enemies still
             // take its knockback and stun), so a caught PlayerController — the
             // Level 13 Mirror, a sparring partner — gets the launch directly.
@@ -292,7 +365,7 @@ namespace FTT.Characters.Abilities {
             // Story hyper-armour window denies both, and the cast is not
             // interrupted. It is read at launch, not at the catch, because an
             // Ultimate accepted during the six-frame pull is armoured too.
-            if (FindBody(hurtbox) is PlayerController caughtPlayer && IsInstanceValid(caughtPlayer)
+            if (dealt <= 0f && FindBody(hurtbox) is PlayerController caughtPlayer && IsInstanceValid(caughtPlayer)
                 && caughtPlayer.CurrentState != CharacterState.Dead
                 && !caughtPlayer.HasActiveHyperArmorAgainst(hit.AttackClass)) {
                 caughtPlayer.Velocity = hit.Knockback * 60f;
@@ -338,15 +411,6 @@ namespace FTT.Characters.Abilities {
             Node current = hurtbox.GetParent();
             while (current != null) {
                 if (current is CharacterBody2D body) return body;
-                current = current.GetParent();
-            }
-            return null;
-        }
-
-        private static IStatusEffectTarget FindStatusTarget(Hurtbox hurtbox) {
-            Node current = hurtbox.GetParent();
-            while (current != null) {
-                if (current is IStatusEffectTarget target) return target;
                 current = current.GetParent();
             }
             return null;

@@ -20,6 +20,12 @@ namespace FTT.Combat {
         [Export] public float Damage = 10f;
         [Export] public Vector2 KnockbackForce = new(3f, -2f);
         [Export] public float HitstunDuration = 0.2f;
+        /// <summary>
+        /// KL-SCON: stamped onto the payload as <see cref="HitPayload.CountsAsCombo"/>. Set only by the
+        /// turret's synced bolt (<see cref="PlaceholderProjectile.ConfigureSyncedStrike"/>); reset on
+        /// every <c>PlaceholderProjectile.Setup</c> (pooled).
+        /// </summary>
+        public bool CountsAsCombo;
         [Export] public StatusType AppliedStatus = StatusType.None;
         [Export] public float StatusDuration;
         [Export] public float StatusIntensity = 1f;
@@ -200,6 +206,7 @@ namespace FTT.Combat {
                 SourceIsStandardMob = SourceIsStandardMob,
                 SourceIsMovementAbility = SourceIsMovementAbility,
                 SourceExecutionSerial = SourceExecutionSerial,
+                CountsAsCombo = CountsAsCombo,
                 // Package 13 W7a (L03): a construct's pooled bolt carries no
                 // hitstop, the V7.3 construct rule every direct construct
                 // payload already stamps.
@@ -208,7 +215,7 @@ namespace FTT.Combat {
         }
 
         /// <summary>The placeholder and enemy projectile paths both tag their hitbox "projectile".</summary>
-        public bool IsProjectileHitbox => HitboxID == "projectile";
+        public bool IsProjectileHitbox => HitboxID == "projectile" || HitboxID == ConstructStrikes.TurretSyncedBoltHitboxID;
 
         /// <summary>
         /// M08 (Package 12 W3): copies an ability's authored hit contract onto
@@ -283,6 +290,9 @@ namespace FTT.Combat {
             // call, read back from the struck hurtbox; HitConfirmed carries it
             // (the hit-confirm cancel and per-hit Momentum read it).
             payload.ContactLanded = hurtbox.DidLand(payload.ContactId);
+            // Lingering-kit pass: the owner's hit landed (D1a). The seam the construct strikes and the
+            // Rift collapse subscribe to; raised only for a landed contact (see OwnerHitLandedInfo).
+            SourcePlayer?.RaiseOwnerHitLanded(hurtbox, in payload, hurtbox.GlobalPosition);
             // V7.6 D03h (Package 11 A1b), M08 (Package 12 W3): the shared
             // strike path is the one place every Ultimate hitbox lands, and the
             // meter rule now reads the payload's AUTHORED origin rather than

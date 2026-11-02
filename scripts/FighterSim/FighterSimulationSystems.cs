@@ -1527,9 +1527,9 @@ namespace FTT.FighterSim {
                 runtime.DamageStatusFrames--;
                 if (runtime.StatusTickFrames > 0) runtime.StatusTickFrames--;
                 if (runtime.DamageStatusType == (int)FTT.Core.StatusType.Venom && runtime.StatusTickFrames <= 0) {
-                    int scaledDamage = ScaleIntegerByFP(2, runtime.DamageStatusIntensity);
+                    int scaledDamage = ScaleIntegerByFP(FighterLingeringKitRules.VenomDamagePerSecondPerIntensity, runtime.DamageStatusIntensity);
                     int damage = scaledDamage > 1 ? scaledDamage : 1;
-                    runtime.StatusTickFrames = 60;
+                    runtime.StatusTickFrames = FighterLingeringKitRules.VenomTickFrames;
                     // V7.3: venom routes through the unattributed-damage
                     // chokepoint — Defy History, Rally echo, and victim meter
                     // all apply to DoT exactly as to a hit (no attacker
@@ -2486,6 +2486,8 @@ namespace FTT.FighterSim {
             // instead of) its status. Fighter Mode always uses the BASELINE
             // duration — the tesla_conductive_hold extension is a Story-only
             // Resonance node and must never reach the deterministic sim.
+            // Lingering-kit pass: a landed string finisher is the Rift's second collapse trigger (read by the persistent-object system).
+            if (connected && finisher) FighterLingeringKitRules.NoteOwedFinisher(ref attackerVerb);
             if (connected && finisher && profile.FinisherMarkType == (int)FTT.Combat.ComboMarkType.Conductive) {
                 FighterConductiveRules.ApplyMark(
                     ref targetConductive, attacker.PlayerID, profile.FinisherMarkFrames);
@@ -2500,7 +2502,7 @@ namespace FTT.FighterSim {
         /// the freeze-only Special buffer. A Refused or Blocked outcome (a box
         /// miss and a Foresight counter included) does neither.
         /// </summary>
-        private static void OnSwingResolved(
+        internal static void OnSwingResolved(
             ref FighterRuntimeComponent attackerRuntime,
             ref FighterVerbComponent attackerVerb,
             FighterHitOutcome outcome,
@@ -2508,6 +2510,8 @@ namespace FTT.FighterSim {
             int momentumGainUnits) {
             if (damage <= 0) return;
             if (outcome != FighterHitOutcome.Landed && outcome != FighterHitOutcome.Absorbed) return;
+            // Lingering-kit pass: one owed synced strike per landed basic hit (FighterPersistentObjectSystem reads it).
+            FighterLingeringKitRules.NoteOwedStrike(ref attackerVerb);
             if (FighterAbilityLockoutRules.NoteSwingLanded(ref attackerRuntime)) {
                 attackerVerb.MomentumUnits = FighterMomentumRules.Gain(attackerVerb.MomentumUnits, momentumGainUnits);
             }
@@ -3249,6 +3253,8 @@ namespace FTT.FighterSim {
             if (slot != 0) {
                 FighterSpecialCancelRules.NoteLanded(
                     ref attackerAction, slot, outcome, intent.Damage, contracts.For(attacker.PlayerID, slot));
+                FighterLingeringKitRules.NoteOwnerSpecialHit(
+                    ref attackerVerb, outcome, intent.Damage, contracts.For(attacker.PlayerID, slot));
             }
         }
 

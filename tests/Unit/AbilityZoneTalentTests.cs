@@ -75,7 +75,7 @@ public class AbilityZoneTalentTests {
                 ability._PhysicsProcess(1.0 / 60.0);
             }
 
-            // 90 px rift radius (1.5 units, E03 — Package 13 W7a) x 1.10 = 99 —
+            // 150 px rift radius (2.5 units; 1.5 until the lingering-kit pass) x 1.10 = 165 —
             // a radius no other authored zone uses, so finding it proves the
             // deployed rift was scaled (pooled zones from other tests keep
             // their old radii).
@@ -86,7 +86,7 @@ public class AbilityZoneTalentTests {
                     if (node is not PlaceholderZone zone) continue;
                     var zoneShape = zone.GetNodeOrNull<CollisionShape2D>("Area/CollisionShape2D");
                     if (zoneShape?.Shape is CircleShape2D circle
-                        && Mathf.Abs(circle.Radius - 99f) < 0.01f) {
+                        && Mathf.Abs(circle.Radius - 165f) < 0.01f) {
                         rift = zone;
                     }
                 }

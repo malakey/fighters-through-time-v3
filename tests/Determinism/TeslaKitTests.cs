@@ -12,7 +12,7 @@ namespace FTT.Tests.Determinism;
 /// Deterministic Fighter-side coverage for the canonical Tesla kit: coil
 /// deployment, the 8-unit alternating-current fence link with StaticCharge,
 /// the radial Lorentz Pulse Root zone (whose coil chain now reads the Conductive
-/// mark, not Static Charge — see TeslaLorentzChainTests),
+/// mark, not Static Charge — see TeslaLorentzDischargeTests),
 /// the data-driven Lightning Blink, and rollback safety across coil linking.
 /// </summary>
 [TestSuite]
@@ -133,12 +133,14 @@ public class TeslaKitTests {
 
         // V7.6 F07 (Package 12 W4, GAP-10a): Static Charge is a pure interrupt
         // and is NOT the chain condition any more — only this Tesla's
-        // Conductive mark is (TeslaLorentzChainTests). The pulse alone: 12.
+        // Conductive mark is (TeslaLorentzDischargeTests). Lingering-kit pass: the old mark chain is
+        // gone; the pulse (12) now DISCHARGES the deployed coil, which is within 4 u of the target:
+        // 6 a charge over its 3 charges = 18.
         int pulse = deployed + 125;
         simulation.Advance(Frame(pulse, 0, GameplayButtons.Special2), Frame(pulse, 0, GameplayButtons.None));
         SpecialCastTestKit.StepUntilFired(simulation, 0, pulse + 1);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent chained)).IsTrue();
-        AssertThat(chained.CurrentHP).IsEqual(83);
+        AssertThat(chained.CurrentHP).IsEqual(95 - 12 - FTT.Combat.LingeringKitRules.DischargeDamagePerCharge * FTT.Combat.LingeringKitRules.CoilCharges);
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent chainedRuntime)).IsTrue();
         AssertThat(chainedRuntime.StatusType).IsEqual((int)StatusType.Root);
     }
@@ -218,6 +220,7 @@ public class TeslaKitTests {
         SpecialAttackOne = new AbilityData {
             ExecutionType = AbilityExecutionType.PersistentObject,
             BaseDamage = 5f,
+            DamageTickIntervalFrames = 120, // as tesla/special_1.tres authors the coil
             PersistentObjectID = "tesla_coil",
             MaxActiveObjects = 2,
             Lifetime = 30f,
@@ -266,6 +269,7 @@ public class TeslaKitTests {
         SpecialAttackOne = new AbilityData {
             ExecutionType = AbilityExecutionType.PersistentObject,
             BaseDamage = 5f,
+            DamageTickIntervalFrames = 120, // as tesla/special_1.tres authors the coil
             PersistentObjectID = "tesla_coil",
             MaxActiveObjects = 2,
             Lifetime = 30f,

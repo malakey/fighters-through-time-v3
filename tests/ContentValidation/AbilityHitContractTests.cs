@@ -42,7 +42,8 @@ public class AbilityHitContractTests {
     // follows); LN02 — Rail Charge's ram is moderate horizontal knockback, not
     // a launch.
     private static readonly Dictionary<string, int> AuthoredHitstun = new() {
-        ["joan_righteous_smite"] = 30
+        ["joan_righteous_smite"] = 30,
+        ["cleopatra_serpent_nest"] = 9 // the nest's own nip hitstun, read by both modes
     };
     private static readonly HashSet<string> RuledNonLaunching = new() {
         "joan_righteous_smite", "lincoln_rail_charge"

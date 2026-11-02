@@ -34,7 +34,7 @@ public class StoryTurretLineOfSightTests {
             CreateEnemy("chrono_slasher", open, Origin + new Vector2(300f, -20f));
             AssertThat(turret.TryCommandBolt()).IsTrue();
             AssertThat(turret.BoltsFired).IsEqual(1);
-            AssertThat(turret.BoltsRemaining).IsEqual(3);
+            AssertThat(turret.Charges).IsEqual(3);
         } finally {
             open.Free();
         }
@@ -55,7 +55,7 @@ public class StoryTurretLineOfSightTests {
             CreateEnemy("chrono_slasher", walled, Origin + new Vector2(300f, -20f));
             AssertThat(turret.TryCommandBolt()).IsFalse();
             AssertThat(turret.BoltsFired).IsEqual(0);
-            AssertThat(turret.BoltsRemaining).IsEqual(4);
+            AssertThat(turret.Charges).IsEqual(4);
         } finally {
             walled.Free();
         }

@@ -25,11 +25,10 @@ public class ShakespeareContentTests {
         // base 16 on a 7 s cooldown, no longer the roster's biggest projectile.
         AssertThat(data.BaseDamage).IsEqual(16f);
         AssertThat(data.AppliedStatus).IsEqual(StatusType.TimeDilation);
-        AssertThat(data.StatusDuration).IsEqual(2.5f);
-        // The shared TimeDilation formula in both modes is
-        // speed x (1 - 0.5 x intensity); the authored 0.6 intensity yields the
-        // design's 30% movement/animation slow (0.5 x 0.6 = 0.3).
-        AssertThat(data.StatusIntensity).IsEqual(0.6f);
+        // Lingering-kit pass: Yorick applies the hero slow, speed x (1 - 0.5 x 1.2) = x0.4,
+        // for 1.75 s on hit (was 0.6 for 2.5 s, the design's 30% slow).
+        AssertThat(data.StatusDuration).IsEqual(1.75f);
+        AssertThat(data.StatusIntensity).IsEqual(1.2f);
         AssertThat(data.CooldownDuration).IsEqual(0f);
         // S03 (Package 13 W7a): thrown straight at 10 units/s up to 8 units,
         // bursting on a fighter, terrain or max range into a 1.5-unit wave —

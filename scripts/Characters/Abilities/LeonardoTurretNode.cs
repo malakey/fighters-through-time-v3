@@ -1,6 +1,7 @@
 using Godot;
 using FTT.Combat;
 using FTT.Characters;
+using FTT.Core;
 
 namespace FTT.Characters.Abilities {
 
@@ -8,22 +9,24 @@ namespace FTT.Characters.Abilities {
     /// Story-mode Clockwork Turret construct (design Section 4 specification):
     /// 20 HP, 15 s lifespan, max 1 active per owner, placed at Leonardo's feet.
     /// Fires a straight ballista bolt (12 units/s, L03) at the nearest enemy in
-    /// line of sight within 30 world units (1800 px) on the authored interval
-    /// (V7: every 2 s) and only while one is in range, so the lifespan is the
-    /// idle cap; it self-destructs after its final bolt — the authored HitCount
-    /// (V7: 4 bolts, the glide's bonus bolt spending one) — or when its
-    /// lifespan/HP runs out.
+    /// line of sight within 30 world units (1800 px) every 180 frames (4 damage)
+    /// and only while one is in range. <b>Lingering-kit pass (2026-10-31):</b> that
+    /// own shot spends nothing and the turret no longer self-destructs after four
+    /// bolts; it lives out its 15 s unless its charges or HP run out first. It holds
+    /// <see cref="LingeringKitRules.TurretCharges"/> charges (+1 with Clockwork
+    /// Overdrive); each synced strike (a fast 8-damage bolt with 20 frames of
+    /// hitstun, fired when its owner's hit lands on a target within 10 units) and the
+    /// glide's bonus bolt spends one, and at 0 it fizzles.
     /// The turret is damageable/destroyable, persists across owner death, freezes
     /// during Chronal Rewind, and fully resets its pooled state. Story-only
-    /// Resonance perk Clockwork Overdrive upgrades it to a rapid burst of 5 bolts.
+    /// Resonance perk Clockwork Overdrive adds a charge and a faster own shot at
+    /// Chronal Extractors.
     /// </summary>
     public partial class LeonardoTurretNode : FTT.Core.PooledNode, FTT.Core.IPoolable, FTT.Environment.IStoryRewindSimulation, FTT.Environment.IStoryTimeFreezable {
 
         private const float TargetRangePixels = 1800f;   // 30 world units at 60 px/unit.
         private const int MaxTurretHP = 20;
-        private const int BaseBoltLimit = 4;
-        private const int OverdriveBoltLimit = 5;
-        private const float OverdriveIntervalMultiplier = 0.5f;
+        private const float OverdriveIntervalMultiplier = LingeringKitRules.TurretOverdriveIntervalPercent / 100f;
         /// <summary>L03 fallback bolt speed (12 units/s) when the resource authors none.</summary>
         private const float DefaultBoltSpeedPixels = 720f;
         /// <summary>Where the bolt leaves the placeholder turret body (px above its feet).</summary>
@@ -38,9 +41,16 @@ namespace FTT.Characters.Abilities {
         /// </summary>
         public float BoltDamage { get; private set; }
 
-        /// <summary>The bolt's authored damage x the Story ProjectileDamage lane.</summary>
+        /// <summary>The bolt's damage (the rulebook's own shot) x the Story ProjectileDamage lane.</summary>
         private float _boltBaseDamage;
-        public int BoltsRemaining { get; private set; }
+
+        /// <summary>
+        /// Charges left (plan 1.4): spent only by a synced strike and the glide bonus bolt. The own shot
+        /// spends nothing. Reset on Initialize and OnDespawn; untouched by Time Freeze and the death rewind.
+        /// </summary>
+        public int Charges { get; private set; }
+        /// <summary>This deployment's charge cap: 4, or 5 with Clockwork Overdrive.</summary>
+        public int MaxCharges { get; private set; } = LingeringKitRules.TurretCharges;
         public bool IsTurretDestroyed { get; private set; }
 
         /// <summary>
@@ -69,6 +79,9 @@ namespace FTT.Characters.Abilities {
         private bool _hurtboxBound;
         private ProgressBar _hpBar;
         private int _maxHP = MaxTurretHP;
+        private bool _clockworkOverdrive;
+        private PlayerController _subscribedOwner;
+        private ConstructChargePips _pips;
 
         // Pooled constructs re-enter the tree on every spawn cycle but _Ready runs
         // once, so the hurtbox subscription lives on the enter/exit pair (audit
@@ -82,6 +95,7 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _ExitTree() {
+            UnsubscribeFromOwner();
             if (!_hurtboxBound) return;
             _hurtboxBound = false;
             if (_hurtbox != null) _hurtbox.OnHit -= OnTurretHit;
@@ -93,7 +107,8 @@ namespace FTT.Characters.Abilities {
             OwnerIndex = owner?.PlayerIndex ?? 0;
             // Story-only Resonance minors: ProjectileDamage raises bolt damage and
             // PersistentHealth reinforces the chassis. Both 1f outside Story Mode.
-            _boltBaseDamage = (data?.BaseDamage ?? 5f) * (owner?.StoryProjectileDamageMultiplier ?? 1f);
+            // Lingering-kit pass: the own shot is authored in the .tres (BaseDamage and DamageTickIntervalFrames), one value for both modes.
+            _boltBaseDamage = (data?.BaseDamage ?? 4f) * (owner?.StoryProjectileDamageMultiplier ?? 1f);
             BoltDamage = owner?.StoryAbilityHitboxDamage(_boltBaseDamage) ?? _boltBaseDamage;
             // Package 11 A4: V7.6 re-scopes "Minor Turret Plating" from the
             // character-wide PersistentHealth lane onto
@@ -108,18 +123,19 @@ namespace FTT.Characters.Abilities {
             // same rule the nest/coil/snare constructs already follow.
             _lifetime = (data?.Lifetime > 0f ? data.Lifetime : 15f)
                 * (owner?.StoryPersistentDurationMultiplier ?? 1f);
-            _fireInterval = (data?.DamageTickIntervalFrames ?? 120) / 60f;
-            if (_fireInterval <= 0f) _fireInterval = 2f;
-            BoltsRemaining = data?.HitCount > 0 ? data.HitCount : BaseBoltLimit;
-            // Clockwork Overdrive (Story-only Resonance major perk): the turret
-            // fires 5 bolts in a rapid burst instead of 4 before self-destructing (M03).
-            if (clockworkOverdrive) {
-                BoltsRemaining = OverdriveBoltLimit;
-                _fireInterval *= OverdriveIntervalMultiplier;
-            }
+            _fireInterval = (data?.DamageTickIntervalFrames > 0 ? data.DamageTickIntervalFrames : 180) / 60f;
+            // Clockwork Overdrive (Story-only Resonance major perk, decision 26): +1 charge, and an own shot
+            // at half the interval against Chronal Extractors only.
+            _clockworkOverdrive = clockworkOverdrive;
+            MaxCharges = LingeringKitRules.TurretCharges
+                + (clockworkOverdrive ? LingeringKitRules.TurretOverdriveBonusCharges : 0);
+            Charges = MaxCharges;
             _fireTimer = _fireInterval;
             BoltsFired = 0;
+            SyncedBoltsFired = 0;
+            SubscribeToOwner(owner);
             UpdateHPBar();
+            UpdatePips();
         }
 
         private void UpdateHPBar() {
@@ -130,16 +146,116 @@ namespace FTT.Characters.Abilities {
             _hpBar.Visible = !IsTurretDestroyed;
         }
 
+        private void UpdatePips() {
+            _pips ??= GetNodeOrNull<ConstructChargePips>("ChargePips");
+            _pips?.SetCharges(Charges, MaxCharges);
+            if (_pips != null) _pips.Visible = !IsTurretDestroyed;
+        }
+
+        private void SubscribeToOwner(PlayerController owner) {
+            UnsubscribeFromOwner();
+            if (owner == null) return;
+            _subscribedOwner = owner;
+            owner.OwnerHitLanded += OnOwnerHitLanded;
+        }
+
+        private void UnsubscribeFromOwner() {
+            if (_subscribedOwner != null && IsInstanceValid(_subscribedOwner)) {
+                _subscribedOwner.OwnerHitLanded -= OnOwnerHitLanded;
+            }
+            _subscribedOwner = null;
+        }
+
+        /// <summary>
+        /// Plan 1.3: the owner's landed basic hit or direct Special hit on a target within 10 units (a 2D
+        /// circle) fires one fast straight synced bolt at it and spends one charge. A strike bolt, the own
+        /// shot, a tick, the Pulse or a throw never reaches this (the
+        /// <see cref="OwnerHitLandedInfo.TriggersSyncedStrike"/> filter).
+        /// </summary>
+        private void OnOwnerHitLanded(OwnerHitLandedInfo info) {
+            if (_rewindFrozen || IsTurretDestroyed || Charges <= 0 || !info.TriggersSyncedStrike) return;
+            if (info.Target == null || !IsInstanceValid(info.Target)) return;
+            if (!ConstructStrikes.InReach(GlobalPosition, info.Target.GlobalPosition,
+                    LingeringKitRules.TurretSyncedReachUnits)) return;
+            Charges--;
+            UpdatePips();
+            Hurtbox target = info.Target;
+            // The bolt is a pooled collision body: spawned off the physics flush that raised the seam.
+            if (FTT.Core.PhysicsCallbackGuard.IsInPhysicsCallback) {
+                Callable.From(() => FireSyncedBolt(target)).CallDeferred();
+            } else {
+                FireSyncedBolt(target);
+            }
+            if (Charges <= 0) DestroyTurret();
+        }
+
+        /// <summary>
+        /// Test seam: deliver every bolt as the instant strike (the no-pool fallback) even when a projectile
+        /// pool exists, so a unit case can read the damage without physics frames. Never set in production.
+        /// </summary>
+        public static bool InstantStrikesForTesting { get; set; }
+
+        /// <summary>Synced strikes this deployment has fired. Test seam.</summary>
+        public int SyncedBoltsFired { get; private set; }
+
+        private void FireSyncedBolt(Hurtbox target) {
+            if (target == null || !IsInstanceValid(target) || !IsInsideTree()) return;
+            Vector2 muzzle = GlobalPosition + MuzzleOffset;
+            Vector2 aim = target.GlobalPosition - muzzle;
+            PlaceholderProjectile bolt = InstantStrikesForTesting ? null : BaseSpecial.SpawnStoryProjectile(GetParent(), muzzle);
+            SyncedBoltsFired++;
+            if (bolt == null) {
+                // No projectile pool (a bare unit harness): the same strike, instantly.
+                HitPayload strike = BaseSpecial.WithAbilityContract(new HitPayload {
+                    AttackerIndex = OwnerIndex,
+                    AttackID = _data?.AbilityID ?? "leonardo_clockwork_turret",
+                    HitboxID = ConstructStrikes.TurretSyncedBoltHitboxID,
+                    AttackClass = AttackClass.Basic,
+                    Damage = _ownerPlayer != null && IsInstanceValid(_ownerPlayer)
+                        ? _ownerPlayer.StoryAbilityDamage(LingeringKitRules.TurretSyncedBoltDamage, _data?.AbilityID)
+                        : LingeringKitRules.TurretSyncedBoltDamage,
+                    Knockback = Vector2.Zero,
+                    HitstunDuration = LingeringKitRules.TurretSyncedBoltHitstunFrames / 60f,
+                    HitOrigin = GlobalPosition,
+                    AttackerFacingRight = aim.X >= 0f,
+                    AppliedStatus = FTT.Core.StatusType.None,
+                    StatusDuration = 0f,
+                    StatusIntensity = 1f,
+                    ScreenShakeIntensity = 0.1f,
+                    ScreenShakeDuration = 0.05f,
+                    ExemptFromHitstop = true,
+                    CountsAsCombo = true
+                }, _data, _ownerPlayer, HitDelivery.Construct);
+                strike.Launches = false;
+                ConstructStrikes.Deliver(_ownerPlayer, target, in strike, out _);
+                return;
+            }
+            // The pooled bolt's Hitbox adds the contact-time half of the Story damage composition.
+            float damage = _ownerPlayer != null && IsInstanceValid(_ownerPlayer)
+                ? _ownerPlayer.StoryAbilityHitboxDamage(LingeringKitRules.TurretSyncedBoltDamage)
+                : LingeringKitRules.TurretSyncedBoltDamage;
+            float speed = (float)(LingeringKitRules.TurretSyncedBoltSpeedUnitsPerSecond * KitMotionRules.StoryPixelsPerUnit)
+                * (_ownerPlayer?.StoryProjectileSpeedMultiplier ?? 1f);
+            float lifetime = (float)(LingeringKitRules.TurretSyncedReachUnits * 2.0 * KitMotionRules.StoryPixelsPerUnit) / speed;
+            bolt.Setup(damage, Vector2.Zero, speed, aim.X >= 0f, OwnerIndex,
+                new Color(1f, 0.85f, 0.4f), new Vector2(18f, 6f), lifetime, _ownerPlayer, _data);
+            bolt.ConfigureSyncedStrike(LingeringKitRules.TurretSyncedBoltHitstunFrames / 60f);
+            bolt.ConfigureDirection(aim);
+            bolt.StopsOnTerrain = true;
+        }
+
         public void OnSpawn() { }
 
         public void OnDespawn() {
+            UnsubscribeFromOwner();
             if (_ownerPlayer != null && IsInstanceValid(_ownerPlayer)) {
                 _ownerPlayer.ActivePersistentObjects.Remove(this);
             }
             _ownerPlayer = null;
             _data = null;
             _currentHP = 0;
-            BoltsRemaining = 0;
+            Charges = 0;
+            _clockworkOverdrive = false;
             IsTurretDestroyed = true;
             _rewindFrozen = false;
         }
@@ -157,28 +273,62 @@ namespace FTT.Characters.Abilities {
             }
 
             _fireTimer -= dt;
-            if (_fireTimer <= 0f && TryFireBolt()) {
-                _fireTimer = _fireInterval;
-                BoltsRemaining--;
-                // Design Section 4: the turret self-destructs after its final bolt.
-                if (BoltsRemaining <= 0) DestroyTurret();
+            if (_fireTimer <= 0f) {
+                // The own shot spends no charge and no longer ends the turret. Against an enemy it comes
+                // every 180 frames; Clockwork Overdrive adds a Chronal Extractor shot at half that
+                // interval, taken only when no enemy is in range.
+                if (TryFireBolt()) {
+                    _fireTimer = _fireInterval;
+                } else if (_clockworkOverdrive && TryFireAtExtractor()) {
+                    _fireTimer = _fireInterval * OverdriveIntervalMultiplier;
+                }
             }
+        }
+
+        /// <summary>
+        /// Clockwork Overdrive (decision 26): the faster own shot is for Chronal Extractors only. A direct
+        /// environment hit (the coil's Overdrive pattern) at the own-shot damage times the Overdrive
+        /// Extractor multiplier, on the nearest standing Extractor in range and line of sight.
+        /// </summary>
+        private bool TryFireAtExtractor() {
+            if (!IsInsideTree()) return false;
+            Godot.Collections.Array<Node> extractors =
+                GetTree().GetNodesInGroup(FTT.Environment.ChronalExtractor.GroupName);
+            using var lifetime = extractors.AsDisposable();
+            FTT.Environment.ChronalExtractor nearest = null;
+            float nearestDistance = TargetRangePixels;
+            Vector2 muzzle = GlobalPosition + MuzzleOffset;
+            foreach (Node node in extractors) {
+                if (node is not FTT.Environment.ChronalExtractor extractor || extractor.IsDestroyed) continue;
+                float distance = GlobalPosition.DistanceTo(extractor.GlobalPosition);
+                if (distance <= nearestDistance && HasLineOfSight(muzzle, extractor.GlobalPosition)) {
+                    nearestDistance = distance;
+                    nearest = extractor;
+                }
+            }
+            if (nearest == null) return false;
+            float multiplier = FTT.Environment.StoryExtractorDamage.ExtractorMultiplier(
+                _ownerPlayer, FTT.Environment.StoryExtractorDamage.ClockworkTurretAttackID);
+            nearest.TakeEnvironmentDamage(BoltDamage * multiplier);
+            BoltsFired++;
+            return true;
         }
 
         /// <summary>
         /// Package 12 W4 (V7 kit rule, Leonardo): "Ornithopter glide can fire one
         /// turret bolt mid-flight if a turret is deployed." Fires this turret's
-        /// next bolt NOW, out of its own budget and on its own targeting — the
-        /// bolt count, self-destruct on the last bolt and cadence reset are the
-        /// ordinary ones. Returns false (spending nothing) when the turret is
-        /// gone, frozen or has no target in range.
+        /// next bolt NOW on its own targeting; since the lingering-kit pass it
+        /// spends one of the turret's charges, and the turret fizzles at 0.
+        /// Returns false (spending nothing) when the turret is gone, frozen,
+        /// empty or has no target in range.
         /// </summary>
         public bool TryCommandBolt() {
-            if (IsTurretDestroyed || _rewindFrozen || BoltsRemaining <= 0) return false;
+            if (IsTurretDestroyed || _rewindFrozen || Charges <= 0) return false;
             if (!TryFireBolt()) return false;
             _fireTimer = _fireInterval;
-            BoltsRemaining--;
-            if (BoltsRemaining <= 0) DestroyTurret();
+            Charges--;
+            UpdatePips();
+            if (Charges <= 0) DestroyTurret();
             return true;
         }
 
@@ -199,9 +349,8 @@ namespace FTT.Characters.Abilities {
 
         /// <summary>
         /// Fires one ballista bolt at the nearest enemy hurtbox in range AND in
-        /// line of sight. Returns false when no target is available so the bolt
-        /// is not consumed while the turret waits (mirrors the Fighter-sim
-        /// turret, which only decrements RemainingAttacks on an actual shot).
+        /// line of sight. Returns false when no target is available so the shot
+        /// is not consumed while the turret waits.
         ///
         /// <para><b>Package 13 W7a (L03).</b> The bolt is a real straight
         /// projectile at the authored <c>ProjectileSpeed</c> (12 units/s) aimed at
@@ -224,9 +373,10 @@ namespace FTT.Characters.Abilities {
             if (nearest == null) return false;
 
             Vector2 aim = nearest.GlobalPosition - muzzle;
-            PlaceholderProjectile bolt = BaseSpecial.SpawnStoryProjectile(GetParent(), muzzle);
+            PlaceholderProjectile bolt = InstantStrikesForTesting ? null : BaseSpecial.SpawnStoryProjectile(GetParent(), muzzle);
             if (bolt == null) {
                 StrikeInstantly(nearest);
+                BoltsFired++;
                 return true;
             }
             float speed = (_data?.ProjectileSpeed > 0f ? _data.ProjectileSpeed : DefaultBoltSpeedPixels)
@@ -241,7 +391,7 @@ namespace FTT.Characters.Abilities {
             return true;
         }
 
-        /// <summary>Bolts this deployment has fired as projectiles. Test seam.</summary>
+        /// <summary>Own shots this deployment has fired (projectile or Extractor). Test seam.</summary>
         public int BoltsFired { get; private set; }
 
         /// <summary>L03: the straight bolt needs a clear line through solid terrain.</summary>

@@ -2221,7 +2221,7 @@ namespace FTT.Enemies {
         /// </summary>
         private void ApplyStun(float duration, float minimumSeconds, bool fromSpecial, bool taxedSpecial,
             bool chargesStaggerBudget, float eliteBudgetMinimumSeconds, bool chargesStandardPoise,
-            bool carriesKnockback) {
+            bool carriesKnockback, bool keepLongerStun = false) {
             if (CurrentState == EnemyState.Dead) return;
             // V7.4 armor: flinch-proof. Armor only arms on natural stun expiry
             // or a budget trip, so a hit landing DURING stun still refreshes
@@ -2280,12 +2280,15 @@ namespace FTT.Enemies {
             _secondaryBlinkInFlight = false;
             _reactionFramesRemaining = 0;
             _armoredAnswerPending = false;
-            _stunTimer = stun;
+            // KL-SCON (lingering-kit pass): a construct strike never shortens a stun already running
+            // (a finisher's flight keeps its full stun); it only extends it.
+            _stunTimer = keepLongerStun && !opensStun ? Mathf.Max(_stunTimer, stun) : stun;
             CurrentState = EnemyState.Stunned;
             // S1 review fix: the stunned friction decays knockback, not the
             // chase / patrol / ChargeDash speed the mob happened to be carrying.
             if (opensStun && !carriesKnockback) Velocity = new Vector2(0f, IsFlying ? 0f : Velocity.Y);
-            PlayAnimation("hitstun");
+            if (_isHeldByPlayer) ShowHitstunFrame(HeldPoseFrame);
+            else PlayAnimation("hitstun");
         }
 
         /// <summary>
@@ -2413,7 +2416,7 @@ namespace FTT.Enemies {
                     if (_venomTickTimer <= 0f) {
                         _venomTickTimer += 1f;
                         // GU-E: a member a revert put back to sleep takes no tick.
-                        if (!IsEncounterDormant) TakeDamage(Math.Max(1, (int)MathF.Round(2f * _damageStatusIntensity)));
+                        if (!IsEncounterDormant) TakeDamage(FTT.Combat.LingeringKitRules.VenomDamagePerTick(_damageStatusIntensity));
                     }
                 }
                 if (_damageStatusTimer <= 0f) {
@@ -2842,9 +2845,12 @@ namespace FTT.Enemies {
                     taxedSpecial: chainRole == FTT.Combat.StoryEnemyCombatRules.ChainSpecialRole.OtherSpecial,
                     chargesStaggerBudget: true,
                     eliteBudgetMinimumSeconds: eliteBudgetMinimumSeconds,
+                    // KL-SCON: a construct strike / discharge is exempt from standard poise (the
+                    // elite V7.4 budget above still charges) and never shortens a running stun.
                     chargesStandardPoise: FTT.Combat.StoryEnemyCombatRules.ChargesStandardPoise(
-                        hit.AttackClass, hit.Origin),
-                    carriesKnockback: knockbackWritten);
+                        hit.AttackClass, hit.Origin) && !FTT.Combat.ConstructStrikes.IsStrike(in hit),
+                    carriesKnockback: knockbackWritten,
+                    keepLongerStun: FTT.Combat.ConstructStrikes.KeepsCurrentStun(in hit));
             }
             if (hit.AppliedStatus != StatusType.None && hit.StatusDuration > 0f) {
                 ApplyStatusEffect(hit.AppliedStatus, hit.StatusDuration, hit.StatusIntensity,
@@ -2994,7 +3000,9 @@ namespace FTT.Enemies {
             prorated = false;
             if (CurrentState == EnemyState.Dead) return 1f;
             float scale = 1f;
-            bool exempt = FTT.Combat.StoryEnemyCombatRules.IsProrationExempt(hit.AttackClass, hit.Origin, hit.Delivery);
+            // KL-SCON: a construct strike / discharge is exempt from S2 chain proration like a tick (no dim).
+            bool exempt = FTT.Combat.StoryEnemyCombatRules.IsProrationExempt(hit.AttackClass, hit.Origin, hit.Delivery)
+                || FTT.Combat.ConstructStrikes.IsStrike(in hit);
             bool specialTick = hit.Delivery == FTT.Combat.HitDelivery.Tick
                 && hit.AttackClass == FTT.Combat.AttackClass.Special
                 && hit.Origin != FTT.Combat.HitOrigin.Ultimate;

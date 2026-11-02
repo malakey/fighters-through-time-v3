@@ -464,6 +464,7 @@ namespace FTT.FighterSim {
                     new Color(0.1f, 0.9f, 0.95f, 0.82f));
                 ConfigureAbilityProxy(proxy, PersistentAbilityForPlayer(persistent.OwnerPlayerID), 0.48f);
                 ConfigureProxyHPBar(proxy, persistent.CurrentHP, persistent.MaxHP);
+                SyncLingeringProxy(proxy, in persistent); // lingering-kit pass: charge pips and the strike edge
                 _seenProxyIDs.Add(persistent.EntityID);
             }
             ReleaseMissing(_persistentProxies);
@@ -515,6 +516,7 @@ namespace FTT.FighterSim {
                 _seenProxyIDs.Add(zone.EntityID);
             }
             ReleaseMissing(_zoneProxies);
+            SyncLingeringZones(); // lingering-kit pass: the Rift collapse burst, once per rift
         }
 
         /// <summary>Presentation-only frame counter for proxy pulses (Package 8 B6).</summary>

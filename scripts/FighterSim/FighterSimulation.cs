@@ -64,7 +64,7 @@ namespace FTT.FighterSim {
             _simulation.AddSystem(new FighterPushboxSystem(geometry), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterCombatSystem(hitContracts), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterProjectileSystem(hitContracts, geometry), SystemPhase.PostUpdate);
-            _simulation.AddSystem(new FighterPersistentObjectSystem(), SystemPhase.PostUpdate);
+            _simulation.AddSystem(new FighterPersistentObjectSystem(hitContracts), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterZoneSystem(hitContracts), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterHazardSystem(geometry), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterOrbSystem(geometry), SystemPhase.PostUpdate);
@@ -312,6 +312,40 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
+        /// Lingering-kit pass test seam: applies a status (either slot) to a fighter through the real
+        /// <see cref="FighterDamageRules.ApplyStatus"/> — stronger-wins, tick clock and all — so the
+        /// Venom tick, the healing-block and the slow suites can run the real per-frame system.
+        /// Writes deterministic state and moves the hash.
+        /// </summary>
+        internal bool SeedFighterStatusForTest(int playerID, int statusType, int frames, FP64 intensity) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterRuntimeComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref FighterStateComponent fighter = ref _simulation.Frame.Get<FighterStateComponent>(entity);
+                if (fighter.PlayerID != playerID) continue;
+                ref FighterRuntimeComponent runtime = ref _simulation.Frame.Get<FighterRuntimeComponent>(entity);
+                FighterDamageRules.ApplyStatus(ref fighter, ref runtime, statusType, frames, intensity);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Lingering-kit pass test seam: sets a fighter's owed synced strikes
+        /// (<see cref="FighterVerbComponent.OwedSyncedStrikes"/>), so a suite can prove the persistent-object
+        /// system reads and clears the count within one tick. Moves the hash.
+        /// </summary>
+        internal bool SeedFighterOwedStrikesForTest(int playerID, int owed) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterVerbComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref FighterStateComponent fighter = ref _simulation.Frame.Get<FighterStateComponent>(entity);
+                if (fighter.PlayerID != playerID) continue;
+                _simulation.Frame.Get<FighterVerbComponent>(entity).OwedSyncedStrikes = owed;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Package 13 W6 test seam: raises a fighter's Temporal Aegis (D02e)
         /// directly, so the A02 suite can prove an Aegis-absorbed activation
         /// contact still starts the cinematic. Moves the hash.
@@ -440,6 +474,66 @@ namespace FTT.FighterSim {
                 if (fighter.PlayerID != playerID) continue;
                 ref FighterConductiveComponent mark = ref _simulation.Frame.Get<FighterConductiveComponent>(entity);
                 FighterConductiveRules.ApplyMark(ref mark, sourcePlayerID, frames);
+                return true;
+            }
+            return false;
+        }
+
+        // --- Lingering-kit pass (KL-SIM) test seams: they write deterministic state and move the hash. ---
+        internal delegate void FighterMutator(
+            ref FighterStateComponent state, ref FighterRuntimeComponent runtime, ref FighterVerbComponent verb);
+
+        internal delegate void PersistentMutator(ref FighterPersistentObjectComponent persistent);
+
+        internal delegate void ZoneMutator(ref FighterZoneComponent zone);
+
+        /// <summary>Edits a fighter's state, runtime and verb components in place (position, hitstun, tumble, ...).</summary>
+        internal bool MutateFighterForTest(int playerID, FighterMutator mutate) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterRuntimeComponent, FighterVerbComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref FighterStateComponent fighter = ref _simulation.Frame.Get<FighterStateComponent>(entity);
+                if (fighter.PlayerID != playerID) continue;
+                mutate(ref fighter, ref _simulation.Frame.Get<FighterRuntimeComponent>(entity), ref _simulation.Frame.Get<FighterVerbComponent>(entity));
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Edits the <paramref name="index"/>th live persistent object (creation order).</summary>
+        internal bool MutatePersistentForTest(int index, PersistentMutator mutate) {
+            var filter = _simulation.Frame.Filter<FighterPersistentObjectComponent>();
+            int seen = 0;
+            while (filter.Next(out EntityRef entity)) {
+                if (seen++ != index) continue;
+                mutate(ref _simulation.Frame.Get<FighterPersistentObjectComponent>(entity));
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Edits the <paramref name="index"/>th live zone (creation order).</summary>
+        internal bool MutateZoneForTest(int index, ZoneMutator mutate) {
+            var filter = _simulation.Frame.Filter<FighterZoneComponent>();
+            int seen = 0;
+            while (filter.Next(out EntityRef entity)) {
+                if (seen++ != index) continue;
+                mutate(ref _simulation.Frame.Get<FighterZoneComponent>(entity));
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Places a construct of <paramref name="objectTypeID"/> for a fighter at <paramref name="feet"/> (the real spawn path), with the own-attack damage and interval its ability .tres authors.</summary>
+        internal bool SpawnPersistentForTest(int ownerPlayerID, int objectTypeID, FPVector2 feet, int ownDamage, int ownIntervalFrames) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                if (_simulation.Frame.GetReadOnly<FighterStateComponent>(entity).PlayerID != ownerPlayerID) continue;
+                FighterStateComponent owner = _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
+                xpTURN.Klotho.ECS.Frame frame = _simulation.Frame;
+                FighterAbilityEntitySystem.SpawnPersistent(
+                    ref frame, in owner, objectTypeID, 4, 0, ownDamage, FP64.Zero,
+                    (int)FTT.Core.StatusType.None, 0, hasAnchor: true, anchor: feet,
+                    tickIntervalFrames: ownIntervalFrames);
                 return true;
             }
             return false;

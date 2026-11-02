@@ -106,14 +106,14 @@ public class StatusControllerTests {
         StatusSnapshot snapshot = status.CaptureState();
 
         status._PhysicsProcess(0.7);
-        AssertThat(player.CurrentHP).IsEqual(98);
+        AssertThat(player.CurrentHP).IsEqual(97);
 
         player.CurrentHP = 100;
         status.RestoreState(snapshot);
         status._PhysicsProcess(0.59);
         AssertThat(player.CurrentHP).IsEqual(100);
         status._PhysicsProcess(0.02);
-        AssertThat(player.CurrentHP).IsEqual(98);
+        AssertThat(player.CurrentHP).IsEqual(97);
         player.Free();
     }
 
@@ -130,7 +130,7 @@ public class StatusControllerTests {
         AssertThat(status.HasStatus(StatusType.TimeDilation)).IsTrue();
         AssertThat(player.StatusMovementMultiplier).IsEqual(0.5f);
         status._PhysicsProcess(1.05);
-        AssertThat(player.CurrentHP).IsEqual(98);
+        AssertThat(player.CurrentHP).IsEqual(97);
 
         // The control slot expiring restores movement without touching the DoT.
         status._PhysicsProcess(1.0);

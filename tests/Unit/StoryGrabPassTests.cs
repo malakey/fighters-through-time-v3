@@ -243,6 +243,32 @@ public class StoryGrabPassTests {
         }
     }
 
+    [TestCase]
+    public void AHeldMobIsNeverPulledAndAConstructStunKeepsItsHeldPose() {
+        // Merge review (grab + kit): zone pulls and a construct's own hit met the hold here.
+        StaticBody2D floor = CreateFloor();
+        PlayerController player = CreatePlayer();
+        EnemyController mob = CreateEnemy("chrono_slasher", new Vector2(40f, 0f));
+        try {
+            AssertThat(FTT.Characters.Abilities.CleopatraSandstormVortex.IsPullable(mob)).IsTrue();
+            mob.BeginHeld(1f);
+            AssertThat(FTT.Characters.Abilities.CleopatraSandstormVortex.IsPullable(mob))
+                .OverrideFailureMessage("A pull must not take a held mob off its grabber.")
+                .IsFalse();
+            AnimatedSprite2D sprite = mob.GetNode<AnimatedSprite2D>("Presentation/AnimatedSprite2D");
+            AssertThat(sprite.IsPlaying()).IsFalse();
+            mob.ApplyStun(0.5f);
+            AssertThat(sprite.IsPlaying())
+                .OverrideFailureMessage("A construct stun must not restart the sheet the held pose has paused.")
+                .IsFalse();
+            AssertThat(sprite.Frame).IsEqual(EnemyController.HeldPoseFrame);
+            mob.ReleaseHeld();
+            AssertThat(FTT.Characters.Abilities.CleopatraSandstormVortex.IsPullable(mob)).IsTrue();
+        } finally {
+            Cleanup(player, mob, floor);
+        }
+    }
+
     // ---- Harness -------------------------------------------------------------
 
     private static float ThrowAndReadVerticalSpeed(int moveY, bool neutralAuto) {

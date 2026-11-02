@@ -79,9 +79,9 @@ namespace FTT.Combat {
         /// <summary>E03: Relativity Rift thrown up to this far ahead of Einstein.</summary>
         public const float RelativityRiftThrowUnits = 5.0f;
         /// <summary>E03: rift radius.</summary>
-        public const float RelativityRiftRadiusUnits = 1.5f;
+        public const float RelativityRiftRadiusUnits = 2.5f;
         /// <summary>E03: Time Dilation lingers this long after leaving the rift (re-entry refreshes).</summary>
-        public const int RelativityRiftLingerFrames = 30;
+        public const int RelativityRiftLingerFrames = 105;
 
         /// <summary>S01/S02: The Tempest's windbox radius.</summary>
         public const float TempestRadiusUnits = 2.0f;

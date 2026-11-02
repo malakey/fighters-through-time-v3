@@ -277,6 +277,9 @@ namespace FTT.Environment {
                 CancelRestore();
                 return;
             }
+            // Lingering-kit pass (plan 1.8, provisional): Venom blocks healing, so a completed channel's
+            // pending heal waits (neither the trickle clock nor the budget advance) and applies once Venom ends.
+            if (player.IsHealingBlocked) return;
             float step = Mathf.Min(dt, _restoreRemainingSeconds);
             _restoreRemainingSeconds -= step;
             _restoreAccumulator += _restorePerSecond * step;

@@ -54,15 +54,15 @@ public class BasicStringRiderTests {
         AssertThat(hits[2].DamageStatusIntensityRaw)
             .IsEqual((FP64.FromInt(500) / FP64.FromInt(1000)).RawValue);
 
-        // The 2 s / 0.5-intensity mark chips exactly twice at the 1-per-tick
-        // floor: string total 33 plus 2 venom chip.
+        // The 2 s / 0.5-intensity mark ticks exactly twice, 2 HP a tick now that Venom is
+        // 3 x intensity (1.5 rounds to 2; it was 1 a tick at the old floor): string total 33 plus 4.
         for (int tick = 400; tick < 540; tick++) {
             simulation.Advance(
                 new PlayerInputFrame { Tick = (uint)tick },
                 new PlayerInputFrame { Tick = (uint)tick });
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent marked)).IsTrue();
-        AssertThat(marked.MaxHP - marked.CurrentHP).IsEqual(35);
+        AssertThat(marked.MaxHP - marked.CurrentHP).IsEqual(37);
     }
 
     [TestCase]

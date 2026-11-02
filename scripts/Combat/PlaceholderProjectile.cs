@@ -85,6 +85,20 @@ namespace FTT.Combat {
         }
 
         /// <summary>
+        /// KL-SCON (lingering-kit pass): the turret's synced bolt. A construct hit
+        /// (<see cref="ConfigureConstructHit"/>) that carries <see cref="HitPayload.CountsAsCombo"/>, the
+        /// strike's own hitbox ID and its real hitstun, and that, like every construct hit, brings no knockback
+        /// and no hitstop. Call after <see cref="Setup"/>.
+        /// </summary>
+        public void ConfigureSyncedStrike(float hitstunSeconds) {
+            if (_hitbox == null) return;
+            ConfigureConstructHit();
+            _hitbox.HitboxID = ConstructStrikes.TurretSyncedBoltHitboxID;
+            _hitbox.HitstunDuration = hitstunSeconds;
+            _hitbox.CountsAsCombo = true;
+        }
+
+        /// <summary>
         /// Package 11 A4 (Resonance V7.6). Authoring flag for Lincoln's Rail
         /// Breaker traversal node: only a projectile marked breakable can be
         /// destroyed by a Rail Charge. Beams, persistent zones and
@@ -194,6 +208,7 @@ namespace FTT.Combat {
 
             _hitbox.AttackID = data?.AbilityID ?? "placeholder_projectile";
             _hitbox.HitboxID = "projectile";
+            _hitbox.CountsAsCombo = false;
             // M08 (Package 12 W3): the ability's AUTHORED hit contract (class,
             // hitstun, launch flag, delivery, origin) replaces the old
             // slot-derived attack class. A data-less shot keeps the historical

@@ -88,9 +88,12 @@ namespace FTT.Characters.Abilities {
         /// <summary>C01: 1.8 units — one value in <see cref="KitReachRules"/>, both modes.</summary>
         public static float VortexRadiusPixels =>
             (float)KitReachRules.SandstormVortexRadiusUnits * KitMotionRules.StoryPixelsPerUnit;
-        /// <summary>C01: 3 units/s — the Fighter sim's 0.05 units-per-frame pull.</summary>
+        /// <summary>
+        /// Lingering-kit pass: 7 units/s (420 px/s), faster than every hero's run, so a caught target
+        /// cannot simply walk out; a roll or an air dodge still escapes (see <see cref="IsPullable"/>).
+        /// </summary>
         private static float PullPixelsPerSecond =>
-            (float)KitReachRules.SandstormVortexPullUnitsPerSecond * KitMotionRules.StoryPixelsPerUnit;
+            (float)LingeringKitRules.VortexPullUnitsPerSecondStory * KitMotionRules.StoryPixelsPerUnit;
         /// <summary>C01: the throw reaches up to 5 units ahead.</summary>
         public static float MaxThrowPixels =>
             (float)KitReachRules.SandstormVortexMaxThrowUnits * KitMotionRules.StoryPixelsPerUnit;
@@ -102,6 +105,9 @@ namespace FTT.Characters.Abilities {
         private float _vortexLifetime;
         private float _vortexTickInterval;
         private float _vortexTickTimer;
+        /// <summary>Lingering-kit pass: the bodies inside last frame, for the slow-on-exit rule.</summary>
+        private readonly System.Collections.Generic.Dictionary<ulong, CharacterBody2D> _inside = new();
+        private readonly System.Collections.Generic.HashSet<ulong> _insideNow = new();
 
         /// <summary>Whether the deployed vortex is still churning (test observable).</summary>
         public bool VortexActive => _vortexActive;
@@ -172,6 +178,7 @@ namespace FTT.Characters.Abilities {
             _vortexTickInterval = (Data?.DamageTickIntervalFrames ?? 24) / 60f;
             if (_vortexTickInterval <= 0f) _vortexTickInterval = 0.4f;
             _vortexTickTimer = _vortexTickInterval;
+            _inside.Clear();
             _vortexActive = true;
             // Fresh instance, fresh Vortex Step allowance.
             VortexStepAvailable = true;
@@ -225,6 +232,7 @@ namespace FTT.Characters.Abilities {
             if (!_vortexActive || Owner == null) return;
 
             PullTargetsTowardCenter(dt);
+            ApplyExitSlows();
 
             _vortexTickTimer -= dt;
             if (_vortexTickTimer <= 0f) {
@@ -236,14 +244,61 @@ namespace FTT.Characters.Abilities {
             }
 
             _vortexLifetime -= dt;
-            if (_vortexLifetime <= 0f) _vortexActive = false;
+            if (_vortexLifetime <= 0f) {
+                _vortexActive = false;
+                // The Vortex ends: everyone still inside leaves the area now.
+                foreach (CharacterBody2D body in _inside.Values) SlowOnExit(body);
+                _inside.Clear();
+            }
+        }
+
+        /// <summary>
+        /// Lingering-kit pass: a target is pulled unless it is in roll travel or an air dodge, a
+        /// knockback-immune boss, or a dormant encounter-lock member.
+        /// </summary>
+        public static bool IsPullable(CharacterBody2D body) {
+            if (body == null || !IsInstanceValid(body)) return false;
+            if (body is PlayerController player) return !player.IsRollTravelOrAirDodge;
+            if (body is FTT.Enemies.BossController boss) return boss.Data?.IsKnockbackImmune == false;
+            if (body is FTT.Enemies.EnemyController enemy) return !enemy.IsEncounterDormant && !enemy.IsHeldByPlayer;
+            return true;
+        }
+
+        /// <summary>Diffs this frame's occupants against last frame's and slows whoever left.</summary>
+        private void ApplyExitSlows() {
+            _insideNow.Clear();
+            foreach (Hurtbox hurtbox in QueryTargetHurtboxes()) {
+                CharacterBody2D body = FindTargetBody(hurtbox);
+                if (body == null) continue;
+                ulong id = body.GetInstanceId();
+                _insideNow.Add(id);
+                _inside[id] = body;
+            }
+            System.Collections.Generic.List<ulong> left = null;
+            foreach (var pair in _inside) {
+                if (_insideNow.Contains(pair.Key)) continue;
+                (left ??= new()).Add(pair.Key);
+                SlowOnExit(pair.Value);
+            }
+            if (left == null) return;
+            foreach (ulong id in left) _inside.Remove(id);
+        }
+
+        /// <summary>The slow (1.2 for 1.75 s from the authored resource), applied once on leaving.</summary>
+        private void SlowOnExit(CharacterBody2D body) {
+            if (body == null || !IsInstanceValid(body)) return;
+            FTT.Core.StatusType status = Data?.AppliedStatus ?? FTT.Core.StatusType.TimeDilation;
+            if (status == FTT.Core.StatusType.None) return;
+            LingeringZoneStatus.TryApply(body, status,
+                Data?.StatusDuration > 0f ? Data.StatusDuration : (float)LingeringKitRules.HeroSlowLingerSeconds,
+                Data?.StatusIntensity ?? (float)LingeringKitRules.HeroSlowIntensity);
         }
 
         private void PullTargetsTowardCenter(float dt) {
             float step = PullPixelsPerSecond * dt;
             foreach (Hurtbox hurtbox in QueryTargetHurtboxes()) {
                 CharacterBody2D body = FindTargetBody(hurtbox);
-                if (body == null) continue;
+                if (!IsPullable(body)) continue;
                 float dx = _vortexCenter.X - body.GlobalPosition.X;
                 float travel = Mathf.Abs(dx) <= step ? dx : Mathf.Sign(dx) * step;
                 // GU-E (2026-10-12): a positional pull through the body's own
@@ -256,7 +311,15 @@ namespace FTT.Characters.Abilities {
         }
 
         private void TickVortexDamage(bool finalTick) {
-            foreach (Hurtbox hurtbox in QueryTargetHurtboxes()) ApplyVortexTickTo(hurtbox, finalTick);
+            bool paid = false;
+            foreach (Hurtbox hurtbox in QueryTargetHurtboxes()) {
+                float dealt = ApplyVortexTickTo(hurtbox, finalTick);
+                // The final launch pays Momentum Detonation once, never per body.
+                if (finalTick && !paid && dealt > 0f) {
+                    paid = true;
+                    Owner.PayLingeringMomentum(LingeringMomentumEvent.Detonation);
+                }
+            }
         }
 
         /// <summary>
@@ -278,14 +341,16 @@ namespace FTT.Characters.Abilities {
                     HitstunDuration = finalTick ? Data?.HitstunDuration ?? 0.2f : 0f,
                     HitOrigin = _vortexCenter,
                     AttackerFacingRight = Owner.IsFacingRight,
-                    AppliedStatus = Data?.AppliedStatus ?? FTT.Core.StatusType.TimeDilation,
-                    StatusDuration = Data?.StatusDuration > 0f ? Data.StatusDuration : 2f,
-                    StatusIntensity = Data?.StatusIntensity ?? 0.8f,
+                    // Lingering-kit pass: no slow while inside; it lands once on leaving.
+                    AppliedStatus = FTT.Core.StatusType.None,
+                    StatusDuration = 0f,
+                    StatusIntensity = 1f,
                     ScreenShakeIntensity = 0.05f,
                     ScreenShakeDuration = 0.05f
                 }, HitDelivery.Tick);
                 // Only the final tick carries the authored launch; the churn ticks never do.
                 tick.Launches = finalTick && (Data?.Launches ?? false);
+                tick.CountsAsCombo = finalTick;
                 float dealt = hurtbox.TakeHit(tick);
                 Credit(hurtbox, in tick, dealt, hurtbox.GlobalPosition);
                 return dealt;

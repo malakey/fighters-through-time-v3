@@ -111,6 +111,7 @@ public class FighterConstructAttackTests {
             ExecutionType = AbilityExecutionType.PersistentObject,
             BaseDamage = 5f,
             KnockbackForce = Vector2.Zero,
+            DamageTickIntervalFrames = 120, // as tesla/special_1.tres authors the coil
             PersistentObjectID = "tesla_coil",
             MaxActiveObjects = 2,
             Lifetime = 30f,

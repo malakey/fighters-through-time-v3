@@ -756,8 +756,14 @@ namespace FTT.FighterSim {
         // --- Rally / Desperation / Defy History (V7.1) ---
         public FP64 EchoPool;
         public FP64 EchoDrainPerFrame;
-        /// <summary>Spare (was the passive Defy's once-per-match flag until the meter and Defy update, 2026-10-31); never written.</summary>
-        public int SpareInt1;
+        /// <summary>
+        /// Lingering-kit pass (2026-10-31): the OWED SYNCED STRIKES on the attacker. A hit site that
+        /// lands the owner's basic swing or direct Special adds one (low byte, saturating at 255);
+        /// <c>FighterPersistentObjectSystem</c> reads and clears it at the top of its update
+        /// (<see cref="FighterLingeringKitRules.TakeOwedStrikes"/>). Was the passive Defy's
+        /// once-per-match flag until the meter and Defy update.
+        /// </summary>
+        public int OwedSyncedStrikes;
         /// <summary>1 while the match is in Overtime (final minute of a timed match).</summary>
         public int OvertimeActive;
         // --- The Momentum gauge (meter and Defy update 2026-10-31) ---
