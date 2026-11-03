@@ -138,8 +138,8 @@ public class CpuVerbPolicyTests {
     [TestCase]
     public void ASpecialNeedsAPipAndAClearReuseDelayWhenTheGaugeIsKnown() {
         // Meter and Defy update (G4.4): the four cooldown tests are one predicate, a whole pip
-        // (7200 units) AND the slot's reuse delay run out by delivery. A real gauge of 7199 starves
-        // the press that 7200 pays for; a 30-frame reuse delay (beyond Medium's 15-frame reaction
+        // (MomentumUnitsPerPip) AND the slot's reuse delay run out by delivery. A real gauge one unit short of
+        // a pip starves the press that a whole pip pays for; a 30-frame reuse delay (beyond Medium's 15-frame reaction
         // floor) holds it back whatever the gauge.
         CpuBandTuning tuning = SpecialTuning();
         int cost = BasicComboRules.MomentumSpecialCostUnits;

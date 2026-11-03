@@ -100,8 +100,8 @@ namespace FTT.Diagnostics {
             context.AfterReady = _ => {
                 HudfStart(hud, 0, false);
                 FighterRuntimeComponent idle = new() { StatusType = (int)StatusType.None };
-                hud.ApplyPlayerState(0, HudfState(92, 110, 3, 3, 100f), idle, HudfTick, momentumUnits: 18720);
-                hud.ApplyPlayerState(1, HudfState(70, 90, 2, 2, 38f), idle, HudfTick, momentumUnits: 2880);
+                hud.ApplyPlayerState(0, HudfState(92, 110, 3, 3, 100f), idle, HudfTick, momentumUnits: FTT.Combat.BasicComboRules.MomentumUnitsPerPip * 26 / 10);
+                hud.ApplyPlayerState(1, HudfState(70, 90, 2, 2, 38f), idle, HudfTick, momentumUnits: FTT.Combat.BasicComboRules.MomentumUnitsPerPip * 4 / 10);
             };
             return page;
         }

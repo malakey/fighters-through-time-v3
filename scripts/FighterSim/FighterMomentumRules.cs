@@ -5,7 +5,7 @@ namespace FTT.FighterSim {
     /// <summary>
     /// The Fighter sim's integer view of the Momentum gauge region of
     /// <see cref="BasicComboRules"/> (meter and Defy update 2026-10-31, plan
-    /// section 1.4). The gauge is counted in units, 7200 to the pip, so no float
+    /// section 1.4). The gauge is counted in units, BasicComboRules.MomentumUnitsPerPip to the pip, so no float
     /// ever reaches the deterministic simulation. Pure functions over an int: the
     /// caller owns the storage (<c>FighterVerbComponent.MomentumUnits</c> once
     /// MM-SIM renames it), and nothing here is state.

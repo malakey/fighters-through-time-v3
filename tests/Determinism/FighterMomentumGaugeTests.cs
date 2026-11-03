@@ -61,7 +61,7 @@ public class FighterMomentumGaugeTests {
         int live = Verb(simulation, 0).MomentumUnits;
         Idle(simulation, 100);
         AssertThat(Verb(simulation, 0).MomentumUnits - live)
-            .OverrideFailureMessage("A live match regenerates 10 units a frame (a pip per 720 frames).")
+            .OverrideFailureMessage("A live match regenerates 10 units a frame (a pip per MomentumRegenFramesPerPip frames).")
             .IsEqual(100 * BasicComboRules.MomentumRegenUnitsPerFrame);
         AssertThat(BasicComboRules.MomentumRegenUnitsPerFrame * BasicComboRules.MomentumRegenFramesPerPip)
             .IsEqual(Pip);

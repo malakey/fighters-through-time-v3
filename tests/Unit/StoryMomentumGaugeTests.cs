@@ -12,7 +12,7 @@ namespace FTT.Tests.Unit;
 /// <summary>
 /// The Story Momentum gauge (meter and Defy update 2026-10-31, plan 2.1-2.3): four pips shared by
 /// Special 1 and Special 2, one spent per accepted Special, a 2 s reuse delay per slot, a pip back
-/// every 12 s that pauses under the cooldowns' own pauses, the not-yet flash on a pip-less press,
+/// every pip's regen window that pauses under the cooldowns' own pauses, the not-yet flash on a pip-less press,
 /// and the movement ability keeping its own cooldown. Landed-swing gains are pinned in
 /// <c>StoryHitConfirmTests</c>, persistence in <c>StoryResourceTimerPersistenceTests</c>.
 /// </summary>
@@ -44,7 +44,7 @@ public class StoryMomentumGaugeTests {
             Tick(player, GameplayButtons.Special1);
             AssertThat(player.CurrentState).IsEqual(CharacterState.UsingSpecial);
             AssertFloat(player.MomentumPips).OverrideFailureMessage("Special 1 costs exactly one pip.")
-                .IsEqualApprox(1f + 1f / 720f, 0.002f);
+                .IsEqualApprox(1f + 1f / BasicComboRules.MomentumRegenFramesPerPip, 0.002f);
             AssertFloat(player.SpecialOneCooldownTimer)
                 .OverrideFailureMessage("The slot's reuse delay is 2 s, not the authored cooldown.")
                 .IsEqualApprox(BasicComboRules.SpecialReuseDelayFrames / 60f, 0.0001f);
@@ -115,11 +115,11 @@ public class StoryMomentumGaugeTests {
     }
 
     [TestCase]
-    public void TheGaugeRegeneratesOnePipEveryTwelveSecondsTimesTheRegenMultiplierAndCaps() {
+    public void TheGaugeRegeneratesOnePipEveryNineSecondsTimesTheRegenMultiplierAndCaps() {
         Run((player, events) => {
             player.RestoreMomentumPips(0f);
             for (int tick = 0; tick < BasicComboRules.MomentumRegenFramesPerPip; tick++) Tick(player, GameplayButtons.None);
-            AssertFloat(player.MomentumPips).OverrideFailureMessage("720 ticks (12 s) refill exactly one pip.")
+            AssertFloat(player.MomentumPips).OverrideFailureMessage("A pip's regen frames (9 s) refill exactly one pip.")
                 .IsEqualApprox(1f, 0.002f);
 
             player.RestoreMomentumPips(0f);
@@ -215,7 +215,7 @@ public class StoryMomentumGaugeTests {
             for (int tick = 0; tick < 60; tick++) Tick(player, GameplayButtons.None);
             AssertFloat(player.SpecialOneCooldownTimer).IsEqualApprox(1f, 0.02f);
             AssertThat(player.MovementAbilityCooldownTimer < 0.2f).OverrideFailureMessage("The movement timer keeps the multiplier.").IsTrue();
-            AssertFloat(player.MomentumPips).IsEqualApprox(60f / 720f, 0.002f);
+            AssertFloat(player.MomentumPips).IsEqualApprox(60f / BasicComboRules.MomentumRegenFramesPerPip, 0.002f);
         });
     }
 

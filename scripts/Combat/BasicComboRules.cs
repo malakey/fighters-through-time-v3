@@ -808,13 +808,13 @@ namespace FTT.Combat {
         // One gauge of four pips shared by Special 1 and Special 2, replacing the
         // two per-slot cooldowns (the D2 per-hit Momentum refund above is
         // superseded; MM-SWEEP deletes it). Every accepted Special costs one pip,
-        // the gauge refills continuously (1 pip per 12 s, no pause after a spend)
+        // the gauge refills continuously (1 pip per 9 s, no pause after a spend)
         // and landed basic swings add a little. The Fighter sim counts integer
-        // UNITS (7200 to the pip, FighterMomentumRules); Story counts float pips
+        // UNITS (5400 to the pip, FighterMomentumRules); Story counts float pips
         // and converts with / MomentumUnitsPerPip. Plan section 1.4.
 
-        /// <summary>The sim's unit: 7200 units make one pip.</summary>
-        public const int MomentumUnitsPerPip = 7200;
+        /// <summary>The sim's unit: 5400 units make one pip (gain review 2026-11-03: 540 frames x 10 units, so a pip regenerates in 9 s).</summary>
+        public const int MomentumUnitsPerPip = 5400;
         /// <summary>The gauge holds four pips.</summary>
         public const int MomentumMaxPips = 4;
         /// <summary>The gauge's cap in units (4 pips).</summary>
@@ -825,24 +825,24 @@ namespace FTT.Combat {
         public const int MomentumStartUnits = MomentumStartPips * MomentumUnitsPerPip;
         /// <summary>Every accepted Special costs one pip.</summary>
         public const int MomentumSpecialCostUnits = MomentumUnitsPerPip;
-        /// <summary>Frames of passive regeneration per pip (12 s).</summary>
-        public const int MomentumRegenFramesPerPip = 720;
-        /// <summary>Units regenerated per frame (= 7200 / 720; pinned by a test).</summary>
+        /// <summary>Frames of passive regeneration per pip (9 s).</summary>
+        public const int MomentumRegenFramesPerPip = 540;
+        /// <summary>Units regenerated per frame (= MomentumUnitsPerPip / MomentumRegenFramesPerPip; pinned by a test).</summary>
         public const int MomentumRegenUnitsPerFrame = 10;
         /// <summary>A landed string hit 1 or 2 adds 0.05 pip.</summary>
-        public const int MomentumStringHitGainUnits = 360;
+        public const int MomentumStringHitGainUnits = MomentumUnitsPerPip / 20;
         /// <summary>A landed Up-Attack, Down-Air, air strike or ledge attack adds 0.05 pip.</summary>
-        public const int MomentumDirectionalGainUnits = 360;
+        public const int MomentumDirectionalGainUnits = MomentumUnitsPerPip / 20;
         /// <summary>A landed finisher (string hit 3) adds 0.2 pip.</summary>
-        public const int MomentumFinisherGainUnits = 1440;
+        public const int MomentumFinisherGainUnits = MomentumUnitsPerPip / 5;
         /// <summary>Frames a Special slot stays refused after its own cast (2 s, per slot).</summary>
         public const int SpecialReuseDelayFrames = 120;
 
         /// <summary>
         /// The units one landed swing adds (the sim): a chain finisher (step 2 or
-        /// more) 1440, a chain hit 1 or 2 360, and every other variant (the air
+        /// more) 0.2 pip, a chain hit 1 or 2 0.05 pip, and every other variant (the air
         /// strike, the directional strikes, the ledge attack, which the sim
-        /// reports as chain step 0) 360.
+        /// reports as chain step 0) 0.05 pip.
         /// </summary>
         public static int MomentumGainUnitsFor(int variant, int comboStep) {
             if (variant != VariantChain) return MomentumDirectionalGainUnits;
@@ -851,8 +851,8 @@ namespace FTT.Combat {
 
         /// <summary>
         /// Story's form of <see cref="MomentumGainUnitsFor"/>, keyed on the melee
-        /// hitbox's ID: <c>combo_3</c> 1440, any other <c>combo_</c> ID 360, the
-        /// air strike and the two directional IDs 360, anything else (a throw, a
+        /// hitbox's ID: <c>combo_3</c> 0.2 pip, any other <c>combo_</c> ID 0.05 pip, the
+        /// air strike and the two directional IDs 0.05 pip, anything else (a throw, a
         /// construct) 0.
         /// </summary>
         public static int MomentumGainUnitsForHitbox(string hitboxID) {

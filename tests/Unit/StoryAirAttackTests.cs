@@ -168,7 +168,7 @@ public class StoryAirAttackTests {
                 .OverrideFailureMessage("A landed air strike opens the D1 hit-confirm like any basic swing.")
                 .IsTrue();
             AssertFloat(player.MomentumPips)
-                .IsEqualApprox(BasicComboRules.MomentumStringHitGainUnits / 7200f, 0.0001f);
+                .IsEqualApprox(BasicComboRules.MomentumStringHitGainUnits / (float)BasicComboRules.MomentumUnitsPerPip, 0.0001f);
             AssertThat(player.IsInHitstop)
                 .OverrideFailureMessage("A landed air strike freezes the attacker like any landed basic.")
                 .IsTrue();

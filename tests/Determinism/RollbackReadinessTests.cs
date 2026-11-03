@@ -672,7 +672,7 @@ public class RollbackReadinessTests {
         // orbs, and both kits' constructs deployed.
         const int WarmupTicks = 1900;
         const int MeasuredTicks = 300;
-        // The gauge pays for every Special (a pip per 12 s), so the scripts hold
+        // The gauge pays for every Special (a pip per MomentumRegenFramesPerPip frames), so the scripts hold
         // their Specials until the last 40 ticks of warm-up: both kits start the
         // window with four pips and cast at the shortest legal cadence through it.
         var localInputs = new ScriptedInputs(4215, 0, spamSpecials: true, specialsFromTick: WarmupTicks - 40);

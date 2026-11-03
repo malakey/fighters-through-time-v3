@@ -128,7 +128,7 @@ public class FighterAirAttackTests {
         AssertThat(air.Victim.Velocity.y).IsEqual(FP64.Zero);
 
         // D1 and the Momentum gauge: a landed air strike opens the hit-confirm and
-        // adds the directional strikes' 360 units to the gauge.
+        // adds the directional strikes' gain to the gauge.
         AssertThat(air.SwingLanded).IsEqual(1);
         AssertThat(air.GaugeGain).IsEqual(BasicComboRules.MomentumDirectionalGainUnits);
     }

@@ -70,7 +70,7 @@ namespace FTT.FighterSim {
         /// adapter set it.
         /// </summary>
         public int MomentumKnown;
-        /// <summary>The Momentum gauge in units (7200 per pip, 0 to 28800); read only when <see cref="MomentumKnown"/> is non-zero.</summary>
+        /// <summary>The Momentum gauge in units (BasicComboRules.MomentumUnitsPerPip per pip, 0 to MomentumMaxUnits); read only when <see cref="MomentumKnown"/> is non-zero.</summary>
         public int SelfMomentumUnits;
         /// <summary>Frames left on the fighter's own Defy (0 when idle); the sim fills it from component 323's <c>DefyFrames</c>.</summary>
         public int SelfDefyFrames;

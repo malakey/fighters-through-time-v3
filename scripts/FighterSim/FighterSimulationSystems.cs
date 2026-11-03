@@ -2498,7 +2498,7 @@ namespace FTT.FighterSim {
         /// D1 (2026-10-11) and the Momentum gauge (2026-10-31): one resolved basic
         /// swing. A Landed or Absorbed outcome carrying authored damage (D1a; a
         /// zero-damage payload never lands) sets the swing-landed latch on its 0 → 1
-        /// edge and adds that swing's gauge gain once (360 / 360 / 1440 units); a landing that froze the attacker arms
+        /// edge and adds that swing's gauge gain once (0.05 / 0.05 / 0.2 pip in units); a landing that froze the attacker arms
         /// the freeze-only Special buffer. A Refused or Blocked outcome (a box
         /// miss and a Foresight counter included) does neither.
         /// </summary>

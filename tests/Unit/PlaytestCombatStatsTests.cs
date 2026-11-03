@@ -331,7 +331,7 @@ public class PlaytestCombatStatsTests {
 
     [TestCase]
     public void TheMomentumBlockStartsAtTwoPipsAndBooksGainsBySourceAndSpendsBySpecial() {
-        const float regen = 1f / 720f;
+        const float regen = 1f / BasicComboRules.MomentumRegenFramesPerPip;
         var momentum = new MomentumTracker();
         momentum.Rebaseline(2f);
         AssertThat(momentum.Start).OverrideFailureMessage("A fresh level starts at two pips, the analogue of meter0.").IsEqual(2f);

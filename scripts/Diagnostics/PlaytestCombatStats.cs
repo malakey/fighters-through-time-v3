@@ -971,7 +971,7 @@ namespace FTT.Diagnostics {
     /// The hero raises no gain event, so a tick's rise is split from the readable pieces: up to
     /// one tick of regen is booked as <c>regen</c>, and anything above it to the hit the telemetry
     /// heard land that tick (the swing's hitbox ID; <c>other</c> without one). A tick that carries
-    /// both a regen and a hit gain therefore mis-books at most 1/720 pip, and a gain lost to the cap
+    /// both a regen and a hit gain therefore mis-books at most 1/MomentumRegenFramesPerPip pip, and a gain lost to the cap
     /// is not seen. Spends are the Specials' execution serials, not a negative step.
     /// </summary>
     public sealed class MomentumTracker {

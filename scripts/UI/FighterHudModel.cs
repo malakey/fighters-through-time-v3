@@ -304,7 +304,7 @@ namespace FTT.UI {
         };
 
         /// <summary>
-        /// MM-HUD: the Momentum gauge in pips for the sim's integer units (7200 to a pip, 0 to 4). Pure; the HUD feeds the pip
+        /// MM-HUD: the Momentum gauge in pips for the sim's integer units (BasicComboRules.MomentumUnitsPerPip to a pip, 0 to 4). Pure; the HUD feeds the pip
         /// row and the Special lenses' starved look through it, so the sim stub or the real gauge reads the same way.
         /// </summary>
         public static float MomentumPipFill(int units) =>

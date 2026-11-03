@@ -16,44 +16,66 @@ public class MeterDefyRulesTests {
 
     [TestCase]
     public void TheGaugeConstantsAreConsistentWithOneAnother() {
-        AssertThat(BasicComboRules.MomentumUnitsPerPip).IsEqual(7200);
-        AssertThat(BasicComboRules.MomentumMaxUnits).IsEqual(28800);
-        AssertThat(BasicComboRules.MomentumStartUnits).IsEqual(14400);
+        AssertThat(BasicComboRules.MomentumMaxUnits).IsEqual(BasicComboRules.MomentumMaxPips * BasicComboRules.MomentumUnitsPerPip);
+        AssertThat(BasicComboRules.MomentumStartUnits).IsEqual(BasicComboRules.MomentumStartPips * BasicComboRules.MomentumUnitsPerPip);
         AssertThat(BasicComboRules.MomentumSpecialCostUnits).IsEqual(BasicComboRules.MomentumUnitsPerPip);
         AssertThat(BasicComboRules.SpecialReuseDelayFrames).IsEqual(120);
-        // 12 s of regen is exactly one pip: the per-frame figure is derived, not free.
+        // A pip's worth of regen frames is exactly one pip: the per-frame figure is derived, not free.
         AssertThat(BasicComboRules.MomentumRegenUnitsPerFrame * BasicComboRules.MomentumRegenFramesPerPip)
             .IsEqual(BasicComboRules.MomentumUnitsPerPip);
     }
 
     [TestCase]
+    public void AGainReviewPipIsFiftyFourHundredUnitsAndRegeneratesInNineSeconds() {
+        // Gameplay review 2026-11-03 (ruling 10a+): 9 s a pip, by changing the unit and not the rate.
+        AssertThat(BasicComboRules.MomentumUnitsPerPip).IsEqual(5400);
+        AssertThat(BasicComboRules.MomentumRegenFramesPerPip).IsEqual(540);
+        AssertThat(BasicComboRules.MomentumRegenUnitsPerFrame).IsEqual(10);
+        AssertThat(BasicComboRules.MomentumRegenFramesPerPip / 60).IsEqual(9);
+        AssertThat(BasicComboRules.MomentumMaxUnits).IsEqual(21600);
+        AssertThat(BasicComboRules.MomentumStartUnits).IsEqual(10800);
+        AssertThat(FighterMomentumRules.StartUnits).IsEqual(10800);
+    }
+
+    [TestCase]
+    public void TheGainsStayFiveHundredthsAndAFifthOfAPip() {
+        // The unit moved, the pip fractions did not: 0.05, 0.05 and 0.2 of a pip.
+        AssertThat(BasicComboRules.MomentumStringHitGainUnits).IsEqual(270);
+        AssertThat(BasicComboRules.MomentumDirectionalGainUnits).IsEqual(270);
+        AssertThat(BasicComboRules.MomentumFinisherGainUnits).IsEqual(1080);
+        AssertThat(BasicComboRules.MomentumStringHitGainUnits * 20).IsEqual(BasicComboRules.MomentumUnitsPerPip);
+        AssertThat(BasicComboRules.MomentumFinisherGainUnits * 5).IsEqual(BasicComboRules.MomentumUnitsPerPip);
+    }
+
+    [TestCase]
     public void TheGainTableCoversEverySwingVariant() {
-        AssertThat(BasicComboRules.MomentumGainUnitsFor(BasicComboRules.VariantChain, 0)).IsEqual(360);
-        AssertThat(BasicComboRules.MomentumGainUnitsFor(BasicComboRules.VariantChain, 1)).IsEqual(360);
-        AssertThat(BasicComboRules.MomentumGainUnitsFor(BasicComboRules.VariantChain, 2)).IsEqual(1440);
-        AssertThat(BasicComboRules.MomentumGainUnitsFor(BasicComboRules.VariantUpAttack, 0)).IsEqual(360);
-        AssertThat(BasicComboRules.MomentumGainUnitsFor(BasicComboRules.VariantDownAir, 0)).IsEqual(360);
-        AssertThat(BasicComboRules.MomentumGainUnitsFor(BasicComboRules.VariantAirAttack, 0)).IsEqual(360);
+        AssertThat(BasicComboRules.MomentumGainUnitsFor(BasicComboRules.VariantChain, 0)).IsEqual(BasicComboRules.MomentumStringHitGainUnits);
+        AssertThat(BasicComboRules.MomentumGainUnitsFor(BasicComboRules.VariantChain, 1)).IsEqual(BasicComboRules.MomentumStringHitGainUnits);
+        AssertThat(BasicComboRules.MomentumGainUnitsFor(BasicComboRules.VariantChain, 2)).IsEqual(BasicComboRules.MomentumFinisherGainUnits);
+        AssertThat(BasicComboRules.MomentumGainUnitsFor(BasicComboRules.VariantUpAttack, 0)).IsEqual(BasicComboRules.MomentumDirectionalGainUnits);
+        AssertThat(BasicComboRules.MomentumGainUnitsFor(BasicComboRules.VariantDownAir, 0)).IsEqual(BasicComboRules.MomentumDirectionalGainUnits);
+        AssertThat(BasicComboRules.MomentumGainUnitsFor(BasicComboRules.VariantAirAttack, 0)).IsEqual(BasicComboRules.MomentumDirectionalGainUnits);
         // A full landed string is 0.3 pip.
         AssertThat(
             BasicComboRules.MomentumGainUnitsFor(BasicComboRules.VariantChain, 0)
             + BasicComboRules.MomentumGainUnitsFor(BasicComboRules.VariantChain, 1)
-            + BasicComboRules.MomentumGainUnitsFor(BasicComboRules.VariantChain, 2)).IsEqual(2160);
-        AssertThat(BasicComboRules.MomentumGainUnitsForHitbox("combo_1")).IsEqual(360);
-        AssertThat(BasicComboRules.MomentumGainUnitsForHitbox("combo_3")).IsEqual(1440);
-        AssertThat(BasicComboRules.MomentumGainUnitsForHitbox(BasicComboRules.AirAttackHitboxID)).IsEqual(360);
-        AssertThat(BasicComboRules.MomentumGainUnitsForHitbox(BasicComboRules.UpAttackHitboxID)).IsEqual(360);
-        AssertThat(BasicComboRules.MomentumGainUnitsForHitbox(BasicComboRules.DownAirHitboxID)).IsEqual(360);
+            + BasicComboRules.MomentumGainUnitsFor(BasicComboRules.VariantChain, 2)).IsEqual(2 * BasicComboRules.MomentumStringHitGainUnits + BasicComboRules.MomentumFinisherGainUnits);
+        AssertThat(BasicComboRules.MomentumGainUnitsForHitbox("combo_1")).IsEqual(BasicComboRules.MomentumStringHitGainUnits);
+        AssertThat(BasicComboRules.MomentumGainUnitsForHitbox("combo_3")).IsEqual(BasicComboRules.MomentumFinisherGainUnits);
+        AssertThat(BasicComboRules.MomentumGainUnitsForHitbox(BasicComboRules.AirAttackHitboxID)).IsEqual(BasicComboRules.MomentumDirectionalGainUnits);
+        AssertThat(BasicComboRules.MomentumGainUnitsForHitbox(BasicComboRules.UpAttackHitboxID)).IsEqual(BasicComboRules.MomentumDirectionalGainUnits);
+        AssertThat(BasicComboRules.MomentumGainUnitsForHitbox(BasicComboRules.DownAirHitboxID)).IsEqual(BasicComboRules.MomentumDirectionalGainUnits);
         AssertThat(BasicComboRules.MomentumGainUnitsForHitbox("throw")).IsEqual(0);
         AssertThat(BasicComboRules.MomentumGainUnitsForHitbox(null)).IsEqual(0);
     }
 
     [TestCase]
     public void ASpecialIsAffordableFromOnePipAndSpendingNeverGoesBelowZero() {
-        AssertThat(FighterMomentumRules.CanAfford(7199)).IsFalse();
-        AssertThat(FighterMomentumRules.CanAfford(7200)).IsTrue();
-        AssertThat(FighterMomentumRules.Spend(14400)).IsEqual(7200);
-        AssertThat(FighterMomentumRules.Spend(7200)).IsEqual(0);
+        const int pip = BasicComboRules.MomentumUnitsPerPip;
+        AssertThat(FighterMomentumRules.CanAfford(pip - 1)).IsFalse();
+        AssertThat(FighterMomentumRules.CanAfford(pip)).IsTrue();
+        AssertThat(FighterMomentumRules.Spend(2 * pip)).IsEqual(pip);
+        AssertThat(FighterMomentumRules.Spend(pip)).IsEqual(0);
         AssertThat(FighterMomentumRules.Spend(100)).IsEqual(0);
         // Saturates instead of wrapping at the integer extremes (Codex review, Phase A).
         AssertThat(FighterMomentumRules.Spend(int.MinValue)).IsEqual(0);
@@ -61,24 +83,25 @@ public class MeterDefyRulesTests {
 
     [TestCase]
     public void GainAndRegenClampAtFourPips() {
-        AssertThat(FighterMomentumRules.Gain(28800 - 100, 360)).IsEqual(28800);
-        AssertThat(FighterMomentumRules.Gain(0, 1440)).IsEqual(1440);
-        AssertThat(FighterMomentumRules.Regen(0)).IsEqual(10);
-        AssertThat(FighterMomentumRules.Regen(28795)).IsEqual(28800);
-        AssertThat(FighterMomentumRules.Gain(28800, int.MaxValue)).IsEqual(28800);
-        AssertThat(FighterMomentumRules.Regen(int.MaxValue)).IsEqual(28800);
-        // 720 frames of regen from empty is exactly one pip.
+        const int max = BasicComboRules.MomentumMaxUnits;
+        AssertThat(FighterMomentumRules.Gain(max - 100, BasicComboRules.MomentumStringHitGainUnits)).IsEqual(max);
+        AssertThat(FighterMomentumRules.Gain(0, BasicComboRules.MomentumFinisherGainUnits)).IsEqual(BasicComboRules.MomentumFinisherGainUnits);
+        AssertThat(FighterMomentumRules.Regen(0)).IsEqual(BasicComboRules.MomentumRegenUnitsPerFrame);
+        AssertThat(FighterMomentumRules.Regen(max - BasicComboRules.MomentumRegenUnitsPerFrame / 2)).IsEqual(max);
+        AssertThat(FighterMomentumRules.Gain(max, int.MaxValue)).IsEqual(max);
+        AssertThat(FighterMomentumRules.Regen(int.MaxValue)).IsEqual(max);
+        // A pip's worth of regen frames from empty is exactly one pip.
         int units = 0;
         for (int frame = 0; frame < BasicComboRules.MomentumRegenFramesPerPip; frame++) units = FighterMomentumRules.Regen(units);
-        AssertThat(units).IsEqual(7200);
+        AssertThat(units).IsEqual(BasicComboRules.MomentumUnitsPerPip);
     }
 
     [TestCase]
     public void SpawnAndSuddenDeathStartAtTwoPipsAndClampIsTotal() {
-        AssertThat(FighterMomentumRules.StartUnits).IsEqual(14400);
-        AssertThat(FighterMomentumRules.SuddenDeathUnits).IsEqual(14400);
+        AssertThat(FighterMomentumRules.StartUnits).IsEqual(BasicComboRules.MomentumStartUnits);
+        AssertThat(FighterMomentumRules.SuddenDeathUnits).IsEqual(BasicComboRules.MomentumStartUnits);
         AssertThat(FighterMomentumRules.Clamp(-5)).IsEqual(0);
-        AssertThat(FighterMomentumRules.Clamp(99999)).IsEqual(28800);
+        AssertThat(FighterMomentumRules.Clamp(99999)).IsEqual(BasicComboRules.MomentumMaxUnits);
     }
 
     [TestCase]

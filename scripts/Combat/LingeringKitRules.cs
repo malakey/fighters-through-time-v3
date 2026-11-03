@@ -171,8 +171,8 @@ namespace FTT.Combat {
         // --- Momentum payout (plan 1.2) --------------------------------------------------
         /// <summary>
         /// The Momentum units a lingering-kit event pays, on the existing unit
-        /// scale (7200 = 1 pip). Detonation 0.2 pip (the finisher's 1440), a
-        /// synced strike and Golden Ratio 0.05 pip (a string hit's 360). The
+        /// scale (BasicComboRules.MomentumUnitsPerPip = 1 pip). Detonation 0.2 pip (the finisher's gain), a
+        /// synced strike and Golden Ratio 0.05 pip (a string hit's gain). The
         /// caller pays once per event, never per body, and only for a contact
         /// that landed (D1a) with damage: a blocked, refused, warded or
         /// zero-damage contact pays nothing. Reads <see cref="BasicComboRules"/>

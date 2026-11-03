@@ -229,7 +229,7 @@ namespace FTT.Diagnostics {
         /// <summary>The feel probe's seed: fills the gauge so every Special has its pip.</summary>
         public static void SeedMomentum(PlayerController p, float pips) => p.RestoreMomentumPips(pips);
 
-        /// <summary>The regen the gauge gains each tick at this hero's multiplier (1 pip per 720 frames).</summary>
+        /// <summary>The regen the gauge gains each tick at this hero's multiplier (1 pip per BasicComboRules.MomentumRegenFramesPerPip frames).</summary>
         public static float MomentumRegenPerTick(PlayerController p) =>
             p.MomentumRegenMultiplier / BasicComboRules.MomentumRegenFramesPerPip;
 
