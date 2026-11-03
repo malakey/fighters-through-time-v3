@@ -37,6 +37,21 @@ namespace FTT.Diagnostics {
         public int Holders;
         /// <summary>Mobs attacking the hero with a ranged-permit attack in flight (any distance).</summary>
         public int RangedInFlight;
+        /// <summary>Ringing waiters on the hero that a free melee slot could go to (the supply measure).</summary>
+        public int MeleeCandidates;
+    }
+
+    /// <summary>
+    /// The melee slot table of 2026-10-12, for <c>--slot-table=legacy</c> (GR-CROWD,
+    /// a same-build A/B). Diagnostics only: the game's one table is
+    /// <see cref="StoryEngagementRules"/>.
+    /// </summary>
+    public static class PlaytestSlotTables {
+        public static (int Total, int PerSide) Legacy(Difficulty difficulty) => difficulty switch {
+            Difficulty.Easy => (1, 1),
+            Difficulty.Hard => (3, 2),
+            _ => (2, 1)
+        };
     }
 
     /// <summary>
@@ -67,6 +82,14 @@ namespace FTT.Diagnostics {
         public long SumMeleeAttackingNear { get; private set; }
         public long SumHolders { get; private set; }
         public long SumRangedInFlight { get; private set; }
+        public long SumMeleeCandidates { get; private set; }
+        public int MaxMeleeCandidates { get; private set; }
+        /// <summary>
+        /// Engaged frames with a melee slot free and a candidate ringing: the direct
+        /// test of whether the slot rules limit pressure. A per-side cap or a waiter's
+        /// rest can hold the free slot back; few frames here mean supply is the limit.
+        /// </summary>
+        public int FramesSlotIdleWithWaiters { get; private set; }
         /// <summary>Engaged frames with more melee attackers near the hero than the slot total (retaliation is never gated, so not always a fault).</summary>
         public int FramesMeleeOverSlots { get; private set; }
         /// <summary>
@@ -420,5 +443,41 @@ namespace FTT.Diagnostics {
             foreach (LockRecord record in Records) if (predicate(record)) ids.Add(record.LockID);
             return ids.Count;
         }
+    }
+
+    /// <summary>One swarm wave over a run: when it spawned and cleared, what it cost the hero, the crowd it made.</summary>
+    public sealed class SwarmRecord {
+        public string LockID = "";
+        public string RowID = "";
+        public int Planned;
+        public int SpawnFrame = -1;
+        /// <summary>The first frame seen with none of its members alive; -1 while it never cleared.</summary>
+        public int ClearFrame = -1;
+        public int PeakLiving;
+        public int HeroDamage;
+        /// <summary>Frames sampled while it lived; the sums below are over these.</summary>
+        public int Frames;
+        public long SumHolders;
+        public long SumAttackingNear;
+        public long SumMeleeCandidates;
+
+        internal ulong LockInstance;
+        internal int HeroDamageAtSpawn;
+
+        public int FramesToClear => SpawnFrame >= 0 && ClearFrame >= 0 ? ClearFrame - SpawnFrame : -1;
+    }
+
+    /// <summary>
+    /// The <c>swarms</c> block (GR-CROWD, plan section 5): one record per swarm wave per
+    /// lock instance, so an Anchor Snap's rebuilt lock is a new record. Godot-free.
+    /// </summary>
+    public sealed class SwarmTracker {
+        public readonly List<SwarmRecord> Records = new();
+
+        /// <summary>One frame's reading of a spawned swarm wave.</summary>
+        public SwarmRecord Observe(int frame, ulong lockInstance, string lockID, string rowID, int planned, int living,
+            int heroDamageTotal, in EngagementFrameSample crowd) => null;
+
+        public int ClearedCount => 0;
     }
 }

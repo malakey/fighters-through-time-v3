@@ -72,11 +72,21 @@ namespace FTT.Enemies {
         /// NOT an absolute probability. Dust remains the flat authored value.
         /// </summary>
         [Export(PropertyHint.Range, "0,4,0.05")] public float ItemDropChance = 1.0f;
+        /// <summary>
+        /// Fodder (ruling 1b+): this mob's ledger sources take weight 0, so a swarm
+        /// row changes no level total and no other mob's share, and a kill spawns
+        /// no pickup. <see cref="ChronalDustDrop"/> stays an advisory fallback.
+        /// </summary>
+        [Export] public bool DustWeightZero;
 
         [ExportGroup("Animation")]
         [Export] public SpriteFrames SpriteFramesResource;
         /// <summary>Placeholder silhouette tint so each roster entry reads distinctly.</summary>
         [Export] public Color PlaceholderTint = Colors.White;
+        /// <summary>Multiplies the sprite's scale through the normalizer. Look only: collision is untouched.</summary>
+        [Export(PropertyHint.Range, "0.25,2,0.01")] public float SpriteScaleFactor = 1f;
+        /// <summary>Keeps <see cref="PlaceholderTint"/> on authored frames, for a mob that borrows another's sheet.</summary>
+        [Export] public bool TintAuthoredFrames;
 
         public bool HasEliteAbilities => Tier == EnemyTier.Elite && EliteAbilities is { Length: > 0 };
 

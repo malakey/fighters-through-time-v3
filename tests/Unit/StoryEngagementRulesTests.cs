@@ -25,13 +25,13 @@ public class StoryEngagementRulesTests {
 
     [TestCase]
     public void TheSlotTotalsAreTheUsersRulingAndTheSideAndPermitCountsFollow() {
-        // The user's 2026-10-12 ruling: Easy 1 / Normal 2 / Hard 3 at once.
-        AssertThat(StoryEngagementRules.MeleeSlotsTotal(Difficulty.Easy)).IsEqual(1);
-        AssertThat(StoryEngagementRules.MeleeSlotsTotal(Difficulty.Normal)).IsEqual(2);
-        AssertThat(StoryEngagementRules.MeleeSlotsTotal(Difficulty.Hard)).IsEqual(3);
-        // Provisional: Normal's two come one from each side.
+        // The user's 2026-11-03 ruling 1a+: Easy 2 / Normal 3 / Hard 4 at once,
+        // per side 1 / 2 / 2 (amending 2026-10-12's 1 / 2 / 3).
+        AssertThat(StoryEngagementRules.MeleeSlotsTotal(Difficulty.Easy)).IsEqual(2);
+        AssertThat(StoryEngagementRules.MeleeSlotsTotal(Difficulty.Normal)).IsEqual(3);
+        AssertThat(StoryEngagementRules.MeleeSlotsTotal(Difficulty.Hard)).IsEqual(4);
         AssertThat(StoryEngagementRules.MeleeSlotsPerSide(Difficulty.Easy)).IsEqual(1);
-        AssertThat(StoryEngagementRules.MeleeSlotsPerSide(Difficulty.Normal)).IsEqual(1);
+        AssertThat(StoryEngagementRules.MeleeSlotsPerSide(Difficulty.Normal)).IsEqual(2);
         AssertThat(StoryEngagementRules.MeleeSlotsPerSide(Difficulty.Hard)).IsEqual(2);
         AssertThat(StoryEngagementRules.RangedPermits(Difficulty.Easy)).IsEqual(1);
         AssertThat(StoryEngagementRules.RangedPermits(Difficulty.Normal)).IsEqual(2);
@@ -70,6 +70,41 @@ public class StoryEngagementRulesTests {
                 .OverrideFailureMessage($"{difficulty}: rank 0 at {rankZero} px is inside the widest hit 1.")
                 .IsTrue();
         }
+    }
+
+    [TestCase]
+    public void HardGrantsFourHoldersTwoOnEachSideAndNoMoreOnOneSide() {
+        var candidates = new List<StoryEngagementRules.Candidate>();
+        for (ulong id = 1; id <= 3; id++) candidates.Add(new StoryEngagementRules.Candidate(id, false, true, -1, 10, 170f));
+        for (ulong id = 4; id <= 6; id++) candidates.Add(new StoryEngagementRules.Candidate(id, false, true, 1, 10, 170f));
+        var granted = new List<ulong>();
+        AssertThat(StoryEngagementRules.SelectGrants(candidates, 0, 0, Difficulty.Hard, granted)).IsEqual(4);
+        int left = 0, right = 0;
+        foreach (ulong id in granted) { if (id <= 3) left++; else right++; }
+        AssertThat(left).IsEqual(2);
+        AssertThat(right).IsEqual(2);
+        // Six on one side still get two: the per-side cap has no slack on Hard.
+        candidates.Clear();
+        for (ulong id = 1; id <= 6; id++) candidates.Add(new StoryEngagementRules.Candidate(id, false, true, 1, 10, 170f));
+        AssertThat(StoryEngagementRules.SelectGrants(candidates, 0, 0, Difficulty.Hard, granted)).IsEqual(2);
+    }
+
+    [TestCase]
+    public void NormalGrantsThreeLopsidedAndEasysTwoNeedBothSides() {
+        var candidates = new List<StoryEngagementRules.Candidate>();
+        for (ulong id = 1; id <= 3; id++) candidates.Add(new StoryEngagementRules.Candidate(id, false, true, -1, 10, 170f));
+        for (ulong id = 4; id <= 6; id++) candidates.Add(new StoryEngagementRules.Candidate(id, false, true, 1, 10, 170f));
+        var granted = new List<ulong>();
+        // Normal's three are two and one, whichever side gets the two.
+        AssertThat(StoryEngagementRules.SelectGrants(candidates, 0, 0, Difficulty.Normal, granted)).IsEqual(3);
+        AssertThat(StoryEngagementRules.SideHasFreeSlot(2, 2, Difficulty.Normal)).IsFalse();
+        AssertThat(StoryEngagementRules.SideHasFreeSlot(1, 2, Difficulty.Normal)).IsTrue();
+        AssertThat(StoryEngagementRules.SideHasFreeSlot(1, 3, Difficulty.Normal)).IsFalse();
+        // Easy's two need one attacker each side: one side alone gets one.
+        AssertThat(StoryEngagementRules.SelectGrants(candidates, 0, 0, Difficulty.Easy, granted)).IsEqual(2);
+        candidates.Clear();
+        for (ulong id = 1; id <= 3; id++) candidates.Add(new StoryEngagementRules.Candidate(id, false, true, -1, 10, 170f));
+        AssertThat(StoryEngagementRules.SelectGrants(candidates, 0, 0, Difficulty.Easy, granted)).IsEqual(1);
     }
 
     [TestCase]

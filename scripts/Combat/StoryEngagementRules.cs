@@ -53,6 +53,14 @@ namespace FTT.Combat {
         // === The difficulty table ===
 
         /// <summary>
+        /// Diagnostics seam (<c>PlaytestOptions</c>, <c>--slot-table=legacy</c>): a
+        /// same-build A/B of the slot counts. Null in the game and in every test
+        /// that does not set it, in <c>finally</c>; the table below stays the one
+        /// rule. The old numbers live in <c>PlaytestSlotTables</c>, not here.
+        /// </summary>
+        internal static Func<Difficulty, (int Total, int PerSide)> SlotTableOverride;
+
+        /// <summary>
         /// Melee slots on one target, both sides together. <b>The user's
         /// 2026-10-12 ruling:</b> Easy 1 / Normal 2 / Hard 3.
         /// </summary>

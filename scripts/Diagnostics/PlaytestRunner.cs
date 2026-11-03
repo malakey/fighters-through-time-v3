@@ -91,6 +91,20 @@ namespace FTT.Diagnostics {
         /// bot, which has no lane). Default on, the shipped rule. Diagnostics only.
         /// </summary>
         public bool StoryMeterScale = true;
+        /// <summary>
+        /// GR-CROWD A/B (<c>--slot-table=legacy|current</c>): legacy plays the
+        /// 2026-10-12 melee slots (<see cref="PlaytestSlotTables"/>). Default current,
+        /// the shipped rule. The run name does not carry it, so an A/B uses two tags.
+        /// </summary>
+        public bool LegacySlotTable;
+        /// <summary>
+        /// GR-CROWD A/B (<c>--swarm=on|off</c>): off drops every swarm wave when its
+        /// lock arms. Default on, the shipped rule. Not in the run name either.
+        /// </summary>
+        public bool SwarmWaves = true;
+
+        /// <summary>Applies the two A/B options to their seams; a playtest process holds them to its end.</summary>
+        public void ApplyCrowdSeams() { }
 
         public static PlaytestOptions Parse(string[] args) {
             var options = new PlaytestOptions();

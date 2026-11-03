@@ -55,6 +55,16 @@ namespace FTT.Environment {
         /// </summary>
         internal static bool SuppressForTesting;
 
+        /// <summary>
+        /// Diagnostics seam (<c>PlaytestOptions</c>, <c>--swarm=off</c>): a swarm wave
+        /// (<see cref="IsSwarmWave"/>) is dropped when a lock arms, so the lock plays
+        /// as if the row were not authored. A same-build A/B; never set in the game.
+        /// </summary>
+        internal static bool SwarmWavesOffForDiagnostics;
+
+        /// <summary>The spawned swarm wave of a lock, as the bots' telemetry reads it.</summary>
+        public readonly record struct SwarmWaveReading(string RowID, int Planned, int Living);
+
         /// <summary>One registered member: the body at the generation it was registered with.</summary>
         private sealed class Member {
             public EnemyController Body;
@@ -157,6 +167,12 @@ namespace FTT.Environment {
                 return bodies;
             }
         }
+
+        /// <summary>A wave whose whole table is fodder (<c>EnemyData.DustWeightZero</c>): a swarm wave.</summary>
+        public static bool IsSwarmWave(EncounterLockWave wave) => false;
+
+        /// <summary>Appends every spawned swarm wave's reading to <paramref name="into"/>. Telemetry seam.</summary>
+        public void ReadSpawnedSwarmWaves(List<SwarmWaveReading> into) { }
 
         /// <summary>True once every wave has spawned.</summary>
         public bool AllWavesSpawned {

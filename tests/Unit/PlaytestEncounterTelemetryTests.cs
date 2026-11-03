@@ -368,6 +368,152 @@ public class PlaytestEncounterTelemetryTests {
             .IsTrue();
     }
 
+    // === GR-CROWD (gameplay review, plan section 5): slots, supply and swarms =
+
+    [TestCase]
+    public void TheCrowdTrackerCountsAFreeSlotWithACandidateAndTheMeleeSupply() {
+        var tracker = new MobEngagementTracker { SlotTotal = 3, PermitTotal = 2 };
+        // A slot free, nobody ringing: supply is the limit, so no idle frame.
+        tracker.SampleFrame(new EngagementFrameSample { Engaged = 1, Holders = 1 });
+        AssertThat(tracker.FramesSlotIdleWithWaiters).IsEqual(0);
+        // A slot free and a candidate ringing: the rules are holding it back.
+        tracker.SampleFrame(new EngagementFrameSample { Engaged = 3, Holders = 2, MeleeCandidates = 1 });
+        AssertThat(tracker.FramesSlotIdleWithWaiters).IsEqual(1);
+        // Every slot held: a candidate waiting is the rule working, not idle.
+        tracker.SampleFrame(new EngagementFrameSample { Engaged = 6, Holders = 3, MeleeCandidates = 3 });
+        AssertThat(tracker.FramesSlotIdleWithWaiters).IsEqual(1);
+        AssertThat(tracker.SumMeleeCandidates).IsEqual(4L);
+        AssertThat(tracker.MaxMeleeCandidates).IsEqual(3);
+        AssertThat(tracker.MeanOverEngaged(tracker.SumMeleeCandidates)).IsEqual(1.33);
+    }
+
+    [TestCase]
+    public void TheSwarmTrackerKeepsOneRecordPerWavePerLockInstance() {
+        var tracker = new SwarmTracker();
+        var crowd = new EngagementFrameSample { Engaged = 8, Holders = 3, AttackingNear = 2, MeleeCandidates = 5 };
+        SwarmRecord record = tracker.Observe(100, 7UL, "lock", "level_02.swarm1", 8, 8, heroDamageTotal: 40, in crowd);
+        AssertObject(record).IsNotNull();
+        AssertThat(record.SpawnFrame).IsEqual(100);
+        AssertThat(record.Planned).IsEqual(8);
+        tracker.Observe(101, 7UL, "lock", "level_02.swarm1", 8, 3, heroDamageTotal: 55, in crowd);
+        AssertThat(record.PeakLiving).IsEqual(8);
+        AssertThat(record.HeroDamage).IsEqual(15);
+        AssertThat(record.FramesToClear).IsEqual(-1);
+        AssertThat(tracker.ClearedCount).IsEqual(0);
+        tracker.Observe(160, 7UL, "lock", "level_02.swarm1", 8, 0, heroDamageTotal: 60, in crowd);
+        AssertThat(record.ClearFrame).IsEqual(160);
+        AssertThat(record.FramesToClear).IsEqual(60);
+        AssertThat(tracker.ClearedCount).IsEqual(1);
+        AssertThat(record.Frames).IsEqual(2);
+        AssertThat(record.SumHolders).IsEqual(6L);
+        AssertThat(record.SumAttackingNear).IsEqual(4L);
+        AssertThat(record.SumMeleeCandidates).IsEqual(10L);
+        // A cleared record stops: later damage and later readings are not the swarm's.
+        tracker.Observe(170, 7UL, "lock", "level_02.swarm1", 8, 0, heroDamageTotal: 90, in crowd);
+        AssertThat(record.HeroDamage).IsEqual(20);
+        AssertThat(record.Frames).IsEqual(2);
+        // The lock rebuilt by a scene reload, and a second row: their own records.
+        AssertThat(tracker.Observe(200, 8UL, "lock", "level_02.swarm1", 8, 8, 90, in crowd) != record).IsTrue();
+        tracker.Observe(201, 8UL, "lock", "level_02.swarm2", 6, 6, 90, in crowd);
+        AssertThat(tracker.Records.Count).IsEqual(3);
+    }
+
+    [TestCase]
+    public void TheTargetCurveFileHoldsTheRuledNumbersAndTheBotGapNotes() {
+        string path = ProjectSettings.GlobalizePath("res://tools/playtest/target_curve.json");
+        AssertThat(System.IO.File.Exists(path)).OverrideFailureMessage($"{path} is missing.").IsTrue();
+        using var document = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(path));
+        System.Text.Json.JsonElement root = document.RootElement;
+        System.Text.Json.JsonElement curves = root.GetProperty("difficulties");
+        AssertThat(curves.GetProperty("hard").ValueKind == System.Text.Json.JsonValueKind.Null).IsTrue();
+        System.Text.Json.JsonElement easy = curves.GetProperty("easy");
+        System.Text.Json.JsonElement normal = curves.GetProperty("normal");
+        for (int level = 1; level <= 15; level++) {
+            string key = level.ToString();
+            AssertThat(easy.GetProperty(key).GetDouble()).IsEqual(0.9);
+            double expected = 0.75 - (level - 1) * 0.25 / 14.0;
+            AssertThat(Math.Abs(normal.GetProperty(key).GetDouble() - expected) < 0.0001)
+                .OverrideFailureMessage($"Normal Level {level}: expected {expected:F4}.").IsTrue();
+        }
+        AssertThat(easy.TryGetProperty("0", out _)).IsFalse();
+        foreach (string gapLevel in new[] { "6", "7", "10" }) {
+            AssertThat(string.IsNullOrWhiteSpace(root.GetProperty("gap_notes").GetProperty(gapLevel).GetString())).IsFalse();
+        }
+    }
+
+    [TestCase(Timeout = 120000)]
+    public async Task TheTelemetryReportsARealSwarmWaveAndTheLegacySlotTable() {
+        using var scene = new BotLockScene(addToCurrentScene: false);
+        var probe = new TelemetryTickProbe { Name = "EncounterTelemetryTickProbe" };
+        Tree.Root.AddChild(probe);
+        PlaytestTelemetry telemetry = null;
+        PlaytestOptions options = PlaytestOptions.Parse(new[] { "--slot-table=legacy" });
+        try {
+            options.ApplyCrowdSeams();
+            EncounterLock encounterLock = EncounterLock.Create(new EncounterLockSpec {
+                LockID = BotLockScene.LockID,
+                Area = EncounterLockSpec.Span(BotLockScene.AreaMin, BotLockScene.AreaMax, 1080f),
+                LevelBounds = new Rect2(1000f, 0f, 10000f, 1080f),
+                EntryBarrierX = BotLockScene.AreaMin - 10f,
+                ExitBarrierX = BotLockScene.AreaMax + 10f,
+                BarrierFloorY = BotLockScene.FloorY,
+                Waves = new[] { new EncounterLockWave {
+                    RowID = "playtest_bot_test.swarm1", Trigger = EncounterWaveTrigger.OnEngage,
+                    Spawns = new[] {
+                        new EncounterLockSpawn("chrono_swarmling", new Vector2(BotLockScene.NearX, BotLockScene.FeetY)),
+                        new EncounterLockSpawn("chrono_swarmling", new Vector2(BotLockScene.NearX + 100f, BotLockScene.FeetY)),
+                        new EncounterLockSpawn("chrono_swarmling", new Vector2(BotLockScene.NearX + 200f, BotLockScene.FeetY))
+                    }
+                } }
+            });
+            scene.Host.AddChild(encounterLock);
+            encounterLock.Hero = scene.Hero;
+            encounterLock.Arm();
+            telemetry = new PlaytestTelemetry();
+            telemetry.Attach(scene.World, bot: null);
+            probe.Telemetry = telemetry;
+            await Frames(3);
+            scene.PlaceHero(BotLockScene.AreaMin + 300f);
+            await Frames(60);
+            AssertThat(encounterLock.State).IsEqual(EncounterLockState.Engaged);
+            AssertThat(encounterLock.LivingMemberCount).IsEqual(3);
+
+            MobEngagementTracker crowd = telemetry.Engagement;
+            // The legacy table reaches the director and the report: Normal's old two,
+            // one a side, so three on one side leave a free slot and ringing candidates.
+            AssertThat(crowd.SlotTotal).IsEqual(2);
+            AssertThat(crowd.MaxHolders).IsEqual(1);
+            AssertThat(crowd.MaxMeleeCandidates >= 1).IsTrue();
+            AssertThat(crowd.FramesSlotIdleWithWaiters > 0)
+                .OverrideFailureMessage("One holder of two slots with candidates ringing is an idle slot.")
+                .IsTrue();
+
+            foreach (EnemyController member in encounterLock.LivingMembers) member.TakeDamage(99999);
+            await Frames(3);
+            AssertThat(encounterLock.State).IsEqual(EncounterLockState.Cleared);
+
+            Dictionary<string, object> report = telemetry.ToReport();
+            var engagement = (Dictionary<string, object>)report["mob_engagement"];
+            AssertThat((int)engagement["slot_idle_with_waiters_frames"]).IsEqual(crowd.FramesSlotIdleWithWaiters);
+            AssertThat((int)engagement["melee_candidates_max"]).IsEqual(crowd.MaxMeleeCandidates);
+            var swarms = (Dictionary<string, object>)report["swarms"];
+            AssertThat((int)swarms["count"]).IsEqual(1);
+            AssertThat((int)swarms["cleared"]).IsEqual(1);
+            var row = (Dictionary<string, object>)((List<object>)swarms["log"])[0];
+            AssertThat((string)row["row"]).IsEqual("playtest_bot_test.swarm1");
+            AssertThat((int)row["planned"]).IsEqual(3);
+            AssertThat((int)row["peak_living"]).IsEqual(3);
+            AssertThat((int)row["frames_to_clear"] > 0).IsTrue();
+        } finally {
+            StoryEngagementRules.SlotTableOverride = null;
+            EncounterLock.SwarmWavesOffForDiagnostics = false;
+            probe.Telemetry = null;
+            telemetry?.FinishPending();
+            telemetry?.Detach();
+            probe.Free();
+        }
+    }
+
     [TestCase(Timeout = 120000)]
     public async Task TheTelemetryReportsTheLockAndTheCrowdTheDirectorShapes() {
         using var scene = new BotLockScene(addToCurrentScene: false);
@@ -375,7 +521,12 @@ public class PlaytestEncounterTelemetryTests {
         Tree.Root.AddChild(probe);
         PlaytestTelemetry telemetry = null;
         try {
-            EncounterLock encounterLock = scene.BuildLock(nearOnly: true);
+            // Three on one side: Normal's per-side cap of two leaves the third a waiter.
+            EncounterLock encounterLock = scene.BuildLock(new[] {
+                new EncounterLockSpawn("chrono_slasher", new Vector2(BotLockScene.NearX, BotLockScene.FeetY)),
+                new EncounterLockSpawn("chrono_slasher", new Vector2(BotLockScene.NearX + 200f, BotLockScene.FeetY)),
+                new EncounterLockSpawn("chrono_slasher", new Vector2(BotLockScene.NearX + 400f, BotLockScene.FeetY))
+            });
             telemetry = new PlaytestTelemetry();
             telemetry.Attach(scene.World, bot: null);
             probe.Telemetry = telemetry;
@@ -388,7 +539,7 @@ public class PlaytestEncounterTelemetryTests {
             AssertThat(encounterLock.State).IsEqual(EncounterLockState.Engaged);
             LockRecord record = telemetry.Locks.Records[0];
             AssertThat(record.EngageFrame >= 0).IsTrue();
-            // Two slashers on one side on Normal: one holds the slot, one waits.
+            // Three slashers on one side on Normal: two hold slots, one waits.
             await Frames(60);
 
             // An Echo-Step-like move outside reverts the lock with both alive.
@@ -410,14 +561,14 @@ public class PlaytestEncounterTelemetryTests {
             AssertThat((int)locks["cleared"]).IsEqual(1);
             AssertThat((int)locks["reverts"]).IsEqual(1);
             AssertThat((int)locks["left_with_members_alive"]).IsEqual(1);
-            AssertThat((int)locks["members_planned"]).IsEqual(2);
-            AssertThat((int)locks["members_killed"]).IsEqual(2);
+            AssertThat((int)locks["members_planned"]).IsEqual(3);
+            AssertThat((int)locks["members_killed"]).IsEqual(3);
             AssertThat(record.ClearFrame > record.EngageFrame).IsTrue();
             AssertThat(record.Engages).IsEqual(2);
 
             var enemies = (Dictionary<string, object>)report["enemy_summary"];
-            AssertThat((int)enemies["lock_members_seen"]).IsEqual(2);
-            AssertThat((int)enemies["lock_members_killed"]).IsEqual(2);
+            AssertThat((int)enemies["lock_members_seen"]).IsEqual(3);
+            AssertThat((int)enemies["lock_members_killed"]).IsEqual(3);
             AssertThat((int)enemies["left_lock_with_members_alive"]).IsEqual(1);
 
             MobEngagementTracker crowd = telemetry.Engagement;
@@ -429,10 +580,10 @@ public class PlaytestEncounterTelemetryTests {
             AssertThat(crowd.MaxHolders >= 1).IsTrue();
             AssertThat(crowd.FramesHoldersOverSlots).IsEqual(0);
             AssertThat(crowd.WaiterGapSamples > 0)
-                .OverrideFailureMessage("Two slashers on one side on Normal: the second must ring as a waiter.")
+                .OverrideFailureMessage("Three slashers on one side on Normal: the third must ring as a waiter.")
                 .IsTrue();
             var engagement = (Dictionary<string, object>)report["mob_engagement"];
-            AssertThat((int)engagement["slot_total"]).IsEqual(2);
+            AssertThat((int)engagement["slot_total"]).IsEqual(3);
             Dictionary<string, object> summary = telemetry.EncounterSummary();
             AssertThat((int)summary["locks_cleared"]).IsEqual(1);
             AssertThat((int)summary["left_lock_alive"]).IsEqual(1);
