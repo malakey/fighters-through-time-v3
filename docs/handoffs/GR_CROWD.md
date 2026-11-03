@@ -43,14 +43,25 @@ Under `PROVISIONAL-FODDER-STATS`:
 
 ## Test delta
 
-Declared +17; actual: see the report line below. Split: slots 2 (`StoryEngagementRulesTests`), swarm 11 (new `SwarmWaveContentTests`), telemetry 4 (`PlaytestEncounterTelemetryTests`). The plan said 12 and 3; the curve file's case went to the telemetry suite.
+**Declared +17; actual +16** (`[TestCase]` count 4028 → 4044): slots 2 (`StoryEngagementRulesTests`), swarm 10 (new `SwarmWaveContentTests`), telemetry 4 (`PlaytestEncounterTelemetryTests`). The plan's split was 2 / 12 / 3. The curve file's case went to the telemetry suite, and I did not add a filler case to reach the declared number.
 
-Changed in place:
-- `StoryEngagementRulesTests.TheSlotTotalsAreTheUsersRuling…` (the new table).
-- `PlaytestEncounterTelemetryTests.TheTelemetryReportsTheLockAndTheCrowdTheDirectorShapes`: `slot_total` 3, and **three** slashers on one side, because Normal's per-side cap of 2 now gives two slashers a slot each and no waiter (planned, killed and seen become 3).
-- `EnemyRetroSpriteAssetTests` (30 enemies).
+Filtered run at this head, with the new key compiled locally: `Passed! - Failed: 0, Passed: 962, Skipped: 0, Total: 962`. No full run: the orchestrator owns those.
 
-Seen failing first: 16 of 40 failed against stubs in the first filtered run, every new case that reads new behaviour plus the two changed cases. The two sweeps (`EveryManifestObeysTheSwarmRules`, `EverySwarmLevelWarms…`) passed there and pass now, with no rows to read. Their rules are red-tested through `TheValidatorsRefuseEveryBadShape`, but the scene-loading half of the second sweep (`CheckLockWaves`) **has never run on a real row**. GR-PILOT's Level 2 is its first exercise.
+Changed in place, no count change (each pinned the old "one per side on Normal"; the intent moved to Easy, which now has that cap):
+- `StoryEngagementRulesTests`: `TheSlotTotalsAreTheUsersRuling…`, `GrantsRespectTheTotalAndPerSideCaps…`, `TheHandOffTestFreesTheHoldersSide…`.
+- `StoryEngagementDirectorTests`: `ThreeSlashersOnOneSide…`, `TheSlotRotatesRoundRobin…`, `TheEngageBlinkIsGranted…`, `TimeFreezeLeavesRoles…`, and `AWaiterCutOffByAWall…` (the wall also moves from 220 to 250, for Easy's 200 px rank 0) all run on Easy. `OnNormalOneMobAttacksFromEachSideAtOnce` became `EasyTakesOneMobFromEachSideAndNormalTakesThreeLopsided`, with a real-frames Normal half (3 holders, 2 on a side).
+- `EncounterLockTests`: `AnEliteListedAfterAStandard…` has three members (the elite still outranks two standards that tick first); `ARevertedMemberLeaves…` expects 3 holders.
+- `EncounterMemberBehaviourTests.AStruckWaiterRetaliates…`: both slashers stand east, because Easy's two slots would otherwise hold one each side.
+- `PlaytestEncounterTelemetryTests.TheTelemetryReportsTheLockAndTheCrowdTheDirectorShapes`: `slot_total` 3 and three slashers on one side (planned, killed and seen become 3).
+- `EnemyRosterContentTests` (30 enemies, 17 melee primaries), `EnemyRetroSpriteAssetTests` (30 enemies).
+
+Seen failing first: 16 of 40 failed against stubs in the first filtered run, every new case that reads new behaviour plus the changed telemetry and table cases. The 11 other in-place pins went red once the table changed (13 failures of 358 in the next run, with the two roster counts).
+
+The two sweeps pass today with no rows to read. To check they bite, I added a temporary eight-swarmling row to Level 2's manifest and reverted it: `EverySwarmLevelWarms…` failed with `Level 2 warms 10 standard_enemy, needs at least 16 | Level 2: swarm row 'level_02.swarm1' has no lock wave`, so it does load the real scene. Its check of a real wave's trigger has still not met a real wave; GR-PILOT's Level 2 is the first.
+
+**Not run, read only:** a real fodder kill spawning no pickup. `StoryDropSystem.SpawnKillDust` returns on `amount <= 0`, and `AFodderRowAddsNoDust…` proves the ledger pays 0, but the kill itself needs a level with a row, because the ledger compiles from the real manifest.
+
+Runner check, in a real process: `--slot-table=legacy --swarm=off` on Level 2 Easy for 20 s wrote `slot_table: legacy`, `swarm_waves: false`, `slot_total: 1`; `--swarm=maybe` exited 2.
 
 ## Hash, save and protocol effects
 
@@ -79,6 +90,7 @@ No Fighter hash moves: nothing under `scripts/FighterSim/` changed. No save fiel
 
 ## For the orchestrator
 
-- `localization/en.en.translation` must be regenerated for `enemy_chrono_swarmling_name`. Until then `EnemyRosterContentTests`' compiled-key sweep fails on this branch.
+- `localization/en.en.translation` must be regenerated for `enemy_chrono_swarmling_name`. It is not committed here, so `EnemyRosterContentTests`' compiled-key sweep fails on this branch until you compile it.
+- Expect a merge conflict in `StoryEngagementRulesTests`, `EnemyRosterContentTests` or the telemetry suite only if another workstream edited the same pins; the expected total after this merge is 4028 + the earlier merges + 16.
 - GR-HAZ and GR-TRAITS may now add counters to `PlaytestTelemetry` and `compare_runs.py`. GR-TRAITS appends to `EnemyData.cs`; my hunks sit after `ItemDropChance` and after `PlaceholderTint`.
 - Bot batches from before and after this are not comparable. Use `--slot-table=legacy --swarm=off` for the same-build control (`gra11lg`).
