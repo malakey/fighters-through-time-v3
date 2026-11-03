@@ -840,5 +840,45 @@ namespace FTT.Combat {
         /// </summary>
         public static int WallImpactDamage(int launchingHitIntake) =>
             ScaleIntakeDamage(launchingHitIntake, WallImpactDamageFraction);
+
+        // === Catcher (gameplay review 2026-11-03, rulings 2b and 2b+; plan section 1.12) ===
+        // The mob's half is EnemyController.Traits.cs. The 12-frame telegraph and
+        // the 150-frame cooldown are the plan's; every other number is provisional
+        // (PROVISIONAL-ENEMY-TRAIT-RULES).
+
+        /// <summary>The counter's telegraph, with the diamond glyph.</summary>
+        public const int CatcherCounterTelegraphFrames = 12;
+
+        /// <summary>Own ticks before this mob can counter again.</summary>
+        public const int CatcherCounterCooldownFrames = 150;
+
+        /// <summary>The counter's active frames.</summary>
+        public const int CatcherCounterActiveFrames = 8;
+
+        /// <summary>The counter's recovery.</summary>
+        public const int CatcherCounterRecoveryFrames = 22;
+
+        /// <summary>The counter's hitstun on the hero.</summary>
+        public const float CatcherCounterHitstunSeconds = 0.3f;
+
+        /// <summary>The counter's box width: with the offset it reaches a hero 120 px away, the longest string opener's band.</summary>
+        public const float CatcherCounterBoxWidthPixels = 96f;
+
+        /// <summary>The counter's box height.</summary>
+        public const float CatcherCounterBoxHeightPixels = 56f;
+
+        /// <summary>The counter's forward offset from the mob's pivot.</summary>
+        public const float CatcherCounterBoxOffsetXPixels = 52f;
+
+        /// <summary>The counter's centre height, negative is up from the mob's feet.</summary>
+        public const float CatcherCounterBoxOffsetYPixels = -30f;
+
+        /// <summary>A Catcher takes string hits 1 and 2 (<c>combo_1</c>, <c>combo_2</c>) with no stun and no knockback.</summary>
+        public static bool CatcherCatchesHit(AttackClass attackClass, string hitboxID) =>
+            attackClass == AttackClass.Basic && StringStepOf(hitboxID) is 0 or 1;
+
+        /// <summary>The second string hit answers with the counter, off cooldown and with no attack in flight.</summary>
+        public static bool CatcherCounterFires(int stringStep, int cooldownFrames, bool attackInFlight) =>
+            stringStep == 1 && cooldownFrames <= 0 && !attackInFlight;
     }
 }

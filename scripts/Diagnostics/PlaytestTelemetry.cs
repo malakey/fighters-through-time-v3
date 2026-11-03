@@ -1842,6 +1842,16 @@ namespace FTT.Diagnostics {
                 },
                 ["deaths_detail"] = DeathDetails,
                 ["events"] = Events,
+                // GR-TRAITS (gameplay review 2b+): observation only.
+                ["enemy_traits"] = new Dictionary<string, object> {
+                    ["armour_strips"] = EnemyTraitTally.ArmourStrips,
+                    ["armour_damage_prevented"] = EnemyTraitTally.ArmourDamagePrevented,
+                    ["catcher_catches"] = EnemyTraitTally.CatcherCatches,
+                    ["catcher_counters"] = EnemyTraitTally.CatcherCounters,
+                    ["catcher_counters_connected"] = EnemyTraitTally.CatcherCountersConnected,
+                    ["anti_air_strikes"] = EnemyTraitTally.AntiAirStrikes,
+                    ["anti_air_strikes_connected"] = EnemyTraitTally.AntiAirStrikesConnected
+                },
                 ["enemy_summary"] = new Dictionary<string, object> {
                     ["seen"] = Enemies.Count,
                     ["engaged"] = engaged.Count,

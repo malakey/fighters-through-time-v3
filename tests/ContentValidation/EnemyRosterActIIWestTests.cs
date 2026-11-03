@@ -138,8 +138,10 @@ public class EnemyRosterActIIWestTests {
         AssertObject(Load("chrono_chariot_raider").PrimaryAttack).IsNull();
         AssertObject(Load("neural_mech_walker").PrimaryAttack).IsNull();
 
-        // Pompeii: shield standard reduces frontal damage; centurion lobs a 3-shot volley.
-        AssertThat(Load("shock_shield_legionnaire").FrontalDamageReduction).IsEqual(0.5f);
+        // Pompeii: the shield standard is Armoured (gameplay review 2b+; it replaces the
+        // frontal reduction, which sits on the path a throw takes); centurion lobs a 3-shot volley.
+        AssertThat(Load("shock_shield_legionnaire").Trait).IsEqual(FTT.Combat.EnemyTrait.Armoured);
+        AssertThat(Load("shock_shield_legionnaire").FrontalDamageReduction).IsEqual(0f);
         EnemyAbilityData flares = Load("cyber_centurion").EliteAbilities[0];
         AssertThat(flares.Archetype).IsEqual(EnemyAbilityArchetype.Projectile);
         AssertThat(flares.ProjectileCount).IsEqual(3);

@@ -221,12 +221,13 @@ public class Level06ContentTests {
 
     [TestCase]
     public void EveryLegionnairePostIsFlankableFromAbove() {
-        // shock_shield_legionnaire carries FrontalDamageReduction = 0.5, so trading
-        // blows into the shield is the wrong answer. Every post is authored under a
-        // drop-through platform and with a patrol that turns its back.
+        // shock_shield_legionnaire was a frontal-shield mob when these posts were
+        // authored; it is Armoured since the gameplay review (2b+), and a throw is the
+        // answer. Every post is still under a drop-through platform with a patrol
+        // that turns its back.
         var legionnaire = AuthoredResources.Load<EnemyData>("res://resources/Enemies/shock_shield_legionnaire.tres");
         AssertObject(legionnaire).IsNotNull();
-        AssertFloat(legionnaire.FrontalDamageReduction).IsEqualApprox(0.5f, 0.001f);
+        AssertThat(legionnaire.Trait).IsEqual(FTT.Combat.EnemyTrait.Armoured);
 
         using var fixture = new PompeiiFixture();
         var oneWays = new List<OneWayPlatform>();
