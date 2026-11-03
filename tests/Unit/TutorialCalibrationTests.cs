@@ -46,6 +46,10 @@ public class TutorialCalibrationTests {
 
     [TestCase]
     public void TheV76StepOrderRunsAttackRallyBlockGrabDiTechDefyRewindManual() {
+        // GR-TF: the legacy nine-lesson chain, with the verb forced on (it is off by default; see TimeFreezeOffRulesTests).
+        bool? previousRule = FTT.Core.TimeFreezeRules.EnabledOverrideForTesting;
+        FTT.Core.TimeFreezeRules.EnabledOverrideForTesting = true;
+        try {
         var script = new TutorialCalibrationScript();
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.BasicHits);
 
@@ -82,6 +86,9 @@ public class TutorialCalibrationTests {
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.UseTimeFreeze);
         AssertThat(script.RegisterTimeFreezeComplete()).IsTrue();
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.Done);
+        } finally {
+            FTT.Core.TimeFreezeRules.EnabledOverrideForTesting = previousRule;
+        }
     }
 
     [TestCase]
@@ -186,6 +193,10 @@ public class TutorialCalibrationTests {
 
     [TestCase]
     public void TheRewindStepsCompleteInSequenceWithNeverStrandFallbacks() {
+        // GR-TF: forced on, because the manual lesson only exists while the verb does.
+        bool? previousRule = FTT.Core.TimeFreezeRules.EnabledOverrideForTesting;
+        FTT.Core.TimeFreezeRules.EnabledOverrideForTesting = true;
+        try {
         // The scripted rewind demonstration (ScriptedRewindTests) is preserved
         // and hands off to the player's own rewind lesson; both carry a
         // never-strand skip, The Defy beat has no skip: it needs the button.
@@ -204,6 +215,9 @@ public class TutorialCalibrationTests {
         TutorialCalibrationScript manualStranded = AdvanceToStep(TutorialCalibrationStep.UseTimeFreeze);
         AssertThat(manualStranded.SkipTimeFreezeLesson()).IsTrue();
         AssertThat(manualStranded.Step).IsEqual(TutorialCalibrationStep.Done);
+        } finally {
+            FTT.Core.TimeFreezeRules.EnabledOverrideForTesting = previousRule;
+        }
     }
 
     [TestCase]

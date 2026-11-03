@@ -645,7 +645,10 @@ public class TimeFreezeTests {
             .ToList();
         if (offenders.Count > 0) AssertThat(string.Join(" | ", offenders)).IsEqual("");
 
-        // And the drill itself can always be skipped.
+        // And the drill itself can always be skipped (GR-TF: the lesson exists only while the verb does, so force it on).
+        bool? previousRule = TimeFreezeRules.EnabledOverrideForTesting;
+        TimeFreezeRules.EnabledOverrideForTesting = true;
+        try {
         var script = new TutorialCalibrationScript();
         while (script.Step != TutorialCalibrationStep.UseTimeFreeze
                && script.Step != TutorialCalibrationStep.Done) {
@@ -662,6 +665,9 @@ public class TimeFreezeTests {
         AssertThat(script.SkipTimeFreezeLesson())
             .OverrideFailureMessage("The drill must never be able to strand the tutorial.")
             .IsTrue();
+        } finally {
+            TimeFreezeRules.EnabledOverrideForTesting = previousRule;
+        }
     }
 
     [TestCase]

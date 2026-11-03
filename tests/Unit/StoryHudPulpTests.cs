@@ -307,6 +307,8 @@ public class StoryHudPulpTests {
     [TestCase]
     public void TheFreezeStringsAreRebuiltOnlyWhenTheShownSecondTheStateOrTheLanguageChanges() {
         Node host = CreateHost("StoryHudPulpFreezeCacheHost");
+        bool? previousTimeFreezeRule = TimeFreezeRules.EnabledOverrideForTesting;
+        TimeFreezeRules.EnabledOverrideForTesting = true; // GR-TF: the verb is off by default; this case pins its HUD.
         try {
             StoryHUD hud = AddHud(host);
             var freezeText = hud.GetNode<Label>($"{TimeTools}/TimeFreezeIndicator/FreezeColumn/FreezeRemainingText");
@@ -330,6 +332,7 @@ public class StoryHudPulpTests {
             hud._Process(0.001);
             AssertThat(freezeText.Text.Contains("30")).IsTrue();
         } finally {
+            TimeFreezeRules.EnabledOverrideForTesting = previousTimeFreezeRule;
             host.Free();
         }
     }
@@ -338,6 +341,8 @@ public class StoryHudPulpTests {
     public async System.Threading.Tasks.Task TheTimeToolsShowTheRewindCountTheFreezeStateAndTheBeaconGlassBadge() {
         Node host = CreateHost("StoryHudGlassTimeHost");
         int rewinds = StoryManager.Instance?.ChronalRewindsRemaining ?? 0;
+        bool? previousTimeFreezeRule = TimeFreezeRules.EnabledOverrideForTesting;
+        TimeFreezeRules.EnabledOverrideForTesting = true; // GR-TF: the verb is off by default; this case pins its HUD.
         try {
             StoryHUD hud = AddHud(host);
             StoryManager story = StoryManager.Instance;
@@ -403,6 +408,7 @@ public class StoryHudPulpTests {
             AssertThat(icon.Badge.Glyph.GlassName).IsEqual("beacon_anchor_hollow");
             AssertThat(icon.Badge.Tint).IsEqual(BeaconAnchorIcon.LastStandTint);
         } finally {
+            TimeFreezeRules.EnabledOverrideForTesting = previousTimeFreezeRule;
             if (StoryManager.Instance != null) StoryManager.Instance.ChronalRewindsRemaining = rewinds;
             host.Free();
         }

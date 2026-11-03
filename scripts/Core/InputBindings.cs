@@ -588,10 +588,12 @@ namespace FTT.Core {
 
         /// <summary>
         /// Actions C01c adds direct binding slots for, in the order the Controls
-        /// tab lists them after the fourteen pre-existing rows.
+        /// tab lists them after the fourteen pre-existing rows. Gameplay review 2026-11-03 (10b++): Time Freeze
+        /// is not listed while the verb is off (<see cref="TimeFreezeRules"/>); see
+        /// <see cref="InputManager.RemappableActions"/>.
         /// </summary>
         public static readonly string[] DirectActions = {
-            UltimateAction, GrabAction, TimeFreezeAction
+            UltimateAction, GrabAction
         };
 
         /// <summary>

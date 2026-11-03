@@ -45,11 +45,10 @@ public class TimeFreezeBindingMigrationTests {
             .OverrideFailureMessage("The player's chosen event must arrive unchanged.")
             .IsTrue();
 
-        // The migrated row now survives the restore filter, which is the whole
-        // point: gameplay_time_freeze is a remappable action and the old name
-        // is not.
+        // Gameplay review 2026-11-03 (10b++): the verb is off, so neither name is remappable. The migrated
+        // row stays in the set (a re-enable restores it) but the restore filter ignores it.
         AssertThat(System.Array.IndexOf(InputManager.RemappableActions, InputManager.Actions.TimeFreeze) >= 0)
-            .IsTrue();
+            .IsFalse();
         AssertThat(System.Array.IndexOf(InputManager.RemappableActions, InputManager.Actions.LegacyRewind) >= 0)
             .IsFalse();
 

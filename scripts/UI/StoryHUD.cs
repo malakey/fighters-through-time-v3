@@ -528,6 +528,11 @@ namespace FTT.UI {
         /// </summary>
         private void RefreshTimeFreeze(float delta = 0f) {
             if (_timeFreezeIndicator == null) return;
+            // Gameplay review 2026-11-03 (10b++): with the verb off the indicator is hidden and never refreshed.
+            // The node stays in the scene, and the slab keeps its 484 px minimum width either way.
+            bool enabled = FTT.Core.TimeFreezeRules.Enabled;
+            if (_timeFreezeIndicator.Visible != enabled) _timeFreezeIndicator.Visible = enabled;
+            if (!enabled) return;
             if (delta > 0f && _timeFreezeSeconds > 0f) {
                 _timeFreezeSeconds = Mathf.Max(0f, _timeFreezeSeconds - delta);
             }

@@ -203,7 +203,11 @@ namespace FTT.Environment {
         /// rewind lesson follows.</summary>
         public bool RegisterRewindComplete() {
             if (Step != TutorialCalibrationStep.UseRewind) return false;
-            Step = TutorialCalibrationStep.UseTimeFreeze;
+            // Gameplay review 2026-11-03 (10b++): with Time Freeze off the escape drill is not taught,
+            // so the calibration is eight lessons and the rewind demonstration is the last.
+            Step = FTT.Core.TimeFreezeRules.Enabled
+                ? TutorialCalibrationStep.UseTimeFreeze
+                : TutorialCalibrationStep.Done;
             return true;
         }
 
