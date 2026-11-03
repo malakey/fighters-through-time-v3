@@ -44,6 +44,9 @@ namespace FTT.Environment {
         private readonly HashSet<PlayerController> _tracked = new();
         private readonly Dictionary<PlayerController, float> _submergedTime = new();
         private readonly Dictionary<PlayerController, float> _tickTimer = new();
+        // GR-HAZ: mobs in the zone. Only a launched or thrown one below the line is hurt.
+        private readonly HashSet<FTT.Enemies.EnemyController> _mobsInZone = new();
+        private readonly List<FTT.Enemies.EnemyController> _mobScratch = new();
         private float _autoTimer;
         private int _checkpointStep;
 
@@ -60,7 +63,7 @@ namespace FTT.Environment {
         public override void _Ready() {
             AddToGroup("story_hazard");
             CollisionLayer = CollisionLayers.Trigger;
-            CollisionMask = CollisionLayers.Player;
+            CollisionMask = CollisionLayers.HazardContactMask;
             if (StepHeights == null || StepHeights.Length == 0) StepHeights = new[] { 0f };
             _autoTimer = AutoAdvanceSeconds;
             BodyEntered += OnBodyEntered;
@@ -84,6 +87,7 @@ namespace FTT.Environment {
             _tracked.Clear();
             _submergedTime.Clear();
             _tickTimer.Clear();
+            _mobsInZone.Clear();
         }
 
         public override void _PhysicsProcess(double delta) {
@@ -98,6 +102,18 @@ namespace FTT.Environment {
                 }
             }
             TickSubmersion(dt);
+            TickMobsInZone();
+        }
+
+        /// <summary>GR-HAZ: a flagged mob below the water line takes its impact on this tick.</summary>
+        private void TickMobsInZone() {
+            if (_mobsInZone.Count == 0) return;
+            _mobScratch.Clear();
+            _mobScratch.AddRange(_mobsInZone);
+            foreach (FTT.Enemies.EnemyController mob in _mobScratch) {
+                if (!GodotObject.IsInstanceValid(mob)) { _mobsInZone.Remove(mob); continue; }
+                if (mob.GlobalPosition.Y >= WaterLineGlobalY) mob.ApplyHazardImpact(GetInstanceId());
+            }
         }
 
         public void TickSubmersion(float dt) {
@@ -193,8 +209,16 @@ namespace FTT.Environment {
             visual.Size = new Vector2(VisualWidth, height);
         }
 
-        private void OnBodyEntered(Node2D body) { if (body is PlayerController player) AddPlayer(player); }
-        private void OnBodyExited(Node2D body) { if (body is PlayerController player) RemovePlayer(player); }
+        private void OnBodyEntered(Node2D body) {
+            // GR-HAZ: the wider mask also sees the Mirror clone, which stands on the Enemy layer.
+            if (body is PlayerController { IsStoryHostile: false } player) AddPlayer(player);
+            else if (body is FTT.Enemies.EnemyController mob) _mobsInZone.Add(mob);
+        }
+
+        private void OnBodyExited(Node2D body) {
+            if (body is PlayerController player) RemovePlayer(player);
+            else if (body is FTT.Enemies.EnemyController mob) _mobsInZone.Remove(mob);
+        }
         private void OnRewind(Vector2 targetPosition) => ApplyStoryRewind();
 
         // === IStoryTimeFreezable (V7.6 Time Freeze) ===========================

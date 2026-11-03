@@ -57,6 +57,7 @@ namespace FTT.Environment {
             AddToGroup("story_hazard");
             FrontX = StartX;
             ApplyFrontPosition();
+            if (DamageFront is Area2D front) front.CollisionMask = CollisionLayers.HazardContactMask; // GR-HAZ
             if (EventBus.Instance != null) {
                 EventBus.Instance.OnCheckpointReached += CaptureCheckpointState;
                 EventBus.Instance.OnRewindTriggered += OnRewind;
@@ -110,7 +111,9 @@ namespace FTT.Environment {
             Godot.Collections.Array<Node2D> bodies = front.GetOverlappingBodies();
             using var lifetime = bodies.AsDisposable();
             foreach (Node2D body in bodies) {
-                if (body is not PlayerController player) continue;
+                // GR-HAZ: a launched or thrown mob takes its impact; a walking one is refused.
+                if (body is FTT.Enemies.EnemyController mob) { mob.ApplyHazardImpact(GetInstanceId()); continue; }
+                if (body is not PlayerController { IsStoryHostile: false } player) continue;
                 if (player.GlobalPosition.X >= FinishX) { CompleteEscape(); return; }
                 CatchPlayer(player);
             }

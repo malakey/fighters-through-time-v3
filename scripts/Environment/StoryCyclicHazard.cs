@@ -23,6 +23,7 @@ namespace FTT.Environment {
 
         public override void _Ready() {
             AddToGroup("story_hazard");
+            CollisionMask = CollisionLayers.HazardContactMask; // GR-HAZ: launched or thrown mobs too
             _timer = CooldownDuration;
             if (EventBus.Instance != null) {
                 EventBus.Instance.OnCheckpointReached += CaptureCheckpointState;
@@ -47,7 +48,12 @@ namespace FTT.Environment {
             Godot.Collections.Array<Node2D> bodies = GetOverlappingBodies();
             using var bodiesLifetime = bodies.AsDisposable();
             foreach (Node2D body in bodies) {
-                if (body is PlayerController player) ApplyToPlayer(player);
+                // GR-HAZ: the wider mask also sees the Mirror clone, which stands on the Enemy layer.
+                if (body is PlayerController player) {
+                    if (!player.IsStoryHostile) ApplyToPlayer(player);
+                } else if (body is FTT.Enemies.EnemyController mob && !IsSheltered(mob.GlobalPosition)) {
+                    mob.ApplyHazardImpact(GetInstanceId());
+                }
             }
         }
 

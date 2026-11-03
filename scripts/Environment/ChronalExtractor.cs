@@ -80,6 +80,7 @@ namespace FTT.Environment {
             base._Ready();
             AddToGroup(GroupName);
             _hazardArea = GetNodeOrNull<Area2D>("HazardArea");
+            if (_hazardArea != null) _hazardArea.CollisionMask = CollisionLayers.HazardContactMask; // GR-HAZ
             _telegraphing = false;
             _cycleTimer = SafeWindowSeconds;
             Publish();
@@ -154,7 +155,12 @@ namespace FTT.Environment {
             Godot.Collections.Array<Node2D> bodies = _hazardArea.GetOverlappingBodies();
             using var bodiesLifetime = bodies.AsDisposable();
             foreach (Node2D body in bodies) {
-                if (body is PlayerController player) ApplyDischargeToPlayer(player);
+                // GR-HAZ: the wider mask also sees the Mirror clone, which stands on the Enemy layer.
+                if (body is PlayerController player) {
+                    if (!player.IsStoryHostile) ApplyDischargeToPlayer(player);
+                } else if (body is FTT.Enemies.EnemyController mob) {
+                    mob.ApplyHazardImpact(GetInstanceId());
+                }
             }
         }
 

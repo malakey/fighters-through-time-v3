@@ -190,7 +190,7 @@ public class HazardMobContactTests {
             clone.CollisionLayer = CollisionLayers.Enemy;
             clone.GlobalPosition = Inside + new Vector2(200f, 0f);
             HazardMobTestKit.Throw(mob);
-            mob.GlobalPosition = cover.GlobalPosition + new Vector2(0f, 20f);
+            mob.GlobalPosition = cover.GlobalPosition + new Vector2(0f, -20f);
             mob.Velocity = Vector2.Zero;
             AssertThat(hazard.IsSheltered(mob.GlobalPosition)).IsTrue();
             int mobHP = mob.CurrentHP;
