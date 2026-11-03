@@ -24,11 +24,19 @@ namespace FTT.Core {
 
         public const string MarkerPath = "user://saves/session.marker";
 
+        // GR-INTEG: follows SaveManager's test directory override, so a scoped test never touches the real marker.
+        private static string ResolveMarkerPath() {
+            string overrideDir = SaveManager.SaveDirectoryOverrideForTesting;
+            return string.IsNullOrEmpty(overrideDir)
+                ? ProjectSettings.GlobalizePath(MarkerPath)
+                : Path.Combine(ProjectSettings.GlobalizePath(overrideDir), "session.marker");
+        }
+
         /// <summary>Marks a live campaign session on <paramref name="slot"/>.</summary>
         public static void WriteMarker(int slot) {
             if (slot < 0) return;
             try {
-                string path = ProjectSettings.GlobalizePath(MarkerPath);
+                string path = ResolveMarkerPath();
                 Directory.CreateDirectory(Path.GetDirectoryName(path));
                 File.WriteAllText(path, slot.ToString(CultureInfo.InvariantCulture));
             } catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) {
@@ -39,7 +47,7 @@ namespace FTT.Core {
         /// <summary>Clean shutdown or a paid exit fee: the session is settled.</summary>
         public static void ClearMarker() {
             try {
-                string path = ProjectSettings.GlobalizePath(MarkerPath);
+                string path = ResolveMarkerPath();
                 if (File.Exists(path)) File.Delete(path);
             } catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) {
                 GD.PushWarning($"Session exit marker could not be cleared: {exception.Message}");
@@ -50,7 +58,7 @@ namespace FTT.Core {
         public static bool TryReadMarker(out int slot) {
             slot = -1;
             try {
-                string path = ProjectSettings.GlobalizePath(MarkerPath);
+                string path = ResolveMarkerPath();
                 if (!File.Exists(path)) return false;
                 return int.TryParse(
                     File.ReadAllText(path).Trim(),

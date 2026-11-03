@@ -36,3 +36,9 @@ No failures, no cold-cache reruns, no orphan processes found at start.
 3. **Rank tests off the real save.** New test seam `SaveManager.SaveDirectoryOverrideForTesting` (story-slot and global paths only; the save key is untouched). `StoryLevelRankTests.RankScope` redirects to `user://test-saves/<guid>/` and deletes it in `Dispose`. Real `story_slot_2.sav` mtime unchanged by the suite.
 
 Full run: Failed 0, Passed 4163, Total 4163 (4161 + 2).
+
+## Codex review fixes (hazard record, session marker)
+
+- `EnemyController.ArmLaunch` (EnemyController.cs ~:876) clears the once-per-source hazard record on any accepted launching hit (`hit.Launches`), independent of wall-bounce eligibility and finisher status; a Defy blast still never reaches it. New case `HazardMobVulnerabilityTests.ALaunchingHitOnAWallPhasingThrownMobStartsANewOncePerSourceRecord` (Rift Phantom, thrown, Up-Attack launcher; failed before the fix).
+- `SessionExitGuard` marker read, write and clear follow `SaveManager.SaveDirectoryOverrideForTesting` (`ResolveMarkerPath`); unchanged when unset. New `SessionMarkerOverrideTests` (a pre-existing real marker survives a scoped run; failed before).
+- Full suite: Failed 0, Passed 4165, Total 4165.

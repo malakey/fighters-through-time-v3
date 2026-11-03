@@ -871,6 +871,9 @@ namespace FTT.Enemies {
         /// </summary>
         private void ArmLaunch(in FTT.Combat.HitPayload hit, int intake, float launchVx) {
             if (CurrentState != EnemyState.Stunned) return;
+            // GR-INTEG: an accepted launching hit is a new launch for the hazard record, whether or not
+            // it arms a wall bounce (a wall-phasing mob never does) or a finisher flight.
+            if (hit.Launches) _hazardSourcesThisLaunch.Clear();
             if (FTT.Combat.StoryEnemyCombatRules.ArmsWallBounce(
                     hit.AttackerIndex, hit.AttackClass, hit.Delivery, hit.Launches, Data?.PhasesThroughWalls == true)) {
                 ArmWallBounce(FTT.Combat.StoryEnemyCombatRules.WallImpactDamage(intake),
