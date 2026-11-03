@@ -21,6 +21,7 @@ namespace FTT.Environment {
 
         public override void _Ready() {
             _damageZone = GetNodeOrNull<Area2D>("DamageZone");
+            if (_damageZone != null) _damageZone.CollisionMask = CollisionLayers.HazardContactMask; // GR-HAZ
             _timer = CooldownDuration;
         }
 
@@ -74,7 +75,10 @@ namespace FTT.Environment {
                 Godot.Collections.Array<Node2D> bodies = _damageZone.GetOverlappingBodies();
                 using var bodiesLifetime = bodies.AsDisposable();
                 foreach (var body in bodies) {
-                    if (body is FTT.Characters.PlayerController pc) {
+                    // GR-HAZ: one impact, not the hero's banked damage per second.
+                    if (body is FTT.Enemies.EnemyController mob) {
+                        mob.ApplyHazardImpact(GetInstanceId());
+                    } else if (body is FTT.Characters.PlayerController { IsStoryHostile: false } pc) {
                         // Bank Damage-per-second x dt per body; pay out whole
                         // HP through the V7.3 environmental chokepoint. Total
                         // damage over the active window is now frame-rate

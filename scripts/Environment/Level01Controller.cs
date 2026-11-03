@@ -692,7 +692,7 @@ namespace FTT.Environment {
             hazard.Name = $"Spikes_{x}";
             hazard.Position = new Vector2(x, y);
             hazard.CollisionLayer = CollisionLayers.Trigger;
-            hazard.CollisionMask = CollisionLayers.Player;
+            hazard.CollisionMask = CollisionLayers.HazardContactMask; // GR-HAZ
 
             var col = new CollisionShape2D();
             var shape = new RectangleShape2D();
@@ -707,6 +707,8 @@ namespace FTT.Environment {
             hazard.AddChild(visual);
 
             hazard.BodyEntered += (body) => {
+                // GR-HAZ: a launched or thrown mob takes its impact; a walking one is refused.
+                if (body is FTT.Enemies.EnemyController mob) { mob.ApplyHazardImpact(hazard.GetInstanceId()); return; }
                 if (body is PlayerController pc) {
                     // Hazard damage can cascade into a lethal-hit rewind; mark
                     // the physics callback so those systems defer the

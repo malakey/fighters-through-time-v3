@@ -28,5 +28,7 @@ public class CollisionLayerTests {
         AssertThat((CollisionLayers.EnemyHitboxMask & CollisionLayers.EnemyHurtbox) == 0).IsTrue();
         AssertThat((CollisionLayers.PlayerHitboxMask & CollisionLayers.EnemyHurtbox) != 0).IsTrue();
         AssertThat((CollisionLayers.EnemyHitboxMask & CollisionLayers.PlayerHurtbox) != 0).IsTrue();
+        // GR-HAZ (ruling 7d): hazards also see mobs, by the Enemy bit alone; no new layer.
+        AssertThat(CollisionLayers.HazardContactMask).IsEqual(CollisionLayers.Player | CollisionLayers.Enemy);
     }
 }

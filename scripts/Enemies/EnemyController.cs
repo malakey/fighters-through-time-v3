@@ -838,6 +838,7 @@ namespace FTT.Enemies {
             _finisherFlight = false;
             _finisherFlightPostStunFrames = 0;
             ClearWallBounce();
+            _hazardSourcesThisLaunch.Clear(); // GR-HAZ: once per launch per source
         }
 
         private void ClearWallBounce() {
@@ -2664,6 +2665,7 @@ namespace FTT.Enemies {
             // D6a / D9 (2026-10-11): the same hygiene for the finisher flight and
             // the wall-bounce latch, and their test seams.
             ResetLaunchCarry();
+            KilledByHazard = false; // GR-HAZ
             _lastWallImpactDealt = 0;
             _lastWallBouncePreMoveVelocityX = 0f;
             _lastFinisherLandingTargetPixels = 0f;

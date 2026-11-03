@@ -825,8 +825,10 @@ public class EraMechanicToolkitTests {
             foreach (Area2D zone in new Area2D[] { searchlight, water, gravity, sand }) {
                 AssertThat(zone.CollisionLayer).OverrideFailureMessage(
                     $"{zone.Name} must sit on the Trigger layer.").IsEqual(CollisionLayers.Trigger);
+                // GR-HAZ (ruling 7d): the flood also sees mobs, by the Enemy bit alone; the rest stay hero-only.
+                uint expectedMask = zone == water ? CollisionLayers.HazardContactMask : CollisionLayers.Player;
                 AssertThat(zone.CollisionMask).OverrideFailureMessage(
-                    $"{zone.Name} must only detect the Player layer.").IsEqual(CollisionLayers.Player);
+                    $"{zone.Name} detects the wrong layers.").IsEqual(expectedMask);
             }
             AssertThat(water.StepCount).IsEqual(4);
             AssertObject(pendulum.Ledge).IsNotNull();
