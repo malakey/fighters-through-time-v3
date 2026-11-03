@@ -416,9 +416,11 @@ public class FighterHazardBehaviorTests {
         AssertThat(harness.StepUntilHazardExists()).IsTrue();
         harness.StepWhileWarning();
 
-        // Player one paces; player two camps.
+        // Player one paces; player two camps. Player one starts at x = -4 and paces
+        // away from the stage centre first (the 2026-11-03 centre pit is 2.5 units
+        // east of that spawn, and a 30-frame run east would end in it).
         for (int frame = 0; frame < 200; frame++) {
-            harness.Step(frame / 30 % 2 == 0 ? (sbyte)127 : (sbyte)-127);
+            harness.Step(frame / 30 % 2 == 0 ? (sbyte)-127 : (sbyte)127);
         }
 
         AssertThat(harness.Fighter(1).CurrentHP).IsEqual(95);

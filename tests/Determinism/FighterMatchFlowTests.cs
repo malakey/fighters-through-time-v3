@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using FTT.Characters;
 using FTT.Combat;
 using FTT.Core;
@@ -438,7 +438,7 @@ public class FighterMatchFlowTests {
         AssertThat(simulation.GetMatchState().PlayerOneStocksLost).IsEqual(0);
     }
 
-    // === Package 11 A9: the bottom blast zone on the three Open stages ===
+    // === Package 11 A9: the bottom blast zone on the five Open stages ===
 
     /// <summary>
     /// The V7 pillar behind audit finding H-11: on an <b>Open</b> stage the bottom
@@ -474,7 +474,7 @@ public class FighterMatchFlowTests {
                 issues.Add($"{geometry.StageID}: the match ended on a non-final stock");
             }
         }
-        AssertThat(stages).IsEqual(3);
+        AssertThat(stages).IsEqual(5);
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 
@@ -549,12 +549,12 @@ public class FighterMatchFlowTests {
             if (lostAnother) issues.Add($"{geometry.StageID}: the respawn drop cost another stock");
             else if (!landed) issues.Add($"{geometry.StageID}: the respawn drop never reached a surface");
         }
-        AssertThat(stages).IsEqual(3);
+        AssertThat(stages).IsEqual(5);
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 
     /// <summary>
-    /// The other half of the contract: the seven Sealed stages author no floor
+    /// The other half of the contract: the five Sealed stages author no floor
     /// segments, so their floor still supports every x and a fighter walking the
     /// full width of one can never fall out of the world. This is what proves the
     /// segment lookup is a no-op wherever nothing is authored.
@@ -591,7 +591,7 @@ public class FighterMatchFlowTests {
                 issues.Add($"{geometry.StageID}: a sealed floor dropped a fighter");
             }
         }
-        AssertThat(stages).IsEqual(7);
+        AssertThat(stages).IsEqual(5);
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 

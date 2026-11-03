@@ -31,6 +31,19 @@ public class FighterStageCatalogTests {
         }
         AssertThat(ids.Count).IsEqual(10);
         AssertThat(hazardTypes.Count).IsEqual(10);
+
+        // 2026-11-03 gameplay review (9a+): five of the ten stages are Open, and
+        // Florence stays the Sealed baseline.
+        var open = new HashSet<string>();
+        foreach (FighterStageData stage in catalog.Stages) {
+            if (stage.IsOpenStage) open.Add(stage.StageID);
+        }
+        AssertThat(open.Count).IsEqual(5);
+        foreach (string openID in new[] {
+            "paris_bastille", "vesuvius_caldera", "nassau_flagship", "globe_theatre", "berlin_wall" }) {
+            AssertThat(open.Contains(openID)).OverrideFailureMessage($"{openID} must be Open").IsTrue();
+        }
+        AssertThat(open.Contains("florence_workshop")).IsFalse();
         foreach (string stageID in GlobalSaveData.InitialStageIDs) {
             AssertThat(ids.Contains(stageID)).IsTrue();
         }

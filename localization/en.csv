@@ -331,11 +331,11 @@ stage_alexandria_layout,A sandy floor with two raised stone sarcophagi.
 stage_alexandria_hazard_name,Shifting Sand Sinkhole
 stage_alexandria_hazard_description,Quicksand slows fighters inside the active zone.
 stage_berlin_name,Hakata Seawall
-stage_berlin_layout,"The stone seawall at night, a moored Mongol ship alongside; its two raised decks serve as platforms."
+stage_berlin_layout,"The stone seawall at night, a moored Mongol ship alongside; its two raised decks serve as platforms. The east end has washed out into a gap."
 stage_berlin_hazard_name,Fleet Lantern
 stage_berlin_hazard_description,Sweeping lanterns call down a thunder-bomb volley on fighters who stay in their beam.
 stage_globe_name,Globe Theatre Stage
-stage_globe_layout,An open wooden stage with tiered side galleries.
+stage_globe_layout,"A wooden stage with tiered side galleries and a pit through the middle of the boards."
 stage_globe_hazard_name,Audience Heckle
 stage_globe_hazard_description,Thrown audience props strike fighters in the targeted zone.
 stage_gettysburg_name,Gettysburg Ridge

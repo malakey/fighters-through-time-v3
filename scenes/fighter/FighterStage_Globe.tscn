@@ -9,7 +9,7 @@
 [ext_resource type="PackedScene" path="res://scenes/templates/StageLightingRig.tscn" id="7_lighting"]
 
 [sub_resource type="RectangleShape2D" id="ground_col"]
-size = Vector2(1125, 48)
+size = Vector2(468.75, 48)
 
 [sub_resource type="RectangleShape2D" id="wall_col"]
 size = Vector2(24, 562.5)
@@ -135,6 +135,14 @@ offset_right = 1512.5
 offset_bottom = 700.0
 color = Color(0.14, 0.07, 0.04, 1)
 
+[node name="CentrePit" type="ColorRect" parent="Presentation"]
+z_index = -9
+offset_left = 856.25
+offset_top = 700.0
+offset_right = 1043.75
+offset_bottom = 1120.0
+color = Color(0.03, 0.012, 0.045, 1)
+
 [node name="GroundlingsPit" type="Polygon2D" parent="Presentation/StageFront"]
 color = Color(0.06, 0.025, 0.08, 1)
 polygon = PackedVector2Array(387.5, 748, 420, 716, 452, 748, 486, 714, 520, 748, 1400, 748, 1432, 714, 1466, 748, 1500, 718, 1512.5, 748)
@@ -198,42 +206,87 @@ RimScale = 12.0
 
 [node name="Geometry" type="Node2D" parent="."]
 
-[node name="Ground" type="StaticBody2D" parent="Geometry"]
-position = Vector2(950, 700)
+[node name="GroundLeft" type="StaticBody2D" parent="Geometry"]
+position = Vector2(621.875, 700)
 collision_layer = 64
 collision_mask = 0
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/Ground"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/GroundLeft"]
 position = Vector2(0, 24)
 shape = SubResource("ground_col")
 
-[node name="Visual" type="ColorRect" parent="Geometry/Ground"]
-offset_left = -562.5
+[node name="Visual" type="ColorRect" parent="Geometry/GroundLeft"]
+offset_left = -234.375
 offset_top = 0.0
-offset_right = 562.5
+offset_right = 234.375
 offset_bottom = 48.0
 color = Color(0.28, 0.14, 0.07, 1)
 
-[node name="TopLine" type="ColorRect" parent="Geometry/Ground"]
-offset_left = -562.5
+[node name="TopLine" type="ColorRect" parent="Geometry/GroundLeft"]
+offset_left = -234.375
 offset_top = -3.0
-offset_right = 562.5
+offset_right = 234.375
 offset_bottom = 0.0
 color = Color(0.72, 0.38, 0.78, 1)
 
-[node name="PlankSeamLeft" type="ColorRect" parent="Geometry/Ground"]
-offset_left = -320.0
+[node name="PlankSeam" type="ColorRect" parent="Geometry/GroundLeft"]
+offset_left = 8.125
 offset_top = 0.0
-offset_right = -316.0
+offset_right = 12.125
 offset_bottom = 48.0
 color = Color(0.19, 0.09, 0.04, 1)
 
-[node name="PlankSeamRight" type="ColorRect" parent="Geometry/Ground"]
-offset_left = 316.0
+[node name="LedgeCue" type="ColorRect" parent="Geometry/GroundLeft"]
+offset_left = 220.375
+offset_top = -8.0
+offset_right = 234.375
+offset_bottom = 48.0
+color = Color(0.9, 0.55, 0.25, 0.9)
+
+[node name="LedgeUndercut" type="Polygon2D" parent="Geometry/GroundLeft"]
+color = Color(0.06, 0.025, 0.08, 1)
+polygon = PackedVector2Array(234.375, 0, 234.375, 48, 202.375, 48)
+
+[node name="GroundRight" type="StaticBody2D" parent="Geometry"]
+position = Vector2(1278.125, 700)
+collision_layer = 64
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/GroundRight"]
+position = Vector2(0, 24)
+shape = SubResource("ground_col")
+
+[node name="Visual" type="ColorRect" parent="Geometry/GroundRight"]
+offset_left = -234.375
 offset_top = 0.0
-offset_right = 320.0
+offset_right = 234.375
+offset_bottom = 48.0
+color = Color(0.28, 0.14, 0.07, 1)
+
+[node name="TopLine" type="ColorRect" parent="Geometry/GroundRight"]
+offset_left = -234.375
+offset_top = -3.0
+offset_right = 234.375
+offset_bottom = 0.0
+color = Color(0.72, 0.38, 0.78, 1)
+
+[node name="PlankSeam" type="ColorRect" parent="Geometry/GroundRight"]
+offset_left = -12.125
+offset_top = 0.0
+offset_right = -8.125
 offset_bottom = 48.0
 color = Color(0.19, 0.09, 0.04, 1)
+
+[node name="LedgeCue" type="ColorRect" parent="Geometry/GroundRight"]
+offset_left = -234.375
+offset_top = -8.0
+offset_right = -220.375
+offset_bottom = 48.0
+color = Color(0.9, 0.55, 0.25, 0.9)
+
+[node name="LedgeUndercut" type="Polygon2D" parent="Geometry/GroundRight"]
+color = Color(0.06, 0.025, 0.08, 1)
+polygon = PackedVector2Array(-234.375, 0, -234.375, 48, -202.375, 48)
 
 [node name="WallLeft" type="StaticBody2D" parent="Geometry"]
 position = Vector2(387.5, 418.75)

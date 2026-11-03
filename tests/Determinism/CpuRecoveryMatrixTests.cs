@@ -1,4 +1,4 @@
-using FTT.Characters;
+﻿using FTT.Characters;
 using FTT.Combat;
 using FTT.Core;
 using FTT.FighterSim;
@@ -15,11 +15,13 @@ namespace FTT.Tests.Determinism;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Nine cases: one per (Open stage x difficulty) pair, each sweeping all nine
+/// Fifteen cases: one per (Open stage x difficulty) pair, each sweeping all nine
 /// kits through a pit-escape drill against the <b>real</b>
 /// <see cref="FighterStageGeometry"/> — Paris's 5.0-wide central courtyard pit,
-/// Vesuvius's 2.5-wide gap against the right wall, and Nassau's 3.0-wide stern
-/// gap. Every case also runs the Sealed-stage false-trigger check, because the
+/// Vesuvius's 2.5-wide gap against the right wall, Nassau's 3.0-wide stern
+/// gap and, since the 2026-11-03 gameplay review (9a+), Globe's 3.0-wide centred
+/// pit and Hakata's (berlin_wall) 3.0-wide one-sided gap against the east wall.
+/// Every case also runs the Sealed-stage false-trigger check, because the
 /// contract asks for it and the cheapest place to prove it is beside its
 /// counter-example.
 /// </para>
@@ -99,6 +101,35 @@ public class CpuRecoveryMatrixTests {
     [TestCase]
     public void HardRecoversTheWholeRosterFromTheNassauStern() =>
         SweepRoster("nassau_flagship", CpuDifficulty.Hard, dropX: 7.0);
+
+    // === Globe Theatre (2026-11-03, 9a+): a 3.0-wide centred pit, ledges at ∓1.5 ===
+    // Dropped 0.5 units inside the left ledge, the same shallow knock as Paris.
+
+    [TestCase]
+    public void EasyRecoversTheWholeRosterFromTheGlobeCentrePit() =>
+        SweepRoster("globe_theatre", CpuDifficulty.Easy, dropX: -1.0);
+
+    [TestCase]
+    public void MediumRecoversTheWholeRosterFromTheGlobeCentrePit() =>
+        SweepRoster("globe_theatre", CpuDifficulty.Normal, dropX: -1.0);
+
+    [TestCase]
+    public void HardRecoversTheWholeRosterFromTheGlobeCentrePit() =>
+        SweepRoster("globe_theatre", CpuDifficulty.Hard, dropX: -1.0);
+
+    // === Hakata Seawall (berlin_wall; 2026-11-03, 9a+): a 3.0-wide gap [7, 10], ledge at +7 ===
+
+    [TestCase]
+    public void EasyRecoversTheWholeRosterFromTheHakataSeawallGap() =>
+        SweepRoster("berlin_wall", CpuDifficulty.Easy, dropX: 8.0);
+
+    [TestCase]
+    public void MediumRecoversTheWholeRosterFromTheHakataSeawallGap() =>
+        SweepRoster("berlin_wall", CpuDifficulty.Normal, dropX: 8.0);
+
+    [TestCase]
+    public void HardRecoversTheWholeRosterFromTheHakataSeawallGap() =>
+        SweepRoster("berlin_wall", CpuDifficulty.Hard, dropX: 8.0);
 
     // === Package 13 W5: Tubman's North Star Leap (the roster swap) ===
     // Pocahontas's approved Spirit Strike and its two drills left with her; no
