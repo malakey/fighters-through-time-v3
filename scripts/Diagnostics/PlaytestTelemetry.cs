@@ -63,6 +63,8 @@ namespace FTT.Diagnostics {
         public int PlayerDamageTaken;
         public int PlayerHitsTaken;
         public int PlayerDeaths;
+        public int HazardKills; // GR-HAZ: mobs killed by a hazard impact
+        public int ThrownKills; // GR-HAZ: mobs that died in a thrown flight, by a hazard or a wall impact
         public int Rewinds;
         public float StartX = float.NaN;
         public float MaxX = float.NegativeInfinity;
@@ -378,6 +380,10 @@ namespace FTT.Diagnostics {
             if ((!alive || hp <= 0) && record.KilledFrame < 0) {
                 record.KilledFrame = Frame;
                 record.Closed = true;
+                if (body is EnemyController corpse) { // GR-HAZ
+                    if (corpse.KilledByHazard) HazardKills++;
+                    if (corpse.IsThrownFlight) ThrownKills++;
+                }
             }
         }
 
@@ -1803,6 +1809,8 @@ namespace FTT.Diagnostics {
                     ["engaged"] = engaged.Count,
                     ["bot_gave_up_unreachable"] = _bot?.UnreachableTargets ?? 0,
                     ["killed"] = killed.Count,
+                    ["hazard_kills"] = HazardKills, // GR-HAZ
+                    ["thrown_kills"] = ThrownKills, // GR-HAZ
                     // The pre-lock meaning, kept for comparability: the hero got 250 px
                     // east of a live mob it had come within 450 px of.
                     ["passed_while_alive"] = passedAlive.Count,
