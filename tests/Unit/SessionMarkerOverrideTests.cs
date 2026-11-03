@@ -33,7 +33,8 @@ public class SessionMarkerOverrideTests {
             AssertThat(System.IO.File.ReadAllText(real)).IsEqual(before);
         } finally {
             SaveManager.SaveDirectoryOverrideForTesting = originalOverride;
-            if (!existed && System.IO.File.Exists(real)) System.IO.File.Delete(real);
+            if (existed) System.IO.File.WriteAllText(real, before);
+            else if (System.IO.File.Exists(real)) System.IO.File.Delete(real);
             try { if (System.IO.Directory.Exists(scratch)) System.IO.Directory.Delete(scratch, true); } catch (System.IO.IOException) { }
         }
     }
