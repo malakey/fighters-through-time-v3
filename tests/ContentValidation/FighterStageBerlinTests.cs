@@ -195,10 +195,14 @@ public class FighterStageBerlinTests {
             hazardCadenceFrames: 1800,
             stageHazardTypeID: BerlinHazardTypeID);
 
+        // The jittering movement input drifts fighters east into the 2026-11-03 gap,
+        // so the stock count is raised past what 2500 frames can burn (Paris's
+        // precedent); the match-state assertion below still fails loudly if a run
+        // ever ends the match before the searchlight's whole cycle.
         var first = new FighterSimulation(
-            seed: 8611, rules: rules, stageGeometry: FighterStageGeometry.Berlin);
+            stocks: 25, seed: 8611, rules: rules, stageGeometry: FighterStageGeometry.Berlin);
         var second = new FighterSimulation(
-            seed: 8611, rules: rules, stageGeometry: FighterStageGeometry.Berlin);
+            stocks: 25, seed: 8611, rules: rules, stageGeometry: FighterStageGeometry.Berlin);
 
         bool sawWarning = false;
         bool sawActive = false;
@@ -327,8 +331,9 @@ public class FighterStageBerlinTests {
         AssertThat(anchor).IsEqual(gapEdge);
 
         AssertThat(berlin.TryGetHangPosition(gapEdge, out FPVector2 hang)).IsTrue();
+        // The hang sits a quarter unit out over the gap.
         AssertThat(hang.x.RawValue)
-            .IsEqual((FP64.FromInt(7) - FighterLedgeRules.HangOutwardOffset).RawValue);
+            .IsEqual((FP64.FromInt(7) + FighterLedgeRules.HangOutwardOffset).RawValue);
         AssertThat(hang.y.RawValue).IsEqual((FP64.Zero - FighterLedgeRules.HangDepth).RawValue);
 
         AssertThat(berlin.TryGetHangPosition((berlin.Platforms.Length + 0) * 2 + 0, out FPVector2 _)).IsFalse();
