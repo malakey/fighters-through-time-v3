@@ -15,7 +15,7 @@ namespace FTT.Combat {
     ///
     /// <para>Every number lives here once. <c>FTT.Enemies.StoryEngagementDirector</c>
     /// (the per-target registry) and <c>EnemyController</c>'s engagement partial
-    /// read it; nothing else does. The slot totals (Easy 1 / Normal 2 / Hard 3)
+    /// read it; nothing else does. The slot totals (Easy 2 / Normal 3 / Hard 4 since ruling 1a+)
     /// are the user's 2026-10-12 ruling; every other value is
     /// <i>Provisional</i>, recorded for the closeout's
     /// <c>PROVISIONAL-ENGAGEMENT-DIRECTOR-RULES</c> ledger row.</para>

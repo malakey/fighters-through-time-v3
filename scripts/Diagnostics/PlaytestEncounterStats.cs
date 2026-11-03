@@ -67,7 +67,7 @@ namespace FTT.Diagnostics {
         /// <summary>"Near the hero": a mob within this many pixels of the hero's pivot (the plan's 250 px).</summary>
         public const float NearPixels = 250f;
 
-        /// <summary>The difficulty's melee slot total (E1 / N2 / H3) and ranged permits, for the report's context.</summary>
+        /// <summary>The difficulty's melee slot total (E2 / N3 / H4) and ranged permits, for the report's context.</summary>
         public int SlotTotal;
         public int PermitTotal;
 

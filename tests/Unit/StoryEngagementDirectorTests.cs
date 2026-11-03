@@ -36,7 +36,7 @@ public class StoryEngagementDirectorTests {
 
     [TestCase]
     public async Task ThreeSlashersOnOneSideCommitOneAtATimeWhileTheRestHoldSpacedRanks() {
-        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => WithDifficulty(Difficulty.Normal, () => {
+        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => WithDifficulty(Difficulty.Easy, () => {
             Scenario scenario = Scenario.Build(new Vector2(0f, 0f),
                 ("chrono_slasher", 300f), ("chrono_slasher", 380f), ("chrono_slasher", 460f));
             try {
@@ -45,7 +45,7 @@ public class StoryEngagementDirectorTests {
                     .OverrideFailureMessage("A mob without a melee slot committed to an attack.")
                     .IsEqual(0);
                 AssertThat(trace.MaxAttacking)
-                    .OverrideFailureMessage($"{trace.MaxAttacking} mobs attacked at once on one side on Normal.")
+                    .OverrideFailureMessage($"{trace.MaxAttacking} mobs attacked at once on one side on Easy.")
                     .IsEqual(1);
                 AssertThat(trace.Commits.Select(commit => commit.Mob).Distinct().Count())
                     .OverrideFailureMessage("Not every slasher got a turn.")
@@ -65,7 +65,7 @@ public class StoryEngagementDirectorTests {
                     .OverrideFailureMessage($"Two settled waiters stood {trace.MinSettledSpacing:F1} px apart.")
                     .IsTrue();
                 // Every waiter stays outside the hero's reach once settled.
-                AssertThat(trace.MinSettledWaiterGap >= StoryEngagementRules.WaitRingRankZeroGapPixels(Difficulty.Normal)
+                AssertThat(trace.MinSettledWaiterGap >= StoryEngagementRules.WaitRingRankZeroGapPixels(Difficulty.Easy)
                         - StoryEngagementRules.WaitRingTolerancePixels - 4f)
                     .IsTrue();
             } finally {
@@ -76,7 +76,7 @@ public class StoryEngagementDirectorTests {
 
     [TestCase]
     public async Task TheSlotRotatesRoundRobinAcrossTheWaiters() {
-        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => WithDifficulty(Difficulty.Normal, () => {
+        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => WithDifficulty(Difficulty.Easy, () => {
             Scenario scenario = Scenario.Build(new Vector2(0f, 0f),
                 ("chrono_slasher", 300f), ("chrono_slasher", 380f), ("chrono_slasher", 460f));
             try {
@@ -102,8 +102,8 @@ public class StoryEngagementDirectorTests {
     }
 
     [TestCase]
-    public async Task OnNormalOneMobAttacksFromEachSideAtOnce() {
-        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => WithDifficulty(Difficulty.Normal, () => {
+    public async Task EasyTakesOneMobFromEachSideAndNormalTakesThreeLopsided() {
+        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => WithDifficulty(Difficulty.Easy, () => {
             Scenario scenario = Scenario.Build(new Vector2(0f, 0f),
                 ("chrono_slasher", -300f), ("chrono_slasher", -380f),
                 ("chrono_slasher", 300f), ("chrono_slasher", 380f));
@@ -111,13 +111,28 @@ public class StoryEngagementDirectorTests {
                 Trace trace = scenario.Run(900);
                 AssertThat(trace.WaiterCommits).IsEqual(0);
                 AssertThat(trace.MaxAttackingPerSide)
-                    .OverrideFailureMessage("Two mobs attacked from one side on Normal.")
+                    .OverrideFailureMessage("Two mobs attacked from one side on Easy.")
                     .IsEqual(1);
                 AssertThat(trace.MaxAttacking)
                     .OverrideFailureMessage("The two sides never attacked at the same time.")
                     .IsEqual(2);
                 AssertThat(trace.MaxHolders).IsEqual(2);
                 AssertThat(trace.MaxHoldersPerSide).IsEqual(1);
+            } finally {
+                scenario.Free();
+            }
+        }));
+        // Normal's three are two on one side and one on the other (ruling 1a+).
+        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => WithDifficulty(Difficulty.Normal, () => {
+            Scenario scenario = Scenario.Build(new Vector2(0f, 0f),
+                ("chrono_slasher", -300f), ("chrono_slasher", -380f),
+                ("chrono_slasher", 300f), ("chrono_slasher", 380f));
+            try {
+                Trace trace = scenario.Run(900);
+                AssertThat(trace.WaiterCommits).IsEqual(0);
+                AssertThat(trace.MaxHolders).IsEqual(3);
+                AssertThat(trace.MaxHoldersPerSide).IsEqual(2);
+                AssertThat(trace.MaxAttackingPerSide <= 2).IsTrue();
             } finally {
                 scenario.Free();
             }
@@ -502,8 +517,8 @@ public class StoryEngagementDirectorTests {
     public async Task TheEngageBlinkIsGrantedTheSlotOnTheSideItLandsOn() {
         // Review fix 2026-10-13: the Rift Phantom's engage blink lands on the
         // far side of the hero, and it used to be granted the slot of the side
-        // it stood on, so on Normal two holders ended up on one side.
-        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => WithDifficulty(Difficulty.Normal, () => {
+        // it stood on, so on Easy two holders ended up on one side.
+        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => WithDifficulty(Difficulty.Easy, () => {
             // A slasher holds the far (right) side: the phantom must not blink
             // there; it takes the free near slot and walks in instead.
             Scenario held = Scenario.Build(new Vector2(0f, 0f), ("chrono_slasher", 300f), ("rift_phantom", -300f));
@@ -515,7 +530,7 @@ public class StoryEngagementDirectorTests {
                     .OverrideFailureMessage("The phantom blinked onto the side the slasher holds.")
                     .IsFalse();
                 AssertThat(trace.MaxHoldersPerSide)
-                    .OverrideFailureMessage("Two mobs held a slot on one side on Normal.")
+                    .OverrideFailureMessage("Two mobs held a slot on one side on Easy.")
                     .IsEqual(1);
                 AssertThat(trace.MaxAttackingPerSide).IsEqual(1);
                 AssertThat(held.Mobs.All(mob => mob.EngagementRole == StoryEngagementRules.EngagementRole.Slot)).IsTrue();
@@ -591,7 +606,7 @@ public class StoryEngagementDirectorTests {
 
     [TestCase]
     public async Task TimeFreezeLeavesRolesCountersAndPositionsUntouched() {
-        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => WithDifficulty(Difficulty.Normal, () => {
+        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => WithDifficulty(Difficulty.Easy, () => {
             Scenario scenario = Scenario.Build(new Vector2(0f, 0f),
                 ("chrono_slasher", 300f), ("chrono_slasher", 380f), ("chrono_slasher", 460f));
             try {
@@ -644,9 +659,9 @@ public class StoryEngagementDirectorTests {
 
     [TestCase]
     public async Task AWaiterCutOffByAWallCrossesToTheEmptierSideAndTakesItsSlot() {
-        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => WithDifficulty(Difficulty.Normal, () => {
-            // A wall 200 px right of the hero leaves room for rank 0 (170 px) only.
-            StaticBody2D wall = CreateWall(220f);
+        await OutOfBandPhysicsStep.RunInPhysicsFrameAsync(() => WithDifficulty(Difficulty.Easy, () => {
+            // A wall 230 px right of the hero leaves room for Easy's rank 0 (200 px) only.
+            StaticBody2D wall = CreateWall(250f);
             Scenario scenario = Scenario.Build(new Vector2(0f, 0f),
                 ("chrono_slasher", 100f), ("chrono_slasher", 140f), ("chrono_slasher", 175f));
             try {
@@ -678,7 +693,7 @@ public class StoryEngagementDirectorTests {
                     AssertThat(mob.IsEngagementCrossing).IsFalse();
                     AssertThat(mob.GetNode<CombatantPushbox>("Pushbox").PushEnabled).IsTrue();
                 }
-                // Normal: the far side's slot went to the crosser; one per side.
+                // Easy: the far side's slot went to the crosser; one per side.
                 AssertThat(maxHolders).IsEqual(2);
                 AssertThat(moved.EngagementRole).IsEqual(StoryEngagementRules.EngagementRole.Slot);
                 AssertThat(scenario.Hero.GlobalPosition.DistanceTo(heroBefore) < 0.5f)
