@@ -59,6 +59,7 @@ namespace FTT.Diagnostics {
         public static string HitVariant(string hitboxID) {
             if (string.IsNullOrEmpty(hitboxID)) return "other";
             if (hitboxID == BasicComboRules.AirAttackHitboxID) return "air_attack";
+            if (hitboxID == BasicComboRules.RunAttackHitboxID) return "run_attack";
             if (hitboxID == BasicComboRules.UpAttackHitboxID) return "up_attack";
             if (hitboxID == BasicComboRules.DownAirHitboxID) return "down_air";
             return hitboxID.StartsWith("combo_", StringComparison.Ordinal) ? "string" : "other";

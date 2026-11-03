@@ -1147,9 +1147,10 @@ namespace FTT.Characters {
 		/// <summary>
 		/// Which basic the running swing is (gameplay feel §2.8):
 		/// <c>BasicComboRules.VariantChain</c>, <c>VariantUpAttack</c>,
-		/// <c>VariantDownAir</c> or (GU-A, 2026-10-12) <c>VariantAirAttack</c>.
-		/// The air strike and the two directional strikes are single swings
-		/// outside the chain — they never buffer, hold, or advance a counter.
+		/// <c>VariantDownAir</c>, (GU-A, 2026-10-12) <c>VariantAirAttack</c> or
+		/// (GR-RUN, 2026-11-03) <c>VariantRunAttack</c>.
+		/// All but the chain are single swings outside it — they never buffer,
+		/// hold, or advance a counter.
 		/// </summary>
 		private int _attackVariant = FTT.Combat.BasicComboRules.VariantChain;
 		private bool _specialStartedAerial;
@@ -1186,6 +1187,7 @@ namespace FTT.Characters {
 			FTT.Combat.BasicComboRules.TemplateStringProfile;
 		private FTT.Combat.CombatFrameTimeline[] _groundComboTimelines = ComboTimelines;
 		private FTT.Combat.CombatFrameTimeline _airAttackTimeline = AirAttackTemplateTimeline;
+		private FTT.Combat.CombatFrameTimeline _runAttackTimeline = RunAttackTemplateTimeline;
 		// The grounded string boxes are not authored here: they come from the
 		// one cross-mode table (BasicComboRules.StringBox*Units, world units)
 		// at KitMotionRules.StoryPixelsPerUnit, through
@@ -1342,6 +1344,10 @@ namespace FTT.Characters {
 				_stringProfile.AirAttackStartupFrames,
 				FTT.Combat.BasicComboRules.AirAttackActiveFrames,
 				FTT.Combat.BasicComboRules.AirAttackRecoveryFrames);
+			_runAttackTimeline = new(
+				_stringProfile.RunAttackStartupFrames,
+				FTT.Combat.BasicComboRules.RunAttackActiveFrames,
+				FTT.Combat.BasicComboRules.RunAttackRecoveryFrames);
 
 			_animatedSprite = GetNodeOrNull<AnimatedSprite2D>("AnimatedSprite2D");
 			_collisionShape = GetNodeOrNull<CollisionShape2D>("CollisionShape2D");
@@ -2654,11 +2660,14 @@ namespace FTT.Characters {
 				TransitionTo(CharacterState.Idle);
 				return;
 			}
+			// GR-RUN: past its startup the running attack lunges, then brakes.
+			bool runAttackCommitted = RunAttackCommitted;
 			if (IsOnFloor()) {
 				// Swings never stop the attacker: full horizontal steering at
 				// the normal run ramp through startup/active/recovery/hold
 				// (mirrors the Fighter sim's unlocked swing movement).
-				ApplyHorizontalMovement(GetHorizontalInput(), dt);
+				if (runAttackCommitted) ApplyRunAttackMotion(dt);
+				else ApplyHorizontalMovement(GetHorizontalInput(), dt);
 			} else {
 				ApplyAirControl(dt);
 			}
@@ -2666,7 +2675,7 @@ namespace FTT.Characters {
 			// superseding the 2026-08-09 "committed for the whole string" rule.
 			// Hitbox placement still reads facing when the active window opens
 			// (OnAttackActiveStarted), so nothing migrates mid-active.
-			UpdateFacing(GetHorizontalInput());
+			if (!runAttackCommitted) UpdateFacing(GetHorizontalInput());
 
 			// Design 1051 — a special (or the ultimate) cancels a basic and resets
 			// the chain; shared rule with the Fighter sim. Since 2026-10-08 the
@@ -4877,7 +4886,8 @@ namespace FTT.Characters {
 			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack)) {
 				StartBasicSwing(
 					upHeld: CurrentInputFrame.Vertical < FTT.Combat.BasicComboRules.StoryUpInputThreshold,
-					downHeld: CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Down));
+					downHeld: CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Down),
+					running: IsRunningForAttack);
 				return true;
 			}
 			return false;
@@ -4889,9 +4899,10 @@ namespace FTT.Characters {
 		/// <paramref name="downHeld"/> and whether the swing starts in the air —
 		/// resetting the combo counter and entering <see cref="StartComboHit"/>,
 		/// which arms the swing lockout. Shared by <see cref="CheckAttackInput"/>,
-		/// the D3 recovery cancel and an airborne press in the chain hold.
+		/// the D3 recovery cancel and an airborne press in the chain hold. Only
+		/// the first passes <paramref name="running"/> (GR-RUN).
 		/// </summary>
-		private void StartBasicSwing(bool upHeld, bool downHeld) {
+		private void StartBasicSwing(bool upHeld, bool downHeld, bool running = false) {
 			_attackStartedAerial = !IsOnFloor() || CurrentState == CharacterState.Airborne;
 			_attackStartedCrouched = CurrentState == CharacterState.Crouching;
 			// Gameplay feel §2.8 — one shared selection rule with the Fighter
@@ -4901,7 +4912,8 @@ namespace FTT.Characters {
 			_attackVariant = FTT.Combat.BasicComboRules.SelectAttackVariant(
 				upHeld: upHeld,
 				downHeld: downHeld,
-				airborne: _attackStartedAerial);
+				airborne: _attackStartedAerial,
+				running: running);
 			GroundComboCounter = 0;
 			ComboCounter = 0;
 			StartComboHit();
@@ -4942,6 +4954,10 @@ namespace FTT.Characters {
 			// strike beside the two directional ones).
 			if (_attackVariant == FTT.Combat.BasicComboRules.VariantAirAttack) {
 				StartAirAttack();
+				return;
+			}
+			if (_attackVariant == FTT.Combat.BasicComboRules.VariantRunAttack) {
+				StartRunAttack();
 				return;
 			}
 			if (_attackVariant != FTT.Combat.BasicComboRules.VariantChain) {
@@ -5152,6 +5168,10 @@ namespace FTT.Characters {
 				// in front of its new facing.
 				ResolveAirAttackBoxPixels(_stringProfile, reach, out hitboxSize, out Vector2 airOffset);
 				resolvedOffset = new Vector2(IsFacingRight ? airOffset.X : -airOffset.X, airOffset.Y);
+			} else if (_attackVariant == FTT.Combat.BasicComboRules.VariantRunAttack) {
+				// GR-RUN: string hit 1's box with its far edge moved out.
+				ResolveRunAttackBoxPixels(_stringProfile, reach, out hitboxSize, out Vector2 runOffset);
+				resolvedOffset = new Vector2(IsFacingRight ? runOffset.X : -runOffset.X, runOffset.Y);
 			} else {
 				ResolveGroundStringBoxPixels(
 					comboIdx, _stringProfile, reach, out hitboxSize, out Vector2 groundOffset);
@@ -5236,6 +5256,7 @@ namespace FTT.Characters {
 			_attackVariant == FTT.Combat.BasicComboRules.VariantUpAttack ? UpAttackTimeline
 			: _attackVariant == FTT.Combat.BasicComboRules.VariantDownAir ? DownAirTimeline
 			: _attackVariant == FTT.Combat.BasicComboRules.VariantAirAttack ? _airAttackTimeline
+			: _attackVariant == FTT.Combat.BasicComboRules.VariantRunAttack ? _runAttackTimeline
 			: _groundComboTimelines[GetActiveComboIndex()];
 
 		private void AdvanceActiveCombo() {

@@ -88,6 +88,17 @@ public class MoveListScreenTests {
             var row = screen.Root.GetNode<VBoxContainer>("Center/Panel/Layout/Scroll/Sections")
                 .GetNodeOrNull<Label>("StringHit1");
             AssertObject(row).IsNotNull();
+            // GR-RUN: the running attack has its row, from the same one source.
+            var runRow = screen.Root.GetNode<VBoxContainer>("Center/Panel/Layout/Scroll/Sections")
+                .GetNodeOrNull<Label>("RunAttack");
+            AssertObject(runRow).IsNotNull();
+            AssertThat(runRow.Text).IsEqual(string.Format(
+                TranslationServer.Translate("movelist_run_attack").ToString(),
+                BasicComboRules.StringProfileFor("joan").RunAttackStartupFrames,
+                BasicComboRules.RunAttackActiveFrames,
+                BasicComboRules.RunAttackRecoveryFrames,
+                AuthoredResources.Load<CharacterData>("res://resources/Characters/joan_data.tres").BasicAttackDamage
+                    * BasicComboRules.RunAttackDamageMultiplier));
 
             BasicStringProfile profile = BasicComboRules.StringProfileFor("joan");
             var joan = AuthoredResources.Load<CharacterData>("res://resources/Characters/joan_data.tres");

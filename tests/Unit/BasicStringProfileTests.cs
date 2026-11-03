@@ -62,6 +62,49 @@ public class BasicStringProfileTests {
     }
 
     [TestCase]
+    public void TheRunAttacksStartupIsTheProvisionalTablePerCharacter() {
+        // GR-RUN (ruling 9b, 2026-11-03): the template 9, a rushdown faster, the
+        // heavy slowest. One axis per character; the active and recovery frames
+        // are universal.
+        var expected = new Dictionary<string, int> {
+            ["joan"] = 7, ["lincoln"] = 11, ["einstein"] = 10, ["shakespeare"] = 10,
+            ["leonardo"] = 9, ["cleopatra"] = 9, ["tesla"] = 9, ["mozart"] = 9, ["tubman"] = 9
+        };
+        AssertThat(expected.Count).IsEqual(RosterIDs.Length);
+        foreach (string id in RosterIDs) {
+            AssertThat(BasicComboRules.StringProfileFor(id).RunAttackStartupFrames)
+                .OverrideFailureMessage(id)
+                .IsEqual(expected[id]);
+        }
+        AssertThat(BasicComboRules.TemplateStringProfile.RunAttackStartupFrames)
+            .IsEqual(BasicComboRules.RunAttackStartupFrames);
+        AssertThat(BasicComboRules.StringProfileFor("time_bandit").RunAttackStartupFrames)
+            .IsEqual(BasicComboRules.RunAttackStartupFrames);
+    }
+
+    [TestCase]
+    public void EveryRunAttackIsSlowerThanItsHeroesOpenerAndTheSimReadsTheSameTable() {
+        foreach (string id in RosterIDs) {
+            BasicStringProfile profile = BasicComboRules.StringProfileFor(id);
+            AssertThat(profile.RunAttackStartupFrames > profile.GroundStartupFrames[0])
+                .OverrideFailureMessage($"{id}: a running attack must not out-speed the opener it replaces.")
+                .IsTrue();
+        }
+        (FighterCharacterID Id, string Key)[] sim = {
+            (FighterCharacterID.Joan, "joan"), (FighterCharacterID.Lincoln, "lincoln"), (FighterCharacterID.Tubman, "tubman")
+        };
+        foreach ((FighterCharacterID simID, string key) in sim) {
+            AssertThat(FighterBasicAttackRules.StartupFramesFor((int)simID, FighterBasicAttackRules.FlagRunAttack, 0))
+                .OverrideFailureMessage(key)
+                .IsEqual(BasicComboRules.StringProfileFor(key).RunAttackStartupFrames);
+        }
+        AssertThat(FighterBasicAttackRules.ActiveFramesFor(FighterBasicAttackRules.FlagRunAttack, 0))
+            .IsEqual(BasicComboRules.RunAttackActiveFrames);
+        AssertThat(FighterBasicAttackRules.RecoveryFramesFor(FighterBasicAttackRules.FlagRunAttack, 0))
+            .IsEqual(BasicComboRules.RunAttackRecoveryFrames);
+    }
+
+    [TestCase]
     public void TheChassisStaysUniversal() {
         // Hit 2's startup is part of the shared chassis: the guaranteed
         // hit 1 -> hit 2 link is a roster-wide readability contract.

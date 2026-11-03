@@ -28,9 +28,10 @@ namespace FTT.FighterSim {
         /// tick's input becomes that verb alone and the cast ends;</item>
         /// <item>otherwise the busy caster's input is discarded (the cast lock).</item>
         /// </list>
-        /// Not busy: only the stale buffer is zeroed.
+        /// Not busy: only the stale buffer is zeroed. Returns true when a D3 cancel
+        /// fired this tick (GR-RUN: its basic press is never a running attack).
         /// </summary>
-        private static void ResolveSpecialCastRegion(
+        private static bool ResolveSpecialCastRegion(
             ref FighterStateComponent fighter,
             ref FighterRuntimeComponent runtime,
             in FighterVerbComponent verb,
@@ -38,7 +39,7 @@ namespace FTT.FighterSim {
             ref FighterCounterComponent counter,
             in FighterKnockdownComponent knockdown) {
             FighterSpecialCancelRules.Feed(ref action, in fighter, in runtime, hitstopTick: false);
-            if (!FighterSpecialCastRules.IsBusy(in action)) return;
+            if (!FighterSpecialCastRules.IsBusy(in action)) return false;
             // CM-FIXB-SIM (B12): while Foresight's counter strike is still owed
             // (a caught projectile, answered by this tick's combat pass) neither
             // cancel may end the stance — ending it would drop the answer. The
@@ -49,13 +50,14 @@ namespace FTT.FighterSim {
             if (inRecovery && FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb)) {
                 EndCastForCancel(ref fighter, ref action, ref counter);
                 runtime.PressedButtons &= BlockButton;
-                return;
+                return false;
             }
             if (inRecovery && TryFireSpecialCancel(ref fighter, ref runtime, in verb, ref action, in knockdown, recoveryFrame)) {
                 EndCastForCancel(ref fighter, ref action, ref counter);
-                return;
+                return true;
             }
             FighterUltimateActivationRules.DiscardInput(ref runtime);
+            return false;
         }
 
         /// <summary>

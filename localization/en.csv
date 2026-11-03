@@ -1712,3 +1712,5 @@ save_notice_defy_pad_unbound,"The Defy History controller button (R3) was alread
 defy_world_label,DEFIED
 # MM-HUD block
 hud_momentum_pips,Momentum
+# GR-RUN
+movelist_run_attack,"Running attack: {0}/{1}/{2} frames — {3:0.#} damage, one lunge that never chains"

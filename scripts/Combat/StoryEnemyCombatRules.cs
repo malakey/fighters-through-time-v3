@@ -249,8 +249,8 @@ namespace FTT.Combat {
         // === S4 (Provisional): basics pacing ===
 
         /// <summary>
-        /// The universal basic set (the three string hits and the two directional
-        /// strikes) deals this multiple against Standard-tier mobs, on Story intake
+        /// The universal basic set (the three string hits, the air strike, the
+        /// running attack and the two directional strikes) deals this multiple against Standard-tier mobs, on Story intake
         /// only — the shared <c>.tres</c> damages and the Fighter sim are untouched.
         /// </summary>
         public const float StandardBasicDamageScale = 1.25f;
@@ -334,11 +334,16 @@ namespace FTT.Combat {
         /// <see cref="ChainGapMarginFrames"/> — 34 frames after hit 1, 44 after
         /// hit 2. The finisher and the two directional strikes end the exchange
         /// and keep the cross-mode <see cref="BasicComboRules.EnemyBasicStunFloorFrames"/>.
+        /// GR-RUN: the running attack opens an exchange, so it takes hit 1's floor,
+        /// which also keeps a running attack plus a whole string inside the standard
+        /// poise budget (34 + 102 frames against 139.5).
         /// Non-basic sources get 0 (no floor).
         /// </summary>
         public static int BasicStringStunFloorFrames(string hitboxID) {
             if (!BasicComboRules.IsBasicStringHitbox(hitboxID)) return 0;
-            int step = StringStepOf(hitboxID);
+            int step = hitboxID == BasicComboRules.RunAttackHitboxID
+                ? BasicComboRules.RunAttackStringStep
+                : StringStepOf(hitboxID);
             if (step < 0 || step >= BasicComboRules.ComboHits - 1) return BasicComboRules.EnemyBasicStunFloorFrames;
             int gap = BasicComboRules.GroundActiveFrames[step]
                 + BasicComboRules.GroundRecoveryFrames[step]

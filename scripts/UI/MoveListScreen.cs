@@ -245,6 +245,13 @@ namespace FTT.UI {
                 BasicComboRules.AirAttackActiveFrames,
                 BasicComboRules.AirAttackRecoveryFrames,
                 basicDamage * BasicComboRules.AirAttackDamageMultiplier));
+            // GR-RUN (2026-11-03): Attack while running is one committed lunge.
+            AddRow("RunAttack", string.Format(
+                Tr("movelist_run_attack"),
+                profile.RunAttackStartupFrames,
+                BasicComboRules.RunAttackActiveFrames,
+                BasicComboRules.RunAttackRecoveryFrames,
+                basicDamage * BasicComboRules.RunAttackDamageMultiplier));
             AddRow("Reach", string.Format(
                 Tr("movelist_reach"), profile.ReachWidthPercent, profile.ReachHeightPercent));
             AddRow("UpAttack", string.Format(

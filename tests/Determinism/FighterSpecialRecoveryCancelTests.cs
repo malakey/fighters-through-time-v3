@@ -55,6 +55,28 @@ public class FighterSpecialRecoveryCancelTests {
         if (failures.Count > 0) AssertThat(string.Join(" | ", failures)).IsEqual("");
     }
 
+    /// <summary>
+    /// GR-RUN (ruling 9b): a basic out of a landed recovery is never the running
+    /// attack, with the stick held toward the facing on every tick. The cast's brake
+    /// already leaves it under the speed floor; the system also states no "running"
+    /// on a tick a D3 cancel fired.
+    /// </summary>
+    [TestCase]
+    public void ABasicOutOfALandedRecoveryIsNeverTheRunningAttack() {
+        FighterSimulation simulation = LincolnSplitting(seed: 11102, spawnDistance: 1, out int hpBefore);
+        bool started = false;
+        for (int offset = 1; offset <= 80 && !started; offset++) {
+            simulation.Advance(In(GameplayButtons.BasicAttack, moveX: 127), Neutral());
+            started = Runtime(simulation, 0).AttackPhase == FighterBasicAttackRules.PhaseStartup;
+        }
+        AssertThat(Fighter(simulation, 1).CurrentHP < hpBefore)
+            .OverrideFailureMessage("Harness: the arc must land.")
+            .IsTrue();
+        AssertThat(started).OverrideFailureMessage("Harness: the D3 basic must fire.").IsTrue();
+        AssertThat(Runtime(simulation, 0).AttackFlags & FighterBasicAttackRules.VariantMask).IsEqual(0);
+        AssertThat(Runtime(simulation, 0).ComboIndex).IsEqual(0);
+    }
+
     // === 2. a whiff or a block keeps its recovery ===========================
 
     /// <summary>
