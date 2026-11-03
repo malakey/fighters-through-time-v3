@@ -268,6 +268,20 @@ public class StoryRunAttackTests {
                 .IsEqual("combo_2");
             AssertThat(player.ComboCounter).IsEqual(1);
         });
+
+        // Once the chain hold has run out, the same press is a fresh one.
+        Run("tesla", (player, _) => {
+            var hitbox = player.GetNode<Hitbox>("MeleeHitbox");
+            SendEdge(player, GameplayButtons.BasicAttack, GameplayButtons.None);
+            for (int call = 0; call < 120 && player.CurrentState == CharacterState.Attacking; call++) {
+                SendEdge(player, GameplayButtons.None, GameplayButtons.None, moveX: 1f);
+            }
+            AssertThat(player.CurrentState).IsNotEqual(CharacterState.Attacking);
+            RunUp(player, 2);
+            AssertThat(player.CurrentState).IsEqual(CharacterState.Running);
+            SendEdge(player, GameplayButtons.BasicAttack, GameplayButtons.None, moveX: 1f);
+            AssertThat(hitbox.HitboxID).IsEqual(BasicComboRules.RunAttackHitboxID);
+        });
     }
 
     [TestCase]
