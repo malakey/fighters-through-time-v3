@@ -171,8 +171,8 @@ public class ResonanceProgressionTests {
 
     /// <summary>
     /// The dormant gate on a real grid, against the Legacy Unlock Schedule:
-    /// Joan's Minor Piercing Cooldown is gated on Special 2, which Level 3's
-    /// completion restores. Before it the node is a dormant star that cannot be
+    /// Joan's Minor Piercing Cooldown is gated on Special 2, which Level 2's
+    /// completion restores (Level 3's before the 2026-11-03 schedule shift). Before it the node is a dormant star that cannot be
     /// bought, whatever the dust and prerequisites; the completed-level history
     /// alone restores it (the backstop for a payload written before the schedule
     /// had persisted keys), and the purchase then goes through.
@@ -187,10 +187,10 @@ public class ResonanceProgressionTests {
             save.GridProgress["joan"] = new List<string> {
                 "joan_zeal", "joan_vigor", "joan_wings_refresh", "joan_smite_damage"
             };
-            save.CompletedLevels.AddRange(new[] { "level_00_tutorial", "level_01_florence", "level_02_orleans" });
+            save.CompletedLevels.AddRange(new[] { "level_00_tutorial", "level_01_florence" });
 
             AssertThat(ResonanceProgression.EvaluateUnlock(joan, save, "joan_piercing_cooldown"))
-                .OverrideFailureMessage("Special 2 is still dormant after Level 2.")
+                .OverrideFailureMessage("Special 2 is still dormant after Level 1.")
                 .IsEqual(ResonanceUnlockResult.AbilityLocked);
             AssertThat(ResonanceProgression.TryUnlock(joan, save, "joan_piercing_cooldown"))
                 .IsEqual(ResonanceUnlockResult.AbilityLocked);
@@ -199,7 +199,7 @@ public class ResonanceProgressionTests {
             AssertThat(ResonanceProgression.EvaluateUnlock(joan, save, "joan_martyrs_resolve"))
                 .IsEqual(ResonanceUnlockResult.Unlocked);
 
-            save.CompletedLevels.Add("level_03_chicago");
+            save.CompletedLevels.Add("level_02_orleans");
             AssertThat(ResonanceProgression.TryUnlock(joan, save, "joan_piercing_cooldown"))
                 .IsEqual(ResonanceUnlockResult.Unlocked);
             AssertThat(save.DepositedChronalDust["joan"]).IsEqual(925);

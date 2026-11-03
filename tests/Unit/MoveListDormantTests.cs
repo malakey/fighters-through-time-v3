@@ -110,6 +110,17 @@ public class MoveListDormantTests {
                     .OverrideFailureMessage("Different milestones must read as different levels.")
                     .IsFalse();
 
+                // GR-SCHED: Special 1's milestone is Level 0, which is a real milestone, not "ungated" (the old
+                // `> 0` test would have shown its frame data with no badge).
+                var special1 = sections.GetNode<HBoxContainer>("Ability_movelist_slot_special1")
+                    .GetNodeOrNull<Label>("Body/AbilityDormant");
+                AssertObject(special1)
+                    .OverrideFailureMessage("Special 1 (milestone 0) must read as dormant on a fresh campaign.")
+                    .IsNotNull();
+                AssertThat(special1.Text).IsEqual(string.Format(
+                    TranslationServer.Translate("movelist_dormant_until").ToString(),
+                    LegacyUnlockSchedule.MilestoneLevelFor(AbilitySlot.Special1)));
+
                 // Earn the Movement Ability: its badge clears, the rest stay.
                 save.CompletedLevels.Add("level_01_florence");
                 screen.Populate("einstein", MoveListScreen.MoveListMode.Story);
@@ -118,9 +129,18 @@ public class MoveListDormantTests {
                         .GetNodeOrNull<Label>("Body/AbilityStats"))
                     .OverrideFailureMessage("A restored slot must show its frame data again.")
                     .IsNotNull();
-                AssertObject(sections.GetNode<HBoxContainer>("Ability_movelist_slot_special1")
+                AssertObject(sections.GetNode<HBoxContainer>("Ability_movelist_slot_special2")
                         .GetNodeOrNull<Label>("Body/AbilityDormant"))
-                    .OverrideFailureMessage("Special 1 is still dormant after Level 1.")
+                    .OverrideFailureMessage("Special 2 is still dormant after Level 1.")
+                    .IsNotNull();
+
+                // Level 0 completes: Special 1's badge clears too.
+                save.CompletedLevels.Add("level_00_tutorial");
+                screen.Populate("einstein", MoveListScreen.MoveListMode.Story);
+                sections = screen.Root.GetNode<VBoxContainer>(AbilityRowPath);
+                AssertObject(sections.GetNode<HBoxContainer>("Ability_movelist_slot_special1")
+                        .GetNodeOrNull<Label>("Body/AbilityStats"))
+                    .OverrideFailureMessage("Special 1 shows its frame data once Level 0 is complete.")
                     .IsNotNull();
             } finally {
                 screen.Free();

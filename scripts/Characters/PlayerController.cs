@@ -415,7 +415,7 @@ namespace FTT.Characters {
 		/// </summary>
 		public bool IsAbilityUnlocked(FTT.Core.AbilitySlot slot) {
 			if (_legacyUnlockedSlots == null) return true;
-			if (FTT.Core.LegacyUnlockSchedule.MilestoneLevelFor(slot) <= 0) return true;
+			if (FTT.Core.LegacyUnlockSchedule.MilestoneLevelFor(slot) < 0) return true;
 			return _legacyUnlockedSlots.Contains(slot);
 		}
 

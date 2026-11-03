@@ -30,15 +30,18 @@ namespace FTT.Core {
         public const string OneWayPlatform = "one_way";
         public const string DeathRewind = "death_rewind";
         public const string TimeFreeze = "time_freeze";
+        public const string SpecialMomentum = "special_momentum";
 
         /// <summary>
         /// Every tooltip the design lists, in the order the design lists them
         /// (first Rally echo, first shield break, first grab opportunity, first
         /// launch, first time the meter reaches the Defy cost, first ledge, first one-way
-        /// platform, first death rewind, first Time Freeze availability).
+        /// platform, first death rewind, first Time Freeze availability), then the
+        /// 2026-11-03 schedule shift's one addition: Special 1 on Level 1.
         /// </summary>
         public static readonly IReadOnlyList<string> All = new[] {
-            RallyEcho, ShieldBreak, Grab, Launch, DefyButton, Ledge, OneWayPlatform, DeathRewind, TimeFreeze
+            RallyEcho, ShieldBreak, Grab, Launch, DefyButton, Ledge, OneWayPlatform, DeathRewind, TimeFreeze,
+            SpecialMomentum
         };
 
         /// <summary>
@@ -55,6 +58,7 @@ namespace FTT.Core {
             OneWayPlatform => "tooltip_first_use_one_way",
             DeathRewind => "tooltip_first_use_death_rewind",
             TimeFreeze => "tooltip_first_use_time_freeze",
+            SpecialMomentum => "tooltip_first_use_special_momentum",
             _ => ""
         };
 
@@ -63,6 +67,15 @@ namespace FTT.Core {
         /// cost (<see cref="FTT.Combat.BasicComboRules.DefyInfluenceCost"/>). The old seal no longer raises it.
         /// </summary>
         public static bool DefyButtonDue(float meter) => meter >= FTT.Combat.BasicComboRules.DefyInfluenceCost;
+
+        /// <summary>
+        /// GR-SCHED (ruling 3b): Special 1 is restored by completing Level 0 and is
+        /// first played on Level 1 (Florence), where nothing else teaches it. The
+        /// tooltip is due on Level 1 once the hero's Special 1 is unlocked. Like
+        /// every first-use tooltip it shows only on a skipped-calibration slot.
+        /// </summary>
+        public static bool SpecialMomentumDue(int levelNumber, bool special1Unlocked) =>
+            levelNumber == 1 && special1Unlocked;
 
         /// <summary>True when <paramref name="save"/> should show this tooltip now.</summary>
         public static bool ShouldShow(StorySaveData save, string tooltipID) {
