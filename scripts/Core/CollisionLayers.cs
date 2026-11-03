@@ -26,6 +26,8 @@ namespace FTT.Core {
         public const uint PlayerHitboxMask = EnemyHurtbox | PersistentObject;
         public const uint EnemyHitboxMask = PlayerHurtbox | PersistentObject;
         public const uint ProjectileMask = PlayerHurtbox | EnemyHurtbox | Environment | PersistentObject;
+        /// <summary>What a hazard's Area2D overlaps: the hero and, for launched or thrown ones, mobs (ruling 7d).</summary>
+        public const uint HazardContactMask = Player | Enemy;
 
         public static uint BodyLayerForFighterSlot(int playerIndex) => playerIndex == 0 ? Player : Enemy;
         public static uint BodyMaskForFighterSlot(int playerIndex) => playerIndex == 0 ? PlayerBodyMask : EnemyBodyMask;
