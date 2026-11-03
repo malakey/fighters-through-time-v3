@@ -1742,6 +1742,7 @@ namespace FTT.Characters {
 			// sits outside the damage block) opens the hit-confirm cancel and
 			// pays per-hit Momentum once per swing, however many bodies it cleaves.
 			bool basicSwing = FTT.Combat.BasicComboRules.IsBasicStringHitbox(payload.HitboxID);
+			NoteSwingContact(in payload); // GR-AUDIO
 			if (payload.ContactLanded && basicSwing) NoteSwingLanded(payload.HitboxID);
 			if (damageApplied > 0f) {
 				// V7.1 hitstop (attacker side): the same shared freeze the victim
@@ -2741,6 +2742,7 @@ namespace FTT.Characters {
 			}
 
 			if (_attackHitActive && !shouldBeActive) {
+				NoteActiveWindowClosed(); // GR-AUDIO
 				OnAttackActiveEnded();
 			}
 
@@ -3278,6 +3280,7 @@ namespace FTT.Characters {
 				GlobalPosition + new Vector2(facing * GrabSparkForwardPixels, -GrabSparkRisePixels),
 				IsFacingRight, GetParent());
 			ShowAttackPose("grab", GrabHoldPoseFrame);
+			PlayGrabCatchCue(); // GR-AUDIO
 			return true;
 		}
 
@@ -5141,6 +5144,7 @@ namespace FTT.Characters {
 		public void OnAttackActiveStarted() {
 			if (CurrentState != CharacterState.Attacking || _attackHitActive) return;
 			_attackHitActive = true;
+			BeginSwingContactWatch(); // GR-AUDIO
 			int comboIdx = GetActiveComboIndex();
 			bool airAttack = _attackVariant == FTT.Combat.BasicComboRules.VariantAirAttack;
 			bool upAttack = _attackVariant == FTT.Combat.BasicComboRules.VariantUpAttack;

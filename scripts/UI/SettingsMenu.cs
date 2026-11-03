@@ -62,6 +62,7 @@ namespace FTT.UI {
         private CheckButton _sfxMute;
         private CheckButton _uiMute;
         private CheckButton _muteWhenUnfocused;
+        private CheckButton _placeholderCuesMute;
 
         // Package 12 W6: G10 Text Speed and G09 About & Privacy (Gameplay tab).
         private OptionButton _textSpeedDropdown;
@@ -263,6 +264,7 @@ namespace FTT.UI {
             _sfxMute = _tabs.GetNode<CheckButton>("Audio/SfxMuteToggle");
             _uiMute = _tabs.GetNode<CheckButton>("Audio/UiMuteToggle");
             _muteWhenUnfocused = _tabs.GetNode<CheckButton>("Audio/MuteWhenUnfocusedToggle");
+            _placeholderCuesMute = _tabs.GetNode<CheckButton>("Audio/PlaceholderCuesMuteToggle");
 
             _resolutionDropdown = _tabs.GetNode<OptionButton>("Display/ResolutionDropdown");
             _windowModeDropdown = _tabs.GetNode<OptionButton>("Display/WindowModeDropdown");
@@ -447,6 +449,8 @@ namespace FTT.UI {
             _sfxMute.Toggled += on => AudioManager.Instance?.SetCategoryMuted(AudioBuses.SFX, on);
             _uiMute.Toggled += on => AudioManager.Instance?.SetCategoryMuted(AudioBuses.UI, on);
             _muteWhenUnfocused.Toggled += on => AudioManager.Instance?.SetMuteWhenUnfocused(on);
+            // GR-AUDIO: the eight audible combat placeholders have their own live switch.
+            _placeholderCuesMute.Toggled += on => PlaceholderCueSettings.Apply(on);
 
             _stickDeviceDropdown.ItemSelected += _ => ShowStickProfile();
             _deadzoneSlider.ValueChanged += _ => OnStickSliderChanged();
@@ -1019,6 +1023,7 @@ namespace FTT.UI {
             _sfxMute.ButtonPressed = data.SFXMuted;
             _uiMute.ButtonPressed = data.UIMuted;
             _muteWhenUnfocused.ButtonPressed = data.MuteWhenUnfocused;
+            _placeholderCuesMute.ButtonPressed = data.PlaceholderCuesMuted;
             _textSpeedDropdown.Selected = Math.Max(0, Array.IndexOf(TextSpeedOrder, data.DialogueTextSpeed));
             _crashReportsDropdown.Selected = Math.Max(0, Array.IndexOf(CrashReportOrder, data.CrashReports));
             _blockModeDropdown.Selected = Math.Max(0, Array.IndexOf(BlockModeOrder, data.BlockInputMode));
@@ -1050,6 +1055,8 @@ namespace FTT.UI {
             data.SFXMuted = _sfxMute.ButtonPressed;
             data.UIMuted = _uiMute.ButtonPressed;
             data.MuteWhenUnfocused = _muteWhenUnfocused.ButtonPressed;
+            data.PlaceholderCuesMuted = _placeholderCuesMute.ButtonPressed;
+            data.ApplyPlaceholderCueSettings();
             data.DialogueTextSpeed = TextSpeedOrder[Math.Clamp(_textSpeedDropdown.Selected, 0, TextSpeedOrder.Length - 1)];
             data.CrashReports = CrashReportOrder[Math.Clamp(_crashReportsDropdown.Selected, 0, CrashReportOrder.Length - 1)];
             data.BlockInputMode = BlockModeOrder[Math.Clamp(_blockModeDropdown.Selected, 0, BlockModeOrder.Length - 1)];

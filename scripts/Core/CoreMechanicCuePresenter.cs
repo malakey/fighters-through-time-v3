@@ -18,7 +18,10 @@ namespace FTT.Core {
     /// <para>Routing is the catalog's: a Critical row always goes through
     /// <see cref="AudioManager.PlayCriticalCue"/> (the C01b clear path that the
     /// W6 category mutes never mute or reroute); any other row plays on its
-    /// authored bus. Every stream is placeholder silence.</para>
+    /// authored bus. Every stream is placeholder silence except the eight audible
+    /// combat placeholders (GR-AUDIO, ruling 13): those play at the row's
+    /// <c>VolumeDb</c>, are throttled per row by <c>MinIntervalSeconds</c> and are
+    /// skipped while <see cref="PlaceholderCueSettings.Muted"/> is set.</para>
     /// </summary>
     public partial class CoreMechanicCuePresenter : Node {
         public const string NodeName = "CoreMechanicCues";
@@ -57,6 +60,20 @@ namespace FTT.Core {
         /// <summary>Total cues routed since boot. Test seam.</summary>
         public int CuesPlayed { get; private set; }
 
+        /// <summary>Requests dropped by a row's <c>MinIntervalSeconds</c> since boot. Test seam.</summary>
+        public int CuesThrottled { get; private set; }
+
+        /// <summary>Requests for an audible placeholder dropped by the player's mute since boot. Test seam.</summary>
+        public int CuesMuted { get; private set; }
+
+        /// <summary>Volume in dB of the most recent routed cue. Test seam.</summary>
+        public float LastVolumeDb { get; private set; }
+
+        // GR-AUDIO: the presenter's own clock (advanced by Advance, which _Process feeds, so a paused tree
+        // holds it) and the clock reading of each throttled row's last play.
+        private float _clockSeconds;
+        private readonly Dictionary<string, float> _lastPlayedAt = new();
+
         /// <summary>Current Integrity tick interval in seconds; 0 when the tick is off.</summary>
         public float IntegrityTickInterval => _tremorLevel switch {
             1 => IntegrityTickSecondsLevelOne,
@@ -93,7 +110,31 @@ namespace FTT.Core {
         public bool Play(string cueID, float pitchScale = 1f) {
             CoreMechanicCueEntry entry = _catalog?.Find(cueID);
             if (entry == null) return false;
-            Route(entry.CueID, entry.Stream, entry.Critical, entry.Bus, pitchScale);
+            if (!AdmitRow(entry)) return true; // the row exists; the throttle or the mute dropped this request
+            Route(entry.CueID, entry.Stream, entry.Critical, entry.Bus, pitchScale, entry.VolumeDb);
+            return true;
+        }
+
+        /// <summary>
+        /// GR-AUDIO. Whether a request for <paramref name="entry"/> plays now: an audible placeholder
+        /// is dropped while the player has muted placeholder cues, and a row with a
+        /// <c>MinIntervalSeconds</c> is dropped when it last played inside that window. A request that
+        /// plays records its time. Silent rows are never muted (there is nothing to hear), but a
+        /// throttle authored on one still applies.
+        /// </summary>
+        private bool AdmitRow(CoreMechanicCueEntry entry) {
+            if (PlaceholderCueSettings.Muted && CoreMechanicCueIDs.IsAudiblePlaceholder(entry.CueID)) {
+                CuesMuted++;
+                return false;
+            }
+            if (entry.MinIntervalSeconds > 0f) {
+                if (_lastPlayedAt.TryGetValue(entry.CueID, out float last)
+                    && _clockSeconds - last < entry.MinIntervalSeconds) {
+                    CuesThrottled++;
+                    return false;
+                }
+                _lastPlayedAt[entry.CueID] = _clockSeconds;
+            }
             return true;
         }
 
@@ -122,17 +163,18 @@ namespace FTT.Core {
                 return;
             }
             CoreMechanicCueEntry entry = _catalog?.VictoryFanfareFor(winnerHeroID);
-            if (entry != null) Route(entry.CueID, entry.Stream, entry.Critical, entry.Bus, 1f);
+            if (entry != null) Route(entry.CueID, entry.Stream, entry.Critical, entry.Bus, 1f, entry.VolumeDb);
         }
 
-        private void Route(string cueID, AudioStream stream, bool critical, string bus, float pitchScale) {
+        private void Route(string cueID, AudioStream stream, bool critical, string bus, float pitchScale, float volumeDb = 0f) {
             string resolved = critical ? AudioBuses.CriticalCues : (string.IsNullOrEmpty(bus) ? AudioBuses.SFX : bus);
             LastCueID = cueID;
             LastRoutedBus = resolved;
+            LastVolumeDb = volumeDb;
             CuesPlayed++;
             if (_audio == null) return;
-            if (critical) _audio.PlayCriticalCue(stream, pitchScale);
-            else _audio.PlayOneShot(stream, resolved, pitchScale);
+            if (critical) _audio.PlayCriticalCue(stream, pitchScale, volumeDb);
+            else _audio.PlayOneShot(stream, resolved, pitchScale, volumeDb);
         }
 
         /// <summary>Drops per-scene cue state on a scene change.</summary>
@@ -145,6 +187,7 @@ namespace FTT.Core {
             _defySnapshotRemaining = 0f;
             _audio?.ReleaseSnapshot(AudioSnapshot.DefyOrScripted);
             _meterFull.Clear();
+            _lastPlayedAt.Clear(); // GR-AUDIO: a scene change forgets the throttle
         }
 
         // === Story subscriptions =============================================
@@ -282,6 +325,7 @@ namespace FTT.Core {
 
         /// <summary>Advances the thaw-warning and Integrity-tick clocks. Public for headless tests.</summary>
         public void Advance(float seconds) {
+            _clockSeconds += seconds;
             if (_defySnapshotRemaining > 0f) {
                 _defySnapshotRemaining -= seconds;
                 if (_defySnapshotRemaining <= 0f) {

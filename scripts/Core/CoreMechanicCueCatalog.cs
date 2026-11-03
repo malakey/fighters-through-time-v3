@@ -42,6 +42,14 @@ namespace FTT.Core {
         public const string UltimateReady = "ultimate_ready";
         /// <summary>CM-ULT (decision 2.1): the A02 activation strike's 20-frame wind-up, once on its first frame.</summary>
         public const string UltimateActivationWindup = "ultimate_activation_windup";
+        /// <summary>GR-AUDIO (ruling 13): a landed direct hit, the dry thump.</summary>
+        public const string HitBasic = "hit_basic";
+        /// <summary>GR-AUDIO (ruling 13): an ordinary block or a guard break.</summary>
+        public const string Block = "block";
+        /// <summary>GR-AUDIO (ruling 13): a perfect block, a brighter ping.</summary>
+        public const string PerfectBlock = "perfect_block";
+        /// <summary>GR-AUDIO (ruling 13): a swing whose active window closed with no contact.</summary>
+        public const string SwingWhiff = "swing_whiff";
         public const string KoStinger = "ko_stinger";
         public const string KoStingerDecisive = "ko_stinger_decisive";
         public const string VictoryFanfare = "victory_fanfare";
@@ -63,8 +71,26 @@ namespace FTT.Core {
             GrabCatch, GrabWhiff, ThrowHeave, ThrowImpact, LandingTech, KnockdownThud,
             IntegrityTick, MatchTimerPip, MatchTimerPipFinal, UltimateReady, UltimateActivationWindup,
             KoStinger, KoStingerDecisive, VictoryFanfare, DrawSting, SealCharge, SealLock,
-            StageHazardWarningFallback, StageHazardImpactFallback
+            StageHazardWarningFallback, StageHazardImpactFallback,
+            HitBasic, Block, PerfectBlock, SwingWhiff
         };
+
+        /// <summary>
+        /// GR-AUDIO (gameplay review ruling 13, 2026-11-03): the combat cues whose placeholder
+        /// streams are audible: the eight of the ruling plus <see cref="KoStingerDecisive"/>, the match-ending
+        /// variant that shares the KO stinger's asset and replaces it on the final stock. Every other stream stays the digital silence of the 2026-08-10
+        /// directive. Only these obey <c>GlobalSaveData.PlaceholderCuesMuted</c>
+        /// (<see cref="PlaceholderCueSettings"/>), and the content test pins each one's stream to an
+        /// audible asset in <c>audio/sfx/placeholder_cue_manifest.json</c> and every other row to a silent one.
+        /// </summary>
+        public static readonly string[] AudiblePlaceholders = {
+            HitBasic, Block, PerfectBlock, SwingWhiff,
+            GrabCatch, KoStinger, KoStingerDecisive, DefyBurst, UltimateActivationWindup
+        };
+
+        /// <summary>True for one of <see cref="AudiblePlaceholders"/>.</summary>
+        public static bool IsAudiblePlaceholder(string cueID) =>
+            System.Array.IndexOf(AudiblePlaceholders, cueID) >= 0;
 
         /// <summary>
         /// The rows the GDD marks "Critical Cues path": Time Freeze (all of it),

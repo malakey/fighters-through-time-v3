@@ -832,6 +832,7 @@ namespace FTT.FighterSim {
                     HapticFeedbackManager.Instance?.OnStageHazardHit(playerID);
                 } else {
                     HapticFeedbackManager.Instance?.OnTakingDamage(playerID);
+                    PlayHitCue(); // GR-AUDIO
                 }
                 // Same victim feedback Story shows on a hit: a floating number at
                 // roughly mid-body. Presentation only.
@@ -983,6 +984,7 @@ namespace FTT.FighterSim {
 
             SyncPresentationFeedback(player, playerID, in state, in runtime);
             SyncCoreMechanicCues(playerID, in state);
+            SyncSwingWhiffCue(playerID, in runtime); // GR-AUDIO
             // FU-KNOCK R2: the wall bounce's impact burst and shake (WallBounce partial).
             SyncWallBounce(player, playerID, in state);
             // MM-FX: the Defy burst (DefyFeedback partial).

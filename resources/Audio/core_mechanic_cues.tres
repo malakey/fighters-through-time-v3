@@ -1,8 +1,11 @@
-[gd_resource type="Resource" script_class="CoreMechanicCueCatalog" load_steps=40 format=3]
+[gd_resource type="Resource" script_class="CoreMechanicCueCatalog" load_steps=51 format=3]
 
 ; H04 (design-godot.md Section 8 "7. Core Mechanic Cues"; Package 12 W10).
 ; The single canonical core-mechanic cue catalog. Every stream is a SILENT
-; placeholder (2026-08-10 directive); Package 10 replaces them by reassignment.
+; placeholder (2026-08-10 directive) except the audible combat placeholders
+; (GR-AUDIO, 2026-11-03: hit_basic, block, perfect_block, swing_whiff, grab_catch,
+; ko_stinger and its decisive variant, defy_burst, ultimate_activation_windup), which play at VolumeDb -12 and
+; can be muted apart from SFX. Package 10 replaces every stream by reassignment.
 ; Critical = true rows always route through AudioManager.PlayCriticalCue.
 ; The ten stage-hazard warning/impact pairs live on each StageAudioSet.
 
@@ -18,6 +21,13 @@
 [ext_resource type="AudioStream" path="res://audio/sfx/combat/ko_stinger.ogg" id="10_ko"]
 [ext_resource type="AudioStream" path="res://audio/sfx/ui/victory_fanfare.ogg" id="11_fanfare"]
 [ext_resource type="AudioStream" path="res://resources/Audio/placeholder_sfx_hazard.tres" id="12_hazard"]
+[ext_resource type="AudioStream" path="res://audio/sfx/combat/hit_basic.ogg" id="13_hit_basic"]
+[ext_resource type="AudioStream" path="res://audio/sfx/combat/block.ogg" id="14_block"]
+[ext_resource type="AudioStream" path="res://audio/sfx/combat/perfect_block.ogg" id="15_perfect_block"]
+[ext_resource type="AudioStream" path="res://audio/sfx/combat/swing_whiff.ogg" id="16_swing_whiff"]
+[ext_resource type="AudioStream" path="res://audio/sfx/combat/grab_catch.ogg" id="17_grab_catch"]
+[ext_resource type="AudioStream" path="res://audio/sfx/combat/defy_burst.ogg" id="18_defy_burst"]
+[ext_resource type="AudioStream" path="res://audio/sfx/combat/ultimate_windup.ogg" id="19_windup"]
 
 [sub_resource type="Resource" id="time_freeze_activate"]
 script = ExtResource("2_entry")
@@ -64,8 +74,9 @@ script = ExtResource("2_entry")
 CueID = "defy_burst"
 Bus = "SFX"
 Critical = true
-Stream = ExtResource("5_hit")
-DesignNote = "Cracked-bell toll under a glass break as a Defy bursts; a silent placeholder (P29)."
+Stream = ExtResource("18_defy_burst")
+VolumeDb = -12.0
+DesignNote = "Cracked-bell toll under a glass break as a Defy bursts (P29); an audible short placeholder since GR-AUDIO."
 
 [sub_resource type="Resource" id="rally_reclaim"]
 script = ExtResource("2_entry")
@@ -80,7 +91,8 @@ script = ExtResource("2_entry")
 CueID = "grab_catch"
 Bus = "Combat"
 Critical = false
-Stream = ExtResource("5_hit")
+Stream = ExtResource("17_grab_catch")
+VolumeDb = -12.0
 DesignNote = "Fabric-and-armor grip catch on grab contact."
 
 [sub_resource type="Resource" id="grab_whiff"]
@@ -160,7 +172,8 @@ script = ExtResource("2_entry")
 CueID = "ultimate_activation_windup"
 Bus = "Combat"
 Critical = true
-Stream = ExtResource("12_hazard")
+Stream = ExtResource("19_windup")
+VolumeDb = -12.0
 DesignNote = "CM-ULT (decision 2.1): A02 activation strike wind-up: a rising unblockable warning once on the wind-up's first frame, beside the red tint and the X glyph."
 
 [sub_resource type="Resource" id="ko_stinger"]
@@ -169,6 +182,7 @@ CueID = "ko_stinger"
 Bus = "Combat"
 Critical = true
 Stream = ExtResource("10_ko")
+VolumeDb = -12.0
 DesignNote = "Heavy impact, reverse swell and a brief music drop on a stock loss or Story death."
 
 [sub_resource type="Resource" id="ko_stinger_decisive"]
@@ -177,6 +191,7 @@ CueID = "ko_stinger_decisive"
 Bus = "Combat"
 Critical = true
 Stream = ExtResource("10_ko")
+VolumeDb = -12.0
 DesignNote = "Larger variant on the match-deciding KO."
 
 [sub_resource type="Resource" id="victory_fanfare"]
@@ -227,7 +242,47 @@ Critical = true
 Stream = ExtResource("12_hazard")
 DesignNote = "Fallback when a stage's StageAudioSet leaves HazardImpactCue empty."
 
+[sub_resource type="Resource" id="hit_basic"]
+script = ExtResource("2_entry")
+CueID = "hit_basic"
+Bus = "Combat"
+Critical = false
+Stream = ExtResource("13_hit_basic")
+VolumeDb = -12.0
+MinIntervalSeconds = 0.09
+DesignNote = "GR-AUDIO (gameplay review ruling 13): a dry thump when a direct hit lands. Short, quiet, original placeholder; throttled so a swarm cannot machine-gun it."
+
+[sub_resource type="Resource" id="block"]
+script = ExtResource("2_entry")
+CueID = "block"
+Bus = "Combat"
+Critical = false
+Stream = ExtResource("14_block")
+VolumeDb = -12.0
+MinIntervalSeconds = 0.12
+DesignNote = "GR-AUDIO: a short metallic ping when a hit is blocked (an ordinary block or a guard break)."
+
+[sub_resource type="Resource" id="perfect_block"]
+script = ExtResource("2_entry")
+CueID = "perfect_block"
+Bus = "Combat"
+Critical = false
+Stream = ExtResource("15_perfect_block")
+VolumeDb = -12.0
+MinIntervalSeconds = 0.15
+DesignNote = "GR-AUDIO: a brighter ping with a short shimmer on a perfect block."
+
+[sub_resource type="Resource" id="swing_whiff"]
+script = ExtResource("2_entry")
+CueID = "swing_whiff"
+Bus = "Combat"
+Critical = false
+Stream = ExtResource("16_swing_whiff")
+VolumeDb = -12.0
+MinIntervalSeconds = 0.15
+DesignNote = "GR-AUDIO: a band-limited air sweep when a basic swing's active window closes with no contact."
+
 [resource]
 script = ExtResource("1_catalog")
 SchemaVersion = 1
-Entries = Array[ExtResource("2_entry")]([SubResource("time_freeze_activate"), SubResource("time_freeze_drone"), SubResource("time_freeze_thaw_warning"), SubResource("time_freeze_thaw_release"), SubResource("post_landing_thaw_warning"), SubResource("defy_burst"), SubResource("rally_reclaim"), SubResource("grab_catch"), SubResource("grab_whiff"), SubResource("throw_heave"), SubResource("throw_impact"), SubResource("landing_tech"), SubResource("knockdown_thud"), SubResource("integrity_tick"), SubResource("match_timer_pip"), SubResource("match_timer_pip_final"), SubResource("ultimate_ready"), SubResource("ultimate_activation_windup"), SubResource("ko_stinger"), SubResource("ko_stinger_decisive"), SubResource("victory_fanfare"), SubResource("draw_sting"), SubResource("seal_charge"), SubResource("seal_lock"), SubResource("stage_hazard_warning"), SubResource("stage_hazard_impact")])
+Entries = Array[ExtResource("2_entry")]([SubResource("time_freeze_activate"), SubResource("time_freeze_drone"), SubResource("time_freeze_thaw_warning"), SubResource("time_freeze_thaw_release"), SubResource("post_landing_thaw_warning"), SubResource("defy_burst"), SubResource("rally_reclaim"), SubResource("grab_catch"), SubResource("grab_whiff"), SubResource("throw_heave"), SubResource("throw_impact"), SubResource("landing_tech"), SubResource("knockdown_thud"), SubResource("integrity_tick"), SubResource("match_timer_pip"), SubResource("match_timer_pip_final"), SubResource("ultimate_ready"), SubResource("ultimate_activation_windup"), SubResource("ko_stinger"), SubResource("ko_stinger_decisive"), SubResource("victory_fanfare"), SubResource("draw_sting"), SubResource("seal_charge"), SubResource("seal_lock"), SubResource("stage_hazard_warning"), SubResource("stage_hazard_impact"), SubResource("hit_basic"), SubResource("block"), SubResource("perfect_block"), SubResource("swing_whiff")])
