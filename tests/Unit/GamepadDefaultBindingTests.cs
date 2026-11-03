@@ -144,23 +144,24 @@ public class GamepadDefaultBindingTests {
     }
 
     [TestCase]
-    public void TimeFreezeDefaultsToTheLeftStickClickAlone() {
-        // D11 (2026-10-11, USER-GAMEPAD-TIME-FREEZE-L3): the gamepad Time Freeze
-        // is L3, the left-stick click. Pin the enum value the authored file
-        // relies on, then the authored joypad half, then the unchanged keyboard R.
+    public void TimeFreezeIsAuthoredWithNoEventsAndRAndLeftStickAreHeldByNoAction() {
+        // Gameplay review 2026-11-03 (10b++): the verb is off. The action stays in project.godot so a lookup by name
+        // never throws, with an empty event list (like gameplay_grab), so R and L3 (JoyButton.LeftStick, 7) are
+        // physically unbound and stay unassigned this package. D11's old default (L3 + R) is gone with the verb.
         AssertThat((int)JoyButton.LeftStick).IsEqual(7);
+        AssertThat(ProjectSettings.HasSetting("input/" + InputManager.Actions.TimeFreeze)).IsTrue();
+        AssertThat(AuthoredEvents(InputManager.Actions.TimeFreeze).Count)
+            .OverrideFailureMessage("gameplay_time_freeze must be authored with no events.")
+            .IsEqual(0);
 
-        List<int> pad = AuthoredJoyButtons(InputManager.Actions.TimeFreeze);
-        AssertThat(Describe(pad))
-            .OverrideFailureMessage($"Time Freeze must default to L3 alone, not {Describe(pad)}.")
-            .IsEqual(Describe(new[] { (int)JoyButton.LeftStick }));
-
-        bool keyboardR = AuthoredEvents(InputManager.Actions.TimeFreeze)
-            .Any(binding => binding.Kind == InputBindingKind.Key && binding.Code == (int)Key.R);
-        AssertThat(keyboardR)
-            .OverrideFailureMessage("Time Freeze's keyboard default must stay R (physical keycode 82).")
-            .IsTrue();
-        AssertThat((int)Key.R).IsEqual(82);
+        foreach (string action in AuthoredActions()) {
+            AssertThat(AuthoredJoyButtons(action).Contains((int)JoyButton.LeftStick))
+                .OverrideFailureMessage($"L3 must stay unassigned, but {action} holds it.")
+                .IsFalse();
+            AssertThat(AuthoredEvents(action).Any(binding => binding.Kind == InputBindingKind.Key && binding.Code == (int)Key.R))
+                .OverrideFailureMessage($"R must stay unassigned, but {action} holds it.")
+                .IsFalse();
+        }
     }
 
     [TestCase]

@@ -119,6 +119,10 @@ public class StoryHudCompactTests {
 
     [TestCase]
     public async Task TheTimeToolsSitRightOfTheHairlineAtTheSlabsRightEnd() {
+        // GR-TF: the verb is off by default (its indicator is hidden); this case pins the indicator's place when on.
+        bool? previousTimeFreezeRule = FTT.Core.TimeFreezeRules.EnabledOverrideForTesting;
+        FTT.Core.TimeFreezeRules.EnabledOverrideForTesting = true;
+        try {
         await AtScale(1f, async hud => {
             var divider = hud.FindChild("TimeDivider", true, false) as Control;
             AssertObject(divider).OverrideFailureMessage("a hairline divides the abilities from the time tools").IsNotNull();
@@ -137,6 +141,9 @@ public class StoryHudCompactTests {
             AssertThat(freeze.Position.Y >= rewind.End.Y).IsTrue();
             await Task.CompletedTask;
         });
+        } finally {
+            FTT.Core.TimeFreezeRules.EnabledOverrideForTesting = previousTimeFreezeRule;
+        }
     }
 
     [TestCase]
