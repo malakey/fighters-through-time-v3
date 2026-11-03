@@ -609,6 +609,7 @@ namespace FTT.FighterSim {
             _stringHits = _stringHits > 0 && gapBefore <= DefyStringGapFrames ? _stringHits + 1 : 1;
             if (_tuning.DefyStringPercent <= 0 || _stringHits < _tuning.DefyMinStringHits) return;
             if (!DefyLegalForSelf(in observation)) return;
+            if (!DefyAllowedByReserve(in observation)) return;
             if (_tuning.DefyStringPercent >= 100 || NextPercent() < _tuning.DefyStringPercent) {
                 _defyReflexThisTick = true;
             }
@@ -626,6 +627,34 @@ namespace FTT.FighterSim {
                 observation.InfluenceRaw,
                 observation.SelfUltimateCaptured != 0,
                 observation.SelfUltimateCasterBusy != 0);
+
+        /// <summary>
+        /// Gameplay review 2026-11-03 (ruling 9d, GR-CPU): the Hard CPU's meter reserve. At or above
+        /// <see cref="CpuBandTuning.DefyReserveInfluence"/> the CPU keeps its meter for the Ultimate, so a string
+        /// or corner Defy passes only against an A02 wind-up in range or when its own HP is at or below
+        /// <see cref="CpuBandTuning.DefyNearDeathHPPercent"/>. Below the reserve, or on a band with the reserve
+        /// off (every band but Hard, and <see cref="CpuBandTuning.HardBoss"/>), it always passes. Pure integer
+        /// reads of the observation: no draw and no state, so it cannot shift the random stream. The wind-up
+        /// trigger of <see cref="TryDecideNeutralDefy"/> never consults it.
+        /// </summary>
+        private bool DefyAllowedByReserve(in CpuDecisionObservation observation) {
+            if (_tuning.DefyReserveInfluence <= 0) return true;
+            if (observation.InfluenceRaw < FP64.FromInt(_tuning.DefyReserveInfluence).RawValue) return true;
+            if (TargetUltimateWindupInDefyRange(in observation)) return true;
+            return observation.SelfMaxHP > 0
+                && observation.SelfCurrentHP * 100 <= _tuning.DefyNearDeathHPPercent * observation.SelfMaxHP;
+        }
+
+        /// <summary>The opponent is in an A02 wind-up within the 3.0 u Defy range (the frames left are not judged here).</summary>
+        private static bool TargetUltimateWindupInDefyRange(in CpuDecisionObservation observation) {
+            if (observation.HasTargetVerbState == 0
+                || observation.TargetUltimateActivationPhase != FighterUltimateActivationRules.PhaseWindup) {
+                return false;
+            }
+            FP64 dx = FP64.FromRaw(observation.TargetPositionXRaw - observation.SelfPositionXRaw);
+            FP64 dy = FP64.FromRaw(observation.TargetPositionYRaw - observation.SelfPositionYRaw);
+            return dx * dx + dy * dy <= DefyTriggerRangeSquared;
+        }
 
         /// <summary>
         /// Writes the Defy onto the output frame. The reflex and a scheduled neutral Defy edge both win
@@ -666,7 +695,7 @@ namespace FTT.FighterSim {
                     return true;
                 }
             }
-            if (_tuning.DefyCornerEscape && observation.HasStageBounds != 0) {
+            if (_tuning.DefyCornerEscape && observation.HasStageBounds != 0 && DefyAllowedByReserve(in observation)) {
                 long margin = CorneredMargin.RawValue;
                 bool nearLeft = observation.SelfPositionXRaw - observation.LeftWallRaw <= margin;
                 bool nearRight = observation.RightWallRaw - observation.SelfPositionXRaw <= margin;
@@ -1972,6 +2001,15 @@ namespace FTT.FighterSim {
         public bool DefyCornerEscape { get; init; }
         /// <summary>Hard only: Defy when the opponent is in an A02 wind-up within 3.0 u, cancelling it (R3).</summary>
         public bool DefyBeatsUltimateWindup { get; init; }
+        /// <summary>
+        /// GR-CPU (ruling 9d): Influence (0–100) at or above which the CPU banks its meter for the Ultimate and
+        /// Defies a string or a corner only when near death (<see cref="DefyNearDeathHPPercent"/>) or against an
+        /// A02 wind-up in range. 0 turns the reserve off. Hard 70; the Level 13 clone is exempt (9d+,
+        /// <see cref="HardBoss"/>). Code-owned like every band number, never a resource.
+        /// </summary>
+        public int DefyReserveInfluence { get; init; }
+        /// <summary>GR-CPU (ruling 9d): own HP percent at or below which the reserve lets a Defy through (Hard 25).</summary>
+        public int DefyNearDeathHPPercent { get; init; }
         public int OrbPursuitPercent { get; init; }
         public int HealingOrbPursuitPercent { get; init; }
         public int HealingOrbHPPercent { get; init; }
@@ -2033,7 +2071,7 @@ namespace FTT.FighterSim {
 
         public static CpuBandTuning For(CpuDifficulty difficulty) => difficulty switch {
             CpuDifficulty.Easy => Easy,
-            CpuDifficulty.Hard => Hard,
+            CpuDifficulty.Hard => HardBoss,
             _ => Normal
         };
 
@@ -2054,7 +2092,7 @@ namespace FTT.FighterSim {
         /// </remarks>
         public static CpuBandTuning BossOverride(CpuDifficulty difficulty) => difficulty switch {
             CpuDifficulty.Easy => EasyBoss,
-            CpuDifficulty.Hard => Hard,
+            CpuDifficulty.Hard => HardBoss,
             _ => Normal
         };
 
@@ -2178,6 +2216,10 @@ namespace FTT.FighterSim {
             DefyMinStringHits = 2,
             DefyCornerEscape = true,
             DefyBeatsUltimateWindup = true,
+            // GR-CPU (ruling 9d): at 70+ Influence the meter is saved for the Ultimate; a string or corner Defy
+            // then needs near death, and an A02 wind-up always passes.
+            DefyReserveInfluence = 70,
+            DefyNearDeathHPPercent = 25,
             OrbPursuitPercent = 75,
             HealingOrbPursuitPercent = 95,
             HealingOrbHPPercent = 50,
@@ -2210,6 +2252,16 @@ namespace FTT.FighterSim {
             // scored gate plus a rate below 100.
             GrabAdmissionPercent = 70,
             ScoresGrabTactically = true
+        };
+
+        /// <summary>
+        /// Hard's boss band (ruling 9d+, GR-CPU): Hard with the Defy reserve off, so the Level 13 Mirror clone
+        /// keeps exactly the Defy behaviour it had before the reserve existed. <see cref="BossOverride"/> used to
+        /// return <see cref="Hard"/> itself, which is why the exemption needs its own band.
+        /// </summary>
+        public static CpuBandTuning HardBoss { get; } = Hard with {
+            DefyReserveInfluence = 0,
+            DefyNearDeathHPPercent = 0
         };
 
         /// <summary>

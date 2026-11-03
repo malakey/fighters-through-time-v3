@@ -19,6 +19,8 @@ namespace FTT.Tests.Determinism;
 [TestSuite]
 [RequireGodotRuntime]
 public class CpuDefyPolicyTests {
+    /// <summary>Influence above the 50 cost and below Hard's 70 reserve (GR-CPU, ruling 9d): where Hard still spends its meter on Defy.</summary>
+    private const int BelowReserve = 60;
 
     [TestCase]
     public void EasyAndTheEasyBossNeverDefyAndDrawNothingFromTheRandomStream() {
@@ -75,17 +77,17 @@ public class CpuDefyPolicyTests {
         AssertThat(CpuBandTuning.Hard.DefyMinStringHits).IsEqual(2);
 
         // Two hits 8 actionable frames apart are one string: the second Defies, the first does not.
-        RunStrings(CpuBandTuning.Hard, 100, 1, 2, FighterCpuController.DefyStringGapFrames, out int joined, out int[] byIndex);
+        RunStrings(CpuBandTuning.Hard, BelowReserve, 1, 2, FighterCpuController.DefyStringGapFrames, out int joined, out int[] byIndex);
         AssertThat(byIndex[0]).OverrideFailureMessage("Hit 1 is below the 2-hit gate.").IsEqual(0);
         AssertThat(byIndex[1]).OverrideFailureMessage("Hit 2 of a string Defies with no roll.").IsEqual(1);
         AssertThat(joined).IsEqual(1);
 
         // Nine actionable frames end the string: hit 2 is a fresh hit 1.
-        RunStrings(CpuBandTuning.Hard, 100, 1, 2, FighterCpuController.DefyStringGapFrames + 1, out int split, out _);
+        RunStrings(CpuBandTuning.Hard, BelowReserve, 1, 2, FighterCpuController.DefyStringGapFrames + 1, out int split, out _);
         AssertThat(split).OverrideFailureMessage("A gap of 9 frames starts a new string.").IsEqual(0);
 
-        // No roll at all: every one of 40 strings Defies on its second hit, and 49 Influence never does.
-        RunStrings(CpuBandTuning.Hard, 100, 40, 2, 3, out int every, out _);
+        // No roll at all (below the 70 reserve, where Hard still spends its meter): every one of 40 strings Defies on its second hit, and 49 Influence never does.
+        RunStrings(CpuBandTuning.Hard, BelowReserve, 40, 2, 3, out int every, out _);
         AssertThat(every).IsEqual(40);
         RunStrings(CpuBandTuning.Hard, 49, 40, 2, 3, out int broke, out _);
         AssertThat(broke).IsEqual(0);
@@ -94,33 +96,33 @@ public class CpuDefyPolicyTests {
         CpuBandTuning noDefy = CpuBandTuning.Hard with {
             DefyStringPercent = 0, DefyCornerEscape = false, DefyBeatsUltimateWindup = false
         };
-        List<PlayerInputFrame> a = RunStrings(CpuBandTuning.Hard, 100, 12, 1, 4, out _);
-        List<PlayerInputFrame> b = RunStrings(noDefy, 100, 12, 1, 4, out _);
+        List<PlayerInputFrame> a = RunStrings(CpuBandTuning.Hard, BelowReserve, 12, 1, 4, out _);
+        List<PlayerInputFrame> b = RunStrings(noDefy, BelowReserve, 12, 1, 4, out _);
         AssertThat(SameFrames(a, b)).OverrideFailureMessage("Hard's Defy takes no roll and no draw.").IsTrue();
     }
 
     [TestCase]
     public void HardDefiesWhenCorneredWithTheTargetOnTheOpenSideAndNotOtherwise() {
-        CpuDecisionObservation cornered = Neutral(selfX: -9.0, targetX: -7.0, influence: 100);
+        CpuDecisionObservation cornered = Neutral(selfX: -9.0, targetX: -7.0, influence: BelowReserve);
         AssertThat(CountDefyPresses(CpuBandTuning.Hard, cornered, 90)).OverrideFailureMessage("cornered Hard Defies").IsGreater(0);
 
         // The target between the CPU and the wall is not the open side.
-        AssertThat(CountDefyPresses(CpuBandTuning.Hard, Neutral(-9.0, -9.9, 100), 90)).IsEqual(0);
+        AssertThat(CountDefyPresses(CpuBandTuning.Hard, Neutral(-9.0, -9.9, BelowReserve), 90)).IsEqual(0);
         // Out of the 3.0 u range, mid-stage, a short meter, or a band without the corner flag.
-        AssertThat(CountDefyPresses(CpuBandTuning.Hard, Neutral(-9.0, -5.0, 100), 90)).IsEqual(0);
-        AssertThat(CountDefyPresses(CpuBandTuning.Hard, Neutral(0.0, 2.0, 100), 90)).IsEqual(0);
+        AssertThat(CountDefyPresses(CpuBandTuning.Hard, Neutral(-9.0, -5.0, BelowReserve), 90)).IsEqual(0);
+        AssertThat(CountDefyPresses(CpuBandTuning.Hard, Neutral(0.0, 2.0, BelowReserve), 90)).IsEqual(0);
         AssertThat(CountDefyPresses(CpuBandTuning.Hard, cornered with { InfluenceRaw = FP64.FromInt(49).RawValue }, 90)).IsEqual(0);
         AssertThat(CountDefyPresses(CpuBandTuning.Normal, cornered, 90)).IsEqual(0);
         AssertThat(CountDefyPresses(CpuBandTuning.Hard with { DefyCornerEscape = false }, cornered, 90)).IsEqual(0);
         // The right wall mirrors it.
-        AssertThat(CountDefyPresses(CpuBandTuning.Hard, Neutral(9.0, 7.0, 100), 90)).IsGreater(0);
+        AssertThat(CountDefyPresses(CpuBandTuning.Hard, Neutral(9.0, 7.0, BelowReserve), 90)).IsGreater(0);
     }
 
     [TestCase]
     public void ADefyScheduledBeforeADazeIsDeliveredDuringItBecauseTheSimAllowsDefyInDaze() {
         // Decided on tick 0 (cornered, target on the open side), delivered after the 4-8 tick reaction delay
         // while the CPU is dazed. FighterDefyRules.CanBegin permits Defy in daze, so the press must go out.
-        CpuDecisionObservation cornered = Neutral(selfX: -9.0, targetX: -7.0, influence: 100);
+        CpuDecisionObservation cornered = Neutral(selfX: -9.0, targetX: -7.0, influence: BelowReserve);
         CpuDecisionObservation dazed = cornered;
         dazed.DazeFrames = 60;
         var cpu = new FighterCpuController(CpuDifficulty.Hard, 4242, null, null, CpuBandTuning.Hard);
@@ -138,7 +140,7 @@ public class CpuDefyPolicyTests {
     [TestCase]
     public void TheThreeUnitDefyTriggersMeasureDistanceInBothAxes() {
         // Same X as a cornered CPU's open-side target, 3+ units above: out of range.
-        CpuDecisionObservation cornered = Neutral(-9.0, -7.0, 100);
+        CpuDecisionObservation cornered = Neutral(-9.0, -7.0, BelowReserve);
         AssertThat(CountDefyPresses(CpuBandTuning.Hard, cornered, 90)).IsGreater(0);
         CpuDecisionObservation above = cornered;
         above.TargetPositionYRaw = FP64.FromInt(3).RawValue;
@@ -207,6 +209,94 @@ public class CpuDefyPolicyTests {
             .IsTrue();
     }
 
+    // === GR-CPU: the Hard meter reserve (ruling 9d) and the Mirror exemption (9d+) ===================
+
+    [TestCase]
+    public void HardKeepsASeventyInfluenceReserveWithA25PercentNearDeathExceptionAndNoOtherBandDoes() {
+        AssertThat(CpuBandTuning.Hard.DefyReserveInfluence).IsEqual(70);
+        AssertThat(CpuBandTuning.Hard.DefyNearDeathHPPercent).IsEqual(25);
+        foreach (CpuBandTuning band in new[] { CpuBandTuning.Easy, CpuBandTuning.Normal, CpuBandTuning.EasyBoss, CpuBandTuning.HardBoss }) {
+            AssertThat(band.DefyReserveInfluence).OverrideFailureMessage("only the practice Hard CPU holds a reserve").IsEqual(0);
+        }
+        // The exemption is a band of its own: Hard with the reserve off and nothing else changed, and the
+        // Level 13 clone's override on Hard returns it (BossOverride(Hard) used to be Hard itself).
+        AssertThat(CpuBandTuning.HardBoss with { DefyReserveInfluence = 70, DefyNearDeathHPPercent = 25 }).IsEqual(CpuBandTuning.Hard);
+        AssertThat(CpuBandTuning.BossOverride(CpuDifficulty.Hard).Equals(CpuBandTuning.HardBoss)).IsTrue();
+        AssertThat(CpuBandTuning.BossOverride(CpuDifficulty.Normal).Equals(CpuBandTuning.Normal)).IsTrue();
+        AssertThat(CpuBandTuning.BossOverride(CpuDifficulty.Easy).Equals(CpuBandTuning.EasyBoss)).IsTrue();
+    }
+
+    [TestCase]
+    public void HardBanksItsMeterAtTheReserveInsteadOfDefyingAStringAndSpendsItJustBelow() {
+        // 69 Influence is under the reserve: the second hit of a string Defies. 70 is at it: no Defy.
+        RunStrings(CpuBandTuning.Hard, 69, 20, 2, 3, out int under, out _);
+        AssertThat(under).OverrideFailureMessage("69 Influence is under the reserve").IsEqual(20);
+        RunStrings(CpuBandTuning.Hard, 70, 20, 2, 3, out int at, out _);
+        AssertThat(at).OverrideFailureMessage("70 Influence is the reserve: the meter is kept for the Ultimate").IsEqual(0);
+        RunStrings(CpuBandTuning.Hard, 100, 20, 4, 3, out int full, out _);
+        AssertThat(full).OverrideFailureMessage("a long string at a full meter still does not spend it").IsEqual(0);
+
+        // The gate sits before any draw: a reserved Hard string leaves the stream exactly as a Hard with no Defy.
+        CpuBandTuning noDefy = CpuBandTuning.Hard with { DefyStringPercent = 0 };
+        AssertThat(SameFrames(
+                RunStrings(CpuBandTuning.Hard, 100, 12, 3, 4, out _),
+                RunStrings(noDefy, 100, 12, 3, 4, out _)))
+            .OverrideFailureMessage("the reserve blocks the reflex without drawing").IsTrue();
+    }
+
+    [TestCase]
+    public void HardDefiesAtTheReserveOnlyWhenOwnHpIsAtOrBelowTwentyFivePercent() {
+        // HitObservation carries 100/100 HP; near death is 25/100 and below.
+        AssertThat(CountReservedStringDefies(hp: 25)).OverrideFailureMessage("25 % is near death").IsEqual(10);
+        AssertThat(CountReservedStringDefies(hp: 1)).IsEqual(10);
+        AssertThat(CountReservedStringDefies(hp: 26)).OverrideFailureMessage("26 % is not").IsEqual(0);
+        AssertThat(CountReservedStringDefies(hp: 100)).IsEqual(0);
+
+        // The same exception opens the corner branch.
+        CpuDecisionObservation cornered = Neutral(selfX: -9.0, targetX: -7.0, influence: 100);
+        AssertThat(CountDefyPresses(CpuBandTuning.Hard, cornered, 90)).OverrideFailureMessage("full meter, full HP: banked").IsEqual(0);
+        CpuDecisionObservation wounded = cornered;
+        wounded.SelfCurrentHP = 25;
+        AssertThat(CountDefyPresses(CpuBandTuning.Hard, wounded, 90)).OverrideFailureMessage("full meter, near death: Defy").IsGreater(0);
+        wounded.SelfCurrentHP = 26;
+        AssertThat(CountDefyPresses(CpuBandTuning.Hard, wounded, 90)).IsEqual(0);
+    }
+
+    [TestCase]
+    public void TheReserveBlocksTheCornerDefyAtSeventyAndNeverTheUltimateWindupOrAnUnreservedBand() {
+        CpuDecisionObservation cornered = Neutral(selfX: -9.0, targetX: -7.0, influence: 70);
+        AssertThat(CountDefyPresses(CpuBandTuning.Hard, cornered, 90)).OverrideFailureMessage("70 Influence is reserved").IsEqual(0);
+        cornered.InfluenceRaw = FP64.FromInt(69).RawValue;
+        AssertThat(CountDefyPresses(CpuBandTuning.Hard, cornered, 90)).OverrideFailureMessage("69 is not").IsGreater(0);
+
+        // An A02 wind-up in range always passes, whatever the meter and HP: a reserved CPU still beats the strike.
+        CpuDecisionObservation windup = Neutral(0.0, 2.5, 100, bounds: false);
+        windup.HasTargetVerbState = 1;
+        windup.TargetUltimateActivationPhase = FighterUltimateActivationRules.PhaseWindup;
+        windup.TargetUltimateActivationPhaseFrames = 18;
+        AssertThat(CountDefyPresses(CpuBandTuning.Hard, windup, 60)).OverrideFailureMessage("the wind-up always passes").IsGreater(0);
+
+        // And in a string: the same wind-up in range lets a reserved CPU's reflex through; out of range it does not.
+        AssertThat(CountReservedStringDefies(hp: 100, windupTarget: true)).IsEqual(10);
+        AssertThat(CountReservedStringDefies(hp: 100, windupTarget: true, farTarget: true)).IsEqual(0);
+
+        // Normal has no reserve at all: its 3-hit string roll is untouched at a full meter.
+        RunStrings(CpuBandTuning.Normal, 100, 60, 4, 4, out int normalDefies);
+        AssertThat(normalDefies).IsGreater(0);
+    }
+
+    [TestCase]
+    public void TheMirrorCloneOnHardKeepsDefyingStringsAtAFullMeterBecauseItsBandHasNoReserve() {
+        CpuBandTuning clone = CpuBandTuning.BossOverride(CpuDifficulty.Hard);
+        RunStrings(clone, 100, 20, 2, 3, out int cloneDefies, out _);
+        AssertThat(cloneDefies).OverrideFailureMessage("the Level 13 clone is exempt (9d+): unchanged behaviour").IsEqual(20);
+        CpuDecisionObservation cornered = Neutral(selfX: -9.0, targetX: -7.0, influence: 100);
+        AssertThat(CountDefyPresses(clone, cornered, 90)).IsGreater(0);
+        // ... where the practice Hard CPU banks the same strings.
+        RunStrings(CpuBandTuning.Hard, 100, 20, 2, 3, out int practiceDefies, out _);
+        AssertThat(practiceDefies).IsEqual(0);
+    }
+
     // === helpers ===============================================================
 
     private sealed record SimOutcome(bool CpuDefied, bool ReachedActive, int CpuHp, int StartHp, long CasterInfluence, string Trace);
@@ -253,6 +343,46 @@ public class CpuDefyPolicyTests {
         simulation.TryGetFighter(1, out FighterStateComponent end);
         return new SimOutcome(defied, reachedActive, end.CurrentHP, start.CurrentHP, influenceAtEnd, trace.ToString());
     }
+
+    /// <summary>
+    /// Ten 2-hit strings of a Hard CPU holding 100 Influence (over the reserve) with <paramref name="hp"/> of 100 HP;
+    /// the number of Defy presses. Optionally the opponent stands in an A02 wind-up, near or beyond 3.0 u.
+    /// </summary>
+    private static int CountReservedStringDefies(int hp, bool windupTarget = false, bool farTarget = false) {
+        // With a wind-up target the neutral Defy triggers are off, so only the string reflex can press.
+        CpuBandTuning band = windupTarget
+            ? CpuBandTuning.Hard with { DefyBeatsUltimateWindup = false, DefyCornerEscape = false }
+            : CpuBandTuning.Hard;
+        var cpu = new FighterCpuController(CpuDifficulty.Normal, 31, null, null, band);
+        PlayerInputFrame previous = default;
+        uint tick = 1;
+        int defies = 0;
+        for (int stringIndex = 0; stringIndex < 10; stringIndex++) {
+            for (int hit = 0; hit < 2; hit++) {
+                for (int frame = 20; frame >= 1; frame--) {
+                    CpuDecisionObservation observation = HitObservation(frame, 100);
+                    observation.SelfCurrentHP = hp;
+                    if (windupTarget) {
+                        observation.HasTargetVerbState = 1;
+                        observation.TargetUltimateActivationPhase = FighterUltimateActivationRules.PhaseWindup;
+                        observation.TargetUltimateActivationPhaseFrames = 18;
+                        observation.TargetPositionXRaw = FP64.FromDouble(farTarget ? 3.5 : 2.5).RawValue;
+                    }
+                    previous = cpu.Sample(tick++, in observation, in previous);
+                    if (previous.IsPressed(GameplayButtons.Defy)) defies++;
+                }
+                int rest = hit == 1 ? 40 : 3;
+                for (int frame = 0; frame < rest; frame++) {
+                    CpuDecisionObservation observation = HitObservation(0, 100);
+                    observation.SelfCurrentHP = hp;
+                    previous = cpu.Sample(tick++, in observation, in previous);
+                    if (previous.IsPressed(GameplayButtons.Defy)) defies++;
+                }
+            }
+        }
+        return defies;
+    }
+
 
     private static CpuDecisionObservation HitObservation(int hitstun, int influence) => new() {
         Stocks = 3,
