@@ -68,6 +68,21 @@ namespace FTT.Combat {
         private bool _baseCaptured;
         private ulong _appliedFramesId;
         private StringName _appliedAnimation;
+        private float _figureScale = 1f;
+
+        /// <summary>
+        /// An extra factor on the sprite's scale (<c>EnemyData.SpriteScaleFactor</c>);
+        /// the feet stay on the origin. A pooled body re-assigns it with every spawn.
+        /// </summary>
+        public float FigureScale {
+            get => _figureScale;
+            set {
+                if (Mathf.IsEqualApprox(_figureScale, value)) return;
+                _figureScale = value;
+                _appliedFramesId = 0;
+                Apply();
+            }
+        }
 
         /// <summary>
         /// Adds a normalizer under <paramref name="sprite"/> (idempotent — a
@@ -130,7 +145,7 @@ namespace FTT.Combat {
             if (framesId == _appliedFramesId && animation == _appliedAnimation) return;
 
             float factor = RetroSpriteMetadata.IsBakedScale(frames) ? 1f : ResolveFactor(frames, animation);
-            Vector2 scale = _baseScale * factor;
+            Vector2 scale = _baseScale * factor * _figureScale;
             float cellH = CellHeight(frames, animation);
             float gap = RetroSpriteMetadata.FeetGap(frames, animation);
             _sprite.Scale = scale;

@@ -1712,3 +1712,5 @@ save_notice_defy_pad_unbound,"The Defy History controller button (R3) was alread
 defy_world_label,DEFIED
 # MM-HUD block
 hud_momentum_pips,Momentum
+# GR-CROWD
+enemy_chrono_swarmling_name,Chrono Swarmling

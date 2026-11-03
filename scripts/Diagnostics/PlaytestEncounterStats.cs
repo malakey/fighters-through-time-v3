@@ -122,6 +122,9 @@ namespace FTT.Diagnostics {
             SumMeleeAttackingNear += sample.MeleeAttackingNear;
             SumHolders += sample.Holders;
             SumRangedInFlight += sample.RangedInFlight;
+            SumMeleeCandidates += sample.MeleeCandidates;
+            MaxMeleeCandidates = Math.Max(MaxMeleeCandidates, sample.MeleeCandidates);
+            if (SlotTotal > 0 && sample.Holders < SlotTotal && sample.MeleeCandidates > 0) FramesSlotIdleWithWaiters++;
             MaxAttackingNear = Math.Max(MaxAttackingNear, sample.AttackingNear);
             MaxMeleeAttackingNear = Math.Max(MaxMeleeAttackingNear, sample.MeleeAttackingNear);
             MaxMeleeRetaliatingNear = Math.Max(MaxMeleeRetaliatingNear, sample.MeleeRetaliatingNear);
@@ -476,8 +479,38 @@ namespace FTT.Diagnostics {
 
         /// <summary>One frame's reading of a spawned swarm wave.</summary>
         public SwarmRecord Observe(int frame, ulong lockInstance, string lockID, string rowID, int planned, int living,
-            int heroDamageTotal, in EngagementFrameSample crowd) => null;
+            int heroDamageTotal, in EngagementFrameSample crowd) {
+            SwarmRecord record = null;
+            foreach (SwarmRecord known in Records) {
+                if (known.LockInstance == lockInstance && known.RowID == rowID) { record = known; break; }
+            }
+            if (record == null) {
+                record = new SwarmRecord {
+                    LockID = lockID ?? "", RowID = rowID ?? "", Planned = planned, SpawnFrame = frame,
+                    LockInstance = lockInstance, HeroDamageAtSpawn = heroDamageTotal
+                };
+                Records.Add(record);
+            }
+            if (record.ClearFrame >= 0) return record;
+            record.HeroDamage = heroDamageTotal - record.HeroDamageAtSpawn;
+            if (living <= 0) {
+                record.ClearFrame = frame;
+                return record;
+            }
+            record.PeakLiving = Math.Max(record.PeakLiving, living);
+            record.Frames++;
+            record.SumHolders += crowd.Holders;
+            record.SumAttackingNear += crowd.AttackingNear;
+            record.SumMeleeCandidates += crowd.MeleeCandidates;
+            return record;
+        }
 
-        public int ClearedCount => 0;
+        public int ClearedCount {
+            get {
+                int cleared = 0;
+                foreach (SwarmRecord record in Records) if (record.ClearFrame >= 0) cleared++;
+                return cleared;
+            }
+        }
     }
 }

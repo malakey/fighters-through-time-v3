@@ -104,7 +104,10 @@ namespace FTT.Diagnostics {
         public bool SwarmWaves = true;
 
         /// <summary>Applies the two A/B options to their seams; a playtest process holds them to its end.</summary>
-        public void ApplyCrowdSeams() { }
+        public void ApplyCrowdSeams() {
+            FTT.Combat.StoryEngagementRules.SlotTableOverride = LegacySlotTable ? PlaytestSlotTables.Legacy : null;
+            FTT.Environment.EncounterLock.SwarmWavesOffForDiagnostics = !SwarmWaves;
+        }
 
         public static PlaytestOptions Parse(string[] args) {
             var options = new PlaytestOptions();
@@ -143,6 +146,20 @@ namespace FTT.Diagnostics {
                             "on" or "1" => true,
                             "off" or "0" => false,
                             _ => throw new ArgumentException($"story-meter-scale must be on, off, 1 or 0, not '{value}'")
+                        };
+                        break;
+                    case "slot-table":
+                        options.LegacySlotTable = value.ToLowerInvariant() switch {
+                            "legacy" => true,
+                            "current" => false,
+                            _ => throw new ArgumentException($"slot-table must be legacy or current, not '{value}'")
+                        };
+                        break;
+                    case "swarm":
+                        options.SwarmWaves = value.ToLowerInvariant() switch {
+                            "on" or "1" => true,
+                            "off" or "0" => false,
+                            _ => throw new ArgumentException($"swarm must be on, off, 1 or 0, not '{value}'")
                         };
                         break;
                 }
@@ -221,6 +238,7 @@ namespace FTT.Diagnostics {
                 Finish("no_story_manager");
                 return;
             }
+            Options.ApplyCrowdSeams();
             StoryManager.Instance.StartLevelDirect(Options.Level, Options.Character, Options.Difficulty);
         }
 
@@ -507,6 +525,9 @@ namespace FTT.Diagnostics {
                 ["special_press_policy"] = Options.SpecialPress.ToString().ToLowerInvariant(),
                 // C2: --story-meter-scale (D5 on or off for this run).
                 ["story_meter_scale"] = Options.StoryMeterScale,
+                // GR-CROWD: the same-build A/B options (the run name carries neither).
+                ["slot_table"] = Options.LegacySlotTable ? "legacy" : "current",
+                ["swarm_waves"] = Options.SwarmWaves,
                 ["interactions"] = InteractionsRouted,
                 ["nav_rebuilds"] = _world?.Nav.Rebuilds ?? 0,
                 // GU-BOT: of those, the rebuilds an encounter-lock barrier's toggle caused.

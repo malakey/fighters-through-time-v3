@@ -62,22 +62,26 @@ namespace FTT.Combat {
 
         /// <summary>
         /// Melee slots on one target, both sides together. <b>The user's
-        /// 2026-10-12 ruling:</b> Easy 1 / Normal 2 / Hard 3.
+        /// 2026-11-03 ruling 1a+:</b> Easy 2 / Normal 3 / Hard 4 (it amends
+        /// 2026-10-12's 1 / 2 / 3).
         /// </summary>
-        public static int MeleeSlotsTotal(Difficulty difficulty) => difficulty switch {
-            Difficulty.Easy => 1,
-            Difficulty.Hard => 3,
-            _ => 2
-        };
+        public static int MeleeSlotsTotal(Difficulty difficulty) =>
+            SlotTableOverride != null ? SlotTableOverride(difficulty).Total : difficulty switch {
+                Difficulty.Easy => 2,
+                Difficulty.Hard => 4,
+                _ => 3
+            };
 
         /// <summary>
-        /// Melee slots on one side of the target (<i>Provisional</i>): Easy 1 /
-        /// Normal 1 / Hard 2, so Normal's two attackers come one from each side.
+        /// Melee slots on one side of the target. <b>Ruling 1a+:</b> Easy 1 /
+        /// Normal 2 / Hard 2, so Easy's two need one attacker on each side,
+        /// Normal's three are two and one, and Hard's four have no slack.
         /// </summary>
-        public static int MeleeSlotsPerSide(Difficulty difficulty) => difficulty switch {
-            Difficulty.Hard => 2,
-            _ => 1
-        };
+        public static int MeleeSlotsPerSide(Difficulty difficulty) =>
+            SlotTableOverride != null ? SlotTableOverride(difficulty).PerSide : difficulty switch {
+                Difficulty.Easy => 1,
+                _ => 2
+            };
 
         /// <summary>
         /// Ranged attacks on one target at the same time (<i>Provisional</i>):

@@ -230,6 +230,7 @@ namespace FTT.Environment {
         private static int WeightForEnemy(string enemyID) {
             try {
                 FTT.Enemies.EnemyData data = FTT.Enemies.EnemyFactory.LoadData(enemyID);
+                if (data != null && data.DustWeightZero) return 0;
                 return data != null && data.Tier != FTT.Enemies.EnemyTier.Standard
                     ? RewardAllocator.EliteWeight
                     : RewardAllocator.StandardWeight;
