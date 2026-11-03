@@ -30,6 +30,7 @@ EliteAbilityCooldown = 5.0
 Behavior = 0
 PhasesThroughWalls = false
 FrontalDamageReduction = 0.0
+Trait = 3
 PrimaryAttack = ExtResource("2")
 AttackTelegraphFrames = 18
 AttackActiveFrames = 6

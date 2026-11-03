@@ -39,6 +39,8 @@ namespace FTT.Enemies {
         [Export] public bool PhasesThroughWalls;
         /// <summary>Shield-carrier damage reduction for hits landing on the facing side.</summary>
         [Export(PropertyHint.Range, "0,0.95,0.01")] public float FrontalDamageReduction;
+        /// <summary>The soft-counter trait a Standard mob carries (gameplay review 2b+; EnemyController.Traits.cs).</summary>
+        [Export] public FTT.Combat.EnemyTrait Trait = FTT.Combat.EnemyTrait.None;
 
         [ExportGroup("Attacks")]
         /// <summary>
