@@ -28,3 +28,11 @@ None needed. No test fixture or assertion was changed, and the case count is exa
 
 ## Notes
 No failures, no cold-cache reruns, no orphan processes found at start.
+
+## Codex review fixes (GR-INTEG)
+
+1. **Hazard record mid-flight.** `ResetLaunchCarry()` no longer clears `_hazardSourcesThisLaunch` (`EnemyController.cs`). The record is cleared where a new launch begins: `LaunchThrown`, `ArmWallBounce`, the finisher-flight arm in `ArmLaunch`, plus the pool reset and the rewind freeze. A Defy blast mid-throw therefore cannot reopen a hazard. Test: `HazardMobVulnerabilityTests.ADefyBlastDuringAThrownFlightDoesNotReopenTheOncePerSourceRecord` (throw, hazard, Defy, same hazard = 0, new throw = paid). Failed before the fix.
+2. **Running attack and Root.** `PlayerController.RunAttack.cs` `ApplyRunAttackMotion` writes no lunge while `IsMovementRooted` (stop ramp only), matching the sim's `ApplyRunAttackLunge`. Test: `StoryRunAttackTests.RootArrivingInStartupOrActiveStopsTheLunge` (Root in startup and in active). Failed before the fix.
+3. **Rank tests off the real save.** New test seam `SaveManager.SaveDirectoryOverrideForTesting` (story-slot and global paths only; the save key is untouched). `StoryLevelRankTests.RankScope` redirects to `user://test-saves/<guid>/` and deletes it in `Dispose`. Real `story_slot_2.sav` mtime unchanged by the suite.
+
+Full run: Failed 0, Passed 4163, Total 4163 (4161 + 2).

@@ -253,6 +253,7 @@ namespace FTT.Enemies {
             // A throw ends any finisher flight and earlier bounce latch: the
             // throw's own flight and latch replace them.
             ResetLaunchCarry();
+            _hazardSourcesThisLaunch.Clear(); // GR-HAZ: a new throw is a new once-per-source record
             _thrownFlight = true;
             _thrownBowlingDamage = Mathf.Max(0, bowlingDamage);
             _bowledVictims.Clear();
@@ -841,7 +842,6 @@ namespace FTT.Enemies {
             _finisherFlight = false;
             _finisherFlightPostStunFrames = 0;
             ClearWallBounce();
-            _hazardSourcesThisLaunch.Clear(); // GR-HAZ: once per launch per source
         }
 
         private void ClearWallBounce() {
@@ -852,6 +852,7 @@ namespace FTT.Enemies {
 
         private void ArmWallBounce(int impactDamage, bool ignoresDefenses) {
             _wallBounceArmed = true;
+            _hazardSourcesThisLaunch.Clear(); // GR-HAZ: a new launch is a new once-per-source record
             _wallImpactDamage = Mathf.Max(0, impactDamage);
             _wallImpactIgnoresDefenses = ignoresDefenses;
         }
@@ -892,6 +893,7 @@ namespace FTT.Enemies {
             _finisherCarryDeceleration = FTT.Combat.StoryEnemyCombatRules.FinisherCarryDeceleration(
                 Mathf.Abs(launchVx), carry);
             _finisherFlight = true;
+            _hazardSourcesThisLaunch.Clear(); // GR-HAZ
             _finisherFlightPostStunFrames = 0;
             _lastFinisherLandingTargetPixels = target;
         }
@@ -2668,6 +2670,7 @@ namespace FTT.Enemies {
             // D6a / D9 (2026-10-11): the same hygiene for the finisher flight and
             // the wall-bounce latch, and their test seams.
             ResetLaunchCarry();
+            _hazardSourcesThisLaunch.Clear(); // GR-HAZ
             KilledByHazard = false; // GR-HAZ
             _lastWallImpactDealt = 0;
             _lastWallBouncePreMoveVelocityX = 0f;
@@ -2681,6 +2684,7 @@ namespace FTT.Enemies {
             if (frozen) {
                 // D6a / D9: the rewind freeze zeroes the launch it would carry.
                 ResetLaunchCarry();
+                _hazardSourcesThisLaunch.Clear(); // GR-HAZ
                 // D6c: the freeze cancels an answer in flight, so it ends one owed.
                 _armoredAnswerPending = false;
                 Velocity = Vector2.Zero;

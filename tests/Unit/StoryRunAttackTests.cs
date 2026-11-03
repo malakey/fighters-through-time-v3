@@ -76,6 +76,28 @@ public class StoryRunAttackTests {
     }
 
     [TestCase]
+    public void RootArrivingInStartupOrActiveStopsTheLunge() {
+        float lunge = (float)(BasicComboRules.RunAttackLungeSpeedUnits * KitMotionRules.StoryPixelsPerUnit);
+        foreach (int rootAfterCalls in new[] { 3, 10 }) { // tesla: startup is 9 frames, then active
+            Run("tesla", (player, _) => {
+                RunUp(player, 10);
+                SendEdge(player, GameplayButtons.BasicAttack, GameplayButtons.None, moveX: 1f);
+                for (int call = 1; call <= 20; call++) {
+                    if (call == rootAfterCalls) player.IsMovementRooted = true;
+                    SendEdge(player, GameplayButtons.None, GameplayButtons.None, moveX: 1f);
+                    if (call < rootAfterCalls) continue;
+                    // Rooted: the velocity may only decay, never be forced to the lunge speed.
+                    if (call >= rootAfterCalls + 4) {
+                        AssertThat(Mathf.Abs(player.Velocity.X) < lunge * 0.5f)
+                            .OverrideFailureMessage($"Rooted from call {rootAfterCalls}: still moving {player.Velocity.X} at call {call}.")
+                            .IsTrue();
+                    }
+                }
+            });
+        }
+    }
+
+    [TestCase]
     public void TheFirstFramesOfAPushASlideAndAStandingPressAreTheStringsOpener() {
         // The ramp reaches full speed in 6 ticks: 3 is one half, 4 is two thirds.
         foreach ((int ticks, string expected) in new[] {

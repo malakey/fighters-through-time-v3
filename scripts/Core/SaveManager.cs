@@ -1429,8 +1429,17 @@ namespace FTT.Core {
             }
         }
 
+        /// <summary>
+        /// Test seam (GR-INTEG): a <c>user://</c> directory that story-slot and global save paths use
+        /// instead of <c>user://saves/</c>, so a test that drives completion or recovery autosaves
+        /// never writes a developer's real slot. Null in production. The save key stays where it is.
+        /// </summary>
+        internal static string SaveDirectoryOverrideForTesting;
+
+        private static string ActiveSaveDir => SaveDirectoryOverrideForTesting ?? SaveDir;
+
         private static string GetStoryPath(int slotIndex) =>
-            Path.Combine(ProjectSettings.GlobalizePath(SaveDir), $"story_slot_{slotIndex}.sav");
+            Path.Combine(ProjectSettings.GlobalizePath(ActiveSaveDir), $"story_slot_{slotIndex}.sav");
 
         /// <summary>
         /// True when any file of the slot (primary, backup, temp or a preserved
@@ -1443,7 +1452,7 @@ namespace FTT.Core {
         }
 
         private static string GetGlobalPath() =>
-            Path.Combine(ProjectSettings.GlobalizePath(SaveDir), GlobalFileName);
+            Path.Combine(ProjectSettings.GlobalizePath(ActiveSaveDir), GlobalFileName);
 
         private static void ValidateSlot(int slotIndex) {
             if (slotIndex < 0 || slotIndex >= 3) throw new ArgumentOutOfRangeException(nameof(slotIndex));

@@ -218,8 +218,15 @@ public class StoryLevelRankTests {
         private readonly CampaignLevel _originalLevel;
         private readonly StorySaveData _originalSave;
         private readonly bool _originalPaused;
+        private readonly string _originalSaveDirectory;
+        private readonly string _scratchDirectory;
 
         public RankScope() {
+            // Completion and recovery autosave: keep them off the real user://saves slot.
+            _originalSaveDirectory = SaveManager.SaveDirectoryOverrideForTesting;
+            string name = $"test-saves/{System.Guid.NewGuid():N}";
+            _scratchDirectory = ProjectSettings.GlobalizePath($"user://{name}");
+            SaveManager.SaveDirectoryOverrideForTesting = $"user://{name}/";
             _originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
             _originalCharacter = GameManager.Instance.CurrentSession.SelectedCharacterID;
             _originalDifficulty = GameManager.Instance.CurrentSession.Difficulty;
@@ -258,6 +265,10 @@ public class StoryLevelRankTests {
             GameManager.Instance.CurrentSession.Difficulty = _originalDifficulty;
             SessionExitGuard.ClearMarker();
             ((SceneTree)Engine.GetMainLoop()).Paused = _originalPaused;
+            SaveManager.SaveDirectoryOverrideForTesting = _originalSaveDirectory;
+            try {
+                if (System.IO.Directory.Exists(_scratchDirectory)) System.IO.Directory.Delete(_scratchDirectory, true);
+            } catch (System.IO.IOException) { }
         }
     }
 }

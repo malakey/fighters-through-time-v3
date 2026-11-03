@@ -40,7 +40,9 @@ namespace FTT.Characters {
 		/// </summary>
 		private void ApplyRunAttackMotion(float dt) {
 			int elapsed = _runAttackTimeline.TotalFrames - _attackFramesRemaining;
-			if (_runAttackTimeline.GetPhase(elapsed) != FTT.Combat.CombatFramePhase.Active) {
+			// Rooted (the sim's ApplyRunAttackLunge): no forced lunge, the stop ramp only.
+			if (IsMovementRooted
+				|| _runAttackTimeline.GetPhase(elapsed) != FTT.Combat.CombatFramePhase.Active) {
 				ApplyHorizontalMovement(0f, dt);
 				return;
 			}

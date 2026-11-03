@@ -11,8 +11,9 @@ namespace FTT.Enemies {
     /// <see cref="HazardMobRules"/>.
     /// </summary>
     public partial class EnemyController {
-        // Sources that already hit during this launch. ResetLaunchCarry clears it, so each new
-        // launch or throw can be hurt by the same hazard once more.
+        // Sources that already hit during this launch. Cleared where a new launch or throw
+        // begins (and on pool and rewind resets), never by ResetLaunchCarry: a Defy blast must not
+        // reopen it while a thrown flight is still going.
         private readonly HashSet<ulong> _hazardSourcesThisLaunch = new();
 
         /// <summary>True while a hazard can hurt this mob: thrown or launched, not dormant, alive.</summary>
