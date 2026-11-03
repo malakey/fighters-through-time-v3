@@ -121,11 +121,17 @@ namespace FTT.Core {
         /// single direct key/button, so the row is editable after all. The chord
         /// itself is still not a remappable event — see
         /// <see cref="InputShortcuts"/>, which owns the recipes.</para>
+        ///
+        /// <para>Gameplay review 2026-11-03 (10b++): <see cref="Actions.TimeFreeze"/> is not listed. The verb is
+        /// off (<see cref="TimeFreezeRules"/>), so it is not polled, not a Controls row and not in the conflict
+        /// set; a saved row for it stays in the file and is ignored. The list is read once at boot, so the
+        /// omission is unconditional rather than flag-driven. Re-enabling restores the entry here, in
+        /// <see cref="InputShortcuts.DirectActions"/> and the project action's events.</para>
         /// </summary>
         public static readonly string[] RemappableActions = {
             Actions.MoveLeft, Actions.MoveRight, Actions.Jump, Actions.Down, Actions.Up,
             Actions.BasicAttack, Actions.Special1, Actions.Special2, Actions.MovementAbility,
-            Actions.Block, Actions.Roll, Actions.Ultimate, Actions.Interact, Actions.TimeFreeze, Actions.Defy, Actions.Pause
+            Actions.Block, Actions.Roll, Actions.Ultimate, Actions.Interact, Actions.Defy, Actions.Pause
         };
 
         /// <summary>

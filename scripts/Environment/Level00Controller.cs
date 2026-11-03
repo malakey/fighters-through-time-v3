@@ -1046,8 +1046,10 @@ namespace FTT.Environment {
         private FTT.Enemies.EnemyController _timeFreezeDrillBlocker;
 
         private void BeginTimeFreezeDrill() {
-            if (_services.TimeFreeze == null || !IsInstanceValid(_services.TimeFreeze)) {
-                // Never strand the tutorial: with no controller there is no drill.
+            if (!FTT.Core.TimeFreezeRules.Enabled
+                || _services.TimeFreeze == null || !IsInstanceValid(_services.TimeFreeze)) {
+                // Never strand the tutorial: with the verb off (gameplay review 2026-11-03, 10b++) or no
+                // controller there is no drill; the calibration is already Done when the rule is off.
                 _calibration.SkipTimeFreezeLesson();
                 _mobilityIntroPending = true;
                 return;

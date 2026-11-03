@@ -1,4 +1,5 @@
 using Godot;
+using FTT.Core;
 using FTT.UI;
 
 namespace FTT.Environment {
@@ -77,15 +78,20 @@ namespace FTT.Environment {
                 sceneRoot.AddChild(services.RewindManager);
 
                 // Story-only escape ability. Rides the same level-only flag as
-                // the rewind stack, so the hub never gets one.
-                services.TimeFreeze = new TimeFreezeController {
-                    Name = "TimeFreezeController",
-                    Dialogue = services.Dialogue
-                };
-                sceneRoot.AddChild(services.TimeFreeze);
+                // the rewind stack, so the hub never gets one. Gameplay review
+                // 2026-11-03 (10b++): dormant while TimeFreezeRules.Enabled is false;
+                // the statics and sweeps the Post-Landing Hold uses stay live.
+                bool timeFreeze = TimeFreezeRules.Enabled;
+                if (timeFreeze) {
+                    services.TimeFreeze = new TimeFreezeController {
+                        Name = "TimeFreezeController",
+                        Dialogue = services.Dialogue
+                    };
+                    sceneRoot.AddChild(services.TimeFreeze);
+                }
 
                 // Package 13 W3 (S02): inert unless this slot skipped calibration.
-                services.Tooltips = FirstUseTooltipPresenter.Attach(sceneRoot, sceneHasTimeFreeze: true);
+                services.Tooltips = FirstUseTooltipPresenter.Attach(sceneRoot, sceneHasTimeFreeze: timeFreeze);
             }
 
             return services;
