@@ -249,6 +249,7 @@ namespace FTT.Enemies {
             // Dead branch never runs a flight, so the latch would only ride the
             // corpse through the pool into the next spawn (2026-10-04 review).
             if (CurrentState == EnemyState.Dead) return;
+            StripTraitArmour(); // GR-TRAITS: the throw takes an Armoured mob's armour off.
             // A throw ends any finisher flight and earlier bounce latch: the
             // throw's own flight and latch replace them.
             ResetLaunchCarry();
@@ -661,6 +662,7 @@ namespace FTT.Enemies {
             ApplyPresentation();
             ApplyScaledHitboxDamage();
             UpdateHPBar();
+            ResetTraitState(); // GR-TRAITS: after ApplyPresentation clears the glow.
         }
 
         private void ApplyPresentation() {
@@ -768,6 +770,7 @@ namespace FTT.Enemies {
             TickStaggerDiscipline(dt);
             TickEngagementCounters(); // GU-F: rest, waited and stale run on the mob's own clock.
             Executor.Tick(dt);
+            TickTraits(); // GR-TRAITS: the trait clock and the Anti-air check.
 
             if (_finisherFlight && CurrentState != EnemyState.Stunned) {
                 // D6a: a finisher flight outlives the stun. Until the mob touches
@@ -1840,7 +1843,7 @@ namespace FTT.Enemies {
         /// existing armor language, distinct from the red hit flash — pulses
         /// while any V7.4 armor window is up.
         /// </summary>
-        private void RefreshArmorPresentation() => _glow?.SetHyperArmor(IsStaggerArmored);
+        private void RefreshArmorPresentation() => _glow?.SetHyperArmor(IsStaggerArmored || IsTraitArmourIntact);
 
         /// <summary>
         /// V7.4 pressure-exit: attacks immediately when the target sits inside
@@ -2583,7 +2586,7 @@ namespace FTT.Enemies {
             _returnTarget = _spawnPosition;
             ClearStatusEffect();
             ClearConductiveMark();
-            RefreshArmorPresentation();
+            ResetTraitState(); // GR-TRAITS (it refreshes the armour presentation)
             Executor.Reset();
             Velocity = Vector2.Zero;
             CollisionLayer = CollisionLayers.Enemy;
@@ -2713,7 +2716,7 @@ namespace FTT.Enemies {
             _specialStunWindowTimer = 0f;
             ResetConfirmChain();
             ClearPunishWindow();
-            RefreshArmorPresentation();
+            ResetTraitState(); // GR-TRAITS (it refreshes the armour presentation)
             _hitstopFramesRemaining = 0;
             // The restored body is standing at its spawn/checkpoint: no grab,
             // no flight and no slam bounce owed from the abandoned timeline.
@@ -2743,6 +2746,7 @@ namespace FTT.Enemies {
             // GU-E (2026-10-12): a dormant lock member is warded like a boss
             // outside its arena — the hit lands nothing at all and reads as refused.
             if (RefuseEncounterHit(in hit)) return 0f;
+            bool caught = CatchStringHit(ref hit); // GR-TRAITS: a Catcher takes string hits 1 and 2 with no stun or knockback.
             // 2026-10-11 (D1a): a live, non-drill-invulnerable mob takes every
             // contact that carries damage — a frontal shield or bubble that
             // takes it to 0, an armor window and a lethal hit included — so such
@@ -2864,8 +2868,9 @@ namespace FTT.Enemies {
             }
             // D6a / D9 (user direction 2026-10-11): a hit that wrote knockback
             // and left the mob stunned arms its finisher flight and wall bounce.
-            if (knockbackWritten) ArmLaunch(in hit, intake, launchVx);
+            if (knockbackWritten) ArmLaunch(in hit, TraitUnreducedIntake(in hit, baseDamage, intakeScale), launchVx); // GR-TRAITS: no armour in the impact.
             PresentDealtHit(in hit, damageApplied, punished, prorated);
+            if (caught) AnswerCaughtHit(in hit); // GR-TRAITS: the second string hit earns the counter.
             return damageApplied;
         }
 
@@ -2938,6 +2943,7 @@ namespace FTT.Enemies {
         private void OnExecutorActiveWindowEnded(EnemyAbilityData ability) {
             bool connected = _activeAttackConnected;
             _activeAttackConnected = false;
+            NoteTraitWindowEnded(ability, connected); // GR-TRAITS: sets the rising strike's recovery.
             if (connected || ability == null || CurrentState == EnemyState.Dead) return;
             if (ability.Archetype is not (EnemyAbilityArchetype.MeleeStrike or EnemyAbilityArchetype.ChargeDash)) return;
             if (Executor.LastHitboxWallBlocked) return;
@@ -3042,7 +3048,7 @@ namespace FTT.Enemies {
             punished = IsPunishWindowOpen
                 && FTT.Combat.StoryEnemyCombatRules.IsPunishEligible(hit.AttackerIndex, hit.AttackClass, hit.Delivery);
             if (punished) scale *= FTT.Combat.StoryEnemyCombatRules.PunishDamageScale;
-            return scale;
+            return ApplyTraitIntake(in hit, baseDamage, scale); // GR-TRAITS: the armour, inside the one rounding.
         }
 
         /// <summary>

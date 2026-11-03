@@ -1,4 +1,5 @@
 using FTT.Combat;
+using FTT.Core;
 using Godot;
 
 namespace FTT.Enemies {
@@ -37,6 +38,9 @@ namespace FTT.Enemies {
         /// <summary>The armour is up: halved Basic and Special hits and the gold glow.</summary>
         public bool IsTraitArmourIntact =>
             ActiveTrait == EnemyTrait.Armoured && !_traitArmourStripped && CurrentState != EnemyState.Dead;
+
+        /// <summary>The shared gold armour glow is up. Test seam.</summary>
+        public bool IsArmourGlowShowing => _glow?.IsLayerActive(GlowLayer.HyperArmor) == true;
 
         /// <summary>Own ticks before a trait attack may fire again. Test seam.</summary>
         public int TraitCooldownFramesRemaining => _traitCooldownFrames;

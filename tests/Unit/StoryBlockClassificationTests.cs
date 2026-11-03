@@ -82,6 +82,7 @@ public class StoryBlockClassificationTests {
             "res://resources/Enemies/shock_shield_legionnaire.tres");
         var data = (EnemyData)canonical.Duplicate();
         data.FrontalDamageReduction = 0.8f;
+        data.Trait = FTT.Combat.EnemyTrait.None; // this mob's Armoured trait is its own case
         PackedScene scene = ResourceLoader.Load<PackedScene>(EnemyFactory.ScenePathForTier(data.Tier));
         var enemy = scene.Instantiate<EnemyController>();
         enemy.Data = data;
