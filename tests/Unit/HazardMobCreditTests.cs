@@ -78,6 +78,8 @@ public class HazardMobCreditTests {
             mob.ApplyHazardImpact(Source);
             AssertThat(mob.CurrentState).IsEqual(EnemyState.Dead);
             AssertThat(mob.KilledByHazard).IsTrue();
+            // The telemetry reads a thrown kill off the corpse.
+            AssertThat(mob.IsThrownFlight).IsTrue();
 
             mob.ApplyStoryRewind();
             AssertThat(mob.CurrentState)

@@ -53,26 +53,36 @@ public class HazardMobContactTests {
         await WithHazard(spikes, async mob => await Sequence(mob, new Vector2(X, -8f)));
     }
 
+    /// <summary>
+    /// Florence has its own spike builder. Booting the level pauses the tree on its entrance dialogue,
+    /// so this case delivers the contact through the strip's own signal rather than through physics.
+    /// </summary>
     [TestCase]
     public async Task FlorencesOwnSpikesSpareAWalkingMobAndHitAThrownOneOnce() {
         var level = new Level01Controller { Name = "FlorenceSpikeFixture" };
         HazardMobTestKit.Tree.Root.AddChild(level);
         EnemyController mob = HazardMobTestKit.CreateMob(HazardMobTestKit.Slasher, new Vector2(600f, 900f));
         try {
-            AssertObject(level.GetNodeOrNull<Area2D>("Spikes_600")).IsNotNull();
+            await HazardMobTestKit.Frames(1);
+            Area2D spikes = level.GetNode<Area2D>("Spikes_600");
+            AssertThat(spikes.CollisionMask).IsEqual(CollisionLayers.HazardContactMask);
             int hp0 = mob.CurrentHP;
-            await HazardMobTestKit.Frames(4);
-            AssertThat(mob.CurrentHP).IsEqual(hp0);
+            spikes.EmitSignal(Area2D.SignalName.BodyEntered, mob);
+            AssertThat(mob.CurrentHP)
+                .OverrideFailureMessage("A hazard hurt a mob on its feet.")
+                .IsEqual(hp0);
 
-            mob.GlobalPosition = new Vector2(600f, 500f);
-            await HazardMobTestKit.Frames(3);
             HazardMobTestKit.Throw(mob);
-            mob.GlobalPosition = new Vector2(600f, 895f);
-            await HazardMobTestKit.Frames(3);
+            spikes.EmitSignal(Area2D.SignalName.BodyEntered, mob);
             AssertThat(hp0 - mob.CurrentHP).IsEqual(HazardMobRules.StandardImpactDamage);
+            spikes.EmitSignal(Area2D.SignalName.BodyEntered, mob);
+            AssertThat(hp0 - mob.CurrentHP)
+                .OverrideFailureMessage("One launch pays one impact per source.")
+                .IsEqual(HazardMobRules.StandardImpactDamage);
         } finally {
             mob.Free();
             level.Free();
+            HazardMobTestKit.Tree.Paused = false;
         }
     }
 
