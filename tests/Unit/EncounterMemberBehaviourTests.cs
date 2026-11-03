@@ -316,13 +316,13 @@ public class EncounterMemberBehaviourTests {
     [TestCase(Timeout = 60000)]
     public async Task AStruckWaiterRetaliatesWithoutASlotWhileTheHolderKeepsTheOnlyOne() {
         using var scene = new MemberScene(Difficulty.Easy);
-        // Easy: one melee slot. Two slashers on the hero; the waiter is struck in
-        // reach and, as its stun ends, answers through the V7.4 pressure exit —
+        // Easy: one melee slot a side. Two slashers east of the hero; the waiter is
+        // struck in reach and, as its stun ends, answers through the V7.4 pressure exit —
         // retaliation the director never gates (Level 13's over-slot frames).
         // Unscaled (an @0 row), so Easy's per-row prefix keeps both.
         EncounterLockWave wave = Wave(
             ("chrono_slasher", scene.At(1580f, FloorY - 2f)),
-            ("chrono_slasher", scene.At(1420f, FloorY - 2f)));
+            ("chrono_slasher", scene.At(1660f, FloorY - 2f)));
         wave.Scaled = false;
         EncounterLock encounterLock = scene.BuildLock(wave);
         scene.PlaceHero(1500f);
@@ -345,7 +345,7 @@ public class EncounterMemberBehaviourTests {
         for (int frame = 0; frame < 90 && !retaliated; frame++) {
             await Frames(1);
             AssertThat(StoryEngagementDirector.HolderCountFor(scene.Hero))
-                .OverrideFailureMessage($"Frame {frame}: more slot holders than Easy's one slot.")
+                .OverrideFailureMessage($"Frame {frame}: more slot holders than Easy's total.")
                 .IsLessEqual(StoryEngagementRules.MeleeSlotsTotal(Difficulty.Easy));
             if (waiter.CurrentState != EnemyState.Attacking) continue;
             retaliated = true;

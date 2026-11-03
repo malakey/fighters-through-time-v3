@@ -25,13 +25,13 @@ public class StoryEngagementRulesTests {
 
     [TestCase]
     public void TheSlotTotalsAreTheUsersRulingAndTheSideAndPermitCountsFollow() {
-        // The user's 2026-10-12 ruling: Easy 1 / Normal 2 / Hard 3 at once.
-        AssertThat(StoryEngagementRules.MeleeSlotsTotal(Difficulty.Easy)).IsEqual(1);
-        AssertThat(StoryEngagementRules.MeleeSlotsTotal(Difficulty.Normal)).IsEqual(2);
-        AssertThat(StoryEngagementRules.MeleeSlotsTotal(Difficulty.Hard)).IsEqual(3);
-        // Provisional: Normal's two come one from each side.
+        // The user's 2026-11-03 ruling 1a+: Easy 2 / Normal 3 / Hard 4 at once,
+        // per side 1 / 2 / 2 (amending 2026-10-12's 1 / 2 / 3).
+        AssertThat(StoryEngagementRules.MeleeSlotsTotal(Difficulty.Easy)).IsEqual(2);
+        AssertThat(StoryEngagementRules.MeleeSlotsTotal(Difficulty.Normal)).IsEqual(3);
+        AssertThat(StoryEngagementRules.MeleeSlotsTotal(Difficulty.Hard)).IsEqual(4);
         AssertThat(StoryEngagementRules.MeleeSlotsPerSide(Difficulty.Easy)).IsEqual(1);
-        AssertThat(StoryEngagementRules.MeleeSlotsPerSide(Difficulty.Normal)).IsEqual(1);
+        AssertThat(StoryEngagementRules.MeleeSlotsPerSide(Difficulty.Normal)).IsEqual(2);
         AssertThat(StoryEngagementRules.MeleeSlotsPerSide(Difficulty.Hard)).IsEqual(2);
         AssertThat(StoryEngagementRules.RangedPermits(Difficulty.Easy)).IsEqual(1);
         AssertThat(StoryEngagementRules.RangedPermits(Difficulty.Normal)).IsEqual(2);
@@ -70,6 +70,41 @@ public class StoryEngagementRulesTests {
                 .OverrideFailureMessage($"{difficulty}: rank 0 at {rankZero} px is inside the widest hit 1.")
                 .IsTrue();
         }
+    }
+
+    [TestCase]
+    public void HardGrantsFourHoldersTwoOnEachSideAndNoMoreOnOneSide() {
+        var candidates = new List<StoryEngagementRules.Candidate>();
+        for (ulong id = 1; id <= 3; id++) candidates.Add(new StoryEngagementRules.Candidate(id, false, true, -1, 10, 170f));
+        for (ulong id = 4; id <= 6; id++) candidates.Add(new StoryEngagementRules.Candidate(id, false, true, 1, 10, 170f));
+        var granted = new List<ulong>();
+        AssertThat(StoryEngagementRules.SelectGrants(candidates, 0, 0, Difficulty.Hard, granted)).IsEqual(4);
+        int left = 0, right = 0;
+        foreach (ulong id in granted) { if (id <= 3) left++; else right++; }
+        AssertThat(left).IsEqual(2);
+        AssertThat(right).IsEqual(2);
+        // Six on one side still get two: the per-side cap has no slack on Hard.
+        candidates.Clear();
+        for (ulong id = 1; id <= 6; id++) candidates.Add(new StoryEngagementRules.Candidate(id, false, true, 1, 10, 170f));
+        AssertThat(StoryEngagementRules.SelectGrants(candidates, 0, 0, Difficulty.Hard, granted)).IsEqual(2);
+    }
+
+    [TestCase]
+    public void NormalGrantsThreeLopsidedAndEasysTwoNeedBothSides() {
+        var candidates = new List<StoryEngagementRules.Candidate>();
+        for (ulong id = 1; id <= 3; id++) candidates.Add(new StoryEngagementRules.Candidate(id, false, true, -1, 10, 170f));
+        for (ulong id = 4; id <= 6; id++) candidates.Add(new StoryEngagementRules.Candidate(id, false, true, 1, 10, 170f));
+        var granted = new List<ulong>();
+        // Normal's three are two and one, whichever side gets the two.
+        AssertThat(StoryEngagementRules.SelectGrants(candidates, 0, 0, Difficulty.Normal, granted)).IsEqual(3);
+        AssertThat(StoryEngagementRules.SideHasFreeSlot(2, 2, Difficulty.Normal)).IsFalse();
+        AssertThat(StoryEngagementRules.SideHasFreeSlot(1, 2, Difficulty.Normal)).IsTrue();
+        AssertThat(StoryEngagementRules.SideHasFreeSlot(1, 3, Difficulty.Normal)).IsFalse();
+        // Easy's two need one attacker each side: one side alone gets one.
+        AssertThat(StoryEngagementRules.SelectGrants(candidates, 0, 0, Difficulty.Easy, granted)).IsEqual(2);
+        candidates.Clear();
+        for (ulong id = 1; id <= 3; id++) candidates.Add(new StoryEngagementRules.Candidate(id, false, true, -1, 10, 170f));
+        AssertThat(StoryEngagementRules.SelectGrants(candidates, 0, 0, Difficulty.Easy, granted)).IsEqual(1);
     }
 
     [TestCase]
@@ -148,20 +183,20 @@ public class StoryEngagementRulesTests {
             new StoryEngagementRules.Candidate(4, false, true, -1, 5, 170f)
         };
 
-        // Easy: one slot, to the best candidate (the longest wait).
-        AssertThat(StoryEngagementRules.SelectGrants(ThreeRightOneLeft(), 0, 0, Difficulty.Easy, granted)).IsEqual(1);
-        AssertThat(granted[0]).IsEqual(3UL);
-        // Normal: one per side.
-        AssertThat(StoryEngagementRules.SelectGrants(ThreeRightOneLeft(), 0, 0, Difficulty.Normal, granted)).IsEqual(2);
+        // Easy: one per side, the right's to the best candidate (the longest wait).
+        AssertThat(StoryEngagementRules.SelectGrants(ThreeRightOneLeft(), 0, 0, Difficulty.Easy, granted)).IsEqual(2);
         AssertThat(granted.Contains(3UL) && granted.Contains(4UL)).IsTrue();
-        // Normal with the right side already held: only the left slot is free.
-        AssertThat(StoryEngagementRules.SelectGrants(ThreeRightOneLeft(), 0, 1, Difficulty.Normal, granted)).IsEqual(1);
+        // Easy with the right side already held: only the left slot is free.
+        AssertThat(StoryEngagementRules.SelectGrants(ThreeRightOneLeft(), 0, 1, Difficulty.Easy, granted)).IsEqual(1);
         AssertThat(granted[0]).IsEqual(4UL);
-        // Hard: two on the right and one on the left make three.
+        // Normal: two on the right and one on the left make three, its whole total.
+        AssertThat(StoryEngagementRules.SelectGrants(ThreeRightOneLeft(), 0, 0, Difficulty.Normal, granted)).IsEqual(3);
+        AssertThat(granted.Contains(1UL)).IsFalse();
+        // Hard: the same three, because the per-side cap leaves its fourth slot empty.
         AssertThat(StoryEngagementRules.SelectGrants(ThreeRightOneLeft(), 0, 0, Difficulty.Hard, granted)).IsEqual(3);
         AssertThat(granted.Contains(1UL)).IsFalse();
         // Full: nothing, and the output list is cleared.
-        AssertThat(StoryEngagementRules.SelectGrants(ThreeRightOneLeft(), 1, 1, Difficulty.Normal, granted)).IsEqual(0);
+        AssertThat(StoryEngagementRules.SelectGrants(ThreeRightOneLeft(), 1, 1, Difficulty.Easy, granted)).IsEqual(0);
         AssertThat(granted.Count).IsEqual(0);
 
         // A resting waiter takes a free slot only when no rested waiter wants it.
@@ -173,7 +208,7 @@ public class StoryEngagementRulesTests {
         AssertThat(granted[0]).IsEqual(2UL);
         var restingAlone = new List<StoryEngagementRules.Candidate> { new(1, false, false, 1, 0, 60f) };
         AssertThat(StoryEngagementRules.SelectGrants(restingAlone, 0, 0, Difficulty.Easy, granted)).IsEqual(1);
-        // An elite that has just handed off (resting) does not take Easy's one
+        // An elite that has just handed off (resting) does not take its side's one
         // slot back from a rested standard...
         var restingEliteAndRestedStandard = new List<StoryEngagementRules.Candidate> {
             new(1, true, false, 1, 0, 60f),
@@ -186,25 +221,25 @@ public class StoryEngagementRulesTests {
             new(1, true, false, -1, 0, 60f),
             new(2, false, true, 1, 40, 200f)
         };
-        AssertThat(StoryEngagementRules.SelectGrants(restedStandardOnAFullSide, 0, 1, Difficulty.Normal, granted)).IsEqual(1);
+        AssertThat(StoryEngagementRules.SelectGrants(restedStandardOnAFullSide, 0, 1, Difficulty.Easy, granted)).IsEqual(1);
         AssertThat(granted[0]).IsEqual(1UL);
     }
 
     [TestCase]
     public void TheHandOffTestFreesTheHoldersSideBeforeApplyingTheWaitersSideCap() {
-        // Normal, holder on the right: a right waiter can take it...
-        AssertThat(StoryEngagementRules.CanTakeFreedSlot(1, 1, 0, 1, Difficulty.Normal)).IsTrue();
+        // Easy, holder on the right: a right waiter can take it...
+        AssertThat(StoryEngagementRules.CanTakeFreedSlot(1, 1, 0, 1, Difficulty.Easy)).IsTrue();
         // ...a left waiter cannot while the left slot is held (one per side)...
-        AssertThat(StoryEngagementRules.CanTakeFreedSlot(-1, 1, 1, 1, Difficulty.Normal)).IsFalse();
+        AssertThat(StoryEngagementRules.CanTakeFreedSlot(-1, 1, 1, 1, Difficulty.Easy)).IsFalse();
         // ...but can when the left side is empty.
-        AssertThat(StoryEngagementRules.CanTakeFreedSlot(-1, 1, 0, 1, Difficulty.Normal)).IsTrue();
-        // Easy: any side, one slot.
         AssertThat(StoryEngagementRules.CanTakeFreedSlot(-1, 1, 0, 1, Difficulty.Easy)).IsTrue();
+        // Normal: two a side, so the same left waiter fits beside the left holder.
+        AssertThat(StoryEngagementRules.CanTakeFreedSlot(-1, 1, 1, 1, Difficulty.Normal)).IsTrue();
         // Hard: two right holders, the waiter on the right takes the freed one.
         AssertThat(StoryEngagementRules.CanTakeFreedSlot(1, 1, 1, 2, Difficulty.Hard)).IsTrue();
-        AssertThat(StoryEngagementRules.SideHasFreeSlot(1, 2, Difficulty.Normal)).IsFalse();
-        AssertThat(StoryEngagementRules.SideHasFreeSlot(0, 1, Difficulty.Normal)).IsTrue();
-        AssertThat(StoryEngagementRules.SideHasFreeSlot(0, 1, Difficulty.Easy)).IsFalse();
+        AssertThat(StoryEngagementRules.SideHasFreeSlot(1, 2, Difficulty.Easy)).IsFalse();
+        AssertThat(StoryEngagementRules.SideHasFreeSlot(0, 1, Difficulty.Easy)).IsTrue();
+        AssertThat(StoryEngagementRules.SideHasFreeSlot(2, 2, Difficulty.Normal)).IsFalse();
     }
 
     [TestCase]

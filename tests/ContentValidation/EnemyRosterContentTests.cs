@@ -202,8 +202,9 @@ public class EnemyRosterContentTests {
                 .IsEqual(BossDustReward);
         }
 
-        // 27 originals, plus the V7.1 Chrono-Warden elite, plus the V7.6 Eraser.
-        AssertThat(standards + elites).IsEqual(29);
+        // 27 originals, plus the V7.1 Chrono-Warden elite, plus the V7.6 Eraser, plus
+        // GR-CROWD's Chrono Swarmling.
+        AssertThat(standards + elites).IsEqual(30);
         AssertThat(bosses).IsEqual(15);
     }
 
@@ -300,8 +301,8 @@ public class EnemyRosterContentTests {
                 enemy.Free();
             }
         }
-        // Spec D §1.3: five standards and eleven elites run a melee primary today.
-        AssertThat(capped).IsEqual(16);
+        // Spec D §1.3: five standards and eleven elites, plus GR-CROWD's Chrono Swarmling.
+        AssertThat(capped).IsEqual(17);
     }
 
     private static bool IsPrimary(EnemyAbilityData ability, EnemyData data) =>

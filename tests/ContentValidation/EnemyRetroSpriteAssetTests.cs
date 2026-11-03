@@ -57,7 +57,8 @@ public class EnemyRetroSpriteAssetTests {
         // Eraser reuses tech_enforcer_frames.tres until its own art exists, which
         // is what satisfies the six-animation contract here (the Warden reuses
         // chrono_guard_elite_frames.tres the same way).
-        AssertThat(inspected).IsEqual(29);
+        // GR-CROWD's Chrono Swarmling borrows chrono_slasher_frames.tres the same way.
+        AssertThat(inspected).IsEqual(30);
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 

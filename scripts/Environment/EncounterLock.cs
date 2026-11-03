@@ -55,9 +55,21 @@ namespace FTT.Environment {
         /// </summary>
         internal static bool SuppressForTesting;
 
+        /// <summary>
+        /// Diagnostics seam (<c>PlaytestOptions</c>, <c>--swarm=off</c>): a swarm wave
+        /// (<see cref="IsSwarmWave"/>) is dropped when a lock arms, so the lock plays
+        /// as if the row were not authored. A same-build A/B; never set in the game.
+        /// </summary>
+        internal static bool SwarmWavesOffForDiagnostics;
+
+        /// <summary>The spawned swarm wave of a lock, as the bots' telemetry reads it.</summary>
+        public readonly record struct SwarmWaveReading(string RowID, int Planned, int Living);
+
         /// <summary>One registered member: the body at the generation it was registered with.</summary>
         private sealed class Member {
             public EnemyController Body;
+            /// <summary>The wave that spawned it, or -1 for a member adopted from outside the table.</summary>
+            public int WaveIndex = -1;
             public int Generation;
             public Vector2 Anchor;
             public bool Resolved;
@@ -155,6 +167,30 @@ namespace FTT.Environment {
                 var bodies = new List<EnemyController>();
                 foreach (Member member in _members) if (!member.Resolved && IsLiving(member)) bodies.Add(member.Body);
                 return bodies;
+            }
+        }
+
+        /// <summary>A wave whose whole table is fodder (<c>EnemyData.DustWeightZero</c>): a swarm wave.</summary>
+        public static bool IsSwarmWave(EncounterLockWave wave) =>
+            wave != null && SwarmWaveRules.IsSwarmRow(wave.EnemyIDs, IsFodder);
+
+        private static bool IsFodder(string enemyID) {
+            try {
+                return EnemyFactory.LoadData(enemyID)?.DustWeightZero == true;
+            } catch (Exception exception) when (exception is ArgumentException or InvalidOperationException) {
+                return false;
+            }
+        }
+
+        /// <summary>Appends every spawned swarm wave's reading to <paramref name="into"/>. Telemetry seam.</summary>
+        public void ReadSpawnedSwarmWaves(List<SwarmWaveReading> into) {
+            for (int index = 0; index < _waves.Length; index++) {
+                if (!_waveSpawned[index] || !IsSwarmWave(_waves[index]) || _plannedCounts[index] <= 0) continue;
+                int living = 0;
+                foreach (Member member in _members) {
+                    if (member.WaveIndex == index && !member.Resolved && IsLiving(member)) living++;
+                }
+                into.Add(new SwarmWaveReading(_waves[index].RowID, _plannedCounts[index], living));
             }
         }
 
@@ -280,6 +316,11 @@ namespace FTT.Environment {
             PlannedTotal = 0;
             for (int index = 0; index < _waves.Length; index++) {
                 EncounterLockWave wave = _waves[index];
+                if (SwarmWavesOffForDiagnostics && IsSwarmWave(wave)) {
+                    // As if the row were not authored: nothing planned, nothing to wait for.
+                    _waveSpawned[index] = true;
+                    continue;
+                }
                 _plannedCounts[index] = wave == null ? 0 : EncounterLockRules.PlannedSpawnCount(
                     wave.Spawns?.Length ?? 0, wave.AuthoredCount, wave.Scaled, difficulty);
                 PlannedTotal += _plannedCounts[index];
@@ -468,6 +509,7 @@ namespace FTT.Environment {
                     continue;
                 }
                 if (!Register(body, spawn.Position, dormant)) continue;
+                _members[^1].WaveIndex = index;
                 if (!dormant) {
                     if (IsAlive(hero)) body.Engage(hero);
                     parent.AddChild(EncounterSpawnTear.Create(spawn.Position));

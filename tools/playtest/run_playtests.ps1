@@ -178,6 +178,10 @@ foreach ($r in $done) {
         handoffs = $(if ($n) { $n.handoffs } else { $null })
         waiter_gap_med = $(if ($n) { $n.waiter_gap_med } else { $null })
         ranged_max = $(if ($n) { $n.ranged_max } else { $null })
+        # GR-CROWD (2026-11-03): a free slot with a ringing candidate, the melee supply, swarm waves met.
+        slot_idle_f = $(if ($n) { $n.slot_idle_f } else { $null })
+        melee_cand_mean = $(if ($n) { $n.melee_cand_mean } else { $null })
+        swarms = $(if ($n) { $n.swarms } else { $null })
     }
 }
 

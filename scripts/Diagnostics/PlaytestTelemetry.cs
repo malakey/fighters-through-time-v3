@@ -1186,9 +1186,12 @@ namespace FTT.Diagnostics {
         private EngagementFrameSample _lastEngagementFrame;
         private readonly List<(float Gap, int Side)> _waitersThisFrame = new();
         private readonly Dictionary<string, string> _lockStates = new();
+        private readonly SwarmTracker _swarms = new();
+        private readonly List<EncounterLock.SwarmWaveReading> _swarmReadings = new();
 
         public MobEngagementTracker Engagement => _engagement;
         public LockTracker Locks => _locks;
+        public SwarmTracker Swarms => _swarms;
 
         private void BeginEngagementFrame() {
             _engagementFrame = default;
@@ -1217,6 +1220,7 @@ namespace FTT.Diagnostics {
                 }
             }
             if (role == StoryEngagementRules.EngagementRole.Slot) _engagementFrame.Holders++;
+            if (onHero && PlaytestWorld.IsMeleeSlotCandidate(mob)) _engagementFrame.MeleeCandidates++;
             if (inFlight == StoryEngagementRules.EngagementClass.RangedPermit) _engagementFrame.RangedInFlight++;
             if (onHero && PlaytestWorld.IsRingingWaiter(mob)) {
                 float gap = PlaytestWorld.EngagementGapOf(mob);
@@ -1296,6 +1300,12 @@ namespace FTT.Diagnostics {
                     (int relocations, int falls) = PlaytestWorld.MemberRelocations(member);
                     _locks.NoteMember(record, id, PlaytestWorld.SpawnGenerationOf(member), enemy, relocations, falls);
                 }
+                _swarmReadings.Clear();
+                encounterLock.ReadSpawnedSwarmWaves(_swarmReadings);
+                foreach (EncounterLock.SwarmWaveReading wave in _swarmReadings) {
+                    _swarms.Observe(Frame, observation.InstanceId, observation.LockID, wave.RowID, wave.Planned, wave.Living,
+                        PlayerDamageTaken, _lastEngagementFrame);
+                }
             }
         }
 
@@ -1327,6 +1337,10 @@ namespace FTT.Diagnostics {
                 ["slot_holders_mean"] = e.MeanOverEngaged(e.SumHolders),
                 ["frames_holders_over_slots"] = e.FramesHoldersOverSlots,
                 ["slot_grants"] = e.SlotGrants,
+                // GR-CROWD: a free slot with a ringing candidate, and the supply of candidates.
+                ["slot_idle_with_waiters_frames"] = e.FramesSlotIdleWithWaiters,
+                ["melee_candidates_max"] = e.MaxMeleeCandidates,
+                ["melee_candidates_mean"] = e.MeanOverEngaged(e.SumMeleeCandidates),
                 ["slot_handoffs"] = e.SlotHandoffs,
                 ["waiter_gap_px_median"] = e.WaiterGapMedian,
                 ["front_waiter_gap_px_median"] = e.FrontWaiterGapMedian,
@@ -1351,10 +1365,31 @@ namespace FTT.Diagnostics {
                     ["attacking_near"] = e.SumAttackingNear,
                     ["melee_attacking_near"] = e.SumMeleeAttackingNear,
                     ["slot_holders"] = e.SumHolders,
-                    ["ranged_in_flight"] = e.SumRangedInFlight
+                    ["ranged_in_flight"] = e.SumRangedInFlight,
+                    ["melee_candidates"] = e.SumMeleeCandidates
                 }
             };
         }
+
+        /// <summary>The <c>swarms</c> block: one row per swarm wave per lock instance, with raw sums so batches pool exactly.</summary>
+        private Dictionary<string, object> SwarmsReport() => new() {
+            ["count"] = _swarms.Records.Count,
+            ["cleared"] = _swarms.ClearedCount,
+            ["log"] = _swarms.Records.Select(s => (object)new Dictionary<string, object> {
+                ["lock"] = s.LockID,
+                ["row"] = s.RowID,
+                ["planned"] = s.Planned,
+                ["spawn_frame"] = s.SpawnFrame,
+                ["clear_frame"] = s.ClearFrame,
+                ["frames_to_clear"] = s.FramesToClear,
+                ["peak_living"] = s.PeakLiving,
+                ["hero_damage"] = s.HeroDamage,
+                ["frames"] = s.Frames,
+                ["holders_sum"] = s.SumHolders,
+                ["attacking_near_sum"] = s.SumAttackingNear,
+                ["melee_candidates_sum"] = s.SumMeleeCandidates
+            }).ToList()
+        };
 
         private Dictionary<string, object> LocksReport() {
             _locks.Summarize();
@@ -1425,6 +1460,9 @@ namespace FTT.Diagnostics {
                 ["melee_over_slots_f"] = e.FramesMeleeOverSlots,
                 ["gated_over_slots_f"] = e.FramesGatedMeleeOverSlots,
                 ["handoffs"] = e.SlotHandoffs,
+                ["slot_idle_f"] = e.FramesSlotIdleWithWaiters,
+                ["melee_cand_mean"] = e.MeanOverEngaged(e.SumMeleeCandidates),
+                ["swarms"] = _swarms.Records.Count,
                 ["waiter_gap_med"] = e.WaiterGapMedian,
                 ["ranged_max"] = e.MaxRangedInFlight,
                 ["slot_total"] = e.SlotTotal
@@ -1860,6 +1898,7 @@ namespace FTT.Diagnostics {
                 // GU-BOT (2026-10-12): the hero's crowd under the engagement
                 // director, and every encounter lock.
                 ["mob_engagement"] = MobEngagementReport(),
+                ["swarms"] = SwarmsReport(),
                 ["locks"] = LocksReport(),
                 // CM-BOT (decision 7.2, 2026-10-16): hits on the hero by source, and
                 // the cross-source re-hits within 30 (and 20) frames.

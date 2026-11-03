@@ -1,6 +1,7 @@
 """Compare playtest batches by tag.
 
 Usage:  python tools/playtest/compare_runs.py [--swings] <tagA> <tagB> [<tagC> ...]
+        python tools/playtest/compare_runs.py --curve <tagA> [<tagB> ...]
 
 Reads every user://playtest/*.json report whose run name ends with _<tag>
 (the runner's --tag; seeds append _s<N>, so a tag also matches its seeded
@@ -81,6 +82,21 @@ contacts left out on both sides, over the combat hits). by_kind books a re-hit
 under the second hit's kind, so only xsrc30c removes a hazard predecessor.
 Reports from before the fix print "-" for both, and their hits include zone
 and periodic environmental ticks.
+
+GR-CROWD (gameplay review, 2026-11-03) extends "crowd" with the run's slot table
+(--slot-table, not in the run name, so an A/B uses two tags), the melee candidates
+per engaged frame (cand_mean, the supply) and the frames with a slot free and a
+candidate ringing (slot_idle%, slot_idle_f: the direct test of whether the slot
+rules limit pressure), and adds a "swarms" table per tag: swarm waves per run, the
+share cleared, frames to clear, peak living, hero damage per swarm, and holders,
+attackers within 250 px and candidates per swarm frame. "-" on older reports.
+
+--curve prints only the target curve (tools/playtest/target_curve.json, ruling 4c+)
+per tag: completions by level and difficulty for the file's bot, with an 80 % Wilson
+interval, flagged "low" or "high" only when the interval misses the target. Hard has
+no target and prints "-". Levels 6, 7 and 10 carry their bot-gap notes, and Levels 1-4
+print as their own table, because the schedule shift changed their kit. Flags only:
+nothing is tuned against them.
 """
 import fnmatch
 import glob
@@ -88,6 +104,8 @@ import json
 import os
 import statistics
 import sys
+
+CURVE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "target_curve.json")
 
 OUT = os.path.join(os.environ.get("APPDATA", ""), "Godot", "app_userdata", "Fighters Through Time", "playtest")
 
@@ -522,6 +540,8 @@ def crowd_rows(tag_pattern):
         atk_max = melee_max = holders_max = ranged_max = 0
         over_slots = gated_over = holders_over = ranged_over = 0
         handoffs, grants, slots, waiters, front = [], [], set(), {}, {}
+        # GR-CROWD: the supply and the idle-slot test; absent before it.
+        cand_sum, idle_frames, cand_frames, tables = 0, 0, 0, set()
         far_samples, waiter_samples = 0, 0
         for r in have:
             e = r["mob_engagement"]
@@ -532,6 +552,12 @@ def crowd_rows(tag_pattern):
             atk_sum += num(sums.get("attacking_near"), 0)
             melee_sum += num(sums.get("melee_attacking_near"), 0)
             ranged_sum += num(sums.get("ranged_in_flight"), 0)
+            if "melee_candidates" in sums:
+                cand_sum += num(sums.get("melee_candidates"), 0)
+                idle_frames += num(e.get("slot_idle_with_waiters_frames"), 0)
+                cand_frames += frames
+            if isinstance(r.get("slot_table"), str):
+                tables.add(r["slot_table"])
             atk_max = max(atk_max, num(e.get("attacking_near_max"), 0))
             melee_max = max(melee_max, num(e.get("melee_attacking_near_max"), 0))
             holders_max = max(holders_max, num(e.get("slot_holders_max"), 0))
@@ -557,6 +583,10 @@ def crowd_rows(tag_pattern):
             "bot": bot,
             "runs": len(runs),
             "slots": "/".join(sorted(slots)) if slots else "-",
+            "table": "/".join(sorted(tables)) if tables else "-",
+            "cand_mean": round(cand_sum / cand_frames, 2) if cand_frames else "-",
+            "slot_idle%": pct(idle_frames, cand_frames) if cand_frames else "-",
+            "slot_idle_f": idle_frames if cand_frames else "-",
             "engaged_s": round(engaged / 60, 1) if ok else "-",
             "atk_max": atk_max if ok else "-",
             "atk_mean": round(atk_sum / engaged, 2) if engaged else "-",
@@ -576,6 +606,84 @@ def crowd_rows(tag_pattern):
             "ranged_over_f": ranged_over if ok else "-",
         })
     return rows
+
+
+def swarm_rows(tag_pattern):
+    """GR-CROWD: one row per bot from the swarms blocks (raw counts pooled, never medians of medians)."""
+    rows = []
+    for bot, runs in by_bot(tag_pattern):
+        have = [r for r in runs if isinstance(r.get("swarms"), dict)]
+        log = [entry for r in have for entry in (r["swarms"].get("log") or [])]
+        frames = sum(num(s.get("frames"), 0) for s in log)
+        cleared = [s for s in log if num(s.get("frames_to_clear")) >= 0]
+        rows.append({
+            "bot": bot,
+            "runs": len(runs),
+            "swarms/run": round(len(log) / len(have), 2) if have else "-",
+            "cleared%": pct(len(cleared), len(log)) if log else "-",
+            "clear_f_med": med([s["frames_to_clear"] for s in cleared]),
+            "peak_med": med([num(s.get("peak_living"), 0) for s in log]),
+            "dmg/swarm": round(sum(num(s.get("hero_damage"), 0) for s in log) / len(log), 1) if log else "-",
+            "holders_mean": round(sum(num(s.get("holders_sum"), 0) for s in log) / frames, 2) if frames else "-",
+            "atk_mean": round(sum(num(s.get("attacking_near_sum"), 0) for s in log) / frames, 2) if frames else "-",
+            "cand_mean": round(sum(num(s.get("melee_candidates_sum"), 0) for s in log) / frames, 2) if frames else "-",
+        })
+    return rows
+
+
+def wilson(successes, n, confidence):
+    """The Wilson score interval of a proportion."""
+    z = statistics.NormalDist().inv_cdf(0.5 + confidence / 2)
+    p = successes / n
+    denominator = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / denominator
+    half = z * ((p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5) / denominator
+    return max(0.0, centre - half), min(1.0, centre + half)
+
+
+def curve_rows(tag_pattern, curve):
+    """Ruling 4c+: one row per level and difficulty, flagged only when the interval misses the target."""
+    tally = {}
+    for r in reports(tag_pattern):
+        level = r.get("level")
+        if r.get("bot") != curve["bot"] or not isinstance(level, int) or not 1 <= level <= 15:
+            continue
+        key = (level, str(r.get("difficulty", "?")).lower())
+        runs, done = tally.get(key, (0, 0))
+        tally[key] = (runs + 1, done + (1 if r.get("level_completed") else 0))
+    rows = []
+    for (level, difficulty), (runs, done) in sorted(tally.items()):
+        targets = curve["difficulties"].get(difficulty)
+        target = targets.get(str(level)) if targets else None
+        low, high = wilson(done, runs, curve["wilson_confidence"])
+        flag = "-" if target is None else "low" if high < target else "high" if low > target else "ok"
+        rows.append({
+            "level": level,
+            "difficulty": difficulty,
+            "runs": runs,
+            "completed": done,
+            "rate": round(done / runs, 3),
+            "wilson": f"{low:.2f}-{high:.2f}",
+            "target": "-" if target is None else target,
+            "flag": flag,
+            "note": curve["gap_notes"].get(str(level), ""),
+        })
+    return rows
+
+
+def print_curve(tags):
+    with open(CURVE_PATH, encoding="utf-8") as handle:
+        curve = json.load(handle)
+    keys = ["level", "difficulty", "runs", "completed", "rate", "wilson", "target", "flag", "note"]
+    for tag in tags:
+        rows = curve_rows(tag, curve)
+        print(f"\n### {tag}: target curve ({curve['bot']} bot, {round(curve['wilson_confidence'] * 100)} % Wilson)")
+        print("\n#### Levels 1-4 (the shifted schedule's kit)\n")
+        print_table(keys, [row for row in rows if row["level"] <= 4])
+        print("\n#### Levels 5-15\n")
+        print_table(keys, [row for row in rows if row["level"] >= 5])
+        flagged = [row for row in rows if row["flag"] in ("low", "high")]
+        print(f"\nFlagged: {len(flagged)} of {len(rows)} (flags only; nothing is tuned against them).")
 
 
 def rehit_rows(tag_pattern):
@@ -709,10 +817,16 @@ def main(tags, swings=False):
                      "relocations", "stall_reloc", "forced", "clear_f_med"],
                     lock_rows(tag))
         print("\n#### crowd\n")
-        print_table(["bot", "runs", "slots", "engaged_s", "atk_max", "atk_mean", "melee_max", "melee_mean",
-                     "over_slots%", "holders_max", "holders_over_f", "handoffs/run", "grants/run", "waiter_gap_med",
-                     "front_gap_med", "far_waiter%", "ranged_max", "ranged_mean", "ranged_over_f"],
+        print_table(["bot", "runs", "slots", "table", "engaged_s", "atk_max", "atk_mean", "melee_max", "melee_mean",
+                     "cand_mean", "slot_idle%", "slot_idle_f", "over_slots%", "holders_max", "holders_over_f",
+                     "handoffs/run", "grants/run", "waiter_gap_med", "front_gap_med", "far_waiter%", "ranged_max",
+                     "ranged_mean", "ranged_over_f"],
                     crowd_rows(tag))
+        # GR-CROWD (2026-11-03): per-swarm clear time, peak, damage and crowd.
+        print("\n#### swarms\n")
+        print_table(["bot", "runs", "swarms/run", "cleared%", "clear_f_med", "peak_med", "dmg/swarm", "holders_mean",
+                     "atk_mean", "cand_mean"],
+                    swarm_rows(tag))
         # CM-BOT (2026-10-16): hits on the hero by source, and cross-source re-hits.
         print("\n#### rehits\n")
         print_table(["bot", "runs", "hits/run", "xsrc30", "xsrc30%", "xsrc30c", "xsrc30c%", "xsrc20%", "same30%",
@@ -725,4 +839,7 @@ def main(tags, swings=False):
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    main([a for a in args if a != "--swings"], swings="--swings" in args)
+    if "--curve" in args:
+        print_curve([a for a in args if not a.startswith("--")])
+    else:
+        main([a for a in args if a != "--swings"], swings="--swings" in args)

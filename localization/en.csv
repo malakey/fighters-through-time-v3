@@ -1714,3 +1714,5 @@ defy_world_label,DEFIED
 hud_momentum_pips,Momentum
 # GR-SCHED
 tooltip_first_use_special_momentum,"Special 1 is restored — each Special spends one Momentum pip, and landing basic hits refills them."
+# GR-CROWD
+enemy_chrono_swarmling_name,Chrono Swarmling

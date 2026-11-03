@@ -663,6 +663,7 @@ public class EncounterLockTests {
                 RowID = RowID,
                 Spawns = new[] {
                     new EncounterLockSpawn("chrono_slasher", scene.At(1500f)),
+                    new EncounterLockSpawn("chrono_slasher", scene.At(1650f)),
                     new EncounterLockSpawn("chrono_guard_elite", scene.At(1800f))
                 },
                 Trigger = EncounterWaveTrigger.OnBuild
@@ -670,16 +671,18 @@ public class EncounterLockTests {
             EncounterLock encounterLock = scene.BuildLock(wave);
             await Frames(3);
             IReadOnlyList<EnemyController> members = encounterLock.LivingMembers;
-            AssertThat(members.Count).IsEqual(2);
+            AssertThat(members.Count).IsEqual(3);
             EnemyController standard = members[0];
-            EnemyController elite = members[1];
+            EnemyController secondStandard = members[1];
+            EnemyController elite = members[2];
             AssertThat(elite.Data.Tier).IsEqual(EnemyTier.Elite);
             AssertThat(StoryEngagementRules.ClassOf(elite.PreviewNextAttack().Archetype, false))
                 .IsEqual(StoryEngagementRules.EngagementClass.MeleeSlot);
             // The standard ticks first: it comes first in the tree.
             AssertThat(standard.GetIndex() < elite.GetIndex()).IsTrue();
+            AssertThat(secondStandard.GetIndex() < elite.GetIndex()).IsTrue();
 
-            // Both stand east of the hero: Normal has one slot on that side.
+            // All three stand east of the hero: Normal has two slots on that side.
             scene.PlaceHero(AreaMin + 200f);
             for (int frame = 0; frame < 6 && standard.EngagementRole != StoryEngagementRules.EngagementRole.Slot
                     && elite.EngagementRole != StoryEngagementRules.EngagementRole.Slot; frame++) {
@@ -689,7 +692,9 @@ public class EncounterLockTests {
             AssertThat(elite.EngagementRole)
                 .OverrideFailureMessage($"The first slot went to {(standard.EngagementRole == StoryEngagementRules.EngagementRole.Slot ? "the standard" : "nobody")}, not the elite.")
                 .IsEqual(StoryEngagementRules.EngagementRole.Slot);
-            AssertThat(standard.EngagementRole).IsEqual(StoryEngagementRules.EngagementRole.Waiting);
+            // The elite outranks both, though both tick first: one standard waits.
+            AssertThat(new[] { standard, secondStandard }.Count(m => m.EngagementRole == StoryEngagementRules.EngagementRole.Waiting))
+                .IsEqual(1);
         } finally {
             StoryEngagementDirector.ResetForTest();
         }
@@ -698,8 +703,8 @@ public class EncounterLockTests {
     /// <summary>
     /// A revert puts every member to sleep, and a dormant member leaves the
     /// director (plan §2.6: dormant lock members never join): no role, no slot.
-    /// The re-engage then grants slots afresh under the per-side cap — two former
-    /// holders now on one side do not both keep theirs.
+    /// The re-engage then grants slots afresh under the per-side cap — three former
+    /// holders now on one side do not all keep theirs.
     /// </summary>
     [TestCase(Timeout = 60000)]
     public async Task ARevertedMemberLeavesTheDirectorAndAReengageGrantsSlotsAfresh() {
@@ -720,14 +725,14 @@ public class EncounterLockTests {
             IReadOnlyList<EnemyController> members = encounterLock.LivingMembers;
             AssertThat(members.Count).IsEqual(3);
 
-            // In the middle: one member west of the hero, two east — Normal grants one slot a side.
+            // In the middle: one member west of the hero, two east — Normal's three slots all go.
             scene.PlaceHero(AreaMin + 700f);
             await Frames(3);
             AssertThat(encounterLock.State).IsEqual(EncounterLockState.Engaged);
             AssertThat(members.Count(m => m.EngagementRole == StoryEngagementRules.EngagementRole.Slot))
                 .OverrideFailureMessage("Holders after the engage: " + string.Join(", ", members.Select(m =>
                     $"{m.EngagementRole}/{m.CurrentState}@{m.GlobalPosition.X - Origin.X:0}")) + $" hero@{scene.Hero.GlobalPosition.X - Origin.X:0}")
-                .IsEqual(2);
+                .IsEqual(3);
 
             // A landing outside reverts it.
             scene.PlaceHero(AreaMin - 300f);

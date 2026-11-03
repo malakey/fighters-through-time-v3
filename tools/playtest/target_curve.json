@@ -1,0 +1,23 @@
+{
+  "_comment": "Ruling 4c+: the intended bot completion by level and difficulty, for the play bot. Flags only, never tuned against. Read by compare_runs.py --curve. Hard stays null until a stronger bot or human data exists. The ledger row TARGET-COMPLETION-CURVE names this file, never its numbers.",
+  "bot": "play",
+  "wilson_confidence": 0.8,
+  "difficulties": {
+    "easy": {
+      "1": 0.9, "2": 0.9, "3": 0.9, "4": 0.9, "5": 0.9,
+      "6": 0.9, "7": 0.9, "8": 0.9, "9": 0.9, "10": 0.9,
+      "11": 0.9, "12": 0.9, "13": 0.9, "14": 0.9, "15": 0.9
+    },
+    "normal": {
+      "1": 0.75, "2": 0.7321, "3": 0.7143, "4": 0.6964, "5": 0.6786,
+      "6": 0.6607, "7": 0.6429, "8": 0.625, "9": 0.6071, "10": 0.5893,
+      "11": 0.5714, "12": 0.5536, "13": 0.5357, "14": 0.5179, "15": 0.5
+    },
+    "hard": null
+  },
+  "gap_notes": {
+    "6": "bot gap: the vault winch stalls five heroes (VERIFY-L06-VAULT-BOT-STALL)",
+    "7": "bot gap: the skiff channel and the quay lock (PROVISIONAL-BOT-FLIGHT-MODEL)",
+    "10": "bot gap: the arena trapdoor recess (a jump planned into a closed trapdoor)"
+  }
+}

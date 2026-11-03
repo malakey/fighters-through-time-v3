@@ -368,6 +368,9 @@ namespace FTT.Diagnostics {
         /// <summary>A waiter holding on the wait ring (in Chase, its next attack a melee one).</summary>
         public static bool IsRingingWaiter(EnemyController enemy) => enemy.IsRingingWaiter && !enemy.IsEngagementCrossing;
 
+        /// <summary>A ringing waiter a free melee slot could go to (GR-CROWD's supply measure).</summary>
+        public static bool IsMeleeSlotCandidate(EnemyController enemy) => enemy.IsMeleeSlotCandidate;
+
         /// <summary>The side of its aim a waiter rings (−1 left, +1 right).</summary>
         public static int RingSideOf(EnemyController enemy) => enemy.EngagementRingSide;
 

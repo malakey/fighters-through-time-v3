@@ -613,7 +613,7 @@ namespace FTT.Enemies {
                     this, _sprite, ownerPlayerIndex: -1, subscribeToStoryEvents: false);
                 Executor.Glow = _glow;
                 _presentationSuspender = FTT.Combat.PresentationVisibilitySuspender.AttachTo(this, _sprite);
-                FTT.Combat.RetroSpriteScaleNormalizer.Attach(
+                _scaleNormalizer = FTT.Combat.RetroSpriteScaleNormalizer.Attach(
                     _sprite, FTT.Combat.RetroSpriteScaleNormalizer.FigureKind.Enemy);
             }
         }
@@ -663,11 +663,16 @@ namespace FTT.Enemies {
             UpdateHPBar();
         }
 
+        private FTT.Combat.RetroSpriteScaleNormalizer _scaleNormalizer;
+
         private void ApplyPresentation() {
             if (_sprite != null) {
                 bool hasAuthoredFrames = Data?.SpriteFramesResource != null;
                 if (hasAuthoredFrames) _sprite.SpriteFrames = Data.SpriteFramesResource;
-                Color tint = hasAuthoredFrames ? Colors.White : Data?.PlaceholderTint ?? Colors.White;
+                if (_scaleNormalizer != null) _scaleNormalizer.FigureScale = Data?.SpriteScaleFactor ?? 1f;
+                Color tint = hasAuthoredFrames && Data?.TintAuthoredFrames != true
+                    ? Colors.White
+                    : Data?.PlaceholderTint ?? Colors.White;
                 if (tint.A <= 0f) tint = Colors.White;
                 // SetBaseModulate routes through the arbiter when one is attached.
                 Executor.SetBaseModulate(tint);
