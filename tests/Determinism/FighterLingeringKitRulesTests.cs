@@ -135,7 +135,7 @@ public class FighterLingeringKitRulesTests {
             FighterHitOutcome.Landed, 8, LingeringMomentumEvent.Detonation);
         AssertThat(counted).IsTrue();
         AssertThat(FighterSpecialCancelRules.LandedDirectHit(in cast)).IsTrue();
-        AssertThat(verb.MomentumUnits).IsEqual(1440);
+        AssertThat(verb.MomentumUnits).IsEqual(LingeringKitRules.MomentumUnitsFor(LingeringMomentumEvent.Detonation));
         AssertThat(runtime.SwingLanded)
             .OverrideFailureMessage("It must not set the D1 swing latch C.")
             .IsEqual(0);
@@ -144,7 +144,7 @@ public class FighterLingeringKitRulesTests {
         FighterLingeringKitRules.CountsAsCombo(
             ref cast, ref verb, FighterHitContractTable.SlotSpecialTwo, 11,
             FighterHitOutcome.Landed, 8, LingeringMomentumEvent.Detonation, payoutAlreadyPaid: true);
-        AssertThat(verb.MomentumUnits).IsEqual(1440);
+        AssertThat(verb.MomentumUnits).IsEqual(LingeringKitRules.MomentumUnitsFor(LingeringMomentumEvent.Detonation));
 
         // An earlier cast's late hit does not arm a later cast, but a landed strike still pays.
         cast.SpecialFlags = 0;
@@ -154,7 +154,7 @@ public class FighterLingeringKitRulesTests {
         AssertThat(FighterSpecialCancelRules.LandedDirectHit(in cast))
             .OverrideFailureMessage("Cast attribution: a stale cast id never arms D3.")
             .IsFalse();
-        AssertThat(verb.MomentumUnits).IsEqual(1440 + 360);
+        AssertThat(verb.MomentumUnits).IsEqual(LingeringKitRules.MomentumUnitsFor(LingeringMomentumEvent.Detonation) + LingeringKitRules.MomentumUnitsFor(LingeringMomentumEvent.SyncedStrike));
 
         // A blocked, refused or zero-damage contact pays nothing.
         int before = verb.MomentumUnits;

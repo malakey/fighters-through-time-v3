@@ -74,10 +74,10 @@ public class LingeringKitRulesTests {
 
     [TestCase]
     public void MomentumPaysOnTheExistingUnitScaleOncePerEvent() {
-        AssertThat(LingeringKitRules.MomentumUnitsFor(LingeringMomentumEvent.Detonation)).IsEqual(1440);
-        AssertThat(LingeringKitRules.MomentumUnitsFor(LingeringMomentumEvent.SyncedStrike)).IsEqual(360);
-        AssertThat(LingeringKitRules.MomentumUnitsFor(LingeringMomentumEvent.HoldCast)).IsEqual(360);
-        // 0.2 pip and 0.05 pip of 7200.
+        AssertThat(LingeringKitRules.MomentumUnitsFor(LingeringMomentumEvent.Detonation)).IsEqual(BasicComboRules.MomentumFinisherGainUnits);
+        AssertThat(LingeringKitRules.MomentumUnitsFor(LingeringMomentumEvent.SyncedStrike)).IsEqual(BasicComboRules.MomentumStringHitGainUnits);
+        AssertThat(LingeringKitRules.MomentumUnitsFor(LingeringMomentumEvent.HoldCast)).IsEqual(BasicComboRules.MomentumStringHitGainUnits);
+        // 0.2 pip and 0.05 pip of a pip.
         AssertThat(LingeringKitRules.MomentumUnitsFor(LingeringMomentumEvent.Detonation) * 5)
             .IsEqual(BasicComboRules.MomentumUnitsPerPip);
         AssertThat(LingeringKitRules.MomentumUnitsFor(LingeringMomentumEvent.SyncedStrike) * 20)

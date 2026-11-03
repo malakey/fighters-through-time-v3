@@ -96,9 +96,9 @@ public class OwnerHitSeamTests {
         Run((player, host) => {
             player.RestoreMomentumPips(1f);
             player.PayLingeringMomentum(LingeringMomentumEvent.Detonation);
-            AssertFloat(player.MomentumPips).IsEqualApprox(1f + 1440f / 7200f, 0.0001f);
+            AssertFloat(player.MomentumPips).IsEqualApprox(1f + LingeringKitRules.MomentumUnitsFor(LingeringMomentumEvent.Detonation) / (float)BasicComboRules.MomentumUnitsPerPip, 0.0001f);
             player.PayLingeringMomentum(LingeringMomentumEvent.SyncedStrike);
-            AssertFloat(player.MomentumPips).IsEqualApprox(1f + 1800f / 7200f, 0.0001f);
+            AssertFloat(player.MomentumPips).IsEqualApprox(1f + (LingeringKitRules.MomentumUnitsFor(LingeringMomentumEvent.Detonation) + LingeringKitRules.MomentumUnitsFor(LingeringMomentumEvent.SyncedStrike)) / (float)BasicComboRules.MomentumUnitsPerPip, 0.0001f);
         });
     }
 

@@ -54,7 +54,7 @@ public class StoryDefyBlastTests {
                 AssertThat(right.CurrentHP).IsEqual(hpRight);
                 AssertThat(left.CurrentHP).IsEqual(hpLeft);
                 // Passive regen (10 units a frame) runs through the Defy's few frames; a landed
-                // string hit would add 360 units, so any gain under 12 frames of regen is no hit.
+                // string hit would add a twentieth of a pip, so any gain under 12 frames of regen is no hit.
                 AssertThat(hero.MomentumPips - pips)
                     .OverrideFailureMessage("The blast is not a hit: no Momentum beyond passive regen.")
                     .IsLess(12f * BasicComboRules.MomentumRegenUnitsPerFrame / BasicComboRules.MomentumUnitsPerPip + 0.001f);

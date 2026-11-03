@@ -256,7 +256,7 @@ public class StoryHitConfirmTests {
             AssertThat(contactLanded).IsTrue();
             AssertThat(attacker.SwingLanded).IsTrue();
             AssertFloat(attacker.MomentumPips)
-                .IsEqualApprox(pipsBefore + BasicComboRules.MomentumStringHitGainUnits / 7200f, 0.0001f);
+                .IsEqualApprox(pipsBefore + BasicComboRules.MomentumStringHitGainUnits / (float)BasicComboRules.MomentumUnitsPerPip, 0.0001f);
         });
 
         // The hero's block stance takes it: no landing.
@@ -315,7 +315,7 @@ public class StoryHitConfirmTests {
                 .IsTrue();
             AssertFloat(player.MomentumPips)
                 .OverrideFailureMessage("A swing that cleaves two mobs still pays 0.05 pip once.")
-                .IsEqualApprox(BasicComboRules.MomentumStringHitGainUnits / 7200f, 0.0001f);
+                .IsEqualApprox(BasicComboRules.MomentumStringHitGainUnits / (float)BasicComboRules.MomentumUnitsPerPip, 0.0001f);
         });
     }
 
@@ -330,7 +330,7 @@ public class StoryHitConfirmTests {
             AssertThat(gains[2]).OverrideFailureMessage("The landed finisher adds a fifth of a pip.")
                 .IsEqual(BasicComboRules.MomentumFinisherGainUnits);
             AssertFloat(player.MomentumPips).OverrideFailureMessage("A full landed string is 0.3 pip.")
-                .IsEqualApprox(2160f / 7200f, 0.0001f);
+                .IsEqualApprox((2 * BasicComboRules.MomentumStringHitGainUnits + BasicComboRules.MomentumFinisherGainUnits) / (float)BasicComboRules.MomentumUnitsPerPip, 0.0001f);
         });
 
         // The landed swing releases Special 1 from its lockout the first tick after the freeze, and
@@ -354,7 +354,7 @@ public class StoryHitConfirmTests {
             AssertThat(up.HitboxID).IsEqual(BasicComboRules.UpAttackHitboxID);
             player.RestoreMomentumPips(0f);
             Contact(up, mob);
-            AssertFloat(player.MomentumPips).IsEqualApprox(BasicComboRules.MomentumDirectionalGainUnits / 7200f, 0.0001f);
+            AssertFloat(player.MomentumPips).IsEqualApprox(BasicComboRules.MomentumDirectionalGainUnits / (float)BasicComboRules.MomentumUnitsPerPip, 0.0001f);
             for (int tick = 0; tick < 120 && player.CurrentState != CharacterState.Idle; tick++) Tick(player, GameplayButtons.None);
 
             LiftIntoTheAir(player, 300f);
@@ -362,7 +362,7 @@ public class StoryHitConfirmTests {
             AssertThat(down.HitboxID).IsEqual(BasicComboRules.DownAirHitboxID);
             Contact(down, mob);
             AssertFloat(player.MomentumPips)
-                .IsEqualApprox(2f * BasicComboRules.MomentumDirectionalGainUnits / 7200f, 0.0001f);
+                .IsEqualApprox(2f * BasicComboRules.MomentumDirectionalGainUnits / (float)BasicComboRules.MomentumUnitsPerPip, 0.0001f);
         });
     }
 
@@ -644,7 +644,7 @@ public class StoryHitConfirmTests {
         }
         AssertThat(contactLanded).IsTrue();
         AssertThat(player.SwingLanded).IsTrue();
-        AssertFloat(player.MomentumPips).IsEqualApprox(1f + gainUnits / 7200f, 0.0001f);
+        AssertFloat(player.MomentumPips).IsEqualApprox(1f + gainUnits / (float)BasicComboRules.MomentumUnitsPerPip, 0.0001f);
     }
 
     /// <summary>The opener lands and Special 1 is pressed until it is accepted (the hit-confirm).</summary>
@@ -662,7 +662,7 @@ public class StoryHitConfirmTests {
 
     /// <summary>
     /// Lands <paramref name="hits"/> chained string hits on <paramref name="mob"/>,
-    /// returning each landing's gauge gain in units (7200 to a pip).
+    /// returning each landing's gauge gain in units (BasicComboRules.MomentumUnitsPerPip to a pip).
     /// </summary>
     private static int[] LandString(PlayerController player, EnemyController mob, int hits) {
         var gains = new int[hits];
@@ -678,7 +678,7 @@ public class StoryHitConfirmTests {
             if (!box.IsActive || player.ComboCounter == contactedHit) continue;
             float pipsBefore = player.MomentumPips;
             Contact(box, mob);
-            gains[contacts] = (int)Math.Round((player.MomentumPips - pipsBefore) * 7200f);
+            gains[contacts] = (int)Math.Round((player.MomentumPips - pipsBefore) * BasicComboRules.MomentumUnitsPerPip);
             contactedHit = player.ComboCounter;
             contacts++;
             // The next press lands in the freeze and buffers the next hit (F3).

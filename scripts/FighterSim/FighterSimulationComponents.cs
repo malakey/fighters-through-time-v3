@@ -768,7 +768,7 @@ namespace FTT.FighterSim {
         public int OvertimeActive;
         // --- The Momentum gauge (meter and Defy update 2026-10-31) ---
         /// <summary>
-        /// The Momentum gauge in units (7200 to the pip, 0..28 800; see
+        /// The Momentum gauge in units (BasicComboRules.MomentumUnitsPerPip to the pip, 0..MomentumMaxUnits; see
         /// <see cref="FighterMomentumRules"/>). Replaces the per-cycle refund counter
         /// this slot held until 2026-10-31. It survives a stock loss (G3.2), is
         /// set to the start fill at spawn and by the Sudden Death setup, and is

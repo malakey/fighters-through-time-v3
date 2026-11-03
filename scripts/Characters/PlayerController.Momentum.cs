@@ -92,7 +92,7 @@ namespace FTT.Characters {
 		}
 
 		/// <summary>
-		/// One tick of passive regen (1 pip per 12 s, no pause after a spend), called beside the
+		/// One tick of passive regen (1 pip per 9 s, no pause after a spend), called beside the
 		/// cooldown ticks so it shares their pauses. Plan P3: it reads no cooldown multiplier.
 		/// </summary>
 		private void RegenMomentum(float dt) {

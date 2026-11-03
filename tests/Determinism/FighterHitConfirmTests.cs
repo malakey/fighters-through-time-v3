@@ -320,7 +320,7 @@ public class FighterHitConfirmTests {
 
     [TestCase]
     public void EveryLandedBasicHitAddsItsGaugeGainOncePerSwing() {
-        // The string: 360, 360, 1440 units.
+        // The string: 0.05, 0.05 and 0.2 pip.
         FighterSimulation simulation = NewSim(seed: 371, basicKnockback: FP64.Zero);
         AssertThat(simulation.SeedFighterSpecialReuseForTest(0, LongCooldown, LongCooldown)).IsTrue();
         Approach(simulation);
