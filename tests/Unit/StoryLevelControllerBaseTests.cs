@@ -594,8 +594,13 @@ public class StoryLevelControllerBaseTests {
                 .IsTrue();
             AssertThat(story.LastLevelDustLost).IsEqual(20);
             AssertThat(story.LastLevelDustCarriedIn).IsEqual(100);
-            AssertThat(story.LastCompletionDepositDust).IsEqual(130 + bonus);
-            AssertThat(save.DepositedChronalDust[hero]).IsEqual(50 + 130 + bonus);
+            // The level rank is a bonus on top (gameplay review §1.9), with its own line.
+            int rankBonus = story.LastLevelRankBonusDust;
+            AssertThat(rankBonus > 0)
+                .OverrideFailureMessage("A clean run must earn a rank bonus for this case to mean anything.")
+                .IsTrue();
+            AssertThat(story.LastCompletionDepositDust).IsEqual(130 + bonus + rankBonus);
+            AssertThat(save.DepositedChronalDust[hero]).IsEqual(50 + 130 + bonus + rankBonus);
 
             LevelResultsPanel panel = null;
             Godot.Collections.Array<Node> children = level.GetChildren();
@@ -618,9 +623,10 @@ public class StoryLevelControllerBaseTests {
             AssertThat(carried.Text.Contains("100")).IsTrue();
             AssertString(Line("DustLosses")).IsEqual(Format("results_dust_losses", 20));
             AssertString(Line("DustTierBonus")).IsEqual(Format("results_dust_tier_bonus", bonus));
+            AssertString(Line("RankDustLine")).IsEqual(Format("results_rank_dust", rankBonus));
             AssertString(Line("DustEarned"))
                 .OverrideFailureMessage("The panel's total must equal what the completion banked.")
-                .IsEqual(Format("results_dust_earned", 130 + bonus));
+                .IsEqual(Format("results_dust_earned", 130 + bonus + rankBonus));
         } finally {
             story.SuppressSceneLoadsForTesting = false;
             story.TryConsumeCompletionDepositNotice(out _);

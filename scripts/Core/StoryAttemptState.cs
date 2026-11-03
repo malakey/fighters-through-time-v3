@@ -212,6 +212,8 @@ namespace FTT.Core {
         public string TransactionID = "";
         public int RetainedBaseDust;
         public int TierBonusDust;
+        /// <summary>The level rank's dust, a bonus on top of the F05 ledger (gameplay review §1.9).</summary>
+        public int RankBonusDust;
         public int DepositAmount;
         public float FinalIntegrityPercent;
         public bool Sealed;
@@ -225,6 +227,7 @@ namespace FTT.Core {
             Destination ??= "";
             if (RetainedBaseDust < 0) RetainedBaseDust = 0;
             if (TierBonusDust < 0) TierBonusDust = 0;
+            if (RankBonusDust < 0) RankBonusDust = 0;
             if (DepositAmount < 0) DepositAmount = 0;
             FinalIntegrityPercent = Math.Clamp(FinalIntegrityPercent, 0f, 100f);
         }
@@ -283,6 +286,15 @@ namespace FTT.Core {
         public bool PreBossLocked;
         /// <summary>The N05 contribution, banked at the PreBoss lock. Negative = not reached.</summary>
         public float FinalGateIntegrity = -1f;
+
+        /// <summary>
+        /// The level rank's damage tally (gameplay review §1.9): the authored-hit HP this attempt
+        /// lost to discrete hits and hazard contacts. Kept by a resume, a Collapse, an Anchor Snap
+        /// and a quit; a Restart mints a fresh record and resets it with the wallet.
+        /// </summary>
+        public float RankBaseDamage;
+        /// <summary>The discrete hits in <see cref="RankBaseDamage"/>.</summary>
+        public int RankHits;
 
         public Dictionary<string, int> FontUsesByID = new();
         public List<string> CollectedHealingIDs = new();
@@ -543,6 +555,8 @@ namespace FTT.Core {
             CurrentIntegrity = Math.Clamp(CurrentIntegrity, 0f, 100f);
             if (FinalGateIntegrity > 100f) FinalGateIntegrity = 100f;
             if (StartingExtractorCount < 0) StartingExtractorCount = 0;
+            if (RankBaseDamage < 0f) RankBaseDamage = 0f;
+            if (RankHits < 0) RankHits = 0;
             if (AnchorChargeMaximum < 0) AnchorChargeMaximum = 0;
             AnchorChargesRemaining = Math.Clamp(AnchorChargesRemaining, 0, AnchorChargeMaximum);
         }

@@ -1716,3 +1716,7 @@ hud_momentum_pips,Momentum
 tooltip_first_use_special_momentum,"Special 1 is restored — each Special spends one Momentum pip, and landing basic hits refills them."
 # GR-CROWD
 enemy_chrono_swarmling_name,Chrono Swarmling
+# GR-RANK
+results_rank,"Level rank: {0}"
+results_rank_dust,"Rank bonus: {0}"
+results_rank_detail,"Damage taken: {0}% of your health bar, speed {1}"

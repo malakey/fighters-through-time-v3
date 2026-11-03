@@ -286,11 +286,12 @@ public class DustEconomyTests {
     }
 
     [TestCase]
-    public void TheLedgerFundsTheContractsUpgradePacingAndNeverTheFullGridOnTheRequiredRoute() {
+    public void TheLedgerFundsTheContractsUpgradePacingAndTheRankBonusSitsOnTopOfIt() {
         // §"Upgrade pacing": the first minor (50) is affordable after Level 1 on
-        // every route; a thorough all-Restored run reaches 1,006 after Level 14
-        // and so completes the grid at Level 15's entry Beacon; and the required
-        // route never funds the full grid, even all-Restored.
+        // every route, and a thorough all-Restored run reaches 1,006 after Level 14,
+        // which completes the grid at Level 15's entry Beacon. The ledger alone still
+        // does not fund the grid on the required route; the level rank (rulings 3a+,
+        // 3a++) is a bonus on top of it and does, which the user accepted.
         AssertThat(LedgerRows[0][1] + LedgerRows[0][2] >= TierOneCost)
             .OverrideFailureMessage("Level 1 alone must fund the first 50-dust minor.")
             .IsTrue();
@@ -305,14 +306,24 @@ public class DustEconomyTests {
         AssertThat(thoroughThroughFourteen).IsEqual(1006);
         AssertThat(thoroughThroughFourteen >= FullGridCost).IsTrue();
 
-        // The required route's ceiling is 787 — below the 975 grid, deliberately.
+        // The ledger's required ceiling is 787, below the 975 grid; the rank is not in it.
         AssertThat(RequiredAllRestoredMaximum < FullGridCost)
-            .OverrideFailureMessage("The required route must never fund the full grid.")
+            .OverrideFailureMessage("The F05 ledger alone must not fund the full grid on the required route.")
             .IsTrue();
         // A thorough run without bonuses reaches 1,000 only after the finale, so
         // those rewards cannot improve the final fight.
         AssertThat(ThoroughBase >= FullGridCost).IsTrue();
         AssertThat(ThoroughBase - LedgerRows[^1].Skip(1).Sum() < FullGridCost).IsTrue();
+
+        // §1.10: the rank pays up to 50 on each of Levels 1-15, on top of those totals.
+        int rankCeiling = (LevelRankRules.LastRankedLevel - LevelRankRules.FirstRankedLevel + 1)
+            * LevelRankRules.MaximumDustPerLevel;
+        AssertThat(rankCeiling).IsEqual(750);
+        AssertThat(RequiredAllRestoredMaximum + rankCeiling).IsEqual(1537);
+        AssertThat(ThoroughAllRestoredMaximum + rankCeiling).IsEqual(1844);
+        AssertThat(RequiredAllRestoredMaximum + rankCeiling >= FullGridCost)
+            .OverrideFailureMessage("With the rank on top, the required route can fund the full grid (ruling 3a++).")
+            .IsTrue();
     }
 
     /// <summary>Non-recursive: the boss data resources, excluding the Abilities subtree.</summary>

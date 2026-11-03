@@ -1639,6 +1639,8 @@ namespace FTT.Core {
             // same envelope that records the result also persists the bonus.
             ApplyIntegrityTierBonus();
             // === end Package 11 A10 region ===
+            // The level rank pays after the tier bonus (no compounding, F05).
+            ApplyLevelRankBonus(levelID);
             // === Package 11 A3b region: the Act III completion transaction ===
             // F02: the active level's earnings are undeposited until completion,
             // when the auto-deposit fires ONCE, "sealed through the Warden
@@ -2234,6 +2236,7 @@ namespace FTT.Core {
             int deposited = DepositDustToActiveSave();
             _attempt.CompletionTransaction.DepositAmount = deposited;
             _attempt.CompletionTransaction.TierBonusDust = LastLevelTierBonusDust;
+            _attempt.CompletionTransaction.RankBonusDust = LastLevelRankBonusDust;
             LastCompletionDepositDust = deposited;
             _completionDepositNoticePending = deposited > 0;
             _attempt.CompletionTransaction.Applied = true;
