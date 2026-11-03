@@ -337,9 +337,9 @@ namespace FTT.UI {
         // === Package 11 A5: the V7.5 "Resonance Restored" beat ==============
 
         /// <summary>
-        /// Names the ability this level's completion restored — Levels 1–4 alike.
-        /// Package 12 W7: Level 4's Ultimate grant plays here like every other
-        /// unlock; Level 5 is the first full-kit level (S27 retired Level 4A).
+        /// Names the ability this level's completion restored — Levels 0–3 alike
+        /// (Level 0 restores Special 1; since the 2026-11-03 schedule shift the
+        /// Ultimate is granted by Level 3). Level 4 is the first full-kit level.
         /// </summary>
         private void ShowResonanceRestoredBeat() {
             if (_resonanceRestoredLabel == null) return;

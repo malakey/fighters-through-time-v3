@@ -287,6 +287,12 @@ namespace FTT.UI {
             PlayerController player = FindPlayer();
             if (player == null) return;
             if (FirstUseTooltips.DefyButtonDue(player.CurrentUltimateMeter)) Offer(FirstUseTooltips.DefyButton);
+            // GR-SCHED: Special 1 is restored by Level 0 and first played on Level 1.
+            if (FirstUseTooltips.SpecialMomentumDue(
+                    (int)(StoryManager.Instance?.CurrentLevel ?? CampaignLevel.Tutorial),
+                    player.IsAbilityUnlocked(AbilitySlot.Special1))) {
+                Offer(FirstUseTooltips.SpecialMomentum);
+            }
             if (player.CurrentState == CharacterState.LedgeHanging) Offer(FirstUseTooltips.Ledge);
             if (player.CurrentState == CharacterState.Stunned && !player.IsOnFloor()) Offer(FirstUseTooltips.Launch);
             if (FirstUseTooltips.ShouldShow(save, FirstUseTooltips.OneWayPlatform) && StandsOnOneWay(player)) {

@@ -11,7 +11,8 @@ namespace FTT.Tests.Unit;
 /// Package 13 W3 (S02): the skip path's first-use tooltips — the ledger rules
 /// (<see cref="FirstUseTooltips"/>) and the two additive save fields that carry
 /// them. A Full-Calibration slot (every pre-v8 slot included) never shows one; a
-/// Skip slot shows each of the nine once. Pure C# (failure signature 7).
+/// Skip slot shows each of the ten once (the tenth, special_momentum, is GR-SCHED's: Special 1 on
+/// Level 1). Pure C# (failure signature 7).
 /// </summary>
 [TestSuite]
 public class FirstUseTooltipsTests {
@@ -29,11 +30,11 @@ public class FirstUseTooltipsTests {
     }
 
     [TestCase]
-    public void TheSkipChoiceArmsEachOfTheNineTooltipsExactlyOncePerSlot() {
+    public void TheSkipChoiceArmsEachOfTheTenTooltipsExactlyOncePerSlot() {
         var save = new StorySaveData();
         FirstUseTooltips.ArmForSkippedCalibration(save);
         AssertThat(save.SkippedCalibration).IsTrue();
-        AssertThat(FirstUseTooltips.All.Count).IsEqual(9);
+        AssertThat(FirstUseTooltips.All.Count).IsEqual(10);
         foreach (string id in FirstUseTooltips.All) {
             AssertThat(FirstUseTooltips.TryConsume(save, id))
                 .OverrideFailureMessage($"{id} did not show the first time.").IsTrue();
@@ -45,7 +46,27 @@ public class FirstUseTooltipsTests {
         AssertThat(FirstUseTooltips.ShouldShow(save, FirstUseTooltips.Grab)).IsFalse();
         // An unknown ID is refused rather than recorded.
         AssertThat(FirstUseTooltips.TryConsume(save, "not_a_tooltip")).IsFalse();
-        AssertThat(save.ShownFirstUseTooltips.Count).IsEqual(9);
+        AssertThat(save.ShownFirstUseTooltips.Count).IsEqual(10);
+    }
+
+    [TestCase]
+    public void TheSpecialMomentumTooltipIsDueOnLevelOneOnceSpecialOneIsRestored() {
+        // GR-SCHED (ruling 3b): Special 1 is restored by Level 0 and first played on Level 1.
+        AssertThat(FirstUseTooltips.KeyFor(FirstUseTooltips.SpecialMomentum))
+            .IsEqual("tooltip_first_use_special_momentum");
+        AssertThat(System.Linq.Enumerable.Contains(FirstUseTooltips.All, FirstUseTooltips.SpecialMomentum)).IsTrue();
+        AssertThat(FirstUseTooltips.SpecialMomentumDue(1, true)).IsTrue();
+        AssertThat(FirstUseTooltips.SpecialMomentumDue(1, false)).IsFalse();
+        AssertThat(FirstUseTooltips.SpecialMomentumDue(0, true)).IsFalse();
+        AssertThat(FirstUseTooltips.SpecialMomentumDue(2, true)).IsFalse();
+
+        // Like every first-use tooltip it shows once per slot, and only on a skipped-calibration one.
+        var full = new StorySaveData();
+        AssertThat(FirstUseTooltips.TryConsume(full, FirstUseTooltips.SpecialMomentum)).IsFalse();
+        var skipped = new StorySaveData();
+        FirstUseTooltips.ArmForSkippedCalibration(skipped);
+        AssertThat(FirstUseTooltips.TryConsume(skipped, FirstUseTooltips.SpecialMomentum)).IsTrue();
+        AssertThat(FirstUseTooltips.TryConsume(skipped, FirstUseTooltips.SpecialMomentum)).IsFalse();
     }
 
     [TestCase]

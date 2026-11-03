@@ -10,16 +10,24 @@ namespace FTT.Core {
     ///
     /// <list type="table">
     /// <item><term>Level 0 (calibration)</term><description>basic three-hit
-    /// string, Block, Rally, the death rewind, Time Freeze, and the Ultimate
-    /// Meter <i>with</i> Defy History — none of which this class gates, because
-    /// they are never locked.</description></item>
+    /// string, Block, Rally, the death rewind, and the Ultimate Meter <i>with</i>
+    /// Defy — none of which this class gates, because they are never locked.
+    /// Level 0 stays basics-first: the hero plays it with no Special, and
+    /// <i>completing</i> it restores Special 1 (the results beat shows it).</description></item>
+    /// <item><term>Complete Level 0</term><description>Special 1 (playable from Level 1)</description></item>
     /// <item><term>Complete Level 1</term><description>Movement Ability</description></item>
-    /// <item><term>Complete Level 2</term><description>Special 1</description></item>
-    /// <item><term>Complete Level 3</term><description>Special 2</description></item>
-    /// <item><term>Complete Level 4</term><description>Ultimate <i>cast</i> — the
-    /// meter itself exists from Level 0 so Defy History and Level 4's dampening
-    /// beams stay meaningful.</description></item>
+    /// <item><term>Complete Level 2</term><description>Special 2</description></item>
+    /// <item><term>Complete Level 3</term><description>Ultimate <i>cast</i> — the
+    /// meter itself exists from Level 0 so Defy and Level 4's dampening
+    /// beams stay meaningful. Level 4 is the first full-kit level.</description></item>
     /// </list>
+    ///
+    /// <para>The schedule moved one level earlier on 2026-11-03 (gameplay review,
+    /// ruling 3b+; ledger <c>USER-LEGACY-SCHEDULE-SHIFT</c>). <b>No save derivation
+    /// is needed:</b> the persisted keys (<c>movement</c> / <c>special1</c> /
+    /// <c>special2</c> / <c>ultimate</c>) keep their meaning and are unioned with
+    /// the completed-level history in <see cref="UnlockedSlotsFor"/>, so a save
+    /// only ever gains a slot, never loses one.</para>
     ///
     /// <para><b>Milestone-gated, never dust-gated.</b> The 975-dust Resonance
     /// economy is untouched; this schedule and the grid are orthogonal (a grid
@@ -40,11 +48,21 @@ namespace FTT.Core {
 
         /// <summary>The four gated slots, in unlock order.</summary>
         public static readonly IReadOnlyList<AbilitySlot> GatedSlots = new[] {
-            AbilitySlot.MovementAbility,
             AbilitySlot.Special1,
+            AbilitySlot.MovementAbility,
             AbilitySlot.Special2,
             AbilitySlot.Ultimate
         };
+
+        /// <summary>
+        /// What <see cref="MilestoneLevelFor"/> returns for a slot the schedule does
+        /// not gate. A <b>negative</b> sentinel, because Level 0's completion is a
+        /// real milestone (Special 1) and 0 can no longer mean "ungated".
+        /// <see cref="LevelNumberOf"/> also returns -1 for an unrecognized ID, but
+        /// it is only ever compared against a gated slot's milestone (0 or more),
+        /// so a stray or retired ID can never grant anything.
+        /// </summary>
+        public const int NotGated = -1;
 
         /// <summary>
         /// Persisted slot keys (design-godot.md and plan §2.6: <c>movement</c> /
@@ -58,16 +76,18 @@ namespace FTT.Core {
         public const string UltimateKey = "ultimate";
 
         /// <summary>
-        /// Campaign level whose completion grants each slot. Level numbers, not
+        /// Campaign level whose completion grants each slot, or <see cref="NotGated"/>
+        /// (-1) for a slot the schedule never gates. Level numbers, not
         /// level IDs: the era suffix in <c>level_02_orleans</c> is content, the
-        /// <c>02</c> is the milestone.
+        /// <c>02</c> is the milestone. Special 1 is <b>0</b>: it is restored by
+        /// completing the Level 0 calibration.
         /// </summary>
         public static int MilestoneLevelFor(AbilitySlot slot) => slot switch {
+            AbilitySlot.Special1 => 0,
             AbilitySlot.MovementAbility => 1,
-            AbilitySlot.Special1 => 2,
-            AbilitySlot.Special2 => 3,
-            AbilitySlot.Ultimate => 4,
-            _ => 0
+            AbilitySlot.Special2 => 2,
+            AbilitySlot.Ultimate => 3,
+            _ => NotGated
         };
 
         /// <summary>The persisted key for a gated slot, or "" for an ungated one.</summary>
@@ -94,15 +114,15 @@ namespace FTT.Core {
         /// The slot a completed level ID grants, if any. Matches on the
         /// <c>level_NN</c> prefix rather than the whole ID, so the era suffix
         /// (<c>_orleans</c>, <c>_chicago</c>) is free to change without touching
-        /// the schedule. Level 5 is the first FULL-kit level (S27 retired Level
-        /// 4A), entered after the Ultimate is granted by Level 4's completion. A
+        /// the schedule. Level 4 is the first FULL-kit level, entered after the
+        /// Ultimate is granted by Level 3's completion (S27 retired Level 4A). A
         /// retired <c>level_04a_&lt;hero&gt;</c> ID an old save still carries grants
         /// nothing.
         /// </summary>
         public static bool TryGrantedSlotForLevel(string levelID, out AbilitySlot slot) {
             slot = AbilitySlot.Special1;
             int levelNumber = LevelNumberOf(levelID);
-            if (levelNumber <= 0) return false;
+            if (levelNumber < 0) return false;
             foreach (AbilitySlot candidate in GatedSlots) {
                 if (MilestoneLevelFor(candidate) != levelNumber) continue;
                 slot = candidate;
@@ -113,12 +133,12 @@ namespace FTT.Core {
 
         /// <summary>
         /// True when <paramref name="slot"/> is available given the levels this
-        /// save has completed. Ungated slots (anything not in
+        /// save has completed. Ungated slots (<see cref="NotGated"/>, anything not in
         /// <see cref="GatedSlots"/>) are always true.
         /// </summary>
         public static bool IsUnlocked(AbilitySlot slot, IReadOnlyCollection<string> completedLevels) {
             int milestone = MilestoneLevelFor(slot);
-            if (milestone <= 0) return true;
+            if (milestone < 0) return true;
             if (completedLevels == null) return false;
             foreach (string levelID in completedLevels) {
                 if (LevelNumberOf(levelID) == milestone) return true;
@@ -157,7 +177,7 @@ namespace FTT.Core {
         /// <see cref="UnlockedSlotsFor"/>). Ungated slots are always true.
         /// </summary>
         public static bool IsUnlockedFor(StorySaveData save, string characterID, AbilitySlot slot) {
-            if (MilestoneLevelFor(slot) <= 0) return true;
+            if (MilestoneLevelFor(slot) < 0) return true;
             return UnlockedSlotsFor(save, characterID).Contains(slot);
         }
 

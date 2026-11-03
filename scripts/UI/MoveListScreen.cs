@@ -375,7 +375,7 @@ namespace FTT.UI {
             // frame data withheld until the hero earns it. A null set means "no
             // gate" (Fighter Mode, or a Story context with no active save).
             bool dormant = unlockedSlots != null
-                && LegacyUnlockSchedule.MilestoneLevelFor(slot) > 0
+                && LegacyUnlockSchedule.MilestoneLevelFor(slot) >= 0
                 && !unlockedSlots.Contains(slot);
             var row = new HBoxContainer { Name = $"Ability_{slotKey}" };
             row.AddThemeConstantOverride("separation", 18);
