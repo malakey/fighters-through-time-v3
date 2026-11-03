@@ -1174,6 +1174,10 @@ namespace FTT.FighterSim {
                 if ((runtime.AttackFlags & FighterBasicAttackRules.FlagDownAir) != 0) {
                     return "down_air";
                 }
+                // GR-RUN: no new art; the running attack holds hit 2's sheet.
+                if (FighterBasicAttackRules.IsRunAttack(in runtime)) {
+                    return BasicAttackAnimationNames[FTT.Combat.BasicComboRules.RunAttackPoseStringStep];
+                }
                 int step = runtime.ComboIndex < 0 ? 0 : runtime.ComboIndex > 2 ? 2 : runtime.ComboIndex;
                 return BasicAttackAnimationNames[step];
             }

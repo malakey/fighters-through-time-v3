@@ -80,6 +80,46 @@ public class FighterPresentationSyncTests {
     }
 
     [TestCase]
+    public void TheRunningAttackHoldsHitTwosSheetForTheWholeSwing() {
+        // GR-RUN (ruling 9b): no new art, and ComboIndex stays 0, so the driver must
+        // choose the sheet from the flag. Hit 1 from a standstill is the control.
+        if (InputManager.Instance == null) return;
+        (FighterSimulationDriver driver, Node host, PlayerController one, PlayerController _) =
+            CreateDriver("RunAttackPoseHost", attachGlow: true);
+        var playerOneInput = new BufferedInputSource();
+        var playerTwoInput = new BufferedInputSource();
+        void Tick(float moveX, GameplayButtons buttons) {
+            uint frame = (uint)driver.CurrentTick;
+            playerOneInput.SetNextFrame(PlayerInputFrame.Create(frame, moveX, 0f, buttons));
+            playerTwoInput.SetNextFrame(PlayerInputFrame.Create(frame, 0f, 0f, GameplayButtons.None));
+            InputManager.Instance.SetInputSource(0, playerOneInput);
+            InputManager.Instance.SetInputSource(1, playerTwoInput);
+            driver._PhysicsProcess(Step);
+        }
+        try {
+            for (uint frame = 0; frame < FighterMatchFlowRules.CountdownFrames + 2; frame++) {
+                Tick(0f, GameplayButtons.None);
+            }
+            var sprite = one.GetNode<AnimatedSprite2D>("AnimatedSprite2D");
+            // Face the other way, away from the CPU, then run.
+            for (int tick = 0; tick < 10; tick++) Tick(-1f, GameplayButtons.None);
+            Tick(-1f, GameplayButtons.BasicAttack);
+            AssertThat(sprite.Animation).IsEqual(new StringName("basic_attack_2"));
+            for (int tick = 0; tick < 12; tick++) {
+                Tick(-1f, GameplayButtons.None);
+                AssertThat(sprite.Animation)
+                    .OverrideFailureMessage($"Tick {tick} of the swing.")
+                    .IsEqual(new StringName("basic_attack_2"));
+            }
+        } finally {
+            InputManager.Instance.ClearInputSource(0);
+            InputManager.Instance.ClearInputSource(1);
+            driver.QueueFree();
+            host.Free();
+        }
+    }
+
+    [TestCase]
     public void AcceptedFighterSpecialHoldsTheAuthoredAbilityPose() {
         if (InputManager.Instance == null) return;
         (FighterSimulationDriver driver, Node host, PlayerController one, PlayerController _) =

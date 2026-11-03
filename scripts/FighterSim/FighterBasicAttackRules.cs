@@ -47,8 +47,14 @@ namespace FTT.FighterSim {
         /// the ledge attack's climb (<see cref="StartLedgeAttack"/>).
         /// </summary>
         public const int FlagLedgeAttack = 512;
+        /// <summary>
+        /// GR-RUN (ruling 9b, 2026-11-03): the running attack's variant latch, the
+        /// next spare bit of the existing <c>AttackFlags</c> word on component 305
+        /// (no new component state, no protocol change).
+        /// </summary>
+        public const int FlagRunAttack = 1024;
         /// <summary>Any variant bit — a single strike outside the three-hit chain.</summary>
-        public const int VariantMask = FlagUpAttack | FlagDownAir | FlagAirAttack | FlagLedgeAttack;
+        public const int VariantMask = FlagUpAttack | FlagDownAir | FlagAirAttack | FlagLedgeAttack | FlagRunAttack;
         /// <summary>One construct sweep per swing (2026-08-11: basics damage enemy constructs).</summary>
         public const int FlagConstructHitResolved = 32;
         /// <summary>
@@ -122,11 +128,48 @@ namespace FTT.FighterSim {
         /// </summary>
         public static int SelectVariant(
             in FighterStateComponent fighter,
-            in FighterRuntimeComponent runtime) =>
+            in FighterRuntimeComponent runtime,
+            bool running = false) =>
             FTT.Combat.BasicComboRules.SelectAttackVariant(
                 upHeld: runtime.MoveY < -30,
                 downHeld: (runtime.HeldButtons & (1 << 1)) != 0,
-                airborne: fighter.IsGrounded == 0);
+                airborne: fighter.IsGrounded == 0,
+                running: running);
+
+        private static readonly FP64 RunAttackMinSpeedFraction =
+            FP64.FromDouble(FTT.Combat.BasicComboRules.RunAttackMinSpeedFraction);
+
+        /// <summary>
+        /// GR-RUN: the sim's approximation of Story's Running state (ruling 15, the
+        /// recorded exception: the sim has no such state): grounded, the stick
+        /// toward the facing, and already moving along the facing at the shared
+        /// fraction of <paramref name="maximumSpeed"/>, read before this tick's
+        /// movement. Requiring the speed is what keeps a press made on the first
+        /// tick of a push (every hand-built frame that holds MoveX and presses
+        /// Attack) the string's opener.
+        /// </summary>
+        public static bool IsRunningForAttack(
+            in FighterStateComponent fighter,
+            in FighterRuntimeComponent runtime,
+            FP64 maximumSpeed) {
+            if (fighter.IsGrounded == 0) return false;
+            int threshold = FTT.Combat.BasicComboRules.RunAttackStickThreshold;
+            bool facingRight = fighter.FacingRight != 0;
+            if (facingRight ? runtime.MoveX <= threshold : runtime.MoveX >= -threshold) return false;
+            FP64 speedAlongFacing = facingRight ? fighter.Velocity.x : -fighter.Velocity.x;
+            return maximumSpeed > FP64.Zero && speedAlongFacing >= maximumSpeed * RunAttackMinSpeedFraction;
+        }
+
+        /// <summary>True while the running swing is the running attack.</summary>
+        public static bool IsRunAttack(in FighterRuntimeComponent runtime) =>
+            (runtime.AttackFlags & FlagRunAttack) != 0;
+
+        /// <summary>
+        /// GR-RUN: the running attack's active and recovery frames, where it no
+        /// longer steers: its active frames lunge and its recovery brakes.
+        /// </summary>
+        public static bool RunAttackCommitted(in FighterRuntimeComponent runtime) =>
+            IsRunAttack(in runtime) && runtime.AttackPhase is PhaseActive or PhaseRecovery;
 
         // V7.1 per-character string profiles, indexed by FighterCharacterID
         // (Einstein 0 .. Tubman 9). Resolved once from the shared rulebook —
@@ -158,6 +201,8 @@ namespace FTT.FighterSim {
             if ((attackFlags & FlagDownAir) != 0) return FTT.Combat.BasicComboRules.DownAirStartupFrames;
             // GU-A: the air strike's startup is the profile's air axis.
             if ((attackFlags & FlagAirAttack) != 0) return StringProfileFor(characterID).AirAttackStartupFrames;
+            // GR-RUN: so is the running attack's, on its own axis.
+            if ((attackFlags & FlagRunAttack) != 0) return StringProfileFor(characterID).RunAttackStartupFrames;
             // Chain opener/finisher startups are the authored per-character axis
             // (V7.1); active and recovery frames below stay universal. The
             // string is grounded only (GU-A), so it has one frame table.
@@ -169,6 +214,7 @@ namespace FTT.FighterSim {
             if ((attackFlags & FlagUpAttack) != 0) return FTT.Combat.BasicComboRules.UpAttackActiveFrames;
             if ((attackFlags & FlagDownAir) != 0) return FTT.Combat.BasicComboRules.DownAirActiveFrames;
             if ((attackFlags & FlagAirAttack) != 0) return FTT.Combat.BasicComboRules.AirAttackActiveFrames;
+            if ((attackFlags & FlagRunAttack) != 0) return FTT.Combat.BasicComboRules.RunAttackActiveFrames;
             return FTT.Combat.BasicComboRules.GroundActiveFrames[comboStep];
         }
 
@@ -177,6 +223,7 @@ namespace FTT.FighterSim {
             if ((attackFlags & FlagUpAttack) != 0) return FTT.Combat.BasicComboRules.UpAttackRecoveryFrames;
             if ((attackFlags & FlagDownAir) != 0) return FTT.Combat.BasicComboRules.DownAirRecoveryFrames;
             if ((attackFlags & FlagAirAttack) != 0) return FTT.Combat.BasicComboRules.AirAttackRecoveryFrames;
+            if ((attackFlags & FlagRunAttack) != 0) return FTT.Combat.BasicComboRules.RunAttackRecoveryFrames;
             return FTT.Combat.BasicComboRules.GroundRecoveryFrames[comboStep];
         }
 
@@ -237,6 +284,7 @@ namespace FTT.FighterSim {
             if (variant == FTT.Combat.BasicComboRules.VariantUpAttack) flags |= FlagUpAttack;
             else if (variant == FTT.Combat.BasicComboRules.VariantDownAir) flags |= FlagDownAir;
             else if (variant == FTT.Combat.BasicComboRules.VariantAirAttack) flags |= FlagAirAttack;
+            else if (variant == FTT.Combat.BasicComboRules.VariantRunAttack) flags |= FlagRunAttack;
             runtime.AttackFlags = flags;
             runtime.AttackPhaseFrames = StartupFramesFor(fighter.CharacterID, flags, runtime.ComboIndex);
             // Defensive: universal movement is provably None at every current call

@@ -543,7 +543,8 @@ namespace FTT.FighterSim {
                 // Foresight's whiff recovery and sidestep), then — never on a tick
                 // the Block cancel won, and on the live input, before any mask —
                 // a landed cast's D3 cancel, else the discard.
-                ResolveSpecialCastRegion(ref fighter, ref runtime, in verb, ref action, ref counter, in knockdown);
+                bool specialCancelFired =
+                    ResolveSpecialCastRegion(ref fighter, ref runtime, in verb, ref action, ref counter, in knockdown);
 
                 TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning, matchLive);
 
@@ -668,12 +669,18 @@ namespace FTT.FighterSim {
                     // strike (GU-A; it was the aerial string) — the dive is an
                     // approach, not a hover.
                     FighterKitMotion.TryWingDiveAttackCancel(ref runtime);
-                    if (ProcessBasicAttackPhase(ref fighter, ref runtime, in verb)) {
+                    // GR-RUN (9b): a fresh press made running is the running attack,
+                    // never a D3 cancel's press.
+                    bool running = !specialCancelFired && FighterBasicAttackRules.IsRunningForAttack(
+                        in fighter, in runtime, tuning.MoveSpeed * statusMoveMultiplier * speedBuffMultiplier);
+                    if (ProcessBasicAttackPhase(ref fighter, ref runtime, in verb, running)) {
                         FighterActionRules.OnActionAccepted(
                             ref fighter, ref verb, ref defense, ref action, FighterActionKind.Swing);
                     }
                     bool attacking = runtime.AttackPhase != FighterBasicAttackRules.PhaseNone;
                     bool blockStance = FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb);
+                    // GR-RUN: past its startup the running attack stops steering.
+                    bool runAttackCommitted = FighterBasicAttackRules.RunAttackCommitted(in runtime);
                     // CM-BLOCK (decision 3.4): a fresh raise with a Block press arms the perfect block.
                     FighterBlockTimingRules.Observe(ref action, blockStance, (runtime.PressedButtons & BlockButton) != 0);
                     // V7.3 shieldstun: the stunned blocker is locked into the
@@ -753,12 +760,14 @@ namespace FTT.FighterSim {
                             // 2026-08-09 "committed for the whole string"
                             // decision); hitbox placement still reads facing at
                             // active-start, so there is no mid-active migration.
-                            lockHorizontal: blockStance,
-                            lockFacing: blockStance,
+                            lockHorizontal: blockStance || (runAttackCommitted && fighter.IsGrounded != 0),
+                            lockFacing: blockStance || runAttackCommitted,
                             // M04 (Package 12 W3): Blocking → Airborne on Jump;
                             // only shieldstun keeps a blocker grounded.
                             allowJump: !attacking && !shieldStunned && !airDodging,
                             allowDropThrough: !shieldStunned && !airDodging);
+                        // GR-RUN: the active frames lunge along the latched facing.
+                        ApplyRunAttackLunge(ref fighter, in runtime, rooted, statusMoveMultiplier);
                     }
                     // Package 12 W4 / 13 W5: the blink hover/translation and the leap
                     // carry fly straight — no gravity, no fast-fall.
@@ -1301,7 +1310,8 @@ namespace FTT.FighterSim {
         internal static bool ProcessBasicAttackPhase(
             ref FighterStateComponent fighter,
             ref FighterRuntimeComponent runtime,
-            in FighterVerbComponent verb) {
+            in FighterVerbComponent verb,
+            bool running = false) {
             bool basicPressed = (runtime.PressedButtons & BasicButton) != 0;
             int phase = runtime.AttackPhase;
             if (phase == FighterBasicAttackRules.PhaseNone) {
@@ -1312,7 +1322,7 @@ namespace FTT.FighterSim {
                         ref fighter,
                         ref runtime,
                         0,
-                        FighterBasicAttackRules.SelectVariant(in fighter, in runtime));
+                        FighterBasicAttackRules.SelectVariant(in fighter, in runtime, running));
                     return true;
                 }
                 return false;
@@ -1337,6 +1347,8 @@ namespace FTT.FighterSim {
                     // up-attack (chain reset) rather than continuing the string,
                     // and (GU-A) any press made airborne — a grounded string that
                     // walked off a ledge — starts the air strike, never hit 2.
+                    // GR-RUN: never the running attack (held movement never breaks
+                    // the chain), so this re-selection states no "running".
                     int variant = FighterBasicAttackRules.SelectVariant(in fighter, in runtime);
                     if (variant != FTT.Combat.BasicComboRules.VariantChain) {
                         FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, 0, variant);
@@ -1446,6 +1458,30 @@ namespace FTT.FighterSim {
                     break;
             }
             return started;
+        }
+
+        private static readonly FP64 RunAttackLungeSpeed =
+            FP64.FromDouble(FTT.Combat.BasicComboRules.RunAttackLungeSpeedUnits);
+
+        /// <summary>
+        /// GR-RUN: on the running attack's active ticks, on the ground, the speed is
+        /// the lunge's, so they travel <see cref="FTT.Combat.BasicComboRules.RunAttackLungeUnits"/>
+        /// (less under a slow, none rooted) whatever the stick or the carried run
+        /// speed says. Hitstop never reaches here, so a landing pauses the lunge.
+        /// </summary>
+        private static void ApplyRunAttackLunge(
+            ref FighterStateComponent fighter,
+            in FighterRuntimeComponent runtime,
+            bool rooted,
+            FP64 statusMoveMultiplier) {
+            if (rooted
+                || fighter.IsGrounded == 0
+                || !FighterBasicAttackRules.IsRunAttack(in runtime)
+                || runtime.AttackPhase != FighterBasicAttackRules.PhaseActive) {
+                return;
+            }
+            FP64 speed = RunAttackLungeSpeed * statusMoveMultiplier;
+            fighter.Velocity.x = fighter.FacingRight != 0 ? speed : -speed;
         }
 
         private static FP64 MoveToward(FP64 current, FP64 target, FP64 maximumDelta) {
@@ -2313,16 +2349,27 @@ namespace FTT.FighterSim {
             // all a flat 1.0x) deal one basic, through hit 1's box at step 0.
             FTT.Combat.BasicStringProfile profile =
                 FighterBasicAttackRules.StringProfileFor(attacker.CharacterID);
-            int damage = FighterBasicAttackRules.IsVariantSwing(in attackerRuntime)
-                ? attackerTuning.BasicDamage
-                : attackerTuning.BasicDamage * profile.DamageTenths[step] / 10;
+            bool runAttack = FighterBasicAttackRules.IsRunAttack(in attackerRuntime);
+            int damage = runAttack
+                ? ScaleDamage(attackerTuning.BasicDamage, RunAttackDamageMultiplier)
+                : FighterBasicAttackRules.IsVariantSwing(in attackerRuntime)
+                    ? attackerTuning.BasicDamage
+                    : attackerTuning.BasicDamage * profile.DamageTenths[step] / 10;
             if (damage <= 0) return;
 
             // V7 normative boxes: the construct sweep uses the same escalating
-            // front-only box as the fighter-target swing.
-            ResolveStringBox(
-                in attacker, in profile, step, LatchedFacingRight(in attackerRuntime),
-                out FPVector2 boxCenter, out FPVector2 boxHalf);
+            // front-only box as the fighter-target swing (GR-RUN: the same stretched
+            // box for the running attack).
+            FPVector2 boxCenter;
+            FPVector2 boxHalf;
+            if (runAttack) {
+                ResolveRunAttackBox(
+                    in attacker, in profile, LatchedFacingRight(in attackerRuntime), out boxCenter, out boxHalf);
+            } else {
+                ResolveStringBox(
+                    in attacker, in profile, step, LatchedFacingRight(in attackerRuntime),
+                    out boxCenter, out boxHalf);
+            }
             bool hitAny = false;
             var constructs = frame.Filter<FighterPersistentObjectComponent>();
             while (constructs.Next(out EntityRef entity)) {
@@ -2387,6 +2434,20 @@ namespace FTT.FighterSim {
                     ref attackerRuntime, ref attackerVerb, airOutcome, airDamage,
                     FTT.Combat.BasicComboRules.MomentumGainUnitsFor(
                         FTT.Combat.BasicComboRules.VariantAirAttack, 0));
+                return;
+            }
+
+            // GR-RUN (9b): the running attack, another single strike on hit 1's
+            // chassis (FighterCombatSystem.RunAttack.cs).
+            if (FighterBasicAttackRules.IsRunAttack(in attackerRuntime)) {
+                FighterHitOutcome runOutcome = ApplyRunAttackSwing(
+                    ref attacker, ref attackerRuntime, ref attackerVerb, in attackerTuning,
+                    ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
+                    ref targetCounter, ref targetAction, out int runDamage);
+                OnSwingResolved(
+                    ref attackerRuntime, ref attackerVerb, runOutcome, runDamage,
+                    FTT.Combat.BasicComboRules.MomentumGainUnitsFor(
+                        FTT.Combat.BasicComboRules.VariantRunAttack, 0));
                 return;
             }
 

@@ -1720,3 +1720,5 @@ enemy_chrono_swarmling_name,Chrono Swarmling
 results_rank,"Level rank: {0}"
 results_rank_dust,"Rank bonus: {0}"
 results_rank_detail,"Damage taken: {0}% of your health bar, speed {1}"
+# GR-RUN
+movelist_run_attack,"Running attack: {0}/{1}/{2} frames — {3:0.#} damage, one lunge that never chains"

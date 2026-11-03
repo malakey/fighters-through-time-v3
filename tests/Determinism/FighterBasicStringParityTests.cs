@@ -49,17 +49,22 @@ public class FighterBasicStringParityTests {
 
     [TestCase]
     public void GroundedSwingKeepsSteeringAndFacingFollowsTheHeldDirectionMidString() {
-        // Grounded: run up to speed, then swing while still holding the
-        // direction — the attacker keeps moving at the normal run ramp for
+        // Grounded: swing early in a push, still under the running attack's speed
+        // floor (GR-RUN: at a full run the press is the running attack), holding
+        // the direction — the attacker keeps moving at the normal run ramp for
         // the whole swing instead of decelerating to zero.
         var grounded = NewAdjacentSimulation(seed: 92, spawnDistance: 6);
-        for (int tick = 0; tick < 20; tick++) {
+        for (int tick = 0; tick < 3; tick++) {
             Advance(grounded, tick, p1MoveX: 127);
         }
         AssertThat(grounded.TryGetFighter(0, out FighterStateComponent beforeSwing)).IsTrue();
         FP64 xAtSwingStart = beforeSwing.Position.x;
-        Advance(grounded, 20, p1MoveX: 127, p1Buttons: GameplayButtons.BasicAttack);
-        for (int tick = 21; tick < 33; tick++) {
+        Advance(grounded, 3, p1MoveX: 127, p1Buttons: GameplayButtons.BasicAttack);
+        AssertThat(grounded.TryGetFighterRuntime(0, out FighterRuntimeComponent openerSwing)).IsTrue();
+        AssertThat(openerSwing.AttackFlags & FighterBasicAttackRules.VariantMask)
+            .OverrideFailureMessage("Harness: this case pins the string's opener.")
+            .IsEqual(0);
+        for (int tick = 4; tick < 16; tick++) {
             Advance(grounded, tick, p1MoveX: 127);
             AssertThat(grounded.TryGetFighter(0, out FighterStateComponent moving)).IsTrue();
             AssertThat(moving.Velocity.x > FP64.Zero)

@@ -72,6 +72,35 @@ public class StringHitboxGeometryTests {
     }
 
     [TestCase]
+    public void TheRunAttacksStoryBoxIsItsSimBoxAtSixtyPixelsPerUnitForEveryProfile() {
+        var profiles = new List<(string Label, BasicStringProfile Profile)> {
+            ("template", BasicComboRules.TemplateStringProfile)
+        };
+        foreach (string id in CharacterRoster.IDs) {
+            profiles.Add((id, BasicComboRules.StringProfileFor(id)));
+        }
+        foreach ((string label, BasicStringProfile profile) in profiles) {
+            PlayerController.ResolveRunAttackBoxPixels(profile, 1f, out Vector2 storySize, out Vector2 storyOffset);
+            var attacker = new FighterStateComponent { FacingRight = 1 };
+            FighterCombatSystem.ResolveRunAttackBox(
+                in attacker, in profile, facingRight: true, out FPVector2 centre, out FPVector2 half);
+            double storyFar = storyOffset.X + storySize.X * 0.5;
+            double storyNear = storyOffset.X - storySize.X * 0.5;
+            double simFar = (Units(centre.x) + Units(half.x)) * PixelsPerUnit;
+            double simNear = (Units(centre.x) - Units(half.x)) * PixelsPerUnit;
+            AssertThat(System.Math.Abs(storyFar - simFar) < 0.01)
+                .OverrideFailureMessage($"{label}: Story far edge {storyFar:F3} px, sim {simFar:F3} px.")
+                .IsTrue();
+            AssertThat(System.Math.Abs(storyNear - simNear) < 0.01)
+                .OverrideFailureMessage($"{label}: Story near edge {storyNear:F3} px, sim {simNear:F3} px.")
+                .IsTrue();
+            AssertThat(System.Math.Abs(storySize.Y - Units(half.y) * 2.0 * PixelsPerUnit) < 0.01)
+                .OverrideFailureMessage($"{label}: the box heights differ.")
+                .IsTrue();
+        }
+    }
+
+    [TestCase]
     public void TheTemplateBoxesKeepTheirPixelsAndTheSimKeepsItsFixedPointValues() {
         // Story: exactly the pixel table the one canonical table replaced.
         Vector2[] sizes = { new(72f, 60f), new(84f, 72f), new(108f, 84f) };

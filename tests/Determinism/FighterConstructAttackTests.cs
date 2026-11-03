@@ -3,6 +3,7 @@ using FTT.FighterSim;
 using FTT.Characters;
 using FTT.Combat;
 using GdUnit4;
+using xpTURN.Klotho.Deterministic.Math;
 using Godot;
 using static GdUnit4.Assertions;
 
@@ -61,6 +62,45 @@ public class FighterConstructAttackTests {
 
         AssertThat(hpBefore < 25).IsTrue();
         AssertThat(simulation.PersistentObjectCount).IsEqual(0);
+    }
+
+    [TestCase]
+    public void ARunningAttackSweepsAConstructForItsOwnDamageThroughItsStretchedBox() {
+        // GR-RUN: the construct sweep reads the running attack's damage and box.
+        var simulation = NewSimulation(seed: 74, spawnDistance: 3);
+        simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
+        int tick = SpecialCastTestKit.StepUntilFired(simulation, 0, 1) + 1;
+        AssertThat(simulation.TryGetFirstPersistentObject(out FighterPersistentObjectComponent coil)).IsTrue();
+        int hpBefore = coil.CurrentHP;
+        FP64 reach = FP64.FromDouble(2.6);
+
+        // The opponent runs at the coil and presses at a run, the stick still held.
+        bool pressed = false;
+        int flags = 0;
+        for (int step = 0; step < 240; step++, tick++) {
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent runner)).IsTrue();
+            bool press = !pressed && step > 8 && runner.Position.x - coil.Position.x <= reach;
+            simulation.Advance(
+                Frame(tick, 0, GameplayButtons.None),
+                Frame(tick, -127, press ? GameplayButtons.BasicAttack : GameplayButtons.None));
+            if (press) {
+                pressed = true;
+                AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)).IsTrue();
+                flags = runtime.AttackFlags;
+            }
+            AssertThat(simulation.TryGetFirstPersistentObject(out FighterPersistentObjectComponent observed)).IsTrue();
+            if (observed.CurrentHP < hpBefore) {
+                hpBefore -= observed.CurrentHP;
+                break;
+            }
+        }
+        AssertThat(flags & FighterBasicAttackRules.FlagRunAttack)
+            .OverrideFailureMessage("Harness: the press must be the running attack.")
+            .IsEqual(FighterBasicAttackRules.FlagRunAttack);
+        int basicDamage = FighterLoadout.Default(FighterCharacterID.Joan).BasicDamage;
+        AssertThat(hpBefore)
+            .OverrideFailureMessage("The sweep must deal the running attack's 1.2x basic.")
+            .IsEqual((int)System.Math.Round(basicDamage * 1.2, System.MidpointRounding.AwayFromZero));
     }
 
     [TestCase]

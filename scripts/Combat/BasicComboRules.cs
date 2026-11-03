@@ -44,6 +44,13 @@ namespace FTT.Combat {
         /// <see cref="BasicComboRules.AirAttackRecoveryFrames"/>.
         /// </summary>
         public readonly int AirAttackStartupFrames;
+        /// <summary>
+        /// Startup of the running attack (GR-RUN, 2026-11-03, provisional). Active
+        /// and recovery frames are the universal
+        /// <see cref="BasicComboRules.RunAttackActiveFrames"/> /
+        /// <see cref="BasicComboRules.RunAttackRecoveryFrames"/>.
+        /// </summary>
+        public readonly int RunAttackStartupFrames;
         /// <summary>Per-hit damage multipliers in tenths; always sums to 33.</summary>
         public readonly int[] DamageTenths;
         /// <summary>Hitbox width / sim horizontal reach, percent of template (85–120).</summary>
@@ -120,10 +127,12 @@ namespace FTT.Combat {
             int finisherKnockbackTenths = 45,
             int finisherMarkType = 0,
             int finisherMarkFrames = 0,
-            bool hit2Launches = false) {
+            bool hit2Launches = false,
+            int runAttackStartup = BasicComboRules.RunAttackStartupFrames) {
             GroundStartupFrames = new[] {
                 groundOpenerStartup, BasicComboRules.GroundStartupFrames[1], groundFinisherStartup };
             AirAttackStartupFrames = airAttackStartup;
+            RunAttackStartupFrames = runAttackStartup;
             DamageTenths = new[] { damageTenthsHit1, damageTenthsHit2, damageTenthsHit3 };
             ReachWidthPercent = reachWidthPercent;
             ReachHeightPercent = reachHeightPercent;
@@ -271,7 +280,8 @@ namespace FTT.Combat {
         private static readonly System.Collections.Generic.Dictionary<string, BasicStringProfile> StringProfiles =
             new() {
                 //                                 gOpen gFin air  d1  d2  d3  width height
-                { "joan",        new BasicStringProfile(5, 14, 4, 10, 10, 13,  90, 110) },
+                { "joan",        new BasicStringProfile(5, 14, 4, 10, 10, 13,  90, 110,
+                    runAttackStartup: 7) },
                 // Cleopatra's finisher "marks" (kit brief): a light Venom
                 // (0.5 intensity, 2 s = 2 chip) riding the damage status slot,
                 // so it survives her own vortex slow into the nest loop.
@@ -295,14 +305,17 @@ namespace FTT.Combat {
                     finisherStatusFrames: 24,
                     finisherMarkType: (int)ComboMarkType.Conductive,
                     finisherMarkFrames: BasicComboRules.ConductiveMarkBaselineFrames) },
-                { "einstein",    new BasicStringProfile(7, 16, 6,  8, 10, 15, 110, 100) },
-                { "shakespeare", new BasicStringProfile(7, 16, 6,  8, 10, 15, 105, 100) },
+                { "einstein",    new BasicStringProfile(7, 16, 6,  8, 10, 15, 110, 100,
+                    runAttackStartup: 10) },
+                { "shakespeare", new BasicStringProfile(7, 16, 6,  8, 10, 15, 105, 100,
+                    runAttackStartup: 10) },
                 // Lincoln's "heavy upward vertical swing that launches" hit 2
                 // (kit brief): double the bridge's vertical lift, and (M07,
                 // Package 12 W3b) the one authored launching hit 2.
                 { "lincoln",     new BasicStringProfile(8, 17, 7,  7,  9, 17,  85, 115,
                     hit2VerticalLaunchTenths: 20,
-                    hit2Launches: true) }
+                    hit2Launches: true,
+                    runAttackStartup: 11) }
             };
 
         /// <summary>
@@ -841,7 +854,7 @@ namespace FTT.Combat {
         /// <summary>
         /// The units one landed swing adds (the sim): a chain finisher (step 2 or
         /// more) 0.2 pip, a chain hit 1 or 2 0.05 pip, and every other variant (the air
-        /// strike, the directional strikes, the ledge attack, which the sim
+        /// strike, the running attack, the directional strikes, the ledge attack, which the sim
         /// reports as chain step 0) 0.05 pip.
         /// </summary>
         public static int MomentumGainUnitsFor(int variant, int comboStep) {
@@ -852,7 +865,7 @@ namespace FTT.Combat {
         /// <summary>
         /// Story's form of <see cref="MomentumGainUnitsFor"/>, keyed on the melee
         /// hitbox's ID: <c>combo_3</c> 0.2 pip, any other <c>combo_</c> ID 0.05 pip, the
-        /// air strike and the two directional IDs 0.05 pip, anything else (a throw, a
+        /// air strike, the running attack and the two directional IDs 0.05 pip, anything else (a throw, a
         /// construct) 0.
         /// </summary>
         public static int MomentumGainUnitsForHitbox(string hitboxID) {
@@ -860,7 +873,9 @@ namespace FTT.Combat {
             if (hitboxID == "combo_3") return MomentumFinisherGainUnits;
             if (hitboxID.StartsWith("combo_", System.StringComparison.Ordinal)) return MomentumStringHitGainUnits;
             if (hitboxID == AirAttackHitboxID) return MomentumStringHitGainUnits;
-            if (hitboxID == UpAttackHitboxID || hitboxID == DownAirHitboxID) return MomentumDirectionalGainUnits;
+            if (hitboxID == UpAttackHitboxID || hitboxID == DownAirHitboxID || hitboxID == RunAttackHitboxID) {
+                return MomentumDirectionalGainUnits;
+            }
             return 0;
         }
 
@@ -1165,20 +1180,115 @@ namespace FTT.Combat {
         /// strike (GU-A, 2026-10-12). It replaced the aerial three-hit string.
         /// </summary>
         public const int VariantAirAttack = 3;
+        /// <summary>
+        /// Grounded + running + BasicAttack with neither Up nor Down held: the
+        /// running attack (GR-RUN, 2026-11-03). A single strike outside the string.
+        /// </summary>
+        public const int VariantRunAttack = 4;
 
         /// <summary>
         /// The one selection rule, shared by both modes. Up wins over Down, a
         /// grounded Down-attack is deliberately just a standard string opener
         /// (Story also reads Down as Crouching, whose attack is the same string),
-        /// and any other air press is the single air strike (GU-A) — the
-        /// three-hit string is grounded only.
+        /// any other air press is the single air strike (GU-A) — the three-hit
+        /// string is grounded only — and a grounded press made
+        /// <paramref name="running"/> is the running attack (GR-RUN). The caller
+        /// states "running" (Story <see cref="IsRunningForAttack"/>, the sim
+        /// <c>FighterBasicAttackRules.IsRunningForAttack</c>); a press that is not a
+        /// fresh swing from neutral, a D3 recovery cancel or a chain-hold press,
+        /// passes false, so a hero stepping forward mid-string never loses the string.
         /// </summary>
-        public static int SelectAttackVariant(bool upHeld, bool downHeld, bool airborne) {
+        public static int SelectAttackVariant(bool upHeld, bool downHeld, bool airborne, bool running = false) {
             if (upHeld) return VariantUpAttack;
             if (downHeld && airborne) return VariantDownAir;
             if (airborne) return VariantAirAttack;
+            if (running && !downHeld) return VariantRunAttack;
             return VariantChain;
         }
+
+        // === The running attack (user ruling 9b, 2026-11-03; GR-RUN) ===
+        // "Add a running attack in both modes", with no new input bit: Attack
+        // pressed while running. Ruling 15 (Story leads until online exists): the
+        // predicate is Story's, the Running state at speed; the sim has no Running
+        // state and approximates it, the recorded exception. Like the air strike it
+        // is one strike outside the string: a press during it is dropped, holding
+        // never repeats it, it has no chain hold and never advances the combo index,
+        // so the CPU melee band and the Mirror read "the next press is an opener".
+        // Every swing rule still holds: the start arms the ability lockout and
+        // clears the D1 landed latch, and the recovery cancel set applies. Every
+        // number is provisional (PROVISIONAL-RUN-ATTACK-RULES).
+        //
+        // It is a committed lunge: the startup steers like any swing, the active
+        // frames travel exactly RunAttackLungeUnits along the facing read at active
+        // start whatever the stick says, and the recovery brakes on the stop ramp.
+        // It swings string hit 1's box stretched forward by RunAttackReachBonusUnits,
+        // never launches (a grounded victim gets the hitstun shove), and is posed
+        // on basic_attack_2 for the whole swing, since there is no new art.
+
+        /// <summary>The running attack's TEMPLATE startup; per character in <see cref="BasicStringProfile.RunAttackStartupFrames"/>.</summary>
+        public const int RunAttackStartupFrames = 9;
+        /// <summary>The running attack's active frames, universal.</summary>
+        public const int RunAttackActiveFrames = 6;
+        /// <summary>The running attack's recovery frames, universal (template total 37; hit 1's is 27).</summary>
+        public const int RunAttackRecoveryFrames = 22;
+
+        /// <summary>The string step whose box the running attack stretches: hit 1.</summary>
+        public const int RunAttackStringStep = 0;
+
+        /// <summary>
+        /// The string step whose sheet poses it (<c>basic_attack_2</c>): no new art,
+        /// in either mode.
+        /// </summary>
+        public const int RunAttackPoseStringStep = 1;
+
+        /// <summary>The running attack deals a flat 1.2x <c>BasicAttackDamage</c>.</summary>
+        public const float RunAttackDamageMultiplier = 1.2f;
+
+        /// <summary>Victim hitstun for the running attack (0.5 s at 60 Hz, string hit 1's).</summary>
+        public const int RunAttackHitstunFrames = 30;
+
+        /// <summary>The running attack never launches (M05): grounded knockback on a grounded victim.</summary>
+        public const bool RunAttackLaunches = false;
+
+        /// <summary>The knockback multiplier on the character's base (string hit 1's is 1.0x).</summary>
+        public const float RunAttackKnockbackMultiplier = 1.5f;
+
+        /// <summary>World units the active frames travel along the facing.</summary>
+        public const double RunAttackLungeUnits = 0.5;
+
+        /// <summary>The speed that covers the lunge over the active frames, in units per second at 60 Hz.</summary>
+        public const double RunAttackLungeSpeedUnits = RunAttackLungeUnits * 60.0 / RunAttackActiveFrames;
+
+        /// <summary>
+        /// World units the box's far edge reaches past string hit 1's far edge; its
+        /// near edge stays. Flat: the profile's width scale does not touch it. Both
+        /// modes add it after that scale, and Story's AttackRange minor scales the
+        /// whole far edge.
+        /// </summary>
+        public const double RunAttackReachBonusUnits = 0.4;
+
+        /// <summary>
+        /// "Running" needs at least this fraction of the fighter's current maximum
+        /// run speed, so the first frames of a push do not count.
+        /// </summary>
+        public const double RunAttackMinSpeedFraction = 0.6;
+
+        /// <summary>
+        /// The sim's stick half of "running": quantized <c>MoveX</c> beyond this,
+        /// toward the facing (as <c>MoveY &lt; -30</c> is "Up held"). Story's Running
+        /// state stands in for it.
+        /// </summary>
+        public const int RunAttackStickThreshold = 30;
+
+        /// <summary>
+        /// Story's predicate (ruling 15's lead): the Running state, moving along the
+        /// facing at <see cref="RunAttackMinSpeedFraction"/> of the maximum run speed
+        /// or more. Any one consistent speed unit.
+        /// </summary>
+        public static bool IsRunningForAttack(bool inRunningState, float speedAlongFacing, float maximumRunSpeed) =>
+            inRunningState
+            && maximumRunSpeed > 0f
+            && speedAlongFacing >= maximumRunSpeed * (float)RunAttackMinSpeedFraction;
 
         // === The single air strike (user direction 2026-10-12, request 1; GU-A) ===
         // "For aerial attacks, it should just be a standard attack and no longer
@@ -1272,10 +1382,12 @@ namespace FTT.Combat {
         public const string DownAirHitboxID = "down_air";
         /// <summary>Hitbox ID of the single air strike (GU-A; Story hit payloads).</summary>
         public const string AirAttackHitboxID = "air_attack";
+        /// <summary>Hitbox ID of the running attack (GR-RUN; Story hit payloads).</summary>
+        public const string RunAttackHitboxID = "run_attack";
 
         /// <summary>
         /// True for every hitbox the universal basic set produces: the three
-        /// chain hits, the air strike and the two directional strikes. Story's
+        /// chain hits, the air strike, the running attack and the two directional strikes. Story's
         /// enemy stun floor (<see cref="EnemyBasicStunFloorFrames"/>), the D1
         /// hit-confirm, per-hit Momentum, the freeze-only Special buffer and the
         /// S4 basics pacing key on this, so a landed air strike, up-attack or
@@ -1287,6 +1399,7 @@ namespace FTT.Combat {
             hitboxID != null
             && (hitboxID.StartsWith("combo_", System.StringComparison.Ordinal)
                 || hitboxID == AirAttackHitboxID
+                || hitboxID == RunAttackHitboxID
                 || hitboxID == UpAttackHitboxID
                 || hitboxID == DownAirHitboxID);
 
