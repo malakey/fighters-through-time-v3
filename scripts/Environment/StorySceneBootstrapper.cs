@@ -84,6 +84,9 @@ namespace FTT.Environment {
                 };
                 sceneRoot.AddChild(services.TimeFreeze);
 
+                // The level rank's damage tally (gameplay review §1.9), level-only too.
+                sceneRoot.AddChild(new FTT.Core.LevelRankTracker { Name = FTT.Core.LevelRankTracker.NodeName });
+
                 // Package 13 W3 (S02): inert unless this slot skipped calibration.
                 services.Tooltips = FirstUseTooltipPresenter.Attach(sceneRoot, sceneHasTimeFreeze: true);
             }

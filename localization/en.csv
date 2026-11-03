@@ -1712,3 +1712,7 @@ save_notice_defy_pad_unbound,"The Defy History controller button (R3) was alread
 defy_world_label,DEFIED
 # MM-HUD block
 hud_momentum_pips,Momentum
+# GR-RANK
+results_rank,"Level rank: {0}"
+results_rank_dust,"Rank bonus: {0}"
+results_rank_detail,"Damage taken: {0}% of your health bar, speed {1}"

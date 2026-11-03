@@ -2127,6 +2127,8 @@ namespace FTT.Environment {
                 StoryManager.Instance?.LastLevelDustCarriedIn ?? 0,
                 StoryManager.Instance?.LastLevelDustLost ?? 0,
                 StoryManager.Instance?.LastLevelTierBonusDust ?? 0,
+                StoryManager.Instance?.LastLevelRankBonusDust ?? 0,
+                StoryManager.Instance?.LastLevelRank,
                 StoryManager.Instance?.LastLevelCompletionSeconds ?? 0f,
                 StoryManager.Instance?.LastLevelRewindsUsed ?? 0);
             return results;

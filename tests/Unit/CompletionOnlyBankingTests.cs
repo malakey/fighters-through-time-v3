@@ -35,7 +35,7 @@ public class CompletionOnlyBankingTests {
 
         EventBus.Instance.RaiseLevelComplete(StoryManager.GetLevelID(CampaignLevel.Orleans));
 
-        int bonus = story.LastLevelTierBonusDust;
+        int bonus = story.LastLevelTierBonusDust + story.LastLevelRankBonusDust;
         AssertThat(save.DepositedChronalDust[Hero])
             .OverrideFailureMessage("Acts I-II must bank at completion, not wait for the hub.")
             .IsEqual(100 + 120 + bonus);
@@ -88,7 +88,7 @@ public class CompletionOnlyBankingTests {
         AssertThat(story.ChronalDustCollected).IsEqual(80);
         EventBus.Instance.RaiseLevelComplete(StoryManager.GetLevelID(CampaignLevel.Orleans));
         AssertThat(save.DepositedChronalDust[Hero])
-            .IsEqual(50 + 80 + story.LastLevelTierBonusDust);
+            .IsEqual(50 + 80 + story.LastLevelTierBonusDust + story.LastLevelRankBonusDust);
     }
 
     [TestCase]
@@ -152,7 +152,7 @@ public class CompletionOnlyBankingTests {
         story.CollectDust(10);
         EventBus.Instance.RaiseLevelComplete(levelID);
 
-        int bonus = story.LastLevelTierBonusDust;
+        int bonus = story.LastLevelTierBonusDust + story.LastLevelRankBonusDust;
         AssertThat(story.LastLevelDustLost).IsEqual(36);
         AssertThat(story.LastLevelDustCarriedIn).IsEqual(100);
         AssertThat(story.LastCompletionDepositDust).IsEqual(74 + bonus);

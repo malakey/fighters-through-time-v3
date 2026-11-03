@@ -44,6 +44,10 @@ namespace FTT.UI {
         /// the scene-local category lines never saw. Shown only when non-zero.
         /// </summary>
         private Label _dustCarriedLabel;
+        // Gameplay review §1.9: the level rank's letter, its dust and what it was earned on.
+        private Label _rankLabel;
+        private Label _rankDustLabel;
+        private Label _rankDetailLabel;
 
         /// <summary>
         /// Instantiates the authored results scene. Package 8 B1 removed the
@@ -151,6 +155,21 @@ namespace FTT.UI {
         public void ShowResults(
             string levelTitleKey, int mobDust, int extractorDust, int bossDust,
             int optionalDust, int carriedDust, int lossDust, int tierBonusDust,
+            float completionSeconds, int rewindsUsed) =>
+            ShowResults(
+                levelTitleKey, mobDust, extractorDust, bossDust, optionalDust, carriedDust, lossDust, tierBonusDust,
+                rankBonusDust: 0, rank: null, completionSeconds, rewindsUsed);
+
+        /// <summary>
+        /// The full itemisation plus the level rank (gameplay review §1.9): the rank's dust is a
+        /// bonus on top of the ledger, so it joins the total, and it can be less than the letter is
+        /// worth when the level has already paid part of it. A null <paramref name="rank"/> (Level 0,
+        /// a bare panel) leaves the rank lines hidden.
+        /// </summary>
+        public void ShowResults(
+            string levelTitleKey, int mobDust, int extractorDust, int bossDust,
+            int optionalDust, int carriedDust, int lossDust, int tierBonusDust,
+            int rankBonusDust, FTT.Core.LevelRankResult? rank,
             float completionSeconds, int rewindsUsed) {
             mobDust = Mathf.Max(0, mobDust);
             extractorDust = Mathf.Max(0, extractorDust);
@@ -159,8 +178,9 @@ namespace FTT.UI {
             carriedDust = Mathf.Max(0, carriedDust);
             lossDust = Mathf.Max(0, lossDust);
             tierBonusDust = Mathf.Max(0, tierBonusDust);
+            rankBonusDust = rank.HasValue ? Mathf.Max(0, rankBonusDust) : 0;
             int total = mobDust + extractorDust + bossDust + optionalDust + carriedDust
-                + tierBonusDust - lossDust;
+                + tierBonusDust + rankBonusDust - lossDust;
             ShowResults(levelTitleKey, Mathf.Max(0, total), completionSeconds, rewindsUsed);
             SetItemizedLine(_dustMobsLabel, "results_dust_mobs", mobDust);
             SetItemizedLine(_dustExtractorsLabel, "results_dust_extractors", extractorDust);
@@ -169,6 +189,21 @@ namespace FTT.UI {
             if (carriedDust > 0) SetItemizedLine(_dustCarriedLabel, "results_dust_carried", carriedDust);
             SetItemizedLine(_dustLossesLabel, "results_dust_losses", lossDust);
             SetItemizedLine(_dustTierBonusLabel, "results_dust_tier_bonus", tierBonusDust);
+            if (rank.HasValue) ShowRankLines(rank.Value, rankBonusDust);
+        }
+
+        private void ShowRankLines(FTT.Core.LevelRankResult rank, int rankBonusDust) {
+            SetLine(_rankLabel, "results_rank", rank.Letter.ToString());
+            SetLine(_rankDustLabel, "results_rank_dust", rankBonusDust);
+            // An untimed level (Florence) has no speed half to report.
+            string speed = rank.SpeedPercent == FTT.Core.LevelRankRules.SpeedPercentUntimed ? "—" : $"{rank.SpeedPercent}%";
+            SetLine(_rankDetailLabel, "results_rank_detail", rank.DamagePercent, speed);
+        }
+
+        private void SetLine(Label line, string translationKey, params object[] args) {
+            if (line == null) return;
+            SetRow(line, translationKey, args);
+            line.Visible = true;
         }
 
         /// <summary>
@@ -190,6 +225,9 @@ namespace FTT.UI {
             SetLineVisible(_dustCarriedLabel, false);
             SetLineVisible(_dustLossesLabel, false);
             SetLineVisible(_dustTierBonusLabel, false);
+            SetLineVisible(_rankLabel, false);
+            SetLineVisible(_rankDustLabel, false);
+            SetLineVisible(_rankDetailLabel, false);
             SetRow(_timeLabel, "results_completion_time", FTT.Core.StoryManager.FormatDuration(completionSeconds));
             SetRow(_rewindsLabel, "results_rewinds_used", Mathf.Max(0, rewindsUsed));
             ShowTimelineLines();
@@ -272,6 +310,9 @@ namespace FTT.UI {
                 _dustCarriedLabel = AppendResultLine(layout, "DustCarried");
                 _dustLossesLabel = AppendResultLine(layout, "DustLosses");
                 _dustTierBonusLabel = AppendResultLine(layout, "DustTierBonus");
+                _rankLabel = AppendResultLine(layout, "RankLine");
+                _rankDustLabel = AppendResultLine(layout, "RankDustLine");
+                _rankDetailLabel = AppendResultLine(layout, "RankDetailLine");
                 _integrityLabel = AppendResultLine(layout, "IntegrityLine");
                 _secretsLabel = AppendResultLine(layout, "SecretsLine");
                 _resonanceRestoredLabel = AppendResultLine(layout, "ResonanceRestoredLine");
@@ -288,7 +329,8 @@ namespace FTT.UI {
                 var statsGap = new Control { Name = "StatsGap", CustomMinimumSize = new Vector2(0f, 6f), MouseFilter = Control.MouseFilterEnum.Ignore };
                 layout.AddChild(statsGap);
                 Order(layout, _titleLabel, _dustMobsLabel, _dustExtractorsLabel, _dustBossLabel, _dustOptionalLabel,
-                    _dustCarriedLabel, _dustTierBonusLabel, _dustLossesLabel, _totalRule, _dustLabel, statsGap,
+                    _dustCarriedLabel, _dustTierBonusLabel, _rankLabel, _rankDustLabel, _rankDetailLabel,
+                    _dustLossesLabel, _totalRule, _dustLabel, statsGap,
                     _integrityLabel, _secretsLabel, _timeLabel, _rewindsLabel, _resonanceRestoredLabel, _returnButton);
             }
             DressGlass();
@@ -321,7 +363,8 @@ namespace FTT.UI {
             }
             if (_titleLabel != null) _titleFlourishes = TitleFlourishes.Attach(_titleLabel);
             foreach (Label line in new[] { _dustMobsLabel, _dustExtractorsLabel, _dustBossLabel, _dustOptionalLabel,
-                         _dustCarriedLabel, _dustTierBonusLabel, _dustLossesLabel, _dustLabel, _integrityLabel,
+                         _dustCarriedLabel, _dustTierBonusLabel, _rankLabel, _rankDustLabel, _rankDetailLabel,
+                         _dustLossesLabel, _dustLabel, _integrityLabel,
                          _secretsLabel, _timeLabel, _rewindsLabel }) {
                 ResultRow.Attach(line);
             }

@@ -58,8 +58,8 @@ namespace FTT.Characters {
 		/// <c>ApplyDamage</c> raises), before the rest of that hit's pipeline
 		/// (stun, knockback, Rally, meter).
 		/// <para>
-		/// <b>Observation only.</b> Nothing in the game subscribes; the playtest
-		/// telemetry does, through <c>PlaytestWorld</c>'s "Hero gates" seam. A
+		/// <b>Observation only.</b> The level rank's <c>LevelRankTracker</c> tallies it
+		/// and the playtest telemetry reads it, through <c>PlaytestWorld</c>'s "Hero gates" seam. A
 		/// subscriber must never write gameplay state: the event can run inside
 		/// the physics flush. Raising it changes no value, which
 		/// <c>PlaytestCombatStatsTests</c> pins (HP, meter and Rally are identical

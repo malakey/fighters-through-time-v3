@@ -40,6 +40,16 @@ namespace FTT.Core {
 
         public Dictionary<string, int> SecretsFoundByLevel = new();
 
+        // === Level rank (gameplay review §1.9, additive; schema stays v8) ===
+        // New fields rather than RatingByLevel, which stays dead data: an old
+        // save can hold retired rating strings there.
+
+        /// <summary>The letter of each level's latest completion, by level ID.</summary>
+        public Dictionary<string, string> RankByLevel = new();
+
+        /// <summary>The rank dust each level has paid, by level ID. A later completion pays only the difference.</summary>
+        public Dictionary<string, int> RankDustPaidByLevel = new();
+
         // === Schema v5 (V7.3, purely additive) =============================
         // Mid-level resume must restore the whole attempt, not just position:
         // checkpoints already stabilized this attempt (Mending is
@@ -180,6 +190,8 @@ namespace FTT.Core {
             IntegrityByLevel ??= new Dictionary<string, float>();
             RatingByLevel ??= new Dictionary<string, string>();
             SecretsFoundByLevel ??= new Dictionary<string, int>();
+            RankByLevel ??= new Dictionary<string, string>();
+            RankDustPaidByLevel ??= new Dictionary<string, int>();
             ActivatedCheckpointIDs ??= new List<string>();
             FontUsesConsumed ??= new Dictionary<string, int>();
             DestroyedExtractorIDs ??= new List<string>();
