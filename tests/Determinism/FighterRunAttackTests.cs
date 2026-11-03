@@ -129,7 +129,7 @@ public class FighterRunAttackTests {
     public void ItLandsOneAndAFifthBasicsAtOneAndAHalfKnockbackWithoutLaunching() {
         // Joan's hit 1 is a flat 1.0x at 1.0x knockback, so it is the exact control.
         AssertThat(BasicComboRules.StringProfileFor("joan").DamageTenths[0]).IsEqual(10);
-        Landing run = StrikeRunning(FighterCharacterID.Joan, runTicks: 20, seed: 906);
+        Landing run = StrikeRunning(FighterCharacterID.Joan, runTicks: 30, seed: 906);
         Landing opener = StrikeStanding(FighterCharacterID.Joan, seed: 907);
         AssertThat(run.Landed && opener.Landed)
             .OverrideFailureMessage("Harness: both strikes must land.")
