@@ -1,5 +1,7 @@
+using System.Threading.Tasks;
 using FTT.Core;
 using FTT.UI;
+using FTT.UI.Pulp;
 using GdUnit4;
 using Godot;
 using static GdUnit4.Assertions;
@@ -29,8 +31,9 @@ public class LevelRankResultsPanelTests {
     }
 
     [TestCase]
-    public void TheRankLinesShowTheLetterTheBonusAndTheDetailAndTheTotalAddsTheBonus() {
+    public async Task TheRankLinesShowTheLetterTheBonusAndTheDetailAndTheTotalAddsTheBonus() {
         Node host = CreateHost("LevelRankPanelHost");
+        float originalScale = UIPalette.AppliedUiScale;
         try {
             LevelResultsPanel panel = AddPanel(host);
             var rank = new LevelRankResult(LevelRankLetter.A, 80.0, 35, 38, 62);
@@ -48,7 +51,25 @@ public class LevelRankResultsPanelTests {
 
             // 15 + 30 + 25 + 10 + 8 + 35 − 12 = 111.
             AssertThat(panel.GetNode<Label>(Layout + "DustEarned").Text.Contains("111")).IsTrue();
+
+            // The fullest panel a run can show: every line up, with the rank's three, at both UI scales.
+            var tree = (SceneTree)Engine.GetMainLoop();
+            foreach (float scale in new[] { 1f, 1.4f }) {
+                UIPalette.ApplyUiScale(scale);
+                panel.ShowResults("orleans_level_title", 140, 60, 25, 30, 100, 40, 15, 35, rank, 612f, 2);
+                for (int frame = 0; frame < 6; frame++) await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+                Rect2 screen = panel.GetNode<Control>("Shade").GetGlobalRect();
+                Rect2 slab = panel.GetNode<Control>("Shade/Panel").GetGlobalRect();
+                AssertThat(screen.Grow(1f).Encloses(slab))
+                    .OverrideFailureMessage($"The slab {slab} leaves the screen {screen} at UI scale {scale}.")
+                    .IsTrue();
+                ResultRow row = detail.GetNode<ResultRow>(ResultRow.NodeName);
+                AssertThat(row.Value.GetMinimumSize().X <= row.Size.X)
+                    .OverrideFailureMessage($"The rank detail value overruns its row at UI scale {scale}.")
+                    .IsTrue();
+            }
         } finally {
+            UIPalette.ApplyUiScale(originalScale);
             host.Free();
         }
     }

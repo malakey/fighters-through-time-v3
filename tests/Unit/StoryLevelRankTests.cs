@@ -26,6 +26,10 @@ public class StoryLevelRankTests {
         string levelID = StoryManager.GetLevelID(CampaignLevel.Orleans);
         story.BeginIntegrityClock(AuthoredPar, startingExtractors: 0);
         story.CollectDust(100);
+        // The durable snapshot's write hands the save the live record. Completion's autosave
+        // then replaces it with the next level's empty one, so hold on to this attempt's.
+        story.WriteAttemptStateToSave(save);
+        StoryAttemptState completing = save.AttemptState;
 
         EventBus.Instance.RaiseLevelComplete(levelID);
 
@@ -38,8 +42,8 @@ public class StoryLevelRankTests {
         AssertThat(save.DepositedChronalDust[Hero]).IsEqual(160);
         AssertThat(story.LastCompletionDepositDust).IsEqual(160);
         AssertThat(story.ChronalDustCollected).IsEqual(0);
-        AssertThat(save.AttemptState.CompletionTransaction.RankBonusDust).IsEqual(50);
-        AssertThat(save.AttemptState.CompletionTransaction.TierBonusDust).IsEqual(10);
+        AssertThat(completing.CompletionTransaction.RankBonusDust).IsEqual(50);
+        AssertThat(completing.CompletionTransaction.TierBonusDust).IsEqual(10);
         AssertThat(save.RankByLevel[levelID]).IsEqual("S");
         AssertThat(save.RankDustPaidByLevel[levelID]).IsEqual(50);
     }
