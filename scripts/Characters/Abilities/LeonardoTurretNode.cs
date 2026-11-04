@@ -204,7 +204,9 @@ namespace FTT.Characters.Abilities {
         private void FireSyncedBolt(Hurtbox target) {
             if (target == null || !IsInstanceValid(target) || !IsInsideTree()) return;
             Vector2 muzzle = GlobalPosition + MuzzleOffset;
-            Vector2 aim = target.GlobalPosition - muzzle;
+            // A hurtbox's position is its body's feet, so a bolt aimed there meets the floor just past the target.
+            // Codex Atlanticus aims at muzzle height over the target's feet, so it flies level on through the line.
+            Vector2 aim = target.GlobalPosition + (_codexAtlanticus ? MuzzleOffset : Vector2.Zero) - muzzle;
             PlaceholderProjectile bolt = InstantStrikesForTesting ? null : BaseSpecial.SpawnStoryProjectile(GetParent(), muzzle);
             SyncedBoltsFired++;
             if (bolt == null) {
@@ -246,7 +248,7 @@ namespace FTT.Characters.Abilities {
             // A synced bolt is spent on its first contact, as the sim's is; Codex Atlanticus (Story-only
             // capstone) flies it on through the line.
             bolt.PiercesTargets = _codexAtlanticus;
-            bolt.DetonateOnImpact = !_codexAtlanticus;
+            bolt.StopsOnLandedContact = !_codexAtlanticus;
             bolt.ConfigureDirection(aim);
             bolt.StopsOnTerrain = true;
         }

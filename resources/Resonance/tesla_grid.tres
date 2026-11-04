@@ -147,7 +147,7 @@ PrerequisiteNodeIDs = PackedStringArray("tesla_resonant_overdrive", "tesla_loren
 AbilityModifierKey = "world_system"
 Tier = 4
 GatedAbilityID = "special2"
-LayoutPosition = Vector2(0.93, 0.5)
+LayoutPosition = Vector2(0.9, 0.5)
 
 [resource]
 script = ExtResource("1")

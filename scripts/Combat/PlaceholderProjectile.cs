@@ -47,6 +47,9 @@ namespace FTT.Combat {
         /// </summary>
         public bool PiercesTargets { get; set; }
 
+        /// <summary>A synced bolt: spent on its first landed contact, with no burst. Cleared on despawn.</summary>
+        public bool StopsOnLandedContact { get; set; }
+
         /// <summary>
         /// Package 13 W7a (L03): aims the shot straight along an arbitrary
         /// direction at its configured speed (the turret's bolts fly at the
@@ -286,9 +289,18 @@ namespace FTT.Combat {
         }
 
         private void OnHitConfirmed(HitPayload payload, float damageApplied) {
+            // A construct's own hurtbox sits on the muzzle and refuses the owner's shot: only a contact
+            // that landed spends the bolt.
+            bool landed = payload.ContactLanded || damageApplied > 0f;
             if (PiercesTargets) {
                 // A pierced contact keeps the strike's rules and pays no second strike's Momentum.
-                _hitbox.HitboxID = ConstructStrikes.TurretPiercedBoltHitboxID;
+                if (landed) _hitbox.HitboxID = ConstructStrikes.TurretPiercedBoltHitboxID;
+                return;
+            }
+            if (StopsOnLandedContact && landed) {
+                StopsOnLandedContact = false;
+                _hitbox?.Deactivate();
+                ReturnToPool();
                 return;
             }
             if (!DetonateOnImpact) return;
@@ -379,6 +391,7 @@ namespace FTT.Combat {
             _arcGravity = 0f;
             DetonateOnImpact = false;
             PiercesTargets = false;
+            StopsOnLandedContact = false;
             BurstsOnTerrain = false;
             StopsOnTerrain = false;
             Impacted = null;

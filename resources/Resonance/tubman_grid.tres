@@ -145,7 +145,7 @@ PrerequisiteNodeIDs = PackedStringArray("tubman_safe_passage", "tubman_north_sta
 AbilityModifierKey = "freedom_line"
 Tier = 4
 GatedAbilityID = "special2"
-LayoutPosition = Vector2(0.92, 0.5)
+LayoutPosition = Vector2(0.9, 0.5)
 
 [resource]
 script = ExtResource("1")

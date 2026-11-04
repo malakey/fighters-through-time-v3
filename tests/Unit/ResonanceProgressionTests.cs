@@ -676,7 +676,7 @@ public class ResonanceProgressionTests {
     }
 
     [TestCase]
-    public void EveryGridAuthorsExactlyThreeMajorPerkKeysAndAGateSlotTheScheduleKnows() {
+    public void EveryGridAuthorsExactlyFourMajorPerkKeysAndAGateSlotTheScheduleKnows() {
         var issues = new List<string>();
         foreach (string characterID in CharacterIDs) {
             int majors = 0;
@@ -692,7 +692,7 @@ public class ResonanceProgressionTests {
                     issues.Add($"{node.NodeID}: gate slot '{node.GatedAbilityID}' is not a Legacy slot");
                 }
             }
-            if (majors != 3) issues.Add($"{characterID}: {majors} Majors");
+            if (majors != 4) issues.Add($"{characterID}: {majors} Majors");
         }
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }

@@ -76,9 +76,6 @@ public class CapstoneKitTests {
         var tree = (SceneTree)Engine.GetMainLoop();
         Node2D host = NewHost("CapCodex");
         try {
-            var floor = new StaticBody2D { Name = "Floor", CollisionLayer = CollisionLayers.Environment, Position = Origin + new Vector2(0f, 60f) };
-            floor.AddChild(new CollisionShape2D { Shape = new RectangleShape2D { Size = new Vector2(4000f, 40f) } });
-            host.AddChild(floor);
             PlayerController leonardo = Owner(host, "leonardo", Origin + new Vector2(-200f, -400f));
             leonardo.StoryAbilityPerks.Add(CapstoneRules.CodexAtlanticusPerkKey);
 
@@ -98,11 +95,15 @@ public class CapstoneKitTests {
             LeonardoTurretNode plain = Turret(host, leonardo, Origin);
             EnemyController first = Mob(host, Origin + new Vector2(200f, 0f));
             EnemyController second = Mob(host, Origin + new Vector2(300f, 0f));
+            // Two targets standing still: the question is the bolt, not their walking.
+            first.SetPhysicsProcess(false);
+            second.SetPhysicsProcess(false);
             await FireAtAndWait(tree, leonardo, first);
             AssertThat(first.CurrentHP).IsEqual(9999 - LingeringKitRules.TurretSyncedBoltDamage);
             AssertThat(second.CurrentHP).OverrideFailureMessage("A plain synced bolt stops at the first body.").IsEqual(9999);
             leonardo.ActivePersistentObjects.Remove(plain);
-            plain.ReturnToPool();
+            host.RemoveChild(plain);
+            plain.Free();
 
             // With it: both, and the second contact pays no second strike's Momentum.
             first.CurrentHP = 9999;
