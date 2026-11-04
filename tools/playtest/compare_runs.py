@@ -432,6 +432,27 @@ def momentum_rows(tag_pattern):
     return rows
 
 
+def rank_rows(tag_pattern):
+    """GR-PILOT: one row per bot from the rank block ("-" before it, and on a run that did not complete)."""
+    rows = []
+    for bot, runs in by_bot(tag_pattern):
+        blocks = [r["rank"] for r in runs if isinstance(r.get("rank"), dict) and r["rank"].get("letter")]
+        if not blocks:
+            rows.append({"bot": bot, "runs": len(runs), "ranked": 0, "S": "-", "A": "-", "B": "-", "C": "-", "D": "-",
+                         "points": "-", "damage": "-", "speed": "-", "dust/ranked": "-"})
+            continue
+        speeds = [num(b.get("speed_score")) for b in blocks if num(b.get("speed_score"), -1) >= 0]
+        row = {"bot": bot, "runs": len(runs), "ranked": len(blocks)}
+        for letter in "SABCD":
+            row[letter] = sum(1 for b in blocks if b.get("letter") == letter)
+        row["points"] = mean([num(b.get("points"), 0) for b in blocks])
+        row["damage"] = mean([num(b.get("damage_score"), 0) for b in blocks])
+        row["speed"] = mean(speeds) if speeds else "-"
+        row["dust/ranked"] = mean([num(b.get("dust_paid"), 0) for b in blocks])
+        rows.append(row)
+    return rows
+
+
 def mob_rows(tag_pattern):
     """C3: one row per bot from the mob_swings blocks (natural closes only).
 
@@ -806,6 +827,10 @@ def main(tags, swings=False):
         print_table(["bot", "runs", "pips0", "gained/run", "top_sources", "cast/min", "s1/run", "s2/run",
                      "starved_presses", "starved%", "full%"],
                     momentum_rows(tag))
+        # GR-PILOT (2026-11-03): the level rank of the runs that completed.
+        print("\n#### rank\n")
+        print_table(["bot", "runs", "ranked", "S", "A", "B", "C", "D", "points", "damage", "speed", "dust/ranked"],
+                    rank_rows(tag))
         # C3 (2026-10-11): mob MeleeStrike / ChargeDash swings.
         print("\n#### mobs\n")
         print_table(["bot", "runs", "mob_swings/run", "mob_whiff%", "out_of_reach%", "mob_whiff_gap_med",

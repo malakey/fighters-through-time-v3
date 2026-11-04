@@ -34,6 +34,27 @@ public partial class TelemetryTickProbe : Node {
 [TestSuite]
 [RequireGodotRuntime]
 public class PlaytestCombatStatsTests {
+    /// <summary>GR-PILOT: the report's rank block, with a result and on a run that did not complete.</summary>
+    [TestCase]
+    public void TheRankBlockReadsTheLevelsResultAndIsEmptyWithoutOne() {
+        var result = new FTT.Core.LevelRankResult(FTT.Core.LevelRankLetter.A, 80.26, 35, 15, 65);
+        System.Collections.Generic.Dictionary<string, object> block = PlaytestTelemetry.RankBlock(result, 35, 12.34f, 7);
+        AssertThat(block["letter"]).IsEqual("A");
+        AssertThat(block["points"]).IsEqual(80.3);
+        // 15 % of a bar lost against a budget of 1.5 bars.
+        AssertThat(block["damage_score"]).IsEqual(90.0);
+        AssertThat(block["damage_percent"]).IsEqual(15);
+        AssertThat(block["speed_score"]).IsEqual(65);
+        AssertThat(block["dust_paid"]).IsEqual(35);
+        AssertThat(block["base_damage"]).IsEqual(12.3);
+        AssertThat(block["hits"]).IsEqual(7);
+
+        block = PlaytestTelemetry.RankBlock(null, 0, 3f, 1);
+        AssertObject(block["letter"]).IsNull();
+        AssertThat(block["points"]).IsEqual(-1.0);
+        AssertThat(block["hits"]).IsEqual(1);
+    }
+
     /// <summary>Far from every other suite's geometry; the floor's top is at y = 0.</summary>
     private const float OriginX = 87000f;
 
