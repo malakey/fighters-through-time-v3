@@ -119,8 +119,10 @@ public class FighterStageGlobeTests {
                 else if (body.CollisionLayer == 128) oneWay.Add(body);
                 else AssertThat($"{body.Name} on layer {body.CollisionLayer}").IsEqual("");
             }
-            // Floor plus the two solid walls.
-            AssertThat(solids.Count).IsEqual(3);
+            // Since the 2026-11-03 centre pit (9a+): one solid floor body per
+            // FloorSegments entry plus the two solid walls.
+            AssertThat(solids.Count).IsEqual(FighterStageGeometry.Globe.FloorSegments.Length + 2);
+            AssertThat(solids.Count).IsEqual(4);
             // Two galleries and the tiring-house balcony.
             AssertThat(oneWay.Count).IsEqual(3);
             AssertThat(oneWay.Count).IsEqual(FighterStageGeometry.Globe.Platforms.Length);
@@ -286,12 +288,300 @@ public class FighterStageGlobeTests {
         AssertThat(mirrorCamper.CurrentHP).IsEqual(camper.CurrentHP);
     }
 
+    // === 2026-11-03 gameplay review (9a+/9a++): the Globe becomes an Open stage ===
+
+    /// <summary>
+    /// A 3.0-wide centred pit: two floor segments [-9, -1.5] and [1.5, 9], so the
+    /// floor supports every x outside the gap and nothing inside it.
+    /// </summary>
+    [TestCase]
+    public void GlobeIsAnOpenStageWithACentredThreeUnitPit() {
+        FighterStageGeometry globe = FighterStageGeometry.Globe;
+        AssertThat(globe.IsOpenStage).IsTrue();
+        AssertThat(globe.FloorSegments.Length).IsEqual(2);
+        AssertThat(globe.FloorSegments[0].EdgeX(0).RawValue).IsEqual(globe.LeftWall.RawValue);
+        AssertThat(globe.FloorSegments[0].EdgeX(1).RawValue).IsEqual(FP64.FromDouble(-1.5).RawValue);
+        AssertThat(globe.FloorSegments[1].EdgeX(0).RawValue).IsEqual(FP64.FromDouble(1.5).RawValue);
+        AssertThat(globe.FloorSegments[1].EdgeX(1).RawValue).IsEqual(globe.RightWall.RawValue);
+        AssertThat((globe.FloorSegments[1].EdgeX(0) - globe.FloorSegments[0].EdgeX(1)).RawValue)
+            .IsEqual(FP64.FromInt(3).RawValue);
+
+        foreach (double x in new[] { -9.0, -4.0, -1.6, 1.6, 4.0, 9.0 }) {
+            AssertThat(globe.HasFloorSupport(FP64.FromDouble(x)))
+                .OverrideFailureMessage($"no floor under x = {x}").IsTrue();
+        }
+        foreach (double x in new[] { -1.4, -0.5, 0.0, 0.5, 1.4 }) {
+            AssertThat(globe.HasFloorSupport(FP64.FromDouble(x)))
+                .OverrideFailureMessage($"floor under x = {x}, inside the pit").IsFalse();
+        }
+    }
+
+    /// <summary>
+    /// Both spawns, both gallery platforms and the respawn platform stand over
+    /// floor: a spawn over the pit would cost a stock before the countdown ended.
+    /// The respawn platform moves to (-4, 3) because stage centre is a hole.
+    /// </summary>
+    [TestCase]
+    public void GlobeSpawnsGalleriesAndTheRespawnPlatformStandOverFloor() {
+        FighterStageGeometry globe = FighterStageGeometry.Globe;
+        FP64 spawn = FP64.FromInt(globe.SpawnDistance);
+        AssertThat(globe.HasFloorSupport(spawn)).IsTrue();
+        AssertThat(globe.HasFloorSupport(FP64.Zero - spawn)).IsTrue();
+
+        // The two galleries (the +-5 platforms) sit wholly over floor.
+        for (int index = 0; index < 2; index++) {
+            FighterStagePlatform gallery = globe.Platforms[index];
+            AssertThat(globe.HasFloorSupport(gallery.EdgeX(0))).IsTrue();
+            AssertThat(globe.HasFloorSupport(gallery.EdgeX(1))).IsTrue();
+        }
+
+        AssertThat(globe.RespawnPlatformPosition.x.RawValue).IsEqual(FP64.FromInt(-4).RawValue);
+        AssertThat(globe.RespawnPlatformPosition.y.RawValue).IsEqual(FP64.FromInt(3).RawValue);
+        AssertThat(globe.HasFloorSupport(globe.RespawnPlatformPosition.x)).IsTrue();
+    }
+
+    /// <summary>
+    /// The two pit-facing segment ends are the only floor ledges, encoded after
+    /// the three platforms ((3 + segment) * 2 + side); the segment ends against
+    /// the walls are not ledges.
+    /// </summary>
+    [TestCase]
+    public void GlobePitFacingFloorEndsAreTheOnlyTwoLedges() {
+        FighterStageGeometry globe = FighterStageGeometry.Globe;
+        int leftPitEdge = (globe.Platforms.Length + 0) * 2 + 1;
+        int rightPitEdge = (globe.Platforms.Length + 1) * 2 + 0;
+        AssertThat(leftPitEdge).IsEqual(7);
+        AssertThat(rightPitEdge).IsEqual(8);
+
+        FP64 justUnderTheFloor = FP64.FromDouble(-0.1);
+        AssertThat(globe.TryFindLedge(
+            new FPVector2(FP64.FromDouble(-1.5), justUnderTheFloor), out int anchor)).IsTrue();
+        AssertThat(anchor).IsEqual(leftPitEdge);
+        AssertThat(globe.TryFindLedge(
+            new FPVector2(FP64.FromDouble(1.5), justUnderTheFloor), out anchor)).IsTrue();
+        AssertThat(anchor).IsEqual(rightPitEdge);
+
+        AssertThat(globe.TryGetHangPosition(leftPitEdge, out FPVector2 hang)).IsTrue();
+        AssertThat(hang.x.RawValue)
+            .IsEqual((FP64.FromDouble(-1.5) + FighterLedgeRules.HangOutwardOffset).RawValue);
+        AssertThat(globe.TryGetHangPosition(rightPitEdge, out FPVector2 mirrored)).IsTrue();
+        AssertThat(mirrored.x.RawValue)
+            .IsEqual((FP64.FromDouble(1.5) - FighterLedgeRules.HangOutwardOffset).RawValue);
+
+        // The wall-side segment ends and the middle of the pit are not ledges.
+        AssertThat(globe.TryGetHangPosition((globe.Platforms.Length + 0) * 2 + 0, out FPVector2 _)).IsFalse();
+        AssertThat(globe.TryGetHangPosition((globe.Platforms.Length + 1) * 2 + 1, out FPVector2 _)).IsFalse();
+        AssertThat(globe.TryFindLedge(new FPVector2(FP64.Zero, justUnderTheFloor), out int _)).IsFalse();
+
+        // The nearest floor edge walking toward the pit from either spawn.
+        AssertThat(globe.TryGetNearestFloorEdge(FP64.FromInt(-4), 1, out FP64 edge)).IsTrue();
+        AssertThat(edge.RawValue).IsEqual(FP64.FromDouble(-1.5).RawValue);
+        AssertThat(globe.TryGetNearestFloorEdge(FP64.FromInt(4), -1, out edge)).IsTrue();
+        AssertThat(edge.RawValue).IsEqual(FP64.FromDouble(1.5).RawValue);
+    }
+
+    /// <summary>
+    /// The scene authors one solid body per floor segment (the shared validator
+    /// matches them by centre and half-width), split either side of the pit.
+    /// </summary>
+    [TestCase]
+    public void GlobeSceneAuthorsOneFloorBodyPerSegmentOnTheFloorPlane() {
+        Node2D root = Instantiate();
+        try {
+            var left = root.GetNodeOrNull<StaticBody2D>("Geometry/GroundLeft");
+            var right = root.GetNodeOrNull<StaticBody2D>("Geometry/GroundRight");
+            AssertObject(left).IsNotNull();
+            AssertObject(right).IsNotNull();
+            AssertObject(root.GetNodeOrNull<Node>("Geometry/Ground")).IsNull();
+            foreach (StaticBody2D body in new[] { left, right }) {
+                AssertThat(body.CollisionLayer).IsEqual(64u);
+                AssertThat(body.CollisionMask).IsEqual(0u);
+                var shape = body.GetNode<CollisionShape2D>("CollisionShape2D");
+                var rect = (RectangleShape2D)shape.Shape;
+                AssertThat(rect.Size.X).IsEqual(468.75f);   // 7.5 units
+                AssertThat(body.Position.Y + shape.Position.Y - rect.Size.Y / 2f).IsEqual(700f);
+            }
+            AssertThat(left.Position.X).IsEqual(621.875f);   // x = -5.25
+            AssertThat(right.Position.X).IsEqual(1278.125f); // x = +5.25
+        } finally {
+            root.Free();
+        }
+    }
+
+    /// <summary>
+    /// The pit has a readable depth cue exactly over the authored gap, opening
+    /// downward from the floor plane, and both true ledges carry an edge cue.
+    /// </summary>
+    [TestCase]
+    public void GlobePaintedPitSpansTheAuthoredGapAndBothLedgesCarryACue() {
+        Node2D root = Instantiate();
+        try {
+            var pit = root.GetNodeOrNull<ColorRect>("Presentation/CentrePit");
+            AssertObject(pit).IsNotNull();
+            FighterStageGeometry globe = FighterStageGeometry.Globe;
+            float gapLeft = FighterStageConformance.ToPixels(globe.FloorSegments[0].EdgeX(1), FP64.Zero).X;
+            float gapRight = FighterStageConformance.ToPixels(globe.FloorSegments[1].EdgeX(0), FP64.Zero).X;
+            AssertThat(Mathf.Abs(pit.OffsetLeft - gapLeft) <= FighterStageConformance.EpsilonPixels)
+                .OverrideFailureMessage($"the painted pit starts at {pit.OffsetLeft} px, the gap at {gapLeft} px")
+                .IsTrue();
+            AssertThat(Mathf.Abs(pit.OffsetRight - gapRight) <= FighterStageConformance.EpsilonPixels)
+                .OverrideFailureMessage($"the painted pit ends at {pit.OffsetRight} px, the gap at {gapRight} px")
+                .IsTrue();
+            AssertThat(pit.OffsetTop >= FighterStageConformance.ToPixels(FP64.Zero, FP64.Zero).Y).IsTrue();
+            AssertObject(root.GetNodeOrNull<ColorRect>("Geometry/GroundLeft/LedgeCue")).IsNotNull();
+            AssertObject(root.GetNodeOrNull<ColorRect>("Geometry/GroundRight/LedgeCue")).IsNotNull();
+        } finally {
+            root.Free();
+        }
+    }
+
+    /// <summary>
+    /// The canopy platform and its orb now hang over the hole: no floor under
+    /// them, the platform carries the orb, and the heckler anchor at x = 0 is kept
+    /// (conformance compares hazard anchors on X only; the crowd has no damaging
+    /// region, so nothing lingers over the pit).
+    /// </summary>
+    [TestCase]
+    public void GlobeCanopyPlatformAndOrbHangOverThePitAndTheCentreHecklerAnchorIsKept() {
+        FighterStageGeometry globe = FighterStageGeometry.Globe;
+        FighterStagePlatform canopy = globe.Platforms[2];
+        AssertThat(canopy.CenterX.RawValue).IsEqual(FP64.Zero.RawValue);
+        AssertThat(globe.HasFloorSupport(canopy.CenterX)).IsFalse();
+
+        bool orbOnCanopy = false;
+        foreach (FPVector2 orb in globe.OrbAnchors) {
+            if (orb.x.RawValue != FP64.Zero.RawValue) continue;
+            orbOnCanopy = orb.y.RawValue == (canopy.SurfaceY + FP64.FromDouble(0.5)).RawValue;
+        }
+        AssertThat(orbOnCanopy).IsTrue();
+
+        bool hecklerOverPit = false;
+        foreach (FP64 anchorX in globe.HazardAnchorXs) {
+            if (anchorX.RawValue == FP64.Zero.RawValue) hecklerOverPit = true;
+        }
+        AssertThat(hecklerOverPit).IsTrue();
+    }
+
+    /// <summary>
+    /// Player one walks east off the left segment holding Down (the ledge catch
+    /// releases at once): the fall costs exactly one stock, the respawn platform
+    /// materialises at (-4, 3), and the drop lands on the left segment.
+    /// </summary>
+    [TestCase]
+    public void WalkingIntoTheGlobePitCostsAStockAndRespawnsOverTheLeftFloor() {
+        var simulation = new FighterSimulation(
+            stocks: 3, seed: 61110, rules: new FighterMatchRules((int)MatchMode.Stock, false, 0, false, 0),
+            stageGeometry: FighterStageGeometry.Globe);
+        bool fell = false;
+        for (int step = 0; step < 600 && !fell; step++) {
+            int tick = simulation.CurrentTick;
+            var falling = new PlayerInputFrame {
+                Tick = (uint)tick, MoveX = 127, Held = GameplayButtons.Down,
+                Pressed = step == 0 ? GameplayButtons.Down : GameplayButtons.None
+            };
+            simulation.Advance(falling, new PlayerInputFrame { Tick = (uint)tick });
+            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent state)).IsTrue();
+            fell = state.Stocks < 3;
+        }
+        AssertThat(fell).OverrideFailureMessage("player one never fell through the Globe pit").IsTrue();
+
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent onPlatform)).IsTrue();
+        AssertThat(onPlatform.Stocks).IsEqual(2);
+        AssertThat(FighterMatchFlowRules.IsOnRespawnPlatform(in onPlatform)).IsTrue();
+        AssertThat(onPlatform.Position.x.RawValue).IsEqual(FP64.FromInt(-4).RawValue);
+        AssertThat(onPlatform.Position.y.RawValue).IsEqual(FP64.FromInt(3).RawValue);
+
+        bool landed = false;
+        for (int offset = 0; offset < 600 && !landed; offset++) {
+            int tick = simulation.CurrentTick;
+            var neutral = new PlayerInputFrame { Tick = (uint)tick };
+            simulation.Advance(neutral, neutral);
+            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent dropping)).IsTrue();
+            AssertThat(dropping.Stocks).IsEqual(2);
+            landed = !FighterMatchFlowRules.IsOnRespawnPlatform(in dropping) && dropping.IsGrounded != 0;
+            if (landed) {
+                AssertThat(FighterStageGeometry.Globe.HasFloorSupport(dropping.Position.x)).IsTrue();
+                AssertThat(dropping.Position.x < FP64.Zero).IsTrue();
+            }
+        }
+        AssertThat(landed).OverrideFailureMessage("the respawn drop never reached the floor").IsTrue();
+    }
+
+    /// <summary>
+    /// A fighter that walks off the pit-facing end without Down is caught by the
+    /// ledge, and a jump plus an inward hold climbs back onto the left segment.
+    /// </summary>
+    [TestCase]
+    public void WalkingOffTheGlobeFloorEndCatchesTheLedgeAndClimbsBack() {
+        FighterStageGeometry globe = FighterStageGeometry.Globe;
+        int pitAnchor = (globe.Platforms.Length + 0) * 2 + 1;
+        var simulation = new FighterSimulation(
+            seed: 61111, rules: FighterMatchRules.Disabled, stageGeometry: globe);
+        bool hanging = false;
+        for (int step = 0; step < 600 && !hanging; step++) {
+            int tick = simulation.CurrentTick;
+            simulation.Advance(
+                new PlayerInputFrame { Tick = (uint)tick, MoveX = 127 },
+                new PlayerInputFrame { Tick = (uint)tick });
+            AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
+            hanging = runtime.LedgeAnchor == pitAnchor;
+        }
+        AssertThat(hanging).OverrideFailureMessage("player one never caught the Globe pit ledge").IsTrue();
+
+        bool backOnFloor = false;
+        for (int offset = 0; offset < 180 && !backOnFloor; offset++) {
+            int tick = simulation.CurrentTick;
+            GameplayButtons held = offset == 0 ? GameplayButtons.Jump : GameplayButtons.None;
+            simulation.Advance(
+                new PlayerInputFrame { Tick = (uint)tick, MoveX = -127, Held = held, Pressed = held },
+                new PlayerInputFrame { Tick = (uint)tick });
+            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent climbing)).IsTrue();
+            backOnFloor = climbing.IsGrounded != 0
+                && climbing.Position.y.RawValue == FP64.Zero.RawValue
+                && globe.HasFloorSupport(climbing.Position.x);
+        }
+        AssertThat(backOnFloor).OverrideFailureMessage("the climb never put the fighter back on the floor").IsTrue();
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent landed)).IsTrue();
+        AssertThat(landed.Stocks).IsEqual(3);
+    }
+
+    /// <summary>
+    /// Two simulations on the Globe's geometry stay hash-identical through a
+    /// pit fall, the respawn and the drop, hazards and orbs on.
+    /// </summary>
+    [TestCase]
+    public void TwoSimulationsStayHashIdenticalThroughAGlobePitFallAndRespawn() {
+        FighterMatchRules rules = new(
+            (int)MatchMode.Stock,
+            itemsEnabled: true,
+            itemFrequency: (int)ChronalOrbFrequency.High,
+            hazardsEnabled: true,
+            hazardCadenceFrames: 1800,
+            stageHazardTypeID: HazardTypeID);
+        var first = new FighterSimulation(seed: 61112, rules: rules, stageGeometry: FighterStageGeometry.Globe);
+        var second = new FighterSimulation(seed: 61112, rules: rules, stageGeometry: FighterStageGeometry.Globe);
+        for (int tick = 0; tick < 900; tick++) {
+            // East into the pit for the first 90 frames, then stand still.
+            PlayerInputFrame one = tick < 90
+                ? new PlayerInputFrame { Tick = (uint)tick, MoveX = 127, Held = GameplayButtons.Down }
+                : new PlayerInputFrame { Tick = (uint)tick };
+            PlayerInputFrame two = new() { Tick = (uint)tick };
+            AssertThat(first.Advance(one, two)).OverrideFailureMessage(
+                $"globe_theatre diverged at tick {tick}.").IsEqual(second.Advance(one, two));
+        }
+        AssertThat(first.TryGetFighter(0, out FighterStateComponent fallen)).IsTrue();
+        AssertThat(fallen.Stocks).OverrideFailureMessage("the scripted walk never lost a stock").IsEqual(2);
+    }
+
     /// <summary>
     /// Player one reverses every 40 frames and hops occasionally, so its idle
     /// counter can never reach the 120 consecutive frames the crowd needs.
     /// </summary>
     private static PlayerInputFrame PacingInput(int tick) {
-        sbyte axis = tick / 40 % 2 == 0 ? (sbyte)127 : (sbyte)-127;
+        // Away from the stage centre first: player one spawns at x = -4 and the
+        // 2026-11-03 centre pit starts 2.5 units east of that, so a 40-frame run
+        // east would end in it. Pacing west-then-east never reaches the pit.
+        sbyte axis = tick / 40 % 2 == 0 ? (sbyte)-127 : (sbyte)127;
         GameplayButtons buttons = tick % 97 == 0 ? GameplayButtons.Jump : GameplayButtons.None;
         return new PlayerInputFrame {
             Tick = (uint)tick,

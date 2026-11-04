@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using FTT.Characters;
 using FTT.Core;
 using FTT.Environment;
@@ -75,16 +75,22 @@ public class FighterStageGeometryTests {
             new[] { (-4.0, 1.6, 1.3), (4.0, 1.6, 1.3) },
             new[] { -6.0, 0.0, 6.0 },
             new[] { (-4.0, 2.1), (4.0, 2.1), (0.0, 0.5) }),
+        // Open since the 2026-11-03 gameplay review (9a+/9a++): a one-sided 3.0 gap
+        // [7, 10] against the east wall; the east balcony and its orb moved 6.5 -> 5.5.
         new("berlin_wall", 10,
-            new[] { (-6.5, 3.6, 1.3), (6.5, 3.6, 1.3) },
+            new[] { (-6.5, 3.6, 1.3), (5.5, 3.6, 1.3) },
             new[] { -4.0, 0.0, 4.0 },
-            new[] { (-6.5, 4.1), (6.5, 4.1), (0.0, 0.5) }),
+            new[] { (-6.5, 4.1), (5.5, 4.1), (0.0, 0.5) },
+            new[] { (-1.5, 8.5) }),
         // The tiring-house balcony dropped 4.4 → 4.0 with the 2026-08-10 jump
         // retune (feel batch §2.2): the double-jump ceiling was ≈4.21; ≈4.29 since the 2026-10-08 apex hang.
+        // Open since the 2026-11-03 gameplay review (9a+/9a++): a 3.0-wide centred pit
+        // [-1.5, 1.5] under the canopy platform; the respawn platform moved to (-4, 3).
         new("globe_theatre", 9,
             new[] { (-5.0, 2.4, 1.4), (5.0, 2.4, 1.4), (0.0, 4.0, 1.2) },
             new[] { -5.0, 0.0, 5.0 },
-            new[] { (-5.0, 2.9), (5.0, 2.9), (0.0, 4.5) }),
+            new[] { (-5.0, 2.9), (5.0, 2.9), (0.0, 4.5) },
+            new[] { (-5.25, 3.75), (5.25, 3.75) }),
         new("gettysburg_ridge", 10,
             new[] { (-4.5, 1.8, 1.2), (4.5, 1.8, 1.2) },
             new[] { -5.0, 0.0, 5.0 },
@@ -324,9 +330,9 @@ public class FighterStageGeometryTests {
             }
         }
 
-        // Three Open stages: Paris has two pit-facing ends, Vesuvius and Nassau one
-        // each, so nine kits run 4 × 9 = 36 drills.
-        AssertThat(drills).IsEqual(36);
+        // Five Open stages: Paris and Globe have two pit-facing ends, Vesuvius, Nassau
+        // and Hakata (berlin_wall) one each, so nine kits run 7 × 9 = 63 drills.
+        AssertThat(drills).IsEqual(63);
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 
@@ -388,7 +394,7 @@ public class FighterStageGeometryTests {
     /// <summary>
     /// CM-MOVE (decisions 5.1 and 5.2; plan §2.5.1): with real input — Create-built
     /// frames whose Jump edges the short hop's latch reads — every hero still
-    /// escapes every authored pit on Paris, Vesuvius and Nassau on held jumps, and
+    /// escapes every authored pit on the five Open stages on held jumps, and
     /// a hanging fighter's neutral climb (a centred stick, then a tilt toward the
     /// floor) ends standing on the floor 0.5 u inside the edge after 20 frames on
     /// each Open stage.
@@ -416,7 +422,7 @@ public class FighterStageGeometryTests {
                 }
             }
         }
-        AssertThat(drills).IsEqual(36);
+        AssertThat(drills).IsEqual(63);
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 
@@ -441,8 +447,8 @@ public class FighterStageGeometryTests {
                 $"authors {geometry.FloorSegments.Length} floor segments");
         }
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
-        // Exactly three Open stages ship: Paris, Vesuvius, Nassau.
-        AssertThat(open).IsEqual(3);
+        // Exactly five Open stages ship: Paris, Vesuvius, Nassau, Globe, Hakata (berlin_wall).
+        AssertThat(open).IsEqual(5);
     }
 
     [TestCase]

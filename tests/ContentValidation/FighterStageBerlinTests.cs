@@ -15,8 +15,9 @@ namespace FTT.Tests.ContentValidation;
 ///
 /// <para>The scene is a pixel mirror of <see cref="FighterStageGeometry.Berlin"/>
 /// through <c>pixel = (950 + x·62.5, 700 − y·62.5)</c>: two high guard-tower
-/// balconies at ±6.5 / 3.6, walls at ±10, and three searchlight anchors at
-/// {−4, 0, 4}. Nothing in the engine enforces that mirror — the simulation is
+/// balconies at −6.5 and (since the 2026-11-03 gameplay review, which opened the
+/// stage with a one-sided gap [7, 10]) +5.5, both at 3.6, walls at ±10, and
+/// three searchlight anchors at {−4, 0, 4}. Nothing in the engine enforces that mirror — the simulation is
 /// authoritative and every collider here has <c>collision_mask = 0</c> — so the
 /// shared conformance validator is the only thing keeping the drawn stage honest
 /// about where the floor and balconies are.</para>
@@ -194,10 +195,14 @@ public class FighterStageBerlinTests {
             hazardCadenceFrames: 1800,
             stageHazardTypeID: BerlinHazardTypeID);
 
+        // The jittering movement input drifts fighters east into the 2026-11-03 gap,
+        // so the stock count is raised past what 2500 frames can burn (Paris's
+        // precedent); the match-state assertion below still fails loudly if a run
+        // ever ends the match before the searchlight's whole cycle.
         var first = new FighterSimulation(
-            seed: 8611, rules: rules, stageGeometry: FighterStageGeometry.Berlin);
+            stocks: 25, seed: 8611, rules: rules, stageGeometry: FighterStageGeometry.Berlin);
         var second = new FighterSimulation(
-            seed: 8611, rules: rules, stageGeometry: FighterStageGeometry.Berlin);
+            stocks: 25, seed: 8611, rules: rules, stageGeometry: FighterStageGeometry.Berlin);
 
         bool sawWarning = false;
         bool sawActive = false;
@@ -235,6 +240,288 @@ public class FighterStageBerlinTests {
         AssertThat(sawActive).IsTrue();
         AssertThat(sawRecovery).IsTrue();
         AssertThat(sawDespawn).IsTrue();
+    }
+
+    // === 2026-11-03 gameplay review (9a+/9a++): Hakata Seawall becomes an Open stage ===
+
+    /// <summary>
+    /// A one-sided 3.0-wide gap [7, 10] against the east wall, like Nassau's
+    /// stern: a single floor segment [-10, 7], and the west half stays the
+    /// unbroken baseline.
+    /// </summary>
+    [TestCase]
+    public void HakataIsAnOpenStageWithAOneSidedThreeUnitGapAgainstTheEastWall() {
+        FighterStageGeometry berlin = FighterStageGeometry.Berlin;
+        AssertThat(berlin.IsOpenStage).IsTrue();
+        AssertThat(berlin.FloorSegments.Length).IsEqual(1);
+        AssertThat(berlin.FloorSegments[0].EdgeX(0).RawValue).IsEqual(berlin.LeftWall.RawValue);
+        AssertThat(berlin.FloorSegments[0].EdgeX(1).RawValue).IsEqual(FP64.FromInt(7).RawValue);
+        AssertThat((berlin.RightWall - berlin.FloorSegments[0].EdgeX(1)).RawValue)
+            .IsEqual(FP64.FromInt(3).RawValue);
+
+        foreach (double x in new[] { -10.0, -5.0, 0.0, 5.0, 6.9 }) {
+            AssertThat(berlin.HasFloorSupport(FP64.FromDouble(x)))
+                .OverrideFailureMessage($"no floor under x = {x}").IsTrue();
+        }
+        foreach (double x in new[] { 7.1, 8.0, 9.0, 9.9 }) {
+            AssertThat(berlin.HasFloorSupport(FP64.FromDouble(x)))
+                .OverrideFailureMessage($"floor under x = {x}, inside the gap").IsFalse();
+        }
+    }
+
+    /// <summary>
+    /// The east balcony and its orb moved 6.5 -> 5.5 so both stay over floor (the
+    /// balcony spans 4.2..6.8, short of the gap at 7); the west balcony and the
+    /// centre orb are untouched, and every orb sits half a unit over its surface.
+    /// </summary>
+    [TestCase]
+    public void TheEastBalconyAndItsOrbMovedOverFloorAndTheWestSideIsUntouched() {
+        FighterStageGeometry berlin = FighterStageGeometry.Berlin;
+        AssertThat(berlin.Platforms.Length).IsEqual(2);
+        AssertThat(berlin.Platforms[0].CenterX.RawValue).IsEqual(FP64.FromDouble(-6.5).RawValue);
+        FighterStagePlatform east = berlin.Platforms[1];
+        AssertThat(east.CenterX.RawValue).IsEqual(FP64.FromDouble(5.5).RawValue);
+        AssertThat(east.SurfaceY.RawValue).IsEqual(FP64.FromDouble(3.6).RawValue);
+        AssertThat(berlin.HasFloorSupport(east.EdgeX(0))).IsTrue();
+        AssertThat(berlin.HasFloorSupport(east.EdgeX(1))).IsTrue();
+        AssertThat(east.EdgeX(1) < FP64.FromInt(7)).IsTrue();
+
+        AssertThat(berlin.OrbAnchors.Length).IsEqual(3);
+        AssertThat(berlin.OrbAnchors[0].x.RawValue).IsEqual(FP64.FromDouble(-6.5).RawValue);
+        AssertThat(berlin.OrbAnchors[1].x.RawValue).IsEqual(FP64.FromDouble(5.5).RawValue);
+        AssertThat(berlin.OrbAnchors[1].y.RawValue).IsEqual(FP64.FromDouble(4.1).RawValue);
+        AssertThat(berlin.OrbAnchors[2].x.RawValue).IsEqual(FP64.Zero.RawValue);
+        AssertThat(berlin.OrbAnchors[2].y.RawValue).IsEqual(FP64.FromDouble(0.5).RawValue);
+        AssertThat(berlin.HasFloorSupport(berlin.OrbAnchors[2].x)).IsTrue();
+    }
+
+    /// <summary>
+    /// Both spawns, the three searchlight anchors and the respawn platform (the
+    /// default stage-centre anchor, since the centre is solid floor) stand over
+    /// floor, so nothing the gap changes can drop a fighter before the match.
+    /// </summary>
+    [TestCase]
+    public void SpawnsSearchlightAnchorsAndTheRespawnPlatformStandOverFloor() {
+        FighterStageGeometry berlin = FighterStageGeometry.Berlin;
+        FP64 spawn = FP64.FromInt(berlin.SpawnDistance);
+        AssertThat(berlin.HasFloorSupport(spawn)).IsTrue();
+        AssertThat(berlin.HasFloorSupport(FP64.Zero - spawn)).IsTrue();
+        foreach (FP64 anchorX in berlin.HazardAnchorXs) AssertThat(berlin.HasFloorSupport(anchorX)).IsTrue();
+        AssertThat(berlin.RespawnPlatformPosition.x.RawValue)
+            .IsEqual(FighterMatchFlowRules.RespawnPlatformPosition.x.RawValue);
+        AssertThat(berlin.RespawnPlatformPosition.y.RawValue)
+            .IsEqual(FighterMatchFlowRules.RespawnPlatformPosition.y.RawValue);
+        AssertThat(berlin.HasFloorSupport(berlin.RespawnPlatformPosition.x)).IsTrue();
+    }
+
+    /// <summary>
+    /// The east floor end is the one true ledge, encoded after the two
+    /// platforms ((2 + 0) * 2 + 1 = 5); the segment end against the west wall is
+    /// not a ledge.
+    /// </summary>
+    [TestCase]
+    public void TheEastFloorEndIsTheOnlyLedge() {
+        FighterStageGeometry berlin = FighterStageGeometry.Berlin;
+        int gapEdge = (berlin.Platforms.Length + 0) * 2 + 1;
+        AssertThat(gapEdge).IsEqual(5);
+
+        FP64 justUnderTheFloor = FP64.FromDouble(-0.1);
+        AssertThat(berlin.TryFindLedge(
+            new FPVector2(FP64.FromInt(7), justUnderTheFloor), out int anchor)).IsTrue();
+        AssertThat(anchor).IsEqual(gapEdge);
+
+        AssertThat(berlin.TryGetHangPosition(gapEdge, out FPVector2 hang)).IsTrue();
+        // The hang sits a quarter unit out over the gap.
+        AssertThat(hang.x.RawValue)
+            .IsEqual((FP64.FromInt(7) + FighterLedgeRules.HangOutwardOffset).RawValue);
+        AssertThat(hang.y.RawValue).IsEqual((FP64.Zero - FighterLedgeRules.HangDepth).RawValue);
+
+        AssertThat(berlin.TryGetHangPosition((berlin.Platforms.Length + 0) * 2 + 0, out FPVector2 _)).IsFalse();
+        AssertThat(berlin.TryFindLedge(new FPVector2(berlin.LeftWall, justUnderTheFloor), out int _)).IsFalse();
+        AssertThat(berlin.TryGetNearestFloorEdge(FP64.FromInt(4), 1, out FP64 edge)).IsTrue();
+        AssertThat(edge.RawValue).IsEqual(FP64.FromInt(7).RawValue);
+        AssertThat(berlin.TryGetNearestFloorEdge(FP64.FromInt(-4), -1, out edge)).IsFalse();
+    }
+
+    /// <summary>
+    /// One solid floor body, shortened to the authored segment [-10, 7]: centre
+    /// 856.25 px, 1062.5 px wide, on the floor plane, ending at 1387.5 px.
+    /// </summary>
+    [TestCase]
+    public void TheSceneAuthorsOneFloorBodyThatEndsAtTheGap() {
+        Node2D root = Instantiate();
+        try {
+            var ground = root.GetNodeOrNull<StaticBody2D>("Geometry/Ground");
+            AssertObject(ground).IsNotNull();
+            AssertThat(ground.CollisionLayer).IsEqual(64u);
+            AssertThat(ground.CollisionMask).IsEqual(0u);
+            var shape = ground.GetNode<CollisionShape2D>("CollisionShape2D");
+            var rect = (RectangleShape2D)shape.Shape;
+            AssertThat(rect.Size.X).IsEqual(1062.5f);
+            AssertThat(ground.Position.X).IsEqual(856.25f);
+            AssertThat(ground.Position.X + rect.Size.X / 2f).IsEqual(1387.5f);
+            AssertThat(ground.Position.Y + shape.Position.Y - rect.Size.Y / 2f).IsEqual(700f);
+
+            // The east guard tower and its orb marker moved with the geometry.
+            AssertThat(root.GetNode<StaticBody2D>("Geometry/GuardTowerEast").Position.X).IsEqual(1293.75f);
+            AssertThat(root.GetNode<Marker2D>("OrbSpawnPoints/EastBalcony").Position.X).IsEqual(1293.75f);
+        } finally {
+            root.Free();
+        }
+    }
+
+    /// <summary>
+    /// The gap has a readable depth cue exactly over the authored span, opening
+    /// downward from the floor plane, and the one true ledge carries an edge cue.
+    /// </summary>
+    [TestCase]
+    public void ThePaintedGapSpansTheAuthoredGapAndTheLedgeCarriesACue() {
+        Node2D root = Instantiate();
+        try {
+            var gap = root.GetNodeOrNull<ColorRect>("Presentation/SeawallGap");
+            AssertObject(gap).IsNotNull();
+            FighterStageGeometry berlin = FighterStageGeometry.Berlin;
+            float gapLeft = FighterStageConformance.ToPixels(berlin.FloorSegments[0].EdgeX(1), FP64.Zero).X;
+            float gapRight = FighterStageConformance.ToPixels(berlin.RightWall, FP64.Zero).X;
+            AssertThat(Mathf.Abs(gap.OffsetLeft - gapLeft) <= FighterStageConformance.EpsilonPixels)
+                .OverrideFailureMessage($"the painted gap starts at {gap.OffsetLeft} px, the gap at {gapLeft} px")
+                .IsTrue();
+            AssertThat(Mathf.Abs(gap.OffsetRight - gapRight) <= FighterStageConformance.EpsilonPixels)
+                .OverrideFailureMessage($"the painted gap ends at {gap.OffsetRight} px, the wall at {gapRight} px")
+                .IsTrue();
+            AssertThat(gap.OffsetTop >= FighterStageConformance.ToPixels(FP64.Zero, FP64.Zero).Y).IsTrue();
+            AssertObject(root.GetNodeOrNull<ColorRect>("Geometry/Ground/LedgeCue")).IsNotNull();
+        } finally {
+            root.Free();
+        }
+    }
+
+    /// <summary>
+    /// Player two (spawning at +4) walks east off the seawall holding Down: the
+    /// fall costs exactly one stock, the respawn platform materialises at the
+    /// stage-centre anchor and the drop lands on the floor.
+    /// </summary>
+    [TestCase]
+    public void WalkingEastOffTheSeawallCostsAStockAndRespawnsAtStageCentre() {
+        var simulation = new FighterSimulation(
+            stocks: 3, seed: 86112, rules: new FighterMatchRules((int)MatchMode.Stock, false, 0, false, 0),
+            stageGeometry: FighterStageGeometry.Berlin);
+        bool fell = false;
+        for (int step = 0; step < 600 && !fell; step++) {
+            int tick = simulation.CurrentTick;
+            var falling = new PlayerInputFrame {
+                Tick = (uint)tick, MoveX = 127, Held = GameplayButtons.Down,
+                Pressed = step == 0 ? GameplayButtons.Down : GameplayButtons.None
+            };
+            simulation.Advance(new PlayerInputFrame { Tick = (uint)tick }, falling);
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent state)).IsTrue();
+            fell = state.Stocks < 3;
+        }
+        AssertThat(fell).OverrideFailureMessage("player two never fell through the seawall gap").IsTrue();
+
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent onPlatform)).IsTrue();
+        AssertThat(onPlatform.Stocks).IsEqual(2);
+        AssertThat(FighterMatchFlowRules.IsOnRespawnPlatform(in onPlatform)).IsTrue();
+        AssertThat(onPlatform.Position.x.RawValue)
+            .IsEqual(FighterStageGeometry.Berlin.RespawnPlatformPosition.x.RawValue);
+
+        bool landed = false;
+        for (int offset = 0; offset < 600 && !landed; offset++) {
+            int tick = simulation.CurrentTick;
+            var neutral = new PlayerInputFrame { Tick = (uint)tick };
+            simulation.Advance(neutral, neutral);
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent dropping)).IsTrue();
+            AssertThat(dropping.Stocks).IsEqual(2);
+            landed = !FighterMatchFlowRules.IsOnRespawnPlatform(in dropping) && dropping.IsGrounded != 0;
+            if (landed) AssertThat(FighterStageGeometry.Berlin.HasFloorSupport(dropping.Position.x)).IsTrue();
+        }
+        AssertThat(landed).OverrideFailureMessage("the respawn drop never reached the floor").IsTrue();
+    }
+
+    /// <summary>
+    /// Walking off the east end without Down is caught by the ledge, and a jump
+    /// plus an inward hold climbs back onto the seawall.
+    /// </summary>
+    [TestCase]
+    public void WalkingOffTheSeawallEndCatchesTheLedgeAndClimbsBack() {
+        FighterStageGeometry berlin = FighterStageGeometry.Berlin;
+        int gapAnchor = (berlin.Platforms.Length + 0) * 2 + 1;
+        var simulation = new FighterSimulation(
+            seed: 86113, rules: FighterMatchRules.Disabled, stageGeometry: berlin);
+        bool hanging = false;
+        for (int step = 0; step < 600 && !hanging; step++) {
+            int tick = simulation.CurrentTick;
+            simulation.Advance(
+                new PlayerInputFrame { Tick = (uint)tick },
+                new PlayerInputFrame { Tick = (uint)tick, MoveX = 127 });
+            AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)).IsTrue();
+            hanging = runtime.LedgeAnchor == gapAnchor;
+        }
+        AssertThat(hanging).OverrideFailureMessage("player two never caught the seawall ledge").IsTrue();
+
+        bool backOnFloor = false;
+        for (int offset = 0; offset < 180 && !backOnFloor; offset++) {
+            int tick = simulation.CurrentTick;
+            GameplayButtons held = offset == 0 ? GameplayButtons.Jump : GameplayButtons.None;
+            simulation.Advance(
+                new PlayerInputFrame { Tick = (uint)tick },
+                new PlayerInputFrame { Tick = (uint)tick, MoveX = -127, Held = held, Pressed = held });
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent climbing)).IsTrue();
+            backOnFloor = climbing.IsGrounded != 0
+                && climbing.Position.y.RawValue == FP64.Zero.RawValue
+                && berlin.HasFloorSupport(climbing.Position.x);
+        }
+        AssertThat(backOnFloor).OverrideFailureMessage("the climb never put the fighter back on the floor").IsTrue();
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent landed)).IsTrue();
+        AssertThat(landed.Stocks).IsEqual(3);
+    }
+
+    /// <summary>
+    /// The west half is the unbroken baseline: player one walks hard west with
+    /// Down held for 400 ticks and never loses a stock.
+    /// </summary>
+    [TestCase]
+    public void TheWestHalfStaysAnUnbrokenBaseline() {
+        var simulation = new FighterSimulation(
+            stocks: 3, seed: 86114, rules: new FighterMatchRules((int)MatchMode.Stock, false, 0, false, 0),
+            stageGeometry: FighterStageGeometry.Berlin);
+        for (int tick = 0; tick < 400; tick++) {
+            simulation.Advance(
+                new PlayerInputFrame { Tick = (uint)tick, MoveX = -127, Held = GameplayButtons.Down },
+                new PlayerInputFrame { Tick = (uint)tick });
+        }
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent west)).IsTrue();
+        AssertThat(west.Stocks).IsEqual(3);
+        AssertThat(west.IsGrounded).IsEqual(1);
+        AssertThat(FighterStageGeometry.Berlin.HasFloorSupport(west.Position.x)).IsTrue();
+    }
+
+    /// <summary>
+    /// Two simulations on the seawall's geometry stay hash-identical through a
+    /// fall into the gap, the respawn and the drop, hazards and orbs on.
+    /// </summary>
+    [TestCase]
+    public void TwoSimulationsStayHashIdenticalThroughAGapFallAndRespawn() {
+        FighterMatchRules rules = new(
+            (int)MatchMode.Stock,
+            itemsEnabled: true,
+            itemFrequency: (int)ChronalOrbFrequency.High,
+            hazardsEnabled: true,
+            hazardCadenceFrames: 1800,
+            stageHazardTypeID: BerlinHazardTypeID);
+        var first = new FighterSimulation(seed: 86115, rules: rules, stageGeometry: FighterStageGeometry.Berlin);
+        var second = new FighterSimulation(seed: 86115, rules: rules, stageGeometry: FighterStageGeometry.Berlin);
+        for (int tick = 0; tick < 900; tick++) {
+            // Player two goes east into the gap for the first 90 frames, then stands still.
+            PlayerInputFrame one = new() { Tick = (uint)tick };
+            PlayerInputFrame two = tick < 90
+                ? new PlayerInputFrame { Tick = (uint)tick, MoveX = 127, Held = GameplayButtons.Down }
+                : new PlayerInputFrame { Tick = (uint)tick };
+            AssertThat(first.Advance(one, two)).OverrideFailureMessage(
+                $"berlin_wall diverged at tick {tick}.").IsEqual(second.Advance(one, two));
+        }
+        AssertThat(first.TryGetFighter(1, out FighterStateComponent fallen)).IsTrue();
+        AssertThat(fallen.Stocks).OverrideFailureMessage("the scripted walk never lost a stock").IsEqual(2);
     }
 
     /// <summary>

@@ -431,8 +431,14 @@ namespace FTT.FighterSim {
             });
 
         /// <summary>
-        /// Berlin Wall: a wide snowy street with two far-out guard-tower balconies.
-        /// Searchlight columns sweep down onto three central anchors.
+        /// Berlin Wall (Hakata Seawall) — <b>Open</b> since the 2026-11-03 gameplay
+        /// review (9a+/9a++, <c>PROVISIONAL-OPEN-STAGE-GEOMETRY</c>). A wide
+        /// seawall street whose eastern end has washed out: the floor runs
+        /// [−10, 7] and a 3.0-wide gap [7, 10] sits against the right wall, one
+        /// true ledge at x = +7, like Nassau's stern. The left half is the
+        /// unbroken baseline. The east balcony and its orb moved 6.5 → 5.5 so
+        /// both stay over floor (the balcony spans 4.2…6.8); the hazard anchors
+        /// (−4, 0, 4), both spawns and the centre orb never touched the gap.
         /// </summary>
         public static FighterStageGeometry Berlin { get; } = new(
             stageID: "berlin_wall",
@@ -443,13 +449,17 @@ namespace FTT.FighterSim {
             spawnDistance: 4,
             platforms: new[] {
                 new FighterStagePlatform(FP64.FromDouble(-6.5), FP64.FromDouble(3.6), FP64.FromDouble(1.3)),
-                new FighterStagePlatform(FP64.FromDouble(6.5), FP64.FromDouble(3.6), FP64.FromDouble(1.3))
+                new FighterStagePlatform(FP64.FromDouble(5.5), FP64.FromDouble(3.6), FP64.FromDouble(1.3))
             },
             hazardAnchorXs: new[] { FP64.FromInt(-4), FP64.Zero, FP64.FromInt(4) },
             orbAnchors: new[] {
                 new FPVector2(FP64.FromDouble(-6.5), FP64.FromDouble(4.1)),
-                new FPVector2(FP64.FromDouble(6.5), FP64.FromDouble(4.1)),
+                new FPVector2(FP64.FromDouble(5.5), FP64.FromDouble(4.1)),
                 new FPVector2(FP64.Zero, FP64.FromDouble(0.5))
+            },
+            // [-10, 7]: a 3.0-wide gap [7, 10] against the east wall.
+            floorSegments: new[] {
+                new FighterStagePlatform(FP64.FromDouble(-1.5), FP64.Zero, FP64.FromDouble(8.5))
             });
 
         /// <summary>
@@ -462,6 +472,15 @@ namespace FTT.FighterSim {
         /// It is 4.0 now — the same height as the Orléans centre platform. The
         /// 2026-10-08 apex hang lifted the lowest jump's (11.5 u/s) double-jump
         /// ceiling to ≈4.29, so 4.0 keeps ≈0.3 units of clearance.</para>
+        ///
+        /// <para><b>Open</b> since the 2026-11-03 gameplay review (9a+/9a++,
+        /// <c>PROVISIONAL-OPEN-STAGE-GEOMETRY</c>): the stage floor drops away
+        /// under the pit between the two galleries — a 3.0-wide centred pit
+        /// [−1.5, 1.5], two true ledges at x = ∓1.5. Both spawns (∓4) and both
+        /// gallery platforms (∓5) stay over floor; the canopy platform and its
+        /// orb now hang over the pit. The respawn platform moves to (−4, 3)
+        /// because stage centre is a hole. The heckler anchor at x = 0 is kept:
+        /// conformance compares hazard anchors on X only.</para>
         /// </summary>
         public static FighterStageGeometry Globe { get; } = new(
             stageID: "globe_theatre",
@@ -480,7 +499,13 @@ namespace FTT.FighterSim {
                 new FPVector2(FP64.FromInt(-5), FP64.FromDouble(2.9)),
                 new FPVector2(FP64.FromInt(5), FP64.FromDouble(2.9)),
                 new FPVector2(FP64.Zero, FP64.FromDouble(4.5))
-            });
+            },
+            floorSegments: new[] {
+                // [-9, -1.5] and [1.5, 9]: a 3.0-wide centred pit.
+                new FighterStagePlatform(FP64.FromDouble(-5.25), FP64.Zero, FP64.FromDouble(3.75)),
+                new FighterStagePlatform(FP64.FromDouble(5.25), FP64.Zero, FP64.FromDouble(3.75))
+            },
+            respawnPlatformPosition: new FPVector2(FP64.FromInt(-4), FP64.FromInt(3)));
 
         /// <summary>
         /// Gettysburg Ridge: a wide dirt path with two low broken rail fences. The

@@ -10,7 +10,7 @@
 [ext_resource type="PackedScene" path="res://scenes/templates/StageLightingRig.tscn" id="8_lighting"]
 
 [sub_resource type="RectangleShape2D" id="ground_col"]
-size = Vector2(1250, 48)
+size = Vector2(1062.5, 48)
 
 [sub_resource type="RectangleShape2D" id="balcony_col"]
 size = Vector2(162.5, 12)
@@ -84,6 +84,22 @@ offset_top = 600.0
 offset_right = 1660.0
 offset_bottom = 607.0
 color = Color(0.75, 0.12, 0.12, 1)
+
+[node name="SeawallGap" type="ColorRect" parent="Presentation"]
+z_index = -9
+offset_left = 1387.5
+offset_top = 700.0
+offset_right = 1575.0
+offset_bottom = 1120.0
+color = Color(0.02, 0.055, 0.085, 1)
+
+[node name="SeawallGapSwell" type="ColorRect" parent="Presentation"]
+z_index = -8
+offset_left = 1387.5
+offset_top = 880.0
+offset_right = 1575.0
+offset_bottom = 1120.0
+color = Color(0.05, 0.16, 0.22, 1)
 
 [node name="TowerMastWest" type="ColorRect" parent="Presentation"]
 z_index = -8
@@ -215,7 +231,7 @@ RimScale = 9.0
 [node name="Geometry" type="Node2D" parent="."]
 
 [node name="Ground" type="StaticBody2D" parent="Geometry"]
-position = Vector2(950, 700)
+position = Vector2(856.25, 700)
 collision_layer = 64
 collision_mask = 0
 
@@ -224,25 +240,36 @@ position = Vector2(0, 24)
 shape = SubResource("ground_col")
 
 [node name="Visual" type="ColorRect" parent="Geometry/Ground"]
-offset_left = -625.0
+offset_left = -531.25
 offset_top = 0.0
-offset_right = 625.0
+offset_right = 531.25
 offset_bottom = 48.0
 color = Color(0.2, 0.22, 0.25, 1)
 
 [node name="SnowCrust" type="ColorRect" parent="Geometry/Ground"]
-offset_left = -625.0
+offset_left = -531.25
 offset_top = 0.0
-offset_right = 625.0
+offset_right = 531.25
 offset_bottom = 6.0
 color = Color(0.88, 0.92, 0.96, 1)
 
 [node name="TopLine" type="ColorRect" parent="Geometry/Ground"]
-offset_left = -625.0
+offset_left = -531.25
 offset_top = -3.0
-offset_right = 625.0
+offset_right = 531.25
 offset_bottom = 0.0
 color = Color(0.75, 0.12, 0.12, 1)
+
+[node name="LedgeCue" type="ColorRect" parent="Geometry/Ground"]
+offset_left = 517.25
+offset_top = -8.0
+offset_right = 531.25
+offset_bottom = 48.0
+color = Color(0.88, 0.92, 0.96, 0.9)
+
+[node name="LedgeUndercut" type="Polygon2D" parent="Geometry/Ground"]
+color = Color(0.1, 0.11, 0.14, 1)
+polygon = PackedVector2Array(531.25, 0, 531.25, 48, 499.25, 48)
 
 [node name="WallLeft" type="StaticBody2D" parent="Geometry"]
 position = Vector2(325, 418.75)
@@ -321,7 +348,7 @@ offset_bottom = -30.0
 color = Color(0.62, 0.68, 0.62, 0.85)
 
 [node name="GuardTowerEast" type="StaticBody2D" parent="Geometry"]
-position = Vector2(1356.25, 475)
+position = Vector2(1293.75, 475)
 collision_layer = 128
 collision_mask = 0
 
@@ -380,7 +407,7 @@ position = Vector2(1200, 700)
 position = Vector2(543.75, 443.75)
 
 [node name="EastBalcony" type="Marker2D" parent="OrbSpawnPoints"]
-position = Vector2(1356.25, 443.75)
+position = Vector2(1293.75, 443.75)
 
 [node name="DeathStrip" type="Marker2D" parent="OrbSpawnPoints"]
 position = Vector2(950, 668.75)
