@@ -165,7 +165,7 @@ namespace FTT.Environment {
         /// storm-anchor ship's (<see cref="BuildEncounterLocks"/>), and each is exactly
         /// its manifest row. <see cref="StoryDifficultyTuning.ScaleEncounterCount"/>
         /// takes a prefix of each wave, so the hardest concurrency is wave 3's six
-        /// bodies - inside level_09_pool_config's standard warm 14 / elite warm 4 caps.
+        /// bodies - inside level_09_pool_config's standard warm 20 / elite warm 4 caps (GR-LV3 added the swarm's 6).
         /// <para>GU-L8 (2026-10-12) moves, all onto the route a slowest hero fights
         /// on: the Lantern Watch trooper 4100 -> 4420 (it overlapped the west relay's
         /// cover slab, 3960-4280, and was pushed up beside the relay); the gangway

@@ -337,7 +337,7 @@ namespace FTT.Environment {
         /// wave 2 joined wave 3, and the Eraser — which spawned at 7900, over open
         /// water, and fell forever whenever skiff C was not under it — stands on the
         /// ramp in wave 4. At most seven combatants are alive at once, inside the
-        /// level_07_nassau_pools warm counts (standard 12, elite 4).
+        /// level_07_nassau_pools warm counts (standard 18 since GR-LV3's swarm row, elite 4).
         /// </summary>
         public static readonly (string EnemyID, int Wave, Vector2 Position)[] SpawnTable = {
             // Wave 1 - the quay, under the first shells. GR-LV3: 1200 -> 2250 and 1750 -> 1950,
