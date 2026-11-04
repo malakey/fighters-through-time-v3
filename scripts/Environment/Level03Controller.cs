@@ -24,7 +24,7 @@ namespace FTT.Environment {
     ///
     /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-L0): each of
     /// the three approach rooms is an <see cref="EncounterLock"/> the hero must
-    /// clear — the Midway (700–3820, its fairground crowd spawning in as the hero
+    /// clear — the Midway (700–2500 since GR-LV1, its fairground crowd spawning in as the hero
     /// steps onto the midway), the Electricity Building floor (3840–5780; the
     /// crown slasher, which stood on the unreachable crown, now holds the floor
     /// under the descent) and the routing hall (6115–8290, which also needs the
@@ -203,10 +203,9 @@ namespace FTT.Environment {
         /// <summary>
         /// The Midway lock: the fairground floor from past the entry anchor (240)
         /// and the low stand (350–650; every lock edge sits in a gap between
-        /// platforms, so no barrier cuts one) to the Electricity seam. Its exit and
-        /// the east end of the fairground floor. GR-LV1 carved it from 3820 to 2500, just
-        /// past the second arc lamp (2340-2460), so a hero pressed against its exit stands
-        /// clear of the lamp. The Skyway takes the rest.
+        /// platforms, so no barrier cuts one) to 2500. GR-LV1 carved it from 3820, just past
+        /// the second arc lamp (2340-2460), so a hero pressed against its exit stands clear
+        /// of the lamp. The Skyway takes the rest.
         /// </summary>
         public const float MidwayLockMinX = 700f;
         public const float MidwayLockMaxX = 2500f;
