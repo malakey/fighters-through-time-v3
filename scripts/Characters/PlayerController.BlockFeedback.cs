@@ -26,6 +26,7 @@ namespace FTT.Characters {
 				: _blockSystem != null && _blockSystem.LastBlockWasPerfect
 					? FTT.Combat.BlockSparkKind.Perfect
 					: FTT.Combat.BlockSparkKind.Ordinary;
+			PlayBlockCue(kind); // GR-AUDIO
 			float facing = IsFacingRight ? 1f : -1f;
 			FTT.Combat.BlockSparkEffect.Show(
 				kind,

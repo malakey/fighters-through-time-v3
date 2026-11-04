@@ -387,6 +387,7 @@ namespace FTT.Combat {
                 _lastConfirmedContactId = payload.ContactId;
             }
             EmitImpactVfx(impactPosition);
+            PlayerController.PlayAbilityHitCue(); // GR-AUDIO
             FTT.Core.EventBus.Instance?.RaiseHitConfirm(new FTT.Core.HitConfirmPayload {
                 PlayerIndex = Owner?.PlayerIndex ?? -1,
                 AttackID = payload.AttackID ?? "",

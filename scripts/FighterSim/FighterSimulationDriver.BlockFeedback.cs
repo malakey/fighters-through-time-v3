@@ -22,6 +22,7 @@ namespace FTT.FighterSim {
 
         private void ShowBlockSpark(PlayerController player, FTT.Combat.BlockSparkKind kind) {
             if (player == null) return;
+            PlayBlockCue(kind); // GR-AUDIO
             float facing = player.IsFacingRight ? 1f : -1f;
             FTT.Combat.BlockSparkEffect.Show(
                 kind,

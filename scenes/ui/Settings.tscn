@@ -159,6 +159,10 @@ layout_mode = 2
 button_pressed = true
 text = "settings_mute_when_unfocused"
 
+[node name="PlaceholderCuesMuteToggle" type="CheckButton" parent="Margin/Panel/Body/Tabs/Audio"]
+layout_mode = 2
+text = "settings_mute_placeholder_cues"
+
 [node name="Display" type="Container" parent="Margin/Panel/Body/Tabs"]
 visible = false
 layout_mode = 2

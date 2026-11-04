@@ -496,6 +496,17 @@ namespace FTT.Core {
         /// <summary>Mutes the "UI &amp; Dialogue" category (the UI bus, which the Dialogue bus sends into).</summary>
         public bool UIMuted;
 
+        /// <summary>
+        /// GR-AUDIO (gameplay review ruling 13, 2026-11-03). Mutes the eight audible combat
+        /// placeholder cues (<c>CoreMechanicCueIDs.AudiblePlaceholders</c>) on their own, apart
+        /// from the SFX category mute, so the player can silence the stand-in hit sounds without
+        /// losing the rest of SFX. Additive field: an older payload keeps the <c>false</c>
+        /// initializer (cues on), with no schema bump and no derivation, and this class stays
+        /// engine-free. Read it through <see cref="PlaceholderCueSettings"/>, never from
+        /// <c>scripts/FighterSim/</c>.
+        /// </summary>
+        public bool PlaceholderCuesMuted;
+
         /// <summary>G13 Block Mode, Hold by default. Local input processing only.</summary>
         public BlockMode BlockInputMode = BlockMode.Hold;
 
@@ -561,6 +572,9 @@ namespace FTT.Core {
         /// where "what the player chose" actually changes.
         /// </summary>
         public void ApplyComfortSettings() => ComfortSettings.Apply(ReducedTemporalEffects);
+
+        /// <summary>GR-AUDIO. Hands the placeholder-cue mute to its runtime read point (boot and the Settings toggle).</summary>
+        public void ApplyPlaceholderCueSettings() => PlaceholderCueSettings.Apply(PlaceholderCuesMuted);
 
         /// <summary>
         /// Snaps the stored size onto the nearest supported resolution and clamps
@@ -735,6 +749,7 @@ namespace FTT.Core {
             // effect. GameManager.LoadScene builds that screen, and the earliest
             // it can run is after this autoload's _Ready, so this is the boundary.
             GlobalData?.ApplyComfortSettings();
+            GlobalData?.ApplyPlaceholderCueSettings(); // GR-AUDIO
             for (int slot = 0; slot < SaveSlots.Length; slot++) LoadStorySlot(slot);
             // Schema v5 -> v6, deferred half: the global seen-dialogue set is the
             // union of every slot's per-slot ViewedDialogueIDs, and the global

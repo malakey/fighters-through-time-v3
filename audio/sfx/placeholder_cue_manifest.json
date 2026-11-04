@@ -1,0 +1,62 @@
+{
+  "audio/sfx/chronal/clock_tick.ogg": {
+    "audible": false,
+    "peak": 0.0,
+    "seconds": 0.045
+  },
+  "audio/sfx/chronal/rewind_sweep.ogg": {
+    "audible": false,
+    "peak": 0.0,
+    "seconds": 0.9
+  },
+  "audio/sfx/combat/block.ogg": {
+    "audible": true,
+    "peak": 0.3,
+    "seconds": 0.12
+  },
+  "audio/sfx/combat/defy_burst.ogg": {
+    "audible": true,
+    "peak": 0.3,
+    "seconds": 0.45
+  },
+  "audio/sfx/combat/grab_catch.ogg": {
+    "audible": true,
+    "peak": 0.3,
+    "seconds": 0.14
+  },
+  "audio/sfx/combat/hit_basic.ogg": {
+    "audible": true,
+    "peak": 0.3,
+    "seconds": 0.09
+  },
+  "audio/sfx/combat/ko_stinger.ogg": {
+    "audible": true,
+    "peak": 0.3,
+    "seconds": 0.45
+  },
+  "audio/sfx/combat/perfect_block.ogg": {
+    "audible": true,
+    "peak": 0.3,
+    "seconds": 0.2
+  },
+  "audio/sfx/combat/swing_whiff.ogg": {
+    "audible": true,
+    "peak": 0.3,
+    "seconds": 0.14
+  },
+  "audio/sfx/combat/ultimate_windup.ogg": {
+    "audible": true,
+    "peak": 0.3,
+    "seconds": 0.33
+  },
+  "audio/sfx/ui/countdown_blip.ogg": {
+    "audible": false,
+    "peak": 0.0,
+    "seconds": 0.1
+  },
+  "audio/sfx/ui/victory_fanfare.ogg": {
+    "audible": false,
+    "peak": 0.0,
+    "seconds": 0.95
+  }
+}

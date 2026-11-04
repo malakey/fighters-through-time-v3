@@ -60,7 +60,7 @@ public class CoreMechanicCueCatalogTests {
     }
 
     [TestCase]
-    public void EveryFighterStageAuthorsAHazardWarningAndImpactSlotAndEveryPlaceholderIsSilent() {
+    public void EveryFighterStageAuthorsAHazardWarningAndImpactSlotAndEveryPlaceholderIsSilentExceptTheAudibleCombatCues() {
         var issues = new List<string>();
         foreach (string stage in FighterStageSets) {
             string path = $"res://resources/Audio/stage_{stage}_audio.tres";
@@ -78,9 +78,11 @@ public class CoreMechanicCueCatalogTests {
     }
 
     /// <summary>
-    /// The 2026-08-10 directive: placeholder audio is digital silence. A WAV row
-    /// must be all zero bytes; an .ogg row must be one of the generator's
-    /// RENDER_SILENT cues under <c>res://audio/sfx/</c>.
+    /// The 2026-08-10 directive: placeholder audio is digital silence, amended on 2026-11-03
+    /// (GR-AUDIO) for <see cref="CoreMechanicCueIDs.AudiblePlaceholders"/> only. A WAV row must be
+    /// all zero bytes; an .ogg row must be a generator asset under <c>res://audio/sfx/</c> whose
+    /// manifest record is audible exactly when the row is one of the audible placeholders.
+    /// (A stage hazard slot's label is a stage name, never an audible row ID.)
     /// </summary>
     private static void CheckSilent(AudioStream stream, string label, List<string> issues) {
         if (stream == null) return;
@@ -92,6 +94,135 @@ public class CoreMechanicCueCatalogTests {
         }
         if (!stream.ResourcePath.StartsWith("res://audio/sfx/")) {
             issues.Add($"{label} uses an unrecognized stream {stream.ResourcePath}");
+            return;
+        }
+        bool audibleRow = CoreMechanicCueIDs.IsAudiblePlaceholder(label);
+        if (!PlaceholderCueManifest.Load().TryGetValue(PlaceholderCueManifest.KeyFor(stream), out PlaceholderCueManifest.Asset asset)) {
+            issues.Add($"{label} names an asset the manifest does not describe: {stream.ResourcePath}");
+        } else if (asset.Audible != audibleRow) {
+            issues.Add($"{label} audible={audibleRow} but its asset {stream.ResourcePath} audible={asset.Audible}");
+        }
+    }
+
+    // === GR-AUDIO (gameplay review ruling 13, 2026-11-03) ====================
+
+    [TestCase]
+    public void TheFourNewRowsAndTheAudibleSetAreAuthoredAtMinusTwelveDecibels() {
+        CoreMechanicCueCatalog catalog = Catalog();
+        var issues = new List<string>();
+        foreach (string id in new[] {
+                     CoreMechanicCueIDs.HitBasic, CoreMechanicCueIDs.Block,
+                     CoreMechanicCueIDs.PerfectBlock, CoreMechanicCueIDs.SwingWhiff }) {
+            CoreMechanicCueEntry entry = catalog.Find(id);
+            if (entry == null) { issues.Add($"missing {id}"); continue; }
+            if (entry.Bus != AudioBuses.Combat) issues.Add($"{id} bus {entry.Bus}");
+            if (entry.Critical) issues.Add($"{id} must not be critical");
+            if (!(entry.MinIntervalSeconds > 0f)) issues.Add($"{id} has no throttle");
+            if (System.Array.IndexOf(CoreMechanicCueIDs.All, id) < 0) issues.Add($"{id} not in All");
+        }
+        // The eight combat cues of the ruling plus the decisive KO variant that shares the stinger's asset.
+        AssertThat(CoreMechanicCueIDs.AudiblePlaceholders.Length).IsEqual(9);
+        foreach (string id in CoreMechanicCueIDs.AudiblePlaceholders) {
+            CoreMechanicCueEntry entry = catalog.Find(id);
+            if (entry == null) { issues.Add($"audible row missing {id}"); continue; }
+            if (!Mathf.IsEqualApprox(entry.VolumeDb, -12f)) issues.Add($"{id} VolumeDb {entry.VolumeDb}");
+        }
+        // A row that does not author the additive fields plays at the old level, unthrottled.
+        AssertThat(catalog.Find(CoreMechanicCueIDs.RallyReclaim).VolumeDb).IsEqual(0f);
+        AssertThat(catalog.Find(CoreMechanicCueIDs.RallyReclaim).MinIntervalSeconds).IsEqual(0f);
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
+    [TestCase]
+    public void ARowsVolumeReachesTheVoiceOnBothTheOrdinaryAndTheCriticalPath() {
+        AudioManager audio = AudioManager.Instance;
+        CoreMechanicCuePresenter cues = audio.CoreCues;
+        try {
+            cues.ResetTransient();
+            AssertThat(cues.Play(CoreMechanicCueIDs.HitBasic)).IsTrue();
+            AssertThat(audio.NewestActiveVoice.VolumeDb).IsEqual(-12f);
+            AssertThat(cues.LastVolumeDb).IsEqual(-12f);
+            AssertThat(cues.Play(CoreMechanicCueIDs.UltimateActivationWindup)).IsTrue();
+            AssertThat(cues.LastRoutedBus).IsEqual(AudioBuses.CriticalCues);
+            AssertThat(audio.NewestActiveVoice.VolumeDb).IsEqual(-12f);
+            // A silent, unauthored row stays at 0 dB.
+            AssertThat(cues.Play(CoreMechanicCueIDs.UltimateReady)).IsTrue();
+            AssertThat(audio.NewestActiveVoice.VolumeDb).IsEqual(0f);
+        } finally {
+            cues.ResetTransient();
+            audio.ReleaseAllVoices();
+        }
+    }
+
+    /// <summary>A swarm wave: dozens of hit requests inside one frame play once, then the window reopens.</summary>
+    [TestCase]
+    public void ASwarmOfHitRequestsInsideTheWindowPlaysOnceAndThenTheWindowReopens() {
+        AudioManager audio = AudioManager.Instance;
+        CoreMechanicCuePresenter cues = audio.CoreCues;
+        try {
+            cues.ResetTransient();
+            int playedBefore = cues.CuesPlayed;
+            int throttledBefore = cues.CuesThrottled;
+            for (int hit = 0; hit < 40; hit++) AssertThat(cues.Play(CoreMechanicCueIDs.HitBasic)).IsTrue();
+            AssertThat(cues.CuesPlayed - playedBefore).IsEqual(1);
+            AssertThat(cues.CuesThrottled - throttledBefore).IsEqual(39);
+
+            // A hit every two frames for a second is thinned to the row's window.
+            cues.ResetTransient();
+            playedBefore = cues.CuesPlayed;
+            for (int frame = 0; frame < 60; frame++) {
+                if (frame % 2 == 0) cues.Play(CoreMechanicCueIDs.HitBasic);
+                cues.Advance(1f / 60f);
+            }
+            int played = cues.CuesPlayed - playedBefore;
+            AssertThat(played >= 10 && played <= 12)
+                .OverrideFailureMessage($"expected about 1 / 0.09 s, got {played}").IsTrue();
+
+            // One row's throttle never starves another row.
+            cues.ResetTransient();
+            cues.Play(CoreMechanicCueIDs.HitBasic);
+            playedBefore = cues.CuesPlayed;
+            cues.Play(CoreMechanicCueIDs.Block);
+            AssertThat(cues.CuesPlayed - playedBefore).IsEqual(1);
+
+            // A reopened window plays again.
+            cues.Advance(0.1f);
+            playedBefore = cues.CuesPlayed;
+            cues.Play(CoreMechanicCueIDs.HitBasic);
+            AssertThat(cues.CuesPlayed - playedBefore).IsEqual(1);
+        } finally {
+            cues.ResetTransient();
+            audio.ReleaseAllVoices();
+        }
+    }
+
+    [TestCase]
+    public void MutingPlaceholderCuesDropsTheAudibleRowsOnlyAndUnmutingRestoresThem() {
+        AudioManager audio = AudioManager.Instance;
+        CoreMechanicCuePresenter cues = audio.CoreCues;
+        try {
+            cues.ResetTransient();
+            PlaceholderCueSettings.Apply(true);
+            int played = cues.CuesPlayed;
+            int muted = cues.CuesMuted;
+            foreach (string id in CoreMechanicCueIDs.AudiblePlaceholders) {
+                AssertThat(cues.Play(id)).OverrideFailureMessage(id).IsTrue();
+            }
+            AssertThat(cues.CuesPlayed).IsEqual(played);
+            AssertThat(cues.CuesMuted - muted).IsEqual(CoreMechanicCueIDs.AudiblePlaceholders.Length);
+
+            // Silent rows are untouched by the switch.
+            cues.Play(CoreMechanicCueIDs.UltimateReady);
+            AssertThat(cues.CuesPlayed - played).IsEqual(1);
+
+            PlaceholderCueSettings.Apply(false);
+            cues.Play(CoreMechanicCueIDs.DefyBurst);
+            AssertThat(cues.LastCueID).IsEqual(CoreMechanicCueIDs.DefyBurst);
+            AssertThat(cues.LastRoutedBus).IsEqual(AudioBuses.CriticalCues);
+        } finally {
+            PlaceholderCueSettings.Apply(false);
+            cues.ResetTransient();
+            audio.ReleaseAllVoices();
         }
     }
 
@@ -247,12 +378,12 @@ public class CoreMechanicCueCatalogTests {
 
     /// <summary>
     /// CM-ULT (2026-10-16, decision 2.1): the A02 activation wind-up cue is a
-    /// Critical row — it warns of an unblockable strike — with a silent
+    /// Critical row — it warns of an unblockable strike — with an audible
     /// placeholder stream, listed in both ID tables, and it plays on the
     /// CriticalCues path.
     /// </summary>
     [TestCase]
-    public void TheUltimateActivationWindupRowIsACriticalSilentCue() {
+    public void TheUltimateActivationWindupRowIsACriticalAudiblePlaceholderCue() {
         CoreMechanicCueEntry entry = Catalog().Find(CoreMechanicCueIDs.UltimateActivationWindup);
         AssertObject(entry).IsNotNull();
         AssertThat(entry.Critical).IsTrue();
