@@ -159,54 +159,56 @@ public class Level06VulcanArenaTests {
         AssertThat(vent.Enabled).OverrideFailureMessage("A raise after the fall must do nothing.").IsFalse();
     }
 
-    /// <summary>While the world is held the vents keep their phase, no piece launches, and a piece in the air waits; all of it goes on at the thaw.</summary>
+    /// <summary>
+    /// Two real Post-Landing Holds, through the call a Collapse resume makes. Through the first
+    /// the vents keep their phase and the rain's clock stands still; through the second a piece
+    /// in the air waits. Everything goes on at the thaw.
+    /// </summary>
     [TestCase(Timeout = 60000)]
     public async Task TheVentsAndTheDebrisAreFrozenWhileTheWorldIsHeld() {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
         using var fixture = new Fixture();
         Level06Controller level = fixture.Level;
         await EnterTheArena(tree, level);
-        level.RaiseVulcanEruption();
-        StoryCyclicHazard vent = level.VulcanVents[0];
-        AssertThat(ChronalRewindManager.PostLandingHoldGroups.Contains("story_hazard")).IsTrue();
-
-        // Wait for a piece in the air.
-        for (int frame = 0; frame < 180 && level.EruptionDebrisAirborne.Count == 0; frame++) {
-            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
-        }
-        AssertThat(level.EruptionDebrisAirborne.Count).IsGreater(0);
-        FallingDebris piece = level.EruptionDebrisAirborne[0];
-
-        // A real Post-Landing Hold (60 frames), through the same call a Collapse resume makes.
         var manager = tree.GetFirstNodeInGroup(ChronalRewindManager.ManagerGroup) as ChronalRewindManager;
         AssertObject(manager).OverrideFailureMessage("The level has no rewind manager.").IsNotNull();
+        AssertThat(ChronalRewindManager.PostLandingHoldGroups.Contains("story_hazard")).IsTrue();
+
+        level.RaiseVulcanEruption();
+        StoryCyclicHazard vent = level.VulcanVents[0];
         vent.ForcePhase(HazardPhase.Warning, 2f / 60f);
         AssertThat(manager.BeginPlacementHold(StoryRecoveryHoldCause.CollapseResume)).IsTrue();
-        await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        int frames = 0;
+        for (; frames < 30; frames++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
         AssertThat(ChronalRewindManager.IsWorldHeld(tree)).IsTrue();
         AssertThat(vent.IsTimeFrozen).IsTrue();
-        int launched = level.EruptionDebrisLaunched;
-        Vector2 at = piece.GlobalPosition;
-        FallingDebrisPhase phase = piece.Phase;
-        for (int frame = 0; frame < 30; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
-        AssertThat(ChronalRewindManager.IsWorldHeld(tree)).IsTrue();
         AssertThat(vent.Phase).IsEqual(HazardPhase.Warning);
-        AssertThat(piece.GlobalPosition).IsEqual(at);
-        AssertThat(piece.Phase).IsEqual(phase);
-        AssertThat(level.EruptionDebrisLaunched).IsEqual(launched);
-
-        for (int frame = 0; frame < 60 && ChronalRewindManager.IsWorldHeld(tree); frame++) {
-            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
-        }
+        for (; frames < 120 && ChronalRewindManager.IsWorldHeld(tree); frames++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
         AssertThat(ChronalRewindManager.IsWorldHeld(tree)).IsFalse();
-        for (int frame = 0; frame < 6; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
-        AssertThat(vent.Phase).IsEqual(HazardPhase.Active);
-        // The piece goes on from where it stood: its telegraph runs out or it falls.
-        for (int frame = 0; frame < 60 && piece.Phase == phase && piece.GlobalPosition == at; frame++) {
+        int thawed = frames;
+        for (; frames < thawed + 6; frames++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        AssertThat(vent.Phase).OverrideFailureMessage("The vent did not go on at the thaw.").IsEqual(HazardPhase.Active);
+
+        // The rain's clock stood still through the hold: its first piece comes a whole interval after the thaw.
+        for (; frames < 400 && level.EruptionDebrisLaunched == 0; frames++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        AssertThat(level.EruptionDebrisLaunched).IsEqual(1);
+        int interval = Mathf.RoundToInt(Level06Controller.EruptionDebrisIntervalSeconds * 60f);
+        AssertThat(frames >= thawed + interval - 3)
+            .OverrideFailureMessage($"The first piece came {frames - thawed} frames after the thaw, not {interval}.").IsTrue();
+
+        // A fresh piece telegraphs for 45 frames: a 50-frame wait would see it fall, were it not held.
+        FallingDebris piece = level.EruptionDebrisAirborne[0];
+        AssertThat(piece.Phase).IsEqual(FallingDebrisPhase.Telegraph);
+        Vector2 at = piece.GlobalPosition;
+        AssertThat(manager.BeginPlacementHold(StoryRecoveryHoldCause.CollapseResume)).IsTrue();
+        for (int frame = 0; frame < 50; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        AssertThat(ChronalRewindManager.IsWorldHeld(tree)).IsTrue();
+        AssertThat(piece.Phase).OverrideFailureMessage("A piece went on inside the hold.").IsEqual(FallingDebrisPhase.Telegraph);
+        AssertThat(piece.GlobalPosition).IsEqual(at);
+        for (int frame = 0; frame < 120 && piece.Phase == FallingDebrisPhase.Telegraph; frame++) {
             await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
         }
-        AssertThat(piece.Phase != phase || piece.GlobalPosition != at)
-            .OverrideFailureMessage("A piece never went on after the thaw.").IsTrue();
+        AssertThat(piece.Phase).OverrideFailureMessage("A piece never went on after the thaw.").IsNotEqual(FallingDebrisPhase.Telegraph);
     }
 
     private static async Task<int> FramesUntilActive(SceneTree tree, StoryCyclicHazard vent, int limit) {
