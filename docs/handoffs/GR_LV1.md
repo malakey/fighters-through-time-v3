@@ -90,7 +90,7 @@ What the bots did **not** exercise:
 
 Stretch seconds count from the first to the last trace sample inside the span, and they include any fighting at its ends.
 
-**For the orchestrator, not changed here (Q3, flags only):** both Level 1 runs ranked D, with `damage_percent` 320 (Lincoln, lowest HP 4) and 178 (Joan). Level 1 ranks on damage alone. Lincoln took 60 from spikes and 30 from the geyser outside the stretch. Level 3 ranked C both times, 40 and 44.7 points.
+**For the orchestrator, not changed here (Q3, flags only):** both Level 1 runs ranked D, with `damage_percent` 320 (Lincoln, lowest HP 4) and 178 (Joan). Level 1 ranks on damage alone. Lincoln took five spike hits and two geyser hits, all outside the stretch. Level 3 ranked C both times, 40 and 44.7 points.
 
 ## Provisional numbers (`PROVISIONAL-TRAVERSAL-RULES`)
 
@@ -119,12 +119,13 @@ Changed in place, no count change:
 - `Level03ContentTests`: the carved lock, the Electricity lock's second wave, and `PlannedTotal` counting the swarm.
 - `TraversalContentKit`: the level list.
 
-**Last filtered run**, 26 filters including every shared sweep in the guide's checklist and the Level 2, `HazardMob`, `LegacyUnlockSchedule` and `EncounterLockTests` suites, with the keys compiled locally: `Passed! - Failed: 0, Passed: 234, Skipped: 0, Total: 234`. No full run: the orchestrator owns those.
+**Last filtered run**, 27 filters including every shared sweep in the guide's checklist and the Level 2, `HazardMob`, `LegacyUnlockSchedule` and `EncounterLockTests` suites, with the keys compiled locally: `Passed! - Failed: 0, Passed: 234, Skipped: 0, Total: 234`. No full run: the orchestrator owns those.
 
 **Seen failing.** Two mutation runs, reverted:
 - Run 1, 4 failures of 25: par 540; the Level 3 wave removed (`'10' but is '2'`); `florence_pool_config` warm 12 (`EverySwarmLevelWarms…`); the presenter's gate restored (`"" but is "special_momentum"`). The same run also had the spike poll removed and did **not** catch it, because that case re-teleported the mob into the strip. I rewrote it.
 - Run 2, the poll removed, against the rewritten case: `A swarmling launched from inside the spike strip did not die to the hazard: at (9570, 899.9977), state Stunned, HP 10.`
-- The wall jump failed on real geometry, before the pocket fix. Both pure tooltip pins were red before their in-place edits, because the rule had changed under them.
+- Run 3, `ShowsOnEverySlot` forced false: `FirstUseTooltipEverySlotTests` and `TheSpecialMomentumTooltipIsDueOnLevelOne…` both failed.
+- The wall jump failed on real geometry, before the pocket fix. `AFullCalibrationSlotNeverShowsATooltip` failed before its in-place edit.
 
 ## Effects
 
