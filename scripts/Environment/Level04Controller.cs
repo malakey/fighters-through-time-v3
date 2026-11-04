@@ -9,7 +9,7 @@ namespace FTT.Environment {
     /// Level 4 - Paris, 1789 (The Storming of the Bastille). Four rooms across
     /// ~10,240 px:
     /// <list type="number">
-    /// <item><b>Gatehouse Yard</b> (0-3200) - the mob at the gates; opening wave.</item>
+    /// <item><b>Gatehouse Yard</b> (0-2060, then the Glacis to 3200) - the mob at the gates; opening wave.</item>
     /// <item><b>Security Corridors</b> (3200-6080) - three <see cref="SearchlightZone"/>
     ///       beams in <see cref="SearchlightMode.UltimateDrain"/> mode gate the
     ///       approach; the vertical tower climb ends on a swept upper walkway.</item>
@@ -34,7 +34,7 @@ namespace FTT.Environment {
     ///
     /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-L4): each
     /// approach room is an <see cref="EncounterLock"/> the hero must clear — the
-    /// gatehouse yard (300–3200), the corridor floor under the two ground beams
+    /// gatehouse yard (300–2000 since GR-LV2), the corridor floor under the two ground beams
     /// (3220–4760) and the cell block (6120–8100, which also needs both prisoners
     /// freed). The walkway rioter that used to hold the upper walkway, where the
     /// floor route walked under it, now stands on the corridor floor; the cell-B

@@ -40,7 +40,7 @@ namespace FTT.Environment {
     /// retired Level 4A's dust row: 55 required / 25 boss / 30 optional.
     ///
     /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-L4): the
-    /// stair decks (380–3400), the boiler casing (3420–5880), the E-deck run up
+    /// stair decks (380–2380 since GR-LV2), the boiler casing (3420–5880), the E-deck run up
     /// the listing ramp (6160–7520) and the boat deck (7540–8820) are
     /// <see cref="EncounterLock"/>s, one per room, and the hull flood rises on
     /// their clears rather than on x triggers, so the sea always comes in behind

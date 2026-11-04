@@ -130,7 +130,6 @@ The user ruled only the 280 / 240 limits, the swarm trigger and sizes, and the +
 5. **Level 4 and Level 5 pay the secret, moved.** The old perches went with the carve. `level_04.extractor_barricade` stays on the barricade, which is now a line step.
 6. **The swarm comes at once on Easy on Levels 4 and 6.** The trigger is `WhenAliveAtMost(2)` and Easy's prefix of a 3-mob table is 2, so the row spawns as the hero engages (frame 24–35), not after a first kill. Level 2's siege line has the same shape, so I kept the ruled trigger. Level 5's casing, with 4 on the table, does not do this. A question for the session.
 7. **Lincoln still has no shortcut on these levels** (the pilot's deviation 6).
-8. **The vents do not read `IsBossDefeated` beyond the raise.** They stop through the `BossDefeated` event, as the Duke's steam does.
 
 ## Did not ship
 
@@ -139,12 +138,12 @@ The user ruled only the 280 / 240 limits, the swarm trigger and sizes, and the +
 - The Level 5 wade was driven by a test, with the flood raised by hand. No bot walked through the water.
 - No art: platforms are each level's palette.
 - The stall at the vault is unchanged and uninvestigated (ruling 12).
-- Par is the authored +30. Bots spent 2–8 s in the stretches, so the measured pass should not need to raise it for the stretch alone. The 21–40 s longer Level 6 runs come mostly from the swarm and the boss.
+- Par is the authored +30. Bots spent 2–8 s in the stretches, so the measured pass should not need to raise it for the stretch alone. I did not break down the 21–40 s longer Level 6 runs; the stretch accounts for a few seconds of them.
 
 ## What the docs owe (GR-DOCS)
 
 - Ledger: `PROVISIONAL-TRAVERSAL-RULES` and `PROVISIONAL-BOSS-ARENA-RULES` (the lists above); `VERIFY-BOSS-PHASE-ARENAS` narrowed by the Vulcan; `VERIFY-PAR-SECONDS` (Levels 4, 5, 6: 390, 300, 390); question rows for the debris base rate and for the Easy swarm arriving at engage.
-- AGENTS.md: the new lock ranges (Level 4 gatehouse 300–2000, Level 5 stair decks 380–2380, Level 6 Ash Road 6720–8500), the three stretches and routes, and the "Road's first civilian at 7050" wording, which is already stale. The bot note "Level 6's vault" stands.
+- AGENTS.md: the new lock ranges (Level 4 gatehouse 300–2000, Level 5 stair decks 380–2380, Level 6 Ash Road 6720–8500), and the three stretches and routes. The bot note on Level 6's vault stands.
 - Design master and mirror: the Vulcan's arena row, built, with the debris reading above.
 
 ## For the orchestrator

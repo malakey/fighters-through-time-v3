@@ -18,7 +18,7 @@ namespace FTT.Environment {
     ///       (<see cref="WeightedObject"/>) hauls a rockfall off the eastern road
     ///       once both pans read the same load. Also the vertical section: the villa
     ///       terraces climb to the wedge gallery.</item>
-    /// <item><b>The Ash Road</b> (5760-8960) - the level's signature. An
+    /// <item><b>The Ash Road</b> (6660-8960, past the Ashfall) - the level's signature. An
     ///       <see cref="EscapeSequenceController"/> lava front advances from behind
     ///       and the player runs east; the second civilian stands mid-corridor, so
     ///       the rescue costs seconds the player does not have. Being caught is heavy
@@ -46,7 +46,7 @@ namespace FTT.Environment {
     /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-L4): the
     /// Forum (300–2880), the vault up to the rockfall (2900–5390, which also needs
     /// the winch balanced: the rockfall door still opens on the solve, the lock's
-    /// barrier on "solved AND cleared") and the Ash Road (5660–8500) are
+    /// barrier on "solved AND cleared") and the Ash Road (6720–8500 since GR-LV2) are
     /// <see cref="EncounterLock"/>s. The Ash Road crowd is fought <i>before</i> the
     /// lava front: the front starts when the road lock clears, a fixed head start
     /// behind the hero (<see cref="EscapeHeadStartPixels"/>, never west of
