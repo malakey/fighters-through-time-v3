@@ -186,7 +186,7 @@ CooldownDuration = 2.6
 Damage = 16
 
 [node name="AshGeyserRoadA" parent="." instance=ExtResource("11_geyser")]
-position = Vector2(6420, 900)
+position = Vector2(6380, 1020)
 HazardID = "level_06.ash_geyser_road_a"
 WarningDuration = 1.0
 ActiveDuration = 0.8

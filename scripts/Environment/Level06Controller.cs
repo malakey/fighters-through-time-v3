@@ -54,6 +54,13 @@ namespace FTT.Environment {
     /// that follows (8700), so the rescue still costs seconds the hero does not
     /// have. The Chrono-Warden is a member of the road lock, so its Phase Skip
     /// lands inside the road (the lock's member clamp).</para>
+    ///
+    /// <para><b>The Ashfall and the Roofline</b> (gameplay review, GR-LV2: rulings 7a, 7b, 7c,
+    /// 7c+). The road lock was carved to 6720-8500, and the span it left, 5680-6700, is a
+    /// platforming stretch over a collapsed sewer past the Middle anchor. It starts east of the
+    /// rockfall and the Middle anchor (5390-5660 is untouched). Above it the Roofline climbs to
+    /// the Ash Road's Extractor. The Vulcan Decimator's arena change (ruling 14) is
+    /// <c>Level06Controller.Vulcan.cs</c>. The recipe is <c>docs/handoffs/GR_PILOT.md</c>.</para>
     /// </summary>
     public partial class Level06Controller : StoryLevelControllerBase {
 
@@ -70,6 +77,8 @@ namespace FTT.Environment {
         /// <summary>Package 12 W8 (V01b): the winch puzzle's Reset Puzzle station.</summary>
         public const string RockfallResetStationID = "level_06.clear_rockfall.reset";
         public static readonly Vector2 RockfallResetStationPosition = new(3700f, 900f);
+        /// <summary>Where the PreBoss anchor stands, outside the arena (9250).</summary>
+        public const float PreBossCheckpointX = 9060f;
 
         // === Surface textures (Package 10 pass 1) ===
 
@@ -100,11 +109,11 @@ namespace FTT.Environment {
         /// <summary>
         /// V7.6 F01 par (Package 11 A3). <b>Provisional, not measured</b>:
         /// seeded as 4 authored rooms x 90 s, rounded up to the nearest
-        /// 30 s. Recorded under VERIFY-PAR-SECONDS in
+        /// 30 s, plus the Ashfall's +30 (§1.14). Recorded under VERIFY-PAR-SECONDS in
         /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
         /// per-hero median measurement pass.
         /// </summary>
-        public override float ParSeconds => 360f;
+        public override float ParSeconds => TraversalRules.ParWithStretches(360f, 1);
         public override string LevelTitleKey => "pompeii_level_title";
         public override string DialogueSetPath => DialogueResourcePath;
         public override Vector2 PlayerSpawnPosition => new(240, 850);
@@ -243,7 +252,8 @@ namespace FTT.Environment {
         /// level_06_pool_config's standard_enemy warm count of 12.
         /// </summary>
         public static readonly (string EnemyID, Vector2 Position, Vector2 PatrolA, Vector2 PatrolB)[] Room3Spawns = {
-            ("chrono_slasher", new Vector2(6200, EnemyGroundY), new Vector2(6060, EnemyGroundY), new Vector2(6360, EnemyGroundY)),
+            // GR-LV2: 6200 -> 7300, inside the carved lock.
+            ("chrono_slasher", new Vector2(7300, EnemyGroundY), new Vector2(7160, EnemyGroundY), new Vector2(7460, EnemyGroundY)),
             ("shock_shield_legionnaire", new Vector2(6900, EnemyGroundY), new Vector2(6760, EnemyGroundY), new Vector2(7060, EnemyGroundY)),
             ("chrono_slasher", new Vector2(7700, EnemyGroundY), new Vector2(7560, EnemyGroundY), new Vector2(7860, EnemyGroundY)),
             // GU-L4: its east patrol end moved 8560 -> 8460, inside the road lock (it ends at 8500).
@@ -266,7 +276,8 @@ namespace FTT.Environment {
         public static readonly (string ID, Vector2 Position)[] ExtractorPlacements = {
             ("level_06.extractor_forum", new Vector2(1720, 500)),
             ("level_06.extractor_villa", new Vector2(4980, 280)),
-            ("level_06.extractor_ashroad", new Vector2(7400, 420))
+            // GR-LV2: at the end of the Roofline, on its last platform (top 310).
+            (AshRoadExtractorID, new Vector2(RooflineEndX, 238))
         };
 
         /// <summary>Authored spawns of standard tier. Elites are counted separately.</summary>
@@ -366,12 +377,36 @@ namespace FTT.Environment {
         public const float VaultLockMinX = Room2StartX + EncounterLockRules.DefaultBarrierWidthPixels;
         public const float VaultLockMaxX = RockfallX - EncounterLockRules.DefaultBarrierWidthPixels * 0.5f;
         /// <summary>
-        /// The Ash Road, east of the Middle anchor (5600) to 8500: the road crowd is
-        /// fought here, then the front starts and the hero runs 8500 → the finish
-        /// (8880) past the second civilian.
+        /// The Ash Road to 8500: the road crowd is fought here, then the front starts and
+        /// the hero runs 8500 → the finish (8880) past the second civilian. GR-LV2: its
+        /// west end moved from 5660 to 6720, so the span past the Middle anchor (5600) can
+        /// be the Ashfall.
         /// </summary>
-        public const float AshRoadLockMinX = 5660f;
+        public const float AshRoadLockMinX = AshfallMaxX + EncounterLockRules.DefaultBarrierWidthPixels;
         public const float AshRoadLockMaxX = 8500f;
+
+        // === GR-LV2: the Ashfall and the Roofline ============================
+
+        public const string AshfallStretchID = "level_06.stretch_ashfall";
+        public const string RooflineRouteID = "level_06.route_roofline";
+        public const string SwarmRowID = "level_06.swarm1";
+        public const string AshRoadExtractorID = "level_06.extractor_ashroad";
+
+        /// <summary>East of the Middle anchor's strike surface and of where the road's barrier used to stand (5650).</summary>
+        public const float AshfallMinX = 5680f;
+        public const float AshfallMaxX = 6700f;
+        /// <summary>Where the vault's deck ends and the road's begins: the sewer's two ramps' high joints.</summary>
+        public const float AshfallWestDeckEndX = 5720f;
+        public const float AshfallEastDeckStartX = 6660f;
+        /// <summary>The Roofline's last platform, which holds the Ash Road's Extractor.</summary>
+        public const float RooflineEndX = 6580f;
+
+        /// <summary>
+        /// The swarm row on the Forum, 2,580 px wide, so eight
+        /// (<see cref="SwarmWaveRules.RowMobsForLockWidth"/>; Easy's prefix gives five). The
+        /// Forum's two ash geysers stand among them for a launched one.
+        /// </summary>
+        public static readonly float[] SwarmSpawnXs = { 640f, 900f, 1200f, 1600f, 1900f, 2100f, 2400f, 2750f };
 
         private EncounterLock _forumLock;
         private EncounterLock _vaultLock;
@@ -387,6 +422,7 @@ namespace FTT.Environment {
             CollectAuthoredNodes();
             BuildForum();
             BuildCollapsedVault();
+            BuildAshfall();
             BuildAshRoad();
             BuildCalderaRim();
             BuildExtractors(ExtractorPlacements);
@@ -407,7 +443,10 @@ namespace FTT.Environment {
                 EntryBarrierX = ForumLockMinX - half,
                 ExitBarrierX = ForumLockMaxX + half,
                 BarrierFloorY = GroundY,
-                Waves = new[] { LockWave(Room1RowID, Room1Spawns, EncounterWaveTrigger.OnBuild) },
+                Waves = new[] {
+                    LockWave(Room1RowID, Room1Spawns, EncounterWaveTrigger.OnBuild),
+                    SwarmWave(SwarmRowID, EnemyGroundY, SwarmSpawnXs)
+                },
                 ObjectiveKey = "encounter_lock_objective_clear",
                 GoDirection = EncounterGoDirection.Right
             });
@@ -567,7 +606,8 @@ namespace FTT.Environment {
             BuildRoomBackground("BG_Room2_Vault", Room2StartX, 2880, LevelHeight,
                 new Color(0.11f, 0.09f, 0.09f, 0.45f));
 
-            BuildFloor(Room2StartX, GroundY, 2880);
+            // GR-LV2: the vault's deck ends at the Ashfall's sewer.
+            BuildFloor(Room2StartX, GroundY, AshfallWestDeckEndX - Room2StartX);
 
             // Vault floor cover and the flanking roof over the west legionnaire post.
             BuildPlatform(3120, 720, 220);
@@ -620,21 +660,52 @@ namespace FTT.Environment {
         }
 
         /// <summary>
+        /// GR-LV2: the Ashfall, 5680-6700, and the Roofline above it. The step line crosses a
+        /// collapsed sewer past the Middle anchor: a solid step, a crumbling one, a one-way one
+        /// and a solid one, then down to the road's deck. The road's first geyser fires in the
+        /// sewer now, a one-way climbs back up, and both ramps walk out. Every number is
+        /// provisional (<c>PROVISIONAL-TRAVERSAL-RULES</c>).
+        /// </summary>
+        private void BuildAshfall() {
+            TraversalStretch ashfall = BeginStretch(AshfallStretchID, "pompeii_room_ashfall",
+                AshfallMinX, AshfallMaxX, GroundY, AshfallWestDeckEndX, AshfallEastDeckStartX, Room2StartX);
+            BuildRoomDecoration(AshfallMinX, "pompeii_room_ashfall", new Color(0.9f, 0.5f, 0.3f));
+            BuildStretchTrench(ashfall);
+
+            BuildStretchStep(ashfall, 5830, 790, 200);
+            BuildStretchStep(ashfall, 6090, 720, 180, StretchStepKind.Crumbling, "level_06.crumbling_ashfall");
+            TraversalSurface middleStep = BuildStretchStep(ashfall, 6350, 722, 200, StretchStepKind.OneWay);
+            TraversalSurface eastStep = BuildStretchStep(ashfall, RooflineEndX, 720, 180);
+
+            // Off the line: a way back up out of the sewer.
+            BuildOneWayPlatform(6120, 880, 200);
+
+            // The Roofline. Its base-kit line climbs west and back east, and ends in a 245 px hop.
+            OptionalRoute roofline = BeginOptionalRoute(RooflineRouteID, AshRoadExtractorID,
+                new Vector2(RooflineEndX, 238f), middleStep);
+            BuildRouteStep(roofline, 6135, 530, 180);
+            TraversalSurface burstFrom = BuildRouteStep(roofline, 5885, 420, 160);
+            BuildRouteStep(roofline, 6135, 320, 180);
+            TraversalSurface end = BuildRouteStep(roofline, RooflineEndX, 320, 220);
+            roofline.MarkBurstShortcut(burstFrom, end);
+            roofline.MarkRiseShortcut(eastStep, end);
+        }
+
+        /// <summary>
         /// Room 3: the Ash Road. Mostly flat running with low hops, because the
         /// pressure is the advancing lava front, not the platforming. The one real
-        /// detour is the extractor ledge at 7,400 and the second civilian at 7,050 -
-        /// both cost seconds against a front that never stops.
+        /// detour is the second civilian at the run's end, which costs seconds against
+        /// a front that never stops.
         /// </summary>
         private void BuildAshRoad() {
             BuildRoomBackground("BG_Room3_AshRoad", Room3StartX, 3200, LevelHeight,
                 new Color(0.14f, 0.08f, 0.07f, 0.50f));
 
-            BuildFloor(Room3StartX, GroundY, 3200);
+            // GR-LV2: the road's deck starts past the Ashfall's sewer.
+            BuildFloor(AshfallEastDeckStartX, GroundY, Room3StartX + 3200f - AshfallEastDeckStartX);
 
-            BuildPlatform(6100, 760, 200);
-            BuildPlatform(6600, 700, 220);
             BuildPlatform(7120, 600, 200);
-            BuildPlatform(7400, 470, 220);   // holds extractor 3
+            BuildPlatform(7400, 470, 220);
             BuildPlatform(7940, 720, 220);
             BuildPlatform(8460, 660, 200);
 
@@ -646,7 +717,9 @@ namespace FTT.Environment {
 
             // GU-L4: entering the road no longer starts the front or spawns the
             // crowd: the Ash Road lock spawns it, and its clear starts the front.
-            BuildRoomTransition("pompeii_room_ashroad", new Vector2(Room3StartX + 30, 600), Room3CameraBounds);
+            // GR-LV2: the trigger stands just inside the carved lock, and the rect still
+            // reaches back over the Ashfall, so entering it does not pan.
+            BuildRoomTransition("pompeii_room_ashroad", new Vector2(AshRoadLockMinX + 40f, 600), Room3CameraBounds);
         }
 
         /// <summary>
@@ -672,12 +745,18 @@ namespace FTT.Environment {
 
             BuildWall(10540, 0, LevelHeight);
 
-            BuildCheckpoint(9060, EnemyGroundY, Checkpoint2, CheckpointRole.PreBoss);
+            BuildCheckpoint(PreBossCheckpointX, EnemyGroundY, Checkpoint2, CheckpointRole.PreBoss);
             BuildRoomDecoration(Room4StartX, "pompeii_room_caldera", new Color(0.98f, 0.32f, 0.20f));
             BuildRoomTransition("pompeii_room_caldera", new Vector2(Room4StartX + 30, 540), Room4CameraBounds);
 
-            BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, EnemyGroundY),
+            BossEncounterController vulcan = BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, EnemyGroundY),
                 "VulcanDecimatorEncounter", BossArenaBounds);
+            // GR-LV2 (ruling 14): Phase 2 cracks the floor; Level06Controller.Vulcan.cs.
+            BuildVulcanVents();
+            if (vulcan != null) {
+                vulcan.PhaseEntered += OnVulcanPhaseEntered;
+                vulcan.BossDefeated += _ => LowerVulcanEruption();
+            }
         }
 
         /// <summary>

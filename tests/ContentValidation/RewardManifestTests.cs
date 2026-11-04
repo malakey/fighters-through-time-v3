@@ -211,8 +211,8 @@ public class RewardManifestTests {
                     + $"[{liveDebutEnemy}]");
             }
         }
-        if (waves.Count != Level05Controller.WaveCount + 1) {
-            issues.Add($"expected {Level05Controller.WaveCount} waves plus the debut, found {waves.Count}");
+        if (waves.Count != Level05Controller.WaveCount + 2) {
+            issues.Add($"expected {Level05Controller.WaveCount} waves plus the debut and the swarm, found {waves.Count}");
         }
 
         // Optional: half to the four Extractors (15 → 4/4/4/3), half to the secret.

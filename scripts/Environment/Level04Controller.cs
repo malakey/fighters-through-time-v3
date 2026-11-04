@@ -44,6 +44,14 @@ namespace FTT.Environment {
     /// walkway (4780–6080) hold no enemy, so the Middle anchor stands there, and
     /// the Restoration Font and the PreBoss anchor stand between the cell block's
     /// barrier and the courtyard.</para>
+    ///
+    /// <para><b>The Glacis and the Battlement line</b> (gameplay review, GR-LV2: rulings
+    /// 7a, 7b, 7c, 7c+). The gatehouse lock was carved to 300-2000, and the span it left,
+    /// 2020-3200, is a platforming stretch over a dry moat: the barricade, a crumbling step
+    /// and a wall with a ledge. Above it the Battlement line climbs to the secret. Every hero
+    /// reaches it on the base kit, and a burst or a rise kit cuts it short. The puzzle in the
+    /// tower gap (4760-6120) and the Tribunal's pit are untouched. The recipe is
+    /// <c>docs/handoffs/GR_PILOT.md</c>.</para>
     /// </summary>
     public partial class Level04Controller : StoryLevelControllerBase {
 
@@ -90,7 +98,8 @@ namespace FTT.Environment {
         public static readonly (string EnemyID, Vector2 Position)[] Room1Spawns = {
             ("chrono_rioter", new Vector2(1100, 850)),
             ("chrono_slasher", new Vector2(1900, 850)),
-            ("chrono_rioter", new Vector2(2700, 850))
+            // GR-LV2: 2700 -> 1450, inside the carved lock.
+            ("chrono_rioter", new Vector2(1450, 850))
         };
 
         /// <summary>
@@ -144,19 +153,18 @@ namespace FTT.Environment {
         /// <summary>
         /// V7.6 F01 par (Package 11 A3). <b>Provisional, not measured</b>:
         /// seeded as 4 authored rooms x 90 s, rounded up to the nearest
-        /// 30 s. Recorded under VERIFY-PAR-SECONDS in
+        /// 30 s, plus the Glacis's +30 (§1.14). Recorded under VERIFY-PAR-SECONDS in
         /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
         /// per-hero median measurement pass.
         /// </summary>
-        public override float ParSeconds => 360f;
+        public override float ParSeconds => TraversalRules.ParWithStretches(360f, 1);
         public override string LevelTitleKey => "paris_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_04_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(240, 850);
 
-        // Package 12 W8 (GAP-03): the secret cache sits on
-        // the barricade crest (Platform 3000/560, top 552) one hop past the barricade
-        // extractor — a dead-end perch over the gatehouse exit, off the floor route.
-        protected override Vector2? SecretCachePosition => new(3000f, 457f);
+        // GR-LV2: the secret cache sits at the end of the Battlement line, on its last platform
+        // (top 310), 95 px over it as it stood on the old barricade crest.
+        protected override Vector2? SecretCachePosition => new(BattlementEndX, 215f);
 
         // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, just before the
         // PreBoss anchor (8480) - the courtyard starts 160 px after it - east of cell 2's far
@@ -208,9 +216,12 @@ namespace FTT.Environment {
         public const string Room2RowID = "level_04.room2";
         public const string Room3RowID = "level_04.room3";
 
-        /// <summary>The gatehouse yard, east of the entry anchor (240) to the room seam.</summary>
+        /// <summary>
+        /// The gatehouse yard, east of the entry anchor (240). GR-LV2: its east end moved
+        /// from the room seam (3200) to 2000, so the span past it can be the Glacis.
+        /// </summary>
         public const float GatehouseLockMinX = 300f;
-        public const float GatehouseLockMaxX = Room2StartX;
+        public const float GatehouseLockMaxX = 2000f;
         /// <summary>
         /// The corridor floor between the two ground beams, up to the low cover's
         /// east end (4760): the tower climb and the swept walkway east of it hold no
@@ -236,11 +247,33 @@ namespace FTT.Environment {
         public EncounterLock CorridorLock => _corridorLock;
         public EncounterLock CellsLock => _cellsLock;
 
+        // === GR-LV2: the Glacis and the Battlement line =====================
+
+        public const string GlacisStretchID = "level_04.stretch_glacis";
+        public const string BattlementRouteID = "level_04.route_battlement";
+        public const string SwarmRowID = "level_04.swarm1";
+
+        public const float GlacisMinX = GatehouseLockMaxX + EncounterLockRules.DefaultBarrierWidthPixels;
+        public const float GlacisMaxX = Room2StartX;
+        /// <summary>Where the gatehouse's deck ends and the corridor's begins: the moat's two ramps' high joints.</summary>
+        public const float GlacisWestDeckEndX = 2060f;
+        public const float GlacisEastDeckStartX = 3160f;
+        /// <summary>The Battlement line's last platform, which holds the secret.</summary>
+        public const float BattlementEndX = 3035f;
+
+        /// <summary>
+        /// The swarm row on the gatehouse lock: the mob at the gates, 1,700 px wide after the
+        /// carve, so eight (<see cref="SwarmWaveRules.RowMobsForLockWidth"/>; Easy's prefix
+        /// gives five). The yard's spikes are there for a launched one.
+        /// </summary>
+        public static readonly float[] SwarmSpawnXs = { 520f, 760f, 980f, 1220f, 1400f, 1660f, 1820f, 1950f };
+
         // === Construction ===
 
         protected override void BuildLevel() {
             CollectAuthoredNodes();
             BuildGatehouseYard();
+            BuildGlacis();
             BuildSecurityCorridors();
             BuildCellBlock();
             BuildInnerCourtyard();
@@ -262,8 +295,10 @@ namespace FTT.Environment {
                 EntryBarrierX = GatehouseLockMinX - half,
                 ExitBarrierX = GatehouseLockMaxX + half,
                 BarrierFloorY = GroundY,
-                Waves = new[] { LockWave(Room1RowID, Room1Spawns, EncounterWaveTrigger.OnBuild,
-                    GatehouseLockMinX, GatehouseLockMaxX) },
+                Waves = new[] {
+                    LockWave(Room1RowID, Room1Spawns, EncounterWaveTrigger.OnBuild, GatehouseLockMinX, GatehouseLockMaxX),
+                    SwarmWave(SwarmRowID, 850f, SwarmSpawnXs)
+                },
                 ObjectiveKey = "encounter_lock_objective_clear",
                 GoDirection = EncounterGoDirection.Right
             });
@@ -349,23 +384,57 @@ namespace FTT.Environment {
             BuildRoomBackground("BG_Room1_Gatehouse", Room1StartX, 3200, LevelHeight,
                 new Color(0.11f, 0.09f, 0.10f, 0.4f));
 
-            BuildFloor(Room1StartX, GroundY, 3200);
+            // GR-LV2: the yard's deck ends at the Glacis's moat.
+            BuildFloor(Room1StartX, GroundY, GlacisWestDeckEndX - Room1StartX);
             BuildPlatform(700, 740, 280);
             BuildPlatform(1250, 620, 240);
             BuildPlatform(1800, 730, 260);
-            BuildPlatform(2500, 700, 300);   // barricade holding extractor 1
-            BuildPlatform(3000, 560, 220);
 
             BuildHazardSpikes(1550, 890, 130);
-            BuildHazardSpikes(2200, 890, 110);
 
             BuildCheckpoint(240, GroundY - 50, $"{LevelID}_checkpoint_0", CheckpointRole.Entry);
             BuildRoomDecoration(Room1StartX, "paris_room_gatehouse", new Color(0.85f, 0.55f, 0.25f));
 
             BuildRoomTransition("paris_room_gatehouse", new Vector2(560, 600),
-                new Rect2(Room1StartX, 0, 3200, LevelHeight));
+                new Rect2(Room1StartX, 0, GlacisWestDeckEndX - Room1StartX, LevelHeight));
             // Package 13 W4 (S26): the Bastille gates, and no Desmoulins to name what they came for.
             BuildAbsenceTrigger(new Vector2(1100, GroundY - 200));
+        }
+
+        /// <summary>
+        /// GR-LV2: the Glacis, 2020-3200, and the Battlement line above it. The step line runs
+        /// over a dry moat: the barricade (which keeps its Extractor), a crumbling step, a
+        /// one-way step and a wall with a ledge. Down in the moat are the yard's second spike
+        /// strip and a one-way back up, and its west ramp walks out. Every number is provisional
+        /// (<c>PROVISIONAL-TRAVERSAL-RULES</c>).
+        /// </summary>
+        private void BuildGlacis() {
+            TraversalStretch glacis = BeginStretch(GlacisStretchID, "paris_room_glacis",
+                GlacisMinX, GlacisMaxX, GroundY, GlacisWestDeckEndX, GlacisEastDeckStartX, Room1StartX);
+            BuildRoomDecoration(GlacisMinX, "paris_room_glacis", new Color(0.8f, 0.6f, 0.35f));
+            BuildStretchTrench(glacis);
+            // The deck resumes under the corridor lock's entry barrier: that barrier needs floor under it.
+            BuildFloor(GlacisEastDeckStartX, GroundY, GlacisMaxX - GlacisEastDeckStartX);
+
+            BuildStretchStep(glacis, 2170, 790, 200);
+            TraversalSurface barricade = BuildStretchStep(glacis, 2500, 700, 300); // holds extractor 1
+            BuildStretchStep(glacis, 2790, 720, 180, StretchStepKind.Crumbling, "level_04.crumbling_glacis");
+            TraversalSurface eastStep = BuildStretchStep(glacis, 3000, 722, 200, StretchStepKind.OneWay);
+            BuildStretchWallStep(glacis, 3150f, 690f, 940f);
+
+            // Off the line: the spikes to cross in the moat, and a way back up under the one-way step.
+            BuildHazardSpikes(2640, glacis.TrenchFloorY - 10f, 110);
+            BuildOneWayPlatform(2980, 880, 200);
+
+            // The Battlement line. Its base-kit line climbs west and back east, and ends in a 245 px hop.
+            OptionalRoute battlement = BeginOptionalRoute(BattlementRouteID, SecretSourceID,
+                SecretCachePosition.Value, barricade);
+            BuildRouteStep(battlement, 2560, 530, 120);
+            TraversalSurface burstFrom = BuildRouteStep(battlement, 2340, 420, 160);
+            BuildRouteStep(battlement, 2590, 320, 180);
+            TraversalSurface end = BuildRouteStep(battlement, BattlementEndX, 320, 220);
+            battlement.MarkBurstShortcut(burstFrom, end);
+            battlement.MarkRiseShortcut(eastStep, end);
         }
 
         /// <summary>
