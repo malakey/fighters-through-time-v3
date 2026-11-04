@@ -97,7 +97,7 @@ public class TubmanContentTests {
         var grid = AuthoredResources.Load<ResonanceGridData>("res://resources/Resonance/tubman_grid.tres");
         AssertObject(grid).IsNotNull();
         AssertThat(grid.CharacterID).IsEqual("tubman");
-        AssertThat(grid.Nodes.Length).IsEqual(9);
+        AssertThat(grid.Nodes.Length).IsEqual(10);
         int total = 0;
         ResonanceNodeData starGuide = null, ward = null;
         foreach (ResonanceNodeData node in grid.Nodes) {
@@ -106,7 +106,7 @@ public class TubmanContentTests {
             if (node.NodeID == "tubman_star_guide") starGuide = node;
             if (node.NodeID == "tubman_north_star_ward") ward = node;
         }
-        AssertThat(total).IsEqual(975);
+        AssertThat(total).IsEqual(1350);
         AssertObject(starGuide).IsNotNull();
         AssertThat(starGuide.Type).IsEqual(ResonanceNodeType.Traversal);
         AssertThat(starGuide.PrerequisiteMode).IsEqual(PrerequisiteMode.Any);

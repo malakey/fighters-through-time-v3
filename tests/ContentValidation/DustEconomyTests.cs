@@ -34,11 +34,14 @@ public class DustEconomyTests {
     private static readonly IReadOnlyList<string> CharacterIDs = FTT.Core.CharacterRoster.IDs;
 
     // The contract's grid cost curve. Unchanged by F05 Option A, which was
-    // chosen precisely to retain the 975-dust grid and its upgrade choices.
+    // chosen precisely to retain the 975-dust grid and its upgrade choices. GR-CAP's
+    // capstones sit on top of that grid, and only the level rank can pay for them.
     private const int TierOneCost = 50;
     private const int TierTwoCost = 75;
     private const int MajorCost = 200;
-    private const int FullGridCost = 3 * TierOneCost + 3 * TierTwoCost + 3 * MajorCost; // 975
+    private const int NineNodeCost = 3 * TierOneCost + 3 * TierTwoCost + 3 * MajorCost; // 975
+    private const int CapstoneCost = 375;
+    private const int FullGridCost = NineNodeCost + CapstoneCost; // 1,350
 
     // The contract's §"Per-level budgets" table, in campaign-route order.
     // { CampaignLevel index, required encounters, boss, optional }
@@ -80,9 +83,10 @@ public class DustEconomyTests {
 
     [TestCase]
     public void AllNineGridsShareTheDocumentedCostCurve() {
-        // 3x50 + 3x75 + 3x200 = 975 on every grid, competitively normalized —
+        // 3x50 + 3x75 + 3x200 + 375 = 1,350 on every grid, competitively normalized —
         // character identity comes from effects, not price. F05 Option A was
-        // selected to KEEP this curve rather than deflate the grid.
+        // selected to KEEP this curve rather than deflate the grid, and GR-CAP
+        // (rulings 3a+++, 3a++++) adds one capstone at the top of it.
         foreach (string characterID in CharacterIDs) {
             ResonanceGridData grid = AuthoredResources.Load<ResonanceGridData>(
                 $"res://resources/Resonance/{characterID}_grid.tres");
@@ -96,7 +100,7 @@ public class DustEconomyTests {
                 total += node.UnlockCost;
                 if (node.Type == ResonanceNodeType.Major) {
                     majorCosts.Add(node.UnlockCost);
-                    AssertThat(node.UnlockCost).IsEqual(MajorCost);
+                    AssertThat(node.UnlockCost).IsEqual(node.Tier == 4 ? CapstoneCost : MajorCost);
                 } else {
                     minorCosts.Add(node.UnlockCost);
                     // Package 11 A4: V7.6 breaks the old "Tier 1 has no
@@ -107,7 +111,7 @@ public class DustEconomyTests {
                 }
             }
 
-            AssertThat(majorCosts.Count).IsEqual(3);
+            AssertThat(majorCosts.Count).IsEqual(4);
             AssertThat(minorCosts.Count).IsEqual(6);
             AssertThat(majorCosts.Min() > minorCosts.Max()).IsTrue();
             AssertThat(total).IsEqual(FullGridCost);
@@ -304,16 +308,20 @@ public class DustEconomyTests {
                 + RewardAllocator.TierBonus(thoroughTotal, 100f, IsTimed(row[0]));
         }
         AssertThat(thoroughThroughFourteen).IsEqual(1006);
-        AssertThat(thoroughThroughFourteen >= FullGridCost).IsTrue();
+        AssertThat(thoroughThroughFourteen >= NineNodeCost).IsTrue();
 
         // The ledger's required ceiling is 787, below the 975 grid; the rank is not in it.
-        AssertThat(RequiredAllRestoredMaximum < FullGridCost)
-            .OverrideFailureMessage("The F05 ledger alone must not fund the full grid on the required route.")
+        AssertThat(RequiredAllRestoredMaximum < NineNodeCost)
+            .OverrideFailureMessage("The F05 ledger alone must not fund even the nine nodes on the required route.")
             .IsTrue();
         // A thorough run without bonuses reaches 1,000 only after the finale, so
         // those rewards cannot improve the final fight.
-        AssertThat(ThoroughBase >= FullGridCost).IsTrue();
-        AssertThat(ThoroughBase - LedgerRows[^1].Skip(1).Sum() < FullGridCost).IsTrue();
+        AssertThat(ThoroughBase >= NineNodeCost).IsTrue();
+        AssertThat(ThoroughBase - LedgerRows[^1].Skip(1).Sum() < NineNodeCost).IsTrue();
+        // GR-CAP: no ledger route reaches a capstone. The most it can pay stops short of the full grid.
+        AssertThat(ThoroughAllRestoredMaximum < FullGridCost)
+            .OverrideFailureMessage("Only the level rank can fund a capstone (ruling 3a+++).")
+            .IsTrue();
 
         // §1.10: the rank pays up to 50 on each of Levels 1-15, on top of those totals.
         int rankCeiling = (LevelRankRules.LastRankedLevel - LevelRankRules.FirstRankedLevel + 1)
@@ -321,6 +329,7 @@ public class DustEconomyTests {
         AssertThat(rankCeiling).IsEqual(750);
         AssertThat(RequiredAllRestoredMaximum + rankCeiling).IsEqual(1537);
         AssertThat(ThoroughAllRestoredMaximum + rankCeiling).IsEqual(1844);
+        AssertThat(FullGridCost).IsEqual(1350);
         AssertThat(RequiredAllRestoredMaximum + rankCeiling >= FullGridCost)
             .OverrideFailureMessage("With the rank on top, the required route can fund the full grid (ruling 3a++).")
             .IsTrue();

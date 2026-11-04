@@ -17,7 +17,7 @@ namespace FTT.Tests.Unit;
 /// and Tubman's North Star Ward, and "Tier 2 has exactly one prerequisite"
 /// breaks for every Any-of and paired node. The grids are nine unique
 /// topologies now, so the suite pins the explicit <c>Tier</c> field, the
-/// 50/75/200 = 975 economy, prerequisite-mode validity, the per-character
+/// 50/75/200/375 = 1,350 economy, prerequisite-mode validity, the per-character
 /// topology signature, the cheapest-route table, the new resolver lanes and the
 /// ability gate.</para>
 /// </summary>
@@ -32,11 +32,12 @@ public class ResonanceProgressionTests {
     /// </summary>
     private static readonly IReadOnlyList<string> CharacterIDs = FTT.Core.CharacterRoster.IDs;
 
-    /// <summary>V7.6 locked costs: Tier 1 / Tier 2 / Major. 3 + 3 + 3 = 975.</summary>
+    /// <summary>V7.6 locked costs: Tier 1 / Tier 2 / Major; GR-CAP adds the Tier 4 capstone. 3 + 3 + 3 + 1 = 1,350.</summary>
     private const int TierOneCost = 50;
     private const int TierTwoCost = 75;
     private const int MajorCost = 200;
-    private const int GridTotalCost = 975;
+    private const int CapstoneCost = 375;
+    private const int GridTotalCost = 1350;
 
     /// <summary>
     /// The systems a Level 0 hero already has. A ROOT node (zero prerequisites)
@@ -501,16 +502,16 @@ public class ResonanceProgressionTests {
     // ======================================================================
 
     [TestCase]
-    public void EveryAuthoredGridHasNineNodesThreePerTierAndTotals975() {
+    public void EveryAuthoredGridHasTenNodesThreePerTierAndACapstoneAndTotals1350() {
         var issues = new List<string>();
         var allNodeIDs = new HashSet<string>();
         foreach (string characterID in CharacterIDs) {
             ResonanceGridData grid = LoadGrid(characterID);
             AssertObject(grid).IsNotNull();
             AssertString(grid.CharacterID).IsEqual(characterID);
-            AssertThat(grid.Nodes.Length).IsEqual(9);
+            AssertThat(grid.Nodes.Length).IsEqual(10);
 
-            var perTier = new int[4];
+            var perTier = new int[5];
             int total = 0;
             foreach (ResonanceNodeData node in grid.Nodes) {
                 if (node == null) {
@@ -518,7 +519,7 @@ public class ResonanceProgressionTests {
                     continue;
                 }
                 if (!allNodeIDs.Add(node.NodeID)) issues.Add($"duplicate node ID {node.NodeID}");
-                if (node.Tier < 1 || node.Tier > 3) {
+                if (node.Tier < 1 || node.Tier > 4) {
                     issues.Add($"{node.NodeID}: tier {node.Tier}");
                     continue;
                 }
@@ -527,20 +528,21 @@ public class ResonanceProgressionTests {
                 int expected = node.Tier switch {
                     1 => TierOneCost,
                     2 => TierTwoCost,
-                    _ => MajorCost
+                    3 => MajorCost,
+                    _ => CapstoneCost
                 };
                 if (node.UnlockCost != expected) {
                     issues.Add($"{node.NodeID}: tier {node.Tier} costs {node.UnlockCost}, expected {expected}");
                 }
-                // Tier 3 IS the Major tier; the traversal node is always Tier 2.
+                // Tiers 3 and 4 ARE the Majors; the traversal node is always Tier 2.
                 bool major = node.Type == ResonanceNodeType.Major;
-                if (major != (node.Tier == 3)) issues.Add($"{node.NodeID}: type/tier mismatch");
+                if (major != (node.Tier >= 3)) issues.Add($"{node.NodeID}: type/tier mismatch");
                 if (node.Type == ResonanceNodeType.Traversal && node.Tier != 2) {
                     issues.Add($"{node.NodeID}: traversal node outside tier 2");
                 }
             }
-            if (perTier[1] != 3 || perTier[2] != 3 || perTier[3] != 3) {
-                issues.Add($"{characterID}: tier counts {perTier[1]}/{perTier[2]}/{perTier[3]}");
+            if (perTier[1] != 3 || perTier[2] != 3 || perTier[3] != 3 || perTier[4] != 1) {
+                issues.Add($"{characterID}: tier counts {perTier[1]}/{perTier[2]}/{perTier[3]}/{perTier[4]}");
             }
             if (total != GridTotalCost) issues.Add($"{characterID}: total {total}, expected {GridTotalCost}");
         }

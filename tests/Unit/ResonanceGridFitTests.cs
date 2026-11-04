@@ -97,7 +97,7 @@ public class ResonanceGridFitTests {
         string tag = $"{hero}@{scale}";
         var chips = new List<(string Id, Button Button, Rect2 Rect)>();
         foreach (var pair in panel.Chips) chips.Add((pair.Key, pair.Value, pair.Value.GetRect()));
-        if (chips.Count != 9) problems.Add($"{tag}: {chips.Count} chips");
+        if (chips.Count != 10) problems.Add($"{tag}: {chips.Count} chips");
         var area = new Rect2(Vector2.Zero, panel.GridArea);
         Font font = chips.Count > 0 ? chips[0].Button.GetThemeFont("font") : null;
         int fontSize = chips.Count > 0 ? chips[0].Button.GetThemeFontSize("font_size") : 20;
