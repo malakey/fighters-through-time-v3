@@ -225,6 +225,73 @@ public class TrainingRoomSceneTests {
         }
     }
 
+    [TestCase]
+    public async Task ClosingThePanelUnderAnUnresolvedDisconnectKeepsTheTreePausedUntilItResolvesAndAPlainCloseStillResumes() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        GameManager gameManager = GameManager.Instance;
+        SessionData savedSession = gameManager.CurrentSession;
+        bool wasPaused = tree.Paused;
+        tree.Paused = false;
+        TrainingRoom room = null;
+        try {
+            room = Open(tree);
+            for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            LocalFighterPause pause = FindPause(room);
+            AssertObject(pause).IsNotNull();
+
+            room.Panel.Open();
+            pause.ForceDisconnectPause(0);
+            room.Panel.Close();
+            AssertThat(tree.Paused).OverrideFailureMessage("closing the panel unpaused under the disconnect modal").IsTrue();
+            pause.ResolveDisconnect(0);
+            AssertThat(tree.Paused).OverrideFailureMessage("the pause stuck after the disconnect resolved").IsFalse();
+            AssertThat(PauseMenuBase.ExternalPauseOwnerActive).IsFalse();
+
+            room.Panel.Open();
+            AssertThat(tree.Paused).IsTrue();
+            room.Panel.Close();
+            AssertThat(tree.Paused).OverrideFailureMessage("a plain panel open and close did not resume play").IsFalse();
+        } finally {
+            Close(room);
+            PauseMenuBase.ExternalPauseOwnerActive = false;
+            tree.Paused = wasPaused;
+            gameManager.CurrentSession = savedSession;
+        }
+    }
+
+    [TestCase]
+    public async Task ForfeitUnderTheOpenPanelReleasesThePauseSoTheSceneLoadCanRun() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        GameManager gameManager = GameManager.Instance;
+        SessionData savedSession = gameManager.CurrentSession;
+        bool wasPaused = tree.Paused;
+        tree.Paused = false;
+        FieldInfo loading = typeof(GameManager).GetField("_isLoading", BindingFlags.Instance | BindingFlags.NonPublic);
+        bool wasLoading = (bool)loading.GetValue(gameManager);
+        TrainingRoom room = null;
+        try {
+            room = Open(tree);
+            for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            LocalFighterPause pause = FindPause(room);
+            AssertObject(pause).IsNotNull();
+            room.Panel.Open();
+            pause.ForceDisconnectPause(0);
+            // Keep LoadScene a no-op so the test never leaves the scene.
+            loading.SetValue(gameManager, true);
+            var forfeit = pause.FindChild("ForfeitButton", true, false) as Button;
+            AssertObject(forfeit).IsNotNull();
+            forfeit.EmitSignal(BaseButton.SignalName.Pressed);
+            AssertThat(tree.Paused).OverrideFailureMessage("Forfeit left the tree paused for the scene load").IsFalse();
+            AssertThat(PauseMenuBase.ExternalPauseOwnerActive).IsFalse();
+        } finally {
+            loading.SetValue(gameManager, wasLoading);
+            Close(room);
+            PauseMenuBase.ExternalPauseOwnerActive = false;
+            tree.Paused = wasPaused;
+            gameManager.CurrentSession = savedSession;
+        }
+    }
+
     private static void PressPause() {
         // Viewport.PushInput walks the real dispatch chain: _Input, GUI, then _UnhandledInput.
         var tree = (SceneTree)Engine.GetMainLoop();

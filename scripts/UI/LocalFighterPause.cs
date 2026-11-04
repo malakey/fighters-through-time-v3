@@ -374,7 +374,7 @@ namespace FTT.UI {
 
         /// <summary>Design: exit returns local players to the Fighter character select lobby.</summary>
         private void ExitToLobby() {
-            SetPaused(false);
+            ClosePauseForSceneExit();
             // Package 11 A11 (F18): a Calibration Drill borrows this pause menu, and
             // its exit is "Exit Calibration" — the Main Menu on the standalone
             // route, the originating hub on the console route. Never the Fighter

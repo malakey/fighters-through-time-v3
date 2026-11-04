@@ -296,7 +296,7 @@ namespace FTT.UI {
         /// <summary>Returns to the Time-Ship, in front of the Holodeck console.</summary>
         public void ExitToShip() {
             // The threaded scene load needs an unpaused tree: hand the panel's pause back before leaving.
-            _panel?.Close();
+            _panel?.Close(true);
             string destination = ApplyExitToSession();
             if (destination != null) GameManager.Instance.LoadScene(destination);
         }

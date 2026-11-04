@@ -113,6 +113,8 @@ namespace FTT.UI {
         /// (its own <c>_ExitTree</c> hands back its share).
         /// </summary>
         protected internal void ClosePauseForSceneExit() {
+            // GR-INTEG: an open training panel must not keep the tree paused through the load either.
+            ExternalPauseOwnerActive = false;
             SetPaused(false);
             SceneTree tree = GetTree();
             if (tree != null) tree.Paused = false;

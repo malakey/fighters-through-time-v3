@@ -106,7 +106,7 @@ namespace FTT.UI {
 
             // The actions: the pause panel's chevron rows (64 px, D6 width, the focused row's prompt), Resume first.
             var actions = new List<Button>();
-            _resume = AddAction(layout, actions, "ResumeButton", "training_resume", Close);
+            _resume = AddAction(layout, actions, "ResumeButton", "training_resume", () => Close());
             _reset = AddAction(layout, actions, "ResetButton", "training_reset", () => ResetRequested?.Invoke());
             _exit = AddAction(layout, actions, "ExitButton", "fighter_return_to_ship", () => ExitRequested?.Invoke());
             PulpButtonDecor.ApplyStackWidth(actions, HolodeckConsolePanel.ActionRowMinWidth, HolodeckConsolePanel.ActionRowCap);
@@ -157,20 +157,22 @@ namespace FTT.UI {
         }
 
         /// <summary>Hides the panel, hands the pause back and spends the closing press so it cannot reach the sandbox.</summary>
-        public void Close() {
+        public void Close(bool forSceneExit = false) {
             bool wasOpen = Visible;
             Visible = false;
             PauseMenuBase.ExternalPauseOwnerActive = false;
-            ReleasePause();
+            ReleasePause(forSceneExit);
             if (wasOpen) InputManager.Instance?.ConsumeHeldPresses();
             Resumed?.Invoke();
         }
 
-        private void ReleasePause() {
-            if (!_pausedByPanel) return;
+        private void ReleasePause(bool forSceneExit = false) {
+            bool owned = _pausedByPanel;
             _pausedByPanel = false;
+            if (!owned && !forSceneExit) return;
             SceneTree tree = GetTree();
-            if (tree != null) tree.Paused = false;
+            // GR-INTEG: a pause menu opened meanwhile (the disconnect modal) still owns the pause; only a scene exit overrides it.
+            if (tree != null && (forSceneExit || !PauseMenuBase.IsAnyOpen)) tree.Paused = false;
         }
 
         // _Input rather than _UnhandledInput, so the press is spent before the driver's pause menu (also Always) can see it.

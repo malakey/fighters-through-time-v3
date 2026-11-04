@@ -39,3 +39,9 @@ Five findings, +5 cases (4269 to 4274, one full run `Failed: 0, Passed: 4274, To
 - Disconnect under the training panel: `PauseMenuBase.SetPaused` keeps the tree paused while `ExternalPauseOwnerActive`, so `ResolveDisconnect` cannot unpause under the open panel; the panel's close hands it back. The reverse order is already refused (`IsAnyOpen`). `TrainingRoomSceneTests.AControllerDisconnectResolvedUnderTheSettingsPanelLeavesTheTreePausedAndTheFlagDoesNotOutliveTheRoom` (+1) also asserts the static flag is false after a scene exit with the panel open.
 - Cue watermark claim corrected: it guards decreasing ticks only and does not dedupe events a real rollback removes and reintroduces (replay reaches the current tick before `SyncPresentation()`, so ticks increase). Code kept, comment and `GR_AUDIO.md` state the limit.
 - **GR-DOCS must widen the ledger row `VERIFY-PRESENTATION-DEDUPE-WEAKNESS` with the new Fighter cues (hit, block, perfect block, swing whiff), to be fixed with stable sim event identities when Package 7 enables rollback in real play.**
+
+## Pause fixes (review round, 2 majors)
+
+- Forfeit under the open training panel: `LocalFighterPause.ExitToLobby` now calls `ClosePauseForSceneExit()`, which also clears `ExternalPauseOwnerActive` before releasing the tree. Audit: the other scene exits (`PauseMenu` restart/quit) already used it; `MatchResults` never pauses the tree; `TrainingRoom.ExitToShip` now calls `Panel.Close(true)`, an unconditional release.
+- `TrainingRoomPanel.Close` keeps the tree paused while a pause menu is open (`PauseMenuBase.IsAnyOpen`); `Close(forSceneExit: true)` overrides.
+- Tests (both failed before the fix): `ClosingThePanelUnderAnUnresolvedDisconnect...`, `ForfeitUnderTheOpenPanelReleasesThePause...` in `TrainingRoomSceneTests`. Full suite 4277 (4275 + 2).
