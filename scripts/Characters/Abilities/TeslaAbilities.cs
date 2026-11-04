@@ -297,11 +297,18 @@ namespace FTT.Characters.Abilities {
                     coils.Add(coil);
                 }
             }
+            bool worldSystem = Owner.HasStoryPerk(CapstoneRules.WorldSystemPerkKey);
+            if (worldSystem) ChainToChargedCoils(coils);
             bool paid = false;
+            Hurtbox lastTarget = null;
+            // World System: coils with a target of their own go first, so a coil with none has one to pour into.
+            if (worldSystem) coils.Sort((a, b) => (PickDischargeTarget(a) == null).CompareTo(PickDischargeTarget(b) == null));
             foreach (TeslaCoilNode coil in coils) {
                 if (!IsInstanceValid(coil) || coil.IsCoilDestroyed) continue;
                 Hurtbox target = PickDischargeTarget(coil);
+                if (target == null && worldSystem && IsLiveTarget(lastTarget)) target = lastTarget;
                 if (target == null || !coil.TryBuildDischarge(out HitPayload burst)) continue;
+                lastTarget = target;
                 // Review round 1: the burst belongs to THIS Pulse cast (explicit D3 attribution, never
                 // serial 0); its Special class is set where it is built (TryBuildDischarge).
                 burst.SourceExecutionSerial = ExecutionSerial;
@@ -314,6 +321,29 @@ namespace FTT.Characters.Abilities {
                 }
                 coil.FinishDischarge();
             }
+            if (paid && worldSystem) Owner.RefundMomentumPip();
+        }
+
+        /// <summary>
+        /// World System (Story-only capstone): the discharge also reaches every charged coil within the
+        /// discharge range of a coil already in it, however far from Tesla.
+        /// </summary>
+        private void ChainToChargedCoils(System.Collections.Generic.List<TeslaCoilNode> coils) {
+            float range = (float)LingeringKitRules.DischargeOwnerRangeUnits * KitMotionRules.StoryPixelsPerUnit;
+            for (int link = 0; link < coils.Count; link++) {
+                foreach (Node2D node in Owner.ActivePersistentObjects) {
+                    if (node is TeslaCoilNode coil && IsInstanceValid(coil) && !coil.IsCoilDestroyed && coil.Charges > 0
+                        && !coils.Contains(coil)
+                        && coils[link].GlobalPosition.DistanceTo(coil.GlobalPosition) <= range) {
+                        coils.Add(coil);
+                    }
+                }
+            }
+        }
+
+        private static bool IsLiveTarget(Hurtbox hurtbox) {
+            if (hurtbox == null || !IsInstanceValid(hurtbox)) return false;
+            return hurtbox.GetParent() is not FTT.Enemies.EnemyController { CurrentState: FTT.Enemies.EnemyState.Dead };
         }
 
         /// <summary>The nearest enemy within the coil's 4 units, else the nearest of his marked enemies within 8 units of the coil.</summary>

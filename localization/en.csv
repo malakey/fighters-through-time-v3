@@ -1742,3 +1742,22 @@ training_reset,Reset
 training_readout_hit,Last hit {0}  ·  Total {1}  ·  Stun {2}
 training_readout_frames,Startup {0}  ·  Active {1}  ·  Recovery {2}  ·  Advantage {3}
 training_hint,Pause opens the dummy settings.
+# GR-CAP
+resonance_joan_banner_of_orleans_name,"Banner of Orleans"
+resonance_joan_banner_of_orleans_description,"Righteous Smite's shockwave leaves a short strip of radiant ground in its wake. Enemies standing on it take damage and catch Radiant Burn."
+resonance_einstein_unified_field_name,"Unified Field"
+resonance_einstein_unified_field_description,"When Relativity Warp folds Einstein to its destination, his open Relativity Rift collapses at once, wherever he stands, pulling in and launching everything caught inside."
+resonance_leonardo_codex_atlanticus_name,"Codex Atlanticus"
+resonance_leonardo_codex_atlanticus_description,"The turret's synced bolts fly on through every enemy in their line instead of stopping at the first, and each turret holds one more charge."
+resonance_lincoln_emancipation_name,"Emancipation"
+resonance_lincoln_emancipation_description,"Where a Rail Charge ends, a ground wave rolls up the rail behind Lincoln and on past him, striking every grounded enemy along the way."
+resonance_cleopatra_dynastys_curse_name,"Dynasty's Curse"
+resonance_cleopatra_dynastys_curse_description,"An enemy that dies poisoned passes its Venom on to the nearest enemies around it. Bosses neither catch it nor spread it."
+resonance_tesla_world_system_name,"World System"
+resonance_tesla_world_system_description,"The Lorentz discharge chains from coil to coil, reaching charged coils too far from Tesla and pouring those with no target of their own into the last enemy struck. A discharge that lands refunds one Momentum pip."
+resonance_shakespeare_curtain_call_name,"Curtain Call"
+resonance_shakespeare_curtain_call_description,"Midsummer Gust leaves a lingering windbox on its path. It pushes enemies away, and while they are in it, and for a moment after, hazards hurt them as if they had been thrown."
+resonance_mozart_symphony_no_41_name,"Symphony No. 41"
+resonance_mozart_symphony_no_41_description,"Casting a different Special within 6 seconds of the last builds a stack of Symphony, up to 3. Each stack adds 10% to his ability damage. Six seconds with no Special clears them all."
+resonance_tubman_freedom_line_name,"Freedom Line"
+resonance_tubman_freedom_line_description,"Every strike Foresight counters refunds one Momentum pip and grants a lantern-light shield absorbing 10% of maximum health for 8 seconds."

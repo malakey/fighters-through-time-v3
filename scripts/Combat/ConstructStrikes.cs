@@ -16,6 +16,8 @@ namespace FTT.Combat {
     public static class ConstructStrikes {
         public const string CoilSyncedArcHitboxID = "coil_synced_arc";
         public const string TurretSyncedBoltHitboxID = "turret_synced_bolt";
+        /// <summary>A Codex Atlanticus bolt after its first contact: still a strike, but it pays no second Momentum.</summary>
+        public const string TurretPiercedBoltHitboxID = "turret_pierced_bolt";
         public const string NestSyncedLungeHitboxID = "nest_synced_lunge";
         public const string CoilDischargeHitboxID = "coil_discharge";
 

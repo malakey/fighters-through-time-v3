@@ -26,6 +26,13 @@ namespace FTT.Characters.Abilities {
         /// <summary>The live shockwave (test seam).</summary>
         public StoryGroundWave Wave => _wave;
 
+        // Banner of Orleans: the wave drops a piece of strip each time it has travelled a spacing.
+        private bool _stripPending;
+        private float _lastStripX;
+
+        /// <summary>Pieces of radiant strip this cast has dropped (test seam).</summary>
+        public int BannerStripPieces { get; private set; }
+
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
         }
@@ -57,6 +64,26 @@ namespace FTT.Characters.Abilities {
                 Data?.HitboxSize ?? new Vector2(40f, 30f), groundedOnly: true);
             SpawnPlaceholderZone(_wave.Front, 0f, lifetime, 1f, new Color(0.95f, 0.85f, 0.3f),
                 (Data?.HitboxSize.Y ?? 30f) * 0.5f);
+            BannerStripPieces = 0;
+            _stripPending = Owner.HasStoryPerk(CapstoneRules.BannerOfOrleansPerkKey);
+            if (_stripPending) DropBannerStrip();
+        }
+
+        /// <summary>
+        /// Banner of Orleans (Story-only capstone): one piece of the radiant strip, at the wave's front.
+        /// A zone tick reaches the whole Story ability-damage composition through its owner.
+        /// </summary>
+        private void DropBannerStrip() {
+            _lastStripX = _wave.Front.X;
+            BannerStripPieces++;
+            float radius = CapstoneRules.BannerStripRadiusPixels;
+            SpawnPlaceholderZone(
+                new Vector2(_wave.Front.X, _wave.SurfaceY - radius * 0.5f),
+                CapstoneRules.BannerStripTickDamage, CapstoneRules.BannerStripLifetimeSeconds,
+                CapstoneRules.BannerStripTickSeconds, new Color(1f, 0.82f, 0.25f), radius,
+                FTT.Core.StatusType.RadiantBurn,
+                (Data?.StatusDuration ?? 3f) * Owner.StoryStatusDurationMultiplier,
+                Data?.StatusIntensity ?? 1f);
         }
 
         public override void _PhysicsProcess(double delta) {
@@ -66,6 +93,9 @@ namespace FTT.Characters.Abilities {
             if (!_wave.Active || Owner == null || !IsInstanceValid(Owner)) return;
             _wave.Advance((float)delta, Owner.GetWorld2D()?.DirectSpaceState,
                 StoryShapeQuery.DeliveryMask(TargetHurtboxLayer()), Owner.PlayerIndex, StrikeWithWave);
+            if (_stripPending && Mathf.Abs(_wave.Front.X - _lastStripX) >= CapstoneRules.BannerStripSpacingPixels) {
+                DropBannerStrip();
+            }
         }
 
         private uint TargetHurtboxLayer() => Owner.PlayerIndex == 0

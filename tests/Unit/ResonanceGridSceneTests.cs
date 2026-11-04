@@ -93,28 +93,31 @@ public class ResonanceGridSceneTests {
             ResonanceGridPanel panel = Open(out Node host);
             try {
                 var grid = panel.Root.GetNode<Control>(Layout + "NodeGrid");
-                // Nine authored node chips plus the edge layer behind them.
+                // Ten authored node chips plus the edge layer behind them.
                 // The chips are code-built because their count, copy and
                 // position come from ResonanceGridData, not from the scene.
-                AssertThat(grid.GetChildCount()).IsEqual(10);
+                AssertThat(grid.GetChildCount()).IsEqual(11);
                 AssertThat(panel.EdgeLayer != null).IsTrue();
                 AssertThat(panel.FocusedIndex).IsEqual(0);
 
                 // Every chip sits at its own authored position: a topology
                 // where two nodes coincide is a rendering bug, not a design.
                 System.Collections.Generic.List<(float X, float Y)> positions = panel.LayoutPositions;
-                AssertThat(positions.Count).IsEqual(9);
+                AssertThat(positions.Count).IsEqual(10);
                 var distinct = new System.Collections.Generic.HashSet<(float X, float Y)>(positions);
-                AssertThat(distinct.Count).IsEqual(9);
+                AssertThat(distinct.Count).IsEqual(10);
 
                 // Einstein's mesh authors two routes into every non-root node:
-                // six Any-of edge pairs, so twelve edges in all, and they are
-                // dotted because the mode is Any.
-                AssertThat(panel.EdgeLayer.Edges.Count).IsEqual(12);
+                // six Any-of edge pairs, so twelve dotted edges because the mode
+                // is Any; his capstone adds two solid All-of edges from its two
+                // Majors (GR-CAP).
+                AssertThat(panel.EdgeLayer.Edges.Count).IsEqual(14);
+                int anyOfEdges = 0;
                 foreach (ResonanceEdgeLayer.Edge edge in panel.EdgeLayer.Edges) {
-                    AssertThat(edge.AnyOf).IsTrue();
+                    if (edge.AnyOf) anyOfEdges++;
                     AssertThat(edge.Satisfied).IsFalse();
                 }
+                AssertThat(anyOfEdges).IsEqual(12);
 
                 // The dormant-node gate is live (2026-10-11): a fresh save has
                 // restored no Legacy slot, so a node gated on Special 2 is an

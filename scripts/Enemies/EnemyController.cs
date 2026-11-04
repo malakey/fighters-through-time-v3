@@ -2080,6 +2080,7 @@ namespace FTT.Enemies {
             _armoredAnswerPending = false;
             ResetConfirmChain();
             ClearPunishWindow();
+            SpreadVenomOnDeath(); // GR-CAP: Dynasty's Curse reads the status this clears
             // V7.6: death clears both status slots and the caster-owned mark.
             ClearAllStatusEffects();
             ClearConductiveMark();
@@ -2675,6 +2676,7 @@ namespace FTT.Enemies {
             ResetLaunchCarry();
             _hazardSourcesThisLaunch.Clear(); // GR-HAZ
             KilledByHazard = false; // GR-HAZ
+            _hazardArmedUntilPhysicsFrame = 0; // GR-CAP
             _lastWallImpactDealt = 0;
             _lastWallBouncePreMoveVelocityX = 0f;
             _lastFinisherLandingTargetPixels = 0f;

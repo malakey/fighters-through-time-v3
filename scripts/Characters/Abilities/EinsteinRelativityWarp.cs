@@ -102,6 +102,16 @@ namespace FTT.Characters.Abilities {
                 StartPosition = _startPosition,
                 EndPosition = _destination
             });
+            if (Owner.HasStoryPerk(CapstoneRules.UnifiedFieldPerkKey)) DetonateOwnRift();
+        }
+
+        /// <summary>
+        /// Unified Field (Story-only capstone): the fold's arrival collapses his open Rift, wherever he
+        /// lands. It is the Rift's own collapse, as his landed finisher fires it: no E=mc² cast owns it.
+        /// </summary>
+        private void DetonateOwnRift() {
+            EinsteinRelativityRift rift = Owner.GetNodeOrNull<EinsteinRelativityRift>("Special2");
+            if (rift != null && rift.RiftActive) rift.TryCollapse(rift.ActiveRiftCenter);
         }
 
         protected override void OnRecovery() {

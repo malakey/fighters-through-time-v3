@@ -263,7 +263,8 @@ namespace FTT.Characters.Abilities {
                 Owner.GetParent());
             if (spawned is not LeonardoTurretNode turret) return;
 
-            turret.Initialize(Data, Owner, Owner.HasStoryPerk(ClockworkOverdrivePerkKey));
+            turret.Initialize(Data, Owner, Owner.HasStoryPerk(ClockworkOverdrivePerkKey),
+                Owner.HasStoryPerk(CapstoneRules.CodexAtlanticusPerkKey));
             Owner.ActivePersistentObjects.Add(turret);
         }
 

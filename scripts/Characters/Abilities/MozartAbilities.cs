@@ -60,6 +60,7 @@ namespace FTT.Characters.Abilities {
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
             _executionShaved = false;
+            Owner.NoteSymphonySpecial(1); // Symphony No. 41 (Story-only capstone)
         }
 
         protected override void OnActive() {
@@ -281,6 +282,7 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
+            Owner.NoteSymphonySpecial(2); // Symphony No. 41 (Story-only capstone)
         }
 
         protected override void OnActive() {

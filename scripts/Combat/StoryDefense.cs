@@ -41,7 +41,12 @@ namespace FTT.Combat {
         /// Each accepted North Star Leap activation grants it; a Star Guide
         /// redirect is not a new activation.
         /// </summary>
-        NorthStarWard = 6
+        NorthStarWard = 6,
+        /// <summary>
+        /// GR-CAP (appended): Tubman's Freedom Line capstone, a grant SOURCE of
+        /// <see cref="ResonanceBarrier"/>, never a live effect ID. Each Foresight counter grants it.
+        /// </summary>
+        FreedomLine = 7
     }
 
     /// <summary>
@@ -104,7 +109,8 @@ namespace FTT.Combat {
         public static bool IsResonanceBarrierSource(StoryShieldEffect effect) =>
             effect is StoryShieldEffect.HenrysBastion
                 or StoryShieldEffect.RoyalAegis
-                or StoryShieldEffect.NorthStarWard;
+                or StoryShieldEffect.NorthStarWard
+                or StoryShieldEffect.FreedomLine;
 
         /// <summary>D02d: Wardenclyffe's absorption cap is 15% of max HP.</summary>
         public const float WardenclyffeCapacityShare = 0.15f;

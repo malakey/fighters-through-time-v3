@@ -37,7 +37,7 @@ namespace FTT.Environment {
         [Export] public bool StatModifierIsPercent;
         [Export] public string AbilityModifierKey = "";
         /// <summary>
-        /// V7.6. Explicit tier (1 / 2 / 3). No longer inferable: V7.6 authors
+        /// V7.6. Explicit tier (1 / 2 / 3, and 4 for the capstone, 2026-11-03). No longer inferable: V7.6 authors
         /// Tier 1 nodes that carry prerequisites (Joan Vigor, Leonardo Workshop
         /// Vigor, Tesla Conductive Hold, Lincoln Rail Reach) and Tier 2 nodes
         /// that hang straight off a Tier 1 root.

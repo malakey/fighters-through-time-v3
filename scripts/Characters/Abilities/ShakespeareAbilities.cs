@@ -300,7 +300,7 @@ namespace FTT.Characters.Abilities {
             body.MoveAndCollide(new Vector2(direction * step, 0f));
         }
 
-        private static CharacterBody2D FindBody(Hurtbox hurtbox) {
+        internal static CharacterBody2D FindBody(Hurtbox hurtbox) {
             Node current = hurtbox.GetParent();
             while (current != null) {
                 if (current is CharacterBody2D body) return body;
@@ -372,6 +372,7 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnRecovery() {
             UseAuthoredPhaseFrames();
+            if (_isGusting && Owner.HasStoryPerk(CapstoneRules.CurtainCallPerkKey)) LeaveCurtainWindbox();
             EndGust();
             FTT.Core.EventBus.Instance?.RaiseMovementAbilityUsed(new FTT.Core.MovementAbilityPayload {
                 PlayerIndex = Owner.PlayerIndex,
@@ -387,7 +388,73 @@ namespace FTT.Characters.Abilities {
             _gustVictims.Clear();
         }
 
+        private int _curtainFramesRemaining;
+        private Vector2 _curtainCentre;
+        private bool _curtainPushesRight;
+
+        /// <summary>Frames the Curtain Call windbox has left (test seam).</summary>
+        public int CurtainWindboxFramesRemaining => _curtainFramesRemaining;
+
+        /// <summary>Where the Curtain Call windbox stands (test seam).</summary>
+        public Vector2 CurtainWindboxCentre => _curtainCentre;
+
+        private static float CurtainWindboxRadiusPixels =>
+            (float)CapstoneRules.CurtainWindboxRadiusUnits * KitMotionRules.StoryPixelsPerUnit;
+
+        /// <summary>
+        /// Curtain Call (Story-only capstone): the gust leaves a windbox halfway along its path. It is a world
+        /// object with its own clock, so it outlives the cast and a caster freeze does not hold it.
+        /// </summary>
+        private void LeaveCurtainWindbox() {
+            _curtainCentre = (_startPosition + Owner.GlobalPosition) * 0.5f;
+            _curtainPushesRight = Owner.IsFacingRight;
+            _curtainFramesRemaining = CapstoneRules.CurtainWindboxFrames;
+            SpawnPlaceholderZone(_curtainCentre, 0f, CapstoneRules.CurtainWindboxFrames / 60f, 1f,
+                new Color(0.75f, 0.85f, 1f), CurtainWindboxRadiusPixels);
+        }
+
+        /// <summary>
+        /// One frame of the windbox: push only, like the Tempest's (no hit, hitstun, hitstop, meter or Rally),
+        /// and every mob it touches is open to hazards as if thrown. The world hold and a dormant lock
+        /// member refuse it, and it ends with its owner.
+        /// </summary>
+        private void AdvanceCurtainWindbox() {
+            if (_curtainFramesRemaining <= 0) return;
+            if (Owner == null || !IsInstanceValid(Owner) || Owner.CurrentState == CharacterState.Dead) {
+                _curtainFramesRemaining = 0;
+                return;
+            }
+            if (FTT.Environment.ChronalRewindManager.IsWorldHeld(GetTree())) return;
+            _curtainFramesRemaining--;
+            var space = Owner.GetWorld2D()?.DirectSpaceState;
+            if (space == null) return;
+            var query = new PhysicsShapeQueryParameters2D {
+                Shape = new CircleShape2D { Radius = CurtainWindboxRadiusPixels },
+                Transform = new Transform2D(0f, _curtainCentre),
+                CollideWithAreas = true,
+                CollideWithBodies = false,
+                CollisionMask = Owner.PlayerIndex == 0
+                    ? FTT.Core.CollisionLayers.EnemyHurtbox
+                    : FTT.Core.CollisionLayers.PlayerHurtbox
+            };
+            foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, 16)) {
+                if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
+                if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
+                CharacterBody2D body = ShakespeareTheTempest.FindBody(hurtbox);
+                if (body == null || !ShakespeareTheTempest.CanBePushed(body)) continue;
+                if (body is FTT.Enemies.EnemyController enemy) {
+                    if (enemy.IsEncounterDormant) continue;
+                    enemy.ArmHazardVulnerability(CapstoneRules.CurtainHazardArmFrames);
+                }
+                float away = body.GlobalPosition.X - _curtainCentre.X;
+                float direction = away > 0f ? 1f : away < 0f ? -1f : (_curtainPushesRight ? 1f : -1f);
+                body.MoveAndCollide(new Vector2(
+                    direction * ShakespeareTheTempest.PushPerFramePixels * Owner.StoryKnockbackMultiplier, 0f));
+            }
+        }
+
         public override void _PhysicsProcess(double delta) {
+            AdvanceCurtainWindbox();
             // F5: the gust carries its caster, so it holds with a frozen caster.
             if (CastClockSuspended) return;
             if (_isGusting && CurrentPhase == AbilityPhase.Active && Owner != null) {

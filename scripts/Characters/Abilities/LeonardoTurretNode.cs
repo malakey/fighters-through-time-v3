@@ -80,6 +80,7 @@ namespace FTT.Characters.Abilities {
         private ProgressBar _hpBar;
         private int _maxHP = MaxTurretHP;
         private bool _clockworkOverdrive;
+        private bool _codexAtlanticus;
         private PlayerController _subscribedOwner;
         private ConstructChargePips _pips;
 
@@ -101,7 +102,7 @@ namespace FTT.Characters.Abilities {
             if (_hurtbox != null) _hurtbox.OnHit -= OnTurretHit;
         }
 
-        public void Initialize(AbilityData data, PlayerController owner, bool clockworkOverdrive) {
+        public void Initialize(AbilityData data, PlayerController owner, bool clockworkOverdrive, bool codexAtlanticus = false) {
             _data = data;
             _ownerPlayer = owner;
             OwnerIndex = owner?.PlayerIndex ?? 0;
@@ -127,8 +128,10 @@ namespace FTT.Characters.Abilities {
             // Clockwork Overdrive (Story-only Resonance major perk, decision 26): +1 charge, and an own shot
             // at half the interval against Chronal Extractors only.
             _clockworkOverdrive = clockworkOverdrive;
+            _codexAtlanticus = codexAtlanticus;
             MaxCharges = LingeringKitRules.TurretCharges
-                + (clockworkOverdrive ? LingeringKitRules.TurretOverdriveBonusCharges : 0);
+                + (clockworkOverdrive ? LingeringKitRules.TurretOverdriveBonusCharges : 0)
+                + (codexAtlanticus ? CapstoneRules.CodexBonusCharges : 0);
             Charges = MaxCharges;
             _fireTimer = _fireInterval;
             BoltsFired = 0;
@@ -201,7 +204,9 @@ namespace FTT.Characters.Abilities {
         private void FireSyncedBolt(Hurtbox target) {
             if (target == null || !IsInstanceValid(target) || !IsInsideTree()) return;
             Vector2 muzzle = GlobalPosition + MuzzleOffset;
-            Vector2 aim = target.GlobalPosition - muzzle;
+            // A hurtbox's position is its body's feet, so a bolt aimed there meets the floor just past the target.
+            // Codex Atlanticus aims at muzzle height over the target's feet, so it flies level on through the line.
+            Vector2 aim = target.GlobalPosition + (_codexAtlanticus ? MuzzleOffset : Vector2.Zero) - muzzle;
             PlaceholderProjectile bolt = InstantStrikesForTesting ? null : BaseSpecial.SpawnStoryProjectile(GetParent(), muzzle);
             SyncedBoltsFired++;
             if (bolt == null) {
@@ -240,6 +245,10 @@ namespace FTT.Characters.Abilities {
             bolt.Setup(damage, Vector2.Zero, speed, aim.X >= 0f, OwnerIndex,
                 new Color(1f, 0.85f, 0.4f), new Vector2(18f, 6f), lifetime, _ownerPlayer, _data);
             bolt.ConfigureSyncedStrike(LingeringKitRules.TurretSyncedBoltHitstunFrames / 60f);
+            // A synced bolt is spent on its first contact, as the sim's is; Codex Atlanticus (Story-only
+            // capstone) flies it on through the line.
+            bolt.PiercesTargets = _codexAtlanticus;
+            bolt.StopsOnLandedContact = !_codexAtlanticus;
             bolt.ConfigureDirection(aim);
             bolt.StopsOnTerrain = true;
         }
