@@ -279,6 +279,11 @@ public class Level01ContentTests {
         AssertThat(printShop.Spec.Waves[0].AuthoredCount).IsEqual(3);
         AssertThat(printShop.Spec.Waves[0].Spawns.Length).IsEqual(4);
         AssertThat(workshop.Spec.Waves[0].Spawns.Length).IsEqual(7);
+        // GR-LV1: the workshop's swarm row, the 7d showcase.
+        AssertThat(workshop.Spec.Waves.Length).IsEqual(2);
+        AssertString(workshop.Spec.Waves[1].RowID).IsEqual(Level01Controller.SwarmRowID);
+        AssertThat(workshop.Spec.Waves[1].Trigger).IsEqual(EncounterWaveTrigger.WhenAliveAtMost);
+        AssertThat(workshop.Spec.Waves[1].AliveAtMost).IsEqual(SwarmWaveRules.TriggerAliveAtMost);
 
         // Armed at load: room 1 stands dormant, rooms 2 and 3 wait for the hero.
         foreach (EncounterLock encounterLock in level.EncounterLocks) {

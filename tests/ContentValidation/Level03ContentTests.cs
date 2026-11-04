@@ -407,7 +407,7 @@ public class Level03ContentTests {
             AssertString(routing.LockID).IsEqual(Level03Controller.LockRoutingHall);
 
             AssertThat(midway.Area.Position.X).IsEqual(700f);
-            AssertThat(midway.Area.End.X).IsEqual(3820f);
+            AssertThat(midway.Area.End.X).IsEqual(2500f);
             AssertThat(electricity.Area.Position.X).IsEqual(3840f);
             AssertThat(electricity.Area.End.X).IsEqual(5780f);
             AssertThat(routing.Area.Position.X).IsEqual(6115f);
@@ -422,6 +422,10 @@ public class Level03ContentTests {
             AssertThat(midway.Spec.Waves[0].Trigger).IsEqual(EncounterWaveTrigger.OnEngage);
             AssertThat(electricity.Spec.Waves[0].Trigger).IsEqual(EncounterWaveTrigger.OnBuild);
             AssertThat(routing.Spec.Waves[0].Trigger).IsEqual(EncounterWaveTrigger.OnBuild);
+            // GR-LV1: the Electricity lock's swarm row.
+            AssertThat(electricity.Spec.Waves.Length).IsEqual(2);
+            AssertString(electricity.Spec.Waves[1].RowID).IsEqual(Level03Controller.SwarmRowID);
+            AssertThat(electricity.Spec.Waves[1].Trigger).IsEqual(EncounterWaveTrigger.WhenAliveAtMost);
 
             // Armed at load, exits shut, entries open; the Midway's crowd waits to spawn.
             foreach (EncounterLock encounterLock in level.EncounterLocks) {
@@ -430,7 +434,9 @@ public class Level03ContentTests {
                 AssertThat(encounterLock.EntryBarrier.IsClosed).IsFalse();
             }
             AssertThat(midway.LivingMemberCount).IsEqual(0);
-            AssertThat(electricity.LivingMemberCount).IsEqual(electricity.PlannedTotal);
+            // The defenders stand waiting; the swarm comes later, and PlannedTotal counts it.
+            AssertThat(electricity.LivingMemberCount).IsEqual(Level03Controller.ElectricityWave.Length);
+            AssertThat(electricity.PlannedTotal).IsEqual(Level03Controller.ElectricityWave.Length + Level03Controller.SwarmSpawnXs.Length);
             AssertThat(routing.LivingMemberCount).IsEqual(routing.PlannedTotal);
             foreach (EnemyController member in electricity.LivingMembers) AssertThat(member.IsEncounterDormant).IsTrue();
 

@@ -436,7 +436,7 @@ namespace FTT.Environment {
             BuildTrenchRamp(new Vector2(RooftopWestDeckEndX + RooftopRampRun, trenchFloorY), new Vector2(RooftopWestDeckEndX, 900f));
             BuildTrenchRamp(new Vector2(RooftopEastDeckStartX - RooftopRampRun, trenchFloorY), new Vector2(RooftopEastDeckStartX, 900f));
             RooftopRun.RecordTrench(trenchFloorY, RooftopRampRun);
-            BuildFloor(RooftopEastDeckStartX, 900, Room2OffsetX - RooftopEastDeckStartX);
+            BuildFloor(RooftopEastDeckStartX, 900, RooftopMaxX - RooftopEastDeckStartX);
 
             // The line, west to east.
             BuildPlatform(4750, 790, 200);
@@ -444,9 +444,10 @@ namespace FTT.Environment {
             RooftopRun.AddLineSurface(BuildCrumblingStep("level_01.crumbling_tiles", 5010f, 720f));
             TraversalSurface chimneyStep = BuildOneWayStep(5290f, 722f, 200f);
             RooftopRun.AddLineSurface(chimneyStep);
-            BuildPlatform(5530, 720, 200);
-            RooftopRun.AddLineSurface(new TraversalSurface(5430f, 5630f, 712f));
+            BuildPlatform(5500, 720, 180);
+            RooftopRun.AddLineSurface(new TraversalSurface(5410f, 5590f, 712f));
             // A wall on the deck, so the east ramp stays walkable: a double jump or the ledge clears it.
+            // The last step ends 80 px short of it, or a hero jumping from the deck bonks the step's underside.
             BuildWall(5670f, 690f, 900f - 690f, 40f);
             var ledge = ResourceLoader.Load<PackedScene>(LedgeGrabTemplatePath).Instantiate<LedgeGrabPoint>();
             ledge.Name = "LedgeGrab_5670";

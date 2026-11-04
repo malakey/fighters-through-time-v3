@@ -267,7 +267,7 @@ namespace FTT.Environment {
         public const float SkywayEastDeckStartX = 3660f;
 
         /// <summary>The Ferris line's last platform; the Extractor stands 72 px over its top.</summary>
-        public const float FerrisLineEndX = 3655f;
+        public const float FerrisLineEndX = 3585f;
 
         /// <summary>The Electricity lock's swarm row (level_03_rewards.tres).</summary>
         public const string SwarmRowID = "level_03.swarm1";
@@ -283,11 +283,12 @@ namespace FTT.Environment {
             // The deck resumes under the Electricity lock's entry barrier: that barrier needs floor under it.
             BuildFloor(SkywayEastDeckStartX, GroundY, ElectricityStartX - SkywayEastDeckStartX);
 
-            BuildStretchStep(skyway, 2810, 1290, 200);
-            BuildStretchStep(skyway, 3060, 1220, 180, StretchStepKind.Crumbling, "level_03.crumbling_awning");
-            TraversalSurface middleStep = BuildStretchStep(skyway, 3320, 1222, 200, StretchStepKind.OneWay);
-            TraversalSurface eastStep = BuildStretchStep(skyway, 3560, 1220, 200);
+            BuildStretchStep(skyway, 2800, 1290, 200);
+            BuildStretchStep(skyway, 3040, 1220, 180, StretchStepKind.Crumbling, "level_03.crumbling_awning");
+            TraversalSurface middleStep = BuildStretchStep(skyway, 3300, 1222, 200, StretchStepKind.OneWay);
+            TraversalSurface eastStep = BuildStretchStep(skyway, 3520, 1220, 200);
             // On the deck, so the east ramp stays walkable: a double jump or the ledge clears it.
+            // The last step ends 80 px short of it, or a hero jumping from the deck bonks the step's underside.
             BuildStretchWallStep(skyway, 3700f, 1190f, GroundY);
 
             // Off the line: a way back up out of the trench, and an arc lamp to cross down there.
@@ -296,9 +297,9 @@ namespace FTT.Environment {
 
             OptionalRoute ferris = BeginOptionalRoute(FerrisRouteID, ExtractorPlacements[0].ID,
                 ExtractorPlacements[0].Position, middleStep);
-            BuildRouteStep(ferris, 3180, 1030, 120);
-            TraversalSurface burstFrom = BuildRouteStep(ferris, 2960, 920, 160);
-            BuildRouteStep(ferris, 3210, 820, 180);
+            BuildRouteStep(ferris, 3110, 1030, 120);
+            TraversalSurface burstFrom = BuildRouteStep(ferris, 2890, 920, 160);
+            BuildRouteStep(ferris, 3140, 820, 180);
             TraversalSurface end = BuildRouteStep(ferris, FerrisLineEndX, 820, 220);
             ferris.MarkBurstShortcut(burstFrom, end);
             ferris.MarkRiseShortcut(eastStep, end);
