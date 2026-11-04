@@ -42,6 +42,12 @@ namespace FTT.Combat {
         public bool StopsOnTerrain { get; set; }
 
         /// <summary>
+        /// Codex Atlanticus (Story-only capstone): a synced bolt that flies on after a contact, one strike
+        /// per hurtbox. Cleared on despawn.
+        /// </summary>
+        public bool PiercesTargets { get; set; }
+
+        /// <summary>
         /// Package 13 W7a (L03): aims the shot straight along an arbitrary
         /// direction at its configured speed (the turret's bolts fly at the
         /// target, not only horizontally). Call after <see cref="Setup"/>.
@@ -280,6 +286,11 @@ namespace FTT.Combat {
         }
 
         private void OnHitConfirmed(HitPayload payload, float damageApplied) {
+            if (PiercesTargets) {
+                // A pierced contact keeps the strike's rules and pays no second strike's Momentum.
+                _hitbox.HitboxID = ConstructStrikes.TurretPiercedBoltHitboxID;
+                return;
+            }
             if (!DetonateOnImpact) return;
             // One detonation per flight: the release below is deferred past the
             // physics flush this handler runs in, so go logically inert now or a
@@ -367,6 +378,7 @@ namespace FTT.Combat {
             _verticalVelocity = 0f;
             _arcGravity = 0f;
             DetonateOnImpact = false;
+            PiercesTargets = false;
             BurstsOnTerrain = false;
             StopsOnTerrain = false;
             Impacted = null;

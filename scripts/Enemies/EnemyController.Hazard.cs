@@ -18,7 +18,8 @@ namespace FTT.Enemies {
 
         /// <summary>True while a hazard can hurt this mob: thrown or launched, not dormant, alive.</summary>
         public bool IsHazardVulnerable => HazardMobRules.IsVulnerable(
-            _thrownFlight, _wallBounceArmed, _finisherFlight, IsEncounterDormant, CurrentState != EnemyState.Dead);
+            _thrownFlight || IsHazardArmedByWindbox, _wallBounceArmed, _finisherFlight,
+            IsEncounterDormant, CurrentState != EnemyState.Dead);
 
         /// <summary>True on a corpse whose killing blow was a hazard impact, until its pool reset. Read by the bot telemetry.</summary>
         public bool KilledByHazard { get; private set; }

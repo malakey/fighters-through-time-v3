@@ -215,7 +215,8 @@ namespace FTT.Combat {
         }
 
         /// <summary>The placeholder and enemy projectile paths both tag their hitbox "projectile".</summary>
-        public bool IsProjectileHitbox => HitboxID == "projectile" || HitboxID == ConstructStrikes.TurretSyncedBoltHitboxID;
+        public bool IsProjectileHitbox => HitboxID == "projectile" || HitboxID == ConstructStrikes.TurretSyncedBoltHitboxID
+            || HitboxID == ConstructStrikes.TurretPiercedBoltHitboxID;
 
         /// <summary>
         /// M08 (Package 12 W3): copies an ability's authored hit contract onto

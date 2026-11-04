@@ -237,7 +237,7 @@ namespace FTT.Characters {
 		/// be in this value.
 		/// </summary>
 		public float StoryAbilityHitboxDamage(float baseDamage) =>
-			baseDamage * StorySpecialDamageMultiplier;
+			baseDamage * StorySpecialDamageMultiplier * CapstoneDamageLane;
 
 		/// <summary>
 		/// The contact-time half, read by <see cref="FTT.Combat.Hitbox.CreatePayload"/>

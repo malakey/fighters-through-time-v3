@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="ResonanceGridData" load_steps=11 format=3]
+[gd_resource type="Resource" script_class="ResonanceGridData" load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/ResonanceGridData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/Environment/ResonanceNodeData.cs" id="2"]
@@ -45,7 +45,7 @@ StatModifierValue = 0.666667
 StatModifierIsPercent = true
 Tier = 1
 GatedAbilityID = "special2"
-LayoutPosition = Vector2(0.34, 0.5)
+LayoutPosition = Vector2(0.3, 0.5)
 
 [sub_resource type="Resource" id="N4"]
 script = ExtResource("2")
@@ -61,7 +61,7 @@ StatModifierValue = 0.333333
 StatModifierIsPercent = true
 Tier = 2
 GatedAbilityID = "special1"
-LayoutPosition = Vector2(0.5, 0.14)
+LayoutPosition = Vector2(0.44, 0.14)
 
 [sub_resource type="Resource" id="N5"]
 script = ExtResource("2")
@@ -77,7 +77,7 @@ StatModifierValue = 0.15
 StatModifierIsPercent = true
 Tier = 2
 GatedAbilityID = "special2"
-LayoutPosition = Vector2(0.5, 0.86)
+LayoutPosition = Vector2(0.44, 0.86)
 
 [sub_resource type="Resource" id="N6"]
 script = ExtResource("2")
@@ -91,7 +91,7 @@ PrerequisiteNodeIDs = PackedStringArray("tesla_conductive_hold")
 AbilityModifierKey = "long_blink"
 Tier = 2
 GatedAbilityID = "movement"
-LayoutPosition = Vector2(0.58, 0.5)
+LayoutPosition = Vector2(0.5, 0.5)
 
 [sub_resource type="Resource" id="N7"]
 script = ExtResource("2")
@@ -105,7 +105,7 @@ PrerequisiteNodeIDs = PackedStringArray("tesla_coil_duration")
 AbilityModifierKey = "resonant_overdrive"
 Tier = 3
 GatedAbilityID = "special1"
-LayoutPosition = Vector2(0.84, 0.14)
+LayoutPosition = Vector2(0.7, 0.14)
 
 [sub_resource type="Resource" id="N8"]
 script = ExtResource("2")
@@ -119,7 +119,7 @@ PrerequisiteNodeIDs = PackedStringArray("tesla_pulse_radius")
 AbilityModifierKey = "lorentz_attraction"
 Tier = 3
 GatedAbilityID = "special2"
-LayoutPosition = Vector2(0.84, 0.86)
+LayoutPosition = Vector2(0.7, 0.86)
 
 [sub_resource type="Resource" id="N9"]
 script = ExtResource("2")
@@ -133,11 +133,25 @@ PrerequisiteNodeIDs = PackedStringArray("tesla_long_blink")
 AbilityModifierKey = "wardenclyffe_shield"
 Tier = 3
 GatedAbilityID = "special1"
-LayoutPosition = Vector2(0.88, 0.5)
+LayoutPosition = Vector2(0.72, 0.5)
+
+[sub_resource type="Resource" id="N10"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "tesla_world_system"
+DisplayNameKey = "resonance_tesla_world_system_name"
+DescriptionKey = "resonance_tesla_world_system_description"
+Type = 1
+UnlockCost = 375
+PrerequisiteNodeIDs = PackedStringArray("tesla_resonant_overdrive", "tesla_lorentz_attraction")
+AbilityModifierKey = "world_system"
+Tier = 4
+GatedAbilityID = "special2"
+LayoutPosition = Vector2(0.93, 0.5)
 
 [resource]
 script = ExtResource("1")
 SchemaVersion = 2
 GridID = "tesla_resonance_grid"
 CharacterID = "tesla"
-Nodes = Array[ExtResource("2")]([SubResource("N1"), SubResource("N2"), SubResource("N3"), SubResource("N4"), SubResource("N5"), SubResource("N6"), SubResource("N7"), SubResource("N8"), SubResource("N9")])
+Nodes = Array[ExtResource("2")]([SubResource("N1"), SubResource("N2"), SubResource("N3"), SubResource("N4"), SubResource("N5"), SubResource("N6"), SubResource("N7"), SubResource("N8"), SubResource("N9"), SubResource("N10")])

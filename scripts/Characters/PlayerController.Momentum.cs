@@ -96,6 +96,7 @@ namespace FTT.Characters {
 		/// cooldown ticks so it shares their pauses. Plan P3: it reads no cooldown multiplier.
 		/// </summary>
 		private void RegenMomentum(float dt) {
+			StepCapstones();
 			if (MomentumPips >= BasicComboRules.MomentumMaxPips) return;
 			float pipsPerSecond = 60f / BasicComboRules.MomentumRegenFramesPerPip;
 			MomentumPips = Godot.Mathf.Min(BasicComboRules.MomentumMaxPips,

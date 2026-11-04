@@ -365,6 +365,7 @@ namespace FTT.Characters.Abilities {
             // FighterKitMotion.RailCharge — it used to carry 600 px/s through the
             // 18 recovery frames, about 180 px past the authored 300.
             if (Owner != null) Owner.Velocity = new Vector2(0f, Owner.Velocity.Y);
+            if (Owner.HasStoryPerk(CapstoneRules.EmancipationPerkKey)) StartEmancipationWave();
             FTT.Core.EventBus.Instance?.RaiseMovementAbilityUsed(new FTT.Core.MovementAbilityPayload {
                 PlayerIndex = Owner.PlayerIndex,
                 AbilityName = Data?.AbilityName ?? "Rail Charge",
@@ -373,7 +374,60 @@ namespace FTT.Characters.Abilities {
             });
         }
 
+        private readonly StoryGroundWave _emancipationWave = new();
+
+        /// <summary>The wave Emancipation leaves behind the charge (test seam).</summary>
+        public StoryGroundWave EmancipationWave => _emancipationWave;
+
+        /// <summary>
+        /// Emancipation (Story-only capstone): where the charge ends, a ground wave leaves its start and
+        /// rolls along the rail he rode, up to him and past him. It is a world object with its own clock.
+        /// </summary>
+        private void StartEmancipationWave() {
+            float travelled = Mathf.Abs(Owner.GlobalPosition.X - _startPosition.X);
+            _emancipationWave.Start(
+                Owner.GetWorld2D()?.DirectSpaceState, _startPosition, _chargeDirection.X >= 0f,
+                CapstoneRules.EmancipationWaveSpeedPixelsPerSecond,
+                travelled + CapstoneRules.EmancipationWaveOvershootPixels,
+                Data?.HitboxSize ?? new Vector2(60f, 50f), groundedOnly: true);
+        }
+
+        private void AdvanceEmancipationWave(double delta) {
+            if (!_emancipationWave.Active) return;
+            if (Owner == null || !IsInstanceValid(Owner)) {
+                _emancipationWave.Stop();
+                return;
+            }
+            uint targetHurtboxLayer = Owner.PlayerIndex == 0
+                ? FTT.Core.CollisionLayers.EnemyHurtbox
+                : FTT.Core.CollisionLayers.PlayerHurtbox;
+            _emancipationWave.Advance((float)delta, Owner.GetWorld2D()?.DirectSpaceState,
+                StoryShapeQuery.DeliveryMask(targetHurtboxLayer), Owner.PlayerIndex, StrikeWithEmancipationWave);
+        }
+
+        private void StrikeWithEmancipationWave(Hurtbox hurtbox, Vector2 front) {
+            HitPayload hit = Stamp(new HitPayload {
+                AttackerIndex = Owner.PlayerIndex,
+                AttackID = Data?.AbilityID ?? "lincoln_rail_charge",
+                HitboxID = "ground_wave",
+                AttackClass = AttackClass.Special,
+                Damage = Owner.StoryAbilityDamage(CapstoneRules.EmancipationWaveDamage, Data?.AbilityID),
+                Knockback = new Vector2(2f, 0f),
+                HitstunDuration = CapstoneRules.EmancipationWaveHitstunSeconds,
+                HitOrigin = front,
+                AttackerFacingRight = _emancipationWave.MovingRight,
+                AppliedStatus = FTT.Core.StatusType.None,
+                StatusDuration = 0f,
+                StatusIntensity = 1f,
+                ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.2f,
+                ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
+            });
+            float dealt = hurtbox.TakeHit(hit);
+            Credit(hurtbox, in hit, dealt, front);
+        }
+
         public override void _PhysicsProcess(double delta) {
+            AdvanceEmancipationWave(delta);
             // F5: the charge and its contacts hold with the frozen caster.
             if (CastClockSuspended) return;
             if (CurrentPhase == AbilityPhase.Active) {

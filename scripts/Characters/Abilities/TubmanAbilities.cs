@@ -314,6 +314,11 @@ namespace FTT.Characters.Abilities {
             _sidestepFrames = TubmanKitRules.ForesightSidestepFrames;
             // The answer lands on the next tick, after the caught hit resolves.
             _answerDelayFrames = 1;
+            if (Owner.HasStoryPerk(CapstoneRules.FreedomLinePerkKey)) {
+                // Freedom Line (Story-only capstone): the counter itself pays, whether or not the answer reaches anyone.
+                Owner.RefundMomentumPip();
+                Owner.GrantResonanceBarrier(StoryShieldEffect.FreedomLine, CountersLanded);
+            }
             AdvanceToRecovery();
             return true;
         }
