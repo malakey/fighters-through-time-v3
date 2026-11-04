@@ -111,7 +111,7 @@ public class OptionalRouteReachTests {
 
     /// <summary>Relativity Warp stops at an Environment wall: a shortcut can never rely on folding through one.</summary>
     [TestCase]
-    public async Task EinsteinsWarpStopsShortOfAWallAndPassesAOneWay() {
+    public async Task EinsteinsWarpStopsShortOfAWall() {
         var tree = (SceneTree)Engine.GetMainLoop();
         Node2D world = Floor(tree, wallAtX: 120f);
         PlayerController hero = await Spawn(tree, "einstein");
