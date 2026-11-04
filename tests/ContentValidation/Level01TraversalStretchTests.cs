@@ -164,14 +164,15 @@ public class Level01TraversalStretchTests {
             int wallet = StoryManager.Instance.ChronalDustCollected;
             int pickupsBefore = CountPickups(tree);
 
-            // Walking: safe in a spike strip.
+            // Walking: safe in a spike strip. It starts at the strip's east end and walks west, toward the hero.
             EnemyController walker = fodder[0];
-            walker.GlobalPosition = new Vector2(9540f, 880f);
+            walker.GlobalPosition = new Vector2(9570f, 880f);
             for (int frame = 0; frame < 8; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
             AssertThat(walker.CurrentState == EnemyState.Dead).OverrideFailureMessage("A walking mob died in a spike strip.").IsFalse();
+            AssertThat(walker.GlobalPosition.X > 9520f && walker.GlobalPosition.X < 9580f)
+                .OverrideFailureMessage($"The walker left the strip before its launch: {walker.GlobalPosition}.").IsTrue();
 
-            // Launched from inside that strip: no BodyEntered will come, and it still dies.
-            walker.GlobalPosition = new Vector2(9540f, 880f);
+            // Launched from where it stands, inside that strip: no BodyEntered will come, and it still dies.
             walker.LaunchThrown(new Vector2(0f, -120f), 0, 0);
             await AssertDiesByHazard(tree, walker, "launched from inside the spike strip");
 
