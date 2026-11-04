@@ -1,0 +1,18 @@
+# Fighter CPU matrix tool: config for tests/Tools/FighterMatrixMeasureTests.cs.
+# Copy this file anywhere, edit it, and point FTT_MATRIX at the copy (see README.md).
+# Lines starting with # and blank lines are ignored. One key=value per line.
+
+# Stage: Florence, Paris, Nassau or Vesuvius (extend the switch in the test for more)
+stage=Florence
+# CPU band for both fighters: Easy, Medium or Hard (the CpuDifficulty names)
+diff=Hard
+# Seeds per hero pair: seedfrom is the first offset, seeds how many follow it
+seedfrom=0
+seeds=4
+# The 81 hero pairs are numbered row-major over the nine heroes (pair / 9 is player 1, pair % 9 player 2);
+# pairfrom is the first, pairs how many to play (81 is all of them)
+pairfrom=0
+pairs=81
+# CSV output, relative to this file's folder; rows are appended, so a run can be split over several calls.
+# progress.log is written beside it.
+out=matches.csv

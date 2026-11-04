@@ -719,7 +719,7 @@ public class FighterCpuHitstunDefenseTests {
 
     [TestCase]
     public void TheDefyReflexWinsItsTickOverTheBlockHoldAndTheHoldResumesAfterIt() {
-        // Meter and Defy update (O23): a Hard CPU holding Block through every hitstun still Defies on
+        // Meter and Defy update (O23): a Hard CPU (60 Influence: under its 70 reserve) holding Block through every hitstun still Defies on
         // the tick the second hit of a string opens, with Defy alone on that frame (an exclusive
         // press, like the hold itself), and the Block hold carries on the tick after.
         CpuBandTuning tuning = CpuBandTuning.Hard with {
@@ -731,7 +731,7 @@ public class FighterCpuHitstunDefenseTests {
         for (int hit = 0; hit < 2; hit++) {
             for (int hitstun = 20; hitstun >= 1; hitstun--) {
                 CpuDecisionObservation observation = HitstunObservation(hitstun);
-                observation.InfluenceRaw = FP64.FromInt(100).RawValue;
+                observation.InfluenceRaw = FP64.FromInt(60).RawValue;
                 int index = hit * 40 + (20 - hitstun);
                 PlayerInputFrame frame = cpu.Sample(Tick(0, index), in observation, in previous);
                 previous = frame;
@@ -748,7 +748,7 @@ public class FighterCpuHitstunDefenseTests {
             }
             for (int rest = 0; rest < 4; rest++) {
                 CpuDecisionObservation observation = HitstunObservation(0);
-                observation.InfluenceRaw = FP64.FromInt(100).RawValue;
+                observation.InfluenceRaw = FP64.FromInt(60).RawValue;
                 previous = cpu.Sample(Tick(0, 20 + hit * 40 + rest), in observation, in previous);
             }
         }
