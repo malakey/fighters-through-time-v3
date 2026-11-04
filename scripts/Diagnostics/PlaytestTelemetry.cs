@@ -1781,14 +1781,14 @@ namespace FTT.Diagnostics {
         /// <summary>This run's <c>rank</c> block, read from <see cref="StoryManager"/>.</summary>
         public Dictionary<string, object> RankReport() {
             StoryManager story = StoryManager.Instance;
-            return RankBlock(story?.LastLevelRank, story?.LastLevelRankBonusDust ?? 0, story?.RankBaseDamage ?? 0f, story?.RankHits ?? 0);
+            return RankBlock(story?.LastLevelRank, story?.LastLevelRankBonusDust ?? 0);
         }
 
         /// <summary>
         /// The <c>rank</c> block: the letter, points, the two scores and the dust paid, from the level's
-        /// own rank result (no result before the level completes, or on Level 0), and the attempt's tally.
+        /// own rank result (no result before the level completes, or on Level 0).
         /// </summary>
-        public static Dictionary<string, object> RankBlock(LevelRankResult? rank, int dustPaid, float baseDamage, int hits) =>
+        public static Dictionary<string, object> RankBlock(LevelRankResult? rank, int dustPaid) =>
             new() {
                 ["letter"] = rank?.Letter.ToString(),
                 ["points"] = rank.HasValue ? Math.Round(rank.Value.Points, 1) : -1.0,
@@ -1797,9 +1797,7 @@ namespace FTT.Diagnostics {
                 ["damage_percent"] = rank?.DamagePercent ?? -1,
                 // -1 on Level 1, which has no clock (LevelRankRules.SpeedPercentUntimed), as well as with no result.
                 ["speed_score"] = rank?.SpeedPercent ?? -1,
-                ["dust_paid"] = dustPaid,
-                ["base_damage"] = Math.Round(baseDamage, 1),
-                ["hits"] = hits
+                ["dust_paid"] = dustPaid
             };
 
         /// <summary>The runner's one-line <c>PLAYTEST_RESULT</c> combat summary.</summary>
