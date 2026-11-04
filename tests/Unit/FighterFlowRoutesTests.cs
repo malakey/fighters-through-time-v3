@@ -89,6 +89,29 @@ public class FighterFlowRoutesTests {
         AssertThat(session.FighterMatchOrigin).IsEqual(FighterMatchOrigin.LocalVersus);
     }
 
+    /// <summary>GR-TRAIN (9c): the training room leaves the way the Holodeck does, and its origin ends with the visit.</summary>
+    [TestCase]
+    public void TrainingLeavesByTheHolodeckRouteAndEndsItsOrigin() {
+        var session = new SessionData { FighterMatchOrigin = FighterMatchOrigin.Training };
+        AssertThat(session.ReturnToHubAfterFighterMatch).IsFalse();
+        AssertThat((int)FighterMatchOrigin.Training).IsEqual(4);
+        AssertThat(FighterFlowRoutes.ResultsActions(FighterMatchOrigin.Training).ToArray())
+            .IsEqual(FighterFlowRoutes.ResultsActions(FighterMatchOrigin.Holodeck).ToArray());
+        AssertThat(FighterFlowRoutes.ResultsLabelKey(FighterResultsAction.Exit, FighterMatchOrigin.Training))
+            .IsEqual("fighter_return_to_ship");
+        AssertThat(FighterFlowRoutes.SelectBack(FighterMatchOrigin.Training)).IsEqual(FighterFlowRoutes.HubScenePath);
+
+        SessionData paused = session;
+        AssertThat(FighterFlowRoutes.PauseExit(ref paused)).IsEqual(FighterFlowRoutes.HubScenePath);
+        AssertThat(paused.ArriveAtHolodeckConsole).IsTrue();
+        AssertThat(paused.FighterMatchOrigin).IsEqual(FighterMatchOrigin.LocalVersus);
+
+        SessionData ship = session;
+        AssertThat(FighterFlowRoutes.ResultsDestination(FighterResultsAction.Exit, ref ship))
+            .IsEqual(FighterFlowRoutes.HubScenePath);
+        AssertThat(ship.FighterMatchOrigin).IsEqual(FighterMatchOrigin.LocalVersus);
+    }
+
     [TestCase]
     public void TheResultsScreenBuildsTheButtonsItsOriginCallsFor() {
         GameManager manager = GameManager.Instance;

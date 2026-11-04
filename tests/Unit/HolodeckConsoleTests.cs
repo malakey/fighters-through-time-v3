@@ -123,6 +123,47 @@ public class HolodeckConsoleTests {
         }
     }
 
+    /// <summary>
+    /// GR-TRAIN (9c, ruling Q5): the third entry sits in the hub console only, never in the front-end Versus CPU panel, and
+    /// its route marks the session as a training visit while leaving the save slot, difficulty and match settings alone.
+    /// </summary>
+    [TestCase]
+    public void TheHubConsoleGainsATrainingRoomEntryTheFrontEndDoesNotAndItsRouteTouchesOnlyTheOrigin() {
+        GameManager gameManager = GameManager.Instance;
+        AssertObject(gameManager).IsNotNull();
+        SessionData savedSession = gameManager.CurrentSession;
+        (Node host, HolodeckConsolePanel panel) = CreatePanel("HolodeckTrainingEntryHost");
+        Node frontHost = null;
+        try {
+            var training = panel.GetNodeOrNull<Button>("Center/Tagged/Panel/Layout/TrainingRoomButton");
+            AssertThat(training != null).OverrideFailureMessage("The console has no Training Room entry").IsTrue();
+            AssertThat(training.Text).IsNotEqual("holodeck_training_room");
+            AssertThat(training.FocusMode).IsEqual(Control.FocusModeEnum.All);
+            AssertThat(panel.GetNodeOrNull<Button>("Center/Tagged/Panel/Layout/CalibrationDrillsButton") != null).IsTrue();
+
+            frontHost = new Node { Name = "HolodeckFrontEndHost" };
+            ((SceneTree)Engine.GetMainLoop()).Root.AddChild(frontHost);
+            var front = new HolodeckConsolePanel { Name = "HolodeckConsolePanel", FrontEnd = true };
+            frontHost.AddChild(front);
+            AssertThat(front.GetNodeOrNull<Button>("Center/Tagged/Panel/Layout/TrainingRoomButton") == null).IsTrue();
+
+            SessionData before = gameManager.CurrentSession;
+            string scene = HolodeckConsolePanel.ApplyTrainingRouteToSession();
+            AssertThat(scene).IsEqual(TrainingRoom.ScenePath);
+            AssertThat(ResourceLoader.Exists(scene)).IsTrue();
+            SessionData after = gameManager.CurrentSession;
+            AssertThat(after.FighterMatchOrigin).IsEqual(FighterMatchOrigin.Training);
+            AssertThat(after.ActiveSaveSlot).IsEqual(before.ActiveSaveSlot);
+            AssertThat(after.SelectedCharacterID).IsEqual(before.SelectedCharacterID);
+            AssertThat(after.MatchSettings.StockCount).IsEqual(before.MatchSettings.StockCount);
+            AssertThat(after.CalibrationReturnScenePath).IsEqual("");
+        } finally {
+            host.Free();
+            if (frontHost != null) frontHost.Free();
+            gameManager.CurrentSession = savedSession;
+        }
+    }
+
     [TestCase]
     public void TheBackButtonClosesWithoutTouchingTheSession() {
         GameManager gameManager = GameManager.Instance;

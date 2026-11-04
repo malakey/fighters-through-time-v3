@@ -52,7 +52,7 @@ public class MenuLayoutBoundsTests {
     /// <summary>The surfaces whose safe-area fit reserves the room the prompt bar takes (TG-CLOSE).</summary>
     private static readonly HashSet<string> ClearsPromptBar = new() {
         "Settings", "MoveList", "SystemsCard", "ResonanceGrid", "GameOver", "LevelResults", "LocalFighterPause",
-        "StoryPause", "HolodeckConsole", "HolodeckConsoleFrontEnd", "TimelineRestart", "DialogueLog",
+        "StoryPause", "HolodeckConsole", "HolodeckConsoleFrontEnd", "TrainingRoomPanel", "TimelineRestart", "DialogueLog",
     };
 
     private sealed class Surface {
@@ -360,6 +360,11 @@ public class MenuLayoutBoundsTests {
         yield return new Surface {
             Name = "HolodeckConsoleFrontEnd",
             Build = () => new HolodeckConsolePanel { Name = "HolodeckConsolePanel", FrontEnd = true }
+        };
+        yield return new Surface {
+            // GR-TRAIN (9c): the training room's settings menu, a centred slab clear of the prompt bar like the console.
+            Name = "TrainingRoomPanel",
+            Build = () => new TrainingRoomPanel { Name = "TrainingRoomPanel" }
         };
         yield return new Surface {
             Name = "TimelineRestart",
