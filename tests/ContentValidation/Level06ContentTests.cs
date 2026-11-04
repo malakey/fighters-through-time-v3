@@ -698,8 +698,12 @@ public class Level06ContentTests {
             await LevelLockTestKit.Frames(1);
             AssertThat(await LevelLockTestKit.ClearByForce(road)).IsTrue();
             heroX = hero.GlobalPosition.X;
-            AssertThat(heroX < Level06Controller.EscapeStartX + EncounterLockReach.HeroHalfWidthPixels)
-                .OverrideFailureMessage($"The hero stands at {heroX}, not inside the old floor's reach.").IsTrue();
+            // GR-LV2: the carve moved this barrier east of the old floor's reach, so the case
+            // pins the rule directly as well: a start is never floored at the authored one.
+            AssertThat(heroX < road.Area.Position.X + 2f * EncounterLockReach.HeroHalfWidthPixels + 8f)
+                .OverrideFailureMessage($"The hero stands at {heroX}, not against the entry barrier.").IsTrue();
+            AssertThat(Level06Controller.EscapeStartFor(Level06Controller.EscapeStartX))
+                .IsEqual(Level06Controller.EscapeStartX - Level06Controller.EscapeHeadStartPixels);
             EscapeSequenceController escape = level.Escape;
             AssertThat(escape.IsRunning).IsTrue();
             AssertFloat(escape.StartX)

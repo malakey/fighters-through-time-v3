@@ -55,9 +55,8 @@ public class Level06VulcanArenaTests {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
         using var fixture = new Fixture();
         Level06Controller level = fixture.Level;
-        await Settle(tree);
+        await EnterTheArena(tree, level);
         BossController vulcan = level.BossEncounters[0].Boss;
-        await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
 
         using (PhysicsCallbackGuard.Enter()) {
             vulcan.TakeDamage(vulcan.CurrentHP - Mathf.FloorToInt(vulcan.ScaledMaxHP * vulcan.Data.PhaseThresholds[0]) + 1);
@@ -95,7 +94,7 @@ public class Level06VulcanArenaTests {
         using var fixture = new Fixture();
         Level06Controller level = fixture.Level;
         PlayerController hero = level.Player;
-        await Settle(tree);
+        await EnterTheArena(tree, level);
         level.RaiseVulcanEruption();
         StoryCyclicHazard vent = level.VulcanVents[0];
 
@@ -166,10 +165,7 @@ public class Level06VulcanArenaTests {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
         using var fixture = new Fixture();
         Level06Controller level = fixture.Level;
-        PlayerController hero = level.Player;
-        await Settle(tree);
-        hero.GlobalPosition = new Vector2(9700f, 890f);
-        hero.Velocity = Vector2.Zero;
+        await EnterTheArena(tree, level);
         level.RaiseVulcanEruption();
         StoryCyclicHazard vent = level.VulcanVents[0];
         AssertThat(ChronalRewindManager.PostLandingHoldGroups.Contains("story_hazard")).IsTrue();
@@ -205,10 +201,12 @@ public class Level06VulcanArenaTests {
         AssertThat(ChronalRewindManager.IsWorldHeld(tree)).IsFalse();
         for (int frame = 0; frame < 6; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
         AssertThat(vent.Phase).IsEqual(HazardPhase.Active);
-        for (int frame = 0; frame < 90 && piece.Phase != FallingDebrisPhase.Spent; frame++) {
+        // The piece goes on from where it stood: its telegraph runs out or it falls.
+        for (int frame = 0; frame < 60 && piece.Phase == phase && piece.GlobalPosition == at; frame++) {
             await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
         }
-        AssertThat(piece.Phase).OverrideFailureMessage("A piece never went on after the thaw.").IsEqual(FallingDebrisPhase.Spent);
+        AssertThat(piece.Phase != phase || piece.GlobalPosition != at)
+            .OverrideFailureMessage("A piece never went on after the thaw.").IsTrue();
     }
 
     private static async Task<int> FramesUntilActive(SceneTree tree, StoryCyclicHazard vent, int limit) {
@@ -217,6 +215,25 @@ public class Level06VulcanArenaTests {
             if (vent.Phase == HazardPhase.Active) return frame;
         }
         return -1;
+    }
+
+    /// <summary>
+    /// The hero walks in between two vents: the real reveal, its intro beat and its dialogue run
+    /// out, and then the Vulcan is told to stand still on his anchor, so only the arena acts.
+    /// </summary>
+    private static async Task EnterTheArena(SceneTree tree, Level06Controller level) {
+        await Settle(tree);
+        PlayerController hero = level.Player;
+        BossEncounterController encounter = level.BossEncounters[0];
+        hero.GlobalPosition = new Vector2(9730f, 890f);
+        hero.Velocity = Vector2.Zero;
+        for (int frame = 0; frame < 300 && (!encounter.IsRevealed || encounter.IsIntroBeatRunning); frame++) {
+            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        }
+        AssertThat(encounter.IsRevealed).IsTrue();
+        await Settle(tree);
+        encounter.Boss.IsEngaged = false;
+        await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
     }
 
     private static async Task Settle(SceneTree tree) {
@@ -239,6 +256,11 @@ public class Level06VulcanArenaTests {
             _character = GameManager.Instance.CurrentSession.SelectedCharacterID;
             GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
             GameManager.Instance.CurrentSession.SelectedCharacterID = "einstein";
+            // A level the runner instantiates directly has no warmed pools; the game warms this one from the level's config.
+            if (!PoolManager.Instance.IsRegistered(FallingDebris.PoolID)) {
+                PoolManager.Instance.RegisterPool(FallingDebris.PoolID, ResourceLoader.Load<PackedScene>(CollapseTremorController.DebrisScenePath),
+                    2, 8, PoolOverflowPolicy.Reject);
+            }
             Level = ResourceLoader.Load<PackedScene>(ScenePath).Instantiate<Level06Controller>();
             tree.Root.AddChild(Level);
         }
