@@ -314,7 +314,7 @@ namespace FTT.Environment {
 
         /// <summary>From the seawall's exit barrier to the Lantern Watch's entry barrier.</summary>
         public const float BeachRunMinX = SeawallLockMaxX + BarrierWidth;
-        public const float BeachRunMaxX = LanternWatchLockMinX - BarrierWidth * 0.5f;
+        public const float BeachRunMaxX = LanternWatchLockMinX - BarrierWidth;
         public const float BeachRunWestDeckEndX = 2060f;
         public const float BeachRunEastDeckStartX = 2880f;
 
@@ -761,9 +761,9 @@ namespace FTT.Environment {
 
         /// <summary>The three beams: x, sweep period and arc. Deliberately desynced, as the Lantern Watch's are.</summary>
         public static readonly (string ID, float X, float PeriodSeconds, float ArcDegrees)[] GeneralLanternPlan = {
-            ("level_09.general_lantern_a", 9180f, 4.7f, 36f),
+            ("level_09.general_lantern_a", 9180f, 4.7f, 30f),
             ("level_09.general_lantern_b", 9720f, 5.9f, 30f),
-            ("level_09.general_lantern_c", 10230f, 3.8f, 36f)
+            ("level_09.general_lantern_c", 10230f, 5.3f, 30f)
         };
 
         /// <summary>The lanterns' y: the cone's 520 px depth ends on the deck.</summary>

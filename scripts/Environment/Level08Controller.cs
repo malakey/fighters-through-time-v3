@@ -376,9 +376,9 @@ namespace FTT.Environment {
 
             OptionalRoute obelisk = BeginOptionalRoute(ObeliskRouteID, ExtractorPlacements[0].ID,
                 ExtractorPlacements[0].Position, middleStep);
-            BuildRouteStep(obelisk, 2510, 330, 120);
-            TraversalSurface burstFrom = BuildRouteStep(obelisk, 2290, 220, 160);
-            BuildRouteStep(obelisk, 2540, 120, 180);
+            BuildRouteStep(obelisk, 2560, 330, 120);
+            TraversalSurface burstFrom = BuildRouteStep(obelisk, 2340, 220, 160);
+            BuildRouteStep(obelisk, 2590, 120, 180);
             TraversalSurface end = BuildRouteStep(obelisk, ObeliskLineEndX, 120, 220);
             obelisk.MarkBurstShortcut(burstFrom, end);
             obelisk.MarkRiseShortcut(eastStep, end);

@@ -66,7 +66,7 @@ namespace FTT.Environment {
     /// stays what it was, and no rope was added. Its optional route, the Crane Line, ends
     /// at the level's secret. The quay lock takes the swarm row. Past the quay nothing moved.</para>
     ///
-    /// <para><b>The Admiral's list</b> (ruling 14): at his Phase 2 two sloped deck slabs rise
+    /// <para><b>The Admiral's list</b> (ruling 14): at his Phase 2 one long sloped slab rises
     /// over the flagship's stepped deck and loose cannonballs start rolling down it.</para>
     /// </summary>
     public partial class Level07Controller : StoryLevelControllerBase {
@@ -246,8 +246,8 @@ namespace FTT.Environment {
         /// <summary>East end of the flagship's west deck (the first listing ramp starts beyond it).</summary>
         public const float FlagshipWestDeckEndX = Room4StartX + 720f;
         /// <summary>The flagship's mid deck, between the two listing ramps.</summary>
-        private const float FlagshipMidDeckWestX = 9380f;
-        private const float FlagshipMidDeckEndX = FlagshipMidDeckWestX + 640f;
+        public const float FlagshipMidDeckWestX = 9380f;
+        public const float FlagshipMidDeckEndX = FlagshipMidDeckWestX + 640f;
         private const float FlagshipEastDeckWestX = 10180f;
 
         /// <summary>
@@ -717,58 +717,54 @@ namespace FTT.Environment {
 
         // === GR-LV3 (ruling 14): the Dread Admiral's list ====================
         //
-        // Design §6: "deck lists, loose cannonballs roll". No tilt physics: two static slabs, built
+        // Design §6: "deck lists, loose cannonballs roll". No tilt physics: one static slab, built
         // disabled so no collision body is created mid-fight, and two scripted balls with their own
         // hurt triggers. His loose_cannon_roll stays (ruling 4a): the kit is not retuned.
 
         /// <summary>
-        /// The listed deck's two slabs, by their joints: west deck corner to mid deck corner, mid
-        /// deck corner to the stern wall's foot. So the deck falls 880 -> 920 -> 960 in one line, at
-        /// 2.9° and 4.1°, with the 12° ramps under it. The first slab starts west of the arena:
-        /// its high joint has to be the west deck's corner, or it would leave a riser.
+        /// The listed deck's slab, by its joints: from the west deck's corner to the stern wall's
+        /// foot, 3.4°, over the 12° ramps. One slab, because two would leave a lip where the first
+        /// runs on past their joint (0.34 px measured, and that stops a walker). It starts west of
+        /// the arena: its high joint has to be the west deck's corner, or it would leave a riser.
+        /// The mid deck's east end stands a few px proud of it, which is walkable both ways.
         /// </summary>
-        public static readonly (Vector2 Low, Vector2 High)[] ListedDeckJoints = {
-            (new Vector2(FlagshipMidDeckEndX, ListDeckMidY), new Vector2(FlagshipWestDeckEndX, ListDeckWestY)),
-            (new Vector2(LevelWidth - 20f, ListDeckEastY), new Vector2(FlagshipMidDeckEndX, ListDeckMidY))
-        };
+        public static readonly Vector2 ListedDeckHighJoint = new(FlagshipWestDeckEndX, ListDeckWestY);
+        public static readonly Vector2 ListedDeckLowJoint = new(LevelWidth - 20f, ListDeckEastY);
 
         /// <summary>The balls' rail, inside the arena's west edge, and the end of their roll, short of the stern wall.</summary>
         public const float CannonballRailX = BossArenaWestX + 60f;
         public const float CannonballEndX = LevelWidth - 60f;
 
-        private readonly List<StaticBody2D> _listedDeckSlabs = new();
-        private readonly List<CollisionShape2D> _listedDeckShapes = new();
+        private StaticBody2D _listedDeckSlab;
+        private CollisionShape2D _listedDeckShape;
         private readonly List<RollingCannonball> _cannonballs = new();
 
         /// <summary>True once Phase 2 has listed the deck. The list stays; the balls stop when he falls.</summary>
         public bool AdmiralDeckListed { get; private set; }
-        public IReadOnlyList<StaticBody2D> ListedDeckSlabs => _listedDeckSlabs;
+        public StaticBody2D ListedDeckSlab => _listedDeckSlab;
+        public CollisionShape2D ListedDeckShape => _listedDeckShape;
         public IReadOnlyList<RollingCannonball> Cannonballs => _cannonballs;
 
-        /// <summary>The top of the listed deck at <paramref name="x"/>, flat past either end.</summary>
+        /// <summary>The top of the listed deck at <paramref name="x"/>: the slab, or the old deck where that stands higher.</summary>
         public static float ListedDeckTopAt(float x) {
-            foreach ((Vector2 low, Vector2 high) in ListedDeckJoints) {
-                if (x > low.X) continue;
-                float along = Mathf.Clamp((x - high.X) / (low.X - high.X), 0f, 1f);
-                return Mathf.Lerp(high.Y, low.Y, along);
-            }
-            return ListDeckEastY;
+            float along = Mathf.Clamp((x - ListedDeckHighJoint.X) / (ListedDeckLowJoint.X - ListedDeckHighJoint.X), 0f, 1f);
+            float slab = Mathf.Lerp(ListedDeckHighJoint.Y, ListedDeckLowJoint.Y, along);
+            if (x < FlagshipMidDeckWestX || x >= ListingRampJoints[1].Low.X) return slab;
+            float oldDeck = x <= FlagshipMidDeckEndX
+                ? ListDeckMidY
+                : Mathf.Lerp(ListDeckMidY, ListDeckEastY, (x - FlagshipMidDeckEndX) / (ListingRampJoints[1].Low.X - FlagshipMidDeckEndX));
+            return Mathf.Min(slab, oldDeck);
         }
 
         private void BuildAdmiralList() {
-            foreach ((Vector2 low, Vector2 high) in ListedDeckJoints) {
-                StaticBody2D slab = BuildRampBetweenJoints(low, high, ListRampColor);
-                slab.Visible = false;
-                Godot.Collections.Array<Node> children = slab.GetChildren();
-                using var lifetime = children.AsDisposable();
-                foreach (Node child in children) {
-                    if (child is CollisionShape2D shape) {
-                        shape.Disabled = true;
-                        _listedDeckShapes.Add(shape);
-                    }
-                }
-                _listedDeckSlabs.Add(slab);
+            _listedDeckSlab = BuildRampBetweenJoints(ListedDeckLowJoint, ListedDeckHighJoint, ListRampColor);
+            _listedDeckSlab.Visible = false;
+            Godot.Collections.Array<Node> children = _listedDeckSlab.GetChildren();
+            using var lifetime = children.AsDisposable();
+            foreach (Node child in children) {
+                if (child is CollisionShape2D shape) _listedDeckShape = shape;
             }
+            _listedDeckShape.Disabled = true;
             _cannonballs.Add(RollingCannonball.Create("level_07.cannonball_a", CannonballRailX, CannonballEndX, 300f, 1f, 2.5f, 14, ListedDeckTopAt));
             _cannonballs.Add(RollingCannonball.Create("level_07.cannonball_b", CannonballRailX, CannonballEndX, 240f, 1f, 3.5f, 14, ListedDeckTopAt));
             foreach (RollingCannonball ball in _cannonballs) AddChild(ball);
@@ -783,15 +779,15 @@ namespace FTT.Environment {
         }
 
         /// <summary>
-        /// Raises the slabs under whoever stands on the deck and starts the balls: the first on
+        /// Raises the slab under whoever stands on the deck and starts the balls: the first on
         /// its warning, the second after a cooldown, so they never roll together. Idempotent;
         /// public as a test seam.
         /// </summary>
         public void ListAdmiralDeck() {
-            if (AdmiralDeckListed || IsBossDefeated || _listedDeckSlabs.Count == 0) return;
+            if (AdmiralDeckListed || IsBossDefeated || _listedDeckSlab == null) return;
             AdmiralDeckListed = true;
-            foreach (StaticBody2D slab in _listedDeckSlabs) slab.Visible = true;
-            foreach (CollisionShape2D shape in _listedDeckShapes) shape.Disabled = false;
+            _listedDeckSlab.Visible = true;
+            _listedDeckShape.Disabled = false;
             LiftOntoListedDeck(Player);
             foreach (BossEncounterController encounter in BossEncounters) LiftOntoListedDeck(encounter.Boss);
 
@@ -801,7 +797,7 @@ namespace FTT.Environment {
             if (!held) _cannonballs[0].ForcePhase(HazardPhase.Warning, _cannonballs[0].WarningDuration);
         }
 
-        /// <summary>A slab rises up to 31 px over the old deck: a body standing there goes on top, not inside.</summary>
+        /// <summary>The slab rises up to 29 px over the old deck: a body standing there goes on top, not inside.</summary>
         private void LiftOntoListedDeck(CharacterBody2D body) {
             if (body == null || !IsInstanceValid(body)) return;
             float x = body.GlobalPosition.X;
