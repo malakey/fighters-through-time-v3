@@ -47,8 +47,12 @@ namespace FTT.Combat {
         /// </summary>
         public bool PiercesTargets { get; set; }
 
-        /// <summary>A synced bolt: spent on its first landed contact, with no burst. Cleared on despawn.</summary>
-        public bool StopsOnLandedContact { get; set; }
+        /// <summary>
+        /// A synced bolt: spent on its first resolved contact, with no burst - a landed hit, or any contact with a
+        /// character (blocked, refused, warded), as the sim's bolt is destroyed after any resolved contact
+        /// (<c>PROVISIONAL-LEONARDO-PLAIN-BOLT-STOPS</c>). Cleared on despawn.
+        /// </summary>
+        public bool StopsOnResolvedContact { get; set; }
 
         /// <summary>
         /// Package 13 W7a (L03): aims the shot straight along an arbitrary
@@ -289,16 +293,18 @@ namespace FTT.Combat {
         }
 
         private void OnHitConfirmed(HitPayload payload, float damageApplied) {
-            // A construct's own hurtbox sits on the muzzle and refuses the owner's shot: only a contact
-            // that landed spends the bolt.
+            // A construct's own hurtbox sits on the muzzle and refuses the owner's shot, so that contact spends
+            // nothing; a landed hit or any contact with a character (a block, a ward) is resolved, as in the sim.
             bool landed = payload.ContactLanded || damageApplied > 0f;
+            Node struck = _hitbox?.LastContactHurtbox?.GetParent();
+            bool resolved = landed || struck is FTT.Characters.PlayerController || struck is FTT.Enemies.EnemyController || struck is FTT.Enemies.BossController;
             if (PiercesTargets) {
                 // A pierced contact keeps the strike's rules and pays no second strike's Momentum.
                 if (landed) _hitbox.HitboxID = ConstructStrikes.TurretPiercedBoltHitboxID;
                 return;
             }
-            if (StopsOnLandedContact && landed) {
-                StopsOnLandedContact = false;
+            if (StopsOnResolvedContact && resolved) {
+                StopsOnResolvedContact = false;
                 _hitbox?.Deactivate();
                 ReturnToPool();
                 return;
@@ -391,7 +397,7 @@ namespace FTT.Combat {
             _arcGravity = 0f;
             DetonateOnImpact = false;
             PiercesTargets = false;
-            StopsOnLandedContact = false;
+            StopsOnResolvedContact = false;
             BurstsOnTerrain = false;
             StopsOnTerrain = false;
             Impacted = null;

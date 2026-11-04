@@ -2071,7 +2071,7 @@ namespace FTT.FighterSim {
 
         public static CpuBandTuning For(CpuDifficulty difficulty) => difficulty switch {
             CpuDifficulty.Easy => Easy,
-            CpuDifficulty.Hard => HardBoss,
+            CpuDifficulty.Hard => Hard,
             _ => Normal
         };
 

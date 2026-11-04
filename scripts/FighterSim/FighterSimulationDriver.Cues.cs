@@ -31,21 +31,57 @@ namespace FTT.FighterSim {
             && (phase == FighterBasicAttackRules.PhaseRecovery || phase == FighterBasicAttackRules.PhaseChainHold)
             && (attackFlags & FighterBasicAttackRules.FlagHitResolved) == 0;
 
+        // GR-INTEG: a per-cue, per-player WATERMARK of the highest sim tick whose edge already played. An edge
+        // at tick T plays only if T is above the watermark, and a rollback correction never lowers it, so a
+        // corrected timeline that re-presents HP 100, 90, 100, 90 (or a lowered and re-risen perfect-block
+        // count) cannot sound the same event twice once the presenter's throttle has elapsed. Limit: a genuine
+        // event at or below the watermark in a corrected timeline is suppressed once. Presentation only.
+        internal const int CueKindHit = 0;
+        internal const int CueKindBlock = 1;
+        internal const int CueKindPerfectBlock = 2;
+        internal const int CueKindSwingWhiff = 3;
+        private const int CueKindCount = 4;
+
+        private readonly int[] _cueWatermark = NewCueWatermarks();
+
+        /// <summary>Test seam: replaces the simulation tick the cue edges are stamped with.</summary>
+        internal int? CueTickOverrideForTesting { get; set; }
+
+        private static int[] NewCueWatermarks() {
+            var marks = new int[CueKindCount * 2];
+            System.Array.Fill(marks, int.MinValue);
+            return marks;
+        }
+
+        private void ResetCueWatermarks() => System.Array.Fill(_cueWatermark, int.MinValue);
+
+        /// <summary>True (and the watermark advances) when this cue's edge at the current tick has not played yet.</summary>
+        internal bool ClaimCue(int cueKind, int playerID) {
+            int tick = CueTickOverrideForTesting ?? CurrentTick;
+            int slot = cueKind * 2 + playerID;
+            if (tick <= _cueWatermark[slot]) return false;
+            _cueWatermark[slot] = tick;
+            return true;
+        }
+
         private void SyncSwingWhiffCue(int playerID, in FighterRuntimeComponent runtime) {
             int previous = _cuePreviousAttackPhase[playerID];
             _cuePreviousAttackPhase[playerID] = runtime.AttackPhase;
-            if (SwingWhiffStarts(previous, runtime.AttackPhase, runtime.AttackFlags)) {
+            if (SwingWhiffStarts(previous, runtime.AttackPhase, runtime.AttackFlags) && ClaimCue(CueKindSwingWhiff, playerID)) {
                 Cues?.Play(CoreMechanicCueIDs.SwingWhiff);
             }
         }
 
         /// <summary>The victim lost HP to something other than an active stage hazard.</summary>
-        private static void PlayHitCue() => Cues?.Play(CoreMechanicCueIDs.HitBasic);
+        internal void PlayHitCue(int playerID) {
+            if (ClaimCue(CueKindHit, playerID)) Cues?.Play(CoreMechanicCueIDs.HitBasic);
+        }
 
         /// <summary>An ordinary block or a guard break plays the ping; a perfect block the bright one.</summary>
-        private static void PlayBlockCue(FTT.Combat.BlockSparkKind kind) =>
-            Cues?.Play(kind == FTT.Combat.BlockSparkKind.Perfect
-                ? CoreMechanicCueIDs.PerfectBlock
-                : CoreMechanicCueIDs.Block);
+        internal void PlayBlockCue(FTT.Combat.BlockSparkKind kind, int playerID) {
+            bool perfect = kind == FTT.Combat.BlockSparkKind.Perfect;
+            if (!ClaimCue(perfect ? CueKindPerfectBlock : CueKindBlock, playerID)) return;
+            Cues?.Play(perfect ? CoreMechanicCueIDs.PerfectBlock : CoreMechanicCueIDs.Block);
+        }
     }
 }

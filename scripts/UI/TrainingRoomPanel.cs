@@ -147,6 +147,7 @@ namespace FTT.UI {
                 _hitstun.Select((int)Settings.Hitstun);
             }
             Visible = true;
+            PauseMenuBase.ExternalPauseOwnerActive = true;
             SceneTree tree = GetTree();
             if (tree != null && !tree.Paused) {
                 tree.Paused = true;
@@ -159,6 +160,7 @@ namespace FTT.UI {
         public void Close() {
             bool wasOpen = Visible;
             Visible = false;
+            PauseMenuBase.ExternalPauseOwnerActive = false;
             ReleasePause();
             if (wasOpen) InputManager.Instance?.ConsumeHeldPresses();
             Resumed?.Invoke();
@@ -171,7 +173,8 @@ namespace FTT.UI {
             if (tree != null) tree.Paused = false;
         }
 
-        public override void _UnhandledInput(InputEvent @event) {
+        // _Input rather than _UnhandledInput, so the press is spent before the driver's pause menu (also Always) can see it.
+        public override void _Input(InputEvent @event) {
             if (@event == null || !Visible) return;
             if (!@event.IsActionPressed("ui_cancel") && !@event.IsActionPressed(InputManager.Actions.Pause)) return;
             GetViewport()?.SetInputAsHandled();
@@ -179,6 +182,7 @@ namespace FTT.UI {
         }
 
         public override void _ExitTree() {
+            if (Visible) PauseMenuBase.ExternalPauseOwnerActive = false;
             ReleasePause();
         }
     }

@@ -72,6 +72,16 @@ public class CpuDefyPolicyTests {
     }
 
     [TestCase]
+    public void TheNormalHardConstructorKeepsTheReserveAndTheMirrorBandDoesNot() {
+        var fighter = new FighterCpuController(CpuDifficulty.Hard, 1);
+        AssertThat(fighter.Tuning.DefyReserveInfluence).OverrideFailureMessage("A Fighter Hard CPU keeps the Ultimate reserve.").IsEqual(70);
+        AssertThat(CpuBandTuning.For(CpuDifficulty.Hard).DefyReserveInfluence).IsEqual(70);
+        AssertThat(CpuBandTuning.BossOverride(CpuDifficulty.Hard).DefyReserveInfluence).OverrideFailureMessage("The Mirror clone has no reserve.").IsEqual(0);
+        var mirror = new FighterCpuController(CpuDifficulty.Hard, 1, null, null, CpuBandTuning.BossOverride(CpuDifficulty.Hard));
+        AssertThat(mirror.Tuning.DefyReserveInfluence).IsEqual(0);
+    }
+
+    [TestCase]
     public void HardDefiesWithoutARollOnASecondHitWithinTheStringGapAndNotAfterIt() {
         AssertThat(CpuBandTuning.Hard.DefyStringPercent).IsEqual(100);
         AssertThat(CpuBandTuning.Hard.DefyMinStringHits).IsEqual(2);

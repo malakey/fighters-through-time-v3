@@ -203,4 +203,62 @@ public class FighterCombatCueTests {
         AssertThat(FighterSimulationDriver.SwingWhiffStarts(recovery, active, 0)).IsFalse();
         AssertThat(FighterSimulationDriver.SwingWhiffStarts(recovery, recovery, 0)).IsFalse();
     }
+
+    /// <summary>
+    /// GR-INTEG: a rollback correction re-presents HP 100, 90, 100, 90 (and a lowered, re-risen perfect-block count).
+    /// Each cue keeps a per-player watermark of the highest sim tick that played, which a correction never lowers, so
+    /// the re-presented event stays silent even once the presenter's throttle has elapsed.
+    /// </summary>
+    [TestCase]
+    public void ACorrectedTimelineNeverReplaysACuePastTheThrottleWindow() {
+        if (InputManager.Instance == null) return;
+        Rig rig = NewRig("FighterCueWatermarkHost");
+        try {
+            FighterSimulationDriver driver = rig.Driver;
+            int Played() => rig.Cues.CuesPlayed;
+            int baseline = Played();
+
+            driver.CueTickOverrideForTesting = 500;
+            driver.PlayHitCue(1);                                  // HP 100 -> 90 at tick 500 sounds.
+            AssertThat(Played() - baseline).IsEqual(1);
+
+            // The correction removes the hit and re-adds it; the throttle has long elapsed each time.
+            foreach (int tick in new[] { 499, 500, 500, 498, 500 }) {
+                rig.Cues.Advance(5f);
+                driver.CueTickOverrideForTesting = tick;
+                driver.PlayHitCue(1);
+            }
+            AssertThat(Played() - baseline).OverrideFailureMessage("a corrected timeline replayed the hit").IsEqual(1);
+
+            // A genuinely later hit sounds, and so does the other fighter's at the old tick (per-player watermark).
+            rig.Cues.Advance(5f);
+            driver.CueTickOverrideForTesting = 501;
+            driver.PlayHitCue(1);
+            rig.Cues.Advance(5f);
+            driver.CueTickOverrideForTesting = 400;
+            driver.PlayHitCue(0);
+            AssertThat(Played() - baseline).IsEqual(3);
+
+            // Perfect block: the remembered counter dropping and rising again replays nothing.
+            int perfectBaseline = Played();
+            driver.CueTickOverrideForTesting = 700;
+            driver.PlayBlockCue(FTT.Combat.BlockSparkKind.Perfect, 0);
+            foreach (int tick in new[] { 699, 700, 700 }) {
+                rig.Cues.Advance(5f);
+                driver.CueTickOverrideForTesting = tick;
+                driver.PlayBlockCue(FTT.Combat.BlockSparkKind.Perfect, 0);
+            }
+            AssertThat(Played() - perfectBaseline).IsEqual(1);
+
+            // Ordinary blocks and the swing whiff keep watermarks of their own.
+            rig.Cues.Advance(5f);
+            driver.CueTickOverrideForTesting = 700;
+            driver.PlayBlockCue(FTT.Combat.BlockSparkKind.Ordinary, 0);
+            AssertThat(Played() - perfectBaseline).IsEqual(2);
+            AssertThat(driver.ClaimCue(FighterSimulationDriver.CueKindSwingWhiff, 0)).IsTrue();
+            AssertThat(driver.ClaimCue(FighterSimulationDriver.CueKindSwingWhiff, 0)).IsFalse();
+        } finally {
+            Free(rig);
+        }
+    }
 }

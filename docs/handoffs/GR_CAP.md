@@ -121,3 +121,8 @@ None. Nothing under `scripts/FighterSim/` changed or names this; `CapstoneConten
 - **Contracts:** `DUST_ECONOMY.md` and its mirror (975 becomes 1,350, the capstone sits above the F05 ledger, and the upgrade pacing table's 975 row); A15 `ABILITY_DATA.md` (the nine effects).
 - **`design-godot.md`, master and mirror:** the grid statement (9 nodes, 975) and each hero's grid.
 - **AGENTS.md:** the Resonance grid bullet (9 nodes at 3/3/3, 50/75/200 = 975 becomes 10 nodes and 1,350), `StoryShieldEffect`, the map entries for the new partials and rules, the baseline arithmetic, and the Leonardo bullet (a synced bolt stops at its first landed contact).
+
+## GR-INTEG review fixes
+
+- `PROVISIONAL-LEONARDO-PLAIN-BOLT-STOPS` (the orchestrator's call; the user can overrule it): a plain Story synced turret bolt stops, and Codex Atlanticus ("Synced bolts pierce") only means something because it does. The Story bolt now stops on any RESOLVED contact, as the sim's is destroyed after any resolved contact: a landed hit, or any contact with a character (a block, a ward, a refused hit). The construct's own muzzle hurtbox still spends nothing. `PlaceholderProjectile.StopsOnLandedContact` became `StopsOnResolvedContact`; `Hitbox.LastContactHurtbox` carries the struck hurtbox into `HitConfirmed`. Test: `CapstoneKitTests.APlainSyncedBoltStopsOnAContactThatLandedNothingLikeABlockedOneAndTheCapstoneBoltFliesOn`.
+- Mozart's Symphony No. 41 lane is gated on current ownership and a live respec clears the stack history (`PlayerController.Capstones.cs`). Test: `ALiveRespecOfSymphonyNo41DropsTheStackLaneAndTheHistoryWithIt`.

@@ -348,6 +348,7 @@ namespace FTT.Characters {
 		/// hears the new maximum through an ordinary zero-damage HP payload.
 		/// </summary>
 		public void SettleLiveStoryProgression() {
+			ClearCapstonesNotOwned();
 			if (CurrentHP > MaximumHP) CurrentHP = MaximumHP;
 			if (_blockSystem != null) {
 				_blockSystem.SetMaxCharges(MaximumBlockCharges);

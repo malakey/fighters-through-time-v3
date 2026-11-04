@@ -41,6 +41,13 @@ namespace FTT.UI {
         /// </summary>
         public static bool IsAnyOpen => s_openPauseMenus > 0;
 
+        /// <summary>
+        /// GR-INTEG: true while a screen that is not a pause menu owns the tree pause (the training room's settings panel).
+        /// A pause menu then refuses its own button and a focus loss, so there is one pause owner and a second menu cannot
+        /// open over the first and unpause gameplay under it.
+        /// </summary>
+        public static bool ExternalPauseOwnerActive { get; set; }
+
         private void SetCountedOpen(bool open) {
             if (open == _countedOpen) return;
             _countedOpen = open;
@@ -138,7 +145,7 @@ namespace FTT.UI {
         public override void _UnhandledInput(InputEvent @event) {
             if (@event == null) return;
             if (@event.IsActionPressed(FTT.Core.InputManager.Actions.Pause)) {
-                if (CanTogglePause()) TogglePause();
+                if (!ExternalPauseOwnerActive && CanTogglePause()) TogglePause();
                 GetViewport()?.SetInputAsHandled();
                 return;
             }
@@ -195,6 +202,6 @@ namespace FTT.UI {
         /// button's own gate; a subclass can narrow it further (a results screen, a
         /// non-pausable online match) but never widen it.
         /// </summary>
-        protected virtual bool CanAutoPause() => CanTogglePause();
+        protected virtual bool CanAutoPause() => !ExternalPauseOwnerActive && CanTogglePause();
     }
 }

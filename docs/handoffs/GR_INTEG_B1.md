@@ -26,3 +26,12 @@ None needed. No fixture or assertion changed; no count change beyond the merged 
 
 ## Notes
 The matrix tool's case in `tests/Tools/` (`FighterMatrixMeasureTests`) ran as a no-op with `FTT_MATRIX` unset. Run time grew 2 m 41 s to 3 m 29 s across the six merges, in line with +98 cases.
+
+## Codex review fixes (GR-INTEG)
+Five findings, +5 cases (4269 to 4274, one full run `Failed: 0, Passed: 4274, Total: 4274`).
+1. `CpuBandTuning.For(Hard)` returns `Hard` (the Defy reserve); `HardBoss` stays in `BossOverride(Hard)` for the Mirror. `CpuDefyPolicyTests.TheNormalHardConstructorKeepsTheReserveAndTheMirrorBandDoesNot`.
+2. One pause owner in the training room: `PauseMenuBase.ExternalPauseOwnerActive` (set by `TrainingRoomPanel.Open`, cleared in `Close`/`_ExitTree`) makes a pause menu refuse its button and a focus loss; the panel answers Pause and cancel in `_Input`, before the driver's menu. `TrainingRoomSceneTests.WhileTheSettingsPanelIsUpAPauseOrEscapePressAndAFocusLossOpenNoSecondMenu` pushes a real `InputEventAction` through the viewport and calls `HandleFocusLost`.
+3. Leonardo's plain Story synced bolt stops on any resolved contact (see `GR_CAP.md`, `PROVISIONAL-LEONARDO-PLAIN-BOLT-STOPS`).
+4. Fighter cues keep a per-cue, per-player watermark of the highest sim tick that played (`FighterSimulationDriver.ClaimCue`, hit, block, perfect block, swing whiff); a correction never lowers it and `Initialize` resets it. Limit: a genuine event at or below the watermark in a corrected timeline is suppressed once. The throttle-window sequence is `FighterCombatCueTests.ACorrectedTimelineNeverReplaysACuePastTheThrottleWindow`. Presentation only.
+5. Mozart's stack lane reads current ownership; a live respec clears the history.
+

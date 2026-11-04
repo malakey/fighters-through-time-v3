@@ -248,7 +248,7 @@ namespace FTT.Characters.Abilities {
             // A synced bolt is spent on its first contact, as the sim's is; Codex Atlanticus (Story-only
             // capstone) flies it on through the line.
             bolt.PiercesTargets = _codexAtlanticus;
-            bolt.StopsOnLandedContact = !_codexAtlanticus;
+            bolt.StopsOnResolvedContact = !_codexAtlanticus;
             bolt.ConfigureDirection(aim);
             bolt.StopsOnTerrain = true;
         }

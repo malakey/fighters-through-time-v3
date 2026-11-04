@@ -125,6 +125,9 @@ namespace FTT.Combat {
         /// </summary>
         public event Action<HitPayload, float> HitConfirmed;
 
+        /// <summary>The hurtbox of the contact <see cref="HitConfirmed"/> is being raised for (valid only inside that event).</summary>
+        public Hurtbox LastContactHurtbox { get; private set; }
+
         public void Activate() {
             IsActive = true;
             this.SetMonitoringSafe(true);
@@ -321,7 +324,9 @@ namespace FTT.Combat {
             // above, so a contact a shield fully absorbed (0 damage) still arms
             // the landed-Special latch there.
             SourcePlayer?.ConfirmAbilityHitboxHit(payload, damageApplied, hurtbox.GlobalPosition);
+            LastContactHurtbox = hurtbox;
             HitConfirmed?.Invoke(payload, damageApplied);
+            LastContactHurtbox = null;
         }
 
 

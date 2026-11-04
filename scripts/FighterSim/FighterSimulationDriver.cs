@@ -103,6 +103,7 @@ namespace FTT.FighterSim {
             string stageID = "",
             int? matchSeed = null) {
             if (Simulation != null) throw new InvalidOperationException("Fighter simulation is already initialized.");
+            ResetCueWatermarks(); // GR-INTEG: a new match starts every cue watermark over.
             _playerOne = playerOne ?? throw new ArgumentNullException(nameof(playerOne));
             _playerTwo = playerTwo ?? throw new ArgumentNullException(nameof(playerTwo));
             if (_playerOne.Data == null || _playerTwo.Data == null) {
@@ -832,7 +833,7 @@ namespace FTT.FighterSim {
                     HapticFeedbackManager.Instance?.OnStageHazardHit(playerID);
                 } else {
                     HapticFeedbackManager.Instance?.OnTakingDamage(playerID);
-                    PlayHitCue(); // GR-AUDIO
+                    PlayHitCue(playerID); // GR-AUDIO
                 }
                 // Same victim feedback Story shows on a hit: a floating number at
                 // roughly mid-body. Presentation only.
@@ -851,7 +852,7 @@ namespace FTT.FighterSim {
             if (previousBlockCharges > 0 && state.BlockCharges < previousBlockCharges
                 && state.DazeFrames <= 0) {
                 CameraShake.Instance?.Shake(3f, 0.08f);
-                ShowBlockSpark(player, FTT.Combat.BlockSparkKind.Ordinary); // FU-BLOCK
+                ShowBlockSpark(player, playerID, FTT.Combat.BlockSparkKind.Ordinary); // FU-BLOCK
                 HapticFeedbackManager.Instance?.OnGuardImpact(playerID);
             }
 
@@ -860,7 +861,7 @@ namespace FTT.FighterSim {
             int previousDaze = _presentedDazeFrames[playerID];
             _presentedDazeFrames[playerID] = state.DazeFrames;
             if (previousDaze <= 0 && state.DazeFrames > 0) {
-                ShowBlockSpark(player, FTT.Combat.BlockSparkKind.Shatter); // FU-BLOCK
+                ShowBlockSpark(player, playerID, FTT.Combat.BlockSparkKind.Shatter); // FU-BLOCK
                 HapticFeedbackManager.Instance?.VibrateForPlayer(
                     playerID,
                     HapticFeedbackManager.GuardBreakWeak,
@@ -930,7 +931,7 @@ namespace FTT.FighterSim {
             // that lowers it is not a new perfect block (FU review fix, 2026-10-25).
             if (previous > 0 && !IsForwardCounterStep(previous, count, 15)) return;
             glow?.FlashHit(FTT.Combat.BlockSystem.PerfectBlockFlashColor, FTT.Combat.BlockSystem.PerfectBlockFlashSeconds);
-            ShowBlockSpark(player, FTT.Combat.BlockSparkKind.Perfect); // FU-BLOCK
+            ShowBlockSpark(player, playerID, FTT.Combat.BlockSparkKind.Perfect); // FU-BLOCK
             CameraShake.Instance?.Shake(3f, 0.08f);
             HapticFeedbackManager.Instance?.OnGuardImpact(playerID);
         }

@@ -86,6 +86,13 @@ namespace FTT.Combat {
             _framesLeft = CapstoneRules.SymphonyWindowFrames;
         }
 
+        /// <summary>Forgets the stacks, the last Special and the window (the capstone was removed).</summary>
+        public void Reset() {
+            Stacks = 0;
+            _lastSlot = 0;
+            _framesLeft = 0;
+        }
+
         /// <summary>One tick of the window.</summary>
         public void Step() {
             if (_framesLeft <= 0 || --_framesLeft > 0) return;

@@ -122,6 +122,40 @@ public class CapstoneKitTests {
     }
 
     [TestCase]
+    public async Task APlainSyncedBoltStopsOnAContactThatLandedNothingLikeABlockedOneAndTheCapstoneBoltFliesOn() {
+        var tree = (SceneTree)Engine.GetMainLoop();
+        Node2D host = NewHost("CapPlainBoltRefused");
+        try {
+            PlayerController leonardo = Owner(host, "leonardo", Origin + new Vector2(-200f, -400f));
+            LeonardoTurretNode plain = Turret(host, leonardo, Origin);
+            EnemyController refusing = Mob(host, Origin + new Vector2(200f, 0f));
+            EnemyController behind = Mob(host, Origin + new Vector2(300f, 0f));
+            refusing.SetPhysicsProcess(false);
+            behind.SetPhysicsProcess(false);
+            // A contact the target refuses (no damage, nothing landed), as a block would: the sim destroys its bolt after
+            // any resolved contact, so the plain Story bolt is spent here too (PROVISIONAL-LEONARDO-PLAIN-BOLT-STOPS).
+            refusing.DrillInvulnerable = true;
+            OwnerLands(leonardo, refusing);
+            for (int frame = 0; frame < 14; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            AssertThat(LiveBolts(host)).OverrideFailureMessage("the plain bolt should be spent by the refused contact").IsEqual(0);
+            AssertThat(plain.SyncedBoltsFired).OverrideFailureMessage("a bolt must have been fired").IsEqual(1);
+            AssertThat(refusing.CurrentHP).IsEqual(9999);
+            AssertThat(behind.CurrentHP).OverrideFailureMessage("A plain synced bolt is spent by a refused contact.").IsEqual(9999);
+            leonardo.ActivePersistentObjects.Remove(plain);
+            host.RemoveChild(plain);
+            plain.Free();
+
+            // The capstone keeps piercing: it flies on through the refusing body.
+            LeonardoTurretNode codex = Turret(host, leonardo, Origin);
+            codex.Initialize(leonardo.GetNode<LeonardoClockworkTurret>("Special2").Data, leonardo, clockworkOverdrive: false, codexAtlanticus: true);
+            await FireAtAndWait(tree, leonardo, refusing);
+            AssertThat(behind.CurrentHP).OverrideFailureMessage("The capstone bolt must still pierce.").IsEqual(9999 - LingeringKitRules.TurretSyncedBoltDamage);
+        } finally {
+            host.Free();
+        }
+    }
+
+    [TestCase]
     public void EmancipationLeavesAGroundWaveBehindTheCharge() {
         InHost("CapEmancipation", host => {
             PlayerController lincoln = Owner(host, "lincoln", Origin);
@@ -263,6 +297,31 @@ public class CapstoneKitTests {
     }
 
     [TestCase]
+    public void ALiveRespecOfSymphonyNo41DropsTheStackLaneAndTheHistoryWithIt() {
+        InHost("CapSymphonyRespec", host => {
+            PlayerController mozart = Owner(host, "mozart", Origin);
+            var chord = mozart.GetNode<MozartRequiemChord>("Special1");
+            var wave = mozart.GetNode<MozartFortissimoWave>("Special2");
+            mozart.StoryAbilityPerks.Add(CapstoneRules.SymphonyNo41PerkKey);
+            CastToTheEnd(chord);
+            CastToTheEnd(wave);
+            AssertThat(mozart.SymphonyStacks).IsEqual(1);
+            AssertFloat(mozart.StoryAbilityDamage(10f, "")).IsEqualApprox(11f, 0.001f);
+
+            // The respec removes the perk before the live re-resolve settles: the lane is gone at once.
+            mozart.StoryAbilityPerks.Remove(CapstoneRules.SymphonyNo41PerkKey);
+            AssertThat(mozart.StoryAbilityDamage(10f, "")).OverrideFailureMessage("a respec kept the retained stack multiplier").IsEqual(10f);
+            AssertThat(mozart.StoryAbilityHitboxDamage(10f)).IsEqual(10f);
+            mozart.SettleLiveStoryProgression();
+            AssertThat(mozart.SymphonyStacks).OverrideFailureMessage("the stack history survived the respec").IsEqual(0);
+
+            // Buying it back starts from nothing.
+            mozart.StoryAbilityPerks.Add(CapstoneRules.SymphonyNo41PerkKey);
+            AssertThat(mozart.StoryAbilityDamage(10f, "")).IsEqual(10f);
+        });
+    }
+
+    [TestCase]
     public void SymphonyNo41StacksOnDifferentSpecialsInsideTheWindowAndLapsesWhole() {
         InHost("CapSymphony", host => {
             PlayerController mozart = Owner(host, "mozart", Origin);
@@ -365,6 +424,12 @@ public class CapstoneKitTests {
     }
 
     /// <summary>The owner lands a hit on <paramref name="mob"/>: every turret of his fires, and the bolt flies in real frames.</summary>
+    private static int LiveBolts(Node host) {
+        int live = 0;
+        foreach (Node child in host.GetChildren()) if (child is PlaceholderProjectile { IsLive: true }) live++;
+        return live;
+    }
+
     private static async Task FireAtAndWait(SceneTree tree, PlayerController owner, EnemyController mob) {
         OwnerLands(owner, mob);
         for (int frame = 0; frame < 30; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);

@@ -123,4 +123,64 @@ public class TrainingRoomSceneTests {
             gameManager.CurrentSession = savedSession;
         }
     }
+
+    private static LocalFighterPause FindPause(Node node) {
+        if (node is LocalFighterPause pause) return pause;
+        foreach (Node child in node.GetChildren()) {
+            LocalFighterPause found = FindPause(child);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    [TestCase]
+    public async Task WhileTheSettingsPanelIsUpAPauseOrEscapePressAndAFocusLossOpenNoSecondMenu() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        GameManager gameManager = GameManager.Instance;
+        AssertObject(gameManager).IsNotNull();
+        SessionData savedSession = gameManager.CurrentSession;
+        bool wasPaused = tree.Paused;
+        tree.Paused = false;
+        TrainingRoom room = null;
+        try {
+            room = Open(tree);
+            for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            LocalFighterPause pause = FindPause(room);
+            AssertObject(pause).OverrideFailureMessage("the driver's pause menu is part of the room").IsNotNull();
+
+            // A real pause press opens the panel (not the driver's menu).
+            PressPause();
+            await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+            AssertThat(room.Panel.Visible).IsTrue();
+            AssertThat(pause.IsPaused).IsFalse();
+            AssertThat(tree.Paused).IsTrue();
+
+            // A focus loss with the panel up does not open the driver's menu either.
+            AssertThat(pause.HandleFocusLost()).OverrideFailureMessage("focus loss opened a second pause owner").IsFalse();
+            AssertThat(pause.IsPaused).IsFalse();
+
+            // A second press closes the panel and hands the pause back; no menu opens and nothing stays paused.
+            PressPause();
+            await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+            await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+            AssertThat(room.Panel.Visible).IsFalse();
+            AssertThat(pause.IsPaused).OverrideFailureMessage("a second pause menu opened over the panel").IsFalse();
+            AssertThat(tree.Paused).IsFalse();
+            AssertThat(PauseMenuBase.ExternalPauseOwnerActive).IsFalse();
+
+            // With the panel closed a focus loss opens the driver's own menu again.
+            AssertThat(pause.HandleFocusLost()).IsTrue();
+        } finally {
+            Close(room);
+            PauseMenuBase.ExternalPauseOwnerActive = false;
+            tree.Paused = wasPaused;
+            gameManager.CurrentSession = savedSession;
+        }
+    }
+
+    private static void PressPause() {
+        // Viewport.PushInput walks the real dispatch chain: _Input, GUI, then _UnhandledInput.
+        var tree = (SceneTree)Engine.GetMainLoop();
+        tree.Root.PushInput(new InputEventAction { Action = InputManager.Actions.Pause, Pressed = true });
+    }
 }

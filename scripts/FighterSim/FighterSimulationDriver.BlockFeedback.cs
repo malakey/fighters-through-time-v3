@@ -20,9 +20,9 @@ namespace FTT.FighterSim {
         /// <summary>Effect scale in Fighter Mode (one knob if the camera framing wants it larger).</summary>
         public const float BlockSparkScale = 1f;
 
-        private void ShowBlockSpark(PlayerController player, FTT.Combat.BlockSparkKind kind) {
+        private void ShowBlockSpark(PlayerController player, int playerID, FTT.Combat.BlockSparkKind kind) {
             if (player == null) return;
-            PlayBlockCue(kind); // GR-AUDIO
+            PlayBlockCue(kind, playerID); // GR-AUDIO
             float facing = player.IsFacingRight ? 1f : -1f;
             FTT.Combat.BlockSparkEffect.Show(
                 kind,

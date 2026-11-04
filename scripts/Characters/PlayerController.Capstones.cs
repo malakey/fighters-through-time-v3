@@ -19,10 +19,21 @@ namespace FTT.Characters {
 		}
 
 		/// <summary>A factor of the Story ability-damage composition (<see cref="StoryAbilityHitboxDamage"/>): 1.0 for everyone else.</summary>
-		private float CapstoneDamageLane => _symphony.DamageScale;
+		private float CapstoneDamageLane => HasStoryPerk(CapstoneRules.SymphonyNo41PerkKey) ? _symphony.DamageScale : 1f;
 
 		/// <summary>One tick of the capstones' clocks, beside the Momentum regen, so it shares its pauses.</summary>
-		private void StepCapstones() => _symphony.Step();
+		private void StepCapstones() {
+			if (!HasStoryPerk(CapstoneRules.SymphonyNo41PerkKey)) {
+				_symphony.Reset();
+				return;
+			}
+			_symphony.Step();
+		}
+
+		/// <summary>A live respec removed the capstone: the stack history goes with it, so buying it back starts at none.</summary>
+		internal void ClearCapstonesNotOwned() {
+			if (!HasStoryPerk(CapstoneRules.SymphonyNo41PerkKey)) _symphony.Reset();
+		}
 
 		/// <summary>Steps the capstones' clocks without running the hero. Test seam.</summary>
 		internal void StepCapstonesForTest(int frames) {

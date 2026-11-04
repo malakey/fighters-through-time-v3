@@ -263,8 +263,9 @@ namespace FTT.UI {
         // ---- input and exits --------------------------------------------------
 
         public override void _Input(InputEvent @event) {
-            if (@event == null || _panel == null || _panel.Visible) return;
+            if (@event == null || _panel == null) return;
             if (!@event.IsActionPressed(InputManager.Actions.Pause)) return;
+            if (_panel.Visible) return; // the panel (ProcessMode Always) answers its own presses in its _Input.
             // The driver's pause menu would take this press; the room's settings panel takes it first. A pause menu that is
             // already open (a focus loss opened it) keeps it.
             if (PauseMenuBase.IsAnyOpen) return;
