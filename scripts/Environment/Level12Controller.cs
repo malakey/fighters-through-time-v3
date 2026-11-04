@@ -735,13 +735,16 @@ namespace FTT.Environment {
             }
         }
 
-        private GravityFieldZone BuildGravityField(string fieldID, float startX, float endX, float scale, Color tint) {
+        private GravityFieldZone BuildGravityField(string fieldID, float startX, float endX, float scale, Color tint,
+            float cycleSeconds = 6f) {
             float width = endX - startX;
             var field = new GravityFieldZone {
                 Name = $"GravityField_{fieldID.Replace('.', '_')}",
                 FieldID = fieldID,
                 // Static field: CycleScales stays empty, so GravityScale applies.
                 GravityScale = scale,
+                // Read once as the zone readies: it sets the first cycle's length.
+                CycleSeconds = cycleSeconds,
                 IdleTint = new Color(tint.R, tint.G, tint.B, 0.16f),
                 Position = new Vector2(startX + width / 2f, LevelHeight / 2f),
                 RewindPolicy = StoryRewindPolicy.ResetToInitialState

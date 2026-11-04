@@ -55,7 +55,7 @@ namespace FTT.Environment {
         public const float OverseerGustActiveSeconds = 0.5f;
         public const float OverseerGustCooldownSeconds = 3f;
         public const int OverseerGustDamage = 8;
-        public static readonly Vector2 OverseerGustKnockback = new(620f, -260f);
+        public static readonly Vector2 OverseerGustKnockback = new(1500f, -260f);
         private const float GustStripHalfWidth = 60f;
 
         private static readonly Color OverseerLightTint = new(0.55f, 0.8f, 1f, 0.32f);
@@ -80,11 +80,10 @@ namespace FTT.Environment {
             foreach ((string id, float startX, float endX, bool _) in OverseerFieldSpans) {
                 // Scale 1 while off, so the dampers alone rule. The zone's first timer is its
                 // telegraph: Phase 2 opens with the first shift already on its way.
-                GravityFieldZone field = BuildGravityField(id, startX, endX, 1f, RegolithFieldColor);
+                GravityFieldZone field = BuildGravityField(id, startX, endX, 1f, RegolithFieldColor, OverseerFieldTelegraphSeconds);
                 field.Enabled = false;
                 field.RewindPolicy = StoryRewindPolicy.PreserveCurrentState;
                 field.TelegraphSeconds = OverseerFieldTelegraphSeconds;
-                field.CycleSeconds = OverseerFieldTelegraphSeconds;
                 field.IdleTint = OverseerLightTint;
                 SetFieldVisualVisible(field, false);
                 field.GravityShifted += scale => field.IdleTint = scale >= 1f ? OverseerHeavyTint : OverseerLightTint;

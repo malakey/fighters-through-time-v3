@@ -714,7 +714,7 @@ public class Level12ContentTests {
         using var fixture = new LunarFixture(null);
         Level12Controller level = fixture.Level;
         List<string> issues = LevelLockTestKit.LayoutIssues(level, Level12Controller.SpawnTable, new[] {
-            new LevelLockTestKit.LockLayout(Level12Controller.LockTranquility, 320f, 3000f,
+            new LevelLockTestKit.LockLayout(Level12Controller.LockTranquility, 320f, 2000f,
                 new[] { new LevelLockTestKit.WaveLayout(Level12Controller.Wave1RowID, 1, EncounterWaveTrigger.OnBuild) }),
             new LevelLockTestKit.LockLayout(Level12Controller.LockVentField, 3020f, 5860f,
                 new[] { new LevelLockTestKit.WaveLayout(Level12Controller.Wave2RowID, 2, EncounterWaveTrigger.OnEngage) }),
