@@ -299,6 +299,12 @@ public class CapstoneKitTests {
             AssertThat(mozart.StoryAbilityDamage(10f, "")).IsEqual(10f);
             CastToTheEnd(wave);
             AssertThat(mozart.SymphonyStacks).OverrideFailureMessage("A lapse forgets the last Special too.").IsEqual(0);
+
+            // The window runs on the hero's own tick, beside the Momentum regen.
+            CastToTheEnd(chord);
+            AssertThat(mozart.SymphonyStacks).IsEqual(1);
+            for (int frame = 0; frame < CapstoneRules.SymphonyWindowFrames; frame++) mozart._PhysicsProcess(Step);
+            AssertThat(mozart.SymphonyStacks).OverrideFailureMessage("The hero's tick must run the window out.").IsEqual(0);
         });
     }
 
