@@ -216,6 +216,13 @@ namespace FTT.UI {
                 drills.Pressed += OnCalibrationDrillsPressed;
                 layout.AddChild(drills);
                 actions.Add(drills);
+
+                // GR-TRAIN (9c, ruling Q5): the third entry, hub console only. A dummy sandbox for tuning by hand.
+                var training = new Button { Name = "TrainingRoomButton", Text = Tr("holodeck_training_room") };
+                PulpScreenKit.StylePauseButton(training, ActionRowMinWidth);
+                training.Pressed += OnTrainingRoomPressed;
+                layout.AddChild(training);
+                actions.Add(training);
             }
 
             var back = new Button { Name = "BackButton", Text = Tr("common_back") };
@@ -232,7 +239,7 @@ namespace FTT.UI {
             launch.GrabFocus();
         }
 
-        private static HBoxContainer MakeSettingsRow(VBoxContainer layout, string name) {
+        internal static HBoxContainer MakeSettingsRow(VBoxContainer layout, string name) {
             var row = new HBoxContainer { Name = name };
             row.AddThemeConstantOverride("separation", (int)RowGap);
             layout.AddChild(row);
@@ -246,7 +253,7 @@ namespace FTT.UI {
         }
 
         /// <summary>A settings row's label (UI_SPEC_GLASS 3.3, T52 <c>SettingsRowLabel</c>, upper-case) in the 360 px column.</summary>
-        private static Label MakeRowLabel(string name, string textKey) => new() {
+        internal static Label MakeRowLabel(string name, string textKey) => new() {
             Name = name,
             Text = TranslationServer.Translate(textKey),
             Uppercase = true,
@@ -255,7 +262,7 @@ namespace FTT.UI {
             VerticalAlignment = VerticalAlignment.Center
         };
 
-        private static OptionButton AddOptionRow(VBoxContainer layout, string name, string labelKey) {
+        internal static OptionButton AddOptionRow(VBoxContainer layout, string name, string labelKey) {
             HBoxContainer row = MakeSettingsRow(layout, name + "Row");
             row.AddChild(MakeRowLabel(name + "Label", labelKey));
             // The glass field (3.3, P8): the theme's default OptionButton. Every control fills the row past the label column,
@@ -325,6 +332,26 @@ namespace FTT.UI {
             FighterStageData stage = ApplyToSession();
             if (stage == null || !ResourceLoader.Exists(stage.ScenePath)) return;
             GameManager.Instance.LoadScene(stage.ScenePath);
+        }
+
+        private void OnTrainingRoomPressed() {
+            if (GameManager.Instance == null) return;
+            GameManager.Instance.LoadScene(ApplyTrainingRouteToSession());
+        }
+
+        /// <summary>
+        /// GR-TRAIN: marks the session as a training-room visit and returns the scene to open. Nothing else in the session
+        /// moves (the save slot, difficulty, campaign level and the player's saved match settings are untouched, as for the
+        /// drills), and a stale calibration route is cleared so the pause menu's exit cannot take it. Split from the button
+        /// handler so the session contract is testable without a scene change.
+        /// </summary>
+        public static string ApplyTrainingRouteToSession() {
+            SessionData session = GameManager.Instance.CurrentSession;
+            session.FighterMatchOrigin = FighterMatchOrigin.Training;
+            session.CalibrationReturnScenePath = "";
+            session.ResumeAtStageSelect = false;
+            GameManager.Instance.CurrentSession = session;
+            return TrainingRoom.ScenePath;
         }
 
         private void OnCalibrationDrillsPressed() {

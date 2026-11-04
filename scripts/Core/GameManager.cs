@@ -55,7 +55,9 @@ namespace FTT.Core {
         /// <summary>The hub's Holodeck Arena Console.</summary>
         Holodeck = 2,
         /// <summary>F18: a Calibration Drill borrowing the Fighter match shell.</summary>
-        Drill = 3
+        Drill = 3,
+        /// <summary>GR-TRAIN (9c): the hub Holodeck console's Training Room (a dummy sandbox, never a match).</summary>
+        Training = 4
     }
 
     public enum FighterOpponentType {

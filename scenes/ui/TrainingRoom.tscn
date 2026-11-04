@@ -1,0 +1,151 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/UI/TrainingRoom.cs" id="1_runner"]
+[ext_resource type="Script" path="res://scripts/Combat/FighterCamera.cs" id="2_camera"]
+[ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="3_theme"]
+
+[node name="TrainingRoom" type="Node2D"]
+script = ExtResource("1_runner")
+
+[node name="Presentation" type="Node2D" parent="."]
+
+[node name="Backdrop" type="ColorRect" parent="Presentation"]
+z_index = -30
+offset_left = -200.0
+offset_top = -200.0
+offset_right = 2200.0
+offset_bottom = 1200.0
+color = Color(0.0196, 0.0275, 0.102, 1)
+
+[node name="HoloHorizon" type="ColorRect" parent="Presentation"]
+z_index = -22
+offset_left = 380.0
+offset_top = 130.0
+offset_right = 1520.0
+offset_bottom = 700.0
+color = Color(0.0627, 0.0549, 0.1176, 1)
+
+[node name="HoloGridUpper" type="ColorRect" parent="Presentation"]
+z_index = -21
+offset_left = 380.0
+offset_top = 418.0
+offset_right = 1520.0
+offset_bottom = 421.0
+color = Color(0.5412, 0.5137, 0.4549, 0.35)
+
+[node name="HoloGridLower" type="ColorRect" parent="Presentation"]
+z_index = -21
+offset_left = 380.0
+offset_top = 604.0
+offset_right = 1520.0
+offset_bottom = 607.0
+color = Color(0.5412, 0.5137, 0.4549, 0.35)
+
+[node name="LeftEmitter" type="ColorRect" parent="Presentation"]
+z_index = -20
+offset_left = 375.0
+offset_top = 137.0
+offset_right = 399.0
+offset_bottom = 700.0
+color = Color(0.1647, 0.1412, 0.2039, 1)
+
+[node name="RightEmitter" type="ColorRect" parent="Presentation"]
+z_index = -20
+offset_left = 1501.0
+offset_top = 137.0
+offset_right = 1525.0
+offset_bottom = 700.0
+color = Color(0.1647, 0.1412, 0.2039, 1)
+
+[node name="Floor" type="ColorRect" parent="Presentation"]
+offset_left = 387.0
+offset_top = 700.0
+offset_right = 1513.0
+offset_bottom = 748.0
+color = Color(0.2275, 0.1922, 0.2667, 1)
+
+[node name="FloorEdge" type="ColorRect" parent="Presentation"]
+offset_left = 387.0
+offset_top = 697.0
+offset_right = 1513.0
+offset_bottom = 701.0
+color = Color(0.9529, 0.7882, 0.3569, 0.7)
+
+[node name="PlatformLeft" type="ColorRect" parent="Presentation"]
+offset_left = 600.0
+offset_top = 550.0
+offset_right = 800.0
+offset_bottom = 562.0
+color = Color(0.7529, 0.7294, 0.651, 0.85)
+
+[node name="PlatformRight" type="ColorRect" parent="Presentation"]
+offset_left = 1100.0
+offset_top = 550.0
+offset_right = 1300.0
+offset_bottom = 562.0
+color = Color(0.7529, 0.7294, 0.651, 0.85)
+
+[node name="Spawns" type="Node2D" parent="."]
+
+[node name="Player1" type="Marker2D" parent="Spawns"]
+position = Vector2(700, 700)
+
+[node name="Player2" type="Marker2D" parent="Spawns"]
+position = Vector2(1200, 700)
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(950, 540)
+script = ExtResource("2_camera")
+
+[node name="HudLayer" type="CanvasLayer" parent="."]
+layer = 60
+
+[node name="Overlay" type="Control" parent="HudLayer"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme = ExtResource("3_theme")
+
+[node name="HudPanel" type="PanelContainer" parent="HudLayer/Overlay"]
+custom_minimum_size = Vector2(900, 0)
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -450.0
+offset_top = -190.0
+offset_right = 450.0
+offset_bottom = -34.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+
+[node name="Layout" type="VBoxContainer" parent="HudLayer/Overlay/HudPanel"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="HitLine" type="Label" parent="HudLayer/Overlay/HudPanel/Layout"]
+custom_minimum_size = Vector2(840, 0)
+layout_mode = 2
+theme_type_variation = &"BodySmallLabel"
+horizontal_alignment = 1
+
+[node name="FramesLine" type="Label" parent="HudLayer/Overlay/HudPanel/Layout"]
+custom_minimum_size = Vector2(840, 0)
+layout_mode = 2
+theme_type_variation = &"BodySmallLabel"
+horizontal_alignment = 1
+
+[node name="HintLine" type="Label" parent="HudLayer/Overlay/HudPanel/Layout"]
+custom_minimum_size = Vector2(840, 0)
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+text = "training_hint"
+horizontal_alignment = 1
+autowrap_mode = 3

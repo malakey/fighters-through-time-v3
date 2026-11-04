@@ -1722,3 +1722,21 @@ results_rank_dust,"Rank bonus: {0}"
 results_rank_detail,"Damage taken: {0}% of your health bar, speed {1}"
 # GR-RUN
 movelist_run_attack,"Running attack: {0}/{1}/{2} frames — {3:0.#} damage, one lunge that never chains"
+# GR-TRAIN
+holodeck_training_room,Training Room
+training_room_title,Training Room
+training_setting_block,Dummy Block
+training_setting_jump,Dummy Jump
+training_setting_hitstun,Hitstun Response
+training_option_never,Never
+training_option_always,Always
+training_block_after_hit,After a Hit
+training_jump_timed,Timed
+training_hitstun_none,None
+training_hitstun_hold_block,Hold Block
+training_hitstun_di,Influence Toward Centre
+training_resume,Resume Training
+training_reset,Reset
+training_readout_hit,Last hit {0}  ·  Total {1}  ·  Stun {2}
+training_readout_frames,Startup {0}  ·  Active {1}  ·  Recovery {2}  ·  Advantage {3}
+training_hint,Pause opens the dummy settings.

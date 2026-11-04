@@ -57,6 +57,10 @@ namespace FTT.UI {
     /// replaces New Stage / Change Fighters; Rematch unchanged.</description></item>
     /// <item><term>Drill</term><description>owned by <c>CalibrationRoute</c>; never a
     /// Fighter lobby.</description></item>
+    /// <item><term>Training</term><description>GR-TRAIN (9c): the hub console's Training
+    /// Room. Its exit goes the Holodeck's way, back to the hub in front of the console,
+    /// and clears the origin; it has no results screen of its own, so its results list
+    /// is the Holodeck's.</description></item>
     /// </list>
     /// </summary>
     public static class FighterFlowRoutes {
@@ -78,7 +82,7 @@ namespace FTT.UI {
 
         /// <summary>The results buttons for an origin, in display order.</summary>
         public static IReadOnlyList<FighterResultsAction> ResultsActions(FighterMatchOrigin origin) =>
-            origin == FighterMatchOrigin.Holodeck ? HolodeckActions : LocalActions;
+            origin is FighterMatchOrigin.Holodeck or FighterMatchOrigin.Training ? HolodeckActions : LocalActions;
 
         /// <summary>Label key for a results button under an origin.</summary>
         public static string ResultsLabelKey(FighterResultsAction action, FighterMatchOrigin origin) => action switch {
@@ -87,7 +91,7 @@ namespace FTT.UI {
             FighterResultsAction.ChangeFighters => "fighter_change_fighters",
             FighterResultsAction.Reconfigure => "fighter_reconfigure",
             _ => origin switch {
-                FighterMatchOrigin.Holodeck => "fighter_return_to_ship",
+                FighterMatchOrigin.Holodeck or FighterMatchOrigin.Training => "fighter_return_to_ship",
                 FighterMatchOrigin.VersusCpu => "fighter_return_to_fighter_menu",
                 _ => "fighter_main_menu"
             }
@@ -116,8 +120,8 @@ namespace FTT.UI {
         public static string PauseExit(ref SessionData session) {
             switch (session.FighterMatchOrigin) {
                 case FighterMatchOrigin.Holodeck:
-                    session.ArriveAtHolodeckConsole = true;
-                    return HubScenePath;
+                case FighterMatchOrigin.Training:
+                    return ReturnToShip(ref session);
                 case FighterMatchOrigin.VersusCpu:
                     return FighterMenuScenePath;
                 default:
@@ -147,7 +151,7 @@ namespace FTT.UI {
                     return HubScenePath;
                 default:
                     return origin switch {
-                        FighterMatchOrigin.Holodeck => ReturnToShip(ref session),
+                        FighterMatchOrigin.Holodeck or FighterMatchOrigin.Training => ReturnToShip(ref session),
                         FighterMatchOrigin.VersusCpu => FighterMenuScenePath,
                         _ => MainMenuScenePath
                     };
@@ -156,6 +160,10 @@ namespace FTT.UI {
 
         private static string ReturnToShip(ref SessionData session) {
             session.ArriveAtHolodeckConsole = true;
+            // GR-TRAIN: the training room's origin ends with the visit; a Holodeck one is cleared by the hub on arrival.
+            if (session.FighterMatchOrigin == FighterMatchOrigin.Training) {
+                session.FighterMatchOrigin = FighterMatchOrigin.LocalVersus;
+            }
             return HubScenePath;
         }
 
@@ -164,6 +172,6 @@ namespace FTT.UI {
         /// menu for both front-end flows (the screen they were entered from).
         /// </summary>
         public static string SelectBack(FighterMatchOrigin origin) =>
-            origin == FighterMatchOrigin.Holodeck ? HubScenePath : FighterMenuScenePath;
+            origin is FighterMatchOrigin.Holodeck or FighterMatchOrigin.Training ? HubScenePath : FighterMenuScenePath;
     }
 }
