@@ -131,7 +131,7 @@ These samples are thin, and seed-0 runs are not frame-identical across launches.
 
 **L8's last-gate drop, as asked, reported and not tuned:** 4 of 4 of my probes completed Level 8 (2 Easy, 2 Normal). **`anti_air_strikes` read 0 in all of them, on all three levels**, so these runs give no sign of the Anti-air trait at work. Most damage was the Jackal Priest (Normal 280 and 241). That says nothing about the gate's nine-hero number: only Lincoln and Joan ran.
 
-**The arenas in the probes:** the cannonballs hit in every L7 run that reached the second phase, 14–28 damage a ball a run. The lanterns barely registered: one strike in six L9 runs (13 damage after the block rule's arithmetic, Lincoln on Easy). The Normal L9 collapses are mostly the General himself (238 and 258).
+**The arenas in the probes:** the cannonballs hit in all four completed L7 runs whose damage I read, 14–30 damage a ball a run. The lanterns barely registered: one strike in four L9 runs (Lincoln on Easy, 13 damage recorded against the authored 20; I did not trace the difference). The Normal L9 collapses are mostly the General himself (238 and 258).
 
 **Swarms:** all cleared, 182–733 frames, 0–48 hero damage. On Easy the seawall's row spawns almost at once (frames 24–35): Easy's prefix of its first wave is already at or under two alive when the lock engages, so nothing delays it.
 
