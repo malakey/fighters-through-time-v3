@@ -78,7 +78,7 @@ Changed in place, no count change:
 - A tier 4 mark drawn differently, a `FighterSim` file naming `CapstoneRules`, and the `RegenMomentum` call removed: the two remaining content cases and the Symphony case failed.
 - The fit test also failed for real while four capstones were authored at x 0.92 and 0.93: those chips left the area at 1.0. They are at 0.9 now.
 
-**Final filtered run:** `Failed: 0, Passed: 391, Total: 391`, 28 filter terms, with the translation recompiled locally. See the report for the attribute reconciliation. The full suite is the orchestrator's.
+**Final filtered run:** `Failed: 0, Passed: 391, Total: 391`, 28 filter terms, with the translation recompiled locally, against 391 `[TestCase]` attributes counted for the same case-insensitive filter. The full suite is the orchestrator's.
 
 ## Hash, save and protocol effects
 
