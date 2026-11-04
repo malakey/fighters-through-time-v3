@@ -6,9 +6,10 @@ using FTT.Enemies;
 namespace FTT.Environment {
 
     /// <summary>
-    /// Level 2 - Orléans, 1429 (Siege of Orléans). Four rooms across 10,560 px:
-    /// the French vanguard approach, the English siege line under a rolling mortar
-    /// barrage, a vertical battlement climb, and the Siegemaster Duke's court.
+    /// Level 2 - Orléans, 1429 (Siege of Orléans). Four rooms and a stretch across
+    /// 10,560 px: the French vanguard approach, the Rampart run, the English siege line
+    /// under a rolling mortar barrage, a vertical battlement climb, and the Siegemaster
+    /// Duke's court.
     ///
     /// Era identity is mechanical, not decorative: the Severed have given the
     /// English two kinetic <see cref="ShieldGeneratorTower"/>s, and each one keeps a
@@ -25,12 +26,20 @@ namespace FTT.Environment {
     /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-E — the worked
     /// example for every other level): each of the three approach rooms is an
     /// <see cref="EncounterLock"/> the hero must clear before the way forward
-    /// opens — the vanguard (300–3200), the siege line (3220–6290, which also
+    /// opens — the vanguard (300–2000), the siege line (3220–6290, which also
     /// needs generator A down; its exit barrier fills Gate A under the gate
     /// column) and the battlement floor fight before the climb (6580–8690, its
     /// exit at Gate B). One lock wave per manifest row. The Middle checkpoint
     /// moved out of the siege line to the corridor between Gate A and the
     /// battlement lock (6500), and every checkpoint lists the locks before it.</para>
+    ///
+    /// <para><b>The Rampart run and the Parapet line</b> (gameplay review, GR-PILOT: the
+    /// worked example every later level copies; docs/handoffs/GR_PILOT.md). The vanguard
+    /// lock was carved from 300–3200 to 300–2000, and the freed span is a traversal
+    /// stretch, 2020–3200: a step line over a non-lethal trench, with a crumbling step, a
+    /// mortar lane, a one-way back up and a wall step with a ledge. Above it the Parapet
+    /// line is the optional route: the courtyard Extractor at the end of a harder
+    /// base-kit line, which a burst or a rise shortens. No dust moved (F05).</para>
     /// </summary>
     public partial class Level02Controller : StoryLevelControllerBase {
 
@@ -49,11 +58,11 @@ namespace FTT.Environment {
         /// <summary>
         /// V7.6 F01 par (Package 11 A3). <b>Provisional, not measured</b>:
         /// seeded as 4 authored rooms x 90 s, rounded up to the nearest
-        /// 30 s. Recorded under VERIFY-PAR-SECONDS in
-        /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
-        /// per-hero median measurement pass.
+        /// 30 s, plus the Rampart run's +30 (§1.14). Recorded under
+        /// VERIFY-PAR-SECONDS in docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md
+        /// pending the V01a per-hero median measurement pass.
         /// </summary>
-        public override float ParSeconds => 360f;
+        public override float ParSeconds => TraversalRules.ParWithStretches(360f, 1);
         public override string LevelTitleKey => "orleans_level_title";
         public override string DialogueSetPath => DialogueResourcePath;
         public override Vector2 PlayerSpawnPosition => new(200, 850);
@@ -113,7 +122,8 @@ namespace FTT.Environment {
         public const float TowerAY = 790f;
         public const float TowerBY = 440f;
 
-        public static readonly Rect2 Room1CameraBounds = new(Room1StartX, 0, 3200, LevelHeight);
+        // GR-PILOT: room 1 ends where its deck does; the Rampart run has its own rect.
+        public static readonly Rect2 Room1CameraBounds = new(Room1StartX, 0, RampartWestDeckEndX, LevelHeight);
         public static readonly Rect2 Room2CameraBounds = new(Room2StartX, 0, 3200, LevelHeight);
         public static readonly Rect2 Room3CameraBounds = new(Room3StartX, 0, 2560, LevelHeight);
         // Narrower than a 1920 viewport otherwise, which makes the confiner useless.
@@ -155,7 +165,8 @@ namespace FTT.Environment {
         public static readonly (string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] Room1Spawns = {
             ("laser_archer", new Vector2(1100, EnemyGroundY), new Vector2(950, EnemyGroundY), new Vector2(1250, EnemyGroundY)),
             ("chrono_slasher", new Vector2(1750, EnemyGroundY), new Vector2(1600, EnemyGroundY), new Vector2(1900, EnemyGroundY)),
-            ("laser_archer", new Vector2(2600, EnemyGroundY), null, null)
+            // GR-PILOT: moved from 2600 when the lock was carved to 300-2000.
+            ("laser_archer", new Vector2(1900, EnemyGroundY), null, null)
         };
 
         public static readonly (string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] Room2Spawns = {
@@ -171,7 +182,8 @@ namespace FTT.Environment {
 
         /// <summary>15 dust each and resource-owned; never overridden from level code.</summary>
         public static readonly (string ID, Vector2 Position)[] ExtractorPlacements = {
-            ("level_02.extractor_courtyard", new Vector2(2400, 580)),
+            // GR-PILOT: at the end of the Parapet line, on its last platform (top 310).
+            ("level_02.extractor_courtyard", new Vector2(ParapetEndX, 238)),
             ("level_02.extractor_mortar_ledge", new Vector2(4750, 400)),
             ("level_02.extractor_battlement", new Vector2(8560, 260))
         };
@@ -190,10 +202,22 @@ namespace FTT.Environment {
         public const string Room1RowID = "level_02.room1";
         public const string Room2RowID = "level_02.room2";
         public const string Room3RowID = "level_02.room3";
+        /// <summary>The siege line's swarm (rulings 1b, 1b+, 1b++): its own manifest row, weight 0.</summary>
+        public const string SwarmRowID = "level_02.swarm1";
 
-        /// <summary>The vanguard lock: the whole approach room past the entry anchor.</summary>
+        /// <summary>
+        /// Where the swarm comes over the earthworks. Ten mobs, because the siege line is
+        /// wider than <see cref="SwarmWaveRules.LargeLockWidthPixels"/> (1b++); Easy's
+        /// prefix gives seven. The manifest row lists the same ten.
+        /// </summary>
+        public static readonly float[] SwarmSpawnXs = { 3500f, 3900f, 4150f, 4400f, 4650f, 4950f, 5200f, 5450f, 5800f, 6050f };
+
+        /// <summary>
+        /// The vanguard lock, carved by GR-PILOT from the whole approach room (it ran to
+        /// 3200) so the span east of it can be the Rampart run.
+        /// </summary>
         public const float VanguardLockMinX = 300f;
-        public const float VanguardLockMaxX = Room2StartX;
+        public const float VanguardLockMaxX = 2000f;
         /// <summary>The siege line lock: room 2 up to Gate A, whose generator it also needs down.</summary>
         public const float SiegeLineLockMinX = Room2StartX + EncounterLockRules.DefaultBarrierWidthPixels;
         public const float SiegeLineLockMaxX = GateAX - EncounterLockRules.DefaultBarrierWidthPixels * 0.5f;
@@ -223,6 +247,19 @@ namespace FTT.Environment {
         private const float GateAColumnFootY = 600f;
         /// <summary>Gate B's column foot: the battlement's exit barrier fills the gate and the footing pocket below it.</summary>
         private const float GateBColumnFootY = 240f;
+
+        // === GR-PILOT: the Rampart run and the Parapet line ===================
+
+        public const string RampartStretchID = "level_02.stretch_rampart";
+        public const string ParapetRouteID = "level_02.route_parapet";
+        /// <summary>The stretch: from the vanguard's exit barrier to the siege line's entry barrier.</summary>
+        public const float RampartMinX = VanguardLockMaxX + EncounterLockRules.DefaultBarrierWidthPixels;
+        public const float RampartMaxX = Room2StartX;
+        /// <summary>The deck ends and resumes here: the high joints of the trench's ramps.</summary>
+        public const float RampartWestDeckEndX = 2060f;
+        public const float RampartEastDeckStartX = 3160f;
+        /// <summary>The Parapet line's last platform, which holds the courtyard Extractor.</summary>
+        private const float ParapetEndX = 3035f;
 
         private EncounterLock _vanguardLock;
         private EncounterLock _siegeLineLock;
@@ -261,6 +298,7 @@ namespace FTT.Environment {
 
         protected override void BuildLevel() {
             BuildRoom1VanguardApproach();
+            BuildRampartRun();
             BuildRoom2SiegeLine();
             BuildRoom3BattlementClimb();
             BuildRoom4BossCourt();
@@ -294,7 +332,10 @@ namespace FTT.Environment {
                 ExitBarrierX = GateAX,
                 ExitBarrierYRange = new Vector2(GateAColumnFootY, GroundY),
                 BarrierFloorY = GroundY,
-                Waves = new[] { EncounterLockWave.FromTable(Room2RowID, Room2Spawns, EncounterWaveTrigger.OnEngage) },
+                Waves = new[] {
+                    EncounterLockWave.FromTable(Room2RowID, Room2Spawns, EncounterWaveTrigger.OnEngage),
+                    SwarmWave(SwarmRowID, EnemyGroundY, SwarmSpawnXs)
+                },
                 RequiredBreakables = _towerA != null ? new DamageableEnvironmentObject[] { _towerA }
                     : System.Array.Empty<DamageableEnvironmentObject>(),
                 GoDirection = EncounterGoDirection.Right
@@ -315,15 +356,13 @@ namespace FTT.Environment {
         /// <summary>Room 1: the French vanguard's ruined approach. No gate, no waves past the opener.</summary>
         private void BuildRoom1VanguardApproach() {
             BuildRoomBackground("BG_Room1", Room1StartX, 3200, LevelHeight, new Color(0.11f, 0.09f, 0.06f, 0.35f));
-            BuildFloor(Room1StartX, GroundY, 3200);
+            BuildFloor(Room1StartX, GroundY, RampartWestDeckEndX - Room1StartX);
             BuildWall(-20, 0, LevelHeight);
 
             BuildPlatform(500, 720, 260);
             BuildPlatform(900, 570, 220);
             BuildPlatform(1350, 700, 240);
             BuildPlatform(1900, 540, 240);
-            BuildPlatform(2400, 660, 260);
-            BuildPlatform(2850, 520, 220);
 
             BuildHazardSpikes(1600, 890, 140);
 
@@ -332,6 +371,42 @@ namespace FTT.Environment {
             BuildRoomTransition("orleans_room_vanguard", new Vector2(300, 600), Room1CameraBounds);
             // Package 13 W4 (S23): the vanguard, where the banner stands with no one holding it.
             BuildAbsenceTrigger(new Vector2(1100, GroundY - 200));
+        }
+
+        /// <summary>
+        /// GR-PILOT: the Rampart run, 2020-3200, and the Parapet line above it. The step line
+        /// crosses at y 712 over a trench 120 px deep; a hero who falls in walks out by the
+        /// west ramp, climbs the one-way back to the line, or climbs the wall step from the
+        /// east ramp. Nothing here is a new verb, and there is no rope.
+        /// </summary>
+        private void BuildRampartRun() {
+            TraversalStretch rampart = BeginStretch(RampartStretchID, "orleans_room_rampart",
+                RampartMinX, RampartMaxX, GroundY, RampartWestDeckEndX, RampartEastDeckStartX, Room1StartX);
+            BuildRoomDecoration(RampartMinX, "orleans_room_rampart", new Color(0.85f, 0.6f, 0.3f));
+            BuildStretchTrench(rampart);
+            // The deck resumes here, under the siege line's entry barrier's west side.
+            BuildFloor(RampartEastDeckStartX, GroundY, RampartMaxX - RampartEastDeckStartX);
+
+            BuildStretchStep(rampart, 2170, 790, 200);
+            BuildStretchStep(rampart, 2430, 720, 180, StretchStepKind.Crumbling, "level_02.crumbling_rampart");
+            TraversalSurface middleStep = BuildStretchStep(rampart, 2700, 722, 200, StretchStepKind.OneWay);
+            TraversalSurface eastStep = BuildStretchStep(rampart, 2970, 720, 200);
+            BuildStretchWallStep(rampart, 3150f, 690f, 940f);
+
+            // Off the line: the way back up out of the trench, and a mortar lane to cross down there.
+            BuildOneWayPlatform(2640, 870, 200);
+            BuildCyclicHazardLane("level_02.mortar_rampart", 2850f, rampart.TrenchFloorY, 1f, 0.6f, 2.6f, 18, withCover: true);
+
+            // The Parapet line. Its base-kit line climbs west and back east, and ends in a 245 px hop.
+            OptionalRoute parapet = BeginOptionalRoute(ParapetRouteID, ExtractorPlacements[0].ID,
+                ExtractorPlacements[0].Position, middleStep);
+            BuildRouteStep(parapet, 2560, 530, 120);
+            TraversalSurface burstFrom = BuildRouteStep(parapet, 2340, 420, 160);
+            BuildRouteStep(parapet, 2590, 320, 180);
+            TraversalSurface end = BuildRouteStep(parapet, ParapetEndX, 320, 220);
+            // A burst skips the climb's last platform. A rise goes straight up from the line's east step.
+            parapet.MarkBurstShortcut(burstFrom, end);
+            parapet.MarkRiseShortcut(eastStep, end);
         }
 
         /// <summary>
@@ -430,8 +505,72 @@ namespace FTT.Environment {
             BuildRoomDecoration(Room4StartX, "orleans_room_boss", new Color(0.95f, 0.3f, 0.25f));
             BuildRoomTransition("orleans_room_boss", new Vector2(Room4StartX + 30, 540), Room4CameraBounds);
 
-            BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, EnemyGroundY),
+            BossEncounterController duke = BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, EnemyGroundY),
                 "siegemaster_duke_encounter", BossArenaBounds);
+            BuildDukeSteam();
+            if (duke != null) {
+                duke.PhaseEntered += OnDukePhaseEntered;
+                duke.BossDefeated += _ => LowerDukeSteam();
+            }
+        }
+
+        // === GR-PILOT (ruling 14): the Duke's boiler rupture =================
+        //
+        // Design §6: "both arena edges become steam hazards, fight pushed to centre".
+        // The two strips are built up front, disabled, inside the arena, so no collision
+        // body is created mid-fight; his Phase 2 starts them. They are story_hazard
+        // members, so the Post-Landing Hold and the rewind freeze hold them. His
+        // mortar_barrage stays: it is the design's "mortars".
+
+        /// <summary>
+        /// The steam strips' x centres (the template's strip is 120 wide). The east strip is flush with
+        /// the court wall; the west one stands 10 px inside the arena, which keeps the font's channel
+        /// circle at 9180 clear of it (FontHazardClearance).
+        /// </summary>
+        public const float DukeSteamWestX = BossArenaWestX + 70f;
+        public const float DukeSteamEastX = 10540f - 60f;
+
+        private StoryCyclicHazard _dukeSteamWest;
+        private StoryCyclicHazard _dukeSteamEast;
+
+        /// <summary>True once Phase 2 has started the steam and until the Duke falls.</summary>
+        public bool DukeSteamRaised { get; private set; }
+        public StoryCyclicHazard DukeSteamWest => _dukeSteamWest;
+        public StoryCyclicHazard DukeSteamEast => _dukeSteamEast;
+
+        private void BuildDukeSteam() {
+            _dukeSteamWest = BuildCyclicHazardLane("level_02.duke_steam_west", DukeSteamWestX, GroundY, 1f, 1.2f, 1.8f, 12, startEnabled: false);
+            _dukeSteamEast = BuildCyclicHazardLane("level_02.duke_steam_east", DukeSteamEastX, GroundY, 1f, 1.2f, 1.8f, 12, startEnabled: false);
+        }
+
+        private void OnDukePhaseEntered(int phase) {
+            if (phase < 1) return;
+            // The phase change usually lands inside the hit's physics flush; hop off it.
+            // Direct (test) calls stay synchronous.
+            if (PhysicsCallbackGuard.IsInPhysicsCallback) Callable.From(RaiseDukeSteam).CallDeferred();
+            else RaiseDukeSteam();
+        }
+
+        /// <summary>Starts both steam edges on their warning. Idempotent; public as a test seam.</summary>
+        public void RaiseDukeSteam() {
+            if (DukeSteamRaised || IsBossDefeated || _dukeSteamWest == null || _dukeSteamEast == null) return;
+            DukeSteamRaised = true;
+            bool held = IsInsideTree() && ChronalRewindManager.IsWorldHeld(GetTree());
+            foreach (StoryCyclicHazard steam in new[] { _dukeSteamWest, _dukeSteamEast }) {
+                steam.Enabled = true;
+                // Never a telegraph that starts inside the hold: it would run out unseen.
+                if (!held) steam.ForcePhase(HazardPhase.Warning, steam.WarningDuration);
+            }
+        }
+
+        /// <summary>Stops the steam once the Duke falls: the hero still has to walk to the sealing anchor.</summary>
+        private void LowerDukeSteam() {
+            DukeSteamRaised = false;
+            foreach (StoryCyclicHazard steam in new[] { _dukeSteamWest, _dukeSteamEast }) {
+                if (steam == null || !IsInstanceValid(steam)) continue;
+                steam.Enabled = false;
+                steam.ForcePhase(HazardPhase.Cooldown, steam.CooldownDuration);
+            }
         }
 
         /// <summary>Placeholder gate signage; replaced with production art in Package 8.</summary>
@@ -489,9 +628,9 @@ namespace FTT.Environment {
         // GU-E (2026-10-12): every encounter is a lock wave (BuildEncounterLocks).
         // Authored counts are the Normal-difficulty truth; the lock takes the same
         // per-row ScaleEncounterCount prefix the reward manifest compiles, never
-        // more than the table. Concurrency stays at 3 or fewer live standards,
-        // well inside the level's warm pool counts (standard_enemy 10,
-        // enemy_projectile 18).
+        // more than the table. Concurrency stays at 3 or fewer live standards plus
+        // the siege line's swarm, inside the level's warm pool counts (standard_enemy
+        // 16, enemy_projectile 18).
 
         // === Resume and objectives ===
 

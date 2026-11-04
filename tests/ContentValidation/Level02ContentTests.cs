@@ -87,7 +87,7 @@ public class Level02ContentTests {
         Level02Controller level = fixture.Level;
 
         AssertThat(level.RoomTriggers.Count).OverrideFailureMessage(
-            "Level 2 is authored as four camera-confined rooms.").IsEqual(4);
+            "Level 2 is authored as four camera-confined rooms and the Rampart run.").IsEqual(5);
         foreach (RoomTransitionTrigger trigger in level.RoomTriggers) {
             // A1 back-fills CameraPath after the player spawns; without it room
             // confinement silently does nothing.
@@ -214,11 +214,10 @@ public class Level02ContentTests {
         AssertThat(level.BossEncounters.Count).IsEqual(1);
         AssertString(level.BossEncounters[0].Data.BossID).IsEqual("siegemaster_duke");
 
-        // Live standards never exceed the biggest single wave, well inside the
-        // level_02 pool config's standard_enemy warm count of 10.
-        int largestWave = Math.Max(Level02Controller.Room1Spawns.Length,
-            Math.Max(Level02Controller.Room2Spawns.Length, Level02Controller.Room3Spawns.Length));
-        AssertThat(largestWave).IsLessEqual(10);
+        // Live standards never exceed the siege line's soldiers and its swarm, inside the
+        // level_02 pool config's standard_enemy warm count of 16.
+        int largestWave = Level02Controller.Room2Spawns.Length + Level02Controller.SwarmSpawnXs.Length;
+        AssertThat(largestWave).IsLessEqual(16);
     }
 
     [TestCase]
@@ -265,7 +264,7 @@ public class Level02ContentTests {
         TranslationServer.SetLocale("en");
 
         var required = new List<string> {
-            "orleans_level_title", "orleans_room_vanguard", "orleans_room_siege_line",
+            "orleans_level_title", "orleans_room_vanguard", "orleans_room_rampart", "orleans_room_siege_line",
             "orleans_room_battlement", "orleans_room_boss", "orleans_objective_advance",
             "orleans_objective_towers", "orleans_objective_breach", "orleans_objective_defeat_boss",
             "orleans_objective_complete", "orleans_gate_shielded"
@@ -313,10 +312,10 @@ public class Level02ContentTests {
             AssertString(siegeLine.LockID).IsEqual(Level02Controller.LockSiegeLine);
             AssertString(battlement.LockID).IsEqual(Level02Controller.LockBattlement);
 
-            // The plan's areas: 300-3200, 3220-6290 (to Gate A), 6580-8690 (to Gate B;
-            // FIX-E moved its west edge from 6460 to widen the Middle anchor's corridor).
+            // The plan's areas: 300-2000 (GR-PILOT carved it from 300-3200), 3220-6290 (to Gate A),
+            // 6580-8690 (to Gate B; FIX-E moved its west edge from 6460 to widen the Middle anchor's corridor).
             AssertThat(vanguard.Area.Position.X).IsEqual(300f);
-            AssertThat(vanguard.Area.End.X).IsEqual(3200f);
+            AssertThat(vanguard.Area.End.X).IsEqual(2000f);
             AssertThat(siegeLine.Area.Position.X).IsEqual(3220f);
             AssertThat(siegeLine.Area.End.X).IsEqual(6290f);
             AssertThat(battlement.Area.Position.X).IsEqual(6580f);
@@ -328,6 +327,10 @@ public class Level02ContentTests {
             AssertString(battlement.Spec.Waves[0].RowID).IsEqual(Level02Controller.Room3RowID);
             AssertThat(vanguard.Spec.Waves[0].Spawns.Length).IsEqual(Level02Controller.Room1Spawns.Length);
             AssertThat(siegeLine.Spec.Waves[0].Spawns.Length).IsEqual(Level02Controller.Room2Spawns.Length);
+            // GR-PILOT: the siege line's swarm is its second wave, its own manifest row.
+            AssertThat(siegeLine.Spec.Waves.Length).IsEqual(2);
+            AssertString(siegeLine.Spec.Waves[1].RowID).IsEqual(Level02Controller.SwarmRowID);
+            AssertThat(siegeLine.Spec.Waves[1].Trigger).IsEqual(EncounterWaveTrigger.WhenAliveAtMost);
             AssertThat(battlement.Spec.Waves[0].Spawns.Length).IsEqual(Level02Controller.Room3Spawns.Length);
             AssertThat(vanguard.Spec.Waves[0].Trigger).IsEqual(EncounterWaveTrigger.OnBuild);
             AssertThat(siegeLine.Spec.Waves[0].Trigger).IsEqual(EncounterWaveTrigger.OnEngage);
@@ -445,7 +448,7 @@ public class Level02ContentTests {
                 .IsFalse();
             AssertThat(story.IsCheckpointActivated(Level02Controller.Checkpoint1)).IsFalse();
 
-            foreach (EnemyController member in siegeLine.LivingMembers) member.TakeDamage(99999);
+            await KillEveryMember(tree, siegeLine);
             level.ShieldTowerA.TakeEnvironmentDamage(level.ShieldTowerA.MaxHP);
             for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
             AssertThat(siegeLine.State).IsEqual(EncounterLockState.Cleared);
@@ -483,10 +486,11 @@ public class Level02ContentTests {
             for (int frame = 0; frame < 4; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
             AssertThat(siegeLine.State).IsEqual(EncounterLockState.Engaged);
             AssertThat(siegeLine.EntryBarrier.IsClosed).IsTrue();
-            AssertThat(siegeLine.LivingMemberCount).IsEqual(siegeLine.PlannedTotal);
-            AssertThat(siegeLine.LivingMemberCount).IsGreater(0);
+            // The soldiers on engage; the swarm comes later (Level02TraversalStretchTests).
+            AssertThat(siegeLine.LivingMemberCount).IsEqual(Level02Controller.Room2Spawns.Length);
 
-            foreach (EnemyController member in siegeLine.LivingMembers) member.TakeDamage(99999);
+            await KillEveryMember(tree, siegeLine);
+            AssertThat(siegeLine.LivingMemberCount).IsEqual(0);
             for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
             AssertThat(siegeLine.State)
                 .OverrideFailureMessage("The siege line must hold while generator A still stands.")
@@ -505,6 +509,15 @@ public class Level02ContentTests {
     }
 
     // === Helpers ===
+
+    /// <summary>Kills a lock's members until none is left, the waves their deaths bring included.</summary>
+    private static async System.Threading.Tasks.Task KillEveryMember(SceneTree tree, EncounterLock encounterLock) {
+        for (int round = 0; round < 8; round++) {
+            foreach (EnemyController member in new List<EnemyController>(encounterLock.LivingMembers)) member.TakeDamage(99999);
+            for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            if (encounterLock.LivingMemberCount == 0) return;
+        }
+    }
 
     /// <summary>The 40 px hero body's half-width.</summary>
     private const float HeroHalfWidthPixels = 20f;

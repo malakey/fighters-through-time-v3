@@ -1778,6 +1778,28 @@ namespace FTT.Diagnostics {
             return natural.Count > 0 ? Math.Round(100.0 * natural.Count(s => s.Outcome == "w") / natural.Count, 1) : -1.0;
         }
 
+        /// <summary>This run's <c>rank</c> block, read from <see cref="StoryManager"/>.</summary>
+        public Dictionary<string, object> RankReport() {
+            StoryManager story = StoryManager.Instance;
+            return RankBlock(story?.LastLevelRank, story?.LastLevelRankBonusDust ?? 0);
+        }
+
+        /// <summary>
+        /// The <c>rank</c> block: the letter, points, the two scores and the dust paid, from the level's
+        /// own rank result (no result before the level completes, or on Level 0).
+        /// </summary>
+        public static Dictionary<string, object> RankBlock(LevelRankResult? rank, int dustPaid) =>
+            new() {
+                ["letter"] = rank?.Letter.ToString(),
+                ["points"] = rank.HasValue ? Math.Round(rank.Value.Points, 1) : -1.0,
+                // DamagePercent is the bars lost as a percentage, so the score reads as hp over a 100 hp bar.
+                ["damage_score"] = rank.HasValue ? Math.Round(LevelRankRules.DamageScore(rank.Value.DamagePercent, 100), 1) : -1.0,
+                ["damage_percent"] = rank?.DamagePercent ?? -1,
+                // -1 on Level 1, which has no clock (LevelRankRules.SpeedPercentUntimed), as well as with no result.
+                ["speed_score"] = rank?.SpeedPercent ?? -1,
+                ["dust_paid"] = dustPaid
+            };
+
         /// <summary>The runner's one-line <c>PLAYTEST_RESULT</c> combat summary.</summary>
         public Dictionary<string, object> CombatSummary() {
             List<SwingRecord> combat = _swings.Where(s => s.IsCounted && s.IsCombat).ToList();
@@ -1910,6 +1932,8 @@ namespace FTT.Diagnostics {
                 // Meter and Defy update (MM-BOTS): the active Defy and the Momentum gauge.
                 ["defy"] = DefyReport(),
                 ["momentum"] = MomentumReport(),
+                // GR-PILOT: the level rank, so a gate can read it (null letter on a run that did not complete).
+                ["rank"] = RankReport(),
                 ["ability_presses"] = PressesReport(),
                 // C3 (§4.3 step 2.4): mob MeleeStrike/ChargeDash active windows.
                 ["mob_swings"] = MobSwingsReport(),

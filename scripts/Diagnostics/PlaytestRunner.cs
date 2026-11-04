@@ -563,6 +563,8 @@ namespace FTT.Diagnostics {
                 // melee attackers; frames over the slot total; slot hand-offs; the
                 // median waiter gap; ranged attacks in flight).
                 ["encounters"] = _telemetry?.EncounterSummary(),
+                // GR-PILOT: letter, points, the two scores and the dust paid.
+                ["rank"] = report.GetValueOrDefault("rank"),
                 ["report"] = ProjectSettings.GlobalizePath(Options.OutPath)
             };
             GD.Print("PLAYTEST_RESULT " + JsonSerializer.Serialize(summary));
