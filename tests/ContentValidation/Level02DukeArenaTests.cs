@@ -49,13 +49,12 @@ public class Level02DukeArenaTests {
         Level02Controller level = fixture.Level;
         await Settle(tree);
         BossEncounterController encounter = level.BossEncounters[0];
-        encounter.RevealForTesting();
         BossController duke = encounter.Boss;
         await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
 
         // Inside a physics flush the raise hops off it; outside one it is synchronous.
         using (PhysicsCallbackGuard.Enter()) {
-            duke.TakeDamage(duke.CurrentHP - Mathf.FloorToInt(duke.MaxHP * duke.Data.PhaseThresholds[0]) + 1);
+            duke.TakeDamage(duke.CurrentHP - Mathf.FloorToInt(duke.ScaledMaxHP * duke.Data.PhaseThresholds[0]) + 1);
             AssertThat(duke.CurrentPhase).IsEqual(1);
             AssertThat(level.DukeSteamRaised)
                 .OverrideFailureMessage("The raise must wait out the hit's physics flush.").IsFalse();
@@ -82,7 +81,6 @@ public class Level02DukeArenaTests {
         PlayerController hero = level.Player;
         await Settle(tree);
         BossEncounterController encounter = level.BossEncounters[0];
-        encounter.RevealForTesting();
         level.RaiseDukeSteam();
 
         // The centre is safe through a whole active window. (The boss is not engaged at a hero
@@ -123,7 +121,7 @@ public class Level02DukeArenaTests {
         await Settle(tree);
         StoryCyclicHazard steam = level.DukeSteamWest;
         level.RaiseDukeSteam();
-        AssertThat(ChronalRewindManager.PostLandingHoldGroupsForTesting).Contains("story_hazard");
+        AssertThat(System.Linq.Enumerable.Contains(ChronalRewindManager.PostLandingHoldGroups, "story_hazard")).IsTrue();
         steam.ForcePhase(HazardPhase.Warning, 2f / 60f);
         steam.SetTimeFrozen(true);
         for (int frame = 0; frame < 6; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);

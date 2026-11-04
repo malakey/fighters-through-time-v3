@@ -166,7 +166,7 @@ internal static class TraversalContentKit {
                 foreach (Rect2 rect in ShapeRects(boundary)) fact.KillBoundaries.Add(rect);
                 break;
             case ChronalExtractor extractor:
-                fact.PlacedExtractors.Add((extractor.ExtractorID, extractor.GlobalPosition));
+                fact.PlacedExtractors.Add((extractor.ObjectID, extractor.GlobalPosition));
                 break;
             case SecretCache cache:
                 fact.PlacedSecrets.Add((cache.SecretID, cache.GlobalPosition));
@@ -209,13 +209,13 @@ internal static class TraversalContentKit {
 
     /// <summary>
     /// Runs a hero off <paramref name="from"/> and tries to land on <paramref name="to"/>,
-    /// in real frames on a copy of the two surfaces: run from the far side, jump at the
-    /// edge, second jump at the first apex, the ability (if any) at the second apex, then
-    /// steer to the target. Returns where the hero came to rest and whether that is on the
+    /// in real frames on a copy of the two surfaces: run from the far side (or, for a target
+    /// overhead, walk under it, or to <paramref name="takeOffX"/> for a kit that flies forward as it rises), jump at the edge, second jump at the first apex, the ability
+    /// (if any) at the second apex, then steer to the target. Returns where the hero came to rest and whether that is on the
     /// target. The caller's world has nothing else in it, so nothing but the hop is measured.
     /// </summary>
     public static async Task<(bool Landed, string Report)> Fly(string heroID, TraversalSurface from, TraversalSurface to,
-        FlightAbility ability) {
+        FlightAbility ability, float? takeOffX = null) {
         var tree = (SceneTree)Engine.GetMainLoop();
         const float Offset = -30000f; // far from anything else in the runner tree
         var root = new Node2D { Name = "TraversalFlight", Position = new Vector2(Offset, 0f) };
@@ -231,45 +231,63 @@ internal static class TraversalContentKit {
             float spawnX = direction >= 0f ? from.Left + 4f : from.Right - 4f;
             hero.GlobalPosition = new Vector2(Offset + spawnX, from.Top - 2f);
             hero.IsFacingRight = direction >= 0f;
-            for (int frame = 0; frame < 30; frame++) {
-                await Step(tree, source, 0f, 0f, GameplayButtons.None);
-                if (hero.IsOnFloor()) break;
-            }
-            int jumpsDone = 0;
-            bool abilityDone = ability == FlightAbility.None;
+            for (int frame = 0; frame < 6; frame++) await Step(tree, source, 0f, 0f, GameplayButtons.None);
+            float centre = (to.Left + to.Right) / 2f;
+            float takeOff = takeOffX ?? centre;
+            // 0 run to the take-off, 1 first jump held, 2 one tick off Jump, 3 second jump held,
+            // 4 ability pressed, 5 steering home.
+            int stage = 0;
             GameplayButtons held = GameplayButtons.None;
             float peak = float.MaxValue;
-            for (int frame = 0; frame < 420; frame++) {
+            for (int frame = 0; frame < 480; frame++) {
                 float x = hero.GlobalPosition.X - Offset;
                 float y = hero.GlobalPosition.Y;
                 peak = Mathf.Min(peak, y);
-                bool overTarget = x >= to.Left && x <= to.Right;
-                bool airborne = !hero.IsOnFloor();
-                if (jumpsDone >= 1 && hero.IsOnFloor() && y <= to.Top + 2f && y >= to.Top - 2f && overTarget) {
+                bool grounded = hero.IsOnFloor();
+                if (stage > 0 && grounded && Mathf.Abs(y - to.Top) <= 2f && x >= to.Left && x <= to.Right) {
                     return (true, $"{heroID} landed on {to} at x {x:0}, peak {from.Top - peak:0} px above the start");
                 }
                 if (y > Mathf.Max(from.Top, to.Top) + 400f) break;
 
-                float stick = SteerToward(x, to, from, direction, jumpsDone, airborne, y);
+                float toward = Mathf.Abs(x - centre) < 6f ? 0f : x < centre ? 1f : -1f;
+                float stick = toward;
                 float vertical = 0f;
-                GameplayButtons press = GameplayButtons.None;
-                if (jumpsDone == 0) {
-                    // Direction 0 means the target is straight overhead: jump at once.
-                    bool atEdge = direction == 0f || (direction > 0f ? x >= from.Right - 6f : x <= from.Left + 6f);
-                    if (atEdge) { press = GameplayButtons.Jump; jumpsDone = 1; }
-                } else if (jumpsDone == 1 && airborne && hero.Velocity.Y >= 0f) {
-                    press = GameplayButtons.Jump;
-                    jumpsDone = 2;
-                } else if (jumpsDone == 2 && !abilityDone && airborne && hero.Velocity.Y >= 0f) {
-                    press = GameplayButtons.MovementAbility;
-                    abilityDone = true;
-                    if (ability == FlightAbility.Up) { vertical = -1f; stick = 0f; }
-                    else stick = direction;
+                GameplayButtons buttons = GameplayButtons.None;
+                switch (stage) {
+                    case 0:
+                        stick = direction != 0f ? direction : Mathf.Abs(x - takeOff) < 6f ? 0f : x < takeOff ? 1f : -1f;
+                        bool ready = direction > 0f ? x >= from.Right - 6f
+                            : direction < 0f ? x <= from.Left + 6f
+                            : stick == 0f;
+                        if (ready && grounded) {
+                            buttons = GameplayButtons.Jump;
+                            stage = 1;
+                        }
+                        break;
+                    case 1:
+                        buttons = GameplayButtons.Jump;
+                        if (!grounded && hero.Velocity.Y >= 0f) stage = 2;
+                        break;
+                    case 2:
+                        stage = 3;
+                        buttons = GameplayButtons.None; // the release a fresh press needs
+                        break;
+                    case 3:
+                        buttons = GameplayButtons.Jump;
+                        if ((held & GameplayButtons.Jump) != 0 && !grounded && hero.Velocity.Y >= 0f) {
+                            stage = ability == FlightAbility.None ? 5 : 4;
+                        }
+                        break;
+                    case 4:
+                        buttons = GameplayButtons.MovementAbility;
+                        if (ability == FlightAbility.Up) { vertical = -1f; stick = 0f; }
+                        else stick = direction;
+                        stage = 5;
+                        break;
+                    default:
+                        buttons = ability == FlightAbility.None ? GameplayButtons.Jump : GameplayButtons.None;
+                        break;
                 }
-                // Jump stays held for the whole climb, so no rise is cut short (the short hop).
-                GameplayButtons buttons = press | (jumpsDone > 0 && !abilityDone || jumpsDone > 0 && ability == FlightAbility.None
-                    ? GameplayButtons.Jump : GameplayButtons.None);
-                if (press == GameplayButtons.MovementAbility) buttons |= GameplayButtons.MovementAbility;
                 source.SetNextFrame(PlayerInputFrame.Create(0, stick, vertical, buttons, held));
                 held = buttons;
                 await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
@@ -283,16 +301,6 @@ internal static class TraversalContentKit {
             root.GetParent()?.RemoveChild(root);
             root.Free();
         }
-    }
-
-    private static float SteerToward(float x, TraversalSurface to, TraversalSurface from, float direction, int jumpsDone,
-        bool airborne, float y) {
-        if (jumpsDone == 0) return direction;
-        float centre = (to.Left + to.Right) / 2f;
-        // Below the target's top a hero aiming past a surface overhead keeps its line; above it, steer in.
-        float toward = x < centre ? 1f : -1f;
-        if (Mathf.Abs(x - centre) < 6f) return 0f;
-        return toward;
     }
 
     private static async Task Step(SceneTree tree, BufferedInputSource source, float h, float v, GameplayButtons held) {

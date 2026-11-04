@@ -88,8 +88,7 @@ public class Level02TraversalStretchTests {
     /// <summary>The Parapet line's longest hop is real: Lincoln clears it with a double jump, in real frames.</summary>
     [TestCase(Timeout = 60000)]
     public async Task LincolnClearsTheParapetLinesLongestHopInRealFrames() {
-        using var fixture = new Fixture("einstein");
-        OptionalRoute route = Children(fixture.Level).OfType<OptionalRoute>().Single();
+        TraversalContentKit.RouteFact route = TraversalContentKit.Levels().Single(level => level.Index == 2).Routes.Single();
         TraversalSurface from = route.BaseLine[^2];
         TraversalSurface to = route.BaseLine[^1];
         AssertThat(TraversalRules.HopGap(from, to)).IsEqual(250f);

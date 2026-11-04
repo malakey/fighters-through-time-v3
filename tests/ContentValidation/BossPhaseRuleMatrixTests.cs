@@ -39,6 +39,7 @@ public class BossPhaseRuleMatrixTests {
     /// </summary>
     private static readonly (string BossID, int Phase, string Source, string Hook)[] ArenaRules = {
         ("borgia_inquisitor", 1, "scripts/Environment/Level01Controller.cs", "PhaseEntered += OnBossPhaseEntered"),
+        ("siegemaster_duke", 1, "scripts/Environment/Level02Controller.cs", "PhaseEntered += OnDukePhaseEntered"),
         ("chronal_inventor", 1, "scripts/Environment/Level03Controller.cs", "PhaseEntered += OnInventorPhaseEntered"),
         ("revolutionary_tribunal", 1, "scripts/Environment/Level04Controller.cs", "PhaseEntered += OnTribunalPhaseEntered"),
         ("tidal_eraser", 1, "scripts/Environment/Level05Controller.cs", "OnBossPhaseChanged += OnBossPhaseChanged"),

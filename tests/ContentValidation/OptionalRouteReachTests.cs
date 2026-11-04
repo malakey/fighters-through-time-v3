@@ -96,7 +96,9 @@ public class OptionalRouteReachTests {
                     issues.Add($"{level.Label}: the rise shortcut ({rise:0} px) is no shortcut: Joan's double jump clears it");
                 }
                 foreach (string heroID in RiseHeroes) {
-                    (bool landed, string report) = await TraversalContentKit.Fly(heroID, route.RiseFrom, route.RiseTo, FlightAbility.Up);
+                    // Prospero's Flight carries him 240 px forward as he rises, so he takes off well short of the target.
+                    float? takeOffX = heroID == "shakespeare" ? route.RiseFrom.Left + 10f : null;
+                    (bool landed, string report) = await TraversalContentKit.Fly(heroID, route.RiseFrom, route.RiseTo, FlightAbility.Up, takeOffX);
                     GD.Print($"[reach] {level.Label} rise: {report}");
                     if (!landed) issues.Add(report);
                 }
