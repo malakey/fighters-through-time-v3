@@ -114,6 +114,15 @@ namespace FTT.Diagnostics {
             return new HolodeckConsolePanel { Name = "HolodeckConsolePanel" };
         }
 
+        /// <summary>GR-TRAIN: the training room's settings menu.</summary>
+        [UiCaptureTarget("select_training_settings", SettleFrames = 16)]
+        public static Node SelectTrainingSettings(UiCaptureContext context) => new TrainingRoomPanel { Name = "TrainingRoomPanel" };
+
+        /// <summary>GR-TRAIN: the training room itself (sandbox, dummy and the readout slab), before the match goes live.</summary>
+        [UiCaptureTarget("training_room", SettleFrames = 30)]
+        public static Node TrainingRoomScene(UiCaptureContext context) =>
+            ResourceLoader.Load<PackedScene>(TrainingRoom.ScenePath).Instantiate();
+
         /// <summary>The select at the maximum UI scale (140 %): Player 1 ready on Joan, Player 2 on Tesla.</summary>
         [UiCaptureTarget("select_140", SettleFrames = 12)]
         public static Node Select140(UiCaptureContext context) {
