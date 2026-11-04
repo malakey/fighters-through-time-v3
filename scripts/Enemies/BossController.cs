@@ -777,6 +777,7 @@ namespace FTT.Enemies {
             }
 
             if (!Executor.IsBusy) {
+                if (TryBeginAbilityAfterVolley()) return;
                 _attackCommitted = false;
                 _restTimer = Mathf.Max(0f, Data?.RestCooldown ?? 1.5f);
                 CurrentState = BossState.RestWindow;

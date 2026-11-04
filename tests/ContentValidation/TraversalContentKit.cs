@@ -21,7 +21,7 @@ internal static class TraversalContentKit {
     /// Levels that have built their stretch and route. Each level owner adds its level, and the
     /// sweeps then fail if the level authors none. The closeout's list is 1–15.
     /// </summary>
-    public static readonly int[] LevelsWithTraversal = { 2 };
+    public static readonly int[] LevelsWithTraversal = { 2, 10, 11, 12 };
 
     /// <summary>Levels whose route has no ability shortcut: Level 1 has no movement ability yet (dossier C §3).</summary>
     public static readonly HashSet<int> LevelsWithoutShortcuts = new() { 1 };

@@ -54,6 +54,12 @@ namespace FTT.Environment {
     /// Extractor. The pad east of the curtain is no longer a fight — its 1216 px
     /// between the curtain and the arena is narrower than a lock — so the PreBoss
     /// anchor, the thesis scene and the font keep their places.</para>
+    ///
+    /// <para><b>The Mare Crossing</b> (GR-LV4, rulings 7a, 7b, 7c, 7c+): Tranquility Base's
+    /// lock now ends at 2000, and the span to the vent field (2020-3000) is a traversal
+    /// stretch with the secret at the end of its route. It has no trench: the Moon has no
+    /// pits and the floor is 100 px above the level's bottom edge, so the harder way is the
+    /// floor under two vents, and the line runs over them. No swarm row (ruling 1b++).</para>
     /// </summary>
     public partial class Level12Controller : StoryLevelControllerBase {
 
@@ -71,15 +77,15 @@ namespace FTT.Environment {
         /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
         /// per-hero median measurement pass.
         /// </summary>
-        public override float ParSeconds => 540f;
+        public override float ParSeconds => TraversalRules.ParWithStretches(540f, 1);
         public override string LevelTitleKey => "lunar_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_12_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(220f, SurfaceY - 60f);
 
-        // Package 12 W8 (GAP-03): the secret cache sits on
-        // the upper spire-ladder cover rung (one-way 6700, top 1490) over the
-        // spire-base vent — a dead-end gantry the floor route and the lift bypass.
-        protected override Vector2? SecretCachePosition => new(6700f, 1395f);
+        // GR-LV4: the secret cache sits at the end of the Survey Line route, over the Mare
+        // Crossing's first step. It stood on the upper spire-ladder cover rung (Package 12 W8);
+        // that rung stays as cover.
+        protected override Vector2? SecretCachePosition => new(SurveyLineEndX, 1285f);
 
         // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, after the PreBoss
         // anchor (8940) on the landing pad, 400 px short of the arena (9800). Low-gravity
@@ -312,8 +318,9 @@ namespace FTT.Environment {
         public static readonly (string EnemyID, int Wave, Vector2 Position)[] SpawnTable = {
             // Wave 1 - Tranquility Base. Diggers only: the low-gravity teaching fight.
             (DiggerEnemyID, 1, new Vector2(1100f, StandY)),
+            // GR-LV4: 1900 -> 1480 and 2600 -> 1900, inside the carved lock and clear of the lander.
+            (DiggerEnemyID, 1, new Vector2(1480f, StandY)),
             (DiggerEnemyID, 1, new Vector2(1900f, StandY)),
-            (DiggerEnemyID, 1, new Vector2(2600f, StandY)),
             // Wave 2 - the vent field. Severed troopers join the local excavation crews.
             (DiggerEnemyID, 2, new Vector2(3400f, StandY)),
             (CultistEnemyID, 2, new Vector2(3900f, StandY)),
@@ -380,9 +387,9 @@ namespace FTT.Environment {
 
         private const float LockBarrierWidth = EncounterLockRules.DefaultBarrierWidthPixels;
 
-        /// <summary>Tranquility Base: everything past the entry anchor (260) to the vent-field seam.</summary>
+        /// <summary>Tranquility Base: everything past the entry anchor (260), carved by GR-LV4 from 3000 to 2000.</summary>
         public const float TranquilityLockMinX = 320f;
-        public const float TranquilityLockMaxX = Room2StartX;
+        public const float TranquilityLockMaxX = 2000f;
         /// <summary>
         /// The vent field, from the room seam to 190 px short of the Middle anchor
         /// (6050): the anchor's strike surface (6020–6080) stays past the longest
@@ -441,10 +448,12 @@ namespace FTT.Environment {
 
         protected override void BuildLevel() {
             BuildRoom1TranquilityBase();
+            BuildMareCrossing();
             BuildRoom2VentField();
             BuildRoom3RelaySpire();
             BuildRoom4LandingPad();
             BuildGravityFields();
+            BuildOverseerArena();
             BuildExtractors(ExtractorPlacements);
 
             BuildWall(0f, 0f, LevelHeight);
@@ -544,10 +553,56 @@ namespace FTT.Environment {
             // The lander, as a graybox silhouette. Deliberately a low hop and NOT a
             // wall: anything on the main surface line taller than a heavy
             // character's lunar jump would fence Lincoln out of his own level.
-            BuildPlatform(2050f, SurfaceY - 80f, 180f, new Color(0.55f, 0.5f, 0.35f));
+            // GR-LV4: 2050 -> 1700, west of the carved lock's exit barrier.
+            BuildPlatform(1700f, SurfaceY - 80f, 180f, new Color(0.55f, 0.5f, 0.35f));
 
             BuildCheckpoint(Checkpoint0Position.X, Checkpoint0Position.Y, Checkpoint0, CheckpointRole.Entry);
             BuildRoomDecoration(0f, "lunar_room_tranquility_base", new Color(0.78f, 0.84f, 0.95f));
+        }
+
+        // === GR-LV4 (rulings 7a, 7b, 7c, 7c+): the Mare Crossing =================
+
+        public const string MareCrossingStretchID = "level_12.mare_crossing";
+        public const string SurveyLineRouteID = "level_12.survey_line";
+
+        /// <summary>The stretch's span: Tranquility's exit barrier to the vent field's entry barrier.</summary>
+        public const float MareCrossingMinX = TranquilityLockMaxX + LockBarrierWidth;
+        public const float MareCrossingMaxX = Room2StartX;
+        /// <summary>Where the line leaves the deck.</summary>
+        public const float MareCrossingWestDeckEndX = 2060f;
+        /// <summary>Where the line rejoins the deck.</summary>
+        public const float MareCrossingEastDeckStartX = 2960f;
+        /// <summary>The Survey Line's last platform, which holds the secret.</summary>
+        public const float SurveyLineEndX = 2140f;
+
+        /// <summary>
+        /// The stretch between Tranquility Base and the vent field. The floor carries on under
+        /// it, so nothing here is a pit, and the two vents (the scene's <c>VentRegolith</c> at
+        /// 2400 and a second lane at 2720) sweep that floor. The line's tops stand above both
+        /// strips. Low gravity makes every hop here easy (<c>Level12TraversalStretchTests</c>
+        /// measures it), so the harder way is the floor, not the jump. Every number is provisional
+        /// (<c>PROVISIONAL-TRAVERSAL-RULES</c>).
+        /// </summary>
+        private void BuildMareCrossing() {
+            TraversalStretch crossing = BeginStretch(MareCrossingStretchID, "lunar_room_mare_crossing",
+                MareCrossingMinX, MareCrossingMaxX, SurfaceY, MareCrossingWestDeckEndX, MareCrossingEastDeckStartX, 0f);
+            BuildRoomDecoration(MareCrossingMinX, "lunar_room_mare_crossing", new Color(0.72f, 0.8f, 0.95f));
+
+            TraversalSurface firstStep = BuildStretchStep(crossing, 2170f, 1790f, 200f);
+            BuildStretchStep(crossing, 2430f, 1668f, 180f, StretchStepKind.Crumbling, "level_12.crumbling_mare_crossing");
+            TraversalSurface surveyStep = BuildStretchStep(crossing, 2650f, 1670f, 200f, StretchStepKind.OneWay);
+
+            StoryCyclicHazard vent = BuildCyclicHazardLane("level_12.vent_mare_crossing", 2720f, SurfaceY, 1.1f, 0.9f, 2.6f, 15);
+            vent.Knockback = new Vector2(160f, -460f);
+
+            OptionalRoute survey = BeginOptionalRoute(SurveyLineRouteID, SecretSourceID,
+                SecretCachePosition.Value, surveyStep);
+            BuildRouteStep(survey, 2710f, 1580f, 120f);
+            TraversalSurface burstFrom = BuildRouteStep(survey, 2780f, 1490f, 160f);
+            BuildRouteStep(survey, 2570f, 1390f, 180f);
+            TraversalSurface end = BuildRouteStep(survey, SurveyLineEndX, 1390f, 220f);
+            survey.MarkBurstShortcut(burstFrom, end);
+            survey.MarkRiseShortcut(firstStep, end);
         }
 
         private void BuildRoom2VentField() {
@@ -635,8 +690,12 @@ namespace FTT.Environment {
             // The pad floor spans 2,400 px against the Overseer's 9.0-unit ranged
             // band (540 px at BossController's 60 px per unit); the content test
             // asserts the fit against the resource, not against a hardcoded width.
-            BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, SurfaceY - 50f),
+            _overseerEncounter = BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, SurfaceY - 50f),
                 "GravityOverseerEncounter", BossArenaBounds);
+            if (_overseerEncounter != null) {
+                _overseerEncounter.PhaseEntered += OnOverseerPhaseEntered;
+                _overseerEncounter.BossDefeated += _ => StandDownOverseerArena();
+            }
         }
 
         /// <summary>

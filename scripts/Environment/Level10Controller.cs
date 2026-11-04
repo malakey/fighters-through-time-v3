@@ -55,6 +55,16 @@ namespace FTT.Environment {
     /// swing reach of the yard wall (8460). While a lock is engaged the audience's
     /// stillness clock pauses: waiting one's turn and blocking are normal in a lock.
     /// </para>
+    ///
+    /// <para>
+    /// <b>The stage front</b> (GR-LV4, rulings 7a, 7b, 7c, 7c+): the Yard's lock now ends
+    /// at 2000 and the Stage's starts at 2900, and the span between is a traversal stretch
+    /// with the secret at the end of its Gallery Rail route. The stage's cellar, its traps,
+    /// the rigging and the arena recess did not move; the cellar's west wall followed the
+    /// lock to 2880. The Galleries' floor takes the swarm row, away from the Yard, where the
+    /// audience teaches itself, and the stillness clock pauses through that lock as through
+    /// the others.
+    /// </para>
     /// </summary>
     public partial class Level10Controller : StoryLevelControllerBase {
 
@@ -99,15 +109,15 @@ namespace FTT.Environment {
         /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
         /// per-hero median measurement pass.
         /// </summary>
-        public override float ParSeconds => 360f;
+        public override float ParSeconds => TraversalRules.ParWithStretches(360f, 1);
         public override string LevelTitleKey => "globe_level_title";
         public override string DialogueSetPath => DialogueResourcePath;
         public override Vector2 PlayerSpawnPosition => new(240, EnemyGroundY);
 
-        // Package 12 W8 (GAP-03): the secret cache sits on
-        // the upper gallery box above the yard gate (one-way 2280/740, top 730),
-        // climbed from the rail at 1980 — a dead end the yard floor passes under.
-        protected override Vector2? SecretCachePosition => new(2280f, 635f);
+        // GR-LV4: the secret cache sits at the end of the Gallery Rail route, over the
+        // stage front's first step (it stood on the one-way 2280/740, which the carve
+        // removed). Package 12 W8 placed it off the floor route, and it still is.
+        protected override Vector2? SecretCachePosition => new(GalleryRailEndX, 505f);
 
         // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, after the PreBoss
         // anchor (8420) on the boards, 240 px short of the arena (9000) and 210 px west of the
@@ -148,7 +158,7 @@ namespace FTT.Environment {
         /// into empty gallery air with nothing in frame. Every other room is a
         /// climb and uses the full height.
         /// </summary>
-        public static readonly Rect2 Room1CameraBounds = new(Room1StartX, LevelHeight - 1080f, 2560, 1080);
+        public static readonly Rect2 Room1CameraBounds = new(Room1StartX, LevelHeight - 1080f, StageFrontWestDeckEndX, 1080);
         public static readonly Rect2 Room2CameraBounds = new(Room2StartX, 0, 3200, LevelHeight);
         public static readonly Rect2 Room3CameraBounds = new(Room3StartX, 0, 2560, LevelHeight);
         public static readonly Rect2 Room4CameraBounds = new(Room4StartX, 0, 1920, LevelHeight);
@@ -274,7 +284,8 @@ namespace FTT.Environment {
         public static readonly (string EnemyID, Vector2 Position, Vector2 PatrolA, Vector2 PatrolB)[] Room1Spawns = {
             ("holo_page", new Vector2(1180, EnemyGroundY), new Vector2(1020, EnemyGroundY), new Vector2(1340, EnemyGroundY)),
             ("chrono_slasher", new Vector2(1720, EnemyGroundY), new Vector2(1560, EnemyGroundY), new Vector2(1880, EnemyGroundY)),
-            ("holo_page", new Vector2(2280, EnemyGroundY), new Vector2(2120, EnemyGroundY), new Vector2(2420, EnemyGroundY))
+            // GR-LV4: 2280 -> 1880, inside the carved lock.
+            ("holo_page", new Vector2(1880, EnemyGroundY), new Vector2(1760, EnemyGroundY), new Vector2(1960, EnemyGroundY))
         };
 
         /// <summary>
@@ -283,7 +294,9 @@ namespace FTT.Environment {
         /// dropping is a threat to the player and not a free enemy delete.
         /// </summary>
         public static readonly (string EnemyID, Vector2 Position, Vector2 PatrolA, Vector2 PatrolB)[] Room2Spawns = {
-            ("chrono_slasher", new Vector2(2830, EnemyGroundY), new Vector2(2680, EnemyGroundY), new Vector2(2980, EnemyGroundY)),
+            // GR-LV4: 2830 -> 3530, the board segment between the west and centre traps,
+            // because the carved lock starts at 2900.
+            ("chrono_slasher", new Vector2(3530, EnemyGroundY), new Vector2(3380, EnemyGroundY), new Vector2(3680, EnemyGroundY)),
             ("holo_page", new Vector2(4270, EnemyGroundY), new Vector2(4120, EnemyGroundY), new Vector2(4420, EnemyGroundY)),
             ("chrono_slasher", new Vector2(5160, EnemyGroundY), new Vector2(5010, EnemyGroundY), new Vector2(5310, EnemyGroundY))
         };
@@ -341,23 +354,37 @@ namespace FTT.Environment {
         public const string Room1RowID = "level_10.room1";
         public const string Room2RowID = "level_10.room2";
         public const string Room3RowID = "level_10.room3";
+        /// <summary>
+        /// GR-LV4 (ruling 1b++): the swarm row, on the Galleries' floor: flat, no trap, and away
+        /// from the Yard where the audience teaches itself. Its lock pauses the stillness clock.
+        /// </summary>
+        public const string SwarmRowID = "level_10.swarm1";
+
+        /// <summary>Eight along the Galleries' floor (<see cref="SwarmWaveRules.RowMobsForLockWidth"/>).</summary>
+        public static readonly float[] SwarmSpawnXs = { 6500f, 6720f, 6980f, 7180f, 7450f, 7650f, 7880f, 8100f };
 
         private const float BarrierWidth = EncounterLockRules.DefaultBarrierWidthPixels;
 
-        /// <summary>The Yard: the groundling pit past the entry anchor (240), up to the stage's cellar wall.</summary>
+        /// <summary>The Yard: the groundling pit past the entry anchor (240), carved by GR-LV4 from 2540 to 2000.</summary>
         public const float YardLockMinX = 300f;
-        public const float YardLockMaxX = Room2StartX - BarrierWidth;
+        public const float YardLockMaxX = 2000f;
 
         /// <summary>
         /// The Stage, cellar included: the cellar's walls (2540 and 5740) already close
         /// its ends below the boards. Its exit barrier stands on the east cellar wall
         /// and runs down to that wall's top, so climbing out of the cellar by the
-        /// tiring-house stair (5560-5750) stays inside it.
+        /// tiring-house stair (5560-5750) stays inside it. GR-LV4 moved its west end 2560 ->
+        /// 2900 and the cellar's west wall with it. The west trap gap starts at 3050, so a hero
+        /// entering still stands on 150 px of solid boards past the engage line's approach.
+        /// The three traps fix the lock's width, so it stays wider than the carve's usual
+        /// 1,700-2,000 px.
         /// </summary>
-        public const float StageLockMinX = Room2StartX;
+        public const float StageLockMinX = 2900f;
         public const float StageLockMaxX = 5740f;
         /// <summary>Top of the east cellar wall: the stage lock's exit barrier runs down to it.</summary>
         private const float CellarWallTopY = 1180f;
+        /// <summary>The cellar's west wall, under the stage lock's entry barrier.</summary>
+        public const float CellarWestWallX = StageLockMinX - BarrierWidth;
 
         /// <summary>
         /// The Middle anchor, on the galleries' floor, under the lower tier and east of
@@ -454,6 +481,7 @@ namespace FTT.Environment {
         protected override void BuildLevel() {
             CollectAuthoredNodes();
             BuildYard();
+            BuildStageFront();
             BuildStage();
             BuildGalleries();
             BuildTiringHouseStage();
@@ -496,7 +524,10 @@ namespace FTT.Environment {
                 EntryBarrierX = GalleriesLockMinX - BarrierWidth * 0.5f,
                 ExitBarrierX = GalleriesLockMaxX + BarrierWidth * 0.5f,
                 BarrierFloorY = GroundY,
-                Waves = new[] { WaveFrom(Room3RowID, Room3Spawns, EncounterWaveTrigger.OnBuild) },
+                Waves = new[] {
+                    WaveFrom(Room3RowID, Room3Spawns, EncounterWaveTrigger.OnBuild),
+                    SwarmWave(SwarmRowID, EnemyGroundY, SwarmSpawnXs)
+                },
                 ObjectiveKey = "encounter_lock_objective_clear",
                 GoDirection = EncounterGoDirection.Right
             });
@@ -553,24 +584,68 @@ namespace FTT.Environment {
             BuildRoomBackground("BG_Room1_Yard", Room1StartX, 2560, LevelHeight,
                 new Color(0.14f, 0.11f, 0.08f, 0.40f));
 
-            BuildFloor(Room1StartX, GroundY, 2560);
+            BuildFloor(Room1StartX, GroundY, StageFrontWestDeckEndX);
             BuildWall(-20, 0, LevelHeight);
 
             // Groundling clutter: stacked barrels and the gallery stair.
             BuildPlatform(520, 980, 220);
             BuildPlatform(960, 860, 200);    // holds extractor 1
             BuildPlatform(1420, 960, 220);
-            BuildPlatform(1980, 900, 240);
+            // GR-LV4: 1980 -> 1860, west of the carved lock's exit barrier.
+            BuildPlatform(1860, 900, 240);
 
             // The lowest gallery rail overhanging the pit - decor that also gives
             // the player a way to break line of sight from a heckling crowd.
             BuildOneWayPlatform(1180, 760, 240, GalleryColor);
-            BuildOneWayPlatform(2280, 740, 240, GalleryColor);
 
             BuildCheckpoint(240, EnemyGroundY, Checkpoint0, CheckpointRole.Entry);
             BuildRoomDecoration(Room1StartX, "globe_room_yard", new Color(0.95f, 0.80f, 0.48f));
             BuildRoomTransition("globe_room_yard", new Vector2(340, 800), Room1CameraBounds,
                 triggerSize: new Vector2(80, LevelHeight));
+        }
+
+        // === GR-LV4 (rulings 7a, 7b, 7c, 7c+): the stage front ==================
+
+        public const string StageFrontStretchID = "level_10.stage_front";
+        public const string GalleryRailRouteID = "level_10.gallery_rail";
+
+        /// <summary>The stretch's span: the Yard's exit barrier to the Stage's entry barrier.</summary>
+        public const float StageFrontMinX = YardLockMaxX + BarrierWidth;
+        public const float StageFrontMaxX = StageLockMinX - BarrierWidth;
+        /// <summary>Where the yard's floor ends, the west ramp's high joint.</summary>
+        public const float StageFrontWestDeckEndX = 2060f;
+        /// <summary>Where the boards begin, the east ramp's high joint.</summary>
+        public const float StageFrontEastDeckStartX = 2840f;
+        /// <summary>The Gallery Rail's last platform, which holds the secret.</summary>
+        public const float GalleryRailEndX = 2140f;
+
+        /// <summary>
+        /// The stretch between the Yard and the Stage. There is no lock here, so the audience
+        /// is watching: standing still on a step gets a prop thrown, which is the level's
+        /// mechanic doing its job. A hero who falls in walks out by either ramp. Every number
+        /// is provisional (<c>PROVISIONAL-TRAVERSAL-RULES</c>).
+        /// </summary>
+        private void BuildStageFront() {
+            TraversalStretch stageFront = BeginStretch(StageFrontStretchID, "globe_room_stage_front",
+                StageFrontMinX, StageFrontMaxX, GroundY, StageFrontWestDeckEndX, StageFrontEastDeckStartX, Room1StartX);
+            BuildRoomDecoration(StageFrontMinX, "globe_room_stage_front", new Color(0.98f, 0.76f, 0.42f));
+            BuildStretchTrench(stageFront);
+
+            TraversalSurface firstStep = BuildStretchStep(stageFront, 2170f, 1010f, 200f);
+            BuildStretchStep(stageFront, 2430f, 940f, 180f, StretchStepKind.Crumbling, "level_10.crumbling_stage_front");
+            TraversalSurface railStep = BuildStretchStep(stageFront, 2650f, 940f, 200f, StretchStepKind.OneWay);
+
+            // A winch lane to cross down in the trench, on the cellar's numbers.
+            BuildCyclicHazardLane("level_10.stage_front_winch", 2450f, stageFront.TrenchFloorY, 1.2f, 0.6f, 2.8f, 14);
+
+            OptionalRoute rail = BeginOptionalRoute(GalleryRailRouteID, SecretSourceID,
+                SecretCachePosition.Value, railStep);
+            BuildRouteStep(rail, 2710f, 820f, 120f);
+            TraversalSurface burstFrom = BuildRouteStep(rail, 2780f, 710f, 160f);
+            BuildRouteStep(rail, 2570f, 610f, 180f);
+            TraversalSurface end = BuildRouteStep(rail, GalleryRailEndX, 610f, 220f);
+            rail.MarkBurstShortcut(burstFrom, end);
+            rail.MarkRiseShortcut(firstStep, end);
         }
 
         /// <summary>
@@ -592,7 +667,7 @@ namespace FTT.Environment {
                 new Color(0.16f, 0.11f, 0.07f, 0.45f));
 
             // Board segments, with exactly TrapdoorWidth gaps where the traps sit.
-            BuildFloor(2560, GroundY, 490);   // 2560..3050
+            BuildFloor(StageFrontEastDeckStartX, GroundY, 3050f - StageFrontEastDeckStartX);   // 2840..3050
             BuildFloor(3270, GroundY, 520);   // 3270..3790
             BuildFloor(4010, GroundY, 520);   // 4010..4530
             BuildFloor(4750, GroundY, 810);   // 4750..5560
@@ -601,9 +676,10 @@ namespace FTT.Environment {
             // stairwell without turning the eastward walk into a fall.
             BuildOneWayPlatform(5660, GroundY, 200);
 
-            // Under-stage cellar.
-            BuildFloor(Room2StartX, CellarY, 3200, CellarColor);
-            BuildWall(2540, 1180, 360, CellarColor);
+            // Under-stage cellar. GR-LV4: its west end follows the lock, and the wall reaches
+            // the boards' underside, because the stage front has no cellar under it.
+            BuildFloor(CellarWestWallX, CellarY, 5760f - CellarWestWallX, CellarColor);
+            BuildWall(CellarWestWallX, BoardUndersideY, CellarY + 40f - BoardUndersideY, CellarColor);
             BuildWall(5740, 1180, 360, CellarColor);
 
             // Scaffolding under each trap: two drop-through lifts back to the
@@ -618,7 +694,8 @@ namespace FTT.Environment {
             BuildPlatform(5660, 1250, 180, CellarColor);
 
             // Side galleries flanking the stage: the balconies the design calls for.
-            BuildPlatform(2900, 880, 240, GalleryColor);
+            // GR-LV4: the first moved 2900 -> 3160, wholly inside the carved lock.
+            BuildPlatform(3160, 880, 240, GalleryColor);
             BuildPlatform(3600, 760, 220, GalleryColor);
             BuildPlatform(4400, 880, 240, GalleryColor);
             BuildPlatform(5100, 760, 220, GalleryColor);
