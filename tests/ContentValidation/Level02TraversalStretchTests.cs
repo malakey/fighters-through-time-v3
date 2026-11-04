@@ -91,7 +91,7 @@ public class Level02TraversalStretchTests {
         TraversalContentKit.RouteFact route = TraversalContentKit.Levels().Single(level => level.Index == 2).Routes.Single();
         TraversalSurface from = route.BaseLine[^2];
         TraversalSurface to = route.BaseLine[^1];
-        AssertThat(TraversalRules.HopGap(from, to)).IsEqual(250f);
+        AssertThat(TraversalRules.HopGap(from, to)).IsEqual(245f);
         (bool landed, string report) = await TraversalContentKit.Fly("lincoln", from, to, TraversalContentKit.FlightAbility.None);
         GD.Print($"[reach] {report}");
         AssertThat(landed).OverrideFailureMessage(report).IsTrue();

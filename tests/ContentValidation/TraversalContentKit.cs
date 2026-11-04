@@ -249,13 +249,14 @@ internal static class TraversalContentKit {
                 }
                 if (y > Mathf.Max(from.Top, to.Top) + 400f) break;
 
-                float toward = Mathf.Abs(x - centre) < 6f ? 0f : x < centre ? 1f : -1f;
-                float stick = toward;
+                // A straight-up flight holds its take-off x until the ability has gone; then it steers home.
+                float aim = direction == 0f && stage < 5 ? takeOff : centre;
+                float stick = Mathf.Abs(x - aim) < 6f ? 0f : x < aim ? 1f : -1f;
                 float vertical = 0f;
                 GameplayButtons buttons = GameplayButtons.None;
                 switch (stage) {
                     case 0:
-                        stick = direction != 0f ? direction : Mathf.Abs(x - takeOff) < 6f ? 0f : x < takeOff ? 1f : -1f;
+                        if (direction != 0f) stick = direction;
                         bool ready = direction > 0f ? x >= from.Right - 6f
                             : direction < 0f ? x <= from.Left + 6f
                             : stick == 0f;

@@ -259,7 +259,7 @@ namespace FTT.Environment {
         public const float RampartWestDeckEndX = 2060f;
         public const float RampartEastDeckStartX = 3160f;
         /// <summary>The Parapet line's last platform, which holds the courtyard Extractor.</summary>
-        private const float ParapetEndX = 3015f;
+        private const float ParapetEndX = 3035f;
 
         private EncounterLock _vanguardLock;
         private EncounterLock _siegeLineLock;
@@ -397,13 +397,13 @@ namespace FTT.Environment {
             BuildOneWayPlatform(2640, 870, 200);
             BuildCyclicHazardLane("level_02.mortar_rampart", 2850f, rampart.TrenchFloorY, 1f, 0.6f, 2.6f, 18, withCover: true);
 
-            // The Parapet line. Its base-kit line climbs west and back east, and ends in a 250 px hop.
+            // The Parapet line. Its base-kit line climbs west and back east, and ends in a 245 px hop.
             OptionalRoute parapet = BeginOptionalRoute(ParapetRouteID, ExtractorPlacements[0].ID,
                 ExtractorPlacements[0].Position, middleStep);
             BuildRouteStep(parapet, 2560, 530, 120);
             TraversalSurface burstFrom = BuildRouteStep(parapet, 2340, 420, 160);
             BuildRouteStep(parapet, 2590, 320, 180);
-            TraversalSurface end = BuildRouteStep(parapet, ParapetEndX, 320, 170);
+            TraversalSurface end = BuildRouteStep(parapet, ParapetEndX, 320, 220);
             // A burst skips the climb's last platform. A rise goes straight up from the line's east step.
             parapet.MarkBurstShortcut(burstFrom, end);
             parapet.MarkRiseShortcut(eastStep, end);
@@ -522,8 +522,12 @@ namespace FTT.Environment {
         // members, so the Post-Landing Hold and the rewind freeze hold them. His
         // mortar_barrage stays: it is the design's "mortars".
 
-        /// <summary>The steam strips' x centres: flush with the arena's two edges (the template's strip is 120 wide).</summary>
-        public const float DukeSteamWestX = BossArenaWestX + 60f;
+        /// <summary>
+        /// The steam strips' x centres (the template's strip is 120 wide). The east strip is flush with
+        /// the court wall; the west one stands 10 px inside the arena, which keeps the font's channel
+        /// circle at 9180 clear of it (FontHazardClearance).
+        /// </summary>
+        public const float DukeSteamWestX = BossArenaWestX + 70f;
         public const float DukeSteamEastX = 10540f - 60f;
 
         private StoryCyclicHazard _dukeSteamWest;
