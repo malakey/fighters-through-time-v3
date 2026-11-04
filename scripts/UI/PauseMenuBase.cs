@@ -89,7 +89,8 @@ namespace FTT.UI {
             // dialogue (Start, a focus loss) hands the tree back to it on every
             // resume — Resume, pad B, a controller-lost resolution — rather than
             // running the world under the still-open box.
-            if (tree != null) tree.Paused = paused || DialogueHoldsGameplayPause();
+            // GR-INTEG: and under an external owner (the training settings panel), whose close hands the tree back.
+            if (tree != null) tree.Paused = paused || DialogueHoldsGameplayPause() || ExternalPauseOwnerActive;
             // Package 11 A3 (F01): reading the map costs no Timeline Integrity.
             FTT.Core.StoryManager.Instance?.SetIntegrityClockPause(
                 FTT.Core.IntegrityClockPause.PauseMenu, paused);

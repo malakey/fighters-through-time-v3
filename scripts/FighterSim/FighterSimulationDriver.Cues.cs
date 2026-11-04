@@ -32,10 +32,13 @@ namespace FTT.FighterSim {
             && (attackFlags & FighterBasicAttackRules.FlagHitResolved) == 0;
 
         // GR-INTEG: a per-cue, per-player WATERMARK of the highest sim tick whose edge already played. An edge
-        // at tick T plays only if T is above the watermark, and a rollback correction never lowers it, so a
-        // corrected timeline that re-presents HP 100, 90, 100, 90 (or a lowered and re-risen perfect-block
-        // count) cannot sound the same event twice once the presenter's throttle has elapsed. Limit: a genuine
-        // event at or below the watermark in a corrected timeline is suppressed once. Presentation only.
+        // at tick T plays only if T is above the watermark, so it guards DECREASING ticks only. It does NOT
+        // dedupe an event a real rollback removes and reintroduces: CorrectRemoteInput() replays to the current
+        // tick before SyncPresentation(), so the observations (HP 90, 100, 90) arrive at increasing ticks and
+        // the replayed hit sounds again, bounded by the row's throttle window. Rollback exists only on LAN and
+        // online, which this build does not enable; stable sim event identities are the fix (Package 7,
+        // VERIFY-PRESENTATION-DEDUPE-WEAKNESS). A genuine event at or below the watermark is suppressed once.
+        // Presentation only.
         internal const int CueKindHit = 0;
         internal const int CueKindBlock = 1;
         internal const int CueKindPerfectBlock = 2;

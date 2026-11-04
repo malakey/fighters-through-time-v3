@@ -178,6 +178,53 @@ public class TrainingRoomSceneTests {
         }
     }
 
+    [TestCase]
+    public async Task AControllerDisconnectResolvedUnderTheSettingsPanelLeavesTheTreePausedAndTheFlagDoesNotOutliveTheRoom() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        GameManager gameManager = GameManager.Instance;
+        AssertObject(gameManager).IsNotNull();
+        SessionData savedSession = gameManager.CurrentSession;
+        bool wasPaused = tree.Paused;
+        tree.Paused = false;
+        TrainingRoom room = null;
+        try {
+            room = Open(tree);
+            for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+            LocalFighterPause pause = FindPause(room);
+            AssertObject(pause).IsNotNull();
+
+            // Panel first, then the controller drops and comes back: the panel is still up, so the sim must stay paused.
+            room.Panel.Open();
+            AssertThat(tree.Paused).IsTrue();
+            pause.ForceDisconnectPause(0);
+            pause.ResolveDisconnect(0);
+            AssertThat(room.Panel.Visible).IsTrue();
+            AssertThat(tree.Paused).OverrideFailureMessage("the disconnect resolve unpaused the sim under the open settings panel").IsTrue();
+            room.Panel.Close();
+            AssertThat(tree.Paused).OverrideFailureMessage("the panel's close did not hand the pause back").IsFalse();
+
+            // Disconnect modal first: the panel cannot open over it (the pause press is refused while a menu is open).
+            pause.ForceDisconnectPause(0);
+            PressPause();
+            await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+            AssertThat(room.Panel.Visible).OverrideFailureMessage("the settings panel opened over the disconnect modal").IsFalse();
+            pause.ResolveDisconnect(0);
+            AssertThat(tree.Paused).IsFalse();
+
+            // The flag is static: leave with the panel open and it must not stick into the next match.
+            room.Panel.Open();
+            AssertThat(PauseMenuBase.ExternalPauseOwnerActive).IsTrue();
+            Close(room);
+            room = null;
+            AssertThat(PauseMenuBase.ExternalPauseOwnerActive).OverrideFailureMessage("the static owner flag outlived the room").IsFalse();
+        } finally {
+            Close(room);
+            PauseMenuBase.ExternalPauseOwnerActive = false;
+            tree.Paused = wasPaused;
+            gameManager.CurrentSession = savedSession;
+        }
+    }
+
     private static void PressPause() {
         // Viewport.PushInput walks the real dispatch chain: _Input, GUI, then _UnhandledInput.
         var tree = (SceneTree)Engine.GetMainLoop();

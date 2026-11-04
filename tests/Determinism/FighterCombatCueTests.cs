@@ -205,12 +205,12 @@ public class FighterCombatCueTests {
     }
 
     /// <summary>
-    /// GR-INTEG: a rollback correction re-presents HP 100, 90, 100, 90 (and a lowered, re-risen perfect-block count).
-    /// Each cue keeps a per-player watermark of the highest sim tick that played, which a correction never lowers, so
-    /// the re-presented event stays silent even once the presenter's throttle has elapsed.
+    /// GR-INTEG: each cue keeps a per-player watermark of the highest sim tick that played, so an edge presented at a
+    /// decreasing tick stays silent even once the presenter's throttle has elapsed. This is NOT rollback safety: a real
+    /// rollback replays to the current tick, so its observations arrive at increasing ticks (see GR_AUDIO.md).
     /// </summary>
     [TestCase]
-    public void ACorrectedTimelineNeverReplaysACuePastTheThrottleWindow() {
+    public void TheCueWatermarkNeverPlaysADecreasingTickTwicePastTheThrottleWindow() {
         if (InputManager.Instance == null) return;
         Rig rig = NewRig("FighterCueWatermarkHost");
         try {

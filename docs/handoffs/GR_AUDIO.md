@@ -54,3 +54,5 @@ Peak ceiling 0.3 and every row at -12 dB; the throttle windows 0.09 / 0.12 / 0.1
 - CLAUDE.md: nothing structural. The bots note needs nothing.
 - Ledger: `USER-PLACEHOLDER-HIT-SOUNDS` (ruling 13, amends `USER-SILENT-PLACEHOLDER-AUDIO`, the 2026-08-10 directive), `PROVISIONAL-PLACEHOLDER-CUE-RULES` (the numbers above), and `VERIFY-PLACEHOLDER-CUES-HANDS-ON` (listen to all nine, judge the balance, the throttle windows and the mute row).
 - `resources/Audio/README.md` is updated by this workstream.
+
+**Limit (GR-INTEG, corrected):** the Fighter cues' per-cue, per-player tick watermark (`ClaimCue`) guards decreasing ticks only. It does not dedupe an event a real rollback removes and reintroduces, because the replay reaches the current tick before presentation, so such a hit can sound twice, bounded by the throttle window. Rollback exists only on LAN and online (not enabled in this build); the fix is stable sim event identities in Package 7.
