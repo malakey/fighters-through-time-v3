@@ -14,7 +14,9 @@ namespace FTT.Core {
     /// <para>The ledger is two additive <see cref="StorySaveData"/> fields —
     /// <see cref="StorySaveData.SkippedCalibration"/> and
     /// <see cref="StorySaveData.ShownFirstUseTooltips"/>. A slot that ran the Full
-    /// Calibration (every pre-v8 slot included) never shows one.</para>
+    /// Calibration (every pre-v8 slot included) shows none of the skipped lessons.
+    /// <see cref="SpecialMomentum"/> alone shows on every slot, once: no calibration
+    /// teaches Specials, because the hero has none until Level 0 is done.</para>
     ///
     /// <para>Pure C#: no engine call, so the rules are provable in the plain test
     /// host. The in-scene presenter is <c>FTT.UI.FirstUseTooltipPresenter</c>.</para>
@@ -71,15 +73,22 @@ namespace FTT.Core {
         /// <summary>
         /// GR-SCHED (ruling 3b): Special 1 is restored by completing Level 0 and is
         /// first played on Level 1 (Florence), where nothing else teaches it. The
-        /// tooltip is due on Level 1 once the hero's Special 1 is unlocked. Like
-        /// every first-use tooltip it shows only on a skipped-calibration slot.
+        /// tooltip is due on Level 1 once the hero's Special 1 is unlocked, on every
+        /// slot (<see cref="ShowsOnEverySlot"/>).
         /// </summary>
         public static bool SpecialMomentumDue(int levelNumber, bool special1Unlocked) =>
             levelNumber == 1 && special1Unlocked;
 
+        /// <summary>
+        /// True for a tooltip no calibration teaches, so a Full-Calibration slot needs it too.
+        /// Every other tooltip stands in for a skipped lesson.
+        /// </summary>
+        public static bool ShowsOnEverySlot(string tooltipID) => tooltipID == SpecialMomentum;
+
         /// <summary>True when <paramref name="save"/> should show this tooltip now.</summary>
         public static bool ShouldShow(StorySaveData save, string tooltipID) {
-            if (save == null || !save.SkippedCalibration) return false;
+            if (save == null) return false;
+            if (!save.SkippedCalibration && !ShowsOnEverySlot(tooltipID)) return false;
             if (string.IsNullOrEmpty(KeyFor(tooltipID))) return false;
             return save.ShownFirstUseTooltips == null || !save.ShownFirstUseTooltips.Contains(tooltipID);
         }
