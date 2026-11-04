@@ -115,7 +115,11 @@ public class Level12TraversalStretchTests {
         foreach ((StoryCyclicHazard lane, float x, float top) in new[] { (vent, 2700f, 1660f), (regolith, 2400f, 1660f) }) {
             hero.GlobalPosition = new Vector2(x, top - 2f);
             hero.Velocity = Vector2.Zero;
-            await GrLevelSteps.Frames(tree, 3);
+            // Wherever the step really is, the hero has come to rest on it.
+            for (int frame = 0; frame < 90; frame++) {
+                await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+                if (frame > 2 && hero.IsOnFloor()) break;
+            }
             int health = hero.CurrentHP;
             lane.ForcePhase(HazardPhase.Active, 0.2f);
             await GrLevelSteps.Frames(tree, 6);
