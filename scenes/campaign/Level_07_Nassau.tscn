@@ -64,7 +64,7 @@ EndpointWaitSeconds = 0.9
 Mode = 0
 
 [node name="MortarQuayA" parent="." instance=ExtResource("5_hazard")]
-position = Vector2(900, 900)
+position = Vector2(900, 1020)
 HazardID = "level_07.mortar_quay_a"
 WarningDuration = 1.1
 ActiveDuration = 0.6

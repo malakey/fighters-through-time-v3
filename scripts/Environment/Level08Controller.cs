@@ -49,6 +49,12 @@ namespace FTT.Environment {
     /// PreBoss anchor and the absence beat moved east out of swing reach of the vault,
     /// and the carved relief moved into the vault so the answer is still in reach
     /// once its lock has shut the way back. Every checkpoint lists the locks before it.</para>
+    ///
+    /// <para><b>The Dune Crossing</b> (gameplay review 2026-11-03, rulings 7a-7c+; GR-LV3):
+    /// the dunes lock was carved to 300-2000, and the freed span is a traversal stretch
+    /// (2020-3200) over a non-lethal sand trench, with one deep-sand drift lying in it. Its
+    /// optional route, the Obelisk Line, holds the dune ridge's Extractor. The siege line
+    /// takes the level's swarm row. Nothing past the stretch moved.</para>
     /// </summary>
     public partial class Level08Controller : StoryLevelControllerBase {
 
@@ -95,9 +101,9 @@ namespace FTT.Environment {
         /// seeded as 4 authored rooms x 90 s, rounded up to the nearest
         /// 30 s. Recorded under VERIFY-PAR-SECONDS in
         /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
-        /// per-hero median measurement pass.
+        /// per-hero median measurement pass. GR-LV3 adds the Dune Crossing's +30.
         /// </summary>
-        public override float ParSeconds => 360f;
+        public override float ParSeconds => TraversalRules.ParWithStretches(360f, 1);
         public override string LevelTitleKey => "egypt_level_title";
         public override string DialogueSetPath => DialogueResourcePath;
         public override Vector2 PlayerSpawnPosition => new(200, 650);
@@ -201,8 +207,9 @@ namespace FTT.Environment {
         /// </summary>
         public static readonly (string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] DuneSpawns = {
             ("plasma_spear_ward", new Vector2(1300, SurfaceEnemyY), new Vector2(1150, SurfaceEnemyY), new Vector2(1450, SurfaceEnemyY)),
-            ("chrono_slasher", new Vector2(2100, SurfaceEnemyY), new Vector2(1950, SurfaceEnemyY), new Vector2(2250, SurfaceEnemyY)),
-            ("plasma_spear_ward", new Vector2(2900, SurfaceEnemyY), null, null)
+            // GR-LV3: 2100 -> 1650 and 2900 -> 1900, inside the carved lock.
+            ("chrono_slasher", new Vector2(1650, SurfaceEnemyY), new Vector2(1500, SurfaceEnemyY), new Vector2(1800, SurfaceEnemyY)),
+            ("plasma_spear_ward", new Vector2(1900, SurfaceEnemyY), null, null)
         };
 
         public static readonly (string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] SiegeLineSpawns = {
@@ -230,7 +237,8 @@ namespace FTT.Environment {
 
         /// <summary>15 dust each and resource-owned; never overridden from level code.</summary>
         public static readonly (string ID, Vector2 Position)[] ExtractorPlacements = {
-            ("level_08.extractor_dune_ridge", new Vector2(2600, 460)),
+            // GR-LV3: the end of the Obelisk Line, over the Dune Crossing (it stood at 2600, 460).
+            ("level_08.extractor_dune_ridge", new Vector2(ObeliskLineEndX, 38)),
             ("level_08.extractor_tomb_alcove", new Vector2(6700, 1240)),
             ("level_08.extractor_vault_ledge", new Vector2(7600, 1200))
         };
@@ -258,9 +266,13 @@ namespace FTT.Environment {
 
         private const float BarrierWidth = EncounterLockRules.DefaultBarrierWidthPixels;
 
-        /// <summary>The dunes: the whole first room past the entry anchor (200).</summary>
+        /// <summary>
+        /// The dunes: the first room past the entry anchor (200), to 2000. GR-LV3 carved it
+        /// from 3200; its exit barrier stands on the deck, in the gap past the platform at
+        /// 1700. The Dune Crossing takes the rest.
+        /// </summary>
         public const float DuneLockMinX = 300f;
-        public const float DuneLockMaxX = Room2StartX;
+        public const float DuneLockMaxX = 2000f;
 
         /// <summary>
         /// The siege line: room 2 on the surface. Its exit barrier (5460-5480) stands
@@ -316,6 +328,62 @@ namespace FTT.Environment {
         /// </summary>
         public static readonly Vector2 CarvedReliefPosition = new(7280f, 1360f);
 
+        // === GR-LV3: the Dune Crossing, the Obelisk Line and the swarm row ========
+
+        public const string CrossingStretchID = "level_08.dune_crossing";
+        public const string ObeliskRouteID = "level_08.obelisk_line";
+        public const string CrossingRoomKey = "egypt_room_crossing";
+
+        /// <summary>From the dunes lock's exit barrier to the siege line's entry barrier.</summary>
+        public const float CrossingMinX = DuneLockMaxX + BarrierWidth;
+        public const float CrossingMaxX = Room2StartX;
+        public const float CrossingWestDeckEndX = 2060f;
+        public const float CrossingEastDeckStartX = 3100f;
+
+        /// <summary>The Obelisk Line's last platform; the Extractor stands 72 px over its top.</summary>
+        public const float ObeliskLineEndX = 3035f;
+
+        /// <summary>The siege line's swarm row (level_08_rewards.tres).</summary>
+        public const string SwarmRowID = "level_08.swarm1";
+
+        /// <summary>The row, Hard's truth (a 2240 px lock takes 8), along the siege line, clear of both scorch strips.</summary>
+        public static readonly float[] SwarmSpawnXs = { 3620f, 3760f, 3900f, 4060f, 4560f, 4720f, 4860f, 5200f };
+
+        /// <summary>
+        /// Base-kit pieces only. The trench is deep sand's home now: the scene's second drift
+        /// lies on its floor (x 2270-2910), so a hero who falls off the line wades out.
+        /// The stretch's camera keeps to the surface band, as the dunes' does.
+        /// </summary>
+        private void BuildDuneCrossing() {
+            TraversalStretch crossing = BeginStretch(CrossingStretchID, CrossingRoomKey,
+                CrossingMinX, CrossingMaxX, SurfaceGroundY, CrossingWestDeckEndX, CrossingEastDeckStartX, Room1StartX);
+            crossing.Room.CameraBounds = Room1CameraBounds;
+            BuildRoomDecoration(CrossingMinX, CrossingRoomKey, new Color(0.95f, 0.72f, 0.38f));
+            BuildStretchTrench(crossing);
+            // The deck resumes under the siege line's entry barrier: that barrier needs floor under it.
+            BuildFloor(CrossingEastDeckStartX, SurfaceGroundY, CrossingMaxX - CrossingEastDeckStartX);
+
+            BuildStretchStep(crossing, 2170, 590, 200);
+            BuildStretchStep(crossing, 2430, 520, 180, StretchStepKind.Crumbling, "level_08.crumbling_dune");
+            TraversalSurface middleStep = BuildStretchStep(crossing, 2700, 522, 200, StretchStepKind.OneWay);
+            TraversalSurface eastStep = BuildStretchStep(crossing, 2960, 520, 200);
+            // On the deck, so the east ramp stays walkable: a double jump or the ledge clears it.
+            // The last step ends 80 px short of it, or a hero jumping from the deck bonks the step's underside.
+            BuildStretchWallStep(crossing, 3140f, 490f, SurfaceGroundY);
+
+            // Off the line: a way back up out of the sand.
+            BuildOneWayPlatform(2640, 670, 200);
+
+            OptionalRoute obelisk = BeginOptionalRoute(ObeliskRouteID, ExtractorPlacements[0].ID,
+                ExtractorPlacements[0].Position, middleStep);
+            BuildRouteStep(obelisk, 2510, 330, 120);
+            TraversalSurface burstFrom = BuildRouteStep(obelisk, 2290, 220, 160);
+            BuildRouteStep(obelisk, 2540, 120, 180);
+            TraversalSurface end = BuildRouteStep(obelisk, ObeliskLineEndX, 120, 220);
+            obelisk.MarkBurstShortcut(burstFrom, end);
+            obelisk.MarkRiseShortcut(eastStep, end);
+        }
+
         private EncounterLock _dunesLock;
         private EncounterLock _siegeLineLock;
         private EncounterLock _tombLock;
@@ -359,6 +427,7 @@ namespace FTT.Environment {
 
         protected override void BuildLevel() {
             BuildRoom1ShiftingDunes();
+            BuildDuneCrossing();
             BuildRoom2SiegeLine();
             BuildRoom3TombNetwork();
             BuildRoom4InnerChamber();
@@ -389,7 +458,10 @@ namespace FTT.Environment {
                 EntryBarrierX = SiegeLineLockMinX - BarrierWidth * 0.5f,
                 ExitBarrierX = SiegeLineLockMaxX + BarrierWidth * 0.5f,
                 BarrierFloorY = SurfaceGroundY,
-                Waves = new[] { EncounterLockWave.FromTable(SiegeLineRowID, SiegeLineSpawns, EncounterWaveTrigger.OnEngage) },
+                Waves = new[] {
+                    EncounterLockWave.FromTable(SiegeLineRowID, SiegeLineSpawns, EncounterWaveTrigger.OnEngage),
+                    SwarmWave(SwarmRowID, SurfaceEnemyY, SwarmSpawnXs)
+                },
                 ObjectiveKey = "encounter_lock_objective_clear",
                 GoDirection = EncounterGoDirection.Right
             });
@@ -425,16 +497,13 @@ namespace FTT.Environment {
         /// <summary>Room 1: the open desert approach, buried under drifting sand.</summary>
         private void BuildRoom1ShiftingDunes() {
             BuildRoomBackground("BG_Room1", Room1StartX, 3200, LevelHeight, new Color(0.20f, 0.15f, 0.07f, 0.35f));
-            BuildFloor(Room1StartX, SurfaceGroundY, 3200);
+            // GR-LV3: the floor stops at the Dune Crossing's west deck; BuildDuneCrossing lays the rest.
+            BuildFloor(Room1StartX, SurfaceGroundY, CrossingWestDeckEndX - Room1StartX);
             BuildWall(-20, 0, LevelHeight);
 
             BuildPlatform(600, 560, 240);
             BuildPlatform(1100, 430, 200);
             BuildPlatform(1700, 570, 260);
-            BuildPlatform(2200, 450, 220);
-            // Wind-cut ridge holding the first extractor.
-            BuildPlatform(2600, 520, 240);
-            BuildPlatform(3000, 600, 220);
 
             BuildCheckpoint(200, SurfaceEnemyY, Checkpoint0, CheckpointRole.Entry);
             BuildRoomDecoration(Room1StartX, "egypt_room_dunes", new Color(0.95f, 0.82f, 0.42f));
@@ -684,8 +753,8 @@ namespace FTT.Environment {
         // GU-L8 (2026-10-12): every encounter is a lock wave (BuildEncounterLocks).
         // Authored counts are the Normal-difficulty truth; the lock takes the same
         // per-row ScaleEncounterCount prefix the reward manifest compiles, never
-        // more than the table. Concurrency stays at 3 or fewer live standards, well
-        // inside the level_08 pool config's warm counts (standard_enemy 12,
+        // more than the table. Concurrency is at most 2 + the swarm's 8 live standards, well
+        // inside the level_08 pool config's warm counts (standard_enemy 18,
         // enemy_projectile 20).
 
         // === Resume ===
