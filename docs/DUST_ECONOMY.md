@@ -139,6 +139,30 @@ into Level 5, which now pays **55 required / 25 boss / 30 optional** and hosts t
 Eraser debut. Fifteen boss awards total 375, required encounters 345, optional 280; 720 / 1,000
 and 787 / 1,094 are unchanged.
 
+**The 2026-11-03 gameplay review (on `gr/integ`, not yet on `main`).** Four rulings touch the economy without moving
+a single source, pool or level total; every number above still holds.
+
+- **The level rank pays dust on top of F05** (rulings 3a, 3a+, 3a++, 3a+5, 3c, 3c+; ledger `USER-LEVEL-RANK-DUST`,
+  `PROVISIONAL-LEVEL-RANK-RULES`). Levels 1–15; Level 0 pays nothing. S / A / B / C / D pay 50 / 35 / 20 / 8 / 0 on
+  Normal and Hard and 25 / 18 / 10 / 4 / 0 on Easy, at most 750 a campaign. It is applied in
+  `StoryManager.OnLevelComplete` **after** `ApplyIntegrityTierBonus` (so neither compounds the other) and before
+  `CommitCompletionTransaction`, paying `max(0, new − paid)` (`StoryManager.Rank.cs`, `FTT.Core.LevelRankRules`,
+  `StorySaveData.RankDustPaidByLevel`, `StoryCompletionTransaction.RankBonusDust`). With tier and rank the
+  maxima are **1,537 required / 1,844 thorough**; the 720 / 1,000 ledger and 787 / 1,094 tier maxima are unchanged.
+  The results panel shows the rank lines after the tier bonus.
+- **The grid costs 1,350** (rulings 3a+++, 3a++++): each hero gained a tenth node, a 375-dust Tier 4 capstone
+  (`USER-GRID-CAPSTONE`). The nine-node grid still costs 975, so the pacing table above reads against the
+  nine nodes; no ledger route reaches a capstone (1,094 < 1,350), and the rank is what funds it.
+- **Fodder pays nothing** (ruling 1b+): the Chrono Swarmling's `EnemyData.DustWeightZero` makes
+  `LevelRewardDirectory.WeightForEnemy` return 0, so its swarm rows join each manifest's `RequiredWaves` with no
+  change to `RequiredEncounterPool`, and a kill spawns no pickup (`RewardAllocator` is unchanged).
+- **Route rewards are existing sources** (ruling 7c+): every level's optional route pays an existing Extractor
+  or the secret, moved to the route's end; no ID, manifest row or pool moved.
+
+The contract body above is re-copied from `docs/design-contracts/DUST_ECONOMY.md` once its 2026-11-03 rank
+section lands there (the design half of the closeout); until then this note is the implementation's statement.
+`DustEconomyTests` pins 750, 1,537, 1,844 and the 1,350 grid; `LevelRankRulesTests` the dust table.
+
 ## Data
 
 | Thing | Where |
