@@ -84,12 +84,12 @@ public class Level11ContentTests {
     }
 
     [TestCase]
-    public void TheLinearAssaultIsFourCameraConfinedRoomsAcrossAWideField() {
+    public void TheLinearAssaultIsFiveCameraConfinedRoomsAcrossAWideField() {
         using var fixture = new GettysburgFixture();
         Level11Controller level = fixture.Level;
 
         AssertThat(level.RoomTriggers.Count).OverrideFailureMessage(
-            "Level 11 is authored as four camera-confined rooms.").IsEqual(4);
+            "Level 11 is authored as five camera-confined rooms, the Sunken Road among them.").IsEqual(5);
         foreach (RoomTransitionTrigger trigger in level.RoomTriggers) {
             // The base back-fills CameraPath after the player spawns; without it room
             // confinement silently does nothing.
@@ -120,6 +120,8 @@ public class Level11ContentTests {
         var ids = new HashSet<string>(StringComparer.Ordinal);
         foreach (Node child in Children(fixture.Level)) {
             if (child is not StoryCyclicHazard hazard) continue;
+            // GR-LV4: the Sunken Road's shell lane stands in its trench, off the advance line.
+            if (hazard.HazardID == "level_11.shell_sunken_road") continue;
             placed.Add(hazard.Position.X);
             AssertThat(ids.Add(hazard.HazardID)).OverrideFailureMessage(
                 $"Duplicate hazard id '{hazard.HazardID}'.").IsTrue();
@@ -500,10 +502,10 @@ public class Level11ContentTests {
         AssertString(wheatfield.LockID).IsEqual(Level11Controller.LockWheatfield);
         AssertString(angle.LockID).IsEqual(Level11Controller.LockAngle);
 
-        // The areas: the ridge 300-3200, the Wheatfield 3220-6090 (west of the 6200
+        // The areas: the ridge 300-2000 (GR-LV4's carve), the Wheatfield 3220-6090 (west of the 6200
         // sandbags) and the Angle 6400-8890 (to the breastwork).
         AssertThat(ridge.Area.Position.X).IsEqual(300f);
-        AssertThat(ridge.Area.End.X).IsEqual(3200f);
+        AssertThat(ridge.Area.End.X).IsEqual(2000f);
         AssertThat(wheatfield.Area.Position.X).IsEqual(3220f);
         AssertThat(wheatfield.Area.End.X).IsEqual(6090f);
         AssertThat(angle.Area.Position.X).IsEqual(6400f);
@@ -525,18 +527,21 @@ public class Level11ContentTests {
         AssertThat(ridge.Spec.Waves.Length).IsEqual(1);
         AssertString(ridge.Spec.Waves[0].RowID).IsEqual(Level11Controller.Room1RowID);
         AssertThat(ridge.Spec.Waves[0].Trigger).IsEqual(EncounterWaveTrigger.OnBuild);
-        AssertThat(wheatfield.Spec.Waves.Length).IsEqual(1);
+        // GR-LV4: each of these two takes a swarm row, the Wheatfield's second and the Angle's before the pair.
+        AssertThat(wheatfield.Spec.Waves.Length).IsEqual(2);
+        AssertString(wheatfield.Spec.Waves[1].RowID).IsEqual(Level11Controller.WheatfieldSwarmRowID);
         AssertString(wheatfield.Spec.Waves[0].RowID).IsEqual(Level11Controller.Room2RowID);
         AssertThat(wheatfield.Spec.Waves[0].Trigger).IsEqual(EncounterWaveTrigger.OnBuild);
-        AssertThat(angle.Spec.Waves.Length).IsEqual(3);
+        AssertThat(angle.Spec.Waves.Length).IsEqual(4);
         AssertString(angle.Spec.Waves[0].RowID).IsEqual(Level11Controller.Room3RowID);
         AssertThat(angle.Spec.Waves[0].Trigger).IsEqual(EncounterWaveTrigger.OnBuild);
-        AssertString(angle.Spec.Waves[1].RowID).IsEqual(Level11Controller.AngleRowID);
-        AssertThat(angle.Spec.Waves[1].Trigger).IsEqual(EncounterWaveTrigger.WhenAliveAtMost);
-        AssertThat(angle.Spec.Waves[1].AliveAtMost).IsEqual(1);
-        AssertString(angle.Spec.Waves[2].RowID).IsEqual(Level11Controller.EliteRowID);
+        AssertString(angle.Spec.Waves[1].RowID).IsEqual(Level11Controller.AngleSwarmRowID);
+        AssertString(angle.Spec.Waves[2].RowID).IsEqual(Level11Controller.AngleRowID);
         AssertThat(angle.Spec.Waves[2].Trigger).IsEqual(EncounterWaveTrigger.WhenAliveAtMost);
         AssertThat(angle.Spec.Waves[2].AliveAtMost).IsEqual(1);
+        AssertString(angle.Spec.Waves[3].RowID).IsEqual(Level11Controller.EliteRowID);
+        AssertThat(angle.Spec.Waves[3].Trigger).IsEqual(EncounterWaveTrigger.WhenAliveAtMost);
+        AssertThat(angle.Spec.Waves[3].AliveAtMost).IsEqual(1);
         foreach (EncounterLock encounterLock in level.EncounterLocks) {
             AssertThat(encounterLock.State).IsEqual(EncounterLockState.Armed);
             AssertThat(encounterLock.ExitBarrier.IsClosed).IsTrue();
@@ -627,7 +632,7 @@ public class Level11ContentTests {
             AssertThat(angle.AllWavesSpawned).IsFalse();
 
             // Kill members one by one until every wave has come and gone.
-            for (int round = 0; round < 12 && angle.LivingMemberCount > 0; round++) {
+            for (int round = 0; round < 30 && angle.LivingMemberCount > 0; round++) {
                 IReadOnlyList<EnemyController> living = angle.LivingMembers;
                 living[0].TakeDamage(99999);
                 for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);

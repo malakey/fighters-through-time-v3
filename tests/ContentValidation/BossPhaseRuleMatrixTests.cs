@@ -47,6 +47,9 @@ public class BossPhaseRuleMatrixTests {
         ("dread_admiral", 1, "scripts/Environment/Level07Controller.cs", "PhaseEntered += OnAdmiralPhaseEntered"),
         ("iron_chancellor", 1, "scripts/Environment/Level09Controller.cs", "PhaseEntered += OnGeneralPhaseEntered"),
         ("tragedy_king", 1, "scripts/Environment/Level10Controller.cs", "PhaseEntered += OnKingPhaseEntered"),
+        ("siege_cannon", 1, "scripts/Environment/Level11Controller.cs", "PhaseEntered += OnCannonPhaseEntered"),
+        ("gravity_overseer", 1, "scripts/Environment/Level12Controller.cs", "PhaseEntered += OnOverseerPhaseEntered"),
+        ("gravity_overseer", 2, "scripts/Environment/Level12Controller.cs", "PhaseEntered += OnOverseerPhaseEntered"),
         ("archive_prime", 1, "scripts/Environment/Level14Controller.cs", "OnBossPhaseChanged += OnBossPhaseChanged"),
         ("archive_prime", 2, "scripts/Environment/Level14Controller.cs", "OnBossPhaseChanged += OnBossPhaseChanged")
     };

@@ -88,14 +88,15 @@ public class Level10ContentTests {
     }
 
     [TestCase]
-    public void TheLevelIsFourConfinedRoomsClimbingFromTheCellarToTheUpperGallery() {
+    public void TheLevelIsFiveConfinedRoomsClimbingFromTheCellarToTheUpperGallery() {
         using var fixture = new GlobeFixture();
         Level10Controller level = fixture.Level;
 
         AssertThat(Mathf.IsEqualApprox(level.LevelBounds.Size.X, Level10Controller.LevelWidth)).IsTrue();
         // Plan §5 allows 8000-14000 px; the agent brief narrows the Globe to 9000-11000.
         AssertThat(level.LevelBounds.Size.X >= 9000f && level.LevelBounds.Size.X <= 11000f).IsTrue();
-        AssertThat(level.RoomTriggers.Count).IsEqual(4);
+        // GR-LV4: the four rooms and the stage front between the first two.
+        AssertThat(level.RoomTriggers.Count).IsEqual(5);
 
         foreach (RoomTransitionTrigger room in level.RoomTriggers) {
             AssertThat(string.IsNullOrWhiteSpace(room.RoomID)).IsFalse();
@@ -284,7 +285,7 @@ public class Level10ContentTests {
 
         // Asserted against the resource, never a hardcoded width: re-tuning the boss
         // then cannot silently outgrow the arena.
-        Rect2 arena = fixture.Level.RoomTriggers[3].CameraBounds;
+        Rect2 arena = fixture.Level.RoomTriggers[4].CameraBounds;
         AssertThat(arena.Size.X > boss.RangedRangeThreshold * PixelsPerUnit)
             .OverrideFailureMessage(
                 $"The tiring-house arena is {arena.Size.X} px but the boss ranged band is " +
@@ -598,7 +599,7 @@ public class Level10ContentTests {
         }
 
         // Every line is in the gallery room, above the balconies it serves.
-        Rect2 galleries = level.RoomTriggers[2].CameraBounds;
+        Rect2 galleries = level.RoomTriggers[3].CameraBounds;
         foreach (PendulumAnchor anchor in level.Rigging) {
             AssertThat(galleries.HasPoint(anchor.Position))
                 .OverrideFailureMessage($"'{anchor.AnchorID}' hangs outside the gallery room.").IsTrue();
@@ -861,11 +862,11 @@ public class Level10ContentTests {
             AssertString(stage.LockID).IsEqual(Level10Controller.LockStage);
             AssertString(galleries.LockID).IsEqual(Level10Controller.LockGalleries);
 
-            // The areas: the yard 300-2540, the stage with its cellar 2560-5740, the
+            // The areas (GR-LV4 carved the first two): the yard 300-2000, the stage with its cellar 2900-5740, the
             // galleries 6080-8330 (to the bridging span's east end).
             AssertThat(yard.Area.Position.X).IsEqual(300f);
-            AssertThat(yard.Area.End.X).IsEqual(2540f);
-            AssertThat(stage.Area.Position.X).IsEqual(2560f);
+            AssertThat(yard.Area.End.X).IsEqual(2000f);
+            AssertThat(stage.Area.Position.X).IsEqual(2900f);
             AssertThat(stage.Area.End.X).IsEqual(5740f);
             AssertThat(stage.Area.End.Y).IsEqual(Level10Controller.LevelHeight);
             AssertThat(galleries.Area.Position.X).IsEqual(6080f);
@@ -890,7 +891,8 @@ public class Level10ContentTests {
                 (galleries, Level10Controller.Room3RowID, Level10Controller.Room3Spawns.Length, EncounterWaveTrigger.OnBuild)
             };
             foreach ((EncounterLock encounterLock, string row, int length, EncounterWaveTrigger trigger) in waves) {
-                AssertThat(encounterLock.Spec.Waves.Length).IsEqual(1);
+                // GR-LV4: the galleries' second wave is the swarm row.
+                AssertThat(encounterLock.Spec.Waves.Length).IsEqual(encounterLock == galleries ? 2 : 1);
                 AssertString(encounterLock.Spec.Waves[0].RowID).IsEqual(row);
                 AssertThat(encounterLock.Spec.Waves[0].Spawns.Length).IsEqual(length);
                 AssertThat(encounterLock.Spec.Waves[0].Trigger).IsEqual(trigger);
