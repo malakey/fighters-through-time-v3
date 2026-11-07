@@ -347,7 +347,11 @@ Consolidated at the closeout from every handoff (`docs/handoffs/GR_*.md`); each 
 
 **Counts.** 20 workstreams, 3 integration rounds, a Codex review of each phase with its follow-up rounds, 119 commits from `43d54db6` to `65411f53`. Tests 4028 → **4343** (+315 against the declared +291; AGENTS.md's validation section has every term). Bot runs: 570 at the baseline, then gate A, gate B (Level 2), the measured par pass (252 reports) and gate C. Ledger: 48 new rows plus one "(updated 2026-11-03)" row for the slot ruling, 11 rows amended in place, 1 closed.
 
-**Three-run verification:** _pending — the orchestrator records three consecutive green full runs at the final commit here (`Failed: 0, Passed: 4343, Total: 4343`, durations, orphans drained, lock held)._
+**Three-run verification:** three consecutive green full runs at `bd1d9cbf` on `gr/integ`, orphans drained and the lock held for each: `Failed: 0, Passed: 4343, Total: 4343`, 2 m 59 s; `Failed: 0, Passed: 4343, Total: 4343`, 3 m 0 s; `Failed: 0, Passed: 4343, Total: 4343`, 2 m 56 s. No run truncated.
+
+**Matrix on the new Open stages** (`tools/fighter_matrix/`, Hard versus Hard, 81 pairs x 4 seeds = 324 matches a stage, 0 failures, 0 capped; the tool's switch gained Globe and Hakata): blast-zone KOs are **34.1 %** of KOs on Globe (454 of 1,332) and **15.3 %** on Hakata (212 of 1,385), against **49.4 %** on Paris and **0 %** on Sealed Florence from the same build, and the pre-package Paris 52 %, Vesuvius 24 % and Nassau 18 %. Hero win %: Globe tesla 87.5 down to tubman 19.4; Hakata tesla 80.6 down to tubman 18.1 (Florence tesla 87.5 / tubman 20.8; Paris tesla 81.9 / tubman 23.6). Data only: no balance was changed. Output under `D:/Projects/ftt-scratch/gr/matrix/`.
+
+**Rollback re-measure** (`docs/PERFORMANCE_BASELINE.md`, dated 2026-11-07): worst median 0.080 ms (`florence_workshop`), worst p95 0.146 ms (`chicago_exposition`), 0 breaches against the 8 ms budget, largest snapshot 3,004 B.
 
 ## Appendix A: traceability (every ruling, one home)
 
