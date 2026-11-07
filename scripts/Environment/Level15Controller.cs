@@ -93,7 +93,7 @@ namespace FTT.Environment {
         /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
         /// per-hero median measurement pass.
         /// </summary>
-        public override float ParSeconds => 540f;
+        public override float ParSeconds => TraversalRules.ParWithStretches(540f, 1);
         public override string LevelTitleKey => "alexandria_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_15_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(220f, FloorY - 60f);
@@ -305,7 +305,9 @@ namespace FTT.Environment {
             // Wave 1 - the burning portico.
             (CultistEnemyID, 1, new Vector2(1050f, StandY)),
             (CultistEnemyID, 1, new Vector2(1900f, StandY)),
-            (CultistEnemyID, 1, new Vector2(2560f, StandY)),
+            // GR-LV5: the east trooper moved 2560 -> 1650, inside the carved Portico
+            // (320–2000) and clear of the portico fire (1390–1510).
+            (CultistEnemyID, 1, new Vector2(1650f, StandY)),
             // Wave 2 - the stacks and the scriptorium climb, held by a Tech Enforcer.
             // GU-L12: the east trooper moved 5900 -> 5700, inside the Stacks lock.
             (CultistEnemyID, 2, new Vector2(3450f, StandY)),
@@ -337,7 +339,9 @@ namespace FTT.Environment {
         /// is retained for the content tests and the dust ledger.
         /// </summary>
         public static readonly (string ID, Vector2 Position)[] ExtractorPlacements = {
-            ("level_15_extractor_0", new Vector2(1740f, Tier3Y - 60f)),
+            // GR-LV5: moved from the portico stair's top rung (1740, 1100) to the end of
+            // the Reading Gallery line, the optional route over the Portico run.
+            ("level_15_extractor_0", new Vector2(ReadingGalleryEndX, ReadingGalleryTopY - 72f)),
             ("level_15_extractor_1", new Vector2(5620f, Tier5Y - 60f)),
             // Deliberately on the firestorm's route: a detour paid for in seconds.
             ("level_15_extractor_2", new Vector2(8220f, Tier2Y - 60f))
@@ -393,9 +397,29 @@ namespace FTT.Environment {
 
         private const float LockBarrierWidth = EncounterLockRules.DefaultBarrierWidthPixels;
 
-        /// <summary>The Portico: everything past the entry anchor (260) to the Stacks seam.</summary>
+        /// <summary>
+        /// The Portico: past the entry anchor (260) to 2000. GR-LV5 carved it from
+        /// 320–3000; the freed span is the Portico run.
+        /// </summary>
         public const float PorticoLockMinX = 320f;
-        public const float PorticoLockMaxX = Room2StartX;
+        public const float PorticoLockMaxX = 2000f;
+
+        // === GR-LV5 (rulings 7a, 7b, 7c, 7c+, 1b++): the Portico run ==========
+
+        public const string PorticoRunStretchID = "level_15.portico_run";
+        public const string ReadingGalleryRouteID = "level_15.reading_gallery";
+        public const string PorticoRunRoomKey = "alexandria_room_portico_run";
+        /// <summary>The run: from the Portico lock's exit barrier to the Stacks lock's entry barrier.</summary>
+        public const float PorticoRunMinX = PorticoLockMaxX + LockBarrierWidth;
+        public const float PorticoRunMaxX = Room2StartX;
+        public const float PorticoRunWestDeckEndX = 2060f;
+        public const float PorticoRunEastDeckStartX = 2960f;
+        /// <summary>The Reading Gallery's last surface: 220 wide, its top 402 px over the run's last step.</summary>
+        public const float ReadingGalleryEndX = 2830f;
+        public const float ReadingGalleryTopY = 810f;
+        /// <summary>The swarm row (ruling 1b++): Level 15's one, on the carved Portico.</summary>
+        public const string SwarmRowID = "level_15.swarm1";
+        public static readonly float[] SwarmSpawnXs = { 560f, 700f, 840f, 1000f, 1200f, 1600f, 1760f, 1900f };
         /// <summary>
         /// The Stacks and the scriptorium climb, to 220 px short of the Middle
         /// anchor (6120), whose strike surface (6090–6150) stays past the longest
@@ -439,6 +463,7 @@ namespace FTT.Environment {
 
         protected override void BuildLevel() {
             BuildRoom1Portico();
+            BuildPorticoRun();
             BuildRoom2Stacks();
             BuildRoom3CollapsingHall();
             BuildRoom4Rotunda();
@@ -461,7 +486,10 @@ namespace FTT.Environment {
                 EntryBarrierX = PorticoLockMinX - LockBarrierWidth * 0.5f,
                 ExitBarrierX = PorticoLockMaxX + LockBarrierWidth * 0.5f,
                 BarrierFloorY = FloorY,
-                Waves = new[] { WaveFromTable(Wave1RowID, 1, EncounterWaveTrigger.OnBuild) },
+                Waves = new[] {
+                    WaveFromTable(Wave1RowID, 1, EncounterWaveTrigger.OnBuild),
+                    SwarmWave(SwarmRowID, StandY, SwarmSpawnXs)
+                },
                 ObjectiveKey = "encounter_lock_objective_clear",
                 GoDirection = EncounterGoDirection.Right
             });
@@ -525,11 +553,46 @@ namespace FTT.Environment {
         private void BuildRoom1Portico() {
             BuildRoomBackground("BG_Portico", 0f, Room2StartX, LevelHeight,
                 new Color(0.12f, 0.06f, 0.04f, 0.55f));
-            BuildFloor(0f, FloorY, Room2StartX);
+            // GR-LV5: the floor stops at the Portico run's trench; the run resumes it.
+            BuildFloor(0f, FloorY, PorticoRunWestDeckEndX);
             BuildGallery(PorticoStair);
 
             BuildCheckpoint(Checkpoint0Position.X, Checkpoint0Position.Y, Checkpoint0, CheckpointRole.Entry);
             BuildRoomDecoration(0f, "alexandria_room_portico", new Color(0.95f, 0.72f, 0.42f));
+        }
+
+        /// <summary>
+        /// GR-LV5 (rulings 7a, 7b): the Portico run, between the carved Portico lock and
+        /// the Stacks. A trench under burning shelving (the pilot's pattern): solid, crumbling
+        /// and one-way steps, an ember vent on the trench floor, and the Reading Gallery
+        /// (ruling 7c+) climbing over it to the anchor pylon. Far west of the firestorm,
+        /// which starts on the hall lock's clear and runs 6500–9100.
+        /// </summary>
+        private void BuildPorticoRun() {
+            TraversalStretch run = BeginStretch(PorticoRunStretchID, "alexandria_portico_run",
+                PorticoRunMinX, PorticoRunMaxX, FloorY, PorticoRunWestDeckEndX, PorticoRunEastDeckStartX, 0f);
+            BuildRoomDecoration(PorticoRunMinX, PorticoRunRoomKey, new Color(0.98f, 0.62f, 0.32f));
+            BuildStretchTrench(run);
+            // The deck resumes under the Stacks lock's entry barrier: that barrier needs floor under it.
+            BuildFloor(PorticoRunEastDeckStartX, FloorY, PorticoRunMaxX - PorticoRunEastDeckStartX);
+
+            TraversalSurface firstStep = BuildStretchStep(run, 2160f, 1290f, 180f);
+            BuildStretchStep(run, 2390f, 1220f, 160f, StretchStepKind.Crumbling, "level_15.crumbling_shelf");
+            BuildStretchStep(run, 2610f, 1222f, 160f, StretchStepKind.OneWay);
+            TraversalSurface lastStep = BuildStretchStep(run, 2830f, 1220f, 160f);
+
+            // Off the line: a way back up out of the trench, and a vent to cross down there.
+            BuildOneWayPlatform(2620f, 1370f, 200f);
+            BuildCyclicHazardLane("level_15.ember_vent", 2440f, run.TrenchFloorY, 1f, 0.6f, 2.6f, 18, withCover: true);
+
+            OptionalRoute gallery = BeginOptionalRoute(ReadingGalleryRouteID, ExtractorPlacements[0].ID,
+                ExtractorPlacements[0].Position, firstStep);
+            BuildRouteStep(gallery, 2290f, 1100f, 120f);
+            TraversalSurface burstFrom = BuildRouteStep(gallery, 2135f, 920f, 160f);
+            BuildRouteStep(gallery, 2385f, 820f, 180f);
+            TraversalSurface end = BuildRouteStep(gallery, ReadingGalleryEndX, ReadingGalleryTopY + 10f, 220f);
+            gallery.MarkBurstShortcut(burstFrom, end);
+            gallery.MarkRiseShortcut(lastStep, end);
         }
 
         private void BuildRoom2Stacks() {

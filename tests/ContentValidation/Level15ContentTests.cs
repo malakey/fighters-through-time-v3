@@ -792,9 +792,18 @@ public class Level15ContentTests {
     public void TheApproachIsThreeEncounterLocksOneWavePerManifestRow() {
         using var fixture = new AlexandriaFixture(null);
         Level15Controller level = fixture.Level;
-        List<string> issues = LevelLockTestKit.LayoutIssues(level, Level15Controller.SpawnTable, new[] {
-            new LevelLockTestKit.LockLayout(Level15Controller.LockPortico, 320f, 3000f,
-                new[] { new LevelLockTestKit.WaveLayout(Level15Controller.Wave1RowID, 1, EncounterWaveTrigger.OnBuild) }),
+        // GR-LV5: the Portico's swarm row is its second wave. It has no authored table wave, so the
+        // layout reads it as table wave 5: every spawn the fodder mob, on the floor.
+        var table = new List<(string EnemyID, int Wave, Vector2 Position)>(Level15Controller.SpawnTable);
+        foreach (float x in Level15Controller.SwarmSpawnXs) {
+            table.Add((FTT.Combat.HazardMobRules.FodderEnemyID, 5, new Vector2(x, Level15Controller.FloorY - 50f)));
+        }
+        List<string> issues = LevelLockTestKit.LayoutIssues(level, table.ToArray(), new[] {
+            // GR-LV5 carved the Portico to 320-2000 (it was 320-3000): the rest is the Portico run.
+            new LevelLockTestKit.LockLayout(Level15Controller.LockPortico, 320f, 2000f, new[] {
+                new LevelLockTestKit.WaveLayout(Level15Controller.Wave1RowID, 1, EncounterWaveTrigger.OnBuild),
+                new LevelLockTestKit.WaveLayout(Level15Controller.SwarmRowID, 5, EncounterWaveTrigger.WhenAliveAtMost)
+            }),
             new LevelLockTestKit.LockLayout(Level15Controller.LockStacks, 3020f, 5900f,
                 new[] { new LevelLockTestKit.WaveLayout(Level15Controller.Wave2RowID, 2, EncounterWaveTrigger.OnBuild) }),
             new LevelLockTestKit.LockLayout(Level15Controller.LockCollapsingHall, 6420f, 7900f, new[] {

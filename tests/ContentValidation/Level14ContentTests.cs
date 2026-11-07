@@ -851,7 +851,8 @@ public class Level14ContentTests {
         using var fixture = new NeoEarthFixture(null);
         Level14Controller level = fixture.Level;
         List<string> issues = LevelLockTestKit.LayoutIssues(level, Level14Controller.SpawnTable, new[] {
-            new LevelLockTestKit.LockLayout(Level14Controller.LockBreachGallery, 320f, 2900f,
+            // GR-LV5 carved the Breach Gallery to 320–2000 (it was 320–2900): the rest is the Breach Catwalk.
+            new LevelLockTestKit.LockLayout(Level14Controller.LockBreachGallery, 320f, 2000f,
                 new[] { new LevelLockTestKit.WaveLayout(Level14Controller.Wave1RowID, 1, EncounterWaveTrigger.OnBuild) }),
             new LevelLockTestKit.LockLayout(Level14Controller.LockContainmentWing, 2920f, 5782f,
                 new[] { new LevelLockTestKit.WaveLayout(Level14Controller.Wave2RowID, 2, EncounterWaveTrigger.OnBuild) }),
@@ -879,7 +880,10 @@ public class Level14ContentTests {
             LaserGridPattern pattern = level.GridPausedBy(encounterLock);
             AssertObject(pattern).OverrideFailureMessage($"'{encounterLock.LockID}' pauses no grid.").IsNotNull();
             foreach ((string beamName, float beamX, float _) in pattern.Beams) {
-                AssertThat(beamX > encounterLock.Area.Position.X && beamX < encounterLock.Area.End.X)
+                // GR-LV5: the perimeter grid's third beam stands under the Breach Catwalk, carved from the gallery.
+                bool underTheCatwalk = encounterLock == level.BreachGalleryLock
+                    && beamX > Level14Controller.BreachCatwalkMinX && beamX < Level14Controller.BreachCatwalkMaxX;
+                AssertThat(underTheCatwalk || (beamX > encounterLock.Area.Position.X && beamX < encounterLock.Area.End.X))
                     .OverrideFailureMessage($"Beam '{beamName}' (x {beamX}) is outside '{encounterLock.LockID}'.")
                     .IsTrue();
             }
