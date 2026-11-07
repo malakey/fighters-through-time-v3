@@ -14,13 +14,13 @@
 
 # Chronal Dust Economy — F05 Option A
 
-Design revision: 2026-09-12; **amended 2026-09-28 (S27): the Legacy Level (4A) is retired and its row folds into Level 5 — every total, maximum and pacing threshold below is unchanged.** User-selected direction: retain the **975-dust Resonance Grid** and meaningful upgrade choices. This ledger specifies the replacement reward budgets; it is not a measurement of shipped levels. Scene reward manifests, resource values, and gameplay validation still need implementation.
+Design revision: 2026-09-12; **amended 2026-09-28 (S27): the Legacy Level (4A) is retired and its row folds into Level 5 — every total, maximum and pacing threshold below is unchanged.** **Amended 2026-11-03 (gameplay review): a level rank pays dust on top of every total below, a 375-dust capstone takes a full grid to 1,350, and the swarm fodder mob has allocation weight 0; every base budget, allocation rule, total and maximum below is unchanged (see "Gameplay review: rank bonus, capstone and fodder" at the end).** User-selected direction: retain the **975-dust Resonance Grid** and meaningful upgrade choices. This ledger specifies the replacement reward budgets; it is not a measurement of shipped levels. Scene reward manifests, resource values, and gameplay validation still need implementation.
 
 This file is the economy design ledger referenced by [the main design](../design-godot-v7.md). Its budgets replace the former universal 1–2 dust per standard enemy, 20 per elite, 50 per boss, and 25 per Extractor. The historical shipped Extractor value of 15 and the Mirror Paradox wallet-direct exception are not exceptions to this new design.
 
 ## Targets and accounting basis
 
-- Grid prices remain 50 / 75 / 200 for three Tier 1 minors, three Tier 2 minors, and three Majors: **975 total**. Do not change grid prerequisites merely to force these income targets. F08 Option B explicitly simplifies Shakespeare's Majors to require all three Act II nodes; its later first-Major timing is accepted without increasing rewards.
+- Grid prices remain 50 / 75 / 200 for three Tier 1 minors, three Tier 2 minors, and three Majors: **975 total**. *(Since 2026-11-03 each grid adds a Tier 4 capstone Major at 375, for **1,350**; no ledger route reaches it. See the end of this file.)* Do not change grid prerequisites merely to force these income targets. F08 Option B explicitly simplifies Shakespeare's Majors to require all three Act II nodes; its later first-Major timing is accepted without increasing rewards.
 - The required route pays **720 base dust**, or **720–787 after Integrity bonuses**.
 - Fully collecting optional content adds **280 base dust**. A thorough run pays **1,000 base**, or **1,000–1,094 after Integrity bonuses**.
 - These figures assume completion of each source once, collection of all drops on the chosen route, and no dust-loss penalties. Missed pickups, skipped encounters, and the established collapse/exit penalties can reduce income; the target is not a guaranteed wallet floor or automatic compensation.
@@ -108,16 +108,17 @@ Affordability means total deposited earnings sufficient for a legal purchase pat
 | 775 dust | Not reached | After 15 | After 13 | After 12 |
 | 875 dust (Shakespeare: three Majors) | Not reached | Not reached | After 14 | After 13 |
 | 975 dust | Not reached | Not reached | After 15 | After 14 |
+| 1,350 dust (full grid with the capstone, 2026-11-03) | Not reached | Not reached | Not reached | Not reached |
 
 - **First minor:** affordable after Level 1 even without optional collection or a performance bonus.
 - **First Major:** minimum paths now range from 325 to **475** depending on character. Required-route affordability spans Levels **7–11**; thorough affordability spans Levels **5–8**. Under **F08 Option B**, Shakespeare needs one Act I node (50), all three Act II nodes (225), and a Major (200): **475** total, after Level **10–11 required** or **7–8 thorough**. Act II retains Any-of Act I prerequisites. This deliberately places his first Major later than the former 400-dust path.
 - **Second Major:** use the 600/650/675/775 thresholds as budget checkpoints, not universal prices for two Majors. Validate the actual prerequisite sets for every character. Shared prerequisites can make a pair cheaper; Shakespeare needs **675** for two Majors and **875** for three (one Act I + all Act II + the chosen Majors). Buying all six minors plus two Majors costs 775. Shakespeare cannot afford all three Majors on the required route; thorough collection reaches 875 after Level 13–14. Required-route funding of his second Major may arrive only after the final encounter, when those rewards cannot improve that fight. The required route does not promise two complete branches or every desired pair under all tiers.
-- **Full grid:** a thorough, all-Restored run reaches 1,006 deposited dust after Level 14, so it can complete the grid at Level 15's entry Beacon. A thorough run without bonuses reaches 1,000 only after Level 15; it cannot use those final rewards against the final boss. The required route never funds the full grid.
+- **Full grid:** a thorough, all-Restored run reaches 1,006 deposited dust after Level 14, so it can complete the grid at Level 15's entry Beacon. A thorough run without bonuses reaches 1,000 only after Level 15; it cannot use those final rewards against the final boss. The required route never funds the full grid. *(This describes the nine-node 975 grid. Since 2026-11-03 the full grid is 1,350 with the capstone, which the ledger alone never funds; the rank bonus, below, can.)*
 - Pure budget thresholds do not prove encounter balance or the value of grid nodes. Playtest pacing on every character; fix duplicate/undefined perks through F06 without silently moving these budgets.
 
 ## Validation and implementation handoff
 
-Verified design arithmetic (rechecked after S27): 15 boss awards total 375; required encounter budgets total 345; optional allocations total 280; base totals are 720/1,000; all-Restored maxima are 787/1,094; the full grid remains 975. Integer source allocation must preserve each pool for every difficulty.
+Verified design arithmetic (rechecked after S27): 15 boss awards total 375; required encounter budgets total 345; optional allocations total 280; base totals are 720/1,000; all-Restored maxima are 787/1,094; the full grid remains 975 (1,350 with the 2026-11-03 capstone, funded above the ledger by the rank bonus). Integer source allocation must preserve each pool for every difficulty.
 
 Still required before gameplay sign-off:
 
@@ -126,6 +127,32 @@ Still required before gameplay sign-off:
 - Exercise reward persistence with collected and uncollected drops across death rewind, collapse, Anchor Snap, quit, crash, restart, and completion reload.
 - Check representative legal first/second-Major routes in all nine grids and playtest affordability against encounter difficulty. Review poor-performance/loss-heavy runs separately; never inflate the “required-route” claim to include compensation that does not exist.
 - Update the runtime resources and reward plumbing together. The historical shipped values remain a known implementation mismatch until that work is completed.
+
+## Gameplay review: rank bonus, capstone and fodder (2026-11-03)
+
+From the user's gameplay-review rulings of 2026-11-03 (`docs/recon-2026-11-03/DECISIONS_gameplay_review.md`; plan `docs/GAMEPLAY_REVIEW_2026-11-03_PLAN.md`): rulings 3a, 3a+, 3a++, 3a+++, 3a++++, 3a+5, 3c, 3c+ and 1b+. Every budget, allocation rule and total above is unchanged; the rank bonus is a separate line on top of them.
+
+### Rank bonus, on top of the base totals
+
+- Levels 1–15 earn a rank, **S / A / B / C / D**, on successful completion; Level 0 earns none. It measures damage avoided and speed (the main design's Timeline Integrity section states how). Level 1 has no Integrity clock and ranks on damage alone.
+- **Dust by letter (the user's table):** Normal and Hard **50 / 35 / 20 / 8 / 0**; Easy **25 / 18 / 10 / 4 / 0**. The table lives once in `FTT.Core.LevelRankRules`; its letter lines, score weights and damage budget are provisional.
+- **Order:** applied **after** the Integrity tier bonus and computed from the rank alone, so it never compounds with the tier bonus, and the tier bonus's `retainedBaseDust` is unchanged by it. It rides the same completion transaction and auto-deposit (F02 holds: only level completion banks; Act III Beacons still spend deposited dust only).
+- **Once per level:** the payment is `max(0, letterDust − alreadyPaidForThatLevel)`, so a level never pays more than its best letter's dust in total (`StorySaveData.RankDustPaidByLevel` never falls).
+- **Retries:** the rank tally lives on the attempt. Death rewind, checkpoint resume, Collapse, Anchor Snap, quit and crash keep it; a full Restart Level resets it with the wallet. A failed attempt pays nothing.
+- **Maxima:** at most 50 × 15 = **750** extra on Normal or Hard (375 on Easy). With all-Restored tiers a required run can bank at most **1,537** and a thorough run **1,844** (787 + 750 and 1,094 + 750).
+- **Display:** the results overlay shows the letter, its dust and a damage/speed line after the tier bonus line; the itemized total includes the bonus.
+- Ruling 3a **partly reverses V7.6 ruling 2.A** (Chronal Rating retired): a graded result returns, and it pays dust. There is still no level replay, level select or records board (ruling 5a), so the bonus cannot be farmed.
+
+### Capstone
+
+- Each grid gains a tenth node, a **Tier 4 capstone Major at 375**, requiring All of two of the hero's Majors. A full grid costs **1,350** (975 + 375). Prices live in the nine grid `.tres`.
+- No ledger route reaches 1,350: the thorough all-Restored maximum is 1,094. The rank bonus is what funds a capstone, and a required run with all-Restored tiers and strong ranks can reach it (1,537 ≥ 1,350). Respec refunds the capstone like any node.
+- The pacing table above still describes the nine-node grid; its 1,350 row records that the ledger alone never funds the capstone.
+
+### Swarm fodder has weight 0
+
+- The swarm fodder mob (`chrono_swarmling`) has allocation weight **0** (`EnemyData.DustWeightZero`, read by `LevelRewardDirectory.WeightForEnemy`). Its sources exist in the reward manifests, receive 0 and spawn no pickup. `RewardAllocator` is unchanged, so every encounter pool still sums exactly and every per-level total in the table above is unchanged.
+- The optional shortcut routes added the same day lead to an existing secret or Extractor share; they add no dust.
 
 ---
 
@@ -139,29 +166,30 @@ into Level 5, which now pays **55 required / 25 boss / 30 optional** and hosts t
 Eraser debut. Fifteen boss awards total 375, required encounters 345, optional 280; 720 / 1,000
 and 787 / 1,094 are unchanged.
 
-**The 2026-11-03 gameplay review (on `gr/integ`, not yet on `main`).** Four rulings touch the economy without moving
-a single source, pool or level total; every number above still holds.
+**The 2026-11-03 gameplay review.** Four rulings touch the economy without moving a single source, pool or level
+total; every base number above still holds. The contract's "Gameplay review: rank bonus, capstone and fodder" section
+is the statement of intent; this is where it lives in code.
 
 - **The level rank pays dust on top of F05** (rulings 3a, 3a+, 3a++, 3a+5, 3c, 3c+; ledger `USER-LEVEL-RANK-DUST`,
-  `PROVISIONAL-LEVEL-RANK-RULES`). Levels 1–15; Level 0 pays nothing. S / A / B / C / D pay 50 / 35 / 20 / 8 / 0 on
-  Normal and Hard and 25 / 18 / 10 / 4 / 0 on Easy, at most 750 a campaign. It is applied in
+  `PROVISIONAL-LEVEL-RANK-RULES`). Levels 1-15; Level 0 pays nothing. S / A / B / C / D pay 50 / 35 / 20 / 8 / 0 on
+  Normal and Hard and 25 / 18 / 10 / 4 / 0 on Easy, at most 750 a campaign (375 on Easy). It is applied in
   `StoryManager.OnLevelComplete` **after** `ApplyIntegrityTierBonus` (so neither compounds the other) and before
-  `CommitCompletionTransaction`, paying `max(0, new − paid)` (`StoryManager.Rank.cs`, `FTT.Core.LevelRankRules`,
+  `CommitCompletionTransaction`, paying `max(0, new - paid)` (`StoryManager.Rank.cs`, `FTT.Core.LevelRankRules`,
   `StorySaveData.RankDustPaidByLevel`, `StoryCompletionTransaction.RankBonusDust`). With tier and rank the
   maxima are **1,537 required / 1,844 thorough**; the 720 / 1,000 ledger and 787 / 1,094 tier maxima are unchanged.
   The results panel shows the rank lines after the tier bonus.
 - **The grid costs 1,350** (rulings 3a+++, 3a++++): each hero gained a tenth node, a 375-dust Tier 4 capstone
-  (`USER-GRID-CAPSTONE`). The nine-node grid still costs 975, so the pacing table above reads against the
-  nine nodes; no ledger route reaches a capstone (1,094 < 1,350), and the rank is what funds it.
-- **Fodder pays nothing** (ruling 1b+): the Chrono Swarmling's `EnemyData.DustWeightZero` makes
+  Major requiring All of two Majors (`USER-GRID-CAPSTONE`; prices in the nine grid `.tres`). The nine-node grid still
+  costs 975, so the pacing table above reads against the nine nodes; no ledger route reaches a capstone
+  (1,094 < 1,350), and the rank is what funds it. Respec refunds it like any node.
+- **Fodder has weight 0** (ruling 1b+): the Chrono Swarmling's `EnemyData.DustWeightZero` makes
   `LevelRewardDirectory.WeightForEnemy` return 0, so its swarm rows join each manifest's `RequiredWaves` with no
-  change to `RequiredEncounterPool`, and a kill spawns no pickup (`RewardAllocator` is unchanged).
+  change to `RequiredEncounterPool`, receive 0 and spawn no pickup (`RewardAllocator` is unchanged).
 - **Route rewards are existing sources** (ruling 7c+): every level's optional route pays an existing Extractor
   or the secret, moved to the route's end; no ID, manifest row or pool moved.
 
-The contract body above is re-copied from `docs/design-contracts/DUST_ECONOMY.md` once its 2026-11-03 rank
-section lands there (the design half of the closeout); until then this note is the implementation's statement.
-`DustEconomyTests` pins 750, 1,537, 1,844 and the 1,350 grid; `LevelRankRulesTests` the dust table.
+The contract body above is re-copied verbatim from `docs/design-contracts/DUST_ECONOMY.md` (2026-11-03 section
+included). `DustEconomyTests` pins 750, 1,537, 1,844 and the 1,350 grid; `LevelRankRulesTests` the dust table.
 
 ## Data
 
