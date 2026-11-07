@@ -125,8 +125,12 @@ public class Level14TraversalStretchTests {
         AssertThat(landed).OverrideFailureMessage(report).IsTrue();
     }
 
+    private static GameplayButtons _previous;
+
+    /// <summary>One physics frame of input; the last frame's buttons give the press and release edges.</summary>
     private static async Task Step(SceneTree tree, BufferedInputSource source, GameplayButtons held) {
-        source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, held, GameplayButtons.None));
+        source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, held, _previous));
+        _previous = held;
         await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
     }
 

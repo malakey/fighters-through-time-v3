@@ -880,7 +880,10 @@ public class Level14ContentTests {
             LaserGridPattern pattern = level.GridPausedBy(encounterLock);
             AssertObject(pattern).OverrideFailureMessage($"'{encounterLock.LockID}' pauses no grid.").IsNotNull();
             foreach ((string beamName, float beamX, float _) in pattern.Beams) {
-                AssertThat(beamX > encounterLock.Area.Position.X && beamX < encounterLock.Area.End.X)
+                // GR-LV5: the perimeter grid's third beam stands under the Breach Catwalk, carved from the gallery.
+                bool underTheCatwalk = encounterLock == level.BreachGalleryLock
+                    && beamX > Level14Controller.BreachCatwalkMinX && beamX < Level14Controller.BreachCatwalkMaxX;
+                AssertThat(underTheCatwalk || (beamX > encounterLock.Area.Position.X && beamX < encounterLock.Area.End.X))
                     .OverrideFailureMessage($"Beam '{beamName}' (x {beamX}) is outside '{encounterLock.LockID}'.")
                     .IsTrue();
             }
