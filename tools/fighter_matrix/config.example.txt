@@ -2,7 +2,7 @@
 # Copy this file anywhere, edit it, and point FTT_MATRIX at the copy (see README.md).
 # Lines starting with # and blank lines are ignored. One key=value per line.
 
-# Stage: Florence, Paris, Nassau or Vesuvius (extend the switch in the test for more)
+# Stage: Florence, Paris, Nassau, Vesuvius, Globe or Hakata (extend the switch in the test for more)
 stage=Florence
 # CPU band for both fighters: Easy, Medium or Hard (the CpuDifficulty names)
 diff=Hard

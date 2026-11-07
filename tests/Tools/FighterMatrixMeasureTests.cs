@@ -67,6 +67,8 @@ public class FighterMatrixMeasureTests {
             "Paris" => FighterStageGeometry.Paris,
             "Nassau" => FighterStageGeometry.Nassau,
             "Vesuvius" => FighterStageGeometry.Vesuvius,
+            "Globe" => FighterStageGeometry.Globe,
+            "Hakata" or "Berlin" => FighterStageGeometry.Berlin,
             _ => throw new ArgumentException(stage)
         };
         bool header = !File.Exists(outFile);

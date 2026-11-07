@@ -51,7 +51,7 @@ no balance and tunes nothing.
 - Seeds are `10000 + pair * 100 + seedfrom + k`, so two calls with disjoint `seedfrom` ranges extend one dataset.
 - Both CPUs use the stock band for the difficulty (`CpuBandTuning.For`), with the hero's own recovery profile.
   Since GR-CPU the Hard band keeps its meter for the Ultimate above 70 Influence; a Hard run measures that.
-- The stages are the four of the switch in `Measure`. Add a case there for another stage.
+- The stages are the six of the switch in `Measure` (Florence, Paris, Nassau, Vesuvius, Globe, Hakata = Berlin). Add a case there for another stage.
 - Matches stop at a 70,000-tick cap and are recorded as `none` (excluded from win rates).
 - The baseline numbers of 2026-11-02 (Florence, Paris, Nassau, Vesuvius at Hard and Normal) were taken before
   the Hard reserve, the Momentum retune, the running attack and the pit stages, so they are not comparable.
