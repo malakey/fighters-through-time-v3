@@ -787,7 +787,8 @@ public class Level13ContentTests {
         using var fixture = new VoidFixture(null);
         Level13Controller level = fixture.Level;
         List<string> issues = LevelLockTestKit.LayoutIssues(level, Level13Controller.SpawnTable, new[] {
-            new LevelLockTestKit.LockLayout(Level13Controller.LockThreshold, 320f, 3200f,
+            // GR-LV5 carved the Threshold from the west (it was 320–3200): the stair is the Fragment Stair.
+            new LevelLockTestKit.LockLayout(Level13Controller.LockThreshold, 1880f, 3200f,
                 new[] { new LevelLockTestKit.WaveLayout(Level13Controller.Wave1RowID, 1, EncounterWaveTrigger.OnBuild) }),
             new LevelLockTestKit.LockLayout(Level13Controller.LockDrift, 3220f, 5100f,
                 new[] { new LevelLockTestKit.WaveLayout(Level13Controller.Wave2RowID, 2, EncounterWaveTrigger.OnBuild) }),
