@@ -38,7 +38,7 @@ namespace FTT.Environment {
     /// <b><see cref="ChronalRiftZone"/> pockets tax the low road.</b> The sediment
     /// shelf runs unbroken from the entrance to the arena, so the fast route always
     /// exists - but three pockets of pooled time sit on it at half speed, and more
-    /// than two seconds inside one snaps the player about three seconds into their
+    /// than three seconds inside one snaps the player about three seconds into their
     /// own past with damage. The shelf is quick if you keep moving and expensive if
     /// you do not.
     ///
@@ -127,6 +127,17 @@ namespace FTT.Environment {
         /// resort - there is no fall death here and no bottomless pit.
         /// </summary>
         public const float ShelfY = 1900f;
+
+        /// <summary>
+        /// How long a hero may stay inside a rift pocket before the time-loop snap (the one value;
+        /// the scene no longer authors it). A pocket halves the walker's speed, so the slowest hero
+        /// (Lincoln, 3.8 u/s) needs about 2.46 s to cross the 240 px circle plus his 40 px body; 3.0 s
+        /// leaves a margin of more than 0.4 s, so every hero crosses by walking
+        /// (<c>PROVISIONAL-L13-RIFT-SNAP-SLOWEST-HERO</c>, <c>Level13RiftPocketTests</c>). It was 2.0 s,
+        /// which crossed only before the 2026-10-12 speed cut. Standing or fighting in a pocket
+        /// still snaps.
+        /// </summary>
+        public const float RiftSnapDelaySeconds = 3f;
 
         public const float Room2StartX = 3200f;
         /// <summary>West edge of the Mirror arena, and the seam where the void stops shifting.</summary>
@@ -627,7 +638,10 @@ namespace FTT.Environment {
                 _driftingShards.Add(shard);
             }
             foreach (string nodeName in RiftPocketNodeNames) {
-                if (GetNodeOrNull<ChronalRiftZone>(nodeName) is ChronalRiftZone rift) _riftPockets.Add(rift);
+                if (GetNodeOrNull<ChronalRiftZone>(nodeName) is ChronalRiftZone rift) {
+                    rift.SnapDelay = RiftSnapDelaySeconds;
+                    _riftPockets.Add(rift);
+                }
             }
         }
 

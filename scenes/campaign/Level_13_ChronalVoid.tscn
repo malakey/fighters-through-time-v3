@@ -46,20 +46,17 @@ Mode = 0
 [node name="RiftThreshold" parent="." instance=ExtResource("4_rift")]
 position = Vector2(1500, 1840)
 RiftID = "level_13.rift_threshold"
-SnapDelay = 2.0
 HistoryFramesAgo = 180
 SnapDamage = 15
 
 [node name="RiftMare" parent="." instance=ExtResource("4_rift")]
 position = Vector2(4520, 1840)
 RiftID = "level_13.rift_mare"
-SnapDelay = 2.0
 HistoryFramesAgo = 180
 SnapDamage = 15
 
 [node name="RiftDeep" parent="." instance=ExtResource("4_rift")]
 position = Vector2(6250, 1840)
 RiftID = "level_13.rift_deep"
-SnapDelay = 2.0
 HistoryFramesAgo = 180
 SnapDamage = 15

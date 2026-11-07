@@ -452,9 +452,9 @@ public class Level13ContentTests {
             AssertThat(seenIDs.Add(rift.RiftID))
                 .OverrideFailureMessage($"Duplicate rift id '{rift.RiftID}'.").IsTrue();
             AssertThat(rift.RiftID.StartsWith("level_13.", StringComparison.Ordinal)).IsTrue();
-            // The Package 1 contract: more than two seconds inside snaps the player
+            // The Package 1 contract: more than RiftSnapDelaySeconds inside snaps the player
             // roughly three seconds into their own past, with damage.
-            AssertFloat(rift.SnapDelay).IsEqualApprox(2f, 0.001f);
+            AssertFloat(rift.SnapDelay).IsEqualApprox(Level13Controller.RiftSnapDelaySeconds, 0.001f);
             AssertThat(rift.HistoryFramesAgo).IsEqual(180);
             AssertThat(rift.SnapDamage).IsGreater(0);
             // They sit on the shelf: the low road is the one that costs.
