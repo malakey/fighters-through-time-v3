@@ -48,3 +48,9 @@ Measure fight duration, player damage taken, recovery/anchor use, repeatable pre
 **Feel and UI update (2026-10-25).** Echo Step was removed from both modes, so the clone has no such verb and the CPU engine it borrows no longer decides one. The clone follows the Story rules unchanged: its finisher, wall behaviour and knockback are Story's, not the Fighter knockback feel of the same update.
 
 **Meter and Defy update (2026-10-31).** The clone has its own Momentum gauge (2 pips at the start; its Special rungs read the same pip-and-reuse-delay predicate as the Fighter CPU) and a Defy by its band (table above). Its gains and costs are not scaled by the Story hero's ×0.5 (it is not the campaign hero). The hero's Defy blast staggers the clone, and the clone's staggers the hero, as an opposing fighter would be (a Defier's invulnerable startup frames make either blast whiff on the other). The clone's CPU sees its own string through a projected hitstun, because a Story body stays in one continuous stun through a chain.
+
+**Gameplay review package (2026-11-03).** From the user's gameplay-review rulings of 2026-11-03 (`docs/recon-2026-11-03/DECISIONS_gameplay_review.md`; plan `docs/GAMEPLAY_REVIEW_2026-11-03_PLAN.md`):
+
+- **The clone is exempt from the Hard CPU's meter reserve** (ruling 9d+, in line with waiting for human data on bosses). The Fighter Hard CPU now banks its Influence at 70 and above ([CPU policy](CPU_COMBAT_POLICY.md)); the clone's Hard band is `CpuBandTuning.HardBoss`, equal to Hard with the reserve and the near-death threshold at 0, and `BossOverride(Hard)` returns it. The clone's Defy behaviour is therefore unchanged on every difficulty.
+- **Hard mirrors capstones** like any other purchased perk, because it runs the same kit code. Its Momentum regenerates a pip every 9 s, as everyone's does.
+- **Time Freeze is dormant**, so the clauses above about respecting and testing it apply only if it is re-enabled.

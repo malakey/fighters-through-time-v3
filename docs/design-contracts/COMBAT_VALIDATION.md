@@ -76,7 +76,7 @@ This is a developer playtest protocol, not a new player-facing anti-stall meter,
 
 ### Conditions and coverage
 
-Run after the three Open stages are playable and their recovery routes are verified, and before Fighter tuning is locked. Missing geometry remains blocked coverage; sealed-stage results cannot stand in for Open stages.
+Run after the three Open stages (five since 2026-11-03: the Globe and the Hakata Seawall joined) are playable and their recovery routes are verified, and before Fighter tuning is locked. Missing geometry remains blocked coverage; sealed-stage results cannot stand in for Open stages.
 
 Use similarly skilled, kit-familiar human players. Swap players between avoidance/pressure roles, swap characters and P1/P2 sides, and repeat with both assignments. Include ordinary unrestricted-play controls to distinguish a generally disadvantaged matchup or pilot from a strategy effect. CPU behavior alone does not establish player strategy balance.
 

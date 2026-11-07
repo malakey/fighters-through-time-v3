@@ -101,3 +101,12 @@ Nobody has looked at any of this in play, on a pad, or at 140 % (`VERIFY-UI-GLAS
 - **Retired.** The F13 Defy resonance seal, its four states (Not Ready, Ready, Spent, Unavailable), its `20 × 20` placement, the Story badge, its accessible labels and its saved flag. A Defy has no persistent HUD state: its aftermath is the meter's drop.
 
 Readiness and Starved never depend on colour alone (the sweep, the seconds, the ring and the dimming carry them). Nobody has looked at any of this in play (`VERIFY-UI-GLASS-HUMAN-REVIEW`).
+
+## Gameplay review package (2026-11-03)
+
+From the user's gameplay-review rulings of 2026-11-03 (`docs/recon-2026-11-03/DECISIONS_gameplay_review.md`; plan `docs/GAMEPLAY_REVIEW_2026-11-03_PLAN.md`).
+
+- **Time Freeze indicator hidden.** While Time Freeze is dormant (`FTT.Core.TimeFreezeRules.Enabled` false) the Story HUD's Time Freeze badge is hidden; the node stays authored and the compact slab keeps its **484 px** width, so re-enabling the verb restores the badge with no layout change. The Time Freeze state still suspends the status-slot clocks when the shared freeze machinery runs.
+- **Rank lines on the level results.** The results overlay adds three rows directly after the tier bonus line: the rank letter, its dust bonus, and a detail line (damage taken as a share of the health bar, and speed; Level 1 shows a dash for speed). The total includes the bonus. They are hidden for Level 0, which earns no rank.
+- **Training room readout.** The Holodeck training room shows an always-on readout slab (provisionally 900 px, bottom centre): last hit and total damage, stun applied, the last move's startup / active / recovery and the frame advantage. It is a HUD, not a menu surface; its settings panel is a centred glass menu. Every size is provisional.
+- No other HUD change: the running attack, the swarms, the traits and the capstones add no HUD element (no Symphony-stack readout is built).

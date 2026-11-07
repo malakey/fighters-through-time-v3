@@ -148,3 +148,15 @@ E01 is resolved in design; per-level placement, final localized copy, feedback i
 - Carry forward F03's suspended adjacent-room Time Freeze rule, F04's resource-independent Nexus puzzle authorization and F10/F11 exhausted-resource recovery. Do not reopen those approved decisions by assumption.
 
 All runtime measurement, per-level authoring and gameplay/balance sign-off remain pending. This document supplies no fabricated matrix passes and does not expand launch scope.
+
+## Gameplay review: traversal, routes and the no-required-hero rule (2026-11-03)
+
+From the user's gameplay-review rulings of 2026-11-03 (`docs/recon-2026-11-03/DECISIONS_gameplay_review.md`; plan `docs/GAMEPLAY_REVIEW_2026-11-03_PLAN.md`): rulings 7a, 7b, 7c and 7c+, with the orchestrator's Level 13 fix.
+
+- **Traversal stretches (7a, 7b).** Every encounter lock stays; each campaign level from 1 to 15 adds a traversal stretch between locks, usually carved from its widest lock. It uses the base kit only (no new verb, no new ropes): every gap at most **280 px**, every rise at most **240 px** per hop, trenches non-lethal with walkable exits (`VERIFY-STORY-PITS` stays open), and a rope-free path to every Middle and PreBoss anchor. Validate each stretch with the slowest and the shortest-jumping heroes; the shared rules are `TraversalRules`, and the content sweeps check reach on every level.
+- **Par (V01a).** A stretch's time joins the timed measurement: its level's par grows by `max(30, 1.25 × the slowest hero's median crossing on Normal)` seconds, rounded up to 30 s ([recovery budgets](CHECKPOINT_RECOVERY.md)). The measured pass changed nothing beyond the authored +30.
+- **Shortcut-only optional routes (7c, 7c+).** Each level offers one optional route to an existing reward (the secret or an Extractor share; no new dust). Every hero reaches the reward by a harder base-kit line; matching movement abilities only make it quick (a horizontal-burst shortcut and a rise-or-glide shortcut per level). E01 and F05's reach rule hold. Lincoln has no ability shortcut on several levels; that is an open question, not a reach failure.
+- **No level may require a specific hero.** The Level 13 rift pockets used to snap a hero back after 2.0 s, and a walking Lincoln (half speed in a pocket) needed about 2.46 s to cross one, so he looped until he died. The snap delay is now **3.0 s** (`Level13Controller.RiftSnapDelaySeconds`), checked against the slowest hero's crossing read from the character data plus a 0.4 s margin. Any later hazard that taxes walking speed must pass the same check.
+- **Soft-counter traits.** No required objective may sit behind a trait mob (Armoured, Catcher, Anti-air); a content sweep enforces it. Traits are never strictly required to pass.
+- **The Legacy Unlock Schedule moved one level earlier** (Special 1 after Level 0; Level 4 first full kit). The "completable with the kit at entry" guard still applies to Levels 1–4; they are not retuned for the larger kit until the human session.
+- **Time Freeze is dormant.** The F03 rule carried forward under Validation status still holds if it is re-enabled; no level may gate progress on it either way.

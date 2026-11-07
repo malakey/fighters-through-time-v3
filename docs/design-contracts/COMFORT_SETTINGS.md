@@ -155,3 +155,19 @@ Test migration from missing flags and existing Grab/Ultimate/custom Rewind binds
 Current status: C01a–C01c specified; implementation, per-effect art/mix treatment, settings/input migration and visual/listening/input/runtime validation pending.
 
 **Feel and UI update (2026-10-25).** Echo Step was removed from both modes, so the fixed shortcut recipes are two: the Ultimate (Movement Ability + Special 2) and the Grab (Block held + Basic Attack). The remapping list drops the Echo Step action and its row, the reachability rule covers the Ultimate and the Grab only, and Block + Roll is no longer a chord: it is the ordinary Block and Roll. Reduced Temporal Effects no longer has a fixed Echo Step destination to preserve. The save schema stays v8: a saved `gameplay_echo_step` binding row, unbound entry or shortcut flag loads and is ignored. Protocol v4 is unchanged; `GameplayButtons` bit 12 is reserved.
+
+## Gameplay review package (2026-11-03)
+
+From the user's gameplay-review rulings of 2026-11-03 (`docs/recon-2026-11-03/DECISIONS_gameplay_review.md`; plan `docs/GAMEPLAY_REVIEW_2026-11-03_PLAN.md`).
+
+### The placeholder-cue mute (ruling 13)
+
+Ruling 13 amends the 2026-08-10 placeholder-silence directive for one small set: **hit, block, perfect block, grab, whiff, KO, Defy and the Ultimate wind-up** play short audible placeholder sounds (nine catalog rows; the two KO rows share one sound), peak-capped and mixed at −12 dB, with short per-cue throttles. Every other placeholder stays silent until Package 10.
+
+- **Mute Placeholder Combat Sounds** is a separate toggle on the Audio tab, after Mute When Unfocused. It defaults **off**, is saved in the global payload (`GlobalSaveData.PlaceholderCuesMuted`, additive, schema v8) and is applied at boot right after the comfort settings.
+- It skips exactly the nine audible placeholder rows — the Critical KO, Defy and wind-up rows included, because muting them is the player's explicit choice — and nothing else. It is separate from the SFX category mute and changes no C01b treatment: the priority selector, the Critical Cues path and the Dialogue bus behave as specified above for every other cue.
+- The −12 dB level and the throttle windows are provisional; the catalog is `resources/Audio/core_mechanic_cues.tres`.
+
+### Time Freeze has no binding (rulings 10b+ and 10b++)
+
+While Time Freeze is dormant, `gameplay_time_freeze` is defined with no events and is removed from the remappable and direct-action lists: it has no Controls row, takes no part in conflict or reachability checks, and holds neither R nor L3. A saved row stays in the file and is ignored on apply. The shared-button note about a saved Time Freeze row on Back is moot. Reduced Temporal Effects is unchanged; its Time Freeze clauses simply never apply.

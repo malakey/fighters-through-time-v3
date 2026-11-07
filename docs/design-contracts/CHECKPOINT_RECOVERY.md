@@ -76,3 +76,11 @@ Maintain one row per enabled level/variant/checkpoint/difficulty, recording:
 Acceptance requires each supported retry to reach the pre-boss lock with positive Integrity under the recorded assumptions; test slow valid routes, depleted resources, relevant roster variants, all-alive and destroyed-machine states, and repeated timer failures. Exercise recovery before/after durable commit and with the last/no Act III anchor. Confirm no floor on ordinary load, no double grant, no boss-clock unlock, correct rounding, and rejection of invalid or missing authored budgets. Review the margin against observed variance rather than presenting it as a universal guarantee.
 
 Status: design rule and illustrative arithmetic specified; authoring, implementation, route validation and scoring-impact tests pending.
+
+## Gameplay review: par per stretch (2026-11-03)
+
+From the user's gameplay-review rulings of 2026-11-03 (`docs/recon-2026-11-03/DECISIONS_gameplay_review.md`; plan `docs/GAMEPLAY_REVIEW_2026-11-03_PLAN.md`): ruling 7a adds a traversal stretch between locks on Levels 1–15, and ruling 6 keeps the Integrity clock a fail state.
+
+- **Par per stretch:** each stretch adds `max(30, 1.25 × the slowest hero's median crossing on Normal with the play bot)` seconds to its level's full-level `parSeconds`, rounded up to 30 s; authors applied +30, and the measured pass (2026-11-03, Levels 2–15, all nine heroes) raised nothing, because no crossing exceeded 24 s. Each level's value lives in its controller's `ParSeconds`. Level 6's slowest hero may be unmeasured (only four of nine bots reached its stretch).
+- **F11 is unchanged:** the checkpoint route fractions, the 25 % floor, the safety margin and the formula above stand. A stretch before a checkpoint is part of the remaining route for the checkpoints before it, under the existing measurement rule.
+- Par remains seeded, not measured from human play (`VERIFY-PAR-SECONDS`); the retune from human timings is still owed.
