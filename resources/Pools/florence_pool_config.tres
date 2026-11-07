@@ -38,7 +38,7 @@ OverflowPolicy = 1
 script = ExtResource("2_definition")
 PoolID = "standard_enemy"
 SceneTemplate = ExtResource("6_enemy")
-WarmUpCount = 12
+WarmUpCount = 18
 MaxCapacity = 40
 OverflowPolicy = 1
 [sub_resource type="Resource" id="EliteEnemy"]
@@ -93,5 +93,5 @@ MaxCapacity = 24
 [resource]
 script = ExtResource("1_config")
 ConfigID = "florence_pools"
-MaxWarmUpInstances = 210
+MaxWarmUpInstances = 216
 PoolDefinitions = Array[ExtResource("2_definition")]([SubResource("Projectile"), SubResource("Zone"), SubResource("CombatVfx"), SubResource("EnvironmentVfx"), SubResource("Enemy"), SubResource("EliteEnemy"), SubResource("EnemyProjectile"), SubResource("Dust"), SubResource("Item"), SubResource("Damage"), SubResource("Construct")])

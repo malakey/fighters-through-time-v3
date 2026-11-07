@@ -13,7 +13,8 @@ namespace FTT.UI {
     /// <b>pauses nothing</b> (the layer never touches <c>SceneTree.Paused</c>),
     /// shows <see cref="DisplaySeconds"/> seconds, queues behind another, and is
     /// consumed once per save slot. A slot that ran the Full Calibration never
-    /// arms the ledger, so for it this node is inert.</para>
+    /// arms the ledger, so for it this node shows only the one tooltip every slot
+    /// gets, <see cref="FirstUseTooltips.SpecialMomentum"/>.</para>
     ///
     /// <para>Triggers (placeholder proxies where the engine has no single event):
     /// the first HP loss (a Rally echo forms), the first guard break, the first
@@ -280,19 +281,20 @@ namespace FTT.UI {
         }
 
         public override void _PhysicsProcess(double delta) {
-            // The polled triggers only matter on a skipped-calibration slot.
             if (++_pollFrames % 6 != 0) return;
             StorySaveData save = ActiveSave();
-            if (save == null || !save.SkippedCalibration) return;
+            if (save == null) return;
             PlayerController player = FindPlayer();
             if (player == null) return;
-            if (FirstUseTooltips.DefyButtonDue(player.CurrentUltimateMeter)) Offer(FirstUseTooltips.DefyButton);
-            // GR-SCHED: Special 1 is restored by Level 0 and first played on Level 1.
+            // GR-SCHED: Special 1 is restored by Level 0 and first played on Level 1. Every slot gets this one.
             if (FirstUseTooltips.SpecialMomentumDue(
                     (int)(StoryManager.Instance?.CurrentLevel ?? CampaignLevel.Tutorial),
                     player.IsAbilityUnlocked(AbilitySlot.Special1))) {
                 Offer(FirstUseTooltips.SpecialMomentum);
             }
+            // The other polled triggers only matter on a skipped-calibration slot.
+            if (!save.SkippedCalibration) return;
+            if (FirstUseTooltips.DefyButtonDue(player.CurrentUltimateMeter)) Offer(FirstUseTooltips.DefyButton);
             if (player.CurrentState == CharacterState.LedgeHanging) Offer(FirstUseTooltips.Ledge);
             if (player.CurrentState == CharacterState.Stunned && !player.IsOnFloor()) Offer(FirstUseTooltips.Launch);
             if (FirstUseTooltips.ShouldShow(save, FirstUseTooltips.OneWayPlatform) && StandsOnOneWay(player)) {
