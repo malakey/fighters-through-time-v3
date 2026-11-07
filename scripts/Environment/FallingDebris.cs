@@ -80,6 +80,20 @@ namespace FTT.Environment {
         /// <summary>The death-rewind / collapse-beat world freeze also holds debris.</summary>
         public void SetFrozen(bool frozen) => _rewindFrozen = frozen;
 
+        /// <summary>
+        /// Ends the piece harmlessly: it resolves nothing (no damage) and goes back to its pool
+        /// through the flush-safe release. Idempotent. Used when the source of the rain is gone.
+        /// </summary>
+        public void Retire() {
+            if (Phase == FallingDebrisPhase.Spent) return;
+            HasResolved = true;
+            Phase = FallingDebrisPhase.Spent;
+            _rewindFrozen = false;
+            ApplyPhaseVisuals();
+            if (PoolManager.Instance != null) PoolManager.Instance.Release(this);
+            else QueueFree();
+        }
+
         public override void _PhysicsProcess(double delta) {
             if (_rewindFrozen || Phase == FallingDebrisPhase.Spent) return;
             Step((float)delta);

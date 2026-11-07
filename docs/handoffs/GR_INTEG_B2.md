@@ -52,3 +52,7 @@ Suspicious, not par: outliers inflated by deaths in the stretch (Level 2 Cleopat
 
 ## Final verification
 Build: 0 errors, `CS8632` only. Full suite after Step 2 and the par pass: `Failed: 0, Passed: 4342, Total: 4342` (4340 + 2 from `Level13RiftPocketTests`), 2 m 55 s, lock held.
+
+## Vulcan defeat retires outstanding eruption debris
+
+Codex finding (major): `LowerVulcanEruption` only unfroze pieces, so debris already overhead kept falling and could damage the hero after the defeat. `FallingDebris.Retire()` (idempotent: resolves nothing, goes to the pool through `PoolManager.Release`, which defers in physics callbacks) is now called on every outstanding piece from `LowerVulcanEruption`, and the list is cleared. Other arenas checked: the Duke's steam, Admiral's cannonballs, Overseer gusts (cyclic hazards: `Enabled=false` returns before any damage), the General's searchlights (disabled, player removed) and the Siege Cannon (fences stop breaking; boss projectiles die with the boss) have no leftover-damage gap. New case `Level06VulcanArenaTests.APieceInTheAirWhenTheVulcanFallsNeverHitsTheHero` fails without the retire (hero HP drops); full suite 4343.

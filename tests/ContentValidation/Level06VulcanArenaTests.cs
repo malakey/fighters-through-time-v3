@@ -160,6 +160,41 @@ public class Level06VulcanArenaTests {
     }
 
     /// <summary>
+    /// His fall retires the pieces already overhead: one in the air (here over the hero's head, in its
+    /// fall) never lands, whatever the hero's health, and a second defeat call changes nothing.
+    /// </summary>
+    [TestCase(Timeout = 60000)]
+    public async Task APieceInTheAirWhenTheVulcanFallsNeverHitsTheHero() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        using var fixture = new Fixture();
+        Level06Controller level = fixture.Level;
+        await EnterTheArena(tree, level);
+        PlayerController hero = level.Player;
+        level.RaiseVulcanEruption();
+        hero.GlobalPosition = new Vector2(9700f, 890f);
+        hero.Velocity = Vector2.Zero;
+        for (int frame = 0; frame < 400 && level.EruptionDebrisAirborne.Count == 0; frame++) {
+            await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        }
+        AssertThat(level.EruptionDebrisAirborne.Count).IsGreater(0);
+        FallingDebris piece = level.EruptionDebrisAirborne[0];
+        // Put it straight over the hero, falling, about to land.
+        piece.Launch(hero.GlobalPosition, 120f);
+        piece.Step(10f);
+        AssertThat(piece.Phase).IsEqual(FallingDebrisPhase.Falling);
+
+        int health = hero.CurrentHP;
+        BossController vulcan = level.BossEncounters[0].Boss;
+        vulcan.TakeDamage(vulcan.CurrentHP);
+        for (int frame = 0; frame < 30; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        AssertThat(hero.CurrentHP).OverrideFailureMessage("Debris landed after the Vulcan fell.").IsEqual(health);
+        AssertThat(level.EruptionDebrisAirborne.Count).IsEqual(0);
+        AssertThat(piece.Phase).IsEqual(FallingDebrisPhase.Spent);
+        piece.Retire();
+        AssertThat(hero.CurrentHP).IsEqual(health);
+    }
+
+    /// <summary>
     /// Two real Post-Landing Holds, through the call a Collapse resume makes. Through the first
     /// the vents keep their phase and the rain's clock stands still; through the second a piece
     /// in the air waits. Everything goes on at the thaw.

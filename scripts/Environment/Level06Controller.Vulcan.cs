@@ -96,7 +96,12 @@ namespace FTT.Environment {
                 vent.Enabled = false;
                 vent.ForcePhase(HazardPhase.Cooldown, VulcanVentCooldownSeconds);
             }
-            SetEruptionPiecesFrozen(false);
+            // The rain stops with him: a piece still overhead must not land on the walk to the anchor.
+            foreach (FallingDebris debris in _eruptionDebris) {
+                if (debris != null && IsInstanceValid(debris)) debris.Retire();
+            }
+            _eruptionDebris.Clear();
+            _eruptionPiecesFrozen = false;
         }
 
         public override void _PhysicsProcess(double delta) {
