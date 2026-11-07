@@ -80,14 +80,14 @@ public class Level06ContentTests {
     }
 
     [TestCase]
-    public void TheLevelIsFourConfinedRoomsInsideTheAuthoredBounds() {
+    public void TheLevelIsFiveConfinedRoomsInsideTheAuthoredBounds() {
         using var fixture = new PompeiiFixture();
         Level06Controller level = fixture.Level;
 
         AssertThat(Mathf.IsEqualApprox(level.LevelBounds.Size.X, Level06Controller.LevelWidth)).IsTrue();
         // Plan §5: 8000-14000 px; the agent brief narrows Pompeii to 9000-11000.
         AssertThat(level.LevelBounds.Size.X >= 9000f && level.LevelBounds.Size.X <= 11000f).IsTrue();
-        AssertThat(level.RoomTriggers.Count).IsEqual(4);
+        AssertThat(level.RoomTriggers.Count).IsEqual(5);
 
         foreach (RoomTransitionTrigger room in level.RoomTriggers) {
             AssertThat(string.IsNullOrWhiteSpace(room.RoomID)).IsFalse();
@@ -285,7 +285,7 @@ public class Level06ContentTests {
 
         // Asserted against the resource, never a hardcoded width: re-tuning the boss
         // then cannot silently outgrow the arena.
-        Rect2 arena = fixture.Level.RoomTriggers[3].CameraBounds;
+        Rect2 arena = fixture.Level.RoomTriggers[4].CameraBounds;
         AssertThat(arena.Size.X > boss.RangedRangeThreshold * PixelsPerUnit)
             .OverrideFailureMessage(
                 $"Caldera arena is {arena.Size.X} px but the boss ranged band is " +
@@ -529,7 +529,7 @@ public class Level06ContentTests {
                 Level06Controller.Room1Spawns, EncounterWaveTrigger.OnBuild, ""),
             (level.VaultLock, Level06Controller.LockVault, 2900f, 5390f, "level_06.room2",
                 Level06Controller.Room2Spawns, EncounterWaveTrigger.OnBuild, Level06Controller.RockfallPuzzleID),
-            (level.AshRoadLock, Level06Controller.LockAshRoad, 5660f, 8500f, "level_06.room3",
+            (level.AshRoadLock, Level06Controller.LockAshRoad, 6720f, 8500f, "level_06.room3",
                 Level06Controller.Room3Spawns, EncounterWaveTrigger.OnEngage, "")
         };
         foreach ((EncounterLock encounterLock, string id, float minX, float maxX, string row,
@@ -539,7 +539,8 @@ public class Level06ContentTests {
             AssertString(encounterLock.LockID).IsEqual(id);
             AssertFloat(encounterLock.Area.Position.X).IsEqualApprox(minX, 0.5f);
             AssertFloat(encounterLock.Area.End.X).IsEqualApprox(maxX, 0.5f);
-            AssertThat(encounterLock.Spec.Waves.Length).IsEqual(1);
+            // GR-LV2: the Forum also carries the swarm row, read by Level06TraversalStretchTests.
+            AssertThat(encounterLock.Spec.Waves.Length).IsEqual(encounterLock == level.ForumLock ? 2 : 1);
             EncounterLockWave wave = encounterLock.Spec.Waves[0];
             AssertString(wave.RowID).IsEqual(row);
             AssertThat(wave.Trigger).IsEqual(trigger);
@@ -697,8 +698,12 @@ public class Level06ContentTests {
             await LevelLockTestKit.Frames(1);
             AssertThat(await LevelLockTestKit.ClearByForce(road)).IsTrue();
             heroX = hero.GlobalPosition.X;
-            AssertThat(heroX < Level06Controller.EscapeStartX + EncounterLockReach.HeroHalfWidthPixels)
-                .OverrideFailureMessage($"The hero stands at {heroX}, not inside the old floor's reach.").IsTrue();
+            // GR-LV2: the carve moved this barrier east of the old floor's reach, so the case
+            // pins the rule directly as well: a start is never floored at the authored one.
+            AssertThat(heroX < road.Area.Position.X + 2f * EncounterLockReach.HeroHalfWidthPixels + 8f)
+                .OverrideFailureMessage($"The hero stands at {heroX}, not against the entry barrier.").IsTrue();
+            AssertThat(Level06Controller.EscapeStartFor(Level06Controller.EscapeStartX))
+                .IsEqual(Level06Controller.EscapeStartX - Level06Controller.EscapeHeadStartPixels);
             EscapeSequenceController escape = level.Escape;
             AssertThat(escape.IsRunning).IsTrue();
             AssertFloat(escape.StartX)

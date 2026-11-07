@@ -375,7 +375,7 @@ public class Level05ContentTests {
         AssertThat(level.EncounterLocks.Count).IsEqual(4);
 
         var expected = new (EncounterLock Lock, string ID, float MinX, float MaxX, float EntryFloor, float ExitFloor, int Wave, EncounterWaveTrigger Trigger)[] {
-            (level.StaircaseLock, Level05Controller.LockStaircase, 380f, 3400f, 1300f, 1140f, 1, EncounterWaveTrigger.OnBuild),
+            (level.StaircaseLock, Level05Controller.LockStaircase, 380f, 2380f, 1300f, 1140f, 1, EncounterWaveTrigger.OnBuild),
             (level.BoilerCasingLock, Level05Controller.LockBoilerCasing, 3420f, 5880f, 1140f, 940f, 2, EncounterWaveTrigger.OnEngage),
             (level.EDeckLock, Level05Controller.LockEDeck, 6160f, 7520f, 940f, 800f, 3, EncounterWaveTrigger.OnBuild),
             (level.BoatDeckLock, Level05Controller.LockBoatDeck, 7540f, 8820f, 800f, 800f, 4, EncounterWaveTrigger.OnBuild)
@@ -412,9 +412,11 @@ public class Level05ContentTests {
         AssertThat(debut.AliveAtMost).IsEqual(1);
         AssertString(string.Join(",", debut.EnemyIDs)).IsEqual(level.EraserDebut.EnemyID);
         AssertThat(level.EraserDebut.RouteTriggerSpawns).IsFalse();
-        foreach (EncounterLock other in new[] { level.StaircaseLock, level.BoilerCasingLock, level.BoatDeckLock }) {
+        foreach (EncounterLock other in new[] { level.StaircaseLock, level.BoatDeckLock }) {
             AssertThat(other.Spec.Waves.Length).IsEqual(1);
         }
+        // GR-LV2: the casing also carries the swarm row, read by Level05TraversalStretchTests.
+        AssertThat(level.BoilerCasingLock.Spec.Waves.Length).IsEqual(2);
 
         // Room 1 confines the camera now (it had no trigger at all).
         RoomTransitionTrigger room1 = null;
@@ -531,7 +533,7 @@ public class Level05ContentTests {
         AssertThat(hull.CurrentStep).IsEqual(0);
         AssertThat(level.PendingHullStep).IsEqual(1);
         // On D2 the deck is above step 1's line: the water comes in behind the hero.
-        Place(hero, new Vector2(3000f, 1130f));
+        Place(hero, new Vector2(Level05Controller.WellDeckEastStartX + 10f, 1130f));
         for (int frame = 0; frame < 3; frame++) await tree.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
         AssertThat(hull.CurrentStep).IsEqual(1);
         AssertThat(level.PendingHullStep).IsEqual(0);
