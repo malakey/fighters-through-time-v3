@@ -189,6 +189,25 @@ The Momentum gauge, the active Defy and their state changes (310 `MomentumUnits`
 
 Worst case across the ten stages: **median 0.079 ms (`globe_theatre`), p95 0.126 ms (`orleans_vanguard`), largest snapshot 3,004 B (`chicago_exposition`)**, 0 breaches. Against the 2026-10-25 re-measure (0.090 ms median, 0.137 ms p95, 3,277 B) the median and p95 are lower and the largest snapshot is 273 B smaller, though the figures are **not strictly comparable**: the harness changed in the same update, because a two-pip start starves the spam scripts, so `RollbackReadinessTests` now builds both peers and the replay with `MomentumTestKit.KeepFullBoth`, holds the worst-case timing run's Specials until the last 40 warm-up ticks and lowers the Special-count thresholds (30 to 12 in 2,200 ticks, 20 to 5 before the snapshot). MM-SIM's interim figure at its fourth commit was 0.079 ms / 0.136 ms / 2,988 B; MM-FIXB2C's 323 growth (40 to 44 B a fighter) and the two `CastId` ints plausibly account for the difference in the snapshot. The build no longer reports the `KLSG_ECS004` warning on `FighterTuningComponent` (306 is under 128 B).
 
+### Re-measure, 2026-11-07 (the gameplay review, `gr/integ` after GR-CLOSE item 1)
+
+Measured on the `gr/integ` worktree at `700f0183`, GdUnit lock held, with `--filter "FullyQualifiedName~RollbackReadinessTests" --logger "console;verbosity=detailed"` (the method of the 2026-10-31 section), depth-7 resimulation over 300 corrections per stage, budget 8.0 ms, **0 breaches on every stage**:
+
+| Stage | Median | p95 | Snapshot |
+|---|---|---|---|
+| `florence_workshop` | 0.080 ms | 0.143 ms | 2,951 B |
+| `orleans_vanguard` | 0.078 ms | 0.098 ms | 2,870 B |
+| `chicago_exposition` | 0.080 ms | 0.146 ms | 3,004 B |
+| `paris_bastille` | 0.072 ms | 0.117 ms | 2,887 B |
+| `vesuvius_caldera` | 0.077 ms | 0.127 ms | 2,995 B |
+| `nassau_flagship` | 0.077 ms | 0.087 ms | 2,995 B |
+| `alexandria_chambers` | 0.079 ms | 0.093 ms | 2,818 B |
+| `berlin_wall` | 0.072 ms | 0.120 ms | 2,645 B |
+| `globe_theatre` | 0.079 ms | 0.126 ms | 3,004 B |
+| `gettysburg_ridge` | 0.072 ms | 0.082 ms | 2,717 B |
+
+Worst case across the ten stages: **median 0.080 ms (`florence_workshop`), p95 0.146 ms (`chicago_exposition`), largest snapshot 3,004 B (`chicago_exposition` and `globe_theatre`)**, 0 breaches, about 1 % of the 8 ms budget. Against the 2026-10-31 re-measure (0.079 ms, 0.126 ms, 3,004 B) the figures sit within the run-to-run spread of this shared machine and the largest snapshot is unchanged; the review added no Klotho component and no snapshot field. The Open-stage geometry changes of the review moved Nassau, Vesuvius and Berlin snapshots slightly (Nassau 2,818 to 2,995 B, Vesuvius 2,827 to 2,995 B, Berlin 2,835 to 2,645 B). Raw log: `D:/Projects/ftt-scratch/gr/rollback.log`.
+
 ### Convergence and history bounds
 
 - Delayed-input convergence (latency 3 transport polls, items and hazards at High) is asserted for
