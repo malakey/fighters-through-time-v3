@@ -64,6 +64,17 @@ namespace FTT.Environment {
     /// Middle anchor moved out of the Lantern Watch to just past the boarding gate
     /// (6570), and the PreBoss anchor and the Font moved out of the ship's lock into
     /// the flagship's antechamber.</para>
+    ///
+    /// <para><b>The Beach Run</b> (gameplay review 2026-11-03, rulings 7a-7c+; GR-LV3): the
+    /// seawall lock was carved to 300-2000, and the freed span and the old gap are a traversal
+    /// stretch (2020-3130) over a non-lethal trench. Its optional route, the Mast Line, holds
+    /// the ruins Extractor, and the secret moved to a perch over the first cover pocket. The
+    /// seawall takes the swarm row. The Lantern Watch, its stealth and the near-capture are
+    /// untouched: nothing east of the stretch moved.</para>
+    ///
+    /// <para><b>The General's lanterns</b> (ruling 14): at his Phase 2 three fleet lanterns
+    /// light over the flagship, sweeping the deck in the delayed-strike mode the Lantern
+    /// Watch teaches.</para>
     /// </summary>
     public partial class Level09Controller : StoryLevelControllerBase {
 
@@ -154,7 +165,7 @@ namespace FTT.Environment {
         /// storm-anchor ship's (<see cref="BuildEncounterLocks"/>), and each is exactly
         /// its manifest row. <see cref="StoryDifficultyTuning.ScaleEncounterCount"/>
         /// takes a prefix of each wave, so the hardest concurrency is wave 3's six
-        /// bodies - inside level_09_pool_config's standard warm 14 / elite warm 4 caps.
+        /// bodies - inside level_09_pool_config's standard warm 20 / elite warm 4 caps (GR-LV3 added the swarm's 6).
         /// <para>GU-L8 (2026-10-12) moves, all onto the route a slowest hero fights
         /// on: the Lantern Watch trooper 4100 -> 4420 (it overlapped the west relay's
         /// cover slab, 3960-4280, and was pushed up beside the relay); the gangway
@@ -165,9 +176,10 @@ namespace FTT.Environment {
         /// </summary>
         public static readonly (string EnemyID, int Wave, Vector2 Position)[] SpawnTable = {
             // Wave 1 - the stone seawall. An archer on the rubble, Severed troopers on the sand.
+            // GR-LV3: the second trooper 2450 -> 1640, inside the carved lock.
             (CultistEnemyID, 1, new Vector2(1000f, 1150f)),
             (SentryEnemyID, 1, new Vector2(1700f, 990f)),
-            (CultistEnemyID, 1, new Vector2(2450f, 1150f)),
+            (CultistEnemyID, 1, new Vector2(1640f, 1150f)),
             // Wave 2 - the Lantern Watch. Archers hold the lanterns; one guards the tower's foot.
             (SentryEnemyID, 2, new Vector2(3400f, 1150f)),
             (CultistEnemyID, 2, new Vector2(4420f, 1150f)),
@@ -213,7 +225,8 @@ namespace FTT.Environment {
         /// 34 px. It rests flush with the gantry's east end instead.</para>
         /// </summary>
         public static readonly (string ID, Vector2 Position)[] ExtractorPlacements = {
-            ("level_09.extractor_ruins", new Vector2(2300f, 940f)),
+            // GR-LV3: the end of the Mast Line, over the Beach Run (it stood at 2300, 940).
+            ("level_09.extractor_ruins", new Vector2(MastLineEndX, 538f)),
             ("level_09.extractor_watchtower", new Vector2(6194f, 440f)),
             ("level_09.extractor_radar_mast", new Vector2(7404f, 540f))
         };
@@ -244,9 +257,9 @@ namespace FTT.Environment {
 
         private const float BarrierWidth = EncounterLockRules.DefaultBarrierWidthPixels;
 
-        /// <summary>The seawall: room 1 past the entry anchor (240).</summary>
+        /// <summary>The seawall: room 1 past the entry anchor (240), to 2000. GR-LV3 carved it from 2860; the Beach Run takes the rest.</summary>
         public const float SeawallLockMinX = 300f;
-        public const float SeawallLockMaxX = Room2StartX - BarrierWidth;
+        public const float SeawallLockMaxX = 2000f;
 
         /// <summary>
         /// The Lantern Watch, one authored room wide (3200) and ending at the boarding
@@ -293,6 +306,65 @@ namespace FTT.Environment {
         public EncounterLock LanternWatchLock => _lanternWatchLock;
         public EncounterLock StormAnchorLock => _stormAnchorLock;
 
+        // === GR-LV3: the Beach Run, the Mast Line and the swarm row ===============
+
+        public const string BeachRunStretchID = "level_09.beach_run";
+        public const string MastRouteID = "level_09.mast_line";
+        public const string BeachRunRoomKey = "berlin_room_beach_run";
+
+        /// <summary>From the seawall's exit barrier to the Lantern Watch's entry barrier.</summary>
+        public const float BeachRunMinX = SeawallLockMaxX + BarrierWidth;
+        public const float BeachRunMaxX = LanternWatchLockMinX - BarrierWidth;
+        public const float BeachRunWestDeckEndX = 2060f;
+        public const float BeachRunEastDeckStartX = 2880f;
+
+        /// <summary>The Mast Line's last platform; the Extractor stands 72 px over its top.</summary>
+        public const float MastLineEndX = 2865f;
+
+        /// <summary>The perch the secret stands on, off the line and over the first cover pocket.</summary>
+        public const float SecretPerchX = 3040f;
+
+        /// <summary>The seawall's swarm row (level_09_rewards.tres).</summary>
+        public const string SwarmRowID = "level_09.swarm1";
+
+        /// <summary>The row, Hard's truth (a 1700 px lock takes 8), along the sand, clear of both caltrop strips.</summary>
+        public static readonly float[] SwarmSpawnXs = { 520f, 680f, 860f, 1040f, 1240f, 1600f, 1720f, 1960f };
+
+        /// <summary>
+        /// Base-kit pieces only. The first cover pocket (2890-3130) stays where it is, so this
+        /// stretch ends on the line's last step and the deck under the pocket, with no wall.
+        /// The camera keeps to room 1's bottom-anchored band.
+        /// </summary>
+        private void BuildBeachRun() {
+            TraversalStretch beach = BeginStretch(BeachRunStretchID, BeachRunRoomKey,
+                BeachRunMinX, BeachRunMaxX, GroundY, BeachRunWestDeckEndX, BeachRunEastDeckStartX, Room1StartX);
+            beach.Room.CameraBounds = new Rect2(Room1StartX, GroundRoomCameraTop, BeachRunMaxX - Room1StartX, 1080f);
+            BuildRoomDecoration(BeachRunMinX, BeachRunRoomKey, new Color(0.75f, 0.82f, 0.9f));
+            BuildStretchTrench(beach);
+            // The deck resumes short of the seam, for the pocket and the Lantern Watch's barrier.
+            BuildFloor(BeachRunEastDeckStartX, GroundY, Room2StartX - BeachRunEastDeckStartX);
+
+            BuildStretchStep(beach, 2170f, 1090f, 200f);
+            BuildStretchStep(beach, 2430f, 1020f, 180f, StretchStepKind.Crumbling, "level_09.crumbling_jetty");
+            TraversalSurface middleStep = BuildStretchStep(beach, 2680f, 1022f, 180f, StretchStepKind.OneWay);
+            TraversalSurface eastStep = BuildStretchStep(beach, 2870f, 1020f, 160f);
+
+            // Off the line: a way back up out of the trench, a thunder-bomb lane to cross down
+            // there, and the secret's perch, one short hop from the last step.
+            BuildOneWayPlatform(2640f, 1190f, 200f);
+            BuildCyclicHazardLane("level_09.thunderbomb_beach", 2450f, beach.TrenchFloorY, 1f, 0.6f, 2.6f, 18, withCover: true);
+            BuildPlatform(SecretPerchX, 960f, 160f, WetTimberColor);
+
+            OptionalRoute mast = BeginOptionalRoute(MastRouteID, ExtractorPlacements[0].ID,
+                ExtractorPlacements[0].Position, middleStep);
+            BuildRouteStep(mast, 2450f, 830f, 120f);
+            TraversalSurface burstFrom = BuildRouteStep(mast, 2170f, 720f, 160f);
+            BuildRouteStep(mast, 2420f, 620f, 180f);
+            TraversalSurface end = BuildRouteStep(mast, MastLineEndX, 620f, 220f);
+            mast.MarkBurstShortcut(burstFrom, end);
+            mast.MarkRiseShortcut(eastStep, end);
+        }
+
         /// <summary>One spawn-table wave as a lock wave: its manifest row, its posts, their patrol legs.</summary>
         public static EncounterLockWave LockWaveFor(int wave, EncounterWaveTrigger trigger) {
             var spawns = new List<EncounterLockSpawn>();
@@ -314,17 +386,17 @@ namespace FTT.Environment {
         /// seeded as 4 authored rooms x 90 s, rounded up to the nearest
         /// 30 s. Recorded under VERIFY-PAR-SECONDS in
         /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
-        /// per-hero median measurement pass.
+        /// per-hero median measurement pass. GR-LV3 adds the Beach Run's +30.
         /// </summary>
-        public override float ParSeconds => 360f;
+        public override float ParSeconds => TraversalRules.ParWithStretches(360f, 1);
         public override string LevelTitleKey => "berlin_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_09_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(240f, 1150f);
 
-        // Package 12 W8 (GAP-03): the secret cache sits on
-        // the rubble crest past the ruins extractor (Platform 2650/860, top 852) — a
-        // dead-end perch before the seawall transition, off the floor route.
-        protected override Vector2? SecretCachePosition => new(2650f, 757f);
+        // Package 12 W8 (GAP-03), moved by GR-LV3: the secret cache sits on a dead-end perch
+        // over the first cover pocket (top 952), off the floor route. It stood on a rubble
+        // crest at 2650/860, whose underside the Beach Run's line would have bonked.
+        protected override Vector2? SecretCachePosition => new(SecretPerchX, 857f);
 
         // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, just before the
         // PreBoss anchor. GU-L8 (2026-10-12): moved 8150 -> 8610, out of the storm-anchor
@@ -401,6 +473,7 @@ namespace FTT.Environment {
         protected override void BuildLevel() {
             CollectAuthoredNodes();
             BuildCheckpointCharlie();
+            BuildBeachRun();
             BuildDeathStrip();
             BuildRadarYard();
             BuildBunkerStreet();
@@ -420,7 +493,10 @@ namespace FTT.Environment {
                 EntryBarrierX = SeawallLockMinX - BarrierWidth * 0.5f,
                 ExitBarrierX = SeawallLockMaxX + BarrierWidth * 0.5f,
                 BarrierFloorY = GroundY,
-                Waves = new[] { LockWaveFor(1, EncounterWaveTrigger.OnBuild) },
+                Waves = new[] {
+                    LockWaveFor(1, EncounterWaveTrigger.OnBuild),
+                    SwarmWave(SwarmRowID, GroundY - 50f, SwarmSpawnXs)
+                },
                 ObjectiveKey = "encounter_lock_objective_clear",
                 GoDirection = EncounterGoDirection.Right
             });
@@ -494,15 +570,15 @@ namespace FTT.Environment {
             BuildRoomBackground("BG_Room1_CheckpointCharlie", Room1StartX, 2880f, LevelHeight,
                 new Color(0.14f, 0.16f, 0.20f, 0.45f));
 
-            BuildFloor(Room1StartX, GroundY, 2880f);
+            // GR-LV3: the floor stops at the Beach Run's west deck; BuildBeachRun lays the rest.
+            BuildFloor(Room1StartX, GroundY, BeachRunWestDeckEndX - Room1StartX);
             BuildPlatform(600f, 1060f, 300f, WetTimberColor);
             BuildPlatform(1150f, 940f, 260f, WetTimberColor);
             BuildPlatform(1700f, 1050f, 280f, WetTimberColor);
-            BuildPlatform(2300f, 980f, 320f, WetTimberColor);   // holds extractor 1
-            BuildPlatform(2650f, 860f, 220f, WetTimberColor);
 
             BuildHazardSpikes(1450f, 1190f, 140f);
-            BuildHazardSpikes(2050f, 1190f, 120f);
+            // GR-LV3: 2050 -> 1850, inside the carved lock.
+            BuildHazardSpikes(1850f, 1190f, 120f);
 
             BuildCheckpoint(240f, GroundY - 50f, CheckpointID(0), CheckpointRole.Entry);
             BuildRoomDecoration(Room1StartX, "berlin_room_checkpoint_charlie", new Color(0.80f, 0.86f, 0.95f));
@@ -543,9 +619,9 @@ namespace FTT.Environment {
 
             BuildRoomDecoration(Room2StartX, "berlin_room_death_strip", new Color(1.0f, 0.92f, 0.55f));
 
-            // GU-L8: just past the seawall's exit barrier (2860-2880), so a hero
-            // pressed against it does not reach the trigger (it was centred on 2880).
-            BuildRoomTransition("berlin_room_death_strip", new Vector2(Room2StartX + 40f, 700f),
+            // GR-LV3: just inside the Lantern Watch's area (it stood at 2920), so the Beach
+            // Run keeps its own camera up to the entry barrier.
+            BuildRoomTransition("berlin_room_death_strip", new Vector2(LanternWatchLockMinX + 40f, 700f),
                 new Rect2(Room2StartX, 0f, 3520f, LevelHeight),
                 triggerSize: new Vector2(80f, LevelHeight));
 
@@ -664,8 +740,94 @@ namespace FTT.Environment {
                 new Rect2(Room4StartX, GroundRoomCameraTop, 1920f, 1080f),
                 triggerSize: new Vector2(80f, LevelHeight));
 
-            BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, 1150f),
+            BossEncounterController general = BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, 1150f),
                 "IronChancellorEncounter", BossArenaBounds);
+            BuildGeneralLanterns();
+            if (general != null) {
+                general.PhaseEntered += OnGeneralPhaseEntered;
+                general.BossDefeated += _ => DouseGeneralLanterns();
+            }
+        }
+
+        // === GR-LV3 (ruling 14): the Thunderbomb General's fleet lanterns ======
+        //
+        // Design §6: "fleet lanterns sweep the deck; a caught player takes a volley". The Lantern
+        // Watch's beam in its delayed-strike mode, built dark so no body wakes mid-fight, its
+        // sweep footprints inside the arena. They are story_hazard members, so the Post-Landing
+        // Hold and the rewind freeze hold them. His artillery_barrage stays (ruling 4a); no
+        // signal line feeds these, so a catch posts no objective.
+
+        private const string SearchlightTemplatePath = "res://scenes/templates/SearchlightZoneTemplate.tscn";
+
+        /// <summary>The three beams: x, sweep period and arc. Deliberately desynced, as the Lantern Watch's are.</summary>
+        public static readonly (string ID, float X, float PeriodSeconds, float ArcDegrees)[] GeneralLanternPlan = {
+            ("level_09.general_lantern_a", 9180f, 4.7f, 30f),
+            ("level_09.general_lantern_b", 9720f, 5.9f, 30f),
+            ("level_09.general_lantern_c", 10230f, 5.3f, 30f)
+        };
+
+        /// <summary>The lanterns' y: the cone's 520 px depth ends on the deck.</summary>
+        public const float GeneralLanternY = GroundY - SearchlightConeDepth;
+
+        /// <summary>What a catch costs: the General's own artillery_barrage figure.</summary>
+        public const int GeneralLanternStrikeDamage = 20;
+
+        private readonly List<SearchlightZone> _generalLanterns = new();
+
+        /// <summary>True once Phase 2 has lit the lanterns and until the General falls.</summary>
+        public bool GeneralLanternsLit { get; private set; }
+        public IReadOnlyList<SearchlightZone> GeneralLanterns => _generalLanterns;
+
+        private void BuildGeneralLanterns() {
+            foreach ((string id, float x, float period, float arc) in GeneralLanternPlan) {
+                var lantern = ResourceLoader.Load<PackedScene>(SearchlightTemplatePath).Instantiate<SearchlightZone>();
+                lantern.Name = $"GeneralLantern_{id[^1]}";
+                lantern.SearchlightID = id;
+                lantern.Position = new Vector2(x, GeneralLanternY);
+                lantern.Mode = SearchlightMode.DelayedStrike;
+                lantern.SweepPeriodSeconds = period;
+                lantern.SweepArcDegrees = arc;
+                lantern.StrikeDamage = GeneralLanternStrikeDamage;
+                lantern.LabelKey = "";
+                lantern.Enabled = false;
+                lantern.Monitoring = false;
+                lantern.Visible = false;
+                lantern.RewindPolicy = StoryRewindPolicy.PreserveCurrentState;
+                AddChild(lantern);
+                if (lantern.GetNodeOrNull<CanvasItem>("Visual") is CanvasItem cone) cone.Modulate = LanternBeamModulate;
+                _generalLanterns.Add(lantern);
+            }
+        }
+
+        private void OnGeneralPhaseEntered(int phase) {
+            if (phase < 1) return;
+            // The phase change usually lands inside the hit's physics flush; hop off it.
+            // Direct (test) calls stay synchronous.
+            if (PhysicsCallbackGuard.IsInPhysicsCallback) Callable.From(LightGeneralLanterns).CallDeferred();
+            else LightGeneralLanterns();
+        }
+
+        /// <summary>Lights the three lanterns. Idempotent; public as a test seam.</summary>
+        public void LightGeneralLanterns() {
+            if (GeneralLanternsLit || IsBossDefeated || _generalLanterns.Count == 0) return;
+            GeneralLanternsLit = true;
+            foreach (SearchlightZone lantern in _generalLanterns) {
+                lantern.Enabled = true;
+                lantern.Visible = true;
+                lantern.Monitoring = true;
+            }
+        }
+
+        /// <summary>Douses them once the General falls: the hero still has to walk to the sealing anchor.</summary>
+        private void DouseGeneralLanterns() {
+            GeneralLanternsLit = false;
+            foreach (SearchlightZone lantern in _generalLanterns) {
+                if (!IsInstanceValid(lantern)) continue;
+                lantern.Enabled = false;
+                lantern.Visible = false;
+                if (Player != null) lantern.RemovePlayer(Player);
+                lantern.SetDeferred(Area2D.PropertyName.Monitoring, false);
+            }
         }
 
         public string CheckpointID(int index) => $"{LevelID}_checkpoint_{index}";

@@ -47,8 +47,8 @@ namespace FTT.Environment {
     ///
     /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-L4). Both
     /// channels are open water, so the two locks sit on the decks and their
-    /// barriers stand on deck: the <b>quay</b> (380–3580, the whole Nassau quay
-    /// and the Ranger's waist up to the launch yard's lip, so the ropes are out of
+    /// barriers stand on deck: the <b>quay</b> (1720–3580 since GR-LV3, the Nassau quay's
+    /// east end and the Ranger's waist up to the launch yard's lip, so the ropes are out of
     /// reach until it clears) and the <b>boarding action</b> (5780–8480, from the
     /// Bonnet's waist across the boarding channel to the flagship's ramp). The
     /// boarding crew on the ramp musters once the Bonnet and the gun pier are
@@ -58,6 +58,16 @@ namespace FTT.Environment {
     /// cleared), and the Middle and PreBoss anchors stand outside both locks: the
     /// Middle on the Bonnet's waist (5700), the PreBoss on the flagship's west
     /// deck (8680), clear of both elites.</para>
+    ///
+    /// <para><b>The Careening Yard</b> (gameplay review 2026-11-03, rulings 7a-7c+; GR-LV3):
+    /// the quay lock was carved from its west end, so its east end, the launch yard and
+    /// the Ranger channel's haul-out are where they were. The freed span (400-1700) is a
+    /// traversal stretch over a non-lethal dry dock, opening the level; the rope channel
+    /// stays what it was, and no rope was added. Its optional route, the Crane Line, ends
+    /// at the level's secret. The quay lock takes the swarm row. Past the quay nothing moved.</para>
+    ///
+    /// <para><b>The Admiral's list</b> (ruling 14): at his Phase 2 one long sloped slab rises
+    /// over the flagship's stepped deck and loose cannonballs start rolling down it.</para>
     /// </summary>
     public partial class Level07Controller : StoryLevelControllerBase {
 
@@ -73,17 +83,16 @@ namespace FTT.Environment {
         /// seeded as 7 authored rooms x 90 s, rounded up to the nearest
         /// 30 s. Recorded under VERIFY-PAR-SECONDS in
         /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
-        /// per-hero median measurement pass.
+        /// per-hero median measurement pass. GR-LV3 adds the Careening Yard's +30.
         /// </summary>
-        public override float ParSeconds => 630f;
+        public override float ParSeconds => TraversalRules.ParWithStretches(630f, 1);
         public override string LevelTitleKey => "nassau_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_07_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(240f, 850f);
 
-        // Package 12 W8 (GAP-03): the secret cache sits on
-        // the crane jib above the quay (Platform 900/640, top 632), climbed from the
-        // low crate at 500 — off the harbour floor route, above the mortar's strike line.
-        protected override Vector2? SecretCachePosition => new(900f, 537f);
+        // Package 12 W8 (GAP-03), moved by GR-LV3: the secret cache stands at the end of the
+        // Crane Line (it stood on a crane jib at 900/640, in the span the Careening Yard took).
+        protected override Vector2? SecretCachePosition => new(CraneLineEndX, 215f);
 
         // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, after the PreBoss
         // anchor on the flagship's west deck, outside the mortar channel, short of the arena
@@ -237,8 +246,8 @@ namespace FTT.Environment {
         /// <summary>East end of the flagship's west deck (the first listing ramp starts beyond it).</summary>
         public const float FlagshipWestDeckEndX = Room4StartX + 720f;
         /// <summary>The flagship's mid deck, between the two listing ramps.</summary>
-        private const float FlagshipMidDeckWestX = 9380f;
-        private const float FlagshipMidDeckEndX = FlagshipMidDeckWestX + 640f;
+        public const float FlagshipMidDeckWestX = 9380f;
+        public const float FlagshipMidDeckEndX = FlagshipMidDeckWestX + 640f;
         private const float FlagshipEastDeckWestX = 10180f;
 
         /// <summary>
@@ -257,7 +266,8 @@ namespace FTT.Environment {
 
         /// <summary>Continuous solid deck runs: (start X, end X, top Y).</summary>
         public static readonly (float StartX, float EndX, float TopY)[] SolidDeckSpans = {
-            (Room1StartX, Room2StartX, DeckY),          // Nassau quay
+            (Room1StartX, YardWestDeckEndX, DeckY),     // the entry deck
+            (YardEastDeckStartX, Room2StartX, DeckY),   // Nassau quay
             (Room2StartX, SwingGapStartX, DeckY),       // the Ranger's waist
             (SwingGapEndX, Room3StartX, DeckY),         // the Bonnet's waist
             (Room3StartX, ChannelStartX, DeckY),        // the gun pier
@@ -327,12 +337,13 @@ namespace FTT.Environment {
         /// wave 2 joined wave 3, and the Eraser — which spawned at 7900, over open
         /// water, and fell forever whenever skiff C was not under it — stands on the
         /// ramp in wave 4. At most seven combatants are alive at once, inside the
-        /// level_07_nassau_pools warm counts (standard 12, elite 4).
+        /// level_07_nassau_pools warm counts (standard 18 since GR-LV3's swarm row, elite 4).
         /// </summary>
         public static readonly (string EnemyID, int Wave, Vector2 Position)[] SpawnTable = {
-            // Wave 1 - the quay, under the first shells.
-            (StandardEnemyID, 1, new Vector2(1200f, EnemyDeckY)),
-            (CultistEnemyID, 1, new Vector2(1750f, EnemyDeckY)),
+            // Wave 1 - the quay, under the first shells. GR-LV3: 1200 -> 2250 and 1750 -> 1950,
+            // inside the carved lock.
+            (StandardEnemyID, 1, new Vector2(2250f, EnemyDeckY)),
+            (CultistEnemyID, 1, new Vector2(1950f, EnemyDeckY)),
             (StandardEnemyID, 1, new Vector2(2500f, EnemyDeckY)),
             // Wave 2 - the Ranger's crew, including a marksman on the launch yard.
             (CultistEnemyID, 2, new Vector2(3000f, EnemyDeckY)),
@@ -398,12 +409,12 @@ namespace FTT.Environment {
         public const string LockBoarding = NassauLevelID + "_lock_boarding";
 
         /// <summary>
-        /// The quay lock: the Nassau quay and the Ranger's waist, east of the entry
-        /// anchor (240) to the launch yard's lip at the rope channel (its exit
-        /// barrier stands on the deck's last 20 px, so no rope is reachable before
-        /// the clear). 3200 px, one authored room.
+        /// The quay lock: the Nassau quay's east end and the Ranger's waist, to the launch
+        /// yard's lip at the rope channel (its exit barrier stands on the deck's last 20 px,
+        /// so no rope is reachable before the clear). GR-LV3 carved it from its west end
+        /// (380 -> 1720, 1860 px), so the Ranger channel's haul-out still lands inside it.
         /// </summary>
-        public const float QuayLockMinX = 380f;
+        public const float QuayLockMinX = 1720f;
         public const float QuayLockMaxX = SwingGapStartX - EncounterLockRules.DefaultBarrierWidthPixels;
         /// <summary>
         /// The boarding lock: from the Bonnet's waist (east of the Middle anchor at
@@ -423,6 +434,61 @@ namespace FTT.Environment {
 
         /// <summary>The manifest row of authored wave <paramref name="wave"/>.</summary>
         public static string WaveRowID(int wave) => $"level_07.wave{wave}";
+
+        // === GR-LV3: the Careening Yard, the Crane Line and the swarm row ==========
+
+        public const string YardStretchID = "level_07.careening_yard";
+        public const string CraneRouteID = "level_07.crane_line";
+        public const string YardRoomKey = "nassau_room_careening";
+
+        /// <summary>From past the entry anchor (240) to the quay lock's entry barrier.</summary>
+        public const float YardMinX = 400f;
+        public const float YardMaxX = QuayLockMinX - EncounterLockRules.DefaultBarrierWidthPixels;
+        public const float YardWestDeckEndX = 560f;
+        public const float YardEastDeckStartX = 1540f;
+
+        /// <summary>The Crane Line's last platform; the secret stands 95 px over its top.</summary>
+        public const float CraneLineEndX = 1465f;
+
+        /// <summary>The quay lock's swarm row (level_07_rewards.tres).</summary>
+        public const string SwarmRowID = "level_07.swarm1";
+
+        /// <summary>The row, Hard's truth (an 1860 px lock takes 8), along the quay, clear of the mortar at 2100.</summary>
+        public static readonly float[] SwarmSpawnXs = { 1880f, 1980f, 2240f, 2420f, 2600f, 2780f, 2950f, 3130f };
+
+        /// <summary>
+        /// A dry dock under the line, so a missed hop is a walk rather than a swim. The scene's
+        /// first quay mortar (x 900) stands on its floor: down there it is a lane to cross, and
+        /// its strip ends under the line. Base-kit pieces only, and no rope.
+        /// </summary>
+        private void BuildCareeningYard() {
+            TraversalStretch yard = BeginStretch(YardStretchID, YardRoomKey,
+                YardMinX, YardMaxX, DeckY, YardWestDeckEndX, YardEastDeckStartX, Room1StartX);
+            BuildRoomDecoration(YardMinX, YardRoomKey, new Color(0.9f, 0.7f, 0.4f));
+            BuildStretchTrench(yard);
+            // The deck resumes short of the quay lock's entry barrier: that barrier needs floor under it.
+            BuildFloor(YardEastDeckStartX, DeckY, Room2StartX - YardEastDeckStartX);
+
+            BuildStretchStep(yard, 680, 790, 200);
+            BuildStretchStep(yard, 920, 720, 180, StretchStepKind.Crumbling, "level_07.crumbling_staging");
+            TraversalSurface middleStep = BuildStretchStep(yard, 1180, 722, 200, StretchStepKind.OneWay);
+            TraversalSurface eastStep = BuildStretchStep(yard, 1400, 720, 200);
+            // On the deck, so the east ramp stays walkable: a double jump or the ledge clears it.
+            // The last step ends 80 px short of it, or a hero jumping from the deck bonks the step's underside.
+            BuildStretchWallStep(yard, 1580f, 690f, DeckY);
+
+            // Off the line: a way back up out of the dock.
+            BuildOneWayPlatform(1140, 890, 200);
+
+            OptionalRoute crane = BeginOptionalRoute(CraneRouteID, SecretSourceID,
+                SecretCachePosition.Value, middleStep);
+            BuildRouteStep(crane, 990, 530, 120);
+            TraversalSurface burstFrom = BuildRouteStep(crane, 770, 420, 160);
+            BuildRouteStep(crane, 1020, 320, 180);
+            TraversalSurface end = BuildRouteStep(crane, CraneLineEndX, 320, 220);
+            crane.MarkBurstShortcut(burstFrom, end);
+            crane.MarkRiseShortcut(eastStep, end);
+        }
 
         // === Runtime state ===
 
@@ -448,6 +514,7 @@ namespace FTT.Environment {
         // === Construction ===
 
         protected override void BuildLevel() {
+            BuildCareeningYard();
             BuildRoom1Quay();
             BuildRoom2RiggingCrossing();
             BuildRoom3BoardingChannel();
@@ -475,7 +542,8 @@ namespace FTT.Environment {
                 BarrierFloorY = DeckY,
                 Waves = new[] {
                     WaveFromTable(1, EncounterWaveTrigger.OnBuild),
-                    WaveFromTable(2, EncounterWaveTrigger.WhenAliveAtMost, aliveAtMost: 1)
+                    WaveFromTable(2, EncounterWaveTrigger.WhenAliveAtMost, aliveAtMost: 1),
+                    SwarmWave(SwarmRowID, EnemyDeckY, SwarmSpawnXs)
                 },
                 ObjectiveKey = "encounter_lock_objective_clear",
                 GoDirection = EncounterGoDirection.Right
@@ -514,20 +582,19 @@ namespace FTT.Environment {
         /// <summary>Room 1: the free port itself, already under naval bombardment.</summary>
         private void BuildRoom1Quay() {
             BuildRoomBackground("BG_Room1", Room1StartX, 2800f, LevelHeight, new Color(0.05f, 0.08f, 0.11f, 0.4f));
-            BuildFloor(Room1StartX, DeckY, 2800f);
+            // GR-LV3: the floor stops at the Careening Yard's west deck; BuildCareeningYard lays the rest.
+            BuildFloor(Room1StartX, DeckY, YardWestDeckEndX - Room1StartX);
             BuildWall(-20f, 0f, LevelHeight);
 
-            BuildPlatform(500f, 760f, 240f);
-            BuildPlatform(900f, 640f, 220f);
-            BuildPlatform(1400f, 740f, 260f);
             // Careening crane, off the direct line: two steps up to the first extractor.
-            BuildPlatform(1650f, 680f, 180f);
             BuildPlatform(1900f, 620f, 240f);
             BuildPlatform(2350f, 760f, 240f);
 
             BuildCheckpoint(240f, DeckY - 20f, Checkpoint0, CheckpointRole.Entry);
-            BuildRoomDecoration(Room1StartX, "nassau_room_harbour", new Color(0.92f, 0.78f, 0.42f));
-            BuildRoomTransition("nassau_room_harbour", new Vector2(300f, 600f), Room1CameraBounds,
+            BuildRoomDecoration(QuayLockMinX, "nassau_room_harbour", new Color(0.92f, 0.78f, 0.42f));
+            // GR-LV3: just inside the quay lock's area (it stood at 300), so a hero pressed
+            // against the entry barrier does not reach it. The Careening Yard's trigger comes first.
+            BuildRoomTransition("nassau_room_harbour", new Vector2(QuayLockMinX + 40f, 600f), Room1CameraBounds,
                 new Vector2(80f, LevelHeight));
         }
 
@@ -639,8 +706,115 @@ namespace FTT.Environment {
             // 2100 px of deck against the Admiral's authored 11.0-unit ranged band
             // (660 px at BossController's 60 px per unit), so the gatling zoner can
             // actually use its range instead of being pinned in melee.
-            BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, ListDeckEastY - 40f),
+            BossEncounterController admiral = BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, ListDeckEastY - 40f),
                 "DreadAdmiralEncounter", BossArenaBounds);
+            BuildAdmiralList();
+            if (admiral != null) {
+                admiral.PhaseEntered += OnAdmiralPhaseEntered;
+                admiral.BossDefeated += _ => StopAdmiralCannonballs();
+            }
+        }
+
+        // === GR-LV3 (ruling 14): the Dread Admiral's list ====================
+        //
+        // Design §6: "deck lists, loose cannonballs roll". No tilt physics: one static slab, built
+        // disabled so no collision body is created mid-fight, and two scripted balls with their own
+        // hurt triggers. His loose_cannon_roll stays (ruling 4a): the kit is not retuned.
+
+        /// <summary>
+        /// The listed deck's slab, by its joints: from the west deck's corner to the stern wall's
+        /// foot, 3.4°, over the 12° ramps. One slab, because two would leave a lip where the first
+        /// runs on past their joint (0.34 px measured, and that stops a walker). It starts west of
+        /// the arena: its high joint has to be the west deck's corner, or it would leave a riser.
+        /// The mid deck's east end stands a few px proud of it, which is walkable both ways.
+        /// </summary>
+        public static readonly Vector2 ListedDeckHighJoint = new(FlagshipWestDeckEndX, ListDeckWestY);
+        public static readonly Vector2 ListedDeckLowJoint = new(LevelWidth - 20f, ListDeckEastY);
+
+        /// <summary>The balls' rail, inside the arena's west edge, and the end of their roll, short of the stern wall.</summary>
+        public const float CannonballRailX = BossArenaWestX + 60f;
+        public const float CannonballEndX = LevelWidth - 60f;
+
+        private StaticBody2D _listedDeckSlab;
+        private CollisionShape2D _listedDeckShape;
+        private readonly List<RollingCannonball> _cannonballs = new();
+
+        /// <summary>True once Phase 2 has listed the deck. The list stays; the balls stop when he falls.</summary>
+        public bool AdmiralDeckListed { get; private set; }
+        public StaticBody2D ListedDeckSlab => _listedDeckSlab;
+        public CollisionShape2D ListedDeckShape => _listedDeckShape;
+        public IReadOnlyList<RollingCannonball> Cannonballs => _cannonballs;
+
+        /// <summary>The top of the listed deck at <paramref name="x"/>: the slab, or the old deck where that stands higher.</summary>
+        public static float ListedDeckTopAt(float x) {
+            float along = Mathf.Clamp((x - ListedDeckHighJoint.X) / (ListedDeckLowJoint.X - ListedDeckHighJoint.X), 0f, 1f);
+            float slab = Mathf.Lerp(ListedDeckHighJoint.Y, ListedDeckLowJoint.Y, along);
+            if (x < FlagshipMidDeckWestX || x >= ListingRampJoints[1].Low.X) return slab;
+            float oldDeck = x <= FlagshipMidDeckEndX
+                ? ListDeckMidY
+                : Mathf.Lerp(ListDeckMidY, ListDeckEastY, (x - FlagshipMidDeckEndX) / (ListingRampJoints[1].Low.X - FlagshipMidDeckEndX));
+            return Mathf.Min(slab, oldDeck);
+        }
+
+        private void BuildAdmiralList() {
+            _listedDeckSlab = BuildRampBetweenJoints(ListedDeckLowJoint, ListedDeckHighJoint, ListRampColor);
+            _listedDeckSlab.Visible = false;
+            Godot.Collections.Array<Node> children = _listedDeckSlab.GetChildren();
+            using var lifetime = children.AsDisposable();
+            foreach (Node child in children) {
+                if (child is CollisionShape2D shape) _listedDeckShape = shape;
+            }
+            _listedDeckShape.Disabled = true;
+            _cannonballs.Add(RollingCannonball.Create("level_07.cannonball_a", CannonballRailX, CannonballEndX, 300f, 1f, 2.5f, 14, ListedDeckTopAt));
+            _cannonballs.Add(RollingCannonball.Create("level_07.cannonball_b", CannonballRailX, CannonballEndX, 240f, 1f, 3.5f, 14, ListedDeckTopAt));
+            foreach (RollingCannonball ball in _cannonballs) AddChild(ball);
+        }
+
+        private void OnAdmiralPhaseEntered(int phase) {
+            if (phase < 1) return;
+            // The phase change usually lands inside the hit's physics flush; hop off it.
+            // Direct (test) calls stay synchronous.
+            if (PhysicsCallbackGuard.IsInPhysicsCallback) Callable.From(ListAdmiralDeck).CallDeferred();
+            else ListAdmiralDeck();
+        }
+
+        /// <summary>
+        /// Raises the slab under whoever stands on the deck and starts the balls: the first on
+        /// its warning, the second after a cooldown, so they never roll together. Idempotent;
+        /// public as a test seam.
+        /// </summary>
+        public void ListAdmiralDeck() {
+            if (AdmiralDeckListed || IsBossDefeated || _listedDeckSlab == null) return;
+            AdmiralDeckListed = true;
+            _listedDeckSlab.Visible = true;
+            _listedDeckShape.Disabled = false;
+            LiftOntoListedDeck(Player);
+            foreach (BossEncounterController encounter in BossEncounters) LiftOntoListedDeck(encounter.Boss);
+
+            bool held = IsInsideTree() && ChronalRewindManager.IsWorldHeld(GetTree());
+            foreach (RollingCannonball ball in _cannonballs) ball.Enabled = true;
+            // Never a telegraph that starts inside the hold: it would run out unseen.
+            if (!held) _cannonballs[0].ForcePhase(HazardPhase.Warning, _cannonballs[0].WarningDuration);
+        }
+
+        /// <summary>The slab rises up to 29 px over the old deck: a body standing there goes on top, not inside.</summary>
+        private void LiftOntoListedDeck(CharacterBody2D body) {
+            if (body == null || !IsInstanceValid(body)) return;
+            float x = body.GlobalPosition.X;
+            if (x < FlagshipWestDeckEndX || x > LevelWidth - 20f) return;
+            float top = ListedDeckTopAt(x);
+            if (body.GlobalPosition.Y > top && body.GlobalPosition.Y <= ListDeckEastY + 1f) {
+                body.GlobalPosition = new Vector2(x, top - 1f);
+            }
+        }
+
+        /// <summary>Stops the balls once he falls: the hero still has to walk to the sealing anchor.</summary>
+        private void StopAdmiralCannonballs() {
+            foreach (RollingCannonball ball in _cannonballs) {
+                if (!IsInstanceValid(ball)) continue;
+                ball.Enabled = false;
+                ball.ForcePhase(HazardPhase.Cooldown, ball.CooldownDuration);
+            }
         }
 
         /// <summary>
