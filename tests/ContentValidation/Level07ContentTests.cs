@@ -642,7 +642,7 @@ public class Level07ContentTests {
         AssertThat(level.EncounterLocks.Count).IsEqual(2);
 
         var expected = new (EncounterLock Lock, string ID, float MinX, float MaxX, int[] Waves, EncounterWaveTrigger[] Triggers)[] {
-            (level.QuayLock, Level07Controller.LockQuay, 380f, 3580f, new[] { 1, 2 },
+            (level.QuayLock, Level07Controller.LockQuay, 300f, 3500f, new[] { 1, 2 },
                 new[] { EncounterWaveTrigger.OnBuild, EncounterWaveTrigger.WhenAliveAtMost }),
             (level.BoardingLock, Level07Controller.LockBoarding, 5780f, 8480f, new[] { 3, 4 },
                 new[] { EncounterWaveTrigger.OnBuild, EncounterWaveTrigger.AfterPreviousCleared })

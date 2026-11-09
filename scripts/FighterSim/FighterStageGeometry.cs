@@ -237,297 +237,51 @@ namespace FTT.FighterSim {
             hazardAnchorXs: NoHazardAnchors,
             orbAnchors: NoOrbAnchors);
 
-        /// <summary>
-        /// Florence Workshop: central floor with two wooden gear platforms, wall
-        /// steam-pipe hazard anchors, and orb anchors above each gear platform.
-        /// </summary>
-        public static FighterStageGeometry Florence { get; } = new(
-            stageID: "florence_workshop",
-            leftWall: FP64.FromInt(-9),
-            rightWall: FP64.FromInt(9),
-            ceiling: FP64.FromInt(9),
-            bottomBlastZone: FP64.FromInt(-5),
-            spawnDistance: 4,
-            platforms: new[] {
-                new FighterStagePlatform(FP64.FromInt(-4), FP64.FromDouble(2.4), FP64.FromDouble(1.6)),
-                new FighterStagePlatform(FP64.FromInt(4), FP64.FromDouble(2.4), FP64.FromDouble(1.6))
-            },
-            hazardAnchorXs: new[] { FP64.FromInt(-6), FP64.Zero, FP64.FromInt(6) },
-            orbAnchors: new[] {
-                new FPVector2(FP64.FromInt(-4), FP64.FromDouble(2.9)),
-                new FPVector2(FP64.Zero, FP64.FromDouble(0.5)),
-                new FPVector2(FP64.FromInt(4), FP64.FromDouble(2.9))
-            });
+        // The selected A plate measurements own the canonical surfaces. Presentation scenes
+        // mirror these values; no visual-only platform or spawn correction is applied at runtime.
+        public static FighterStageGeometry Florence { get; } = FromReference("florence_workshop", new double[] { -6, 0, 6 });
+        public static FighterStageGeometry Orleans { get; } = FromReference("orleans_vanguard", new double[] { -7, 7 });
+        public static FighterStageGeometry Chicago { get; } = FromReference("chicago_exposition", new double[] { 0 });
+        public static FighterStageGeometry Paris { get; } = FromReference("paris_bastille", new double[] { -6, 0, 6 });
+        public static FighterStageGeometry Vesuvius { get; } = FromReference("vesuvius_caldera", new double[] { -6, -2, 2, 4.5 });
+        public static FighterStageGeometry Nassau { get; } = FromReference("nassau_flagship", new double[] { -5, 0, 4 });
+        public static FighterStageGeometry Alexandria { get; } = FromReference("alexandria_chambers", new double[] { -6, 0, 6 });
+        public static FighterStageGeometry Berlin { get; } = FromReference("berlin_wall", new double[] { -4, 0, 4 });
+        public static FighterStageGeometry Globe { get; } = FromReference("globe_theatre", new double[] { -5, 0, 5 });
+        public static FighterStageGeometry Gettysburg { get; } = FromReference("gettysburg_ridge", new double[] { -5, 0, 5 });
 
-        /// <summary>
-        /// Orléans Vanguard: symmetrical battlements — two low stone ledges and a
-        /// central high platform forming a triangle. Trebuchet debris rolls in from
-        /// either wall anchor.
-        /// </summary>
-        public static FighterStageGeometry Orleans { get; } = new(
-            stageID: "orleans_vanguard",
-            leftWall: FP64.FromInt(-9),
-            rightWall: FP64.FromInt(9),
-            ceiling: FP64.FromInt(9),
-            bottomBlastZone: FP64.FromInt(-5),
-            spawnDistance: 4,
-            platforms: new[] {
-                new FighterStagePlatform(FP64.FromDouble(-3.5), FP64.FromInt(2), FP64.FromDouble(1.4)),
-                new FighterStagePlatform(FP64.FromDouble(3.5), FP64.FromInt(2), FP64.FromDouble(1.4)),
-                new FighterStagePlatform(FP64.Zero, FP64.FromInt(4), FP64.FromDouble(1.4))
-            },
-            hazardAnchorXs: new[] { FP64.FromInt(-8), FP64.FromInt(8) },
-            orbAnchors: new[] {
-                new FPVector2(FP64.FromDouble(-3.5), FP64.FromDouble(2.5)),
-                new FPVector2(FP64.FromDouble(3.5), FP64.FromDouble(2.5)),
-                new FPVector2(FP64.Zero, FP64.FromDouble(4.5))
-            });
-
-        /// <summary>
-        /// Chicago Exposition: a wide flat metallic stage with two high conductor
-        /// coils as side platforms and a single central induction-grid anchor.
-        /// </summary>
-        public static FighterStageGeometry Chicago { get; } = new(
-            stageID: "chicago_exposition",
-            leftWall: FP64.FromInt(-10),
-            rightWall: FP64.FromInt(10),
-            ceiling: FP64.FromInt(9),
-            bottomBlastZone: FP64.FromInt(-5),
-            spawnDistance: 4,
-            platforms: new[] {
-                new FighterStagePlatform(FP64.FromInt(-6), FP64.FromDouble(3.2), FP64.FromDouble(1.5)),
-                new FighterStagePlatform(FP64.FromInt(6), FP64.FromDouble(3.2), FP64.FromDouble(1.5))
-            },
-            hazardAnchorXs: new[] { FP64.Zero },
-            orbAnchors: new[] {
-                new FPVector2(FP64.FromInt(-6), FP64.FromDouble(3.7)),
-                new FPVector2(FP64.FromInt(6), FP64.FromDouble(3.7)),
-                new FPVector2(FP64.Zero, FP64.FromDouble(0.5))
-            });
-
-        /// <summary>
-        /// Paris Bastille — <b>Open</b>. Two broad drawbridge walkways over a
-        /// central courtyard pit spanning −2.5…+2.5. Each walkway (∓4, half-width
-        /// 2) overhangs its side of the gap by half a unit, so it reads as a
-        /// drawbridge across the hole while both spawns at ∓4 still stand on solid
-        /// floor underneath. Two true main-floor ledges, at x = ∓2.5.
-        ///
-        /// <para>The neural-dampening beam keeps all three anchors: it is a tall
-        /// sweeping column, and conformance compares hazard anchors on X only. The
-        /// courtyard orb anchor moved off the pit onto a symmetric pair at ∓7 —
-        /// a single left-side ground orb would have been a real balance asymmetry
-        /// on an otherwise mirror-symmetric stage. The respawn platform moves to
-        /// (−4, 3): stage centre is now a hole.</para>
-        /// </summary>
-        public static FighterStageGeometry Paris { get; } = new(
-            stageID: "paris_bastille",
-            leftWall: FP64.FromInt(-9),
-            rightWall: FP64.FromInt(9),
-            ceiling: FP64.FromInt(9),
-            bottomBlastZone: FP64.FromInt(-5),
-            spawnDistance: 4,
-            platforms: new[] {
-                new FighterStagePlatform(FP64.FromInt(-4), FP64.FromDouble(2.6), FP64.FromInt(2)),
-                new FighterStagePlatform(FP64.FromInt(4), FP64.FromDouble(2.6), FP64.FromInt(2))
-            },
-            hazardAnchorXs: new[] { FP64.FromInt(-6), FP64.Zero, FP64.FromInt(6) },
-            orbAnchors: new[] {
-                new FPVector2(FP64.FromInt(-4), FP64.FromDouble(3.1)),
-                new FPVector2(FP64.FromInt(4), FP64.FromDouble(3.1)),
-                new FPVector2(FP64.FromInt(-7), FP64.FromDouble(0.5)),
-                new FPVector2(FP64.FromInt(7), FP64.FromDouble(0.5))
-            },
-            floorSegments: new[] {
-                // [-9, -2.5] and [2.5, 9]: a 5.0-wide centred pit.
-                new FighterStagePlatform(FP64.FromDouble(-5.75), FP64.Zero, FP64.FromDouble(3.25)),
-                new FighterStagePlatform(FP64.FromDouble(5.75), FP64.Zero, FP64.FromDouble(3.25))
-            },
-            respawnPlatformPosition: new FPVector2(FP64.FromInt(-4), FP64.FromInt(3)));
-
-        /// <summary>
-        /// Vesuvius Caldera — <b>Open</b>. The narrowest arena: two asymmetric
-        /// stone ledges at different heights over a floor that ends at x = 5.5,
-        /// where the slope's downhill end has collapsed into the caldera. The
-        /// right wall stays solid above the 2.5-wide gap, so a fighter knocked
-        /// that way is pinned between wall and ledge — one true ledge at x = +5.5,
-        /// and the catalog's highest-tension recovery.
-        ///
-        /// <para>The far-right rockfall anchor moved 6 → 4.5: the Rockfall leaves a
-        /// 180-frame ground residue pool, which would otherwise hang over the gap.</para>
-        /// </summary>
-        public static FighterStageGeometry Vesuvius { get; } = new(
-            stageID: "vesuvius_caldera",
-            leftWall: FP64.FromInt(-8),
-            rightWall: FP64.FromInt(8),
-            ceiling: FP64.FromInt(9),
-            bottomBlastZone: FP64.FromInt(-5),
-            spawnDistance: 4,
-            platforms: new[] {
-                new FighterStagePlatform(FP64.FromDouble(-4.5), FP64.FromInt(2), FP64.FromDouble(1.1)),
-                new FighterStagePlatform(FP64.FromInt(3), FP64.FromDouble(3.5), FP64.FromDouble(1.1))
-            },
-            hazardAnchorXs: new[] {
-                FP64.FromInt(-6), FP64.FromInt(-2), FP64.FromInt(2), FP64.FromDouble(4.5)
-            },
-            orbAnchors: new[] {
-                new FPVector2(FP64.FromDouble(-4.5), FP64.FromDouble(2.5)),
-                new FPVector2(FP64.FromInt(3), FP64.FromInt(4)),
-                new FPVector2(FP64.Zero, FP64.FromDouble(0.5))
-            },
-            // [-8, 5.5]: a 2.5-wide gap against the right wall.
-            floorSegments: new[] {
-                new FighterStagePlatform(FP64.FromDouble(-1.25), FP64.Zero, FP64.FromDouble(6.75))
-            });
-
-        /// <summary>
-        /// Nassau Flagship — <b>Open</b>. A burning deck with two horizontal wooden
-        /// yards whose listing stern simply ends at x = 6 over open water: a
-        /// 3.0-wide gap against the starboard wall and one true ledge at x = +6.
-        /// The cheapest of the three conversions — every authored hazard anchor
-        /// (−5, 0, 5) and every orb anchor still sits over deck.
-        /// </summary>
-        public static FighterStageGeometry Nassau { get; } = new(
-            stageID: "nassau_flagship",
-            leftWall: FP64.FromInt(-9),
-            rightWall: FP64.FromInt(9),
-            ceiling: FP64.FromInt(9),
-            bottomBlastZone: FP64.FromInt(-5),
-            spawnDistance: 4,
-            platforms: new[] {
-                new FighterStagePlatform(FP64.FromInt(-4), FP64.FromDouble(2.8), FP64.FromDouble(1.8)),
-                new FighterStagePlatform(FP64.FromInt(4), FP64.FromDouble(2.8), FP64.FromDouble(1.8))
-            },
-            hazardAnchorXs: new[] { FP64.FromInt(-5), FP64.Zero, FP64.FromInt(5) },
-            orbAnchors: new[] {
-                new FPVector2(FP64.FromInt(-4), FP64.FromDouble(3.3)),
-                new FPVector2(FP64.FromInt(4), FP64.FromDouble(3.3)),
-                new FPVector2(FP64.Zero, FP64.FromDouble(0.5))
-            },
-            // [-9, 6]: a 3.0-wide gap against the stern.
-            floorSegments: new[] {
-                new FighterStagePlatform(FP64.FromDouble(-1.5), FP64.Zero, FP64.FromDouble(7.5))
-            });
-
-        /// <summary>
-        /// Alexandria Chambers: a sandy floor with two low sarcophagus platforms —
-        /// the lowest platforms in the catalog — and three sinkhole anchors.
-        /// </summary>
-        public static FighterStageGeometry Alexandria { get; } = new(
-            stageID: "alexandria_chambers",
-            leftWall: FP64.FromInt(-9),
-            rightWall: FP64.FromInt(9),
-            ceiling: FP64.FromInt(9),
-            bottomBlastZone: FP64.FromInt(-5),
-            spawnDistance: 4,
-            platforms: new[] {
-                new FighterStagePlatform(FP64.FromInt(-4), FP64.FromDouble(1.6), FP64.FromDouble(1.3)),
-                new FighterStagePlatform(FP64.FromInt(4), FP64.FromDouble(1.6), FP64.FromDouble(1.3))
-            },
-            hazardAnchorXs: new[] { FP64.FromInt(-6), FP64.Zero, FP64.FromInt(6) },
-            orbAnchors: new[] {
-                new FPVector2(FP64.FromInt(-4), FP64.FromDouble(2.1)),
-                new FPVector2(FP64.FromInt(4), FP64.FromDouble(2.1)),
-                new FPVector2(FP64.Zero, FP64.FromDouble(0.5))
-            });
-
-        /// <summary>
-        /// Berlin Wall (Hakata Seawall) — <b>Open</b> since the 2026-11-03 gameplay
-        /// review (9a+/9a++, <c>PROVISIONAL-OPEN-STAGE-GEOMETRY</c>). A wide
-        /// seawall street whose eastern end has washed out: the floor runs
-        /// [−10, 7] and a 3.0-wide gap [7, 10] sits against the right wall, one
-        /// true ledge at x = +7, like Nassau's stern. The left half is the
-        /// unbroken baseline. The east balcony and its orb moved 6.5 → 5.5 so
-        /// both stay over floor (the balcony spans 4.2…6.8); the hazard anchors
-        /// (−4, 0, 4), both spawns and the centre orb never touched the gap.
-        /// </summary>
-        public static FighterStageGeometry Berlin { get; } = new(
-            stageID: "berlin_wall",
-            leftWall: FP64.FromInt(-10),
-            rightWall: FP64.FromInt(10),
-            ceiling: FP64.FromInt(9),
-            bottomBlastZone: FP64.FromInt(-5),
-            spawnDistance: 4,
-            platforms: new[] {
-                new FighterStagePlatform(FP64.FromDouble(-6.5), FP64.FromDouble(3.6), FP64.FromDouble(1.3)),
-                new FighterStagePlatform(FP64.FromDouble(5.5), FP64.FromDouble(3.6), FP64.FromDouble(1.3))
-            },
-            hazardAnchorXs: new[] { FP64.FromInt(-4), FP64.Zero, FP64.FromInt(4) },
-            orbAnchors: new[] {
-                new FPVector2(FP64.FromDouble(-6.5), FP64.FromDouble(4.1)),
-                new FPVector2(FP64.FromDouble(5.5), FP64.FromDouble(4.1)),
-                new FPVector2(FP64.Zero, FP64.FromDouble(0.5))
-            },
-            // [-10, 7]: a 3.0-wide gap [7, 10] against the east wall.
-            floorSegments: new[] {
-                new FighterStagePlatform(FP64.FromDouble(-1.5), FP64.Zero, FP64.FromDouble(8.5))
-            });
-
-        /// <summary>
-        /// Globe Theatre: a flat wooden stage with two tiered gallery balconies and
-        /// a high central canopy. Hecklers pelt from the three gallery anchors.
-        ///
-        /// <para>The tiring-house balcony sat at 4.4 until the 2026-08-10 feel
-        /// batch cut jump force 20% (§2.2): the post-retune double-jump ceiling
-        /// was ≈4.21, so 4.4 became the one authored platform nobody could reach.
-        /// It is 4.0 now — the same height as the Orléans centre platform. The
-        /// 2026-10-08 apex hang lifted the lowest jump's (11.5 u/s) double-jump
-        /// ceiling to ≈4.29, so 4.0 keeps ≈0.3 units of clearance.</para>
-        ///
-        /// <para><b>Open</b> since the 2026-11-03 gameplay review (9a+/9a++,
-        /// <c>PROVISIONAL-OPEN-STAGE-GEOMETRY</c>): the stage floor drops away
-        /// under the pit between the two galleries — a 3.0-wide centred pit
-        /// [−1.5, 1.5], two true ledges at x = ∓1.5. Both spawns (∓4) and both
-        /// gallery platforms (∓5) stay over floor; the canopy platform and its
-        /// orb now hang over the pit. The respawn platform moves to (−4, 3)
-        /// because stage centre is a hole. The heckler anchor at x = 0 is kept:
-        /// conformance compares hazard anchors on X only.</para>
-        /// </summary>
-        public static FighterStageGeometry Globe { get; } = new(
-            stageID: "globe_theatre",
-            leftWall: FP64.FromInt(-9),
-            rightWall: FP64.FromInt(9),
-            ceiling: FP64.FromInt(9),
-            bottomBlastZone: FP64.FromInt(-5),
-            spawnDistance: 4,
-            platforms: new[] {
-                new FighterStagePlatform(FP64.FromInt(-5), FP64.FromDouble(2.4), FP64.FromDouble(1.4)),
-                new FighterStagePlatform(FP64.FromInt(5), FP64.FromDouble(2.4), FP64.FromDouble(1.4)),
-                new FighterStagePlatform(FP64.Zero, FP64.FromDouble(4.0), FP64.FromDouble(1.2))
-            },
-            hazardAnchorXs: new[] { FP64.FromInt(-5), FP64.Zero, FP64.FromInt(5) },
-            orbAnchors: new[] {
-                new FPVector2(FP64.FromInt(-5), FP64.FromDouble(2.9)),
-                new FPVector2(FP64.FromInt(5), FP64.FromDouble(2.9)),
-                new FPVector2(FP64.Zero, FP64.FromDouble(4.5))
-            },
-            floorSegments: new[] {
-                // [-9, -1.5] and [1.5, 9]: a 3.0-wide centred pit.
-                new FighterStagePlatform(FP64.FromDouble(-5.25), FP64.Zero, FP64.FromDouble(3.75)),
-                new FighterStagePlatform(FP64.FromDouble(5.25), FP64.Zero, FP64.FromDouble(3.75))
-            },
-            respawnPlatformPosition: new FPVector2(FP64.FromInt(-4), FP64.FromInt(3)));
-
-        /// <summary>
-        /// Gettysburg Ridge: a wide dirt path with two low broken rail fences. The
-        /// artillery sight line is the widest hazard band in the catalog.
-        /// </summary>
-        public static FighterStageGeometry Gettysburg { get; } = new(
-            stageID: "gettysburg_ridge",
-            leftWall: FP64.FromInt(-10),
-            rightWall: FP64.FromInt(10),
-            ceiling: FP64.FromInt(9),
-            bottomBlastZone: FP64.FromInt(-5),
-            spawnDistance: 4,
-            platforms: new[] {
-                new FighterStagePlatform(FP64.FromDouble(-4.5), FP64.FromDouble(1.8), FP64.FromDouble(1.2)),
-                new FighterStagePlatform(FP64.FromDouble(4.5), FP64.FromDouble(1.8), FP64.FromDouble(1.2))
-            },
-            hazardAnchorXs: new[] { FP64.FromInt(-5), FP64.Zero, FP64.FromInt(5) },
-            orbAnchors: new[] {
-                new FPVector2(FP64.FromDouble(-4.5), FP64.FromDouble(2.3)),
-                new FPVector2(FP64.FromDouble(4.5), FP64.FromDouble(2.3)),
-                new FPVector2(FP64.Zero, FP64.FromDouble(0.5))
-            });
+        private static FighterStageGeometry FromReference(string stageID, double[] hazardXs) {
+            FighterStageVisualProfile profile = FighterStageVisualProfile.Find(stageID);
+            var platforms = new FighterStagePlatform[profile.PlatformSpans.Length];
+            var floors = new FighterStagePlatform[profile.FloorSpans.Length];
+            bool centerPit = stageID == "paris_bastille" || stageID == "globe_theatre";
+            int groundOrbs = centerPit && stageID == "paris_bastille" ? 2 : platforms.Length == 3 ? 0 : 1;
+            var orbs = new FPVector2[platforms.Length + groundOrbs];
+            for (int i = 0; i < platforms.Length; i++) {
+                var span = profile.PlatformSpans[i];
+                platforms[i] = new FighterStagePlatform(
+                    FP64.FromDouble((profile.WorldX(span.Left) + profile.WorldX(span.Right)) / 2),
+                    FP64.FromDouble(profile.WorldY(span.Top)),
+                    FP64.FromDouble((profile.WorldX(span.Right) - profile.WorldX(span.Left)) / 2));
+                orbs[i] = new FPVector2(platforms[i].CenterX, platforms[i].SurfaceY + FP64.FromDouble(0.5));
+            }
+            for (int i = 0; i < floors.Length; i++) {
+                var span = profile.FloorSpans[i];
+                floors[i] = new FighterStagePlatform(
+                    FP64.FromDouble((profile.WorldX(span.Left) + profile.WorldX(span.Right)) / 2), FP64.Zero,
+                    FP64.FromDouble((profile.WorldX(span.Right) - profile.WorldX(span.Left)) / 2));
+            }
+            for (int i = 0; i < groundOrbs; i++) {
+                orbs[platforms.Length + i] = new FPVector2(
+                    FP64.FromInt(centerPit ? (i == 0 ? -6 : 6) : 0), FP64.FromDouble(0.5));
+            }
+            var hazards = new FP64[hazardXs.Length];
+            for (int i = 0; i < hazards.Length; i++) hazards[i] = FP64.FromDouble(hazardXs[i]);
+            return new FighterStageGeometry(stageID,
+                FP64.FromDouble(profile.WorldX(0)), FP64.FromDouble(profile.WorldX(1672)),
+                FP64.FromInt(9), FP64.FromInt(-5), profile.SpawnDistance, platforms, hazards, orbs, floors,
+                centerPit ? new FPVector2(FP64.FromInt(-4), FP64.FromInt(3)) : null);
+        }
 
         /// <summary>
         /// Every authored production stage geometry, in catalog order. Harnesses

@@ -469,6 +469,7 @@ namespace FTT.Environment {
                 ActiveBounds = LevelBounds
             };
             Player.AddChild(Camera);
+            StoryOpeningPresentation.Apply(this, Player, Camera, (int)Level, ResumedMidLevel, _openingSurfaces);
             // F8 (2026-10-04): the design's dead-zone / look-ahead follow rig
             // replaces the plain 5.0-speed position smoothing.
             Camera.EnableFollow(Player);
@@ -938,6 +939,8 @@ namespace FTT.Environment {
             }
 
             AddChild(floor);
+            StoryOpeningPresentation.TrackSurface(floor, new Rect2(x, y, width, thickness));
+            _openingSurfaces.Add(floor);
             return floor;
         }
 
@@ -985,8 +988,12 @@ namespace FTT.Environment {
                 new Vector2(width, thickness), new Vector2(-width / 2f, -thickness / 2f), fill ?? PlatformColor));
 
     AddChild(platform);
+            StoryOpeningPresentation.TrackSurface(platform, new Rect2(x - width / 2f, y - thickness / 2f, width, thickness));
+            _openingSurfaces.Add(platform);
             return platform;
         }
+
+        private readonly List<StaticBody2D> _openingSurfaces = new();
 
         /// <summary>
         /// Drop-through platform on the OneWayPlatform layer. Matches the

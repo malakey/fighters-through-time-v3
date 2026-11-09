@@ -37,6 +37,7 @@ public class FighterStageGlobeTests {
     private const string PreviewPath = "res://assets/placeholders/stages/globe_preview.svg";
 
     private const string StageID = "globe_theatre";
+    private static readonly FighterStageVisualProfile Profile = FighterStageVisualProfile.Find(StageID);
     private const int HazardTypeID = 9;
 
     [TestCase]
@@ -295,22 +296,22 @@ public class FighterStageGlobeTests {
     /// floor supports every x outside the gap and nothing inside it.
     /// </summary>
     [TestCase]
-    public void GlobeIsAnOpenStageWithACentredThreeUnitPit() {
+    public void GlobeIsAnOpenStageWithTheReferenceCentredPit() {
         FighterStageGeometry globe = FighterStageGeometry.Globe;
         AssertThat(globe.IsOpenStage).IsTrue();
         AssertThat(globe.FloorSegments.Length).IsEqual(2);
         AssertThat(globe.FloorSegments[0].EdgeX(0).RawValue).IsEqual(globe.LeftWall.RawValue);
-        AssertThat(globe.FloorSegments[0].EdgeX(1).RawValue).IsEqual(FP64.FromDouble(-1.5).RawValue);
-        AssertThat(globe.FloorSegments[1].EdgeX(0).RawValue).IsEqual(FP64.FromDouble(1.5).RawValue);
+        AssertThat(globe.FloorSegments[0].EdgeX(1).RawValue).IsEqual(FP64.FromDouble(Profile.WorldX(Profile.FloorSpans[0].Right)).RawValue);
+        AssertThat(globe.FloorSegments[1].EdgeX(0).RawValue).IsEqual(FP64.FromDouble(Profile.WorldX(Profile.FloorSpans[1].Left)).RawValue);
         AssertThat(globe.FloorSegments[1].EdgeX(1).RawValue).IsEqual(globe.RightWall.RawValue);
         AssertThat((globe.FloorSegments[1].EdgeX(0) - globe.FloorSegments[0].EdgeX(1)).RawValue)
-            .IsEqual(FP64.FromInt(3).RawValue);
+            .IsEqual((FP64.FromDouble(Profile.WorldX(Profile.FloorSpans[1].Left)) - FP64.FromDouble(Profile.WorldX(Profile.FloorSpans[0].Right))).RawValue);
 
-        foreach (double x in new[] { -9.0, -4.0, -1.6, 1.6, 4.0, 9.0 }) {
+        foreach (double x in new[] { -7.6, -4.0, -1.9, 1.9, 4.0, 7.6 }) {
             AssertThat(globe.HasFloorSupport(FP64.FromDouble(x)))
                 .OverrideFailureMessage($"no floor under x = {x}").IsTrue();
         }
-        foreach (double x in new[] { -1.4, -0.5, 0.0, 0.5, 1.4 }) {
+        foreach (double x in new[] { -1.8, -0.5, 0.0, 0.5, 1.8 }) {
             AssertThat(globe.HasFloorSupport(FP64.FromDouble(x)))
                 .OverrideFailureMessage($"floor under x = {x}, inside the pit").IsFalse();
         }
@@ -355,18 +356,18 @@ public class FighterStageGlobeTests {
 
         FP64 justUnderTheFloor = FP64.FromDouble(-0.1);
         AssertThat(globe.TryFindLedge(
-            new FPVector2(FP64.FromDouble(-1.5), justUnderTheFloor), out int anchor)).IsTrue();
+            new FPVector2(FP64.FromDouble(Profile.WorldX(Profile.FloorSpans[0].Right)), justUnderTheFloor), out int anchor)).IsTrue();
         AssertThat(anchor).IsEqual(leftPitEdge);
         AssertThat(globe.TryFindLedge(
-            new FPVector2(FP64.FromDouble(1.5), justUnderTheFloor), out anchor)).IsTrue();
+            new FPVector2(FP64.FromDouble(Profile.WorldX(Profile.FloorSpans[1].Left)), justUnderTheFloor), out anchor)).IsTrue();
         AssertThat(anchor).IsEqual(rightPitEdge);
 
         AssertThat(globe.TryGetHangPosition(leftPitEdge, out FPVector2 hang)).IsTrue();
         AssertThat(hang.x.RawValue)
-            .IsEqual((FP64.FromDouble(-1.5) + FighterLedgeRules.HangOutwardOffset).RawValue);
+            .IsEqual((FP64.FromDouble(Profile.WorldX(Profile.FloorSpans[0].Right)) + FighterLedgeRules.HangOutwardOffset).RawValue);
         AssertThat(globe.TryGetHangPosition(rightPitEdge, out FPVector2 mirrored)).IsTrue();
         AssertThat(mirrored.x.RawValue)
-            .IsEqual((FP64.FromDouble(1.5) - FighterLedgeRules.HangOutwardOffset).RawValue);
+            .IsEqual((FP64.FromDouble(Profile.WorldX(Profile.FloorSpans[1].Left)) - FighterLedgeRules.HangOutwardOffset).RawValue);
 
         // The wall-side segment ends and the middle of the pit are not ledges.
         AssertThat(globe.TryGetHangPosition((globe.Platforms.Length + 0) * 2 + 0, out FPVector2 _)).IsFalse();
@@ -375,9 +376,9 @@ public class FighterStageGlobeTests {
 
         // The nearest floor edge walking toward the pit from either spawn.
         AssertThat(globe.TryGetNearestFloorEdge(FP64.FromInt(-4), 1, out FP64 edge)).IsTrue();
-        AssertThat(edge.RawValue).IsEqual(FP64.FromDouble(-1.5).RawValue);
+        AssertThat(edge.RawValue).IsEqual(FP64.FromDouble(Profile.WorldX(Profile.FloorSpans[0].Right)).RawValue);
         AssertThat(globe.TryGetNearestFloorEdge(FP64.FromInt(4), -1, out edge)).IsTrue();
-        AssertThat(edge.RawValue).IsEqual(FP64.FromDouble(1.5).RawValue);
+        AssertThat(edge.RawValue).IsEqual(FP64.FromDouble(Profile.WorldX(Profile.FloorSpans[1].Left)).RawValue);
     }
 
     /// <summary>
@@ -398,11 +399,11 @@ public class FighterStageGlobeTests {
                 AssertThat(body.CollisionMask).IsEqual(0u);
                 var shape = body.GetNode<CollisionShape2D>("CollisionShape2D");
                 var rect = (RectangleShape2D)shape.Shape;
-                AssertThat(rect.Size.X).IsEqual(468.75f);   // 7.5 units
+                AssertThat(Mathf.Abs(rect.Size.X - FighterStageConformance.UnitsToPixels(FighterStageGeometry.Globe.FloorSegments[0].HalfWidth) * 2)).IsLess(0.001f);
                 AssertThat(body.Position.Y + shape.Position.Y - rect.Size.Y / 2f).IsEqual(700f);
             }
-            AssertThat(left.Position.X).IsEqual(621.875f);   // x = -5.25
-            AssertThat(right.Position.X).IsEqual(1278.125f); // x = +5.25
+            AssertThat(Mathf.Abs(left.Position.X - FighterStageConformance.ToPixels(FighterStageGeometry.Globe.FloorSegments[0].CenterX, FP64.Zero).X)).IsLess(0.001f);
+            AssertThat(Mathf.Abs(right.Position.X - FighterStageConformance.ToPixels(FighterStageGeometry.Globe.FloorSegments[1].CenterX, FP64.Zero).X)).IsLess(0.001f);
         } finally {
             root.Free();
         }
@@ -445,12 +446,12 @@ public class FighterStageGlobeTests {
     public void GlobeCanopyPlatformAndOrbHangOverThePitAndTheCentreHecklerAnchorIsKept() {
         FighterStageGeometry globe = FighterStageGeometry.Globe;
         FighterStagePlatform canopy = globe.Platforms[2];
-        AssertThat(canopy.CenterX.RawValue).IsEqual(FP64.Zero.RawValue);
+        AssertThat(canopy.CenterX.RawValue).IsEqual(FP64.FromDouble((Profile.WorldX(Profile.PlatformSpans[2].Left) + Profile.WorldX(Profile.PlatformSpans[2].Right)) / 2).RawValue);
         AssertThat(globe.HasFloorSupport(canopy.CenterX)).IsFalse();
 
         bool orbOnCanopy = false;
         foreach (FPVector2 orb in globe.OrbAnchors) {
-            if (orb.x.RawValue != FP64.Zero.RawValue) continue;
+            if (orb.x.RawValue != canopy.CenterX.RawValue) continue;
             orbOnCanopy = orb.y.RawValue == (canopy.SurfaceY + FP64.FromDouble(0.5)).RawValue;
         }
         AssertThat(orbOnCanopy).IsTrue();

@@ -422,8 +422,17 @@ namespace FTT.Environment {
         /// through the shared <see cref="StoryLevelControllerBase.BuildRampBetweenJoints"/>,
         /// so neither joint leaves a riser or a lip.
         /// </summary>
-        private void BuildListingRamp(int index) =>
-            BuildRampBetweenJoints(ListingRampJoints[index].Low, ListingRampJoints[index].High, RampColor);
+        private void BuildListingRamp(int index) {
+            StaticBody2D ramp = BuildRampBetweenJoints(ListingRampJoints[index].Low, ListingRampJoints[index].High, RampColor);
+            if (index != 0) return;
+            // The collision overlap remains buried beneath the painted deck edge.
+            foreach (Node child in ramp.GetChildren()) {
+                if (child is Control visual) {
+                    visual.Position += new Vector2(ListingRampLowJointOverlapPixels, 0f);
+                    visual.Size -= new Vector2(ListingRampLowJointOverlapPixels, 0f);
+                }
+            }
+        }
 
         private void BuildRoom1GrandStaircase() {
             BuildRoomBackground("BG_Room1", 0f, Room2StartX, LevelHeight, new Color(0.07f, 0.09f, 0.12f, 0.4f));
@@ -434,7 +443,7 @@ namespace FTT.Environment {
             BuildListingRamp(1);
             BuildFloor(DeckD2WestX, DeckD2, 1200f);
 
-            BuildOneWayPlatform(600f, 1140f, 240f);
+            BuildOneWayPlatform(920f, 1140f, 240f);
             BuildOneWayPlatform(1500f, 1060f, 260f);
             BuildOneWayPlatform(2600f, 980f, 240f);
             BuildOneWayPlatform(3050f, 880f, 220f);

@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/FighterStageController.cs" id="1_controller"]
 [ext_resource type="Script" path="res://scripts/UI/TestArenaHUD.cs" id="2_hud"]
@@ -17,6 +17,21 @@ size = Vector2(162.5, 12)
 
 [sub_resource type="RectangleShape2D" id="wall_col"]
 size = Vector2(24, 562)
+
+[sub_resource type="RectangleShape2D" id="reference_col_0"]
+size = Vector2(229.0909091, 12)
+
+[sub_resource type="RectangleShape2D" id="reference_col_1"]
+size = Vector2(224.4976077, 12)
+
+[sub_resource type="RectangleShape2D" id="reference_col_2"]
+size = Vector2(821.0526316, 48)
+
+[sub_resource type="RectangleShape2D" id="reference_col_3"]
+size = Vector2(24.0000000, 562)
+
+[sub_resource type="RectangleShape2D" id="reference_col_4"]
+size = Vector2(24.0000000, 562)
 
 [node name="FighterStageBerlin" type="Node2D" groups=["fighter_stage"]]
 script = ExtResource("1_controller")
@@ -87,9 +102,9 @@ color = Color(0.75, 0.12, 0.12, 1)
 
 [node name="SeawallGap" type="ColorRect" parent="Presentation"]
 z_index = -9
-offset_left = 1387.5
+offset_left = 1291.0526316
 offset_top = 700.0
-offset_right = 1575.0
+offset_right = 1430
 offset_bottom = 1120.0
 color = Color(0.02, 0.055, 0.085, 1)
 
@@ -231,13 +246,13 @@ RimScale = 9.0
 [node name="Geometry" type="Node2D" parent="."]
 
 [node name="Ground" type="StaticBody2D" parent="Geometry"]
-position = Vector2(856.25, 700)
+position = Vector2(880.5263158, 700.0000000)
 collision_layer = 64
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/Ground"]
-position = Vector2(0, 24)
-shape = SubResource("ground_col")
+position = Vector2(0, 24.0)
+shape = SubResource("reference_col_2")
 
 [node name="Visual" type="ColorRect" parent="Geometry/Ground"]
 offset_left = -531.25
@@ -272,12 +287,12 @@ color = Color(0.1, 0.11, 0.14, 1)
 polygon = PackedVector2Array(531.25, 0, 531.25, 48, 499.25, 48)
 
 [node name="WallLeft" type="StaticBody2D" parent="Geometry"]
-position = Vector2(325, 418.75)
+position = Vector2(470.0000000, 418.7500000)
 collision_layer = 64
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/WallLeft"]
-shape = SubResource("wall_col")
+shape = SubResource("reference_col_3")
 
 [node name="Visual" type="ColorRect" parent="Geometry/WallLeft"]
 offset_left = -12.0
@@ -287,12 +302,12 @@ offset_bottom = 281.25
 color = Color(0.16, 0.18, 0.21, 1)
 
 [node name="WallRight" type="StaticBody2D" parent="Geometry"]
-position = Vector2(1575, 418.75)
+position = Vector2(1430.0000000, 418.7500000)
 collision_layer = 64
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/WallRight"]
-shape = SubResource("wall_col")
+shape = SubResource("reference_col_4")
 
 [node name="Visual" type="ColorRect" parent="Geometry/WallRight"]
 offset_left = -12.0
@@ -302,13 +317,14 @@ offset_bottom = 281.25
 color = Color(0.16, 0.18, 0.21, 1)
 
 [node name="GuardTowerWest" type="StaticBody2D" parent="Geometry"]
-position = Vector2(543.75, 475)
+position = Vector2(678.7081340, 522.0095694)
 collision_layer = 128
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/GuardTowerWest"]
+position = Vector2(0, 6.0)
 one_way_collision = true
-shape = SubResource("balcony_col")
+shape = SubResource("reference_col_0")
 
 [node name="Visual" type="ColorRect" parent="Geometry/GuardTowerWest"]
 offset_left = -81.25
@@ -348,13 +364,14 @@ offset_bottom = -30.0
 color = Color(0.62, 0.68, 0.62, 0.85)
 
 [node name="GuardTowerEast" type="StaticBody2D" parent="Geometry"]
-position = Vector2(1293.75, 475)
+position = Vector2(1163.3014354, 522.0095694)
 collision_layer = 128
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/GuardTowerEast"]
+position = Vector2(0, 6.0)
 one_way_collision = true
-shape = SubResource("balcony_col")
+shape = SubResource("reference_col_1")
 
 [node name="Visual" type="ColorRect" parent="Geometry/GuardTowerEast"]
 offset_left = -81.25
@@ -396,32 +413,32 @@ color = Color(0.62, 0.68, 0.62, 0.85)
 [node name="Spawns" type="Node2D" parent="."]
 
 [node name="Player1" type="Marker2D" parent="Spawns"]
-position = Vector2(700, 700)
+position = Vector2(700.0000000, 700.0000000)
 
 [node name="Player2" type="Marker2D" parent="Spawns"]
-position = Vector2(1200, 700)
+position = Vector2(1200.0000000, 700.0000000)
 
 [node name="OrbSpawnPoints" type="Node2D" parent="."]
 
 [node name="WestBalcony" type="Marker2D" parent="OrbSpawnPoints"]
-position = Vector2(543.75, 443.75)
+position = Vector2(678.7081340, 490.7595694)
 
 [node name="EastBalcony" type="Marker2D" parent="OrbSpawnPoints"]
-position = Vector2(1293.75, 443.75)
+position = Vector2(1163.3014354, 490.7595694)
 
 [node name="DeathStrip" type="Marker2D" parent="OrbSpawnPoints"]
-position = Vector2(950, 668.75)
+position = Vector2(950.0000000, 668.7500000)
 
 [node name="HazardAnchors" type="Node2D" parent="."]
 
 [node name="SearchlightWest" type="Marker2D" parent="HazardAnchors"]
-position = Vector2(700, 700)
+position = Vector2(700.0000000, 700.0000000)
 
 [node name="SearchlightCenter" type="Marker2D" parent="HazardAnchors"]
-position = Vector2(950, 700)
+position = Vector2(950.0000000, 700.0000000)
 
 [node name="SearchlightEast" type="Marker2D" parent="HazardAnchors"]
-position = Vector2(1200, 700)
+position = Vector2(1200.0000000, 700.0000000)
 
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2(950, 500)

@@ -53,10 +53,7 @@ namespace FTT.Environment {
             if (_hasLockBounds) return;
             _ratcheting = false;
             ActiveBounds = bounds.Abs();
-            LimitLeft = Mathf.RoundToInt(ActiveBounds.Position.X);
-            LimitTop = Mathf.RoundToInt(ActiveBounds.Position.Y);
-            LimitRight = Mathf.RoundToInt(ActiveBounds.End.X);
-            LimitBottom = Mathf.RoundToInt(ActiveBounds.End.Y);
+            WriteLimits(ActiveBounds);
             // A room change confines at once (the built-in limits always snapped);
             // keeping the rig centre inside the new room stops a hidden drift
             // that would delay the first pan back.
@@ -84,6 +81,7 @@ namespace FTT.Environment {
         /// <summary>Cuts to the target with no lead and no damping (teleports, loads).</summary>
         public void SnapToTarget() {
             if (!IsFollowing) return;
+            CaptureOpeningOrigin();
             SnapZoomToTarget();
             LookAheadX = 0f;
             _lastTargetPosition = FollowTarget.GlobalPosition;
@@ -96,7 +94,7 @@ namespace FTT.Environment {
                 _ratcheting = _working != _ratchetTarget;
                 WriteLimits(_working);
             }
-            RigCenter = Confine(_lastFollowPoint);
+            RigCenter = Confine(OpeningCenter(_lastFollowPoint));
             GlobalPosition = RigCenter;
         }
 
@@ -202,6 +200,14 @@ namespace FTT.Environment {
         }
 
         private void WriteLimits(Rect2 bounds) {
+            if (_openingWeight > 0f) {
+                bounds = bounds.Merge(_openingFrame);
+                LimitLeft = Mathf.FloorToInt(bounds.Position.X);
+                LimitTop = Mathf.FloorToInt(bounds.Position.Y);
+                LimitRight = Mathf.CeilToInt(bounds.End.X);
+                LimitBottom = Mathf.CeilToInt(bounds.End.Y);
+                return;
+            }
             LimitLeft = Mathf.RoundToInt(bounds.Position.X);
             LimitTop = Mathf.RoundToInt(bounds.Position.Y);
             LimitRight = Mathf.RoundToInt(bounds.End.X);
@@ -213,6 +219,7 @@ namespace FTT.Environment {
         /// <summary>One rig step. Public so tests can drive it frame by frame.</summary>
         public void StepFollow(float delta) {
             if (!IsFollowing) return;
+            StepOpening();
             // GU-B: the zoom eases first, so this step's view, zones and
             // confinement all read the zoom the frame is drawn at.
             StepZoom(delta);
@@ -241,8 +248,9 @@ namespace FTT.Environment {
             float y = StoryCameraRules.FollowAxis(RigCenter.Y, follow.Y,
                 StoryCameraRules.DeadZoneHeight * view.Y / 2f, StoryCameraRules.SoftZoneHeight * view.Y / 2f,
                 StoryCameraRules.DampingY, delta);
-            StepRatchet(new Vector2(x, y)); // FU-LOCK: tighten the lock limits before the rig confines
-            RigCenter = Confine(new Vector2(x, y));
+            Vector2 desired = OpeningCenter(new Vector2(x, y));
+            StepRatchet(desired); // FU-LOCK: tighten the lock limits before the rig confines
+            RigCenter = Confine(desired);
             GlobalPosition = RigCenter;
         }
 

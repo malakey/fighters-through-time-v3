@@ -1,0 +1,11 @@
+{
+  "id": "fighter_orleans_vanguard_foreground",
+  "name": "Orleans Vanguard",
+  "mode": "fighter_foreground",
+  "stage_id": "orleans_vanguard",
+  "source": "D:/Projects/fighters-through-time-docs-3/mockups/fighter_arenas_retro_pulp/02_orleans_vanguard/A.png",
+  "file": "D:/Projects/Fighters Through Time - V3/assets/environments/mockup_a/fighter_foregrounds/orleans_vanguard.png",
+  "prompt": "Precise foreground layer extraction for the existing Fighters Through Time 2D game: Orleans Vanguard. Keep the FULL ORIGINAL CANVAS and all static gameplay terrain in EXACTLY its original pixel positions and sizes. Extract only the near foreground arena: ALL raised walkable platforms/ledges, their close supporting ornaments/gears/banners, the near ground floor/deck/stage/rampart along the bottom, and nearby stage props/railings. Preserve the original open pits and gaps as transparent holes. Remove all distant sky, buildings, mountains, sea, room background walls/ceiling/windows and other far scenery, replacing them with TRUE TRANSPARENCY. The remaining platforms and foreground floor must keep their original inked retro-pulp details, lighting, palette and silhouette edges. This is a registered transparent foreground PNG placed over a separate distant background. CRITICAL: Do NOT shift, resize, redesign, crop, center or rearrange any platforms or floor. The empty upper/side canvas must remain, so the output is the same 16:9 full frame as the reference. No characters, no HUD, no checkerboard drawn into the image, no colored backdrop. Alpha transparency everywhere the distant background was removed.",
+  "generated_source": "C:\\Users\\David\\.codex\\generated_images\\01a1a070-f024-7903-8537-4b2b5d27d54d\\exec-e02d77ca-3bf4-46a6-a41e-918efcba1d5a.png",
+  "status": "generated"
+}

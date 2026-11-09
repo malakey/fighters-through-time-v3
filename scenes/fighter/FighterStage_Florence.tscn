@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/FighterStageController.cs" id="1_controller"]
 [ext_resource type="Script" path="res://scripts/UI/TestArenaHUD.cs" id="2_hud"]
@@ -16,6 +16,21 @@ size = Vector2(200, 12)
 
 [sub_resource type="RectangleShape2D" id="wall_col"]
 size = Vector2(24, 562)
+
+[sub_resource type="RectangleShape2D" id="reference_col_0"]
+size = Vector2(233.6842105, 12)
+
+[sub_resource type="RectangleShape2D" id="reference_col_1"]
+size = Vector2(233.1100478, 12)
+
+[sub_resource type="RectangleShape2D" id="reference_col_2"]
+size = Vector2(960.0000000, 48)
+
+[sub_resource type="RectangleShape2D" id="reference_col_3"]
+size = Vector2(24.0000000, 562)
+
+[sub_resource type="RectangleShape2D" id="reference_col_4"]
+size = Vector2(24.0000000, 562)
 
 [node name="FighterStageFlorence" type="Node2D" groups=["fighter_stage"]]
 script = ExtResource("1_controller")
@@ -71,13 +86,13 @@ RimScale = 9.0
 [node name="Geometry" type="Node2D" parent="."]
 
 [node name="Ground" type="StaticBody2D" parent="Geometry"]
-position = Vector2(950, 700)
+position = Vector2(950.0000000, 700.0000000)
 collision_layer = 64
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/Ground"]
-position = Vector2(0, 24)
-shape = SubResource("ground_col")
+position = Vector2(0, 24.0)
+shape = SubResource("reference_col_2")
 
 [node name="Visual" type="ColorRect" parent="Geometry/Ground"]
 offset_left = -562.5
@@ -94,12 +109,12 @@ offset_bottom = 0.0
 color = Color(0.94, 0.58, 0.16, 1)
 
 [node name="WallLeft" type="StaticBody2D" parent="Geometry"]
-position = Vector2(387.5, 418.75)
+position = Vector2(470.0000000, 418.7500000)
 collision_layer = 64
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/WallLeft"]
-shape = SubResource("wall_col")
+shape = SubResource("reference_col_3")
 
 [node name="Visual" type="ColorRect" parent="Geometry/WallLeft"]
 offset_left = -12.0
@@ -109,12 +124,12 @@ offset_bottom = 281.25
 color = Color(0.22, 0.15, 0.09, 1)
 
 [node name="WallRight" type="StaticBody2D" parent="Geometry"]
-position = Vector2(1512.5, 418.75)
+position = Vector2(1430.0000000, 418.7500000)
 collision_layer = 64
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/WallRight"]
-shape = SubResource("wall_col")
+shape = SubResource("reference_col_4")
 
 [node name="Visual" type="ColorRect" parent="Geometry/WallRight"]
 offset_left = -12.0
@@ -124,13 +139,14 @@ offset_bottom = 281.25
 color = Color(0.22, 0.15, 0.09, 1)
 
 [node name="GearPlatformLeft" type="StaticBody2D" parent="Geometry"]
-position = Vector2(700, 550)
+position = Vector2(716.0287081, 445.6459330)
 collision_layer = 128
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/GearPlatformLeft"]
+position = Vector2(0, 6.0)
 one_way_collision = true
-shape = SubResource("platform_col")
+shape = SubResource("reference_col_0")
 
 [node name="Visual" type="ColorRect" parent="Geometry/GearPlatformLeft"]
 offset_left = -100.0
@@ -154,13 +170,14 @@ offset_bottom = 34.0
 color = Color(0.55, 0.4, 0.15, 1)
 
 [node name="GearPlatformRight" type="StaticBody2D" parent="Geometry"]
-position = Vector2(1200, 550)
+position = Vector2(1180.2392344, 445.6459330)
 collision_layer = 128
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/GearPlatformRight"]
+position = Vector2(0, 6.0)
 one_way_collision = true
-shape = SubResource("platform_col")
+shape = SubResource("reference_col_1")
 
 [node name="Visual" type="ColorRect" parent="Geometry/GearPlatformRight"]
 offset_left = -100.0
@@ -186,32 +203,32 @@ color = Color(0.55, 0.4, 0.15, 1)
 [node name="Spawns" type="Node2D" parent="."]
 
 [node name="Player1" type="Marker2D" parent="Spawns"]
-position = Vector2(700, 700)
+position = Vector2(575.0000000, 700.0000000)
 
 [node name="Player2" type="Marker2D" parent="Spawns"]
-position = Vector2(1200, 700)
+position = Vector2(1325.0000000, 700.0000000)
 
 [node name="OrbSpawnPoints" type="Node2D" parent="."]
 
 [node name="LeftGear" type="Marker2D" parent="OrbSpawnPoints"]
-position = Vector2(700, 518.75)
+position = Vector2(716.0287081, 414.3959330)
 
 [node name="Center" type="Marker2D" parent="OrbSpawnPoints"]
-position = Vector2(950, 668.75)
+position = Vector2(1180.2392344, 414.3959330)
 
 [node name="RightGear" type="Marker2D" parent="OrbSpawnPoints"]
-position = Vector2(1200, 518.75)
+position = Vector2(950.0000000, 668.7500000)
 
 [node name="HazardAnchors" type="Node2D" parent="."]
 
 [node name="LeftPipe" type="Marker2D" parent="HazardAnchors"]
-position = Vector2(575, 700)
+position = Vector2(575.0000000, 700.0000000)
 
 [node name="CenterPipe" type="Marker2D" parent="HazardAnchors"]
-position = Vector2(950, 700)
+position = Vector2(950.0000000, 700.0000000)
 
 [node name="RightPipe" type="Marker2D" parent="HazardAnchors"]
-position = Vector2(1325, 700)
+position = Vector2(1325.0000000, 700.0000000)
 
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2(950, 500)

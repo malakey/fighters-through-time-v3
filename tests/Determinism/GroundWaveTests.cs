@@ -77,7 +77,15 @@ public class GroundWaveTests {
         AssertThat(simulation.ProjectileCount).IsEqual(1);
         Run(simulation, fired, fired + 2);
         AssertThat(simulation.ProjectileCount).IsEqual(1);
-        Run(simulation, fired + 3, fired + 9);
+        // The approved A banks move the spawn farther from the pit. Keep the
+        // assertion tied to crossing the actual lip, before the five-unit range.
+        AssertThat(simulation.TryGetFirstProjectile(out FighterProjectileComponent wave)).IsTrue();
+        FP64 edge = FighterStageGeometry.Paris.FloorSegments[0].EdgeX(1);
+        FP64 distance = edge - wave.Position.x;
+        AssertThat(distance > FP64.Zero && distance < FP64.FromInt(4)).IsTrue();
+        int travelTicks = (int)(distance.RawValue / (wave.Velocity.x * FighterAirPhysics.FixedDelta).RawValue) + 2;
+        AssertThat(travelTicks < wave.LifetimeFrames).IsTrue();
+        Run(simulation, fired + 3, fired + 3 + travelTicks);
         AssertThat(simulation.ProjectileCount).IsEqual(0);
     }
 

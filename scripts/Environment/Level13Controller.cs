@@ -241,7 +241,7 @@ namespace FTT.Environment {
         /// </summary>
         public static readonly (string ID, float X, float Y, float Width, string LabelKey, Color Tint)[] EraMotifs = {
             // Room 1 - the Threshold stair.
-            ("motif_orleans", 760f, 1760f, 240f, "void_shard_orleans", new Color(0.62f, 0.60f, 0.55f)),
+            ("motif_orleans", 920f, 1760f, 240f, "void_shard_orleans", new Color(0.62f, 0.60f, 0.55f)),
             ("motif_paris", 1060f, 1620f, 220f, "void_shard_paris", new Color(0.35f, 0.33f, 0.38f)),
             ("motif_pompeii", 1360f, 1480f, 220f, "void_shard_pompeii", new Color(0.32f, 0.24f, 0.22f)),
             ("motif_berlin", 1660f, 1340f, 220f, "void_shard_berlin", new Color(0.55f, 0.56f, 0.58f)),

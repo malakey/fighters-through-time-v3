@@ -20,6 +20,29 @@ namespace FTT.Tests.Unit;
 [RequireGodotRuntime]
 public class StoryHudCompactTests {
 
+    [TestCase]
+    public void CapsuleOutlinesTriangulateWithoutDuplicateVerticesForTallSquareAndWideBounds() {
+        foreach (Vector2 size in new[] { new Vector2(24f, 80f), new Vector2(64f, 64f), new Vector2(160f, 64f) }) {
+            var capsule = new HudCapsule { Size = size };
+            try {
+                Vector2[] outline = capsule.OutlinePoints;
+                int[] triangles = Geometry2D.TriangulatePolygon(outline);
+                AssertInt(triangles.Length).OverrideFailureMessage($"Cannot triangulate capsule {size}")
+                    .IsEqual((outline.Length - 2) * 3);
+                for (int i = 0; i < outline.Length; i++) {
+                    AssertFloat(outline[i].X).IsGreaterEqual(-0.001f);
+                    AssertFloat(outline[i].Y).IsGreaterEqual(-0.001f);
+                    AssertFloat(outline[i].X).IsLessEqual(size.X + 0.001f);
+                    AssertFloat(outline[i].Y).IsLessEqual(size.Y + 0.001f);
+                    for (int j = i + 1; j < outline.Length; j++)
+                        AssertFloat(outline[i].DistanceTo(outline[j])).IsGreater(0.001f);
+                }
+            } finally {
+                capsule.Free();
+            }
+        }
+    }
+
     private static Rect2 Bounds(Control control) => control.GetGlobalTransform() * new Rect2(Vector2.Zero, control.Size);
 
     [TestCase]

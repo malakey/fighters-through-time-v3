@@ -771,7 +771,8 @@ namespace FTT.FighterSim {
                 Name = SlotBadgeNodeName,
                 Text = FTT.Combat.PlayerSlotPalettes.ShapeGlyph(playerIndex),
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Position = new Vector2(-12f, -150f),
+                Position = new Vector2(-12f, fighter.HasMeta("fighter_idle_world_height")
+                    ? -fighter.GetMeta("fighter_idle_world_height").AsSingle() - 34f : -150f),
                 Size = new Vector2(24f, 24f),
                 MouseFilter = Control.MouseFilterEnum.Ignore
             };

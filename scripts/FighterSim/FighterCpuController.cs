@@ -427,6 +427,14 @@ namespace FTT.FighterSim {
                         edges &= ~GameplayButtons.BasicAttack;
                         outputMoveX = delivery.BasicAttackDeltaRaw >= 0 ? (sbyte)110 : (sbyte)-110;
                     }
+                    // A horizontal recovery planned above the lip can arrive after
+                    // the fall passed its capture band. Revalidate height on self-state
+                    // before starting a dash that would lock out the remaining jump.
+                    if (delivery.SpendsMovementActivation
+                        && (edges & GameplayButtons.MovementAbility) != 0
+                        && NeedsJumpBeforeHorizontalRecovery(in observation)) {
+                        edges = (edges & ~GameplayButtons.MovementAbility) | GameplayButtons.Jump;
+                    }
                     if (delivery.SpendsMovementActivation) {
                         // CM-FIXB-CPU: the activation is charged when the press
                         // actually goes out (AccountMovementActivationEmission),
@@ -1253,6 +1261,10 @@ namespace FTT.FighterSim {
                 && MovementActivationsAllowed()
                 && CastIdleAtDelivery(in observation);
             bool jumpsLeft = observation.RemainingJumps > 0;
+            if (NeedsJumpBeforeHorizontalRecovery(in observation)) {
+                _pendingRecoveryJump = true;
+                return held | GameplayButtons.Jump;
+            }
             // Route comparison, Hard only: when the jumps in hand cannot cover the
             // remaining horizontal distance but the movement ability can, opening
             // with the ability is the feasible route rather than the fallback.
@@ -1294,6 +1306,16 @@ namespace FTT.FighterSim {
             }
             return held;
         }
+
+        private bool NeedsJumpBeforeHorizontalRecovery(in CpuDecisionObservation observation) =>
+            _profile.HasKit && !_profile.MovementProvidesLift
+            && observation.HasFloorSegments != 0 && observation.HasFloorSupportUnderSelf == 0
+            && (observation.HasFloorEdgeLeft != 0 || observation.HasFloorEdgeRight != 0)
+            && observation.IsGrounded == 0 && observation.RemainingJumps > 0
+            && observation.HitstunFrames <= 0 && observation.DazeFrames <= 0
+            && observation.SuppressGameplayInput == 0 && !CastHoldsThisTick(in observation)
+            && observation.SelfVelocityYRaw < 0
+            && observation.SelfPositionYRaw < -FighterLedgeRules.CaptureDepth.RawValue;
 
         /// <summary>
         /// Easy and Medium plan <b>one</b> movement-ability activation per offstage

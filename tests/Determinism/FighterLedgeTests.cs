@@ -25,7 +25,7 @@ public class FighterLedgeTests {
 
     [TestCase]
     public void AFallingFighterInsideTheCaptureBoxMayGrab() {
-        FighterStateComponent fighter = AirborneAt(EdgeOf(0, 0), FP64.FromDouble(2.0));
+        FighterStateComponent fighter = AirborneAt(EdgeOf(0, 0), (Florence.Platforms[0].SurfaceY - FP64.FromDouble(0.4)));
         fighter.Velocity.y = FP64.FromInt(-8);
         FighterRuntimeComponent runtime = FreshRuntime();
         FighterVerbComponent verb = new();
@@ -42,7 +42,7 @@ public class FighterLedgeTests {
     /// </summary>
     [TestCase]
     public void RisingSlowlyGrabsButRisingFastDoesNot() {
-        FighterStateComponent slow = AirborneAt(EdgeOf(0, 0), FP64.FromDouble(2.0));
+        FighterStateComponent slow = AirborneAt(EdgeOf(0, 0), (Florence.Platforms[0].SurfaceY - FP64.FromDouble(0.4)));
         slow.Velocity.y = FighterLedgeRules.MaxGrabVerticalSpeed;
         FighterRuntimeComponent runtime = FreshRuntime();
         FighterVerbComponent verb = new();
@@ -55,7 +55,7 @@ public class FighterLedgeTests {
 
     [TestCase]
     public void HitstunDazeDropThroughAndTheRegrabLockoutAllRefuseTheGrab() {
-        FighterStateComponent baseline = AirborneAt(EdgeOf(0, 0), FP64.FromDouble(2.0));
+        FighterStateComponent baseline = AirborneAt(EdgeOf(0, 0), (Florence.Platforms[0].SurfaceY - FP64.FromDouble(0.4)));
         baseline.Velocity.y = FP64.FromInt(-8);
         FighterRuntimeComponent freshRuntime = FreshRuntime();
         FighterVerbComponent freshVerb = new();
@@ -93,7 +93,7 @@ public class FighterLedgeTests {
     /// </summary>
     [TestCase]
     public void TheFourthGrabInOneAirtimeIsRefused() {
-        FighterStateComponent fighter = AirborneAt(EdgeOf(0, 0), FP64.FromDouble(2.0));
+        FighterStateComponent fighter = AirborneAt(EdgeOf(0, 0), (Florence.Platforms[0].SurfaceY - FP64.FromDouble(0.4)));
         fighter.Velocity.y = FP64.FromInt(-8);
         FighterRuntimeComponent runtime = FreshRuntime();
         FighterTuningComponent tuning = Tuning();
@@ -143,7 +143,7 @@ public class FighterLedgeTests {
 
     [TestCase]
     public void GrabbingPinsTheAnchorPositionZeroesVelocityAndRefillsJumps() {
-        FighterStateComponent fighter = AirborneAt(EdgeOf(0, 0), FP64.FromDouble(2.0));
+        FighterStateComponent fighter = AirborneAt(EdgeOf(0, 0), (Florence.Platforms[0].SurfaceY - FP64.FromDouble(0.4)));
         fighter.Velocity = new FPVector2(FP64.FromInt(-3), FP64.FromInt(-9));
         fighter.RemainingJumps = 0;
         FighterRuntimeComponent runtime = FreshRuntime();
@@ -258,20 +258,20 @@ public class FighterLedgeTests {
 
         FP64 justUnderTheFloor = FP64.FromDouble(-0.1);
         AssertThat(paris.TryFindLedge(
-            new FPVector2(FP64.FromDouble(-2.5), justUnderTheFloor), out int anchor)).IsTrue();
+            new FPVector2(paris.FloorSegments[0].EdgeX(1), justUnderTheFloor), out int anchor)).IsTrue();
         AssertThat(anchor).IsEqual(leftPitEdge);
         AssertThat(paris.TryFindLedge(
-            new FPVector2(FP64.FromDouble(2.5), justUnderTheFloor), out anchor)).IsTrue();
+            new FPVector2(paris.FloorSegments[1].EdgeX(0), justUnderTheFloor), out anchor)).IsTrue();
         AssertThat(anchor).IsEqual(rightPitEdge);
 
         // The hang sits a quarter unit out over the pit, one unit below the floor.
         AssertThat(paris.TryGetHangPosition(leftPitEdge, out FPVector2 hang)).IsTrue();
         AssertThat(hang.x.RawValue)
-            .IsEqual((FP64.FromDouble(-2.5) + FighterLedgeRules.HangOutwardOffset).RawValue);
+            .IsEqual((paris.FloorSegments[0].EdgeX(1) + FighterLedgeRules.HangOutwardOffset).RawValue);
         AssertThat(hang.y.RawValue).IsEqual((FP64.Zero - FighterLedgeRules.HangDepth).RawValue);
         AssertThat(paris.TryGetHangPosition(rightPitEdge, out FPVector2 mirrored)).IsTrue();
         AssertThat(mirrored.x.RawValue)
-            .IsEqual((FP64.FromDouble(2.5) - FighterLedgeRules.HangOutwardOffset).RawValue);
+            .IsEqual((paris.FloorSegments[1].EdgeX(0) - FighterLedgeRules.HangOutwardOffset).RawValue);
 
         // The middle of the pit is not a ledge, and neither is a wall-side end.
         AssertThat(paris.TryFindLedge(new FPVector2(FP64.Zero, justUnderTheFloor), out int none)).IsFalse();
@@ -729,7 +729,7 @@ public class FighterLedgeTests {
         in FighterTuningComponent tuning,
         int anchor) {
         int platformIndex = anchor / 2;
-        fighter = AirborneAt(EdgeOf(platformIndex, anchor % 2), FP64.FromDouble(2.0));
+        fighter = AirborneAt(EdgeOf(platformIndex, anchor % 2), (Florence.Platforms[0].SurfaceY - FP64.FromDouble(0.4)));
         runtime = FreshRuntime();
         FighterVerbComponent verb = new();
         AssertThat(Florence.TryGetHangPosition(anchor, out FPVector2 hang)).IsTrue();

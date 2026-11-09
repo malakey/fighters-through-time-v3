@@ -55,9 +55,9 @@ public class FighterHazardBehaviorTests {
         var harness = new HazardHarness(FighterStageGeometry.Orleans, FighterHazardTypeID.OrleansTrebuchetDebris, 6102);
         AssertThat(harness.StepUntilHazardExists()).IsTrue();
 
-        // The debris is launched over one of the two wall anchors (Â±8).
+        // The debris starts at one of the authored side anchors.
         FP64 spawnX = harness.Hazard().Position.x;
-        AssertThat(FP64.Abs(spawnX).RawValue).IsEqual(FP64.FromInt(8).RawValue);
+        AssertThat(FP64.Abs(spawnX).RawValue).IsEqual(FP64.Abs(FighterStageGeometry.Orleans.HazardAnchorXs[0]).RawValue);
         harness.StepWhileWarning();
 
         bool rollsRight = spawnX < FP64.Zero;

@@ -35,6 +35,7 @@ public class FighterStageBerlinTests {
     private const string PreviewPath = "res://assets/placeholders/stages/berlin_preview.svg";
 
     private const string StageID = "berlin_wall";
+    private static readonly FighterStageVisualProfile Profile = FighterStageVisualProfile.Find(StageID);
     private const int BerlinHazardTypeID = 8;
 
     [TestCase]
@@ -250,20 +251,20 @@ public class FighterStageBerlinTests {
     /// unbroken baseline.
     /// </summary>
     [TestCase]
-    public void HakataIsAnOpenStageWithAOneSidedThreeUnitGapAgainstTheEastWall() {
+    public void HakataIsAnOpenStageWithTheReferenceWashoutAgainstTheEastWall() {
         FighterStageGeometry berlin = FighterStageGeometry.Berlin;
         AssertThat(berlin.IsOpenStage).IsTrue();
         AssertThat(berlin.FloorSegments.Length).IsEqual(1);
         AssertThat(berlin.FloorSegments[0].EdgeX(0).RawValue).IsEqual(berlin.LeftWall.RawValue);
-        AssertThat(berlin.FloorSegments[0].EdgeX(1).RawValue).IsEqual(FP64.FromInt(7).RawValue);
+        AssertThat(berlin.FloorSegments[0].EdgeX(1).RawValue).IsEqual(FP64.FromDouble(Profile.WorldX(Profile.FloorSpans[0].Right)).RawValue);
         AssertThat((berlin.RightWall - berlin.FloorSegments[0].EdgeX(1)).RawValue)
-            .IsEqual(FP64.FromInt(3).RawValue);
+            .IsEqual((berlin.RightWall - FP64.FromDouble(Profile.WorldX(Profile.FloorSpans[0].Right))).RawValue);
 
-        foreach (double x in new[] { -10.0, -5.0, 0.0, 5.0, 6.9 }) {
+        foreach (double x in new[] { -7.6, -5.0, 0.0, 4.0, 5.4 }) {
             AssertThat(berlin.HasFloorSupport(FP64.FromDouble(x)))
                 .OverrideFailureMessage($"no floor under x = {x}").IsTrue();
         }
-        foreach (double x in new[] { 7.1, 8.0, 9.0, 9.9 }) {
+        foreach (double x in new[] { 5.6, 6.0, 7.0, 7.6 }) {
             AssertThat(berlin.HasFloorSupport(FP64.FromDouble(x)))
                 .OverrideFailureMessage($"floor under x = {x}, inside the gap").IsFalse();
         }
@@ -275,21 +276,21 @@ public class FighterStageBerlinTests {
     /// centre orb are untouched, and every orb sits half a unit over its surface.
     /// </summary>
     [TestCase]
-    public void TheEastBalconyAndItsOrbMovedOverFloorAndTheWestSideIsUntouched() {
+    public void BothReferenceBalconiesAndTheirOrbsStayOverFloor() {
         FighterStageGeometry berlin = FighterStageGeometry.Berlin;
         AssertThat(berlin.Platforms.Length).IsEqual(2);
-        AssertThat(berlin.Platforms[0].CenterX.RawValue).IsEqual(FP64.FromDouble(-6.5).RawValue);
+        AssertThat(berlin.Platforms[0].CenterX.RawValue).IsEqual(FP64.FromDouble((Profile.WorldX(Profile.PlatformSpans[0].Left) + Profile.WorldX(Profile.PlatformSpans[0].Right)) / 2).RawValue);
         FighterStagePlatform east = berlin.Platforms[1];
-        AssertThat(east.CenterX.RawValue).IsEqual(FP64.FromDouble(5.5).RawValue);
-        AssertThat(east.SurfaceY.RawValue).IsEqual(FP64.FromDouble(3.6).RawValue);
+        AssertThat(east.CenterX.RawValue).IsEqual(FP64.FromDouble((Profile.WorldX(Profile.PlatformSpans[1].Left) + Profile.WorldX(Profile.PlatformSpans[1].Right)) / 2).RawValue);
+        AssertThat(east.SurfaceY.RawValue).IsEqual(FP64.FromDouble(Profile.WorldY(Profile.PlatformSpans[1].Top)).RawValue);
         AssertThat(berlin.HasFloorSupport(east.EdgeX(0))).IsTrue();
         AssertThat(berlin.HasFloorSupport(east.EdgeX(1))).IsTrue();
-        AssertThat(east.EdgeX(1) < FP64.FromInt(7)).IsTrue();
+        AssertThat(east.EdgeX(1) < FP64.FromDouble(Profile.WorldX(Profile.FloorSpans[0].Right))).IsTrue();
 
         AssertThat(berlin.OrbAnchors.Length).IsEqual(3);
-        AssertThat(berlin.OrbAnchors[0].x.RawValue).IsEqual(FP64.FromDouble(-6.5).RawValue);
-        AssertThat(berlin.OrbAnchors[1].x.RawValue).IsEqual(FP64.FromDouble(5.5).RawValue);
-        AssertThat(berlin.OrbAnchors[1].y.RawValue).IsEqual(FP64.FromDouble(4.1).RawValue);
+        AssertThat(berlin.OrbAnchors[0].x.RawValue).IsEqual(FP64.FromDouble((Profile.WorldX(Profile.PlatformSpans[0].Left) + Profile.WorldX(Profile.PlatformSpans[0].Right)) / 2).RawValue);
+        AssertThat(berlin.OrbAnchors[1].x.RawValue).IsEqual(FP64.FromDouble((Profile.WorldX(Profile.PlatformSpans[1].Left) + Profile.WorldX(Profile.PlatformSpans[1].Right)) / 2).RawValue);
+        AssertThat(berlin.OrbAnchors[1].y.RawValue).IsEqual((east.SurfaceY + FP64.FromDouble(0.5)).RawValue);
         AssertThat(berlin.OrbAnchors[2].x.RawValue).IsEqual(FP64.Zero.RawValue);
         AssertThat(berlin.OrbAnchors[2].y.RawValue).IsEqual(FP64.FromDouble(0.5).RawValue);
         AssertThat(berlin.HasFloorSupport(berlin.OrbAnchors[2].x)).IsTrue();
@@ -327,19 +328,19 @@ public class FighterStageBerlinTests {
 
         FP64 justUnderTheFloor = FP64.FromDouble(-0.1);
         AssertThat(berlin.TryFindLedge(
-            new FPVector2(FP64.FromInt(7), justUnderTheFloor), out int anchor)).IsTrue();
+            new FPVector2(FP64.FromDouble(Profile.WorldX(Profile.FloorSpans[0].Right)), justUnderTheFloor), out int anchor)).IsTrue();
         AssertThat(anchor).IsEqual(gapEdge);
 
         AssertThat(berlin.TryGetHangPosition(gapEdge, out FPVector2 hang)).IsTrue();
         // The hang sits a quarter unit out over the gap.
         AssertThat(hang.x.RawValue)
-            .IsEqual((FP64.FromInt(7) + FighterLedgeRules.HangOutwardOffset).RawValue);
+            .IsEqual((FP64.FromDouble(Profile.WorldX(Profile.FloorSpans[0].Right)) + FighterLedgeRules.HangOutwardOffset).RawValue);
         AssertThat(hang.y.RawValue).IsEqual((FP64.Zero - FighterLedgeRules.HangDepth).RawValue);
 
         AssertThat(berlin.TryGetHangPosition((berlin.Platforms.Length + 0) * 2 + 0, out FPVector2 _)).IsFalse();
         AssertThat(berlin.TryFindLedge(new FPVector2(berlin.LeftWall, justUnderTheFloor), out int _)).IsFalse();
         AssertThat(berlin.TryGetNearestFloorEdge(FP64.FromInt(4), 1, out FP64 edge)).IsTrue();
-        AssertThat(edge.RawValue).IsEqual(FP64.FromInt(7).RawValue);
+        AssertThat(edge.RawValue).IsEqual(FP64.FromDouble(Profile.WorldX(Profile.FloorSpans[0].Right)).RawValue);
         AssertThat(berlin.TryGetNearestFloorEdge(FP64.FromInt(-4), -1, out edge)).IsFalse();
     }
 
@@ -357,14 +358,14 @@ public class FighterStageBerlinTests {
             AssertThat(ground.CollisionMask).IsEqual(0u);
             var shape = ground.GetNode<CollisionShape2D>("CollisionShape2D");
             var rect = (RectangleShape2D)shape.Shape;
-            AssertThat(rect.Size.X).IsEqual(1062.5f);
-            AssertThat(ground.Position.X).IsEqual(856.25f);
-            AssertThat(ground.Position.X + rect.Size.X / 2f).IsEqual(1387.5f);
+            AssertThat(Mathf.Abs(rect.Size.X - FighterStageConformance.UnitsToPixels(FighterStageGeometry.Berlin.FloorSegments[0].HalfWidth) * 2)).IsLess(0.001f);
+            AssertThat(Mathf.Abs(ground.Position.X - FighterStageConformance.ToPixels(FighterStageGeometry.Berlin.FloorSegments[0].CenterX, FP64.Zero).X)).IsLess(0.001f);
+            AssertThat(Mathf.Abs(ground.Position.X + rect.Size.X / 2f - FighterStageConformance.ToPixels(FighterStageGeometry.Berlin.FloorSegments[0].EdgeX(1), FP64.Zero).X)).IsLess(0.001f);
             AssertThat(ground.Position.Y + shape.Position.Y - rect.Size.Y / 2f).IsEqual(700f);
 
             // The east guard tower and its orb marker moved with the geometry.
-            AssertThat(root.GetNode<StaticBody2D>("Geometry/GuardTowerEast").Position.X).IsEqual(1293.75f);
-            AssertThat(root.GetNode<Marker2D>("OrbSpawnPoints/EastBalcony").Position.X).IsEqual(1293.75f);
+            AssertThat(Mathf.Abs(root.GetNode<StaticBody2D>("Geometry/GuardTowerEast").Position.X - FighterStageConformance.ToPixels(FighterStageGeometry.Berlin.Platforms[1].CenterX, FP64.Zero).X)).IsLess(0.001f);
+            AssertThat(Mathf.Abs(root.GetNode<Marker2D>("OrbSpawnPoints/EastBalcony").Position.X - FighterStageConformance.ToPixels(FighterStageGeometry.Berlin.Platforms[1].CenterX, FP64.Zero).X)).IsLess(0.001f);
         } finally {
             root.Free();
         }

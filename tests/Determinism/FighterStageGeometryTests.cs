@@ -39,62 +39,53 @@ public class FighterStageGeometryTests {
             FloorSegments ?? System.Array.Empty<(double, double)>();
     }
 
+    // Selected A reference measurements, converted independently to the binary endpoint grid.
     private static readonly StageDossier[] Dossiers = {
-        new("florence_workshop", 9,
-            new[] { (-4.0, 2.4, 1.6), (4.0, 2.4, 1.6) },
+        new("florence_workshop", 7.680000305175781,
+            new[] { (-3.7435407638549805, 4.06966495513916, 1.8694734573364258), (3.6838278770446777, 4.06966495513916, 1.864880084991455) },
             new[] { -6.0, 0.0, 6.0 },
-            new[] { (-4.0, 2.9), (0.0, 0.5), (4.0, 2.9) }),
-        new("orleans_vanguard", 9,
-            new[] { (-3.5, 2.0, 1.4), (3.5, 2.0, 1.4), (0.0, 4.0, 1.4) },
-            new[] { -8.0, 8.0 },
-            new[] { (-3.5, 2.5), (3.5, 2.5), (0.0, 4.5) }),
-        new("chicago_exposition", 10,
-            new[] { (-6.0, 3.2, 1.5), (6.0, 3.2, 1.5) },
+            new[] { (-3.7435407638549805, 4.56966495513916), (3.6838278770446777, 4.56966495513916), (0.0, 0.5) }),
+        new("orleans_vanguard", 7.680000305175781,
+            new[] { (-4.565741539001465, 4.363636016845703, 1.9200000762939453), (4.630047798156738, 4.363636016845703, 1.9751195907592773), (-0.03215312957763672, 6.01722526550293, 2.31961727142334) },
+            new[] { -7.0, 7.0 },
+            new[] { (-4.565741539001465, 4.863636016845703), (4.630047798156738, 4.863636016845703), (-0.03215312957763672, 6.51722526550293) }),
+        new("chicago_exposition", 7.680000305175781,
+            new[] { (-5.250143527984619, 3.9502391815185547, 2.3012442588806152), (5.250143527984619, 3.9502391815185547, 2.3012442588806152) },
             new[] { 0.0 },
-            new[] { (-6.0, 3.7), (6.0, 3.7), (0.0, 0.5) }),
-        // Open: a 5.0-wide centred courtyard pit under the drawbridge walkways.
-        new("paris_bastille", 9,
-            new[] { (-4.0, 2.6, 2.0), (4.0, 2.6, 2.0) },
+            new[] { (-5.250143527984619, 4.450239181518555), (5.250143527984619, 4.450239181518555), (0.0, 0.5) }),
+        new("paris_bastille", 7.680000305175781,
+            new[] { (-2.806507110595703, 3.8583736419677734, 2.080765724182129), (3.481722354888916, 3.8583736419677734, 2.3977036476135254) },
             new[] { -6.0, 0.0, 6.0 },
-            new[] { (-4.0, 3.1), (4.0, 3.1), (-7.0, 0.5), (7.0, 0.5) },
-            new[] { (-5.75, 3.25), (5.75, 3.25) }),
-        // Open: the collapsed shelf, a 2.5-wide gap against the right wall. The
-        // far-right rockfall anchor moved 6 -> 4.5 to keep its residue pool on floor.
-        new("vesuvius_caldera", 8,
-            new[] { (-4.5, 2.0, 1.1), (3.0, 3.5, 1.1) },
+            new[] { (-2.806507110595703, 4.358373641967773), (3.481722354888916, 4.358373641967773), (-6.0, 0.5), (6.0, 0.5) },
+            new[] { (-4.758660316467285, 2.921339988708496), (4.758660316467285, 2.921339988708496) }),
+        new("vesuvius_caldera", 7.680000305175781,
+            new[] { (-5.383349418640137, 3.3531103134155273, 2.021052360534668), (4.675981044769287, 4.547368049621582, 2.2507176399230957) },
             new[] { -6.0, -2.0, 2.0, 4.5 },
-            new[] { (-4.5, 2.5), (3.0, 4.0), (0.0, 0.5) },
-            new[] { (-1.25, 6.75) }),
-        // Open: the listing stern ends at x = 6 over open water.
-        new("nassau_flagship", 9,
-            new[] { (-4.0, 2.8, 1.8), (4.0, 2.8, 1.8) },
-            new[] { -5.0, 0.0, 5.0 },
-            new[] { (-4.0, 3.3), (4.0, 3.3), (0.0, 0.5) },
-            new[] { (-1.5, 7.5) }),
-        new("alexandria_chambers", 9,
-            new[] { (-4.0, 1.6, 1.3), (4.0, 1.6, 1.3) },
+            new[] { (-5.383349418640137, 3.8531103134155273), (4.675981044769287, 5.047368049621582), (0.0, 0.5) },
+            new[] { (-1.1115789413452148, 6.568421363830566) }),
+        new("nassau_flagship", 7.680000305175781,
+            new[] { (-3.6149282455444336, 4.225837707519531, 2.1818180084228516), (3.706794261932373, 4.225837707519531, 2.163444995880127) },
+            new[] { -5.0, 0.0, 4.0 },
+            new[] { (-3.6149282455444336, 4.725837707519531), (3.706794261932373, 4.725837707519531), (0.0, 0.5) },
+            new[] { (-1.3871769905090332, 6.292823314666748) }),
+        new("alexandria_chambers", 7.680000305175781,
+            new[] { (-2.921339988708496, 1.9751195907592773, 1.6627750396728516), (2.861626625061035, 1.9751195907592773, 1.6949281692504883) },
             new[] { -6.0, 0.0, 6.0 },
-            new[] { (-4.0, 2.1), (4.0, 2.1), (0.0, 0.5) }),
-        // Open since the 2026-11-03 gameplay review (9a+/9a++): a one-sided 3.0 gap
-        // [7, 10] against the east wall; the east balcony and its orb moved 6.5 -> 5.5.
-        new("berlin_wall", 10,
-            new[] { (-6.5, 3.6, 1.3), (5.5, 3.6, 1.3) },
+            new[] { (-2.921339988708496, 2.4751195907592773), (2.861626625061035, 2.4751195907592773), (0.0, 0.5) }),
+        new("berlin_wall", 7.680000305175781,
+            new[] { (-4.340669631958008, 2.8478469848632812, 1.8327274322509766), (3.41282320022583, 2.8478469848632812, 1.7959809303283691) },
             new[] { -4.0, 0.0, 4.0 },
-            new[] { (-6.5, 4.1), (5.5, 4.1), (0.0, 0.5) },
-            new[] { (-1.5, 8.5) }),
-        // The tiring-house balcony dropped 4.4 → 4.0 with the 2026-08-10 jump
-        // retune (feel batch §2.2): the double-jump ceiling was ≈4.21; ≈4.29 since the 2026-10-08 apex hang.
-        // Open since the 2026-11-03 gameplay review (9a+/9a++): a 3.0-wide centred pit
-        // [-1.5, 1.5] under the canopy platform; the respawn platform moved to (-4, 3).
-        new("globe_theatre", 9,
-            new[] { (-5.0, 2.4, 1.4), (5.0, 2.4, 1.4), (0.0, 4.0, 1.2) },
+            new[] { (-4.340669631958008, 3.3478469848632812), (3.41282320022583, 3.3478469848632812), (0.0, 0.5) },
+            new[] { (-1.1115789413452148, 6.568421363830566) }),
+        new("globe_theatre", 7.680000305175781,
+            new[] { (-5.282296657562256, 3.5368423461914062, 1.9843058586120605), (5.332823276519775, 3.5368423461914062, 1.9705262184143066), (-0.004593372344970703, 4.547368049621582, 1.9888997077941895) },
             new[] { -5.0, 0.0, 5.0 },
-            new[] { (-5.0, 2.9), (5.0, 2.9), (0.0, 4.5) },
-            new[] { (-5.25, 3.75), (5.25, 3.75) }),
-        new("gettysburg_ridge", 10,
-            new[] { (-4.5, 1.8, 1.2), (4.5, 1.8, 1.2) },
+            new[] { (-5.282296657562256, 4.036842346191406), (5.332823276519775, 4.036842346191406), (-0.004593372344970703, 5.047368049621582) },
+            new[] { (-4.758660316467285, 2.921339988708496), (4.758660316467285, 2.921339988708496) }),
+        new("gettysburg_ridge", 7.680000305175781,
+            new[] { (-5.135310649871826, 3.766507148742676, 2.4344496726989746), (5.190430164337158, 3.766507148742676, 2.3793301582336426) },
             new[] { -5.0, 0.0, 5.0 },
-            new[] { (-4.5, 2.3), (4.5, 2.3), (0.0, 0.5) })
+            new[] { (-5.135310649871826, 4.266507148742676), (5.190430164337158, 4.266507148742676), (0.0, 0.5) }),
     };
 
     [TestCase]
@@ -209,7 +200,7 @@ public class FighterStageGeometryTests {
             string id = geometry.StageID;
             AssertThat(geometry.Ceiling.RawValue).IsEqual(FP64.FromInt(9).RawValue);
             AssertThat(geometry.BottomBlastZone.RawValue).IsEqual(FP64.FromInt(-5).RawValue);
-            AssertThat(geometry.SpawnDistance).IsEqual(4);
+            AssertThat(geometry.SpawnDistance).IsEqual(FighterStageVisualProfile.Find(id).SpawnDistance);
             AssertThat(geometry.LeftWall.RawValue).IsEqual((-geometry.RightWall).RawValue);
             AssertWithMessage(id, geometry.Platforms.Length >= 2);
             AssertWithMessage(id, geometry.HazardAnchorXs.Length >= 1);
@@ -288,12 +279,19 @@ public class FighterStageGeometryTests {
     [TestCase]
     public void EveryAuthoredPlatformIsReachableAndLandableByJumping() {
         int seed = 500;
-        foreach (FighterStageGeometry geometry in FighterStageGeometry.AllAuthored) {
-            for (int index = 0; index < geometry.Platforms.Length; index++) {
-                bool landed = JumpAndLandOnPlatform(geometry, index, seed++);
-                AssertWithMessage($"{geometry.StageID} platform {index}", landed);
+        var issues = new List<string>();
+        foreach (string characterID in CharacterRoster.IDs) {
+            var data = AuthoredResources.Load<CharacterData>($"res://resources/Characters/{characterID}_data.tres");
+            FighterLoadout loadout = FighterLoadoutFactory.FromCharacterData(data);
+            foreach (FighterStageGeometry geometry in FighterStageGeometry.AllAuthored) {
+                for (int index = 0; index < geometry.Platforms.Length; index++) {
+                    if (!JumpAndLandOnPlatform(geometry, index, seed++, loadout)) {
+                        issues.Add($"{geometry.StageID} platform {index} / {characterID}");
+                    }
+                }
             }
         }
+        AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 
     /// <summary>
@@ -520,7 +518,7 @@ public class FighterStageGeometryTests {
     public void FighterLandsOnAFlorencePlatformAfterAJump() {
         var simulation = new FighterSimulation(seed: 11, stageGeometry: FighterStageGeometry.Florence);
         // Player one spawns at x = -4, directly under the left gear platform.
-        int landedTick = RiseOntoPlatform(simulation, FP64.FromDouble(2.4), 0);
+        int landedTick = RiseOntoPlatform(simulation, FighterStageGeometry.Florence.Platforms[0].SurfaceY, 0);
         AssertThat(landedTick >= 0).OverrideFailureMessage(
             "the fighter never came to rest on the Florence gear platform.").IsTrue();
     }
@@ -528,10 +526,10 @@ public class FighterStageGeometryTests {
     [TestCase]
     public void DropThroughLeavesThePlatformAndLandsOnTheSolidBaseFloor() {
         var simulation = new FighterSimulation(seed: 12, stageGeometry: FighterStageGeometry.Florence);
-        int tick = RiseOntoPlatform(simulation, FP64.FromDouble(2.4), 0);
+        int tick = RiseOntoPlatform(simulation, FighterStageGeometry.Florence.Platforms[0].SurfaceY, 0);
         AssertThat(tick >= 0).IsTrue();
         simulation.TryGetFighter(0, out FighterStateComponent onPlatform);
-        AssertThat(onPlatform.Position.y.RawValue).IsEqual(FP64.FromDouble(2.4).RawValue);
+        AssertThat(onPlatform.Position.y.RawValue).IsEqual(FighterStageGeometry.Florence.Platforms[0].SurfaceY.RawValue);
 
         // Down + jump drops through the one-way platform.
         tick++;
@@ -561,7 +559,7 @@ public class FighterStageGeometryTests {
     [TestCase]
     public void WalkingOffAPlatformEdgeRemovesGroundSupport() {
         var simulation = new FighterSimulation(seed: 13, stageGeometry: FighterStageGeometry.Florence);
-        int tick = RiseOntoPlatform(simulation, FP64.FromDouble(2.4), 0);
+        int tick = RiseOntoPlatform(simulation, FighterStageGeometry.Florence.Platforms[0].SurfaceY, 0);
         AssertThat(tick >= 0).IsTrue();
 
         bool becameAirborne = false;
@@ -657,7 +655,9 @@ public class FighterStageGeometryTests {
                 buttons = GameplayButtons.Jump;
                 spentAirJump = true;
             }
-            simulation.Advance(Frame(tick, 0, buttons), Frame(tick, 0, GameplayButtons.None));
+            FP64 dx = FighterStageGeometry.Florence.Platforms[0].CenterX - fighter.Position.x;
+            sbyte axis = dx > FP64.FromDouble(0.1) ? (sbyte)127 : dx < FP64.FromDouble(-0.1) ? (sbyte)-127 : (sbyte)0;
+            simulation.Advance(Frame(tick, axis, buttons), Frame(tick, 0, GameplayButtons.None));
         }
         return -1;
     }
@@ -668,9 +668,9 @@ public class FighterStageGeometryTests {
     /// came to rest exactly on the authored surface. Player two is steered to the
     /// far wall so pushbox jostling cannot decide the outcome.
     /// </summary>
-    private static bool JumpAndLandOnPlatform(FighterStageGeometry geometry, int platformIndex, int seed) {
+    private static bool JumpAndLandOnPlatform(FighterStageGeometry geometry, int platformIndex, int seed, FighterLoadout loadout) {
         FighterStagePlatform platform = geometry.Platforms[platformIndex];
-        var simulation = new FighterSimulation(
+        var simulation = new FighterSimulation(loadout, FighterLoadout.Default(FighterCharacterID.Joan),
             seed: seed, rules: FighterMatchRules.Disabled, stageGeometry: geometry);
         // Player two always walks to the right wall. Sending it toward the target
         // platform instead deadlocks the pair in the middle of the stage: two
@@ -678,8 +678,19 @@ public class FighterStageGeometryTests {
         const sbyte opponentAxis = 127;
         FP64 stopBand = FP64.FromDouble(0.15);
         FP64 edgeLookahead = FP64.FromDouble(0.2);
+        // The A layouts include galleries reached via a lower side platform.
+        FighterStagePlatform waypoint = platform;
+        bool climbingViaSide = platform.SurfaceY > FP64.FromDouble(5.4);
+        if (climbingViaSide) {
+            foreach (FighterStagePlatform candidate in geometry.Platforms) {
+                if (candidate.SurfaceY < waypoint.SurfaceY) waypoint = candidate;
+            }
+        }
 
-        for (int tick = 0; tick < 900; tick++) {
+        bool seekingEdge = waypoint.SurfaceY > FP64.FromDouble(4.25);
+        GameplayButtons previousHeld = GameplayButtons.None;
+
+        for (int tick = 0; tick < 1500; tick++) {
             if (!simulation.TryGetFighter(0, out FighterStateComponent fighter)) return false;
             if (!simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)) return false;
             if (fighter.IsGrounded != 0
@@ -691,12 +702,19 @@ public class FighterStageGeometryTests {
             // one — report it rather than looping through respawns.
             if (fighter.Stocks < 3) return false;
 
-            FP64 dx = platform.CenterX - fighter.Position.x;
+            if (climbingViaSide && fighter.IsGrounded != 0
+                && fighter.Position.y.RawValue == waypoint.SurfaceY.RawValue) climbingViaSide = false;
+            FighterStagePlatform target = climbingViaSide ? waypoint : platform;
+            if (FighterLedgeRules.IsHanging(in runtime)) seekingEdge = false;
+            // Tall side platforms can be climbed through their real ledge capture;
+            // aim beside the lip until caught, then steer onto the top.
+            FP64 targetX = seekingEdge ? target.EdgeX(0) - FP64.FromDouble(0.1) : target.CenterX;
+            FP64 dx = targetX - fighter.Position.x;
             sbyte moveX = dx > stopBand ? (sbyte)127 : dx < -stopBand ? (sbyte)-127 : (sbyte)0;
             GameplayButtons buttons = GameplayButtons.None;
-            bool below = fighter.Position.y < platform.SurfaceY;
-            bool underSpan = platform.Supports(fighter.Position.x);
-            if (below && underSpan) {
+            bool below = fighter.Position.y < target.SurfaceY;
+            bool underSpan = target.Supports(fighter.Position.x);
+            if (below && (underSpan || fighter.Position.y > FP64.Zero || seekingEdge && FP64.Abs(dx) < stopBand)) {
                 bool canGroundJump = fighter.IsGrounded != 0;
                 bool canAirJump = fighter.IsGrounded == 0
                     && fighter.Velocity.y < FP64.Zero
@@ -725,12 +743,20 @@ public class FighterStageGeometryTests {
                 if (aboutToStepOff || sinkingIntoTheGap) buttons = GameplayButtons.Jump;
             }
 
+            // Real full hops hold Jump through the rise. Release for a tick
+            // before the next edge so the second jump and climb are genuine presses.
+            bool wantsJump = (buttons & GameplayButtons.Jump) != 0;
+            if (wantsJump && (previousHeld & GameplayButtons.Jump) != 0) buttons &= ~GameplayButtons.Jump;
+            else if (!wantsJump && fighter.Velocity.y > FP64.Zero
+                && (previousHeld & GameplayButtons.Jump) != 0) buttons |= GameplayButtons.Jump;
+            GameplayButtons pressed = buttons & ~previousHeld;
+            previousHeld = buttons;
             simulation.Advance(
                 new PlayerInputFrame {
                     Tick = (uint)tick,
                     MoveX = moveX,
                     Held = buttons,
-                    Pressed = buttons
+                    Pressed = pressed
                 },
                 new PlayerInputFrame { Tick = (uint)tick, MoveX = opponentAxis });
         }

@@ -313,7 +313,7 @@ public class TubmanKitTests {
     public void TheLeapsLedgeSnapReachesHalfAUnitPastTheNormalCaptureBox() {
         // Paris's courtyard pit: the left floor segment ends in a true ledge.
         FighterStageGeometry paris = FighterStageGeometry.ForStage("paris_bastille");
-        AssertThat(paris.TryFindLedge(new FPVector2(FP64.FromDouble(-2.5), FP64.FromDouble(-0.5)), out int anchor)).IsTrue();
+        AssertThat(paris.TryFindLedge(new FPVector2(paris.FloorSegments[0].EdgeX(1), FP64.FromDouble(-0.5)), out int anchor)).IsTrue();
         AssertThat(paris.TryGetHangPosition(anchor, out FPVector2 hang)).IsTrue();
         // Side 1 is a segment's right end: the hang sits outward (+x) of the edge.
         AssertThat(anchor % 2).IsEqual(1);

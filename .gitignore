@@ -42,3 +42,7 @@ desktop.ini
 # NuGet local cache
 *.nupkg
 packages/
+
+# Local mockup implementation validation and captured game screens
+/artifacts/validation/
+/artifacts/mockup_a_validation/

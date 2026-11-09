@@ -170,8 +170,10 @@ public class CpuRecoveryMatrixTests {
     public void WithJumpsSpentTubmansAimedLeapStillBringsHerBack() {
         FighterStageGeometry paris = FighterStageGeometry.ForStage("paris_bastille");
         CpuRecoveryProfile tubman = ProfileFor("tubman");
+        double leftDrop = (double)(paris.FloorSegments[0].EdgeX(1) + FP64.FromDouble(0.5)).RawValue / FP64.One.RawValue;
+        double rightDrop = (double)(paris.FloorSegments[1].EdgeX(0) - FP64.FromDouble(0.5)).RawValue / FP64.One.RawValue;
         foreach (CpuDifficulty band in new[] { CpuDifficulty.Normal, CpuDifficulty.Hard }) {
-            foreach (double dropX in new[] { -2.0, 2.0 }) {
+            foreach (double dropX in new[] { leftDrop, rightDrop }) {
                 DrillResult result = RunDrill(
                     paris, band, tubman, dropX, seed: 20260928,
                     startY: 0.0, startJumps: 0, targetX: dropX < 0 ? -5.0 : 5.0);
@@ -185,7 +187,7 @@ public class CpuRecoveryMatrixTests {
             }
         }
         DrillResult easy = RunDrill(
-            paris, CpuDifficulty.Easy, tubman, -2.0, seed: 20260928,
+            paris, CpuDifficulty.Easy, tubman, leftDrop, seed: 20260928,
             startY: 0.0, startJumps: 0, targetX: -5.0);
         AssertThat(easy.ApprovedSpecialEdges + easy.SpecialEdges).IsEqual(0);
     }

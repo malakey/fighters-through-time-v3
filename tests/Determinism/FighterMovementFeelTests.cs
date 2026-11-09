@@ -147,7 +147,7 @@ public class FighterMovementFeelTests {
         // Down, then fall with no input.
         var florence = new FighterSimulation(
             seed: 4111, rules: FighterMatchRules.Disabled, stageGeometry: FighterStageGeometry.Florence);
-        int at = RiseOntoPlatform(florence, FP64.FromDouble(2.4), 0);
+        int at = RiseOntoPlatform(florence, FighterStageGeometry.Florence.Platforms[0].SurfaceY, 0);
         AssertThat(at >= 0).OverrideFailureMessage("never reached the Florence gear platform.").IsTrue();
         bool hung = false;
         for (at++; at < 400 && !hung; at++) {
@@ -198,7 +198,7 @@ public class FighterMovementFeelTests {
         var florence = new FighterSimulation(
             seed: 4111, rules: FighterMatchRules.Disabled, stageGeometry: FighterStageGeometry.Florence);
         int maxJumps = FighterLoadout.Default(FighterCharacterID.Einstein).MaxJumpCount;
-        int at = RiseOntoPlatform(florence, FP64.FromDouble(2.4), 0);
+        int at = RiseOntoPlatform(florence, FighterStageGeometry.Florence.Platforms[0].SurfaceY, 0);
         AssertThat(at >= 0).OverrideFailureMessage("never reached the Florence gear platform.").IsTrue();
         bool hung = false;
         for (at++; at < 400 && !hung; at++) {
@@ -616,7 +616,9 @@ public class FighterMovementFeelTests {
                 buttons = GameplayButtons.Jump;
                 spentAirJump = true;
             }
-            simulation.Advance(Frame(tick, 0, buttons), Frame(tick, 0));
+            FP64 dx = FighterStageGeometry.Florence.Platforms[0].CenterX - fighter.Position.x;
+            sbyte axis = dx > FP64.FromDouble(0.1) ? (sbyte)127 : dx < FP64.FromDouble(-0.1) ? (sbyte)-127 : (sbyte)0;
+            simulation.Advance(Frame(tick, axis, buttons), Frame(tick, 0));
         }
         return -1;
     }

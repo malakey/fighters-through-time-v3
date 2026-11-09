@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=16 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/FighterStageController.cs" id="1_controller"]
 [ext_resource type="Script" path="res://scripts/UI/TestArenaHUD.cs" id="2_hud"]
@@ -17,6 +17,21 @@ size = Vector2(187.5, 12)
 
 [sub_resource type="RectangleShape2D" id="wall_col"]
 size = Vector2(24, 562.5)
+
+[sub_resource type="RectangleShape2D" id="reference_col_0"]
+size = Vector2(287.6555024, 12)
+
+[sub_resource type="RectangleShape2D" id="reference_col_1"]
+size = Vector2(287.6555024, 12)
+
+[sub_resource type="RectangleShape2D" id="reference_col_2"]
+size = Vector2(960.0000000, 48)
+
+[sub_resource type="RectangleShape2D" id="reference_col_3"]
+size = Vector2(24.0000000, 562)
+
+[sub_resource type="RectangleShape2D" id="reference_col_4"]
+size = Vector2(24.0000000, 562)
 
 [node name="FighterStageChicago" type="Node2D" groups=["fighter_stage"]]
 script = ExtResource("1_controller")
@@ -204,13 +219,13 @@ RimScale = 11.0
 [node name="Geometry" type="Node2D" parent="."]
 
 [node name="Ground" type="StaticBody2D" parent="Geometry"]
-position = Vector2(950, 700)
+position = Vector2(950.0000000, 700.0000000)
 collision_layer = 64
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/Ground"]
-position = Vector2(0, 24)
-shape = SubResource("ground_col")
+position = Vector2(0, 24.0)
+shape = SubResource("reference_col_2")
 
 [node name="Visual" type="ColorRect" parent="Geometry/Ground"]
 offset_left = -625.0
@@ -232,12 +247,12 @@ width = 2.0
 default_color = Color(0.2, 0.9, 1, 0.2)
 
 [node name="WallLeft" type="StaticBody2D" parent="Geometry"]
-position = Vector2(325, 418.75)
+position = Vector2(470.0000000, 418.7500000)
 collision_layer = 64
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/WallLeft"]
-shape = SubResource("wall_col")
+shape = SubResource("reference_col_3")
 
 [node name="Visual" type="ColorRect" parent="Geometry/WallLeft"]
 offset_left = -12.0
@@ -254,12 +269,12 @@ offset_bottom = 281.25
 color = Color(0.2, 0.9, 1, 0.5)
 
 [node name="WallRight" type="StaticBody2D" parent="Geometry"]
-position = Vector2(1575, 418.75)
+position = Vector2(1430.0000000, 418.7500000)
 collision_layer = 64
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/WallRight"]
-shape = SubResource("wall_col")
+shape = SubResource("reference_col_4")
 
 [node name="Visual" type="ColorRect" parent="Geometry/WallRight"]
 offset_left = -12.0
@@ -276,13 +291,14 @@ offset_bottom = 281.25
 color = Color(0.2, 0.9, 1, 0.5)
 
 [node name="CoilPlatformLeft" type="StaticBody2D" parent="Geometry"]
-position = Vector2(575, 500)
+position = Vector2(621.8660287, 453.1100478)
 collision_layer = 128
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/CoilPlatformLeft"]
+position = Vector2(0, 6.0)
 one_way_collision = true
-shape = SubResource("platform_col")
+shape = SubResource("reference_col_0")
 
 [node name="Visual" type="ColorRect" parent="Geometry/CoilPlatformLeft"]
 offset_left = -93.75
@@ -299,13 +315,14 @@ offset_bottom = -6.0
 color = Color(0.2, 0.9, 1, 1)
 
 [node name="CoilPlatformRight" type="StaticBody2D" parent="Geometry"]
-position = Vector2(1325, 500)
+position = Vector2(1278.1339713, 453.1100478)
 collision_layer = 128
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/CoilPlatformRight"]
+position = Vector2(0, 6.0)
 one_way_collision = true
-shape = SubResource("platform_col")
+shape = SubResource("reference_col_1")
 
 [node name="Visual" type="ColorRect" parent="Geometry/CoilPlatformRight"]
 offset_left = -93.75
@@ -324,26 +341,26 @@ color = Color(0.2, 0.9, 1, 1)
 [node name="Spawns" type="Node2D" parent="."]
 
 [node name="Player1" type="Marker2D" parent="Spawns"]
-position = Vector2(700, 700)
+position = Vector2(637.5000000, 700.0000000)
 
 [node name="Player2" type="Marker2D" parent="Spawns"]
-position = Vector2(1200, 700)
+position = Vector2(1262.5000000, 700.0000000)
 
 [node name="OrbSpawnPoints" type="Node2D" parent="."]
 
 [node name="LeftCoil" type="Marker2D" parent="OrbSpawnPoints"]
-position = Vector2(575, 468.75)
+position = Vector2(621.8660287, 421.8600478)
 
 [node name="RightCoil" type="Marker2D" parent="OrbSpawnPoints"]
-position = Vector2(1325, 468.75)
+position = Vector2(1278.1339713, 421.8600478)
 
 [node name="Center" type="Marker2D" parent="OrbSpawnPoints"]
-position = Vector2(950, 668.75)
+position = Vector2(950.0000000, 668.7500000)
 
 [node name="HazardAnchors" type="Node2D" parent="."]
 
 [node name="InductionGrid" type="Marker2D" parent="HazardAnchors"]
-position = Vector2(950, 700)
+position = Vector2(950.0000000, 700.0000000)
 
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2(950, 500)

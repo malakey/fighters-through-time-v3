@@ -1,0 +1,11 @@
+{
+  "id": "story_10",
+  "name": "The Globe Theatre",
+  "mode": "story",
+  "level": 10,
+  "source": "D:/Projects/fighters-through-time-docs-3/mockups/campaign_openings_retro_pulp/10_globe_theatre/A.png",
+  "file": "D:/Projects/Fighters Through Time - V3/assets/environments/mockup_a/story/level_10.png",
+  "prompt": "Use case: precise-object-edit. Production environment clean plate for the existing Fighters Through Time 2D game, The Globe Theatre. Edit this reference image by removing ALL live foreground/gameplay characters: Einstein, Joan if present, and any other freestanding guards, soldiers or enemies on the near and middle gameplay surfaces. Remove their personal weapons, personal energy auras, shadows and contact effects. Preserve tiny far-distance decorative theatre spectators or distant army silhouettes only when clearly scenery, never a fighter-sized figure. Also remove active gameplay telegraphs, targeting circles, horizontal laser beams, electrical attack ripples, and steam vent hazard plumes; keep their physical emitters and fixtures. Keep ambient weather, distant smoke, natural lava, furnace/firelight and static decorative energy machinery. Reconstruct the environment revealed behind removed figures seamlessly. CRITICAL: Keep ALL static platforms, floors, walkable ledges, pits, architectural/background scenery, furniture, books, chalkboards and equations exactly in their reference positions and sizes; preserve the same camera, full 16:9 frame, palette, retro-pulp fine ink/crosshatching and lighting. Do not fill pits, add bridges, move terrain, invent new platforms, crop, zoom or redesign. This is a registered clean environment plate whose painted terrain will be matched by live game collision. No live foreground people, no HUD, no new text, no watermark. Preserve image dimensions.",
+  "generated_source": "C:\\Users\\David\\.codex\\generated_images\\01a1a070-f024-7903-8537-4b2b5d27d54d\\exec-9d866c91-5cf4-4dc8-a646-ef678e2f8bec.png",
+  "status": "generated"
+}

@@ -29,6 +29,7 @@ namespace FTT.Environment {
         private LevelManager _levelManager;
         private StorySceneServices _services;
         private StoryCameraConfiner _camera;
+        private readonly System.Collections.Generic.List<StaticBody2D> _openingSurfaces = new();
 
         private PuzzleManager _gearPuzzle;
         private RotatingGear _gearA;
@@ -330,6 +331,7 @@ namespace FTT.Environment {
         private void BuildRoom1() {
             var bg1 = new ColorRect();
             bg1.Name = "BG_Room1";
+            bg1.ZIndex = -10;
             bg1.Size = new Vector2(5760, LevelHeight);
             bg1.Color = new Color(0.12f, 0.08f, 0.05f, 0.35f);
             AddChild(bg1);
@@ -348,7 +350,7 @@ namespace FTT.Environment {
             BuildPlatform(4300, 550, 250);
             BuildPlatform(5000, 650, 220);
 
-            BuildHazardSpikes(600, 890, 150);
+            BuildHazardSpikes(960, 890, 150);
             BuildHazardSpikes(1600, 890, 100);
             BuildHazardSpikes(3500, 890, 120);
 
@@ -640,6 +642,8 @@ namespace FTT.Environment {
             floor.AddChild(topLine);
 
             AddChild(floor);
+            StoryOpeningPresentation.TrackSurface(floor, new Rect2(x, y, width, 40));
+            _openingSurfaces.Add(floor);
         }
 
         private void BuildPlatform(float x, float y, float width) {
@@ -662,6 +666,8 @@ namespace FTT.Environment {
             plat.AddChild(visual);
 
             AddChild(plat);
+            StoryOpeningPresentation.TrackSurface(plat, new Rect2(x - width / 2f, y - 8, width, 16));
+            _openingSurfaces.Add(plat);
         }
 
         private StaticBody2D BuildWall(float x, float y, float height, float thickness = 20f) {
@@ -791,6 +797,7 @@ namespace FTT.Environment {
                 ActiveBounds = new Rect2(0, 0, LevelWidth, LevelHeight)
             };
             _player.AddChild(camera);
+            StoryOpeningPresentation.Apply(this, _player, camera, 1, !string.IsNullOrEmpty(ResumedCheckpointID), _openingSurfaces);
             camera.EnableFollow(_player);
             _camera = camera;
         }

@@ -214,7 +214,7 @@ namespace FTT.Environment {
         /// level's fairness contract, not decoration.
         /// </summary>
         public static readonly (float X, CoverKind Kind)[] CoverPositions = {
-            (600f, CoverKind.SplitRailFence),
+            (690f, CoverKind.Sandbags),
             (1520f, CoverKind.SplitRailFence),
             (2600f, CoverKind.Sandbags),
             (3925f, CoverKind.SplitRailFence),
@@ -626,6 +626,13 @@ namespace FTT.Environment {
                 StaticBody2D cover = BuildPlatform(x, GroundY - thickness / 2f, width, fill, thickness);
                 cover.Name = $"Cover_{kind}_{Mathf.RoundToInt(x)}";
                 cover.AddToGroup("battlefield_cover");
+                // The first sandbags align with the painted cover at x600..780, top780.
+                cover.RemoveMeta("story_opening_surface_rect");
+                if (x < 800f && ResourceLoader.Exists("res://assets/environments/mockup_a/story/level_11.png")) {
+                    foreach (Node child in cover.GetChildren()) {
+                        if (child is CanvasItem visual) visual.Hide();
+                    }
+                }
             }
         }
 

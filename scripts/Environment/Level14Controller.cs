@@ -213,7 +213,7 @@ namespace FTT.Environment {
         /// same ~85% of the heaviest character's reach (gameplay-feel plan section 9, B2).
         /// </summary>
         public static readonly (float X, float Y, float Width)[] PortalScaffold = {
-            (860f, 1620f, 200f), (1120f, 1540f, 200f), (860f, 1460f, 200f), (1120f, 1380f, 200f)
+            (900f, 1620f, 200f), (1120f, 1540f, 200f), (900f, 1460f, 200f), (1120f, 1380f, 200f)
         };
 
         private readonly List<GravityFieldZone> _pockets = new();

@@ -30,6 +30,49 @@ public class Level00FlowSceneTests {
 
     private const string ScenePath = "res://scenes/campaign/Level_00_Tutorial.tscn";
 
+    [TestCase("joan", false)]
+    [TestCase("einstein", false)]
+    [TestCase("einstein", true)]
+    public void TheQuietStudyKeepsTheSelectedHeroAndReturnsToTheAuthoredHold(string hero, bool breakIntoRift) {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        bool originalPaused = tree.Paused;
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        string originalHero = GameManager.Instance.CurrentSession.SelectedCharacterID;
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
+        GameManager.Instance.CurrentSession.SelectedCharacterID = hero;
+        Level00Controller level = null;
+        try {
+            level = ResourceLoader.Load<PackedScene>(ScenePath).Instantiate<Level00Controller>();
+            tree.Root.AddChild(level);
+            var player = level.GetNode<PlayerController>("Player");
+            AssertThat(level.StudyOpeningActive).IsTrue();
+            AssertString(player.Data.CharacterID).IsEqual(hero);
+            AssertThat(player.ProcessMode).IsEqual(Node.ProcessModeEnum.Disabled);
+            AssertThat(level.GetNode<Node2D>("ChronalFracture").Visible).IsFalse();
+            AssertThat(level.HoldStep).IsEqual(HoldFightStep.Opening);
+            AssertThat(player.GetNode<AnimatedSprite2D>("AnimatedSprite2D").Visible).IsEqual(hero != "einstein");
+            if (hero == "einstein") {
+                AssertString(level.GetNode<Sprite2D>("StoryOpening/RegisteredPlate").Texture.ResourcePath)
+                    .IsEqual("res://assets/environments/mockup_a/story/level_00_study.png");
+            }
+
+            if (breakIntoRift) level.BreakTheBeam();
+            else level.StartHoldFight();
+            AssertThat(level.StudyOpeningActive).IsFalse();
+            AssertThat(player.GetNode<AnimatedSprite2D>("AnimatedSprite2D").Visible).IsTrue();
+            AssertString(player.Data.CharacterID).IsEqual(hero);
+            AssertThat(player.ProcessMode).IsEqual(Node.ProcessModeEnum.Inherit);
+            AssertThat(player.GlobalPosition).IsEqual(new Vector2(400, 850));
+            AssertThat(level.GetNode<Node2D>("ChronalFracture").Visible).IsTrue();
+            AssertObject(level.GetNodeOrNull<StaticBody2D>("Floor")).IsNotNull();
+        } finally {
+            FreeLevel(level);
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+            GameManager.Instance.CurrentSession.SelectedCharacterID = originalHero;
+            tree.Paused = originalPaused;
+        }
+    }
+
     [TestCase]
     public void TheHoldIsUnlosableSpawnsTheErasLocalsAndBreaksIntoTheWardenRift() {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();

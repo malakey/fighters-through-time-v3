@@ -47,7 +47,7 @@ namespace FTT.Environment {
     ///
     /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-L4). Both
     /// channels are open water, so the two locks sit on the decks and their
-    /// barriers stand on deck: the <b>quay</b> (380–3580, the whole Nassau quay
+    /// barriers stand on deck: the <b>quay</b> (300–3500, the whole Nassau quay
     /// and the Ranger's waist up to the launch yard's lip, so the ropes are out of
     /// reach until it clears) and the <b>boarding action</b> (5780–8480, from the
     /// Bonnet's waist across the boarding channel to the flagship's ramp). The
@@ -399,12 +399,12 @@ namespace FTT.Environment {
 
         /// <summary>
         /// The quay lock: the Nassau quay and the Ranger's waist, east of the entry
-        /// anchor (240) to the launch yard's lip at the rope channel (its exit
-        /// barrier stands on the deck's last 20 px, so no rope is reachable before
-        /// the clear). 3200 px, one authored room.
+        /// anchor (240) to the launch yard before the rope channel. Its exit
+        /// barrier stands 100 px west of the gap, beyond the last crew member;
+        /// no rope is reachable before the clear. 3200 px, one authored room.
         /// </summary>
-        public const float QuayLockMinX = 380f;
-        public const float QuayLockMaxX = SwingGapStartX - EncounterLockRules.DefaultBarrierWidthPixels;
+        public const float QuayLockMinX = 300f;
+        public const float QuayLockMaxX = 3500f;
         /// <summary>
         /// The boarding lock: from the Bonnet's waist (east of the Middle anchor at
         /// 5700) across the boarding channel to the flagship's ramp, its exit on the

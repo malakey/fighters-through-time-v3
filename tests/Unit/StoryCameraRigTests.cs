@@ -114,6 +114,70 @@ public class StoryCameraRigTests {
     // === The rig ==========================================================
 
     [TestCase]
+    public void AnOpeningCutsToTheRegisteredFrameThenReleasesWithoutChangingTheGlobalZoom() {
+        Node2D host = CreateHost("OpeningCameraHost");
+        try {
+            var body = new CharacterBody2D { Position = new Vector2(240f, 350f) };
+            host.AddChild(body);
+            var camera = new StoryCameraConfiner { ActiveBounds = new Rect2(0, 0, 20000, 1080) };
+            body.AddChild(camera);
+            camera.ConfigureOpening(new Rect2(0, 0, 800, 450), 800f);
+            camera.EnableFollow(body);
+            AssertFloat(camera.Zoom.X).IsEqualApprox(2.4f, 0.001f);
+            AssertThat(camera.RigCenter).IsEqual(new Vector2(400f, 225f));
+            AssertFloat(StoryCameraRules.ViewZoom).IsEqual(1.5f);
+
+            body.Position = new Vector2(810f, 350f);
+            camera.StepFollow(Step);
+            AssertThat(camera.HasOpeningFraming).IsFalse();
+            AssertFloat(camera.TargetZoom).IsEqual(StoryCameraRules.ViewZoom);
+            body.Position = new Vector2(240f, 350f);
+            camera.StepFollow(Step);
+            AssertThat(camera.HasOpeningFraming).IsFalse();
+        } finally {
+            host.Free();
+        }
+    }
+
+    [TestCase]
+    public void AnOpeningCanExtendPastRoomLimitsWithoutCroppingItsInitialFrameOrLosingJumpSafety() {
+        Node2D host = CreateHost("OpeningEdgeHost");
+        try {
+            var body = new CharacterBody2D { Position = new Vector2(166.51f, 1900f) };
+            host.AddChild(body);
+            var camera = new StoryCameraConfiner { ActiveBounds = new Rect2(0, 0, 20000, 2000) };
+            body.AddChild(camera);
+            var frame = new Rect2(0f, 1568.12f, 800f, 450f);
+            camera.ConfigureOpening(frame, 680f);
+            camera.EnableFollow(body);
+            AssertFloat(camera.RigCenter.X).IsEqualApprox(frame.GetCenter().X, 0.001f);
+            AssertFloat(camera.RigCenter.Y).IsEqualApprox(frame.GetCenter().Y, 0.001f);
+            AssertFloat(camera.CurrentLimits.End.Y).IsGreaterEqual(frame.End.Y - 0.5f);
+            body.Position += new Vector2(0f, -400f);
+            camera.StepFollow(Step);
+            AssertThat(camera.VisibleWorldRect.HasPoint(body.GlobalPosition)).IsTrue();
+            body.Position = new Vector2(900f, 1900f);
+            camera.StepFollow(Step);
+            AssertThat(camera.HasOpeningFraming).IsFalse();
+            AssertFloat(camera.CurrentLimits.End.Y).IsEqual(2000f);
+        } finally {
+            host.Free();
+        }
+    }
+
+    [TestCase]
+    public void OpeningSurfaceReplacementPreservesBothOutsideJoinsAndDistantGeometry() {
+        var opening = new Rect2(100, 0, 800, 450);
+        var portions = StoryOpeningPresentation.OutsideOpening(new Rect2(0, 350, 1200, 80), opening);
+        AssertInt(portions.Count).IsEqual(2);
+        AssertThat(portions[0]).IsEqual(new Rect2(0, 350, 100, 80));
+        AssertThat(portions[1]).IsEqual(new Rect2(900, 350, 300, 80));
+        var distant = new Rect2(1500, 100, 200, 20);
+        AssertThat(StoryOpeningPresentation.OutsideOpening(distant, opening)[0]).IsEqual(distant);
+        AssertInt(StoryOpeningPresentation.OutsideOpening(new Rect2(200, 250, 300, 20), opening).Count).IsEqual(0);
+    }
+
+    [TestCase]
     public void AConfinerWithoutAFollowTargetIsThePlainCameraItAlwaysWas() {
         Node2D host = CreateHost("CameraPlainHost");
         try {
@@ -458,9 +522,13 @@ public class StoryCameraRigTests {
             AssertThat(level.Camera.GetParent() == level.Player).IsTrue();
             AssertThat(level.Camera.PositionSmoothingEnabled).IsFalse();
             AssertThat(level.Camera.Enabled).IsTrue();
-            // GU-B: the campaign camera is the closer Story view, unframed at load.
-            AssertThat(level.Camera.Zoom).IsEqual(Vector2.One * StoryCameraRules.ViewZoom);
-            AssertFloat(level.Camera.TargetZoom).IsEqual(StoryCameraRules.ViewZoom);
+            StoryOpeningProfile profile = StoryOpeningProfile.ForLevel((int)CampaignLevel.Orleans);
+            AssertObject(profile).IsNotNull();
+            float openingZoom = Mathf.Min(StoryCameraRules.ReferenceViewportWidth / profile.Frame.Size.X,
+                StoryCameraRules.ReferenceViewportHeight / profile.Frame.Size.Y);
+            AssertThat(level.Camera.HasOpeningFraming).IsTrue();
+            AssertThat(level.Camera.Zoom).IsEqual(Vector2.One * openingZoom);
+            AssertFloat(level.Camera.TargetZoom).IsEqual(openingZoom);
             AssertThat(level.Camera.FramingRequestCount).IsEqual(0);
             AssertThat(StoryCameraConfiner.FindOn(level.Player) == level.Camera).IsTrue();
         } finally {
@@ -477,8 +545,8 @@ public class StoryCameraRigTests {
 
     /// <summary>
     /// The zoom lives in the confiner, so the two Story scenes that build their
-    /// own camera outside the level base class — the hub and Florence — get it
-    /// with no code of their own.
+    /// own camera outside the level base class: the hub keeps the ordinary view,
+    /// while Florence starts with its registered opening composition.
     /// </summary>
     [TestCase]
     public void TheHubAndFlorenceCamerasCarryTheStoryZoom() {
@@ -498,8 +566,15 @@ public class StoryCameraRigTests {
                 StoryCameraConfiner camera = StoryCameraConfiner.FindOn(player);
                 AssertObject(camera).OverrideFailureMessage($"{path}'s hero carries no Story camera.").IsNotNull();
                 AssertThat(camera.IsFollowing).IsTrue();
-                AssertThat(camera.Zoom).IsEqual(Vector2.One * StoryCameraRules.ViewZoom);
-                AssertFloat(camera.TargetZoom).IsEqual(StoryCameraRules.ViewZoom);
+                bool hub = path == HubScenePath;
+                StoryOpeningProfile profile = hub ? null : StoryOpeningProfile.ForLevel((int)CampaignLevel.Florence);
+                if (!hub) AssertObject(profile).IsNotNull();
+                float expectedZoom = hub ? StoryCameraRules.ViewZoom : Mathf.Min(
+                    StoryCameraRules.ReferenceViewportWidth / profile.Frame.Size.X,
+                    StoryCameraRules.ReferenceViewportHeight / profile.Frame.Size.Y);
+                AssertThat(camera.HasOpeningFraming).IsEqual(!hub);
+                AssertThat(camera.Zoom).IsEqual(Vector2.One * expectedZoom);
+                AssertFloat(camera.TargetZoom).IsEqual(expectedZoom);
                 PoolManager.Instance?.ReleaseActiveInGroup("Enemies");
                 scene.GetParent()?.RemoveChild(scene);
                 scene.Free();
@@ -536,9 +611,17 @@ public class StoryCameraRigTests {
             StoryCameraConfiner camera = StoryCameraConfiner.FindOn(player);
             AssertObject(camera).IsNotNull();
             AssertThat(camera.IsFollowing).IsTrue();
-            AssertThat(camera.Zoom).IsEqual(Vector2.One * StoryCameraRules.ViewZoom);
+            StoryOpeningProfile profile = StoryOpeningProfile.ForLevel(0);
+            AssertObject(profile).IsNotNull();
+            float openingZoom = Mathf.Min(StoryCameraRules.ReferenceViewportWidth / profile.Frame.Size.X,
+                StoryCameraRules.ReferenceViewportHeight / profile.Frame.Size.Y);
+            AssertThat(camera.HasOpeningFraming).IsTrue();
+            AssertThat(camera.Zoom).IsEqual(Vector2.One * openingZoom);
 
             // Where the hold leaves the hero: among the locals, east of the tear.
+            level.StartHoldFight();
+            AssertThat(camera.HasOpeningFraming).IsFalse();
+            AssertFloat(camera.Zoom.X).IsEqual(StoryCameraRules.ViewZoom);
             player.GlobalPosition = new Vector2(1300f, 850f);
             camera.SnapToTarget();
             Rect2 view = camera.VisibleWorldRect;

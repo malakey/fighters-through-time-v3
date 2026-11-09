@@ -270,6 +270,47 @@ public class FighterCpuBehaviorTests {
     }
 
     [TestCase]
+    public void BelowTheLedgeAJumpPrecedesAQueuedHorizontalDashButLiftAndSpentJumpRoutesRemain() {
+        CpuRecoveryProfile dash = CpuRecoveryProfile.FromLoadout(FighterLoadout.Default(FighterCharacterID.Joan));
+        // Legacy Default loadouts all share Dash. Give this comparison an
+        // explicit directional warp capability rather than inferring it from ID.
+        CpuRecoveryProfile lift = dash with {
+            MovementKind = CpuRecoveryProfile.MovementKindWarp,
+            MovementIsDirectional = true,
+            MovementDistance = FP64.FromInt(3)
+        };
+        AssertThat(dash.MovementProvidesLift).IsFalse();
+        AssertThat(lift.MovementProvidesLift).IsTrue();
+        foreach ((CpuRecoveryProfile profile, int jumps, bool expectJump) in new[] {
+            (dash, 2, true), (lift, 2, false), (dash, 0, false)
+        }) {
+            var cpu = new FighterCpuController(CpuDifficulty.Hard, 5150, null, null,
+                CpuBandTuning.Hard with { RecoveryJumpPercent = 0, RecoveryMovementPercent = 100 }, profile);
+            CpuDecisionObservation observation = OffStage(selfX: 7, selfY: -0.5);
+            observation.HasFloorSegments = 1;
+            observation.HasFloorSupportUnderSelf = 0;
+            observation.HasFloorEdgeLeft = 1;
+            observation.NearestFloorEdgeLeftXRaw = FP64.FromInt(5).RawValue;
+            observation.RemainingJumps = jumps;
+            PlayerInputFrame previous = default;
+            bool acted = false;
+            for (uint tick = 0; tick < 60; tick++) {
+                // The first scheduled dash is still in the reaction buffer when
+                // the fighter falls below the floor ledge's capture band.
+                if (tick >= 3) observation.SelfPositionYRaw = FP64.FromInt(-2).RawValue;
+                PlayerInputFrame frame = cpu.Sample(tick, in observation, in previous);
+                previous = frame;
+                if (!frame.IsPressed(GameplayButtons.Jump) && !frame.IsPressed(GameplayButtons.MovementAbility)) continue;
+                AssertThat(frame.IsPressed(GameplayButtons.Jump)).IsEqual(expectJump);
+                AssertThat(frame.IsPressed(GameplayButtons.MovementAbility)).IsEqual(!expectJump);
+                acted = true;
+                break;
+            }
+            AssertThat(acted).IsTrue();
+        }
+    }
+
+    [TestCase]
     public void ARecoveryJumpArrivingAfterTheJumpsAreSpentIsDroppedAndTheMovementAbilityStillFires() {
         // Every decision carries the full reaction delay, so the jumps a falling
         // CPU queues before its first press is observed keep arriving after the
@@ -651,8 +692,8 @@ public class FighterCpuBehaviorTests {
         AssertThat(observation.BottomBlastZoneRaw).IsEqual(geometry.BottomBlastZone.RawValue);
         AssertThat(observation.PlatformCount).IsEqual(geometry.Platforms.Length);
         // Nearest of Florence's two gear platforms to x = 3.5 is the one at +4.
-        AssertThat(observation.NearestPlatformCenterXRaw).IsEqual(FP64.FromInt(4).RawValue);
-        AssertThat(observation.NearestPlatformSurfaceYRaw).IsEqual(FP64.FromDouble(2.4).RawValue);
+        AssertThat(observation.NearestPlatformCenterXRaw).IsEqual(geometry.Platforms[1].CenterX.RawValue);
+        AssertThat(observation.NearestPlatformSurfaceYRaw).IsEqual(geometry.Platforms[1].SurfaceY.RawValue);
         AssertThat(observation.SelfPositionYRaw).IsEqual(self.Position.y.RawValue);
         AssertThat(observation.SelfVelocityYRaw).IsEqual(self.Velocity.y.RawValue);
         AssertThat(observation.RemainingJumps).IsEqual(1);

@@ -229,7 +229,9 @@ public class StoryLevelControllerBaseTests {
         });
         AssertThat(fixture.Level.ResumedMidLevel).IsFalse();
         AssertThat(fixture.Level.MarkedCheckpoints.Count).IsEqual(0);
-        AssertThat(Mathf.IsEqualApprox(fixture.Level.Player.Position.X, 200f)).IsTrue();
+        StoryOpeningProfile opening = StoryOpeningProfile.ForLevel((int)FrameworkTestLevelController.TestLevel);
+        AssertObject(opening).IsNotNull();
+        AssertThat(fixture.Level.Player.Position).IsEqual(opening.Spawn);
     }
 
     [TestCase]
@@ -243,7 +245,9 @@ public class StoryLevelControllerBaseTests {
         });
         AssertThat(fixture.Level.ResumedMidLevel).IsFalse();
         AssertThat(fixture.Level.MarkedCheckpoints.Count).IsEqual(0);
-        AssertThat(Mathf.IsEqualApprox(fixture.Level.Player.Position.X, 200f)).IsTrue();
+        StoryOpeningProfile opening = StoryOpeningProfile.ForLevel((int)FrameworkTestLevelController.TestLevel);
+        AssertObject(opening).IsNotNull();
+        AssertThat(fixture.Level.Player.Position).IsEqual(opening.Spawn);
     }
 
     // === Dust tally and completion ===

@@ -636,10 +636,10 @@ public class Level13ContentTests {
         // heavy phase is a delay and never a soft-lock.
         using var fixture = new VoidFixture(null);
         foreach (float x in new[] { 0f, Level13Controller.Room2StartX, Level13Controller.ArenaStartX }) {
-            AssertObject(fixture.Level.GetNodeOrNull<StaticBody2D>(
-                    $"Floor_{Mathf.RoundToInt(x)}_{Mathf.RoundToInt(Level13Controller.ShelfY)}"))
+            AssertThat(fixture.Level.FindChildren(
+                    $"Floor_{Mathf.RoundToInt(x)}_{Mathf.RoundToInt(Level13Controller.ShelfY)}", "", true, false).Count)
                 .OverrideFailureMessage($"The sediment shelf is missing its slab at x={x}.")
-                .IsNotNull();
+                .IsGreater(0);
         }
     }
 

@@ -1,0 +1,644 @@
+{
+  "schema": 1,
+  "profiles": [
+    {
+      "level": 0,
+      "texture": "res://assets/environments/mockup_a/story/level_00.png",
+      "frame": [
+        0,
+        532.73,
+        800,
+        450
+      ],
+      "spawn": [
+        258.37,
+        900
+      ],
+      "hero_height_fraction": 0.3826,
+      "release_x": 680,
+      "surfaces": [
+        {
+          "kind": "floor",
+          "rect": [
+            0,
+            900,
+            800,
+            40
+          ]
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "texture": "res://assets/environments/mockup_a/story/level_01.png",
+      "frame": [
+        0,
+        522.21,
+        800,
+        450
+      ],
+      "spawn": [
+        203.35,
+        900
+      ],
+      "hero_height_fraction": 0.4516,
+      "release_x": 680,
+      "surfaces": [
+        {
+          "kind": "floor",
+          "rect": [
+            0,
+            900,
+            800,
+            40
+          ]
+        },
+        {
+          "kind": "platform",
+          "rect": [
+            480,
+            836,
+            112,
+            16
+          ]
+        },
+        {
+          "kind": "platform",
+          "rect": [
+            592,
+            830,
+            208,
+            16
+          ]
+        }
+      ]
+    },
+    {
+      "level": 2,
+      "texture": "res://assets/environments/mockup_a/story/level_02.png",
+      "frame": [
+        0,
+        511.69,
+        800,
+        450
+      ],
+      "spawn": [
+        161.24,
+        900
+      ],
+      "hero_height_fraction": 0.5048,
+      "release_x": 680,
+      "surfaces": [
+        {
+          "kind": "floor",
+          "rect": [
+            0,
+            900,
+            800,
+            40
+          ]
+        },
+        {
+          "kind": "platform",
+          "rect": [
+            355,
+            765,
+            160,
+            16
+          ]
+        }
+      ]
+    },
+    {
+      "level": 3,
+      "texture": "res://assets/environments/mockup_a/story/level_03.png",
+      "frame": [
+        0,
+        1013.6,
+        800,
+        450
+      ],
+      "spawn": [
+        186.6,
+        1400
+      ],
+      "hero_height_fraction": 0.457,
+      "release_x": 680,
+      "surfaces": [
+        {
+          "kind": "floor",
+          "rect": [
+            0,
+            1400,
+            800,
+            40
+          ]
+        }
+      ]
+    },
+    {
+      "level": 4,
+      "texture": "res://assets/environments/mockup_a/story/level_04.png",
+      "frame": [
+        0,
+        514.08,
+        800,
+        450
+      ],
+      "spawn": [
+        132.54,
+        900
+      ],
+      "hero_height_fraction": 0.457,
+      "release_x": 680,
+      "surfaces": [
+        {
+          "kind": "floor",
+          "rect": [
+            0,
+            900,
+            800,
+            40
+          ]
+        },
+        {
+          "kind": "platform",
+          "rect": [
+            230,
+            788,
+            160,
+            16
+          ]
+        },
+        {
+          "kind": "platform",
+          "rect": [
+            465,
+            815,
+            110,
+            16
+          ]
+        }
+      ]
+    },
+    {
+      "level": 5,
+      "texture": "res://assets/environments/mockup_a/story/level_05.png",
+      "frame": [
+        0,
+        925.56,
+        800,
+        450
+      ],
+      "spawn": [
+        195.69,
+        1300
+      ],
+      "hero_height_fraction": 0.4995,
+      "release_x": 680,
+      "surfaces": [
+        {
+          "kind": "floor",
+          "rect": [
+            0,
+            1300,
+            800,
+            40
+          ]
+        },
+        {
+          "kind": "platform",
+          "rect": [
+            450,
+            1240,
+            45,
+            16
+          ]
+        },
+        {
+          "kind": "platform",
+          "rect": [
+            495,
+            1180,
+            45,
+            16
+          ]
+        },
+        {
+          "kind": "platform",
+          "rect": [
+            540,
+            1120,
+            45,
+            16
+          ]
+        },
+        {
+          "kind": "platform",
+          "rect": [
+            585,
+            1070,
+            215,
+            16
+          ]
+        }
+      ]
+    },
+    {
+      "level": 6,
+      "texture": "res://assets/environments/mockup_a/story/level_06.png",
+      "frame": [
+        0,
+        519.34,
+        800,
+        450
+      ],
+      "spawn": [
+        172.25,
+        900
+      ],
+      "hero_height_fraction": 0.4304,
+      "release_x": 680,
+      "surfaces": [
+        {
+          "kind": "floor",
+          "rect": [
+            0,
+            900,
+            800,
+            40
+          ]
+        },
+        {
+          "kind": "platform",
+          "rect": [
+            380,
+            795,
+            170,
+            16
+          ]
+        }
+      ]
+    },
+    {
+      "level": 7,
+      "texture": "res://assets/environments/mockup_a/story/level_07.png",
+      "frame": [
+        0,
+        540.38,
+        800,
+        450
+      ],
+      "spawn": [
+        189.95,
+        900
+      ],
+      "hero_height_fraction": 0.4516,
+      "release_x": 680,
+      "surfaces": [
+        {
+          "kind": "floor",
+          "rect": [
+            0,
+            900,
+            322,
+            40
+          ]
+        },
+        {
+          "kind": "platform",
+          "rect": [
+            500,
+            820,
+            300,
+            24
+          ]
+        },
+        {
+          "kind": "floor",
+          "rect": [
+            760,
+            900,
+            40,
+            40
+          ]
+        }
+      ]
+    },
+    {
+      "level": 8,
+      "texture": "res://assets/environments/mockup_a/story/level_08.png",
+      "frame": [
+        0,
+        326.99,
+        800,
+        450
+      ],
+      "spawn": [
+        159.33,
+        700
+      ],
+      "hero_height_fraction": 0.4251,
+      "release_x": 680,
+      "surfaces": [
+        {
+          "kind": "floor",
+          "rect": [
+            0,
+            700,
+            800,
+            40
+          ]
+        },
+        {
+          "kind": "platform",
+          "rect": [
+            650,
+            655,
+            150,
+            16
+          ]
+        }
+      ]
+    },
+    {
+      "level": 9,
+      "texture": "res://assets/environments/mockup_a/story/level_09.png",
+      "frame": [
+        0,
+        901.59,
+        800,
+        450
+      ],
+      "spawn": [
+        145.45,
+        1200
+      ],
+      "hero_height_fraction": 0.3613,
+      "release_x": 680,
+      "surfaces": [
+        {
+          "kind": "floor",
+          "rect": [
+            0,
+            1200,
+            490,
+            40
+          ]
+        },
+        {
+          "kind": "platform",
+          "rect": [
+            490,
+            1175,
+            310,
+            24
+          ]
+        },
+        {
+          "kind": "floor",
+          "rect": [
+            760,
+            1200,
+            40,
+            40
+          ]
+        }
+      ]
+    },
+    {
+      "level": 10,
+      "texture": "res://assets/environments/mockup_a/story/level_10.png",
+      "frame": [
+        0,
+        754.17,
+        800,
+        450
+      ],
+      "spawn": [
+        124.4,
+        1120
+      ],
+      "hero_height_fraction": 0.4251,
+      "release_x": 680,
+      "surfaces": [
+        {
+          "kind": "floor",
+          "rect": [
+            0,
+            1120,
+            800,
+            40
+          ]
+        },
+        {
+          "kind": "platform",
+          "rect": [
+            570,
+            1055,
+            35,
+            16
+          ]
+        },
+        {
+          "kind": "platform",
+          "rect": [
+            605,
+            1005,
+            35,
+            16
+          ]
+        },
+        {
+          "kind": "platform",
+          "rect": [
+            640,
+            965,
+            35,
+            16
+          ]
+        }
+      ]
+    },
+    {
+      "level": 11,
+      "texture": "res://assets/environments/mockup_a/story/level_11.png",
+      "frame": [
+        0,
+        525.56,
+        800,
+        450
+      ],
+      "spawn": [
+        183.25,
+        900
+      ],
+      "hero_height_fraction": 0.4251,
+      "release_x": 680,
+      "surfaces": [
+        {
+          "kind": "floor",
+          "rect": [
+            0,
+            900,
+            800,
+            40
+          ]
+        }
+      ]
+    },
+    {
+      "level": 12,
+      "texture": "res://assets/environments/mockup_a/story/level_12.png",
+      "frame": [
+        0,
+        1520.3,
+        800,
+        450
+      ],
+      "spawn": [
+        142.11,
+        1900
+      ],
+      "hero_height_fraction": 0.4304,
+      "release_x": 680,
+      "surfaces": [
+        {
+          "kind": "floor",
+          "rect": [
+            0,
+            1900,
+            800,
+            40
+          ]
+        },
+        {
+          "kind": "platform",
+          "rect": [
+            565,
+            1675,
+            235,
+            16
+          ]
+        }
+      ]
+    },
+    {
+      "level": 13,
+      "texture": "res://assets/environments/mockup_a/story/level_13.png",
+      "frame": [
+        0,
+        1568.12,
+        800,
+        450
+      ],
+      "spawn": [
+        166.51,
+        1900
+      ],
+      "hero_height_fraction": 0.3985,
+      "release_x": 680,
+      "surfaces": [
+        {
+          "kind": "floor",
+          "rect": [
+            0,
+            1900,
+            395,
+            40
+          ]
+        },
+        {
+          "kind": "platform",
+          "rect": [
+            420,
+            1872,
+            380,
+            24
+          ]
+        },
+        {
+          "kind": "floor",
+          "rect": [
+            760,
+            1900,
+            40,
+            40
+          ]
+        }
+      ]
+    },
+    {
+      "level": 14,
+      "texture": "res://assets/environments/mockup_a/story/level_14.png",
+      "frame": [
+        0,
+        1314.08,
+        800,
+        450
+      ],
+      "spawn": [
+        155.5,
+        1700
+      ],
+      "hero_height_fraction": 0.4304,
+      "release_x": 680,
+      "surfaces": [
+        {
+          "kind": "floor",
+          "rect": [
+            0,
+            1700,
+            800,
+            40
+          ]
+        },
+        {
+          "kind": "platform",
+          "rect": [
+            465,
+            1626,
+            115,
+            16
+          ]
+        }
+      ]
+    },
+    {
+      "level": 15,
+      "texture": "res://assets/environments/mockup_a/story/level_15.png",
+      "frame": [
+        0,
+        1023.17,
+        800,
+        450
+      ],
+      "spawn": [
+        196.65,
+        1400
+      ],
+      "hero_height_fraction": 0.457,
+      "release_x": 680,
+      "surfaces": [
+        {
+          "kind": "floor",
+          "rect": [
+            0,
+            1400,
+            800,
+            40
+          ]
+        },
+        {
+          "kind": "platform",
+          "rect": [
+            725,
+            1305,
+            75,
+            16
+          ]
+        }
+      ]
+    }
+  ]
+}

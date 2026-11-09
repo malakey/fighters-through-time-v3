@@ -109,6 +109,13 @@ namespace FTT.Environment {
         };
 
         private bool _levelComplete;
+        private readonly List<StaticBody2D> _openingSurfaces = new();
+        private readonly List<CanvasItem> _studyHiddenItems = new();
+        private StoryOpeningPresentation _studyOpening;
+        private Tween _fractureIntroBeat;
+        private readonly List<CanvasItem> _studyHiddenHeroVisuals = new();
+        public const double StudyOpeningSeconds = 2.5;
+        public bool StudyOpeningActive => _studyOpening != null && IsInstanceValid(_studyOpening);
 
         public override void _Ready() {
             BuildLevel();
@@ -137,8 +144,7 @@ namespace FTT.Environment {
                 EventBus.Instance.OnDefyExecuted += OnDefyExecuted;
             }
 
-            // Defer one frame so the dialogue UI is fully in the tree before pausing.
-            CallDeferred(MethodName.StartHoldFight);
+            BeginStudyOpening();
         }
 
         public override void _ExitTree() {
@@ -231,12 +237,59 @@ namespace FTT.Environment {
 
         private bool _holdStarted;
 
-        /// <summary>
-        /// Beat 5 begins: the HP floor goes on and the unnamed voice speaks.
-        /// Deferred from <c>_Ready</c>; public and idempotent so a test can drive it.
-        /// </summary>
+        /// <summary>The quiet study precedes the existing extraction and hold fight.</summary>
+        private void BeginStudyOpening() {
+            if (!StudyOpeningActive) { CallDeferred(MethodName.StartHoldFight); return; }
+            _player.ProcessMode = ProcessModeEnum.Disabled;
+            if (_player.Data?.CharacterID == "einstein") {
+                Texture2D study = ResourceLoader.Load<Texture2D>("res://assets/environments/mockup_a/story/level_00_study.png");
+                if (study != null) {
+                    Sprite2D plate = _studyOpening.GetNode<Sprite2D>("RegisteredPlate");
+                    plate.Texture = study;
+                    plate.Scale = _studyOpening.Profile.Frame.Size / study.GetSize();
+                    foreach (string name in new[] { "AnimatedSprite2D", "NameLabel" }) {
+                        if (_player.GetNodeOrNull<CanvasItem>(name) is CanvasItem visual && visual.Visible) {
+                            _studyHiddenHeroVisuals.Add(visual);
+                            visual.Hide();
+                        }
+                    }
+                }
+            }
+            foreach (Node child in GetChildren()) {
+                if (child is CanvasItem item && item != _player && item != _studyOpening && item.Visible) {
+                    _studyHiddenItems.Add(item);
+                    item.Hide();
+                }
+            }
+            _fractureIntroBeat?.Pause();
+            var timer = GetTree().CreateTimer(StudyOpeningSeconds, processAlways: false);
+            timer.Timeout += () => {
+                if (IsInstanceValid(this) && IsInsideTree()) StartHoldFight();
+            };
+        }
+
+        private void EndStudyOpening() {
+            if (!StudyOpeningActive) return;
+            _studyOpening.Deactivate();
+            _studyOpening = null;
+            foreach (CanvasItem item in _studyHiddenItems) {
+                if (IsInstanceValid(item)) item.Show();
+            }
+            _studyHiddenItems.Clear();
+            foreach (CanvasItem visual in _studyHiddenHeroVisuals) {
+                if (IsInstanceValid(visual)) visual.Show();
+            }
+            _studyHiddenHeroVisuals.Clear();
+            _player.ProcessMode = ProcessModeEnum.Inherit;
+            _player.GlobalPosition = new Vector2(400, 850);
+            StoryCameraConfiner.FindOn(_player)?.SnapToTarget();
+            _fractureIntroBeat?.Play();
+        }
+
+        /// <summary>Beat 5 begins: the HP floor goes on and the unnamed voice speaks.</summary>
         public void StartHoldFight() {
             if (_holdStarted || _phase != TutorialPhase.Hold) return;
+            EndStudyOpening();
             _holdStarted = true;
             if (_player != null && IsInstanceValid(_player)) {
                 _player.ScriptedHPFloor = Level00HoldFight.HeroHPFloor;
@@ -409,6 +462,7 @@ namespace FTT.Environment {
         /// the tear and the hero walks to it (beat 7).
         /// </summary>
         public void BreakTheBeam() {
+            EndStudyOpening();
             if (_phase != TutorialPhase.Hold) return;
             _phase = TutorialPhase.Rift;
             if (_player != null && IsInstanceValid(_player)) {
@@ -1489,6 +1543,7 @@ namespace FTT.Environment {
         private void BuildLevel() {
             var bg = new ColorRect();
             bg.Name = "Background";
+            bg.ZIndex = -10;
             bg.Size = new Vector2(4800, 1080);
             bg.Color = new Color(0.03f, 0.05f, 0.12f);
             AddChild(bg);
@@ -1657,6 +1712,7 @@ namespace FTT.Environment {
             _fractureHalo = coldHalo;
             _fracturePortal = portal;
             Tween beat = rift.CreateTween();
+            _fractureIntroBeat = beat;
             // 1. The beam bites: cold flares to full over the first second.
             beat.TweenProperty(beam, "modulate:a", 1f, 0.9);
             // 2. Gold answers on the hero.
@@ -1723,6 +1779,8 @@ namespace FTT.Environment {
             floor.AddChild(gridLine);
 
             AddChild(floor);
+            StoryOpeningPresentation.TrackSurface(floor, new Rect2(x, y, width, 40));
+            _openingSurfaces.Add(floor);
         }
 
         private void BuildPlatform(float x, float y, float width) {
@@ -1751,6 +1809,8 @@ namespace FTT.Environment {
             plat.AddChild(glow);
 
             AddChild(plat);
+            StoryOpeningPresentation.TrackSurface(plat, new Rect2(x - width / 2f, y - TutorialPlatformThickness / 2f, width, TutorialPlatformThickness));
+            _openingSurfaces.Add(plat);
         }
 
         private void BuildWall(float x, float y, float height) {
@@ -1813,6 +1873,7 @@ namespace FTT.Environment {
                 ActiveBounds = new Rect2(0, 0, 4800, 1080)
             };
             _player.AddChild(camera);
+            _studyOpening = StoryOpeningPresentation.Apply(this, _player, camera, 0, false, _openingSurfaces);
             camera.EnableFollow(_player);
         }
     }

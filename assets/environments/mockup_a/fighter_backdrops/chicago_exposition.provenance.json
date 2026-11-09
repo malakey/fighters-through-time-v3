@@ -1,0 +1,12 @@
+{
+  "id": "fighter_chicago_exposition",
+  "name": "Chicago Exposition",
+  "mode": "fighter",
+  "stage_id": "chicago_exposition",
+  "source": "D:/Projects/Fighters Through Time - V3/assets/environments/mockup_a/fighter/chicago_exposition.png",
+  "file": "D:/Projects/Fighters Through Time - V3/assets/environments/mockup_a/fighter_backdrops/chicago_exposition.png",
+  "prompt": "Production distant-background matte edit for Fighters Through Time: Chicago Exposition. Preserve the approved retro-pulp fine ink/crosshatching, architectural era, color palette and lighting from the reference. Remove EVERY raised gameplay platform and floating ledge, including all side and center platforms and their supporting gears/chains/pillars. Remove the entire near walkable floor/deck/rampart/stage and all near props, barrels, fences, ropes, cannons and gameplay emitters. Seamlessly reveal or reconstruct only the DISTANT environment behind them: sky, far buildings, landscape, sea, walls or interior architecture appropriate to this location. For indoor scenes retain the distant room's walls/windows/ceiling and depth, but no tables, altars, cabinets or horizontal surfaces that could be mistaken for jump platforms. For Globe retain distant theatre walls/audience, without a foreground stage or trapdoor. This will be a non-interactive background BEHIND a separately rendered foreground arena. No foreground geometry, no isolated horizontal platforms, no foreground people, no HUD or text. Full 16:9 environmental background, extending scenery to all four edges. Keep the same art style and general distant architecture. Do NOT create a duplicate smaller arena within the picture.",
+  "original_reference": "D:/Projects/fighters-through-time-docs-3/mockups/fighter_arenas_retro_pulp/03_chicago_exposition/A.png",
+  "generated_source": "C:\\Users\\David\\.codex\\generated_images\\01a1a070-f024-7903-8537-4b2b5d27d54d\\exec-3d90f5c1-6032-494f-b42e-4244ed889c5c.png",
+  "status": "generated"
+}

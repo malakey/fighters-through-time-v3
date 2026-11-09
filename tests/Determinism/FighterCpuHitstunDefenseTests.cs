@@ -249,7 +249,7 @@ public class FighterCpuHitstunDefenseTests {
                     continue;
                 }
                 if (result.RecoveryPresses == 0) failures.Add($"{run}: no Jump or movement-ability press after hitstun");
-                if (result.StockLost) failures.Add($"{run}: the CPU fell into the blast zone");
+                if (result.StockLost) failures.Add($"{run}: the CPU fell into the blast zone; {result.Trace}");
                 else if (!result.Landed) failures.Add($"{run}: the CPU never got back onto the stage");
             }
         }
@@ -267,10 +267,10 @@ public class FighterCpuHitstunDefenseTests {
     public void AHundredPercentDefenseCpuCaughtOnAPitFacingLedgeAfterHitstunClimbJumps() {
         var failures = new System.Collections.Generic.List<string>();
         foreach (int seed in new[] { 1, 2, 3 }) {
-            PitLaunchResult result = RunPitLaunch(9.0, 14.0, seed);
+            PitLaunchResult result = RunPitLaunch(9.0, 14.0, seed, stageForLedgeCapture: true);
             string run = $"seed {seed}";
             if (result.HangTick < 0) {
-                failures.Add($"{run}: harness, the ledge never caught the CPU");
+                failures.Add($"{run}: harness, the ledge never caught the CPU; {result.Trace}");
                 continue;
             }
             if (result.HitstunAtHang > 0) failures.Add($"{run}: harness, the hang began inside hitstun");
@@ -346,7 +346,7 @@ public class FighterCpuHitstunDefenseTests {
             GameplayButtons attackerButtons = GameplayButtons.None;
             float attackerX = 0f;
             if (!pressed) {
-                if (attacker.Position.x < FP64.FromDouble(5.6)) attackerX = 1f;
+                if (attacker.Position.x < nassau.FloorSegments[0].EdgeX(1) - FP64.FromDouble(0.4)) attackerX = 1f;
                 else if (hangTick >= 0 && tick > hangTick + 40 && self.InvulnerabilityFrames <= 0) {
                     attackerButtons = GameplayButtons.Special1;
                     pressed = true;
@@ -485,6 +485,7 @@ public class FighterCpuHitstunDefenseTests {
         public int HangEndTick;
         public bool LeftByClimbJump;
         public bool GetUp;
+        public string Trace;
     }
 
     /// <summary>
@@ -530,7 +531,7 @@ public class FighterCpuHitstunDefenseTests {
     /// her hitstun a Hard CPU with a 100 % defense roll (and no DI) drives her,
     /// through the real world observer and her own recovery profile.
     /// </summary>
-    private static PitLaunchResult RunPitLaunch(double knockbackX, double knockbackY, int seed) {
+    private static PitLaunchResult RunPitLaunch(double knockbackX, double knockbackY, int seed, bool stageForLedgeCapture = false) {
         FighterStageGeometry nassau = FighterStageGeometry.ForStage("nassau_flagship");
         FighterLoadout victim = FighterLoadout.Default(FighterCharacterID.Joan);
         var simulation = new FighterSimulation(
@@ -548,6 +549,12 @@ public class FighterCpuHitstunDefenseTests {
         bool hitstunEnded = false;
         int lastHitstun = 0;
         bool wasHanging = false;
+        bool arranged = !stageForLedgeCapture;
+        var trace = new System.Collections.Generic.List<string>();
+        // Recovery trajectories launch from the real match spawn. The separate
+        // ledge-catch scenario stages two units inside the current lip: its slower
+        // 9/14 launch then thaws inside the capture box rather than beyond it.
+        FP64 launchStart = nassau.FloorSegments[0].EdgeX(1) - FP64.FromInt(2);
 
         for (int tick = 0; tick < 600; tick++) {
             AssertThat(simulation.TryGetFighter(0, out FighterStateComponent attacker)).IsTrue();
@@ -556,7 +563,16 @@ public class FighterCpuHitstunDefenseTests {
             AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent selfRuntime)).IsTrue();
             if (self.Stocks < 3) {
                 result.StockLost = true;
+                result.Trace = string.Join("; ", trace);
                 return result;
+            }
+            if (!arranged) {
+                if (self.Position.x > launchStart + FP64.FromDouble(0.05)) {
+                    simulation.Advance(new PlayerInputFrame { Tick = (uint)tick },
+                        new PlayerInputFrame { Tick = (uint)tick, MoveX = -127 });
+                    continue;
+                }
+                arranged = true;
             }
             bool hanging = FighterLedgeRules.IsHanging(in selfRuntime);
             if (FighterLedgeRules.IsGetUpClimb(in selfRuntime)) result.GetUp = true;
@@ -577,6 +593,7 @@ public class FighterCpuHitstunDefenseTests {
             if (self.HitstunFrames > 0) cpuLive = true;
             if (hitstunEnded && !hanging && self.IsGrounded != 0 && self.HitstunFrames <= 0) {
                 result.Landed = true;
+                result.Trace = string.Join("; ", trace);
                 return result;
             }
 
@@ -602,8 +619,16 @@ public class FighterCpuHitstunDefenseTests {
                     result.RecoveryPresses++;
                 }
             }
+            if (cpuLive && (tick % 10 == 0 || selfFrame.Pressed != GameplayButtons.None
+                || hanging || lastHitstun == 1)) {
+                trace.Add($"t{tick} p({self.Position.x},{self.Position.y}) v({self.Velocity.x},{self.Velocity.y}) "
+                    + $"stun{self.HitstunFrames} j{self.RemainingJumps} hang{selfRuntime.LedgeAnchor} "
+                    + $"axis{selfFrame.MoveX} held{selfFrame.Held} press{selfFrame.Pressed}");
+                if (trace.Count > 35) trace.RemoveAt(0);
+            }
             simulation.Advance(attackerFrame, selfFrame);
         }
+        result.Trace = string.Join("; ", trace);
         return result;
     }
 

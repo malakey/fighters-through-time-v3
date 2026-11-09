@@ -97,6 +97,8 @@ namespace FTT.Environment {
                 foreach (FramingRequest request in _framingRequests) {
                     if (IsLiveFramingOwner(request.Owner)) target = Mathf.Min(target, request.FitZoom);
                 }
+                if (_openingWeight > 0f && FramingRequestCount == 0)
+                    return Mathf.Lerp(target, _openingZoom, _openingWeight);
                 if (target >= StoryCameraRules.ViewZoom) return StoryCameraRules.ViewZoom;
                 float roomFloor = StoryCameraRules.BoundsFitZoom(LimitRight - LimitLeft, LimitBottom - LimitTop);
                 return Mathf.Min(StoryCameraRules.ViewZoom, Mathf.Max(target, roomFloor));

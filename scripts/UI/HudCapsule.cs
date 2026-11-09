@@ -43,8 +43,13 @@ namespace FTT.UI {
         /// <summary>How many times the pill was rebuilt (once per size). Test seam.</summary>
         public int GeometryBuilds { get; private set; }
 
-        /// <summary>The pill's corner radius for the current size: half its height.</summary>
+        /// <summary>The pill's corner radius for the current size: half its shorter side.</summary>
         public float Radius => Mathf.Min(Size.X, Size.Y) / 2f;
+
+        /// <summary>A copy of the current fill outline. Test seam for renderer triangulation.</summary>
+        public Vector2[] OutlinePoints {
+            get { EnsureGeometry(); return (Vector2[])_pill.Clone(); }
+        }
 
         public override void _Notification(int what) {
             if (what == NotificationResized) QueueRedraw();
@@ -52,10 +57,22 @@ namespace FTT.UI {
 
         // The pill outline, clockwise from the top of the left cap, inset by `inset`.
         private void Pill(Vector2[] into, float inset) {
-            float h = Size.Y - 2f * inset;
+            bool vertical = Size.Y > Size.X;
+            float width = vertical ? Size.Y : Size.X;
+            float height = vertical ? Size.X : Size.Y;
+            float h = height - 2f * inset;
             float r = Mathf.Max(0f, h / 2f);
-            float left = inset + r, right = Size.X - inset - r;
-            float cy = Size.Y / 2f;
+            float left = inset + r, right = width - inset - r;
+            float cy = height / 2f;
+            if (Mathf.IsEqualApprox(width, height)) {
+                // Coincident semicircle centres form one circle. Sampling it once avoids
+                // duplicate join vertices, which the polygon triangulator cannot accept.
+                for (int i = 0; i < Points; i++) {
+                    float angle = -Mathf.Pi / 2f + Mathf.Tau * i / Points;
+                    into[i] = Size / 2f + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * r;
+                }
+                return;
+            }
             int n = 0;
             // The right cap from the top (-90 degrees) to the bottom (+90), then the left cap from the bottom to the top.
             for (int i = 0; i <= CapSegments; i++) {
@@ -65,6 +82,9 @@ namespace FTT.UI {
             for (int i = 0; i <= CapSegments; i++) {
                 float a = Mathf.Pi / 2f + Mathf.Pi * i / CapSegments;
                 into[n++] = new Vector2(left + Mathf.Cos(a) * r, cy + Mathf.Sin(a) * r);
+            }
+            if (vertical) {
+                for (int i = 0; i < Points; i++) into[i] = new Vector2(Size.X - into[i].Y, into[i].X);
             }
         }
 
@@ -91,7 +111,8 @@ namespace FTT.UI {
             EnsureGeometry();
             DrawPolygon(_pill, _pillColors);
             DrawPolygon(_shade, _shadeColors);
-            DrawPolyline(_rim, Hairline, HairlineWidth, true);
+            if (Mathf.Min(Size.X, Size.Y) > HairlineWidth)
+                DrawPolyline(_rim, Hairline, HairlineWidth, true);
         }
     }
 }

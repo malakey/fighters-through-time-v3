@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=16 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/FighterStageController.cs" id="1_controller"]
 [ext_resource type="Script" path="res://scripts/UI/TestArenaHUD.cs" id="2_hud"]
@@ -16,6 +16,21 @@ size = Vector2(225, 12)
 
 [sub_resource type="RectangleShape2D" id="wall_col"]
 size = Vector2(24, 562)
+
+[sub_resource type="RectangleShape2D" id="reference_col_0"]
+size = Vector2(272.7272727, 12)
+
+[sub_resource type="RectangleShape2D" id="reference_col_1"]
+size = Vector2(270.4306220, 12)
+
+[sub_resource type="RectangleShape2D" id="reference_col_2"]
+size = Vector2(786.6028708, 48)
+
+[sub_resource type="RectangleShape2D" id="reference_col_3"]
+size = Vector2(24.0000000, 562)
+
+[sub_resource type="RectangleShape2D" id="reference_col_4"]
+size = Vector2(24.0000000, 562)
 
 [node name="FighterStageNassau" type="Node2D" groups=["fighter_stage"]]
 script = ExtResource("1_controller")
@@ -146,9 +161,9 @@ polygon = PackedVector2Array(964, 66, 1088, 92, 1058, 116, 1084, 142, 964, 156)
 
 [node name="SternGap" type="ColorRect" parent="Presentation"]
 z_index = -9
-offset_left = 1325.0
+offset_left = 1256.6028708
 offset_top = 700.0
-offset_right = 1512.5
+offset_right = 1430
 offset_bottom = 1120.0
 color = Color(0.02, 0.055, 0.085, 1)
 
@@ -329,7 +344,7 @@ offset_bottom = -14.0
 color = Color(0.12, 0.72, 0.86, 0.05)
 
 [node name="StarboardTargetGrid" type="Node2D" parent="Presentation/MortarTargets"]
-position = Vector2(1262.5, 700)
+position = Vector2(1200, 700)
 
 [node name="Pad" type="ColorRect" parent="Presentation/MortarTargets/StarboardTargetGrid"]
 offset_left = -70.0
@@ -377,13 +392,13 @@ RimScale = 12.0
 [node name="Geometry" type="Node2D" parent="."]
 
 [node name="Ground" type="StaticBody2D" parent="Geometry"]
-position = Vector2(856.25, 700)
+position = Vector2(863.3014354, 700.0000000)
 collision_layer = 64
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/Ground"]
-position = Vector2(0, 24)
-shape = SubResource("ground_col")
+position = Vector2(0, 24.0)
+shape = SubResource("reference_col_2")
 
 [node name="Visual" type="ColorRect" parent="Geometry/Ground"]
 offset_left = -468.75
@@ -425,12 +440,12 @@ color = Color(0.16, 0.09, 0.04, 1)
 polygon = PackedVector2Array(468.75, 0, 468.75, 48, 436.75, 48, 452.75, 26, 440.75, 12)
 
 [node name="WallLeft" type="StaticBody2D" parent="Geometry"]
-position = Vector2(387.5, 418.75)
+position = Vector2(470.0000000, 418.7500000)
 collision_layer = 64
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/WallLeft"]
-shape = SubResource("wall_col")
+shape = SubResource("reference_col_3")
 
 [node name="Visual" type="ColorRect" parent="Geometry/WallLeft"]
 offset_left = -12.0
@@ -447,12 +462,12 @@ offset_bottom = -273.25
 color = Color(0.12, 0.72, 0.86, 1)
 
 [node name="WallRight" type="StaticBody2D" parent="Geometry"]
-position = Vector2(1512.5, 418.75)
+position = Vector2(1430.0000000, 418.7500000)
 collision_layer = 64
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/WallRight"]
-shape = SubResource("wall_col")
+shape = SubResource("reference_col_4")
 
 [node name="Visual" type="ColorRect" parent="Geometry/WallRight"]
 offset_left = -12.0
@@ -469,13 +484,14 @@ offset_bottom = -273.25
 color = Color(0.12, 0.72, 0.86, 1)
 
 [node name="YardLeft" type="StaticBody2D" parent="Geometry"]
-position = Vector2(700, 525)
+position = Vector2(724.0669856, 435.8851675)
 collision_layer = 128
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/YardLeft"]
+position = Vector2(0, 6.0)
 one_way_collision = true
-shape = SubResource("yard_col")
+shape = SubResource("reference_col_0")
 
 [node name="Visual" type="ColorRect" parent="Geometry/YardLeft"]
 offset_left = -112.5
@@ -504,13 +520,14 @@ width = 3.0
 default_color = Color(0.26, 0.2, 0.15, 1)
 
 [node name="YardRight" type="StaticBody2D" parent="Geometry"]
-position = Vector2(1200, 525)
+position = Vector2(1181.6746411, 435.8851675)
 collision_layer = 128
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/YardRight"]
+position = Vector2(0, 6.0)
 one_way_collision = true
-shape = SubResource("yard_col")
+shape = SubResource("reference_col_1")
 
 [node name="Visual" type="ColorRect" parent="Geometry/YardRight"]
 offset_left = -112.5
@@ -541,32 +558,32 @@ default_color = Color(0.26, 0.2, 0.15, 1)
 [node name="Spawns" type="Node2D" parent="."]
 
 [node name="Player1" type="Marker2D" parent="Spawns"]
-position = Vector2(700, 700)
+position = Vector2(700.0000000, 700.0000000)
 
 [node name="Player2" type="Marker2D" parent="Spawns"]
-position = Vector2(1200, 700)
+position = Vector2(1200.0000000, 700.0000000)
 
 [node name="OrbSpawnPoints" type="Node2D" parent="."]
 
 [node name="LeftYard" type="Marker2D" parent="OrbSpawnPoints"]
-position = Vector2(700, 493.75)
+position = Vector2(724.0669856, 404.6351675)
 
 [node name="RightYard" type="Marker2D" parent="OrbSpawnPoints"]
-position = Vector2(1200, 493.75)
+position = Vector2(1181.6746411, 404.6351675)
 
 [node name="Deck" type="Marker2D" parent="OrbSpawnPoints"]
-position = Vector2(950, 668.75)
+position = Vector2(950.0000000, 668.7500000)
 
 [node name="HazardAnchors" type="Node2D" parent="."]
 
 [node name="PortTarget" type="Marker2D" parent="HazardAnchors"]
-position = Vector2(637.5, 700)
+position = Vector2(637.5000000, 700.0000000)
 
 [node name="CenterTarget" type="Marker2D" parent="HazardAnchors"]
-position = Vector2(950, 700)
+position = Vector2(950.0000000, 700.0000000)
 
 [node name="StarboardTarget" type="Marker2D" parent="HazardAnchors"]
-position = Vector2(1262.5, 700)
+position = Vector2(1200.0000000, 700.0000000)
 
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2(950, 500)

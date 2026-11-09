@@ -61,10 +61,10 @@ public class HazardMobContactTests {
     public async Task FlorencesOwnSpikesSpareAWalkingMobAndHitAThrownOneOnce() {
         var level = new Level01Controller { Name = "FlorenceSpikeFixture" };
         HazardMobTestKit.Tree.Root.AddChild(level);
-        EnemyController mob = HazardMobTestKit.CreateMob(HazardMobTestKit.Slasher, new Vector2(600f, 900f));
+        EnemyController mob = HazardMobTestKit.CreateMob(HazardMobTestKit.Slasher, new Vector2(960f, 900f));
         try {
             await HazardMobTestKit.Frames(1);
-            Area2D spikes = level.GetNode<Area2D>("Spikes_600");
+            Area2D spikes = level.GetNode<Area2D>("Spikes_960");
             AssertThat(spikes.CollisionMask).IsEqual(CollisionLayers.HazardContactMask);
             int hp0 = mob.CurrentHP;
             spikes.EmitSignal(Area2D.SignalName.BodyEntered, mob);
