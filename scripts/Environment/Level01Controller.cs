@@ -22,6 +22,16 @@ namespace FTT.Environment {
     /// out of the fighting to 300, the Middle anchor past the workshop door (8840),
     /// the Restoration Font past the gauntlet (10530) and the third Extractor west
     /// of it (10150). A west wall now closes x 0.</para>
+    ///
+    /// <para><b>The Rooftop Run</b> (gameplay review 2026-11-03, rulings 7a, 7b,
+    /// 7c, 7c+; GR-LV1): the stretch takes the unlocked gap between the piazza and
+    /// the print shop (4450-5780), base-kit pieces over a non-lethal trench, and its
+    /// optional route holds the first Extractor. Florence does not extend
+    /// <see cref="StoryLevelControllerBase"/>, so it records the
+    /// <see cref="TraversalStretch"/> and <see cref="OptionalRoute"/> itself. It has
+    /// no clock, so no par, and no movement ability yet, so its route is a skill
+    /// route with no shortcuts. The workshop's swarm row is the showcase for hazards
+    /// that hit launched mobs (ruling 7d).</para>
     /// </summary>
     public partial class Level01Controller : Node2D {
         private PlayerController _player;
@@ -231,6 +241,7 @@ namespace FTT.Environment {
 
         private void BuildLevel() {
             BuildRoom1();
+            BuildRooftopRun();
             BuildRoom2();
             BuildRoom3();
             BuildRoom4BossArena();
@@ -287,12 +298,13 @@ namespace FTT.Environment {
         /// and the destroyed-registry wiring so a mid-level resume rebuilds
         /// them broken.
         ///
-        /// One per traversable room, off the critical path: the entry hall's
-        /// far end, the print shop past the platform climb, and the workshop
-        /// behind the spike run. The boss arena gets none.
+        /// One per traversable room, off the critical path: the Rooftop Run's
+        /// optional route (GR-LV1; it stood on the floor at 4700), the print shop
+        /// past the platform climb, and the workshop behind the spike run. The
+        /// boss arena gets none.
         /// </summary>
         private void BuildExtractors() {
-            BuildExtractor("florence_extractor_0", new Vector2(4700f, 860f));
+            BuildExtractor(RooftopRouteRewardID, RooftopRouteRewardPosition);
             BuildExtractor("florence_extractor_1", new Vector2(Room2OffsetX + 2600f, 860f));
             // GU-L0: 10340 -> 10150, so the Restoration Font past the gauntlet
             // (10530) keeps its 320 px; still behind the spike runs and the geyser.
@@ -336,7 +348,9 @@ namespace FTT.Environment {
             bg1.Color = new Color(0.12f, 0.08f, 0.05f, 0.35f);
             AddChild(bg1);
 
-            BuildFloor(0, 900, 5760);
+            // GR-LV1: the floor stops at the Rooftop Run's west deck; BuildRooftopRun
+            // lays the trench and the east deck.
+            BuildFloor(0, 900, RooftopWestDeckEndX);
             // GU-L0: the missing west wall — the floor's west end used to be open
             // to a fall off the level.
             BuildWall(-20, 0, LevelHeight);
@@ -348,7 +362,6 @@ namespace FTT.Environment {
             BuildPlatform(3200, 600, 250);
             BuildPlatform(3800, 720, 200);
             BuildPlatform(4300, 550, 250);
-            BuildPlatform(5000, 650, 220);
 
             BuildHazardSpikes(960, 890, 150);
             BuildHazardSpikes(1600, 890, 100);
@@ -359,6 +372,146 @@ namespace FTT.Environment {
             BuildCheckpoint(EntryCheckpointX, 850, "florence_checkpoint_0");
 
             BuildRoomDecoration(0, "florence_room_entry", new Color(0.7f, 0.5f, 0.2f));
+        }
+
+        // === GR-LV1: the Rooftop Run and its optional route ====================
+
+        public const string RooftopStretchID = "level_01.rooftop_run";
+        public const string RooftopRouteID = "level_01.chimney_line";
+        public const string RooftopRoomKey = "florence_room_rooftops";
+
+        /// <summary>The route's reward, an existing manifest source: it adds no dust.</summary>
+        public const string RooftopRouteRewardID = "florence_extractor_0";
+
+        /// <summary>From the piazza lock's exit barrier to the print shop lock's entry barrier.</summary>
+        public const float RooftopMinX = 4450f;
+        public const float RooftopMaxX = 5780f;
+        public const float RooftopWestDeckEndX = 4610f;
+        public const float RooftopEastDeckStartX = 5590f;
+
+        /// <summary>The trench's depth under the deck and the run of its two ramps (<see cref="TraversalRules"/>).</summary>
+        public const float RooftopTrenchDepth = 120f;
+        public const float RooftopRampRun = 160f;
+
+        /// <summary>The route's last platform, x and centre y. The reward stands over it, 72 px above its top, as Extractors stand.</summary>
+        public const float RooftopRouteEndX = 5625f;
+        private const float RooftopRouteEndY = 320f;
+        public static readonly Vector2 RooftopRouteRewardPosition = new(RooftopRouteEndX, 238f);
+
+        private const float OneWayStepThickness = 20f;
+        private const float CrumblingStepHalfWidth = 110f;
+        private const float CrumblingStepHalfHeight = 12f;
+        private const string CrumblingTemplatePath = "res://scenes/templates/CrumblingPlatformTemplate.tscn";
+        private const string LedgeGrabTemplatePath = "res://scenes/templates/LedgeGrabPointTemplate.tscn";
+
+        /// <summary>The stretch's record. Test seam.</summary>
+        public TraversalStretch RooftopRun { get; private set; }
+
+        /// <summary>The route's record. Test seam.</summary>
+        public OptionalRoute ChimneyLine { get; private set; }
+
+        /// <summary>
+        /// The stretch and its route. The camera rect is the whole level, as Florence's
+        /// camera has always been: no room here ever narrows the view, so the trigger
+        /// names the room and moves nothing.
+        /// </summary>
+        private void BuildRooftopRun() {
+            var room = new RoomTransitionTrigger {
+                Name = $"RoomTransition_{RooftopRoomKey}",
+                RoomID = RooftopRoomKey,
+                Position = new Vector2(RooftopMinX + 40f, LevelHeight * 0.5f),
+                CameraBounds = new Rect2(0f, 0f, LevelWidth, LevelHeight),
+                CollisionLayer = CollisionLayers.Trigger,
+                CollisionMask = CollisionLayers.Player
+            };
+            room.AddChild(new CollisionShape2D { Shape = new RectangleShape2D { Size = new Vector2(80f, LevelHeight) } });
+            AddChild(room);
+            RooftopRun = TraversalStretch.Create(RooftopStretchID, RooftopMinX, RooftopMaxX, 900f,
+                RooftopWestDeckEndX, RooftopEastDeckStartX, room);
+            AddChild(RooftopRun);
+            BuildRoomDecoration(RooftopMinX, RooftopRoomKey, new Color(0.8f, 0.55f, 0.25f));
+
+            // A non-lethal trench with a walkable ramp at each end (VERIFY-STORY-PITS).
+            // The deck resumes under the print shop's entry barrier.
+            float trenchFloorY = 900f + RooftopTrenchDepth;
+            BuildFloor(RooftopWestDeckEndX, trenchFloorY, RooftopEastDeckStartX - RooftopWestDeckEndX);
+            BuildTrenchRamp(new Vector2(RooftopWestDeckEndX + RooftopRampRun, trenchFloorY), new Vector2(RooftopWestDeckEndX, 900f));
+            BuildTrenchRamp(new Vector2(RooftopEastDeckStartX - RooftopRampRun, trenchFloorY), new Vector2(RooftopEastDeckStartX, 900f));
+            RooftopRun.RecordTrench(trenchFloorY, RooftopRampRun);
+            BuildFloor(RooftopEastDeckStartX, 900, RooftopMaxX - RooftopEastDeckStartX);
+
+            // The line, west to east.
+            BuildPlatform(4750, 790, 200);
+            RooftopRun.AddLineSurface(new TraversalSurface(4650f, 4850f, 782f));
+            RooftopRun.AddLineSurface(BuildCrumblingStep("level_01.crumbling_tiles", 5010f, 720f));
+            TraversalSurface chimneyStep = BuildOneWayStep(5290f, 722f, 200f);
+            RooftopRun.AddLineSurface(chimneyStep);
+            BuildPlatform(5500, 720, 180);
+            RooftopRun.AddLineSurface(new TraversalSurface(5410f, 5590f, 712f));
+            // A wall on the deck, so the east ramp stays walkable: a double jump or the ledge clears it.
+            // The last step ends 80 px short of it, or a hero jumping from the deck bonks the step's underside.
+            BuildWall(5670f, 690f, 900f - 690f, 40f);
+            var ledge = ResourceLoader.Load<PackedScene>(LedgeGrabTemplatePath).Instantiate<LedgeGrabPoint>();
+            ledge.Name = "LedgeGrab_5670";
+            ledge.Position = new Vector2(5664f, 690f);
+            AddChild(ledge);
+            RooftopRun.AddLineSurface(new TraversalSurface(5670f, 5710f, 690f));
+
+            // Off the line: a way back up out of the trench, and a strip to cross down there.
+            BuildOneWayStep(5230f, 890f, 200f);
+            BuildHazardSpikes(5000f, trenchFloorY - 10f, 100f);
+
+            // The optional route: a harder base-kit line off the chimney step, up and back,
+            // with a crumbling step on the way. Florence has no movement ability, so no shortcuts.
+            ChimneyLine = OptionalRoute.Create(RooftopRouteID, RooftopRouteRewardID, RooftopRouteRewardPosition, chimneyStep);
+            AddChild(ChimneyLine);
+            ChimneyLine.AddBaseLineSurface(BuildOneWayStep(5150f, 530f, 120f));
+            ChimneyLine.AddBaseLineSurface(BuildOneWayStep(4930f, 420f, 160f));
+            ChimneyLine.AddBaseLineSurface(BuildCrumblingStep("level_01.crumbling_chimney", 5180f, 322f));
+            ChimneyLine.AddBaseLineSurface(BuildOneWayStep(RooftopRouteEndX, RooftopRouteEndY, 220f));
+        }
+
+        private TraversalSurface BuildOneWayStep(float x, float y, float width) {
+            var platform = new OneWayPlatform {
+                Name = $"OneWay_{Mathf.RoundToInt(x)}_{Mathf.RoundToInt(y)}",
+                Position = new Vector2(x, y),
+                CollisionLayer = CollisionLayers.OneWayPlatform,
+                CollisionMask = 0
+            };
+            platform.AddChild(new CollisionShape2D {
+                Shape = new RectangleShape2D { Size = new Vector2(width, OneWayStepThickness) },
+                OneWayCollision = true,
+                OneWayCollisionMargin = 12f
+            });
+            platform.AddChild(new ColorRect {
+                Size = new Vector2(width, OneWayStepThickness),
+                Position = new Vector2(-width / 2f, -OneWayStepThickness / 2f),
+                Color = new Color(0.35f, 0.22f, 0.1f),
+                MouseFilter = Control.MouseFilterEnum.Ignore
+            });
+            AddChild(platform);
+            return new TraversalSurface(x - width / 2f, x + width / 2f, y - OneWayStepThickness / 2f);
+        }
+
+        /// <summary>The shared template, as the workshop's two crumbling platforms are authored: it comes back after its respawn.</summary>
+        private TraversalSurface BuildCrumblingStep(string platformID, float x, float y) {
+            var platform = ResourceLoader.Load<PackedScene>(CrumblingTemplatePath).Instantiate<CrumblingPlatform>();
+            platform.Name = $"Crumbling_{platformID.Replace('.', '_')}";
+            platform.PlatformID = platformID;
+            platform.Position = new Vector2(x, y);
+            AddChild(platform);
+            return new TraversalSurface(x - CrumblingStepHalfWidth, x + CrumblingStepHalfWidth, y - CrumblingStepHalfHeight);
+        }
+
+        /// <summary>A ramp whose low end sinks into the floor, the base's <c>BuildRampBetweenJoints</c> for a level off the base.</summary>
+        private void BuildTrenchRamp(Vector2 lowJoint, Vector2 highJoint) {
+            Vector2 buriedEnd = lowJoint + (lowJoint - highJoint).Normalized() * 16f;
+            Vector2 west = buriedEnd.X < highJoint.X ? buriedEnd : highJoint;
+            Vector2 east = buriedEnd.X < highJoint.X ? highJoint : buriedEnd;
+            Vector2 centre = (west + east) / 2f;
+            float width = west.DistanceTo(east);
+            StaticBody2D ramp = BuildFloor(centre.X - width / 2f, centre.Y, width);
+            ramp.Rotation = (east - west).Angle();
         }
 
         private void BuildRoom2() {
@@ -615,7 +768,7 @@ namespace FTT.Environment {
             BuildSealingAnchor();
         }
 
-        private void BuildFloor(float x, float y, float width) {
+        private StaticBody2D BuildFloor(float x, float y, float width) {
             var floor = new StaticBody2D();
             floor.CollisionLayer = CollisionLayers.Environment;
             floor.CollisionMask = 0;
@@ -644,6 +797,7 @@ namespace FTT.Environment {
             AddChild(floor);
             StoryOpeningPresentation.TrackSurface(floor, new Rect2(x, y, width, 40));
             _openingSurfaces.Add(floor);
+            return floor;
         }
 
         private void BuildPlatform(float x, float y, float width) {
@@ -712,6 +866,7 @@ namespace FTT.Environment {
             visual.Color = new Color(0.6f, 0.2f, 0.1f);
             hazard.AddChild(visual);
 
+            _spikeStrips.Add(hazard);
             hazard.BodyEntered += (body) => {
                 // GR-HAZ: a launched or thrown mob takes its impact; a walking one is refused.
                 if (body is FTT.Enemies.EnemyController mob) { mob.ApplyHazardImpact(hazard.GetInstanceId()); return; }
@@ -727,6 +882,25 @@ namespace FTT.Environment {
             };
 
             AddChild(hazard);
+        }
+
+        private readonly System.Collections.Generic.List<Area2D> _spikeStrips = new();
+
+        /// <summary>
+        /// GR-LV1 (ruling 7d): BodyEntered never fires for a mob launched while it already
+        /// stands in a strip, so a strip also asks each tick. A walking mob is refused
+        /// without spending the strip; a launched one is hit once per launch, whichever
+        /// path sees it first.
+        /// </summary>
+        private void HitLaunchedMobsStandingInSpikes() {
+            foreach (Area2D strip in _spikeStrips) {
+                if (!IsInstanceValid(strip) || !strip.HasOverlappingBodies()) continue;
+                Godot.Collections.Array<Node2D> bodies = strip.GetOverlappingBodies();
+                using var bodiesLifetime = bodies.AsDisposable();
+                foreach (Node2D body in bodies) {
+                    if (body is FTT.Enemies.EnemyController mob) mob.ApplyHazardImpact(strip.GetInstanceId());
+                }
+            }
         }
 
         private void BuildCheckpoint(float x, float y, string id) {
@@ -859,6 +1033,20 @@ namespace FTT.Environment {
         public const string Room1bRowID = "level_01.room1b";
         public const string Room2RowID = "level_01.room2";
         public const string Room3RowID = "level_01.room3";
+
+        /// <summary>
+        /// GR-LV1 (rulings 1b, 1b+, 1b++): the workshop's swarm row, all fodder, paying nothing.
+        /// It is the showcase for ruling 7d, so its mobs stand either side of the workshop's
+        /// hazards and a launch sends them across one. See <see cref="SwarmSpawnXs"/>.
+        /// </summary>
+        public const string SwarmRowID = "level_01.swarm1";
+
+        /// <summary>
+        /// The row, Hard's truth (a 1560 px lock takes 8): either side of the spike strips at
+        /// 8990-9090 and 9500-9580 and of the steam geyser at 9860-9980 (the scene's
+        /// <c>SteamGeyser</c>, a cyclic hazard). None stands in a hazard.
+        /// </summary>
+        public static readonly float[] SwarmSpawnXs = { 9130f, 9270f, 9420f, 9640f, 9770f, 10040f, 10170f, 10300f };
 
         /// <summary>The entry anchor, at the entrance (it stood at 2800, mid-fight).</summary>
         public const float EntryCheckpointX = 300f;
@@ -1017,7 +1205,7 @@ namespace FTT.Environment {
                 EntryBarrierX = WorkshopLockMinX - halfBarrier,
                 ExitBarrierX = WorkshopLockMaxX + halfBarrier,
                 BarrierFloorY = 900f,
-                Waves = new[] { EncounterLockWave.FromTable(Room3RowID, Room3Spawns, EncounterWaveTrigger.OnEngage) },
+                Waves = new[] { EncounterLockWave.FromTable(Room3RowID, Room3Spawns, EncounterWaveTrigger.OnEngage), BuildSwarmWave() },
                 ObjectiveKey = "encounter_lock_objective_clear",
                 GoDirection = EncounterGoDirection.Right
             });
@@ -1026,6 +1214,19 @@ namespace FTT.Environment {
                 StoryManager.Instance?.RegisterEncounterBaseline(
                     entry.Key, entry.Value, StoryLevelControllerBase.ExplicitEncounterBaselineVersion);
             }
+        }
+
+        private static EncounterLockWave BuildSwarmWave() {
+            var spawns = new EncounterLockSpawn[SwarmSpawnXs.Length];
+            for (int index = 0; index < spawns.Length; index++) {
+                spawns[index] = new EncounterLockSpawn(FTT.Combat.HazardMobRules.FodderEnemyID, new Vector2(SwarmSpawnXs[index], 850f));
+            }
+            return new EncounterLockWave {
+                RowID = SwarmRowID,
+                Spawns = spawns,
+                Trigger = EncounterWaveTrigger.WhenAliveAtMost,
+                AliveAtMost = SwarmWaveRules.TriggerAliveAtMost
+            };
         }
 
         private EncounterLock AddEncounterLock(EncounterLockSpec spec) {
@@ -1227,6 +1428,7 @@ namespace FTT.Environment {
         }
 
         public override void _PhysicsProcess(double delta) {
+            HitLaunchedMobsStandingInSpikes();
             if (_shrinkElapsed < 0f) return;
             AdvanceArenaShrink((float)delta);
         }

@@ -38,7 +38,7 @@ namespace FTT.Environment {
     /// <b><see cref="ChronalRiftZone"/> pockets tax the low road.</b> The sediment
     /// shelf runs unbroken from the entrance to the arena, so the fast route always
     /// exists - but three pockets of pooled time sit on it at half speed, and more
-    /// than two seconds inside one snaps the player about three seconds into their
+    /// than three seconds inside one snaps the player about three seconds into their
     /// own past with damage. The shelf is quick if you keep moving and expensive if
     /// you do not.
     ///
@@ -90,7 +90,7 @@ namespace FTT.Environment {
         /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
         /// per-hero median measurement pass.
         /// </summary>
-        public override float ParSeconds => 450f;
+        public override float ParSeconds => TraversalRules.ParWithStretches(450f, 1);
         public override string LevelTitleKey => "chronal_void_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_13_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(220f, ShelfY - 60f);
@@ -127,6 +127,17 @@ namespace FTT.Environment {
         /// resort - there is no fall death here and no bottomless pit.
         /// </summary>
         public const float ShelfY = 1900f;
+
+        /// <summary>
+        /// How long a hero may stay inside a rift pocket before the time-loop snap (the one value;
+        /// the scene no longer authors it). A pocket halves the walker's speed, so the slowest hero
+        /// (Lincoln, 3.8 u/s) needs about 2.46 s to cross the 240 px circle plus his 40 px body; 3.0 s
+        /// leaves a margin of more than 0.4 s, so every hero crosses by walking
+        /// (<c>PROVISIONAL-L13-RIFT-SNAP-SLOWEST-HERO</c>, <c>Level13RiftPocketTests</c>). It was 2.0 s,
+        /// which crossed only before the 2026-10-12 speed cut. Standing or fighting in a pocket
+        /// still snaps.
+        /// </summary>
+        public const float RiftSnapDelaySeconds = 3f;
 
         public const float Room2StartX = 3200f;
         /// <summary>West edge of the Mirror arena, and the seam where the void stops shifting.</summary>
@@ -343,7 +354,9 @@ namespace FTT.Environment {
             // Wave 1 - the Threshold. Two phantoms and a Unbound trooper picket.
             // GU-L12: the phantom that guarded the first conduit's cornice
             // (2380/890, 950 px up, past its own 560 px aggro) came down onto the shelf.
-            (PhantomEnemyID, 1, new Vector2(1180f, StandY)),
+            // GR-LV5: the west phantom moved 1180 -> 2100, inside the carved Threshold
+            // (1880–3200); the stair it guarded is the Fragment Stair now.
+            (PhantomEnemyID, 1, new Vector2(2100f, StandY)),
             (CultistEnemyID, 1, new Vector2(2620f, StandY)),
             (PhantomEnemyID, 1, new Vector2(2380f, StandY)),
             // Wave 2 - the Drift. Unbound troopers hold the shelf, phantoms work the shards.
@@ -376,7 +389,9 @@ namespace FTT.Environment {
         /// tests and the dust ledger keep resolving.
         /// </summary>
         public static readonly (string ID, Vector2 Position)[] ExtractorPlacements = {
-            ("level_13_extractor_0", new Vector2(2380f, 890f)),
+            // GR-LV5: moved from the Alexandria cornice (2380, 890) to the end of the
+            // Drift Line, the optional route over the Fragment Stair.
+            ("level_13_extractor_0", new Vector2(DriftLineEndX, DriftLineTopY - 72f)),
             ("level_13_extractor_1", new Vector2(5980f, 940f))
         };
 
@@ -406,8 +421,34 @@ namespace FTT.Environment {
 
         private const float LockBarrierWidth = EncounterLockRules.DefaultBarrierWidthPixels;
 
-        /// <summary>The Threshold: everything past the entry anchor (260) to the Drift seam.</summary>
-        public const float ThresholdLockMinX = 320f;
+        /// <summary>
+        /// The Threshold, from 1880 to the Drift seam. GR-LV5 carved it from the west
+        /// (it was 320–3200): the stair to the Berlin slab is the Fragment Stair now, and
+        /// the lock holds the Florence gear's ride and the shelf beyond. The Florence gear
+        /// (1900–2140) stands just inside the entry barrier (1860–1880).
+        /// </summary>
+        public const float ThresholdLockMinX = 1880f;
+
+        // === GR-LV5 (rulings 7a, 7b, 7c, 7c+): the Fragment Stair ==============
+
+        public const string FragmentStairStretchID = "level_13.fragment_stair";
+        public const string DriftLineRouteID = "level_13.drift_line";
+        public const string FragmentStairRoomKey = "void_room_fragment_stair";
+        /// <summary>
+        /// The stair: past the entry anchor's Warden Beacon to the Threshold's entry barrier.
+        /// No trench: the shelf is the floor of last resort, 100 px over the level's edge, and
+        /// the low road under the stair is taxed by the Threshold rift pocket (1500). The
+        /// line is the four settled fragments under the cycling Threshold field.
+        /// </summary>
+        public const float FragmentStairMinX = 320f;
+        public const float FragmentStairMaxX = ThresholdLockMinX - LockBarrierWidth;
+        public const float FragmentStairWestDeckEndX = 600f;
+        public const float FragmentStairEastDeckStartX = 1780f;
+        /// <summary>The stair's camera starts 60 px west of the level so the rect is a full 1920.</summary>
+        public const float FragmentStairCameraWestX = FragmentStairMaxX - 1920f;
+        /// <summary>The Drift Line's last surface: 220 wide, its top 402 px over the Pompeii step.</summary>
+        public const float DriftLineEndX = 1350f;
+        public const float DriftLineTopY = 1068f;
         public const float ThresholdLockMaxX = Room2StartX;
         /// <summary>
         /// The Drift, from the seam to 190 px short of the Middle anchor (5290).
@@ -597,7 +638,10 @@ namespace FTT.Environment {
                 _driftingShards.Add(shard);
             }
             foreach (string nodeName in RiftPocketNodeNames) {
-                if (GetNodeOrNull<ChronalRiftZone>(nodeName) is ChronalRiftZone rift) _riftPockets.Add(rift);
+                if (GetNodeOrNull<ChronalRiftZone>(nodeName) is ChronalRiftZone rift) {
+                    rift.SnapDelay = RiftSnapDelaySeconds;
+                    _riftPockets.Add(rift);
+                }
             }
         }
 
@@ -633,6 +677,53 @@ namespace FTT.Environment {
 
             BuildCheckpoint(Checkpoint0Position.X, Checkpoint0Position.Y, Checkpoint0, CheckpointRole.Entry);
             BuildRoomDecoration(0f, "void_room_threshold", new Color(0.72f, 0.62f, 0.98f));
+            BuildFragmentStair();
+        }
+
+        /// <summary>The top of a motif's one-way platform (its centre less half the 20 px thickness).</summary>
+        private static TraversalSurface MotifSurface(string motifID) {
+            foreach ((string id, float x, float y, float width, string _, Color _) in EraMotifs) {
+                if (id == motifID) return new TraversalSurface(x - width / 2f, x + width / 2f, y - 10f);
+            }
+            throw new ArgumentException($"Level 13 has no motif '{motifID}'.");
+        }
+
+        /// <summary>
+        /// GR-LV5 (rulings 7a, 7b): the Fragment Stair, carved from the Threshold lock's west
+        /// end. Its line is the Threshold stair the level already authors (Orleans, Paris,
+        /// Pompeii, Berlin), which a hero now climbs unfought under the cycling field, over a
+        /// shelf the Threshold rift pocket taxes. The Drift Line (ruling 7c+) climbs west from
+        /// the Paris step and back east to the moved severed conduit over the Pompeii step.
+        /// Built in BuildLevel, so an Anchor Snap's rebuild builds it again.
+        /// </summary>
+        private void BuildFragmentStair() {
+            TraversalStretch stair = BeginStretch(FragmentStairStretchID, "void_fragment_stair",
+                FragmentStairMinX, FragmentStairMaxX, ShelfY, FragmentStairWestDeckEndX, FragmentStairEastDeckStartX,
+                FragmentStairCameraWestX);
+            BuildRoomDecoration(FragmentStairMinX, FragmentStairRoomKey, new Color(0.8f, 0.7f, 1f));
+            stair.AddLineSurface(MotifSurface("motif_orleans"));
+            TraversalSurface paris = MotifSurface("motif_paris");
+            stair.AddLineSurface(paris);
+            TraversalSurface pompeii = MotifSurface("motif_pompeii");
+            stair.AddLineSurface(pompeii);
+            stair.AddLineSurface(MotifSurface("motif_berlin"));
+
+            OptionalRoute line = BeginOptionalRoute(DriftLineRouteID, ExtractorPlacements[0].ID,
+                ExtractorPlacements[0].Position, paris);
+            BuildRouteStep(line, 910f, 1428f, 120f);
+            BuildRouteStep(line, 700f, 1318f, 120f);
+            TraversalSurface burstFrom = BuildRouteStep(line, 655f, 1178f, 160f);
+            BuildRouteStep(line, 905f, DriftLineTopY + 10f, 180f);
+            TraversalSurface end = BuildRouteStep(line, DriftLineEndX, DriftLineTopY + 10f, 220f);
+            line.MarkBurstShortcut(burstFrom, end);
+            line.MarkRiseShortcut(pompeii, end);
+
+            // The carved Threshold needs its own room: the stair's camera ends at its barrier.
+            // The same rect as the Drift's back trigger, and not one-shot.
+            RoomTransitionTrigger threshold = BuildRoomTransition("void_threshold_lock",
+                new Vector2(ThresholdLockMinX + 60f, LevelHeight / 2f),
+                new Rect2(0f, 0f, Room2StartX + 100f, LevelHeight), new Vector2(80f, LevelHeight));
+            threshold.ActivateOnce = false;
         }
 
         private void BuildRoom2Drift() {

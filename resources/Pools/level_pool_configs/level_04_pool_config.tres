@@ -49,7 +49,7 @@ OverflowPolicy = 1
 script = ExtResource("2_definition")
 PoolID = "standard_enemy"
 SceneTemplate = ExtResource("6_enemy")
-WarmUpCount = 12
+WarmUpCount = 18
 MaxCapacity = 40
 OverflowPolicy = 1
 

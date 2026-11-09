@@ -1763,3 +1763,22 @@ resonance_tubman_freedom_line_name,"Freedom Line"
 resonance_tubman_freedom_line_description,"Every strike Foresight counters refunds one Momentum pip and grants a lantern-light shield absorbing 10% of maximum health for 8 seconds."
 # GR-PILOT
 orleans_room_rampart,The Rampart Run
+# GR-LV1
+florence_room_rooftops,The Rooftop Run
+chicago_room_skyway,The Skyway
+# GR-LV2
+paris_room_glacis,The Glacis
+titanic_room_well_deck,The Well Deck
+pompeii_room_ashfall,The Ashfall
+# GR-LV3
+nassau_room_careening,The Careening Yard
+egypt_room_crossing,The Dune Crossing
+berlin_room_beach_run,The Beach Run
+# GR-LV4
+globe_room_stage_front,The Stage Front
+gettysburg_room_sunken_road,The Sunken Road
+lunar_room_mare_crossing,The Mare Crossing
+# GR-LV5
+void_room_fragment_stair,The Fragment Stair
+neo_earth_room_breach_catwalk,The Breach Catwalk
+alexandria_room_portico_run,The Portico Run

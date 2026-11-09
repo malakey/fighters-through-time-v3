@@ -98,7 +98,7 @@ namespace FTT.Environment {
         /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
         /// per-hero median measurement pass.
         /// </summary>
-        public override float ParSeconds => 540f;
+        public override float ParSeconds => TraversalRules.ParWithStretches(540f, 1);
         public override string LevelTitleKey => "neo_earth_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_14_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(200f, DeckY - 60f);
@@ -382,7 +382,9 @@ namespace FTT.Environment {
             // Wave 1 - Breach Gallery. The perimeter watch, before the first grid.
             (SlasherEnemyID, 1, new Vector2(1300f, StandY)),
             (DroneEnemyID, 1, new Vector2(1750f, 1300f)),
-            (SlasherEnemyID, 1, new Vector2(2450f, StandY)),
+            // GR-LV5: moved 2450 -> 1660, inside the carved Breach Gallery (320–2000),
+            // between the first two perimeter beams.
+            (SlasherEnemyID, 1, new Vector2(1660f, StandY)),
             // Wave 2 - Containment Wing. Drones hold the shaft mouths.
             (SlasherEnemyID, 2, new Vector2(3050f, StandY)),
             (DroneEnemyID, 2, new Vector2(3560f, 1230f)),
@@ -422,7 +424,9 @@ namespace FTT.Environment {
         /// dust ledger.
         /// </summary>
         public static readonly (string ID, Vector2 Position)[] ExtractorPlacements = {
-            ("level_14_extractor_0", new Vector2(1120f, 1230f)),
+            // GR-LV5: moved from the portal scaffold (1120, 1230) to the end of the
+            // Gantry line, the optional route over the Breach Catwalk.
+            ("level_14_extractor_0", new Vector2(GantryLineEndX, GantryLineTopY - 72f)),
             ("level_14_extractor_1", new Vector2(4070f, 730f)),
             ("level_14_extractor_2", new Vector2(8990f, 610f))
         };
@@ -458,9 +462,36 @@ namespace FTT.Environment {
 
         private const float LockBarrierWidth = EncounterLockRules.DefaultBarrierWidthPixels;
 
-        /// <summary>The Breach Gallery: everything past the entry anchor (260) to the wing's seam. Holds the perimeter grid.</summary>
+        /// <summary>
+        /// The Breach Gallery: past the entry anchor (260) to 2000. Holds the first two
+        /// perimeter beams; the third stands under the Breach Catwalk. GR-LV5 carved it
+        /// from 320–2900.
+        /// </summary>
         public const float BreachGalleryLockMinX = 320f;
-        public const float BreachGalleryLockMaxX = Room2StartX;
+        public const float BreachGalleryLockMaxX = 2000f;
+
+        // === GR-LV5 (rulings 7a, 7b, 7c, 7c+): the Breach Catwalk ==============
+
+        public const string BreachCatwalkStretchID = "level_14.breach_catwalk";
+        public const string GantryRouteID = "level_14.gantry_line";
+        public const string BreachCatwalkRoomKey = "neo_earth_room_breach_catwalk";
+        /// <summary>The catwalk: from the Breach Gallery's exit barrier to the Containment Wing's entry barrier.</summary>
+        public const float BreachCatwalkMinX = BreachGalleryLockMaxX + LockBarrierWidth;
+        public const float BreachCatwalkMaxX = Room2StartX;
+        /// <summary>
+        /// No trench: the deck is 100 px over the level's floor edge. The low road is the deck
+        /// itself, timed through two beams; the catwalk runs above their strips.
+        /// </summary>
+        public const float BreachCatwalkWestDeckEndX = 2040f;
+        public const float BreachCatwalkEastDeckStartX = 2880f;
+        /// <summary>The first step's top: clear of a beam strip, which rises 220 px from the deck.</summary>
+        public const float BreachCatwalkFirstTopY = 1470f;
+        /// <summary>The catwalk's own beam, under its third step. The perimeter grid's tuning and damage.</summary>
+        public const string BreachBeamID = "level_14.breach_beam";
+        public const float BreachBeamX = 2610f;
+        /// <summary>The Gantry line's last surface: 200 wide, its top 402 px over the catwalk's last step.</summary>
+        public const float GantryLineEndX = 2800f;
+        public const float GantryLineTopY = 1004f;
         /// <summary>
         /// The Containment Wing, from the seam to the bulkhead's west face. Holds
         /// the containment grid and the alpha and beta pockets; its exit barrier
@@ -527,6 +558,7 @@ namespace FTT.Environment {
 
         protected override void BuildLevel() {
             BuildRoom1BreachGallery();
+            BuildBreachCatwalk();
             BuildRoom2ContainmentWing();
             BuildRoom3FabricationSpine();
             BuildRoom4SecurityCore();
@@ -642,6 +674,37 @@ namespace FTT.Environment {
 
             BuildCheckpoint(Checkpoint0Position.X, Checkpoint0Position.Y, Checkpoint0, CheckpointRole.Entry);
             BuildRoomDecoration(0f, "neo_earth_room_breach_gallery", new Color(0.4f, 0.9f, 1f));
+        }
+
+        /// <summary>
+        /// GR-LV5 (rulings 7a, 7b): the Breach Catwalk, between the carved Breach Gallery and
+        /// the Containment Wing. The deck below is the timed low road (the third perimeter beam
+        /// and the catwalk's own); the catwalk runs over both strips, one step crumbling. The
+        /// Gantry line (ruling 7c+) climbs from the first step to the moved Resonance Hold node.
+        /// </summary>
+        private void BuildBreachCatwalk() {
+            TraversalStretch catwalk = BeginStretch(BreachCatwalkStretchID, "neo_earth_breach_catwalk",
+                BreachCatwalkMinX, BreachCatwalkMaxX, DeckY, BreachCatwalkWestDeckEndX, BreachCatwalkEastDeckStartX, 0f);
+            BuildRoomDecoration(BreachCatwalkMinX, BreachCatwalkRoomKey, new Color(0.45f, 0.95f, 1f));
+
+            TraversalSurface firstStep = BuildStretchStep(catwalk, 2150f, BreachCatwalkFirstTopY + 10f, 180f,
+                StretchStepKind.OneWay);
+            BuildStretchStep(catwalk, 2380f, 1414f, 160f, StretchStepKind.Crumbling, "level_14.crumbling_catwalk");
+            BuildStretchStep(catwalk, BreachBeamX, 1416f, 180f, StretchStepKind.OneWay);
+            TraversalSurface lastStep = BuildStretchStep(catwalk, 2810f, 1414f, 140f);
+
+            StoryCyclicHazard beam = BuildCyclicHazardLane(BreachBeamID, BreachBeamX, DeckY,
+                PerimeterGrid.WarningSeconds, PerimeterGrid.ActiveSeconds, PerimeterGrid.CooldownSeconds, 16);
+            beam.Knockback = new Vector2(220f, -120f);
+
+            OptionalRoute gantry = BeginOptionalRoute(GantryRouteID, ExtractorPlacements[0].ID,
+                ExtractorPlacements[0].Position, firstStep);
+            BuildRouteStep(gantry, 2330f, 1294f, 120f);
+            TraversalSurface burstFrom = BuildRouteStep(gantry, 2120f, 1114f, 150f);
+            BuildRouteStep(gantry, 2365f, GantryLineTopY + 10f, 180f);
+            TraversalSurface end = BuildRouteStep(gantry, GantryLineEndX, GantryLineTopY + 10f, 200f);
+            gantry.MarkBurstShortcut(burstFrom, end);
+            gantry.MarkRiseShortcut(lastStep, end);
         }
 
         private void BuildRoom2ContainmentWing() {

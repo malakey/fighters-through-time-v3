@@ -24,7 +24,7 @@ namespace FTT.Environment {
     ///
     /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-L0): each of
     /// the three approach rooms is an <see cref="EncounterLock"/> the hero must
-    /// clear — the Midway (700–3820, its fairground crowd spawning in as the hero
+    /// clear — the Midway (700–2500 since GR-LV1, its fairground crowd spawning in as the hero
     /// steps onto the midway), the Electricity Building floor (3840–5780; the
     /// crown slasher, which stood on the unreachable crown, now holds the floor
     /// under the descent) and the routing hall (6115–8290, which also needs the
@@ -33,6 +33,12 @@ namespace FTT.Environment {
     /// to the gap between the Electricity and routing locks (6000), the PreBoss
     /// anchor from 8420 to 8500 (out of swing reach from inside the routing hall),
     /// and every checkpoint lists the locks before it.</para>
+    ///
+    /// <para><b>The Skyway</b> (gameplay review 2026-11-03, rulings 7a-7c+; GR-LV1):
+    /// the Midway lock was carved to 700-2500, and the freed span is a traversal
+    /// stretch (2520-3820) over a non-lethal trench. Its optional route, the Ferris
+    /// line, holds the Midway's Extractor. The Electricity lock takes the level's
+    /// swarm row. Nothing past the stretch moved.</para>
     /// </summary>
     public partial class Level03Controller : StoryLevelControllerBase {
 
@@ -50,9 +56,9 @@ namespace FTT.Environment {
         /// seeded as 6 authored rooms x 90 s, rounded up to the nearest
         /// 30 s. Recorded under VERIFY-PAR-SECONDS in
         /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
-        /// per-hero median measurement pass.
+        /// per-hero median measurement pass. GR-LV1 adds the Skyway's +30.
         /// </summary>
-        public override float ParSeconds => 540f;
+        public override float ParSeconds => TraversalRules.ParWithStretches(540f, 1);
         public override string LevelTitleKey => "chicago_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_03_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(240, GroundY - 50);
@@ -139,7 +145,8 @@ namespace FTT.Environment {
         public static readonly EnemySpawn[] MidwayWave = {
             new("voltaic_shock_drone", new Vector2(1100, 980), 260f),
             new("chrono_slasher", new Vector2(1900, GroundY - 50), 300f),
-            new("voltaic_shock_drone", new Vector2(2900, 900), 300f)
+            // GR-LV1: 2900 -> 2150, inside the carved lock.
+            new("voltaic_shock_drone", new Vector2(2150, 900), 300f)
         };
 
         /// <summary>
@@ -173,8 +180,8 @@ namespace FTT.Environment {
 
         /// <summary>Authored extractor placements; each one guards a side path.</summary>
         public static readonly (string ID, Vector2 Position)[] ExtractorPlacements = {
-            // Midway rooftop ledge, reachable only off the one-way awning.
-            ("level_03_extractor_0", new Vector2(2100, 998)),
+            // GR-LV1: the end of the Ferris line, over the Skyway (it stood on the Midway's awning).
+            ("level_03_extractor_0", new Vector2(FerrisLineEndX, 738)),
             // Crown of the Electricity Building climb.
             ("level_03_extractor_1", new Vector2(5240, 300)),
             // Gallery catwalk between the two upper coils.
@@ -196,11 +203,12 @@ namespace FTT.Environment {
         /// <summary>
         /// The Midway lock: the fairground floor from past the entry anchor (240)
         /// and the low stand (350–650; every lock edge sits in a gap between
-        /// platforms, so no barrier cuts one) to the Electricity seam. Its exit and
-        /// the Electricity lock's entry share the 20 px slot 3820–3840.
+        /// platforms, so no barrier cuts one) to 2500. GR-LV1 carved it from 3820, just past
+        /// the second arc lamp (2340-2460), so a hero pressed against its exit stands clear
+        /// of the lamp. The Skyway takes the rest.
         /// </summary>
         public const float MidwayLockMinX = 700f;
-        public const float MidwayLockMaxX = ElectricityStartX - EncounterLockRules.DefaultBarrierWidthPixels;
+        public const float MidwayLockMaxX = 2500f;
 
         /// <summary>
         /// The Electricity lock: the dynamo hall from the seam to the gap under
@@ -245,6 +253,57 @@ namespace FTT.Environment {
         public EncounterLock ElectricityLock => _electricityLock;
         public EncounterLock RoutingHallLock => _routingLock;
 
+        // === GR-LV1: the Skyway, the Ferris line and the swarm row ===============
+
+        public const string SkywayStretchID = "level_03.skyway";
+        public const string FerrisRouteID = "level_03.ferris_line";
+        public const string SkywayRoomKey = "chicago_room_skyway";
+
+        /// <summary>From the Midway lock's exit barrier to the Electricity lock's entry barrier.</summary>
+        public const float SkywayMinX = 2520f;
+        public const float SkywayMaxX = ElectricityStartX - EncounterLockRules.DefaultBarrierWidthPixels;
+        public const float SkywayWestDeckEndX = 2680f;
+        public const float SkywayEastDeckStartX = 3660f;
+
+        /// <summary>The Ferris line's last platform; the Extractor stands 72 px over its top.</summary>
+        public const float FerrisLineEndX = 3585f;
+
+        /// <summary>The Electricity lock's swarm row (level_03_rewards.tres).</summary>
+        public const string SwarmRowID = "level_03.swarm1";
+
+        /// <summary>The row, Hard's truth (a 1940 px lock takes 8), along the dynamo hall's floor.</summary>
+        public static readonly float[] SwarmSpawnXs = { 4050f, 4230f, 4410f, 4590f, 4770f, 4950f, 5130f, 5560f };
+
+        private void BuildSkyway() {
+            TraversalStretch skyway = BeginStretch(SkywayStretchID, SkywayRoomKey,
+                SkywayMinX, SkywayMaxX, GroundY, SkywayWestDeckEndX, SkywayEastDeckStartX, MidwayStartX);
+            BuildRoomDecoration(SkywayMinX, SkywayRoomKey, new Color(0.7f, 0.85f, 1f));
+            BuildStretchTrench(skyway);
+            // The deck resumes under the Electricity lock's entry barrier: that barrier needs floor under it.
+            BuildFloor(SkywayEastDeckStartX, GroundY, ElectricityStartX - SkywayEastDeckStartX);
+
+            BuildStretchStep(skyway, 2800, 1290, 200);
+            BuildStretchStep(skyway, 3040, 1220, 180, StretchStepKind.Crumbling, "level_03.crumbling_awning");
+            TraversalSurface middleStep = BuildStretchStep(skyway, 3300, 1222, 200, StretchStepKind.OneWay);
+            TraversalSurface eastStep = BuildStretchStep(skyway, 3520, 1220, 200);
+            // On the deck, so the east ramp stays walkable: a double jump or the ledge clears it.
+            // The last step ends 80 px short of it, or a hero jumping from the deck bonks the step's underside.
+            BuildStretchWallStep(skyway, 3700f, 1190f, GroundY);
+
+            // Off the line: a way back up out of the trench, and an arc lamp to cross down there.
+            BuildOneWayPlatform(3260, 1390, 200);
+            BuildCyclicHazardLane("level_03.arc_skyway", 3430f, skyway.TrenchFloorY, 0.9f, 0.8f, 2.4f, 14, withCover: true);
+
+            OptionalRoute ferris = BeginOptionalRoute(FerrisRouteID, ExtractorPlacements[0].ID,
+                ExtractorPlacements[0].Position, middleStep);
+            BuildRouteStep(ferris, 3110, 1030, 120);
+            TraversalSurface burstFrom = BuildRouteStep(ferris, 2890, 920, 160);
+            BuildRouteStep(ferris, 3140, 820, 180);
+            TraversalSurface end = BuildRouteStep(ferris, FerrisLineEndX, 820, 220);
+            ferris.MarkBurstShortcut(burstFrom, end);
+            ferris.MarkRiseShortcut(eastStep, end);
+        }
+
         // === Runtime ===
 
         private PuzzleManager _beamPuzzle;
@@ -262,6 +321,7 @@ namespace FTT.Environment {
 
         protected override void BuildLevel() {
             BuildMidway();
+            BuildSkyway();
             BuildElectricityBuilding();
             BuildRoutingHall();
             BuildCourtOfHonor();
@@ -298,7 +358,10 @@ namespace FTT.Environment {
                 EntryBarrierX = ElectricityLockMinX - halfBarrier,
                 ExitBarrierX = ElectricityLockMaxX + halfBarrier,
                 BarrierFloorY = GroundY,
-                Waves = new[] { WaveFrom(ElectricityRowID, ElectricityWave, EncounterWaveTrigger.OnBuild) },
+                Waves = new[] {
+                    WaveFrom(ElectricityRowID, ElectricityWave, EncounterWaveTrigger.OnBuild),
+                    SwarmWave(SwarmRowID, GroundY - 50f, SwarmSpawnXs)
+                },
                 ObjectiveKey = "encounter_lock_objective_clear",
                 GoDirection = EncounterGoDirection.Right
             });
@@ -339,15 +402,14 @@ namespace FTT.Environment {
         private void BuildMidway() {
             float width = ElectricityStartX - MidwayStartX;
             BuildRoomBackground("BG_Midway", MidwayStartX, width, LevelHeight, new Color(0.06f, 0.08f, 0.14f, 0.55f));
-            BuildFloor(MidwayStartX, GroundY, width);
+            // GR-LV1: the floor stops at the Skyway's west deck; BuildSkyway lays the rest.
+            BuildFloor(MidwayStartX, GroundY, SkywayWestDeckEndX - MidwayStartX);
             BuildWall(MidwayStartX, 0, LevelHeight);
 
             BuildPlatform(500, 1240, 300);
             BuildPlatform(1000, 1100, 260);
             BuildPlatform(1500, 1240, 280);
-            BuildPlatform(2650, 1220, 300);
-            BuildPlatform(3200, 1060, 240);
-            // Awning route up to the extractor ledge.
+            // The awning climb.
             BuildOneWayPlatform(1750, 1080, 260);
             BuildOneWayPlatform(2100, 1080, 300);
 

@@ -94,7 +94,7 @@ public class Level08ContentTests {
         Level08Controller level = fixture.Level;
 
         AssertThat(level.RoomTriggers.Count).OverrideFailureMessage(
-            "Level 8 is authored as four camera-confined rooms across two zones.").IsEqual(4);
+            "Level 8 is authored as four camera-confined rooms across two zones, and GR-LV3's Dune Crossing.").IsEqual(5);
 
         bool hasSurfaceRoom = false;
         bool hasUndergroundRoom = false;
@@ -447,12 +447,12 @@ public class Level08ContentTests {
             AssertString(tomb.LockID).IsEqual(Level08Controller.LockTomb);
             AssertString(vault.LockID).IsEqual(Level08Controller.LockVault);
 
-            // The areas: the dunes 300-3200, the siege line 3220-5460 (short of the
+            // The areas: the dunes 300-2000 (GR-LV3's carve), the siege line 3220-5460 (short of the
             // shaft lip), the tomb 5720-7000 (the shaft and the west corridor, full
             // height) and the vault 7020-8310 (the corridor band only, from the
             // ceiling's underside down).
             AssertThat(dunes.Area.Position.X).IsEqual(300f);
-            AssertThat(dunes.Area.End.X).IsEqual(3200f);
+            AssertThat(dunes.Area.End.X).IsEqual(2000f);
             AssertThat(siegeLine.Area.Position.X).IsEqual(3220f);
             AssertThat(siegeLine.Area.End.X).IsEqual(5460f);
             AssertThat(tomb.Area.Position.X).IsEqual(5720f);
@@ -483,7 +483,8 @@ public class Level08ContentTests {
                 (vault, Level08Controller.VaultRowID, Level08Controller.VaultSpawns.Length, EncounterWaveTrigger.OnBuild)
             };
             foreach ((EncounterLock encounterLock, string row, int length, EncounterWaveTrigger trigger) in waves) {
-                AssertThat(encounterLock.Spec.Waves.Length).IsEqual(1);
+                // GR-LV3: the siege line also takes the swarm row, after its authored wave.
+                AssertThat(encounterLock.Spec.Waves.Length).IsEqual(encounterLock == siegeLine ? 2 : 1);
                 AssertString(encounterLock.Spec.Waves[0].RowID).IsEqual(row);
                 AssertThat(encounterLock.Spec.Waves[0].Spawns.Length).IsEqual(length);
                 AssertThat(encounterLock.Spec.Waves[0].Trigger).IsEqual(trigger);

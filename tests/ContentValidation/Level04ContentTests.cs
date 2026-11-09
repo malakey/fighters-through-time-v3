@@ -80,14 +80,14 @@ public class Level04ContentTests {
     }
 
     [TestCase]
-    public void TheLevelIsFourConfinedRoomsInsideTheAuthoredBounds() {
+    public void TheLevelIsFiveConfinedRoomsInsideTheAuthoredBounds() {
         using var fixture = new ParisFixture();
         Level04Controller level = fixture.Level;
 
         AssertThat(Mathf.IsEqualApprox(level.LevelBounds.Size.X, Level04Controller.LevelWidth)).IsTrue();
         // Plan §5: 8000-14000 px, Florence scale.
         AssertThat(level.LevelBounds.Size.X >= 9000f && level.LevelBounds.Size.X <= 11000f).IsTrue();
-        AssertThat(level.RoomTriggers.Count).IsEqual(4);
+        AssertThat(level.RoomTriggers.Count).IsEqual(5);
 
         foreach (RoomTransitionTrigger room in level.RoomTriggers) {
             AssertThat(string.IsNullOrWhiteSpace(room.RoomID)).IsFalse();
@@ -223,7 +223,7 @@ public class Level04ContentTests {
 
         // The arena has to be wider than the boss's ranged band or it can never
         // reach its ranged attacks and the pattern deadlocks against the wall.
-        Rect2 arena = fixture.Level.RoomTriggers[3].CameraBounds;
+        Rect2 arena = fixture.Level.RoomTriggers[4].CameraBounds;
         AssertThat(arena.Size.X > boss.RangedRangeThreshold * PixelsPerUnit)
             .OverrideFailureMessage(
                 $"Courtyard is {arena.Size.X} px but the boss ranged band is " +
@@ -472,7 +472,7 @@ public class Level04ContentTests {
 
         var expected = new (EncounterLock Lock, string ID, float MinX, float MaxX, string Row,
             (string EnemyID, Vector2 Position)[] Table, EncounterWaveTrigger Trigger, string[] Puzzles)[] {
-            (level.GatehouseLock, Level04Controller.LockGatehouse, 300f, 3200f, "level_04.room1",
+            (level.GatehouseLock, Level04Controller.LockGatehouse, 300f, 2000f, "level_04.room1",
                 Level04Controller.Room1Spawns, EncounterWaveTrigger.OnBuild, Array.Empty<string>()),
             (level.CorridorLock, Level04Controller.LockCorridor, 3220f, 4760f, "level_04.room2",
                 Level04Controller.Room2Spawns, EncounterWaveTrigger.OnEngage, Array.Empty<string>()),
@@ -488,7 +488,8 @@ public class Level04ContentTests {
             AssertFloat(encounterLock.Area.End.X).IsEqualApprox(maxX, 0.5f);
             AssertFloat(encounterLock.EntryBarrier.CenterX).IsEqualApprox(minX - 10f, 0.5f);
             AssertFloat(encounterLock.ExitBarrier.CenterX).IsEqualApprox(maxX + 10f, 0.5f);
-            AssertThat(encounterLock.Spec.Waves.Length).IsEqual(1);
+            // GR-LV2: the gatehouse also carries the swarm row, read by Level04TraversalStretchTests.
+            AssertThat(encounterLock.Spec.Waves.Length).IsEqual(encounterLock == level.GatehouseLock ? 2 : 1);
             EncounterLockWave wave = encounterLock.Spec.Waves[0];
             AssertString(wave.RowID).IsEqual(row);
             AssertThat(wave.Trigger).IsEqual(trigger);

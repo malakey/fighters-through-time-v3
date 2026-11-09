@@ -40,7 +40,7 @@ namespace FTT.Environment {
     /// retired Level 4A's dust row: 55 required / 25 boss / 30 optional.
     ///
     /// <para><b>Encounter locks</b> (gameplay update 2026-10-12, GU-L4): the
-    /// stair decks (380–3400), the boiler casing (3420–5880), the E-deck run up
+    /// stair decks (380–2380 since GR-LV2), the boiler casing (3420–5880), the E-deck run up
     /// the listing ramp (6160–7520) and the boat deck (7540–8820) are
     /// <see cref="EncounterLock"/>s, one per room, and the hull flood rises on
     /// their clears rather than on x triggers, so the sea always comes in behind
@@ -52,6 +52,14 @@ namespace FTT.Environment {
     /// unscaled wave drops in once one E-deck slasher is left. Room 1 gained the
     /// room trigger and camera rect it never had, and the PreBoss anchor moved
     /// past the hull flood onto the stern rail (9060), outside every lock.</para>
+    ///
+    /// <para><b>The Well Deck and the Davit line</b> (gameplay review, GR-LV2: rulings 7a,
+    /// 7b, 7c, 7c+). The staircase lock was carved to 380-2380, and the span it left,
+    /// 2400-3400, is a platforming stretch over the open well: its trench is the first thing
+    /// the sea takes (hull step 1 stands over its floor and under the deck), so a hero who
+    /// falls in wades out up a walkable ramp. Above it the Davit line climbs back west to the
+    /// secret. The decks and the flood's dry-from table did not move. The recipe is
+    /// <c>docs/handoffs/GR_PILOT.md</c>.</para>
     /// </summary>
     public partial class Level05Controller : StoryLevelControllerBase {
 
@@ -65,20 +73,19 @@ namespace FTT.Environment {
         /// <summary>
         /// V7.6 F01 par (Package 11 A3). <b>Provisional, not measured</b>:
         /// seeded as 3 authored rooms x 90 s, rounded up to the nearest
-        /// 30 s. Recorded under VERIFY-PAR-SECONDS in
+        /// 30 s, plus the Well Deck's +30 (§1.14). Recorded under VERIFY-PAR-SECONDS in
         /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
         /// per-hero median measurement pass.
         /// </summary>
-        public override float ParSeconds => 270f;
+        public override float ParSeconds => TraversalRules.ParWithStretches(270f, 1);
         public override string LevelTitleKey => "titanic_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_05_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(240, 1270);
 
-        // Package 12 W8 (GAP-03): the secret cache sits on
-        // the top boiler-casing catwalk (one-way 3050/880, top 870), the last rung
-        // of the stair-deck climb — a dead end the deck route walks beneath, and high
-        // above the rising hull flood.
-        protected override Vector2? SecretCachePosition => new(3050f, 775f);
+        // GR-LV2: the secret cache sits at the end of the Davit line, on its last platform
+        // (top 630), 95 px over it as it stood on the old catwalk, and high above the rising
+        // hull flood's last step (720).
+        protected override Vector2? SecretCachePosition => new(DavitEndX, 535f);
 
         // D13 (PROVISIONAL-FONT-PLACEMENT): the level's Restoration Font, after the PreBoss
         // anchor on the stern rail, outside the hull flood (x < 8800), short of the arena
@@ -219,8 +226,9 @@ namespace FTT.Environment {
             // Wave 1 - D-Deck, Grand Staircase.
             (StandardEnemyID, 1, new Vector2(1200f, DeckD1 - 20f)),
             (StandardEnemyID, 1, new Vector2(1700f, DeckD1 - 20f)),
-            (StandardEnemyID, 1, new Vector2(2500f, DeckD2 - 20f)),
-            (StandardEnemyID, 1, new Vector2(3100f, DeckD2 - 20f)),
+            // GR-LV2: 2500 -> 1950 and 3100 -> 2330, inside the carved lock.
+            (StandardEnemyID, 1, new Vector2(1950f, DeckD1 - 20f)),
+            (StandardEnemyID, 1, new Vector2(2330f, DeckD2 - 20f)),
             // Wave 2 - E-Deck, flooding boiler casing.
             (StandardEnemyID, 2, new Vector2(3800f, DeckD2 - 20f)),
             (StandardEnemyID, 2, new Vector2(4300f, DeckD2 - 20f)),
@@ -266,9 +274,12 @@ namespace FTT.Environment {
         /// <summary>The manifest row of the debut Eraser (<c>@0</c>: never difficulty-scaled).</summary>
         public const string EraserDebutRowID = "level_05.eraser_debut";
 
-        /// <summary>The stair decks, east of the entry anchor (300), to the room seam on D2.</summary>
+        /// <summary>
+        /// The stair decks, east of the entry anchor (300). GR-LV2: its east end moved from
+        /// the room seam (3400) to 2380, on D2, so the span past it can be the Well Deck.
+        /// </summary>
         public const float StaircaseLockMinX = 380f;
-        public const float StaircaseLockMaxX = Room2StartX;
+        public const float StaircaseLockMaxX = 2380f;
         /// <summary>The boiler casing, ending on E2 short of the Middle anchor (6100) and its swing reach.</summary>
         public const float BoilerCasingLockMinX = Room2StartX + EncounterLockRules.DefaultBarrierWidthPixels;
         public const float BoilerCasingLockMaxX = 5880f;
@@ -297,6 +308,31 @@ namespace FTT.Environment {
         public const float SternRailTriggerX = 8880f;
         /// <summary>GU-L4: the pre-boss beat's trigger, between the boat deck's barrier and the PreBoss anchor (was 8720).</summary>
         public const float PreBossTriggerX = 8960f;
+
+        // === GR-LV2: the Well Deck and the Davit line ========================
+
+        public const string WellDeckStretchID = "level_05.stretch_well_deck";
+        public const string DavitRouteID = "level_05.route_davit";
+        public const string SwarmRowID = "level_05.swarm1";
+
+        public const float WellDeckMinX = StaircaseLockMaxX + EncounterLockRules.DefaultBarrierWidthPixels;
+        public const float WellDeckMaxX = Room2StartX;
+        /// <summary>Where D2 stops for the well and picks up again: the trench's two ramps' high joints.</summary>
+        public const float WellDeckWestEndX = 2440f;
+        public const float WellDeckEastStartX = 3360f;
+        /// <summary>The Davit line's last platform, which holds the secret.</summary>
+        public const float DavitEndX = 2560f;
+
+        /// <summary>
+        /// The swarm row on the boiler casing, 2,460 px wide, so eight
+        /// (<see cref="SwarmWaveRules.RowMobsForLockWidth"/>), each on the deck under it: D2, E1
+        /// and E2 list. Pipe B stands among them for a launched one. Easy's prefix gives the
+        /// western five.
+        /// </summary>
+        public static readonly Vector2[] SwarmSpawns = {
+            new(3640f, DeckD2 - 20f), new(3860f, DeckD2 - 20f), new(4060f, DeckD2 - 20f), new(4230f, DeckD2 - 20f),
+            new(4720f, DeckE1 - 20f), new(5040f, DeckE1 - 20f), new(5600f, DeckE2 - 20f), new(5800f, DeckE2 - 20f)
+        };
 
         private EncounterLock _staircaseLock;
         private EncounterLock _boilerCasingLock;
@@ -330,6 +366,7 @@ namespace FTT.Environment {
 
         protected override void BuildLevel() {
             BuildRoom1GrandStaircase();
+            BuildWellDeck();
             BuildRoom2BoilerCasing();
             BuildRoom3BoatDeck();
             BuildRoom4SternRail();
@@ -356,7 +393,7 @@ namespace FTT.Environment {
             // The casing crew comes up the stairs once the hero is in.
             _boilerCasingLock = BuildLock(LockBoilerCasing, BoilerCasingLockMinX, BoilerCasingLockMaxX,
                 entryFloorY: DeckD2, exitFloorY: DeckE2,
-                new[] { WaveFromTable(2, EncounterWaveTrigger.OnEngage) },
+                new[] { WaveFromTable(2, EncounterWaveTrigger.OnEngage), CasingSwarmWave() },
                 "encounter_lock_objective_clear");
             // Area 3a: the E-deck slashers are posted; the Eraser drops in once
             // one of them is left (never difficulty-scaled: the @0 debut row).
@@ -411,6 +448,17 @@ namespace FTT.Environment {
             return new EncounterLockWave { RowID = WaveRowID(wave), Spawns = spawns.ToArray(), Trigger = trigger };
         }
 
+        /// <summary>The swarm row, each mob on its own deck: the helper's trigger and shape, with the listing decks' heights.</summary>
+        private static EncounterLockWave CasingSwarmWave() {
+            var xs = new float[SwarmSpawns.Length];
+            for (int index = 0; index < xs.Length; index++) xs[index] = SwarmSpawns[index].X;
+            EncounterLockWave wave = SwarmWave(SwarmRowID, DeckD2 - 20f, xs);
+            for (int index = 0; index < xs.Length; index++) {
+                wave.Spawns[index] = new EncounterLockSpawn(wave.Spawns[index].EnemyID, SwarmSpawns[index]);
+            }
+            return wave;
+        }
+
         /// <summary>The manifest row of authored wave <paramref name="wave"/>.</summary>
         public static string WaveRowID(int wave) => $"level_05.wave{wave}";
 
@@ -441,12 +489,11 @@ namespace FTT.Environment {
             BuildListingRamp(0);
             BuildFloor(DeckD1WestX, DeckD1, 1000f);
             BuildListingRamp(1);
-            BuildFloor(DeckD2WestX, DeckD2, 1200f);
+            // GR-LV2: D2 stops at the well.
+            BuildFloor(DeckD2WestX, DeckD2, WellDeckWestEndX - DeckD2WestX);
 
             BuildOneWayPlatform(920f, 1140f, 240f);
             BuildOneWayPlatform(1500f, 1060f, 260f);
-            BuildOneWayPlatform(2600f, 980f, 240f);
-            BuildOneWayPlatform(3050f, 880f, 220f);
 
             BuildCheckpoint(300f, DeckD0 - 10f, Checkpoint0, CheckpointRole.Entry);
             BuildRoomDecoration(0f, "titanic_room_grand_staircase", new Color(0.8f, 0.68f, 0.4f));
@@ -458,8 +505,40 @@ namespace FTT.Environment {
                 Room1CameraBounds, new Vector2(80f, LevelHeight));
         }
 
-        /// <summary>GU-L4: room 1's camera rect, the stair decks up to the boiler casing's room.</summary>
-        public static readonly Rect2 Room1CameraBounds = new(0f, 0f, Room2StartX, LevelHeight);
+        /// <summary>GU-L4: room 1's camera rect, the stair decks. GR-LV2: up to the well, which has its own rect.</summary>
+        public static readonly Rect2 Room1CameraBounds = new(0f, 0f, WellDeckWestEndX, LevelHeight);
+
+        /// <summary>
+        /// GR-LV2: the Well Deck, 2400-3400, and the Davit line above it. The step line crosses
+        /// the open well: a solid step, a crumbling one and a one-way one, then down to D2. Both
+        /// ramps stay walkable, because hull step 1 floods the trench, and a one-way stands dry
+        /// over the water as a way up. Every number is provisional (<c>PROVISIONAL-TRAVERSAL-RULES</c>).
+        /// </summary>
+        private void BuildWellDeck() {
+            TraversalStretch well = BeginStretch(WellDeckStretchID, "titanic_room_well_deck",
+                WellDeckMinX, WellDeckMaxX, DeckD2, WellDeckWestEndX, WellDeckEastStartX, 0f);
+            BuildRoomDecoration(WellDeckMinX, "titanic_room_well_deck", new Color(0.55f, 0.7f, 0.8f));
+            BuildStretchTrench(well);
+            // D2 resumes under the boiler casing's entry barrier: that barrier needs floor under it.
+            BuildFloor(WellDeckEastStartX, DeckD2, 3500f - WellDeckEastStartX);
+
+            TraversalSurface westStep = BuildStretchStep(well, 2560f, 1040f, 200f);
+            BuildStretchStep(well, 2810f, 980f, 180f, StretchStepKind.Crumbling, "level_05.crumbling_well_deck");
+            TraversalSurface eastStep = BuildStretchStep(well, 3060f, 982f, 200f, StretchStepKind.OneWay);
+
+            // Off the line: a dry way up out of the water, under the one-way step.
+            BuildOneWayPlatform(3040f, 1110f, 200f);
+
+            // The Davit line. Its base-kit line climbs east and back west, and ends in a 245 px hop.
+            OptionalRoute davit = BeginOptionalRoute(DavitRouteID, SecretSourceID,
+                SecretCachePosition.Value, eastStep);
+            BuildRouteStep(davit, 3120f, 850f, 120f);
+            TraversalSurface burstFrom = BuildRouteStep(davit, 3255f, 740f, 160f);
+            BuildRouteStep(davit, 3005f, 640f, 180f);
+            TraversalSurface end = BuildRouteStep(davit, DavitEndX, 640f, 220f);
+            davit.MarkBurstShortcut(burstFrom, end);
+            davit.MarkRiseShortcut(westStep, end);
+        }
 
         private void BuildRoom2BoilerCasing() {
             BuildRoomBackground("BG_Room2", Room2StartX, Room3StartX - Room2StartX, LevelHeight,

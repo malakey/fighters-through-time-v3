@@ -452,9 +452,9 @@ public class Level13ContentTests {
             AssertThat(seenIDs.Add(rift.RiftID))
                 .OverrideFailureMessage($"Duplicate rift id '{rift.RiftID}'.").IsTrue();
             AssertThat(rift.RiftID.StartsWith("level_13.", StringComparison.Ordinal)).IsTrue();
-            // The Package 1 contract: more than two seconds inside snaps the player
+            // The Package 1 contract: more than RiftSnapDelaySeconds inside snaps the player
             // roughly three seconds into their own past, with damage.
-            AssertFloat(rift.SnapDelay).IsEqualApprox(2f, 0.001f);
+            AssertFloat(rift.SnapDelay).IsEqualApprox(Level13Controller.RiftSnapDelaySeconds, 0.001f);
             AssertThat(rift.HistoryFramesAgo).IsEqual(180);
             AssertThat(rift.SnapDamage).IsGreater(0);
             // They sit on the shelf: the low road is the one that costs.
@@ -787,7 +787,8 @@ public class Level13ContentTests {
         using var fixture = new VoidFixture(null);
         Level13Controller level = fixture.Level;
         List<string> issues = LevelLockTestKit.LayoutIssues(level, Level13Controller.SpawnTable, new[] {
-            new LevelLockTestKit.LockLayout(Level13Controller.LockThreshold, 320f, 3200f,
+            // GR-LV5 carved the Threshold from the west (it was 320–3200): the stair is the Fragment Stair.
+            new LevelLockTestKit.LockLayout(Level13Controller.LockThreshold, 1880f, 3200f,
                 new[] { new LevelLockTestKit.WaveLayout(Level13Controller.Wave1RowID, 1, EncounterWaveTrigger.OnBuild) }),
             new LevelLockTestKit.LockLayout(Level13Controller.LockDrift, 3220f, 5100f,
                 new[] { new LevelLockTestKit.WaveLayout(Level13Controller.Wave2RowID, 2, EncounterWaveTrigger.OnBuild) }),

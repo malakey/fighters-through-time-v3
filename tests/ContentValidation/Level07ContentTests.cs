@@ -561,9 +561,12 @@ public class Level07ContentTests {
         using var fixture = new NassauFixture(null);
         AssertThat(fixture.Level.RoomTriggers.Count).IsGreaterEqual(4);
         foreach (RoomTransitionTrigger trigger in fixture.Level.RoomTriggers) {
+            // GR-LV3: the Careening Yard opens the level, so its rect (0-1700) can only be as wide
+            // as the span before the quay lock. It still holds more than the zoomed view.
+            float narrowest = trigger.RoomID == Level07Controller.YardRoomKey ? TraversalRules.MinCameraWidthPixels : 1920f;
             AssertFloat(trigger.CameraBounds.Size.X)
-                .OverrideFailureMessage($"Room '{trigger.RoomID}' confines narrower than the 1920 px viewport.")
-                .IsGreaterEqual(1920f);
+                .OverrideFailureMessage($"Room '{trigger.RoomID}' confines narrower than {narrowest} px.")
+                .IsGreaterEqual(narrowest);
             // Level agents never set CameraPath; the base back-fills it (A1 deviation).
             AssertThat(trigger.CameraPath == null || trigger.CameraPath.IsEmpty).IsFalse();
         }
@@ -642,7 +645,7 @@ public class Level07ContentTests {
         AssertThat(level.EncounterLocks.Count).IsEqual(2);
 
         var expected = new (EncounterLock Lock, string ID, float MinX, float MaxX, int[] Waves, EncounterWaveTrigger[] Triggers)[] {
-            (level.QuayLock, Level07Controller.LockQuay, 300f, 3500f, new[] { 1, 2 },
+            (level.QuayLock, Level07Controller.LockQuay, 1720f, 3500f, new[] { 1, 2 },
                 new[] { EncounterWaveTrigger.OnBuild, EncounterWaveTrigger.WhenAliveAtMost }),
             (level.BoardingLock, Level07Controller.LockBoarding, 5780f, 8480f, new[] { 3, 4 },
                 new[] { EncounterWaveTrigger.OnBuild, EncounterWaveTrigger.AfterPreviousCleared })
@@ -659,7 +662,8 @@ public class Level07ContentTests {
                 AssertThat(IsOnSolidDeck(barrier.CenterX))
                     .OverrideFailureMessage($"'{id}''s barrier at {barrier.CenterX} stands over water.").IsTrue();
             }
-            AssertThat(encounterLock.Spec.Waves.Length).IsEqual(waves.Length);
+            // GR-LV3: the quay lock also takes the swarm row, after its two authored waves.
+            AssertThat(encounterLock.Spec.Waves.Length).IsEqual(waves.Length + (encounterLock == level.QuayLock ? 1 : 0));
             for (int index = 0; index < waves.Length; index++) {
                 EncounterLockWave wave = encounterLock.Spec.Waves[index];
                 AssertString(wave.RowID).IsEqual(Level07Controller.WaveRowID(waves[index]));
@@ -686,6 +690,7 @@ public class Level07ContentTests {
         AssertThat(claimed.Count).IsEqual(Level07Controller.WaveCount);
         // The quay's reinforcements come when one dockside fighter is left.
         AssertThat(level.QuayLock.Spec.Waves[1].AliveAtMost).IsEqual(1);
+        AssertString(level.QuayLock.Spec.Waves[2].RowID).IsEqual(Level07Controller.SwarmRowID);
 
         // The anchors stand clear of both elites (both spawn on the ramp, behind
         // the boarding lock's exit), and outside both locks.

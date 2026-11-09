@@ -47,6 +47,13 @@ namespace FTT.Environment {
     /// the arrays alone). The artillery stays live through every lock. Six spawns
     /// that stood inside a cover piece moved clear of it, and the Middle anchor moved
     /// off the sandbags in the Wheatfield fight to the gap before the Angle (6340).</para>
+    ///
+    /// <para><b>The Sunken Road</b> (GR-LV4, rulings 7a, 7b, 7c, 7c+): Seminary Ridge's lock
+    /// now ends at 2000, and the span to the Wheatfield (2020-3200) is a traversal stretch
+    /// with the ridge battery's Extractor at the end of its route. The 2600 sandbags moved to
+    /// 3470, which is still the gap between the 1900 and 3650 columns, so the fairness
+    /// contract holds. The Wheatfield and the Angle each take a swarm row (ruling 1b++, the
+    /// two-row case), and a launched swarmling dies in an artillery column (ruling 7d).</para>
     /// </summary>
     public partial class Level11Controller : StoryLevelControllerBase {
 
@@ -89,7 +96,7 @@ namespace FTT.Environment {
         /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
         /// per-hero median measurement pass.
         /// </summary>
-        public override float ParSeconds => 360f;
+        public override float ParSeconds => TraversalRules.ParWithStretches(360f, 1);
         public override string LevelTitleKey => "gettysburg_level_title";
         public override string DialogueSetPath => DialogueResourcePath;
         public override Vector2 PlayerSpawnPosition => new(200, EnemyGroundY);
@@ -180,7 +187,7 @@ namespace FTT.Environment {
         /// </summary>
         private const float LaneRoofWidth = 140f;
 
-        public static readonly Rect2 Room1CameraBounds = new(Room1StartX, 0, 3200, LevelHeight);
+        public static readonly Rect2 Room1CameraBounds = new(Room1StartX, 0, SunkenRoadWestDeckEndX, LevelHeight);
         public static readonly Rect2 Room2CameraBounds = new(Room2StartX, 0, 3200, LevelHeight);
         public static readonly Rect2 Room3CameraBounds = new(Room3StartX, 0, 2560, LevelHeight);
         public static readonly Rect2 Room4CameraBounds = new(Room4StartX, 0, 2560, LevelHeight);
@@ -216,7 +223,8 @@ namespace FTT.Environment {
         public static readonly (float X, CoverKind Kind)[] CoverPositions = {
             (690f, CoverKind.Sandbags),
             (1520f, CoverKind.SplitRailFence),
-            (2600f, CoverKind.Sandbags),
+            // GR-LV4: 2600 -> 3470. The stretch took its floor, and this is the same gap.
+            (3470f, CoverKind.Sandbags),
             (3925f, CoverKind.SplitRailFence),
             (4475f, CoverKind.CannonWreck),
             (5025f, CoverKind.Sandbags),
@@ -245,11 +253,13 @@ namespace FTT.Environment {
         /// <para>GU-L8 (2026-10-12): every spawn and patrol point stands clear of every
         /// cover piece (a body inside a cover's span was pushed up onto it): the first
         /// rifleman moved 1500 -> 1320, west of the 1520 fence.</para>
+        /// <para>GR-LV4: the carve moved the slasher 2150 -> 1760 and the last rifleman
+        /// 2900 -> 1975, inside the lock and clear of the 1900 column's centre.</para>
         /// </summary>
         public static readonly (string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] Room1Spawns = {
             ("laser_rifle_infantry", new Vector2(1320, EnemyGroundY), new Vector2(1240, EnemyGroundY), new Vector2(1390, EnemyGroundY)),
-            ("chrono_slasher", new Vector2(2150, EnemyGroundY), new Vector2(2050, EnemyGroundY), new Vector2(2280, EnemyGroundY)),
-            ("laser_rifle_infantry", new Vector2(2900, EnemyGroundY), null, null)
+            ("chrono_slasher", new Vector2(1760, EnemyGroundY), new Vector2(1680, EnemyGroundY), new Vector2(1830, EnemyGroundY)),
+            ("laser_rifle_infantry", new Vector2(1975, EnemyGroundY), null, null)
         };
 
         /// <summary>
@@ -300,7 +310,8 @@ namespace FTT.Environment {
         /// beyond an array's pane, so sabotaging an array pays twice.
         /// </summary>
         public static readonly (string ID, Vector2 Position)[] ExtractorPlacements = {
-            ("level_11.extractor_ridge_battery", new Vector2(2750, 590)),
+            // GR-LV4: on the Battery Line's last platform, 72 px over its top.
+            ("level_11.extractor_ridge_battery", new Vector2(BatteryLineEndX, 238)),
             ("level_11.extractor_wheatfield_lane", new Vector2(5980, 500)),
             ("level_11.extractor_angle_lane", new Vector2(8080, 500))
         };
@@ -328,9 +339,9 @@ namespace FTT.Environment {
 
         private const float BarrierWidth = EncounterLockRules.DefaultBarrierWidthPixels;
 
-        /// <summary>Seminary Ridge: the whole first room past the entry anchor (200).</summary>
+        /// <summary>Seminary Ridge: the first room past the entry anchor (200), carved by GR-LV4 from 3200 to 2000.</summary>
         public const float SeminaryRidgeLockMinX = 300f;
-        public const float SeminaryRidgeLockMaxX = Room2StartX;
+        public const float SeminaryRidgeLockMaxX = 2000f;
 
         /// <summary>
         /// The Wheatfield, with array Alpha a condition: the Angle needs both arrays
@@ -406,6 +417,7 @@ namespace FTT.Environment {
 
         protected override void BuildLevel() {
             BuildRoom1SeminaryRidge();
+            BuildSunkenRoad();
             BuildRoom2Wheatfield();
             BuildRoom3TheAngle();
             BuildRoom4Railcut();
@@ -446,14 +458,18 @@ namespace FTT.Environment {
                 EntryBarrierX = WheatfieldLockMinX - BarrierWidth * 0.5f,
                 ExitBarrierX = WheatfieldLockMaxX + BarrierWidth * 0.5f,
                 BarrierFloorY = GroundY,
-                Waves = new[] { EncounterLockWave.FromTable(Room2RowID, Room2Spawns, EncounterWaveTrigger.OnBuild) },
+                Waves = new[] {
+                    EncounterLockWave.FromTable(Room2RowID, Room2Spawns, EncounterWaveTrigger.OnBuild),
+                    SwarmWave(WheatfieldSwarmRowID, EnemyGroundY, WheatfieldSwarmSpawnXs)
+                },
                 RequiredBreakables = alpha,
                 GoDirection = EncounterGoDirection.Right
             });
             // The Angle: the ridge line holds the field; the stone wall pair comes
             // over the wall when the line is down to one, and the commander rides in
             // when the wall is down to one. Both arrays down and every member down
-            // open the breastwork's barrier.
+            // open the breastwork's barrier. GR-LV4: the swarm comes at two left of the
+            // ridge line, so it arrives before the pair and the commander.
             var angle = EncounterLockWave.FromTable(AngleRowID, AngleSpawns, EncounterWaveTrigger.WhenAliveAtMost);
             angle.AliveAtMost = 1;
             var elite = EncounterLockWave.FromTable(EliteRowID, EliteSpawns, EncounterWaveTrigger.WhenAliveAtMost);
@@ -467,6 +483,7 @@ namespace FTT.Environment {
                 BarrierFloorY = GroundY,
                 Waves = new[] {
                     EncounterLockWave.FromTable(Room3RowID, Room3Spawns, EncounterWaveTrigger.OnBuild),
+                    SwarmWave(AngleSwarmRowID, EnemyGroundY, AngleSwarmSpawnXs),
                     angle,
                     elite
                 },
@@ -481,26 +498,74 @@ namespace FTT.Environment {
         /// </summary>
         private void BuildRoom1SeminaryRidge() {
             BuildRoomBackground("BG_Room1", Room1StartX, 3200, LevelHeight, new Color(0.10f, 0.09f, 0.07f, 0.35f));
-            BuildFloor(Room1StartX, GroundY, 3200);
+            BuildFloor(Room1StartX, GroundY, SunkenRoadWestDeckEndX);
             BuildWall(-20, 0, LevelHeight);
-
-            // Modest verticality: a battery ridge, not a tower. G5 (2026-10-04):
-            // the step sat at 730 (top 720), 58 px under the ridge Extractor's
-            // underside (662, it hangs 14 px through the ridge platform) — inside
-            // the one-way's 12 px landing margin below the 64 px hero, so a hero
-            // jumping up through it there was pushed onto it and wedged. At 750
-            // (top 740) it leaves 78 px. The step sits under the ridge's west
-            // end, so the ridge is climbed from the sandbags in front of it
-            // (2600, top 780): the play bot's simulated jumps find that route
-            // for Lincoln, Joan and Cleopatra.
-            BuildOneWayPlatform(2680, 750, 160);
-            BuildPlatform(2750, 640, 240);
 
             BuildCheckpoint(200, EnemyGroundY, Checkpoint0, CheckpointRole.Entry);
             BuildRoomDecoration(Room1StartX, "gettysburg_room_seminary_ridge", new Color(0.85f, 0.78f, 0.42f));
             BuildRoomTransition("gettysburg_room_seminary_ridge", new Vector2(300, 600), Room1CameraBounds);
             // Package 13 W4 (S30): the Union headquarters tent and its silent telegraph.
             BuildAbsenceTrigger(new Vector2(1400, GroundY - 200));
+        }
+
+        // === GR-LV4 (rulings 7a, 7b, 7c, 7c+, 1b++): the Sunken Road ==============
+
+        public const string SunkenRoadStretchID = "level_11.sunken_road";
+        public const string BatteryLineRouteID = "level_11.battery_line";
+        public const string RidgeBatteryExtractorID = "level_11.extractor_ridge_battery";
+
+        /// <summary>The stretch's span: Seminary Ridge's exit barrier to the Wheatfield's entry barrier.</summary>
+        public const float SunkenRoadMinX = SeminaryRidgeLockMaxX + BarrierWidth;
+        public const float SunkenRoadMaxX = Room2StartX;
+        /// <summary>Where the ridge's floor ends, the west ramp's high joint.</summary>
+        public const float SunkenRoadWestDeckEndX = 2060f;
+        /// <summary>Where the deck resumes, the east ramp's high joint.</summary>
+        public const float SunkenRoadEastDeckStartX = 3160f;
+        /// <summary>The Battery Line's last platform, which holds the ridge battery's Extractor.</summary>
+        public const float BatteryLineEndX = 3035f;
+
+        /// <summary>The swarm rows (ruling 1b++, the two-row case): the Wheatfield's firefight and the Angle's line.</summary>
+        public const string WheatfieldSwarmRowID = "level_11.swarm1";
+        public const string AngleSwarmRowID = "level_11.swarm2";
+
+        /// <summary>Ten: the Wheatfield is wider than 2,800 px. Every one stands in a gap, clear of the cover.</summary>
+        public static readonly float[] WheatfieldSwarmSpawnXs = { 3700f, 3760f, 4100f, 4280f, 4640f, 4840f, 5180f, 5380f, 5730f, 5950f };
+        /// <summary>Eight along the ridge line, clear of the cover and on the floor under the flank platform.</summary>
+        public static readonly float[] AngleSwarmSpawnXs = { 6560f, 6700f, 7080f, 7220f, 7640f, 7900f, 8320f, 8600f };
+
+        /// <summary>
+        /// The stretch between Seminary Ridge and the Wheatfield. The road is a trench with a
+        /// shell lane to cross under a mantlet; the line runs over it to a wall at the east
+        /// end, as Level 2's Rampart does. A hero in the trench walks out by the west ramp,
+        /// climbs the one-way or double-jumps the wall. Every number is provisional
+        /// (<c>PROVISIONAL-TRAVERSAL-RULES</c>).
+        /// </summary>
+        private void BuildSunkenRoad() {
+            TraversalStretch road = BeginStretch(SunkenRoadStretchID, "gettysburg_room_sunken_road",
+                SunkenRoadMinX, SunkenRoadMaxX, GroundY, SunkenRoadWestDeckEndX, SunkenRoadEastDeckStartX, Room1StartX);
+            BuildRoomDecoration(SunkenRoadMinX, "gettysburg_room_sunken_road", new Color(0.8f, 0.72f, 0.42f));
+            BuildStretchTrench(road);
+            // The deck resumes under the Wheatfield's entry barrier: that barrier needs floor under it.
+            BuildFloor(SunkenRoadEastDeckStartX, GroundY, SunkenRoadMaxX - SunkenRoadEastDeckStartX);
+
+            BuildStretchStep(road, 2170f, 790f, 200f);
+            BuildStretchStep(road, 2430f, 720f, 180f, StretchStepKind.Crumbling, "level_11.crumbling_sunken_road");
+            TraversalSurface middleStep = BuildStretchStep(road, 2700f, 722f, 200f, StretchStepKind.OneWay);
+            TraversalSurface eastStep = BuildStretchStep(road, 2970f, 720f, 200f);
+            BuildStretchWallStep(road, 3150f, 690f, 940f);
+
+            // Off the line: a way back up out of the trench, and a shell lane on the artillery's numbers.
+            BuildOneWayPlatform(2640f, 870f, 200f);
+            BuildCyclicHazardLane("level_11.shell_sunken_road", 2850f, road.TrenchFloorY, 2f, 0.7f, 2.6f, 22, withCover: true);
+
+            OptionalRoute line = BeginOptionalRoute(BatteryLineRouteID, RidgeBatteryExtractorID,
+                new Vector2(BatteryLineEndX, 238f), middleStep);
+            BuildRouteStep(line, 2560f, 530f, 120f);
+            TraversalSurface burstFrom = BuildRouteStep(line, 2340f, 420f, 160f);
+            BuildRouteStep(line, 2590f, 320f, 180f);
+            TraversalSurface end = BuildRouteStep(line, BatteryLineEndX, 320f, 220f);
+            line.MarkBurstShortcut(burstFrom, end);
+            line.MarkRiseShortcut(eastStep, end);
         }
 
         /// <summary>
@@ -581,8 +646,13 @@ namespace FTT.Environment {
             BuildRoomDecoration(Room4StartX, "gettysburg_room_railcut", new Color(0.95f, 0.33f, 0.24f));
             BuildRoomTransition("gettysburg_room_railcut", new Vector2(Room4StartX + 30, 540), Room4CameraBounds);
 
-            BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, EnemyGroundY),
+            _cannonEncounter = BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, EnemyGroundY),
                 "siege_cannon_encounter", BossArenaBounds);
+            BuildRailcutFences();
+            if (_cannonEncounter != null) {
+                _cannonEncounter.PhaseEntered += OnCannonPhaseEntered;
+                _cannonEncounter.BossDefeated += _ => EndRailcutSecondAct();
+            }
         }
 
         /// <summary>

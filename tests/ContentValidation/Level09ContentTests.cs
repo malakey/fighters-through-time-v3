@@ -90,7 +90,8 @@ public class Level09ContentTests {
         AssertThat(level.LevelBounds.Size.X >= 9000f && level.LevelBounds.Size.X <= 11000f).IsTrue();
         // Taller than the 1080 reference so the guard towers are real verticality.
         AssertThat(level.LevelBounds.Size.Y > 1080f).IsTrue();
-        AssertThat(level.RoomTriggers.Count).IsEqual(4);
+        // Four rooms, and GR-LV3's Beach Run.
+        AssertThat(level.RoomTriggers.Count).IsEqual(5);
 
         foreach (RoomTransitionTrigger room in level.RoomTriggers) {
             AssertThat(string.IsNullOrWhiteSpace(room.RoomID)).IsFalse();
@@ -289,7 +290,7 @@ public class Level09ContentTests {
 
         // Assert the band against the resource rather than a hardcoded width, so
         // re-tuning the boss cannot silently outgrow the arena.
-        Rect2 arena = fixture.Level.RoomTriggers[3].CameraBounds;
+        Rect2 arena = fixture.Level.RoomTriggers[4].CameraBounds;
         AssertThat(arena.Size.X > boss.RangedRangeThreshold * PixelsPerUnit)
             .OverrideFailureMessage(
                 $"The bunker street is {arena.Size.X} px but the boss ranged band is " +
@@ -515,10 +516,10 @@ public class Level09ContentTests {
         AssertString(lanternWatch.LockID).IsEqual(Level09Controller.LockLanternWatch);
         AssertString(stormAnchor.LockID).IsEqual(Level09Controller.LockStormAnchor);
 
-        // The areas: the seawall 300-2860, the Lantern Watch 3150-6350 (one room wide,
+        // The areas: the seawall 300-2000 (GR-LV3's carve), the Lantern Watch 3150-6350 (one room wide,
         // to the boarding gate) and the storm-anchor ship 6620-8560.
         AssertThat(seawall.Area.Position.X).IsEqual(300f);
-        AssertThat(seawall.Area.End.X).IsEqual(2860f);
+        AssertThat(seawall.Area.End.X).IsEqual(2000f);
         AssertThat(lanternWatch.Area.Position.X).IsEqual(3150f);
         AssertThat(lanternWatch.Area.End.X).IsEqual(6350f);
         AssertThat(stormAnchor.Area.Position.X).IsEqual(6620f);
@@ -551,7 +552,8 @@ public class Level09ContentTests {
             foreach ((string enemyID, int entryWave, Vector2 _) in Level09Controller.SpawnTable) {
                 if (entryWave == wave) authored.Add(enemyID);
             }
-            AssertThat(encounterLock.Spec.Waves.Length).IsEqual(1);
+            // GR-LV3: the seawall also takes the swarm row, after its authored wave.
+            AssertThat(encounterLock.Spec.Waves.Length).IsEqual(encounterLock == seawall ? 2 : 1);
             AssertString(encounterLock.Spec.Waves[0].RowID).IsEqual($"level_09.wave{wave}");
             AssertString(string.Join(",", encounterLock.Spec.Waves[0].EnemyIDs)).IsEqual(string.Join(",", authored));
             AssertThat(encounterLock.Spec.Waves[0].Trigger).IsEqual(trigger);

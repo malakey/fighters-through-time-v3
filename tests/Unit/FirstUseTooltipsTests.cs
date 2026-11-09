@@ -10,7 +10,7 @@ namespace FTT.Tests.Unit;
 /// <summary>
 /// Package 13 W3 (S02): the skip path's first-use tooltips — the ledger rules
 /// (<see cref="FirstUseTooltips"/>) and the two additive save fields that carry
-/// them. A Full-Calibration slot (every pre-v8 slot included) never shows one; a
+/// them. A Full-Calibration slot (every pre-v8 slot included) shows only special_momentum; a
 /// Skip slot shows each of the ten once (the tenth, special_momentum, is GR-SCHED's: Special 1 on
 /// Level 1). Pure C# (failure signature 7).
 /// </summary>
@@ -18,10 +18,11 @@ namespace FTT.Tests.Unit;
 public class FirstUseTooltipsTests {
 
     [TestCase]
-    public void AFullCalibrationSlotNeverShowsATooltip() {
+    public void AFullCalibrationSlotShowsNoneOfTheSkippedLessons() {
         var save = new StorySaveData();
         AssertThat(save.SkippedCalibration).IsFalse();
         foreach (string id in FirstUseTooltips.All) {
+            if (FirstUseTooltips.ShowsOnEverySlot(id)) continue; // GR-LV1: no calibration teaches Specials.
             AssertThat(FirstUseTooltips.ShouldShow(save, id)).IsFalse();
             AssertThat(FirstUseTooltips.TryConsume(save, id)).IsFalse();
         }
@@ -60,9 +61,14 @@ public class FirstUseTooltipsTests {
         AssertThat(FirstUseTooltips.SpecialMomentumDue(0, true)).IsFalse();
         AssertThat(FirstUseTooltips.SpecialMomentumDue(2, true)).IsFalse();
 
-        // Like every first-use tooltip it shows once per slot, and only on a skipped-calibration one.
+        // GR-LV1: it shows once per slot on every slot, because no calibration teaches Specials,
+        // and it is the only tooltip a full-calibration slot shows.
         var full = new StorySaveData();
+        AssertThat(FirstUseTooltips.TryConsume(full, FirstUseTooltips.SpecialMomentum)).IsTrue();
         AssertThat(FirstUseTooltips.TryConsume(full, FirstUseTooltips.SpecialMomentum)).IsFalse();
+        foreach (string other in FirstUseTooltips.All) {
+            if (other != FirstUseTooltips.SpecialMomentum) AssertThat(FirstUseTooltips.ShouldShow(full, other)).IsFalse();
+        }
         var skipped = new StorySaveData();
         FirstUseTooltips.ArmForSkippedCalibration(skipped);
         AssertThat(FirstUseTooltips.TryConsume(skipped, FirstUseTooltips.SpecialMomentum)).IsTrue();
