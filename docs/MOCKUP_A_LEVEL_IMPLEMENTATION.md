@@ -24,7 +24,6 @@ All 47 art imports exited successfully and the project build exited successfully
 
 Open [`artifacts/mockup_a_validation/index.html`](../artifacts/mockup_a_validation/index.html) for the reference-versus-capture gallery. It pairs each of the 16 clean story opening captures and 10 Fighter arena captures with its selected A reference and links to the corresponding source PNG and capture artifact. The seated cinematic study is not used as gameplay art.
 
+## After the gameplay review package
 
-
-
-
+The openings replace the generated collision in a level's first 800 px, and the package's traversal stretches on Levels 7 and 13 begin inside that frame, so those two profiles state the stretch's collision. Level 7's plate still draws the pier ending at x 322, so its first screen no longer matches its collision (ledger `VERIFY-MOCKUP-OPENING-L07-ART`).
